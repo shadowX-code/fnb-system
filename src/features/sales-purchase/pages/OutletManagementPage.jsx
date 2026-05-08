@@ -1,0 +1,74 @@
+import { useState } from "react";
+import { Plus, Settings, Trash2 } from "lucide-react";
+import Badge from "../../../components/ui/Badge.jsx";
+import Card from "../../../components/ui/Card.jsx";
+import DataTable from "../../../components/tables/DataTable.jsx";
+import EntityModal from "../components/EntityModal.jsx";
+import { operationsService } from "../services/operationsService.js";
+
+export default function OutletManagementPage({ store, setStore, ui }) {
+  const [modal, setModal] = useState(null);
+  const fields = [
+    { name: "name", label: "Outlet Name", placeholder: "Outlet name" },
+    { name: "code", label: "Outlet Code", placeholder: "HIPB" },
+    { name: "location", label: "Location", placeholder: "City / area" },
+    {
+      name: "status",
+      label: "Status",
+      type: "select",
+      options: [
+        { value: "active", label: "Active" },
+        { value: "inactive", label: "Inactive" },
+      ],
+    },
+  ];
+  const columns = [
+    { key: "name", header: "Outlet Name", sticky: true, render: (row) => <span className="font-semibold">{row.name}</span> },
+    { key: "code", header: "Code" },
+    { key: "location", header: "Location" },
+    { key: "status", header: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge> },
+    {
+      key: "action",
+      header: "Action",
+      align: "right",
+      render: (row) => (
+        <div className="flex justify-end gap-2">
+          <button className="icon-btn" onClick={() => setModal({ mode: "edit", row })}><Settings size={15} /></button>
+          <button className="icon-btn" onClick={async () => {
+            if (await ui.confirm({ title: "Deactivate outlet?", message: `${row.name} will stay in historical records but be hidden from default active selectors.`, danger: true, confirmLabel: "Deactivate" })) {
+              setStore((current) => operationsService.deactivateOutlet(current, row.id));
+              ui.notify({ title: "Outlet deactivated", message: row.name });
+            }
+          }}><Trash2 size={15} /></button>
+        </div>
+      ),
+    },
+  ];
+  return (
+    <div className="space-y-5">
+      <Card title="Outlets" description="All sales and purchase records bind to outlet_id." action={<button className="btn-primary" onClick={() => setModal({ mode: "add" })}><Plus size={16} /> Add Outlet</button>}>
+        <DataTable columns={columns} rows={store.outlets} getRowKey={(row) => row.id} />
+      </Card>
+      {modal ? (
+        <EntityModal
+          title={modal.mode === "add" ? "Add Outlet" : "Edit Outlet"}
+          description="Outlet code and location are used in reports and imports."
+          fields={fields}
+          initialValues={modal.row ?? { name: "", code: "", location: "", status: "active" }}
+          onClose={() => setModal(null)}
+          onSubmit={(values) => {
+            if (!values.name?.trim()) return ui.notify({ title: "Outlet name required", tone: "error" });
+            if (modal.mode === "add") {
+              const result = operationsService.addOutlet(store, values.name, values.code, values.location);
+              setStore(result.state);
+            } else {
+              setStore((current) => operationsService.updateOutlet(current, modal.row.id, values));
+            }
+            setModal(null);
+            ui.notify({ title: "Outlet saved", message: values.name });
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}

@@ -1,0 +1,230 @@
+import { useEffect, useMemo, useState } from "react";
+import { Plus, Save, Trash2 } from "lucide-react";
+import Card from "../../../components/ui/Card.jsx";
+import Badge from "../../../components/ui/Badge.jsx";
+import DataTable from "../../../components/tables/DataTable.jsx";
+import PeriodFilterBar from "../components/PeriodFilterBar.jsx";
+import SummaryPanel from "../components/SummaryPanel.jsx";
+import usePeriodFilters from "../hooks/usePeriodFilters.js";
+import { operationsService } from "../services/operationsService.js";
+import { getPreviousPeriod, percentageChange, sumAmount, toCurrency, toPercent } from "../utils/analytics.js";
+
+function getLock(store, outletId, month, year) {
+  return store.monthlyLocks.find((lock) => lock.outlet_id === outletId && lock.month === month && lock.year === year);
+}
+
+function buildSalesRows(store, outletId, month, year) {
+  return store.salesChannels.map((channel) => {
+    const record = store.salesRecords.find(
+      (item) =>
+        item.outlet_id === outletId &&
+        item.month === month &&
+        item.year === year &&
+        item.channel_id === channel.id,
+    );
+    return {
+      id: record?.id,
+      channel_id: channel.id,
+      channelName: channel.name,
+      amount: record?.amount ?? 0,
+      remark: record?.remark ?? "",
+    };
+  });
+}
+
+export default function SalesInputPage({ store, setStore, ui }) {
+  const filters = usePeriodFilters(store);
+  const [saveState, setSaveState] = useState("draft");
+  const [rows, setRows] = useState(() => buildSalesRows(store, filters.outletId, filters.month, filters.year));
+
+  const isLocked = Boolean(getLock(store, filters.outletId, filters.month, filters.year)?.is_locked);
+  function reloadRows(next = filters) {
+    setRows(buildSalesRows(store, next.outletId, next.month, next.year));
+    setSaveState("draft");
+  }
+
+  useEffect(() => {
+    setRows(buildSalesRows(store, filters.outletId, filters.month, filters.year));
+  }, [filters.month, filters.outletId, filters.year, store.salesChannels, store.salesRecords]);
+
+  const netSales = Number(rows.find((row) => row.channel_id === "channel-net-sales")?.amount) || 0;
+  const previous = getPreviousPeriod(filters.month, filters.year);
+  const highest = rows.filter((row) => row.channel_id !== "channel-net-sales" && Number(row.amount) > 0).sort((a, b) => b.amount - a.amount)[0];
+  const lowest = rows.filter((row) => row.channel_id !== "channel-net-sales" && Number(row.amount) > 0).sort((a, b) => a.amount - b.amount)[0];
+
+  const columns = useMemo(
+    () => [
+      {
+        key: "channel",
+        header: "Channel",
+        sticky: true,
+        render: (row) => (
+          <div className="flex items-center gap-2">
+            <span className="font-semibold text-text-primary">{row.channelName}</span>
+            {row.channel_id === "channel-net-sales" ? <Badge tone="info">Total</Badge> : null}
+          </div>
+        ),
+      },
+      {
+        key: "amount",
+        header: "Amount (RM)",
+        render: (row, index) => (
+          <div>
+            <input
+              className="control w-36"
+              type="number"
+              disabled={isLocked}
+              value={row.amount}
+              onChange={(event) =>
+                setRows((current) =>
+                  current.map((item, itemIndex) =>
+                    itemIndex === index ? { ...item, amount: event.target.value } : item,
+                  ),
+                )
+              }
+            />
+            {row.amount === "" ? <div className="mt-1 text-xs font-semibold text-rose-600">Amount required</div> : null}
+          </div>
+        ),
+      },
+      {
+        key: "share",
+        header: "% of Total",
+        align: "right",
+        render: (row) => (row.channel_id === "channel-net-sales" ? "100%" : toPercent(netSales ? (Number(row.amount) / netSales) * 100 : 0)),
+      },
+      {
+        key: "vs",
+        header: "vs Previous Period",
+        align: "right",
+        render: (row) => {
+          const previousValue = sumAmount(
+            store.salesRecords.filter(
+              (record) =>
+                record.outlet_id === filters.outletId &&
+                record.month === previous.month &&
+                record.year === previous.year &&
+                record.channel_id === row.channel_id,
+            ),
+          );
+          const change = percentageChange(Number(row.amount), previousValue);
+          return <span className={change >= 0 ? "font-semibold text-emerald-600" : "font-semibold text-rose-600"}>{toPercent(change)}</span>;
+        },
+      },
+      {
+        key: "remark",
+        header: "Remark",
+        render: (row, index) => (
+          <input
+            className="control w-full"
+            disabled={isLocked}
+            value={row.remark}
+            placeholder="Optional"
+            onChange={(event) =>
+              setRows((current) =>
+                current.map((item, itemIndex) =>
+                  itemIndex === index ? { ...item, remark: event.target.value } : item,
+                ),
+              )
+            }
+          />
+        ),
+      },
+      {
+        key: "action",
+        header: "Action",
+        align: "right",
+        render: (row, index) =>
+          row.custom ? (
+            <button className="icon-btn" disabled={isLocked} onClick={() => setRows((current) => current.filter((_, rowIndex) => rowIndex !== index))}>
+              <Trash2 size={15} />
+            </button>
+          ) : (
+            <span className="text-text-muted">-</span>
+          ),
+      },
+    ],
+    [filters.outletId, isLocked, netSales, previous.month, previous.year, store.salesRecords],
+  );
+
+  return (
+    <div className="space-y-5">
+      <PeriodFilterBar
+        store={store}
+        filters={{
+          ...filters,
+          setOutletId: (value) => {
+            filters.setOutletId(value);
+            reloadRows({ ...filters, outletId: value });
+          },
+          setMonth: (value) => {
+            filters.setMonth(value);
+            reloadRows({ ...filters, month: value });
+          },
+          setYear: (value) => {
+            filters.setYear(value);
+            reloadRows({ ...filters, year: value });
+          },
+        }}
+        actions={
+          <>
+            <button className="btn-secondary" type="button" disabled={isLocked} onClick={() => {
+              setRows(buildSalesRows(store, filters.outletId, previous.month, previous.year).map((row) => ({ ...row, id: undefined, amount: row.channel_id === "channel-net-sales" ? row.amount : "" })));
+              ui.notify({ title: "Previous month imported", message: "Amounts were copied for review." });
+            }}>Import from Previous Month</button>
+            <button
+              className="btn-primary"
+              type="button"
+              disabled={isLocked}
+              onClick={() => {
+                if (rows.some((row) => row.amount === "" || Number.isNaN(Number(row.amount)))) {
+                  ui.notify({ title: "Validation warning", message: "Please fill all sales amounts before saving.", tone: "error" });
+                  return;
+                }
+                setStore((current) =>
+                  operationsService.upsertSalesData(current, {
+                    outletId: filters.outletId,
+                    month: filters.month,
+                    year: filters.year,
+                    salesRows: rows,
+                  }),
+                );
+                setSaveState("saved");
+                ui.notify({ title: "Sales data saved", message: `${filters.month}/${filters.year} sales records updated.` });
+              }}
+            >
+              <Save size={16} /> Save Sales Data
+            </button>
+          </>
+        }
+      />
+
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+        <Card
+          title="Sales Input"
+          description="Structured monthly sales by channel, not spreadsheet cells."
+          action={<button className="btn-secondary" type="button" disabled={isLocked} onClick={() => setRows((current) => [...current, { id: undefined, channel_id: `custom-${crypto.randomUUID()}`, channelName: "Custom Channel", amount: "", remark: "", custom: true }])}><Plus size={16} /> Add Custom Channel</button>}
+        >
+          <DataTable columns={columns} rows={rows} getRowKey={(row) => row.channel_id} />
+        </Card>
+
+        <SummaryPanel
+          title="Sales Summary"
+          items={[
+            { label: "Net Sales", value: toCurrency(netSales) },
+            { label: "Avg Daily Sales", value: toCurrency(netSales / 31) },
+            { label: "Highest Channel", value: highest?.channelName ?? "-" },
+            { label: "Lowest Channel", value: lowest?.channelName ?? "-" },
+            { label: "Save Status", value: saveState === "saved" ? "Saved" : "Draft" },
+          ]}
+        >
+          <div className="rounded-2xl bg-slate-50 p-4 text-sm text-text-secondary">
+            <div className="font-semibold text-text-primary">Quick Tips</div>
+            <p className="mt-2">Review delivery channels with low share before finalizing month data.</p>
+          </div>
+        </SummaryPanel>
+      </div>
+      {isLocked ? <div className="card border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700">This month is locked. Sales inputs are disabled until an admin unlocks it.</div> : null}
+    </div>
+  );
+}

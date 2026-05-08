@@ -1,0 +1,260 @@
+import { months } from "../data/mockData";
+
+export function toCurrency(value) {
+  return new Intl.NumberFormat("en-MY", {
+    style: "currency",
+    currency: "MYR",
+    maximumFractionDigits: Math.abs(Number(value || 0)) < 100 ? 2 : 0,
+  }).format(Number(value) || 0);
+}
+
+export function toSignedCurrency(value) {
+  const amount = Number(value) || 0;
+  if (amount < 0) return `(${toCurrency(Math.abs(amount))})`;
+  return toCurrency(amount);
+}
+
+export function toPercent(value, digits = 1) {
+  if (!Number.isFinite(value)) return "0.0%";
+  return `${value.toFixed(digits)}%`;
+}
+
+export function monthLabel(month) {
+  return months.find((item) => item.value === Number(month))?.label ?? "";
+}
+
+export function getPreviousPeriod(month, year) {
+  if (Number(month) === 1) return { month: 12, year: Number(year) - 1 };
+  return { month: Number(month) - 1, year: Number(year) };
+}
+
+export function sumAmount(records) {
+  return records.reduce((total, record) => total + Number(record.amount || 0), 0);
+}
+
+export function percentageChange(current, previous) {
+  if (!previous) return current ? 100 : 0;
+  return ((current - previous) / previous) * 100;
+}
+
+export function getNetSales(records, outletId, month, year) {
+  const netRecord = records.find(
+    (record) =>
+      record.outlet_id === outletId &&
+      record.month === month &&
+      record.year === year &&
+      record.channel_id === "channel-net-sales",
+  );
+  if (netRecord) return Number(netRecord.amount) || 0;
+  return sumAmount(
+    records.filter(
+      (record) =>
+        record.outlet_id === outletId &&
+        record.month === month &&
+        record.year === year &&
+        record.channel_id !== "channel-sst",
+    ),
+  );
+}
+
+export function getPurchaseTotal(records, outletId, month, year) {
+  return sumAmount(
+    records.filter((record) => record.outlet_id === outletId && record.month === month && record.year === year),
+  );
+}
+
+export function buildMonthlySummary({ salesRecords, purchaseRecords, outletId, year }) {
+  return months.map(({ value }) => {
+    const netSales = getNetSales(salesRecords, outletId, value, year);
+    const totalPurchase = getPurchaseTotal(purchaseRecords, outletId, value, year);
+    const cogsMargin = netSales ? (totalPurchase / netSales) * 100 : 0;
+
+    return {
+      month: value,
+      netSales,
+      totalPurchase,
+      cogsMargin,
+      profitMargin: netSales ? 100 - cogsMargin : 0,
+    };
+  });
+}
+
+export function getCategoryName(categories, id) {
+  return categories.find((category) => category.id === id)?.name ?? "Others";
+}
+
+export function getSupplierName(suppliers, id) {
+  return suppliers.find((supplier) => supplier.id === id)?.name ?? "Supplier";
+}
+
+export function buildAlerts({
+  outletId,
+  month,
+  year,
+  salesRecords,
+  purchaseRecords,
+  suppliers,
+  threshold = { cogsHighRisk: 40 },
+}) {
+  const currentPurchases = purchaseRecords.filter(
+    (record) => record.outlet_id === outletId && record.month === month && record.year === year,
+  );
+  const currentSales = getNetSales(salesRecords, outletId, month, year);
+  const currentPurchaseTotal = sumAmount(currentPurchases);
+  const previous = getPreviousPeriod(month, year);
+  const previousSales = getNetSales(salesRecords, outletId, previous.month, previous.year);
+  const previousPurchaseTotal = getPurchaseTotal(purchaseRecords, outletId, previous.month, previous.year);
+  const alerts = [];
+
+  currentPurchases.forEach((record) => {
+    const supplierName = getSupplierName(suppliers, record.supplier_id);
+    const previousSupplierAmount = sumAmount(
+      purchaseRecords.filter(
+        (item) =>
+          item.outlet_id === outletId &&
+          item.supplier_id === record.supplier_id &&
+          item.month === previous.month &&
+          item.year === previous.year,
+      ),
+    );
+    const previousChange = percentageChange(Number(record.amount), previousSupplierAmount);
+    if (previousSupplierAmount && previousChange > 30) {
+      alerts.push({
+        id: `alert-prev-${record.id}`,
+        alert_type: "supplier_purchase_spike",
+        severity: "medium",
+        title: `${supplierName} +${previousChange.toFixed(0)}%`,
+        description: "Supplier purchase is more than 30% above previous month.",
+        outlet_id: outletId,
+        month,
+        year,
+        related_supplier_id: record.supplier_id,
+        current_value: Number(record.amount),
+        comparison_value: previousSupplierAmount,
+        percentage_change: previousChange,
+        status: "open",
+        created_at: new Date().toISOString(),
+      });
+    }
+
+    const recentMonths = [month - 1, month - 2, month - 3].filter((value) => value > 0);
+    const recentAverage =
+      recentMonths.reduce(
+        (total, recentMonth) =>
+          total +
+          sumAmount(
+            purchaseRecords.filter(
+              (item) =>
+                item.outlet_id === outletId &&
+                item.supplier_id === record.supplier_id &&
+                item.month === recentMonth &&
+                item.year === year,
+            ),
+          ),
+        0,
+      ) / (recentMonths.length || 1);
+    const averageChange = percentageChange(Number(record.amount), recentAverage);
+    if (recentAverage && averageChange > 25) {
+      alerts.push({
+        id: `alert-avg-${record.id}`,
+        alert_type: "supplier_purchase_average_spike",
+        severity: "medium",
+        title: "Supplier Cost Spike",
+        description: `${supplierName} is above recent 3-month average.`,
+        outlet_id: outletId,
+        month,
+        year,
+        related_supplier_id: record.supplier_id,
+        current_value: Number(record.amount),
+        comparison_value: recentAverage,
+        percentage_change: averageChange,
+        status: "open",
+        created_at: new Date().toISOString(),
+      });
+    }
+  });
+
+  const salesChange = percentageChange(currentSales, previousSales);
+  const purchaseChange = percentageChange(currentPurchaseTotal, previousPurchaseTotal);
+  if (salesChange <= 0 && purchaseChange > 20) {
+    alerts.push({
+      id: `alert-sales-purchase-${outletId}-${year}-${month}`,
+      alert_type: "sales_down_purchase_up",
+      severity: "high",
+      title: "Sales Down but Purchase Up",
+      description: "Sales did not grow while total purchase increased by more than 20%.",
+      outlet_id: outletId,
+      month,
+      year,
+      current_value: currentPurchaseTotal,
+      comparison_value: previousPurchaseTotal,
+      percentage_change: purchaseChange,
+      status: "open",
+      created_at: new Date().toISOString(),
+    });
+  }
+
+  if (previousSales && salesChange < -15) {
+    alerts.push({
+      id: `alert-sales-drop-${outletId}-${year}-${month}`,
+      alert_type: "sales_drop",
+      severity: "medium",
+      title: "Sales Drop >15%",
+      description: "Net sales dropped more than 15% against previous period.",
+      outlet_id: outletId,
+      month,
+      year,
+      current_value: currentSales,
+      comparison_value: previousSales,
+      percentage_change: salesChange,
+      status: "open",
+      created_at: new Date().toISOString(),
+    });
+  }
+
+  const sstRecord = salesRecords.find(
+    (record) =>
+      record.outlet_id === outletId &&
+      record.month === month &&
+      record.year === year &&
+      record.channel_id === "channel-sst",
+  );
+  if (sstRecord && Math.abs(Number(sstRecord.amount)) > currentSales * 0.04) {
+    alerts.push({
+      id: `alert-sst-${outletId}-${year}-${month}`,
+      alert_type: "sst_unusual",
+      severity: "low",
+      title: "SST / Adjustment Unusual",
+      description: "Negative adjustment is larger than the normal first-stage review threshold.",
+      outlet_id: outletId,
+      month,
+      year,
+      current_value: Number(sstRecord.amount),
+      comparison_value: currentSales * 0.04,
+      percentage_change: 0,
+      status: "open",
+      created_at: new Date().toISOString(),
+    });
+  }
+
+  const cogsMargin = currentSales ? (currentPurchaseTotal / currentSales) * 100 : 0;
+  if (cogsMargin > threshold.cogsHighRisk) {
+    alerts.push({
+      id: `alert-cogs-${outletId}-${year}-${month}`,
+      alert_type: "cogs_margin_high",
+      severity: "high",
+      title: "COGS Margin High",
+      description: `COGS margin is above the ${threshold.cogsHighRisk}% control range.`,
+      outlet_id: outletId,
+      month,
+      year,
+      current_value: cogsMargin,
+      comparison_value: threshold.cogsHighRisk,
+      percentage_change: cogsMargin - threshold.cogsHighRisk,
+      status: "open",
+      created_at: new Date().toISOString(),
+    });
+  }
+
+  return alerts;
+}
