@@ -3,6 +3,7 @@ import { Plus, Settings, Trash2 } from "lucide-react";
 import Badge from "../../../components/ui/Badge.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
+import PageHeader from "../../../components/layout/PageHeader.jsx";
 import EntityModal from "../components/EntityModal.jsx";
 import { operationsService } from "../services/operationsService.js";
 
@@ -46,7 +47,13 @@ export default function OutletManagementPage({ store, setStore, ui }) {
   ];
   return (
     <div className="space-y-5">
-      <Card title="Outlets" description="All sales and purchase records bind to outlet_id." action={<button className="btn-primary" onClick={() => setModal({ mode: "add" })}><Plus size={16} /> Add Outlet</button>}>
+      <PageHeader
+        section="Management"
+        title="Outlets"
+        description="Outlet master data used by sales and purchase records through outlet_id."
+        actions={<button className="btn-primary" onClick={() => setModal({ mode: "add" })}><Plus size={16} /> Add Outlet</button>}
+      />
+      <Card title="Outlet Directory" description="All sales and purchase records bind to outlet_id.">
         <DataTable columns={columns} rows={store.outlets} getRowKey={(row) => row.id} />
       </Card>
       {modal ? (

@@ -36,7 +36,7 @@ export const salesPurchaseRoutes = [
     id: "purchase-input",
     label: "Purchase Input",
     eyebrow: "Purchases",
-    description: "Manual monthly supplier purchase entry by outlet and category.",
+    description: "Record monthly supplier purchases by outlet.",
     component: PurchaseInputPage,
   },
   {

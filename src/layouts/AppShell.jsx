@@ -79,12 +79,11 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
 
       <div className="lg:pl-[248px]">
         <header className="sticky top-0 z-20 border-b border-border bg-app-bg/95 backdrop-blur">
-          <div className="flex h-14 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+          <div className="flex h-12 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
             <div className="min-w-0">
               <div className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
                 Sales & Purchase Management
               </div>
-              <h1 className="truncate text-lg font-bold text-text-primary">{activeRoute.label}</h1>
             </div>
             <div className="hidden min-w-[320px] items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-sm text-text-secondary shadow-sm md:flex">
               <span className="text-text-muted">⌕</span>
@@ -105,12 +104,8 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
           </div>
         </header>
 
-        <main className="px-4 py-6 sm:px-6 lg:px-8">
+        <main className="px-4 py-4 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-[1440px]">
-            <div className="mb-5">
-              <p className="text-xs font-semibold uppercase tracking-[0.12em] text-primary">{activeRoute.eyebrow}</p>
-              <p className="mt-1 max-w-3xl text-sm text-text-secondary">{activeRoute.description}</p>
-            </div>
             {children}
           </div>
         </main>

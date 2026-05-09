@@ -4,6 +4,7 @@ import Card from "../../../components/ui/Card.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import { FieldLabel, OutletSelector, YearSelector } from "../../../components/forms/Selectors.jsx";
 import FilterBar from "../../../components/forms/FilterBar.jsx";
+import PageHeader from "../../../components/layout/PageHeader.jsx";
 import usePeriodFilters from "../hooks/usePeriodFilters.js";
 import { months } from "../data/mockData.js";
 import { getSalesBreakdown, sumAmount, toPercent, toSignedCurrency } from "../utils/analytics.js";
@@ -79,14 +80,17 @@ export default function SalesComparisonPage({ store, ui }) {
 
   return (
     <div className="space-y-5">
-      <FilterBar
-        compact
+      <PageHeader
+        section="Sales"
+        title="Sales Comparison"
+        description="Modern Jan-Dec sales comparison with totals and previous-period variance."
         actions={
           <button className="btn-secondary" type="button" onClick={() => ui.notify({ title: "Export queued", message: "Sales comparison CSV is being prepared." })}>
             <Download size={16} /> Export
           </button>
         }
-      >
+      />
+      <FilterBar compact>
         <OutletSelector outlets={store.outlets.filter((outlet) => outlet.status === "active")} value={filters.outletId} onChange={filters.setOutletId} />
         <YearSelector value={filters.year} onChange={filters.setYear} />
         <FieldLabel label="Compare With">
@@ -103,7 +107,7 @@ export default function SalesComparisonPage({ store, ui }) {
           </select>
         </FieldLabel>
       </FilterBar>
-      <Card title="Sales Comparison" description={`Jan-Dec ${viewMode.toLowerCase()} view compared with ${compareWith.toLowerCase()}.`}>
+      <Card title="Monthly Sales Matrix" description={`Jan-Dec ${viewMode.toLowerCase()} view compared with ${compareWith.toLowerCase()}.`}>
         <DataTable
           columns={columns}
           rows={rows}

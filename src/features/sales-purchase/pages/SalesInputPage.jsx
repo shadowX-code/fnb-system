@@ -3,6 +3,7 @@ import { Plus, Save, Trash2 } from "lucide-react";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
+import PageHeader from "../../../components/layout/PageHeader.jsx";
 import PeriodFilterBar from "../components/PeriodFilterBar.jsx";
 import SummaryPanel from "../components/SummaryPanel.jsx";
 import usePeriodFilters from "../hooks/usePeriodFilters.js";
@@ -242,23 +243,10 @@ export default function SalesInputPage({ store, setStore, ui }) {
 
   return (
     <div className="space-y-5">
-      <PeriodFilterBar
-        store={store}
-        filters={{
-          ...filters,
-          setOutletId: (value) => {
-            filters.setOutletId(value);
-            reloadRows({ ...filters, outletId: value });
-          },
-          setMonth: (value) => {
-            filters.setMonth(value);
-            reloadRows({ ...filters, month: value });
-          },
-          setYear: (value) => {
-            filters.setYear(value);
-            reloadRows({ ...filters, year: value });
-          },
-        }}
+      <PageHeader
+        section="Sales"
+        title="Sales Input"
+        description="Manual monthly sales entry by outlet and structured channel."
         actions={
           <>
             <button className="btn-secondary" type="button" disabled={isLocked} onClick={() => {
@@ -291,10 +279,28 @@ export default function SalesInputPage({ store, setStore, ui }) {
           </>
         }
       />
+      <PeriodFilterBar
+        store={store}
+        filters={{
+          ...filters,
+          setOutletId: (value) => {
+            filters.setOutletId(value);
+            reloadRows({ ...filters, outletId: value });
+          },
+          setMonth: (value) => {
+            filters.setMonth(value);
+            reloadRows({ ...filters, month: value });
+          },
+          setYear: (value) => {
+            filters.setYear(value);
+            reloadRows({ ...filters, year: value });
+          },
+        }}
+      />
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         <Card
-          title="Sales Input"
+          title="Channel Entry"
           description="Net Sales is calculated from Gross Sales minus signed deductions. It is never manually entered."
           action={
             <div className="flex flex-wrap gap-2">

@@ -5,6 +5,7 @@ import Card from "../../../components/ui/Card.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import FilterBar from "../../../components/forms/FilterBar.jsx";
 import { FieldLabel, MonthSelector, OutletSelector, YearSelector } from "../../../components/forms/Selectors.jsx";
+import PageHeader from "../../../components/layout/PageHeader.jsx";
 import EntityModal from "../components/EntityModal.jsx";
 import usePeriodFilters from "../hooks/usePeriodFilters.js";
 import { operationsService } from "../services/operationsService.js";
@@ -74,7 +75,13 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
 
   return (
     <div className="space-y-5">
-      <FilterBar compact actions={<button className="btn-primary" onClick={() => setModal({ mode: "add" })}><Plus size={16} /> Add Supplier</button>}>
+      <PageHeader
+        section="Management"
+        title="Suppliers"
+        description="Supplier master data used by purchase records through supplier_id."
+        actions={<button className="btn-primary" onClick={() => setModal({ mode: "add" })}><Plus size={16} /> Add Supplier</button>}
+      />
+      <FilterBar compact>
         <OutletSelector outlets={store.outlets.filter((outlet) => outlet.status === "active")} value={filters.outletId} onChange={filters.setOutletId} />
         <MonthSelector value={filters.month} onChange={filters.setMonth} />
         <YearSelector value={filters.year} onChange={filters.setYear} />
@@ -98,7 +105,7 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
           </select>
         </FieldLabel>
       </FilterBar>
-      <Card title="Suppliers" description="Supplier master data is independent from purchase records.">
+      <Card title="Supplier Directory" description="Supplier master data is independent from purchase records.">
         <DataTable columns={columns} rows={rows} getRowKey={(row) => row.id} />
       </Card>
       {modal ? (

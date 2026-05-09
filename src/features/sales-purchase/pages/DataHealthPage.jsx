@@ -1,3 +1,4 @@
+import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import PeriodFilterBar from "../components/PeriodFilterBar.jsx";
@@ -29,9 +30,16 @@ export default function DataHealthPage({ store, setStore, ui }) {
 
   return (
     <div className="space-y-5">
+      <PageHeader
+        section="Controls"
+        title="Data Health"
+        description="Month lock, completeness checks and data freshness controls."
+        actions={<button className="btn-primary" onClick={toggleLock}>{isLocked ? "Unlock" : "Lock Month"}</button>}
+      />
+
       <PeriodFilterBar store={store} filters={filters} compact />
       <div className="grid gap-5 xl:grid-cols-[1fr_420px]">
-        <Card title="Month Lock" description="Locked months disable normal Sales and Purchase input editing." action={<button className="btn-primary" onClick={toggleLock}>{isLocked ? "Unlock" : "Lock Month"}</button>}>
+        <Card title="Month Lock" description="Locked months disable normal Sales and Purchase input editing.">
           <div className="p-5">
             <div className={`rounded-2xl border p-5 ${isLocked ? "border-rose-200 bg-rose-50" : "border-emerald-200 bg-emerald-50"}`}>
               <div className="text-sm font-bold">{monthLabel(filters.month)} {filters.year}</div>

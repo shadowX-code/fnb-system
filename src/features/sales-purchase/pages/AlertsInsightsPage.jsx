@@ -1,4 +1,5 @@
 import { useMemo, useState } from "react";
+import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
@@ -17,6 +18,7 @@ export default function AlertsInsightsPage({ store, ui }) {
       month: filters.month,
       year: filters.year,
       salesRecords: store.salesRecords,
+      salesChannels: store.salesChannels,
       purchaseRecords: store.purchaseRecords,
       suppliers: store.suppliers,
     });
@@ -37,6 +39,12 @@ export default function AlertsInsightsPage({ store, ui }) {
   }, [filters, severity, store]);
   return (
     <div className="space-y-5">
+      <PageHeader
+        section="Controls"
+        title="Alerts & Insights"
+        description="Review rule-based alerts for abnormal supplier purchase, COGS and sales movement."
+      />
+
       <PeriodFilterBar
         store={store}
         filters={filters}

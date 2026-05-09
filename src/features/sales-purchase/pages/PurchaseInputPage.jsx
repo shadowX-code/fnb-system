@@ -18,6 +18,7 @@ import Badge from "../../../components/ui/Badge.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import FilterBar from "../../../components/forms/FilterBar.jsx";
+import PageHeader from "../../../components/layout/PageHeader.jsx";
 import { FieldLabel, MonthSelector, OutletSelector, YearSelector } from "../../../components/forms/Selectors.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import EntityModal from "../components/EntityModal.jsx";
@@ -408,14 +409,13 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
   ];
 
   return (
-    <div className="space-y-5">
-      <div className="flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
-        <div>
-          <div className="text-xs font-bold uppercase tracking-[0.16em] text-primary">Purchases</div>
-          <h1 className="mt-1 text-2xl font-bold tracking-tight text-text-primary">Purchase Input</h1>
-          <p className="mt-1 text-sm text-text-secondary">Record monthly supplier purchases by outlet.</p>
-        </div>
-        <div className="flex flex-wrap gap-2">
+    <div className="space-y-4">
+      <PageHeader
+        section="Purchases"
+        title="Purchase Input"
+        description="Record monthly supplier purchases by outlet."
+        actions={
+          <>
           <button className="btn-secondary" type="button" disabled={isLocked} onClick={() => setDuplicateModal(true)}>
             <Copy size={16} /> Duplicate Previous Month
           </button>
@@ -430,9 +430,9 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
           >
             <MoreHorizontal size={17} />
           </button>
-        </div>
-      </div>
-
+          </>
+        }
+      />
       <FilterBar compact>
         <OutletSelector outlets={store.outlets} value={filters.outletId} onChange={filters.setOutletId} />
         <MonthSelector value={filters.month} onChange={filters.setMonth} />

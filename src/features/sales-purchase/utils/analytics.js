@@ -71,6 +71,40 @@ export function getPurchaseTotal(records, outletId, month, year) {
   );
 }
 
+export function getMonthlyPurchaseEfficiency({ salesRecords, salesChannels = [], purchaseRecords, outletId, month, year }) {
+  const netSales = getNetSales(salesRecords, outletId, month, year, salesChannels);
+  const totalPurchase = getPurchaseTotal(purchaseRecords, outletId, month, year);
+  const cogsMargin = netSales ? (totalPurchase / netSales) * 100 : null;
+  const grossProfitEstimate = netSales - totalPurchase;
+  const previous = getPreviousPeriod(month, year);
+  const previousNetSales = getNetSales(salesRecords, outletId, previous.month, previous.year, salesChannels);
+  const previousPurchase = getPurchaseTotal(purchaseRecords, outletId, previous.month, previous.year);
+  const salesChange = percentageChange(netSales, previousNetSales);
+  const purchaseChange = percentageChange(totalPurchase, previousPurchase);
+
+  return {
+    month,
+    year,
+    netSales,
+    totalPurchase,
+    cogsMargin,
+    grossProfitEstimate,
+    previousNetSales,
+    previousPurchase,
+    salesChange,
+    purchaseChange,
+  };
+}
+
+export function getCogsStatus(cogsMargin) {
+  if (cogsMargin === null || cogsMargin === undefined || !Number.isFinite(cogsMargin)) {
+    return { label: "-", tone: "neutral", severity: "empty" };
+  }
+  if (cogsMargin > 40) return { label: "High Risk", tone: "danger", severity: "high" };
+  if (cogsMargin > 35) return { label: "Watch", tone: "warning", severity: "medium" };
+  return { label: "Healthy", tone: "success", severity: "low" };
+}
+
 export function getSupplierPurchaseAmount(records, outletId, supplierId, month, year) {
   return sumAmount(
     records.filter(
@@ -192,15 +226,15 @@ export function getPurchaseRowAnalysis({
 
 export function buildMonthlySummary({ salesRecords, salesChannels = [], purchaseRecords, outletId, year }) {
   return months.map(({ value }) => {
-    const { grossSales, adjustmentTotal, totalDeduction, netSales } = getSalesBreakdown(
+    const { grossSales, adjustmentTotal, totalDeduction, netSales } = getSalesBreakdown(salesRecords, salesChannels, outletId, value, year);
+    const efficiency = getMonthlyPurchaseEfficiency({
       salesRecords,
       salesChannels,
+      purchaseRecords,
       outletId,
-      value,
+      month: value,
       year,
-    );
-    const totalPurchase = getPurchaseTotal(purchaseRecords, outletId, value, year);
-    const cogsMargin = netSales ? (totalPurchase / netSales) * 100 : 0;
+    });
 
     return {
       month: value,
@@ -208,9 +242,12 @@ export function buildMonthlySummary({ salesRecords, salesChannels = [], purchase
       adjustmentTotal,
       totalDeduction,
       netSales,
-      totalPurchase,
-      cogsMargin,
-      profitMargin: netSales ? 100 - cogsMargin : 0,
+      totalPurchase: efficiency.totalPurchase,
+      cogsMargin: efficiency.cogsMargin ?? 0,
+      profitMargin: efficiency.cogsMargin === null ? 0 : 100 - efficiency.cogsMargin,
+      grossProfitEstimate: efficiency.grossProfitEstimate,
+      salesChange: efficiency.salesChange,
+      purchaseChange: efficiency.purchaseChange,
     };
   });
 }
@@ -255,7 +292,11 @@ export function buildAlerts({
       year,
     });
 
-    if (analysis.previousAmount && analysis.changePercent > 50) {
+    const currentSales = getNetSales(salesRecords, outletId, month, year, salesChannels);
+    const previousSalesForSupplier = getNetSales(salesRecords, outletId, previous.month, previous.year, salesChannels);
+    const supplierSalesChange = percentageChange(currentSales, previousSalesForSupplier);
+
+    if (analysis.previousAmount && analysis.changePercent > 50 && supplierSalesChange < 5) {
       alerts.push({
         id: `alert-high-risk-${record.id}`,
         alert_type: "supplier_purchase_high_risk",
@@ -272,13 +313,33 @@ export function buildAlerts({
         status: "open",
         created_at: new Date().toISOString(),
       });
+    } else if (analysis.previousAmount && analysis.changePercent > 30 && supplierSalesChange < 5) {
+      alerts.push({
+        id: `alert-supplier-spike-sales-flat-${record.id}`,
+        alert_type: "supplier_spike_sales_flat",
+        severity: "medium",
+        title: `${supplierName} Supplier Spike`,
+        description: "Supplier purchase grew more than 30% while Net Sales did not grow meaningfully.",
+        outlet_id: outletId,
+        month,
+        year,
+        related_supplier_id: record.supplier_id,
+        current_value: Number(record.amount),
+        comparison_value: analysis.previousAmount,
+        percentage_change: analysis.changePercent,
+        status: "open",
+        created_at: new Date().toISOString(),
+      });
     } else if (analysis.previousAmount && analysis.changePercent > 30) {
       alerts.push({
         id: `alert-prev-${record.id}`,
         alert_type: "supplier_purchase_spike",
-        severity: "medium",
+        severity: supplierSalesChange >= 5 ? "low" : "medium",
         title: `${supplierName} +${analysis.changePercent.toFixed(0)}%`,
-        description: "Supplier purchase is more than 30% above previous month.",
+        description:
+          supplierSalesChange >= 5
+            ? "Supplier purchase is higher, but Net Sales also grew, so review level is moderate."
+            : "Supplier purchase is more than 30% above previous month.",
         outlet_id: outletId,
         month,
         year,
@@ -313,13 +374,13 @@ export function buildAlerts({
 
   const salesChange = percentageChange(currentSales, previousSales);
   const purchaseChange = percentageChange(currentPurchaseTotal, previousPurchaseTotal);
-  if (salesChange <= 0 && purchaseChange > 20) {
+  if (purchaseChange > 20 && salesChange < 5) {
     alerts.push({
       id: `alert-sales-purchase-${outletId}-${year}-${month}`,
       alert_type: "sales_down_purchase_up",
       severity: "high",
-      title: "Sales Down but Purchase Up",
-      description: "Sales did not grow while total purchase increased by more than 20%.",
+      title: "Purchase Up, Sales Flat",
+      description: "Total purchase increased by more than 20% while Net Sales grew less than 5%.",
       outlet_id: outletId,
       month,
       year,
@@ -388,6 +449,22 @@ export function buildAlerts({
       current_value: cogsMargin,
       comparison_value: threshold.cogsHighRisk,
       percentage_change: cogsMargin - threshold.cogsHighRisk,
+      status: "open",
+      created_at: new Date().toISOString(),
+    });
+  } else if (cogsMargin > 35) {
+    alerts.push({
+      id: `alert-cogs-watch-${outletId}-${year}-${month}`,
+      alert_type: "cogs_margin_watch",
+      severity: "medium",
+      title: "COGS Margin Watch",
+      description: "COGS margin is between 35% and 40%; review cost efficiency.",
+      outlet_id: outletId,
+      month,
+      year,
+      current_value: cogsMargin,
+      comparison_value: 35,
+      percentage_change: cogsMargin - 35,
       status: "open",
       created_at: new Date().toISOString(),
     });

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { Plus, Settings } from "lucide-react";
+import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
@@ -26,12 +27,18 @@ export default function SettingsPage({ store, setStore, ui }) {
   ];
   return (
     <div className="space-y-5">
-      <div className="card flex items-center justify-between p-2">
+      <PageHeader
+        section="Management"
+        title="Settings"
+        description="Manage sales channels and purchase categories for structured reporting."
+        actions={<button className="btn-primary" onClick={() => setModal({ mode: "add" })}><Plus size={16} /> Add</button>}
+      />
+
+      <div className="card flex items-center p-2">
         <div className="flex gap-2">
           <button className={`h-10 rounded-xl px-4 text-sm font-semibold ${isChannels ? "bg-primary text-white" : "text-text-secondary hover:bg-slate-50"}`} onClick={() => setTab("channels")}>Sales Channels</button>
           <button className={`h-10 rounded-xl px-4 text-sm font-semibold ${!isChannels ? "bg-primary text-white" : "text-text-secondary hover:bg-slate-50"}`} onClick={() => setTab("categories")}>Purchase Categories</button>
         </div>
-        <button className="btn-primary" onClick={() => setModal({ mode: "add" })}><Plus size={16} /> Add</button>
       </div>
       <Card title={isChannels ? "Sales Channels" : "Purchase Categories"} description="Structured master data powers future dashboards and imports.">
         <DataTable columns={columns} rows={rows} getRowKey={(row) => row.id} />

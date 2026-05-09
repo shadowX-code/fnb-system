@@ -3,6 +3,7 @@ import Card from "../../../components/ui/Card.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import TrendChart from "../../../components/charts/TrendChart.jsx";
+import PageHeader from "../../../components/layout/PageHeader.jsx";
 import PeriodFilterBar from "../components/PeriodFilterBar.jsx";
 import usePeriodFilters from "../hooks/usePeriodFilters.js";
 import { months } from "../data/mockData.js";
@@ -57,6 +58,11 @@ export default function DashboardOverviewPage({ store }) {
 
   return (
     <div className="space-y-5">
+      <PageHeader
+        section="Overview"
+        title="Dashboard"
+        description="Saved sales, purchase, COGS, margin and alerts overview."
+      />
       <PeriodFilterBar
         store={store}
         filters={filters}
