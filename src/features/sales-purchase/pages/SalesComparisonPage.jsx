@@ -6,29 +6,61 @@ import { FieldLabel, OutletSelector, YearSelector } from "../../../components/fo
 import FilterBar from "../../../components/forms/FilterBar.jsx";
 import usePeriodFilters from "../hooks/usePeriodFilters.js";
 import { months } from "../data/mockData.js";
-import { sumAmount, toPercent, toSignedCurrency } from "../utils/analytics.js";
+import { getSalesBreakdown, sumAmount, toPercent, toSignedCurrency } from "../utils/analytics.js";
 
 export default function SalesComparisonPage({ store, ui }) {
   const filters = usePeriodFilters(store);
   const [compareWith, setCompareWith] = useState("Previous Year");
   const [viewMode, setViewMode] = useState("Summary");
-  const rows = useMemo(() => store.salesChannels.filter((channel) => channel.status === "active"), [store.salesChannels]);
+  const rows = useMemo(() => {
+    const active = store.salesChannels.filter((channel) => channel.status === "active" && channel.type !== "total");
+    const salesRows = active.filter((channel) => channel.type === "channel");
+    const adjustmentRows = active.filter((channel) => channel.type === "adjustment");
+    return [
+      ...salesRows,
+      { id: "summary-gross-sales", name: "Gross Sales", type: "summary-gross" },
+      ...adjustmentRows,
+      { id: "summary-net-sales", name: "Net Sales", type: "summary-net" },
+    ];
+  }, [store.salesChannels]);
+
+  function getRowAmount(row, month) {
+    if (row.type === "summary-gross") {
+      return getSalesBreakdown(store.salesRecords, store.salesChannels, filters.outletId, month, filters.year).grossSales;
+    }
+    if (row.type === "summary-net") {
+      return getSalesBreakdown(store.salesRecords, store.salesChannels, filters.outletId, month, filters.year).netSales;
+    }
+    return sumAmount(
+      store.salesRecords.filter(
+        (record) =>
+          record.outlet_id === filters.outletId &&
+          record.year === filters.year &&
+          record.month === month &&
+          record.channel_id === row.id,
+      ),
+    );
+  }
+
+  function getRowTotal(row) {
+    return months.reduce((total, month) => total + getRowAmount(row, month.value), 0);
+  }
+
   const columns = [
-    { key: "channel", header: "Channel", sticky: true, render: (row) => <span className="font-semibold">{row.name}</span> },
+    {
+      key: "channel",
+      header: "Channel",
+      sticky: true,
+      render: (row) => (
+        <span className={`font-semibold ${row.type?.startsWith("summary") ? "text-primary" : ""}`}>{row.name}</span>
+      ),
+    },
     ...months.map((month) => ({
       key: month.label,
       header: month.label,
       align: "right",
       render: (row) => {
-        const amount = sumAmount(
-          store.salesRecords.filter(
-            (record) =>
-              record.outlet_id === filters.outletId &&
-              record.year === filters.year &&
-              record.month === month.value &&
-              record.channel_id === row.id,
-          ),
-        );
+        const amount = getRowAmount(row, month.value);
         return amount ? <span className={amount < 0 ? "text-rose-600" : "text-text-primary"}>{toSignedCurrency(amount)}</span> : "-";
       },
     })),
@@ -38,13 +70,7 @@ export default function SalesComparisonPage({ store, ui }) {
       align: "right",
       render: (row) => (
         <strong>
-          {toSignedCurrency(
-            sumAmount(
-              store.salesRecords.filter(
-                (record) => record.outlet_id === filters.outletId && record.year === filters.year && record.channel_id === row.id,
-              ),
-            ),
-          )}
+          {toSignedCurrency(getRowTotal(row))}
         </strong>
       ),
     },
@@ -78,7 +104,12 @@ export default function SalesComparisonPage({ store, ui }) {
         </FieldLabel>
       </FilterBar>
       <Card title="Sales Comparison" description={`Jan-Dec ${viewMode.toLowerCase()} view compared with ${compareWith.toLowerCase()}.`}>
-        <DataTable columns={columns} rows={rows} getRowKey={(row) => row.id} />
+        <DataTable
+          columns={columns}
+          rows={rows}
+          getRowKey={(row) => row.id}
+          getRowClassName={(row) => (row.type?.startsWith("summary") ? "bg-blue-50/60" : "")}
+        />
       </Card>
     </div>
   );

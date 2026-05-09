@@ -1,4 +1,4 @@
-export default function DataTable({ columns, rows, getRowKey, footer }) {
+export default function DataTable({ columns, rows, getRowKey, footer, getRowClassName }) {
   return (
     <div className="overflow-x-auto">
       <table className="w-full min-w-[880px] border-collapse text-sm">
@@ -18,7 +18,10 @@ export default function DataTable({ columns, rows, getRowKey, footer }) {
         </thead>
         <tbody className="divide-y divide-border bg-white">
           {rows.map((row, index) => (
-            <tr key={getRowKey(row, index)} className="transition hover:bg-slate-50/70">
+            <tr
+              key={getRowKey(row, index)}
+              className={`transition hover:bg-slate-50/70 ${getRowClassName ? getRowClassName(row, index) : ""}`}
+            >
               {columns.map((column) => (
                 <td
                   key={column.key}

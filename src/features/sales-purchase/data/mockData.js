@@ -55,13 +55,12 @@ export const outlets = [
 ];
 
 export const salesChannels = [
-  { id: "channel-net-sales", name: "Net Sales", type: "total", sort_order: 1, status: "active" },
-  { id: "channel-dine-in", name: "Dine In", type: "channel", sort_order: 2, status: "active" },
-  { id: "channel-takeaway", name: "Takeaway", type: "channel", sort_order: 3, status: "active" },
-  { id: "channel-grabfood", name: "GrabFood", type: "channel", sort_order: 4, status: "active" },
-  { id: "channel-foodpanda", name: "FoodPanda", type: "channel", sort_order: 5, status: "active" },
-  { id: "channel-shopeefood", name: "ShopeeFood", type: "channel", sort_order: 6, status: "active" },
-  { id: "channel-sst", name: "SST (-)", type: "adjustment", sort_order: 7, status: "active" },
+  { id: "channel-dine-in", name: "Dine In", type: "channel", sort_order: 1, status: "active" },
+  { id: "channel-takeaway", name: "Takeaway", type: "channel", sort_order: 2, status: "active" },
+  { id: "channel-grabfood", name: "GrabFood", type: "channel", sort_order: 3, status: "active" },
+  { id: "channel-foodpanda", name: "FoodPanda", type: "channel", sort_order: 4, status: "active" },
+  { id: "channel-shopeefood", name: "ShopeeFood", type: "channel", sort_order: 5, status: "active" },
+  { id: "channel-sst", name: "SST (-)", type: "adjustment", sort_order: 6, status: "active" },
 ];
 
 export const purchaseCategories = [
@@ -87,11 +86,11 @@ export const suppliers = [
 ];
 
 const salesSeed = {
-  1: [73480, 56580, 1306, 6088, 3030, 611, -4135],
-  2: [77105, 57862, 1402, 6720, 3380, 657, -2916],
-  3: [82610, 60730, 1510, 7025, 3650, 700, -1005],
-  4: [80304, 59410, 1450, 6898, 3520, 690, -1664],
-  5: [82361.8, 65497.7, 1306.9, 6088.9, 3030.4, 611.6, -4072.25],
+  1: [56580, 1306, 6088, 3030, 611, -4135],
+  2: [57862, 1402, 6720, 3380, 657, -2916],
+  3: [60730, 1510, 7025, 3650, 700, -1005],
+  4: [59410, 1450, 6898, 3520, 690, -1664],
+  5: [65497.7, 1306.9, 6088.9, 3030.4, 611.6, -4072.25],
 };
 
 export const salesRecords = Object.entries(salesSeed).flatMap(([month, amounts]) =>
@@ -113,7 +112,7 @@ const purchaseSeed = {
   2: [6680.0, 4560.5, 433.6, 972.2, 5036.0, 1566.4, 1842.3, 3460.0],
   3: [6760.0, 5020.3, 452.5, 1005.0, 5210.0, 1660.4, 1900.0, 3620.0],
   4: [6810.0, 4582.1, 433.6, 972.2, 5636.0, 1906.4, 1960.0, 3510.0],
-  5: [8055.0, 5036.0, 433.6, 972.2, 5126.0, 1906.4, 2200.0, 3863.47],
+  5: [9300.0, 5036.0, 433.6, 972.2, 5126.0, 1906.4, 3200.0, 3863.47],
 };
 
 export const purchaseRecords = Object.entries(purchaseSeed).flatMap(([month, amounts]) =>

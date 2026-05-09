@@ -132,7 +132,7 @@ export const operationsService = {
       id: `channel-${crypto.randomUUID()}`,
       name,
       type,
-      sort_order: state.salesChannels.length + 1,
+      sort_order: Math.max(0, ...state.salesChannels.map((channel) => Number(channel.sort_order) || 0)) + 1,
       status: "active",
     };
     return { state: { ...state, salesChannels: [...state.salesChannels, channel] }, channel };

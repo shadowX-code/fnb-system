@@ -37,24 +37,32 @@ export function percentageChange(current, previous) {
   return ((current - previous) / previous) * 100;
 }
 
-export function getNetSales(records, outletId, month, year) {
-  const netRecord = records.find(
+export function getSalesRecords(records, outletId, month, year) {
+  return records.filter(
     (record) =>
       record.outlet_id === outletId &&
       record.month === month &&
-      record.year === year &&
-      record.channel_id === "channel-net-sales",
+      record.year === year,
   );
-  if (netRecord) return Number(netRecord.amount) || 0;
-  return sumAmount(
-    records.filter(
-      (record) =>
-        record.outlet_id === outletId &&
-        record.month === month &&
-        record.year === year &&
-        record.channel_id !== "channel-sst",
-    ),
-  );
+}
+
+export function getSalesBreakdown(records, channels, outletId, month, year) {
+  const periodRecords = getSalesRecords(records, outletId, month, year);
+  const getType = (channelId) => channels.find((channel) => channel.id === channelId)?.type ?? "channel";
+  const grossSales = sumAmount(periodRecords.filter((record) => getType(record.channel_id) === "channel"));
+  const adjustmentTotal = sumAmount(periodRecords.filter((record) => getType(record.channel_id) === "adjustment"));
+  const netSales = grossSales + adjustmentTotal;
+
+  return {
+    grossSales,
+    adjustmentTotal,
+    totalDeduction: Math.abs(Math.min(adjustmentTotal, 0)),
+    netSales,
+  };
+}
+
+export function getNetSales(records, outletId, month, year, channels = []) {
+  return getSalesBreakdown(records, channels, outletId, month, year).netSales;
 }
 
 export function getPurchaseTotal(records, outletId, month, year) {
@@ -63,14 +71,142 @@ export function getPurchaseTotal(records, outletId, month, year) {
   );
 }
 
-export function buildMonthlySummary({ salesRecords, purchaseRecords, outletId, year }) {
+export function getSupplierPurchaseAmount(records, outletId, supplierId, month, year) {
+  return sumAmount(
+    records.filter(
+      (record) =>
+        record.outlet_id === outletId &&
+        record.supplier_id === supplierId &&
+        record.month === month &&
+        record.year === year,
+    ),
+  );
+}
+
+export function getRecentSupplierAverage(records, outletId, supplierId, month, year, periods = 3) {
+  const values = [];
+  let cursorMonth = Number(month);
+  let cursorYear = Number(year);
+
+  for (let index = 0; index < periods; index += 1) {
+    const previous = getPreviousPeriod(cursorMonth, cursorYear);
+    values.push(getSupplierPurchaseAmount(records, outletId, supplierId, previous.month, previous.year));
+    cursorMonth = previous.month;
+    cursorYear = previous.year;
+  }
+
+  const populated = values.filter((value) => value > 0);
+  return populated.length ? populated.reduce((total, value) => total + value, 0) / populated.length : 0;
+}
+
+export function getPurchaseRowAnalysis({
+  row,
+  purchaseRecords,
+  salesRecords,
+  salesChannels = [],
+  outletId,
+  month,
+  year,
+}) {
+  const amountIsMissing = row.amount === "" || row.amount === null || row.amount === undefined;
+  const currentAmount = Number(row.amount) || 0;
+  const previous = getPreviousPeriod(month, year);
+  const previousAmount = getSupplierPurchaseAmount(purchaseRecords, outletId, row.supplier_id, previous.month, previous.year);
+  const threeMonthAverage = getRecentSupplierAverage(purchaseRecords, outletId, row.supplier_id, month, year);
+  const changePercent = percentageChange(currentAmount, previousAmount);
+  const averageChangePercent = percentageChange(currentAmount, threeMonthAverage);
+  const currentSales = getNetSales(salesRecords, outletId, month, year, salesChannels);
+  const previousSales = getNetSales(salesRecords, outletId, previous.month, previous.year, salesChannels);
+  const salesChange = percentageChange(currentSales, previousSales);
+
+  if (amountIsMissing) {
+    return {
+      previousAmount,
+      threeMonthAverage,
+      changePercent: 0,
+      averageChangePercent: 0,
+      status: "Missing",
+      severity: "missing",
+      reason: "Amount is blank",
+    };
+  }
+
+  if (!previousAmount && currentAmount > 0) {
+    return {
+      previousAmount,
+      threeMonthAverage,
+      changePercent,
+      averageChangePercent,
+      status: "New",
+      severity: "info",
+      reason: "No previous month purchase",
+    };
+  }
+
+  if (previousAmount && changePercent > 50) {
+    return {
+      previousAmount,
+      threeMonthAverage,
+      changePercent,
+      averageChangePercent,
+      status: "High Risk",
+      severity: "danger",
+      reason: "More than 50% above previous month",
+    };
+  }
+
+  if (salesChange <= 0 && changePercent > 20) {
+    return {
+      previousAmount,
+      threeMonthAverage,
+      changePercent,
+      averageChangePercent,
+      status: "Warning",
+      severity: "warning",
+      reason: "Purchase rose while sales did not grow",
+    };
+  }
+
+  if ((previousAmount && changePercent > 30) || (threeMonthAverage && averageChangePercent > 25)) {
+    return {
+      previousAmount,
+      threeMonthAverage,
+      changePercent,
+      averageChangePercent,
+      status: "Warning",
+      severity: "warning",
+      reason: previousAmount && changePercent > 30 ? "More than 30% above previous month" : "Above 3-month average",
+    };
+  }
+
+  return {
+    previousAmount,
+    threeMonthAverage,
+    changePercent,
+    averageChangePercent,
+    status: currentAmount > 0 ? "Normal" : "Missing",
+    severity: currentAmount > 0 ? "success" : "missing",
+    reason: currentAmount > 0 ? "Within normal range" : "Amount is zero",
+  };
+}
+
+export function buildMonthlySummary({ salesRecords, salesChannels = [], purchaseRecords, outletId, year }) {
   return months.map(({ value }) => {
-    const netSales = getNetSales(salesRecords, outletId, value, year);
+    const { grossSales, adjustmentTotal, totalDeduction, netSales } = getSalesBreakdown(
+      salesRecords,
+      salesChannels,
+      outletId,
+      value,
+      year,
+    );
     const totalPurchase = getPurchaseTotal(purchaseRecords, outletId, value, year);
     const cogsMargin = netSales ? (totalPurchase / netSales) * 100 : 0;
 
     return {
       month: value,
+      grossSales,
+      adjustmentTotal,
+      totalDeduction,
       netSales,
       totalPurchase,
       cogsMargin,
@@ -92,6 +228,7 @@ export function buildAlerts({
   month,
   year,
   salesRecords,
+  salesChannels = [],
   purchaseRecords,
   suppliers,
   threshold = { cogsHighRisk: 40 },
@@ -99,62 +236,62 @@ export function buildAlerts({
   const currentPurchases = purchaseRecords.filter(
     (record) => record.outlet_id === outletId && record.month === month && record.year === year,
   );
-  const currentSales = getNetSales(salesRecords, outletId, month, year);
+  const currentSales = getNetSales(salesRecords, outletId, month, year, salesChannels);
   const currentPurchaseTotal = sumAmount(currentPurchases);
   const previous = getPreviousPeriod(month, year);
-  const previousSales = getNetSales(salesRecords, outletId, previous.month, previous.year);
+  const previousSales = getNetSales(salesRecords, outletId, previous.month, previous.year, salesChannels);
   const previousPurchaseTotal = getPurchaseTotal(purchaseRecords, outletId, previous.month, previous.year);
   const alerts = [];
 
   currentPurchases.forEach((record) => {
     const supplierName = getSupplierName(suppliers, record.supplier_id);
-    const previousSupplierAmount = sumAmount(
-      purchaseRecords.filter(
-        (item) =>
-          item.outlet_id === outletId &&
-          item.supplier_id === record.supplier_id &&
-          item.month === previous.month &&
-          item.year === previous.year,
-      ),
-    );
-    const previousChange = percentageChange(Number(record.amount), previousSupplierAmount);
-    if (previousSupplierAmount && previousChange > 30) {
+    const analysis = getPurchaseRowAnalysis({
+      row: record,
+      purchaseRecords,
+      salesRecords,
+      salesChannels,
+      outletId,
+      month,
+      year,
+    });
+
+    if (analysis.previousAmount && analysis.changePercent > 50) {
+      alerts.push({
+        id: `alert-high-risk-${record.id}`,
+        alert_type: "supplier_purchase_high_risk",
+        severity: "high",
+        title: `${supplierName} +${analysis.changePercent.toFixed(0)}%`,
+        description: "Supplier purchase is more than 50% above previous month.",
+        outlet_id: outletId,
+        month,
+        year,
+        related_supplier_id: record.supplier_id,
+        current_value: Number(record.amount),
+        comparison_value: analysis.previousAmount,
+        percentage_change: analysis.changePercent,
+        status: "open",
+        created_at: new Date().toISOString(),
+      });
+    } else if (analysis.previousAmount && analysis.changePercent > 30) {
       alerts.push({
         id: `alert-prev-${record.id}`,
         alert_type: "supplier_purchase_spike",
         severity: "medium",
-        title: `${supplierName} +${previousChange.toFixed(0)}%`,
+        title: `${supplierName} +${analysis.changePercent.toFixed(0)}%`,
         description: "Supplier purchase is more than 30% above previous month.",
         outlet_id: outletId,
         month,
         year,
         related_supplier_id: record.supplier_id,
         current_value: Number(record.amount),
-        comparison_value: previousSupplierAmount,
-        percentage_change: previousChange,
+        comparison_value: analysis.previousAmount,
+        percentage_change: analysis.changePercent,
         status: "open",
         created_at: new Date().toISOString(),
       });
     }
 
-    const recentMonths = [month - 1, month - 2, month - 3].filter((value) => value > 0);
-    const recentAverage =
-      recentMonths.reduce(
-        (total, recentMonth) =>
-          total +
-          sumAmount(
-            purchaseRecords.filter(
-              (item) =>
-                item.outlet_id === outletId &&
-                item.supplier_id === record.supplier_id &&
-                item.month === recentMonth &&
-                item.year === year,
-            ),
-          ),
-        0,
-      ) / (recentMonths.length || 1);
-    const averageChange = percentageChange(Number(record.amount), recentAverage);
-    if (recentAverage && averageChange > 25) {
+    if (analysis.threeMonthAverage && analysis.averageChangePercent > 25) {
       alerts.push({
         id: `alert-avg-${record.id}`,
         alert_type: "supplier_purchase_average_spike",
@@ -166,8 +303,8 @@ export function buildAlerts({
         year,
         related_supplier_id: record.supplier_id,
         current_value: Number(record.amount),
-        comparison_value: recentAverage,
-        percentage_change: averageChange,
+        comparison_value: analysis.threeMonthAverage,
+        percentage_change: analysis.averageChangePercent,
         status: "open",
         created_at: new Date().toISOString(),
       });

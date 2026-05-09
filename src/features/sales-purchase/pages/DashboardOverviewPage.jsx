@@ -21,6 +21,7 @@ export default function DashboardOverviewPage({ store }) {
     () =>
       buildMonthlySummary({
         salesRecords: store.salesRecords,
+        salesChannels: store.salesChannels,
         purchaseRecords: store.purchaseRecords,
         outletId: filters.outletId,
         year: filters.year,
@@ -33,6 +34,7 @@ export default function DashboardOverviewPage({ store }) {
     month: filters.month,
     year: filters.year,
     salesRecords: store.salesRecords,
+    salesChannels: store.salesChannels,
     purchaseRecords: store.purchaseRecords,
     suppliers: store.suppliers,
   });

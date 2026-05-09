@@ -7,14 +7,24 @@ import PeriodFilterBar from "../components/PeriodFilterBar.jsx";
 import SummaryPanel from "../components/SummaryPanel.jsx";
 import usePeriodFilters from "../hooks/usePeriodFilters.js";
 import { operationsService } from "../services/operationsService.js";
-import { getPreviousPeriod, percentageChange, sumAmount, toCurrency, toPercent } from "../utils/analytics.js";
+import {
+  getPreviousPeriod,
+  getSalesBreakdown,
+  percentageChange,
+  sumAmount,
+  toCurrency,
+  toPercent,
+  toSignedCurrency,
+} from "../utils/analytics.js";
 
 function getLock(store, outletId, month, year) {
   return store.monthlyLocks.find((lock) => lock.outlet_id === outletId && lock.month === month && lock.year === year);
 }
 
 function buildSalesRows(store, outletId, month, year) {
-  return store.salesChannels.map((channel) => {
+  return store.salesChannels
+    .filter((channel) => channel.status === "active" && channel.type !== "total")
+    .map((channel) => {
     const record = store.salesRecords.find(
       (item) =>
         item.outlet_id === outletId &&
@@ -26,6 +36,7 @@ function buildSalesRows(store, outletId, month, year) {
       id: record?.id,
       channel_id: channel.id,
       channelName: channel.name,
+      type: channel.type,
       amount: record?.amount ?? 0,
       remark: record?.remark ?? "",
     };
@@ -47,10 +58,22 @@ export default function SalesInputPage({ store, setStore, ui }) {
     setRows(buildSalesRows(store, filters.outletId, filters.month, filters.year));
   }, [filters.month, filters.outletId, filters.year, store.salesChannels, store.salesRecords]);
 
-  const netSales = Number(rows.find((row) => row.channel_id === "channel-net-sales")?.amount) || 0;
+  const salesRows = rows.filter((row) => row.type === "channel");
+  const adjustmentRows = rows.filter((row) => row.type === "adjustment");
+  const grossSales = sumAmount(salesRows);
+  const adjustmentTotal = sumAmount(adjustmentRows);
+  const totalDeduction = Math.abs(Math.min(adjustmentTotal, 0));
+  const netSales = grossSales + adjustmentTotal;
   const previous = getPreviousPeriod(filters.month, filters.year);
-  const highest = rows.filter((row) => row.channel_id !== "channel-net-sales" && Number(row.amount) > 0).sort((a, b) => b.amount - a.amount)[0];
-  const lowest = rows.filter((row) => row.channel_id !== "channel-net-sales" && Number(row.amount) > 0).sort((a, b) => a.amount - b.amount)[0];
+  const previousBreakdown = getSalesBreakdown(
+    store.salesRecords,
+    store.salesChannels,
+    filters.outletId,
+    previous.month,
+    previous.year,
+  );
+  const highest = salesRows.filter((row) => Number(row.amount) > 0).sort((a, b) => b.amount - a.amount)[0];
+  const lowest = salesRows.filter((row) => Number(row.amount) > 0).sort((a, b) => a.amount - b.amount)[0];
 
   const columns = useMemo(
     () => [
@@ -61,7 +84,7 @@ export default function SalesInputPage({ store, setStore, ui }) {
         render: (row) => (
           <div className="flex items-center gap-2">
             <span className="font-semibold text-text-primary">{row.channelName}</span>
-            {row.channel_id === "channel-net-sales" ? <Badge tone="info">Total</Badge> : null}
+            {row.type === "adjustment" ? <Badge tone="warning">Deduction</Badge> : null}
           </div>
         ),
       },
@@ -89,9 +112,9 @@ export default function SalesInputPage({ store, setStore, ui }) {
       },
       {
         key: "share",
-        header: "% of Total",
+        header: "% of Net Sales",
         align: "right",
-        render: (row) => (row.channel_id === "channel-net-sales" ? "100%" : toPercent(netSales ? (Number(row.amount) / netSales) * 100 : 0)),
+        render: (row) => toPercent(netSales ? (Number(row.amount) / netSales) * 100 : 0),
       },
       {
         key: "vs",
@@ -147,6 +170,76 @@ export default function SalesInputPage({ store, setStore, ui }) {
     [filters.outletId, isLocked, netSales, previous.month, previous.year, store.salesRecords],
   );
 
+  const summaryRows = [
+    {
+      id: "gross-sales",
+      label: "Gross Sales",
+      description: "All sales channels before deductions",
+      value: grossSales,
+      previous: previousBreakdown.grossSales,
+      tone: "neutral",
+    },
+    {
+      id: "total-deduction",
+      label: "Total Deduction",
+      description: "SST and other adjustment rows",
+      value: adjustmentTotal,
+      previous: previousBreakdown.adjustmentTotal,
+      tone: "warning",
+    },
+    {
+      id: "net-sales",
+      label: "Net Sales",
+      description: "Gross Sales + signed deductions",
+      value: netSales,
+      previous: previousBreakdown.netSales,
+      tone: "info",
+    },
+  ];
+
+  const summaryColumns = [
+    {
+      key: "label",
+      header: "Auto Summary",
+      sticky: true,
+      render: (row) => (
+        <div>
+          <div className="flex items-center gap-2 font-bold text-text-primary">
+            {row.label}
+            {row.id === "net-sales" ? <Badge tone="info">Calculated</Badge> : null}
+          </div>
+          <div className="mt-1 text-xs text-text-secondary">{row.description}</div>
+        </div>
+      ),
+    },
+    {
+      key: "amount",
+      header: "Amount (RM)",
+      align: "right",
+      render: (row) => (
+        <span className={`text-base font-bold ${row.id === "total-deduction" ? "text-rose-600" : "text-text-primary"}`}>
+          {row.id === "total-deduction" ? toSignedCurrency(row.value) : toCurrency(row.value)}
+        </span>
+      ),
+    },
+    {
+      key: "share",
+      header: "% of Net Sales",
+      align: "right",
+      render: (row) => (row.id === "net-sales" ? "100%" : toPercent(netSales ? (row.value / netSales) * 100 : 0)),
+    },
+    {
+      key: "vs",
+      header: "vs Previous Period",
+      align: "right",
+      render: (row) => {
+        const change = percentageChange(row.value, row.previous);
+        return <span className={change >= 0 ? "font-semibold text-emerald-600" : "font-semibold text-rose-600"}>{toPercent(change)}</span>;
+      },
+    },
+    { key: "remark", header: "Remark", render: () => <span className="text-text-muted">Read-only system calculation</span> },
+  ];
+
   return (
     <div className="space-y-5">
       <PeriodFilterBar
@@ -169,7 +262,7 @@ export default function SalesInputPage({ store, setStore, ui }) {
         actions={
           <>
             <button className="btn-secondary" type="button" disabled={isLocked} onClick={() => {
-              setRows(buildSalesRows(store, filters.outletId, previous.month, previous.year).map((row) => ({ ...row, id: undefined, amount: row.channel_id === "channel-net-sales" ? row.amount : "" })));
+              setRows(buildSalesRows(store, filters.outletId, previous.month, previous.year).map((row) => ({ ...row, id: undefined })));
               ui.notify({ title: "Previous month imported", message: "Amounts were copied for review." });
             }}>Import from Previous Month</button>
             <button
@@ -202,15 +295,74 @@ export default function SalesInputPage({ store, setStore, ui }) {
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         <Card
           title="Sales Input"
-          description="Structured monthly sales by channel, not spreadsheet cells."
-          action={<button className="btn-secondary" type="button" disabled={isLocked} onClick={() => setRows((current) => [...current, { id: undefined, channel_id: `custom-${crypto.randomUUID()}`, channelName: "Custom Channel", amount: "", remark: "", custom: true }])}><Plus size={16} /> Add Custom Channel</button>}
+          description="Net Sales is calculated from Gross Sales minus signed deductions. It is never manually entered."
+          action={
+            <div className="flex flex-wrap gap-2">
+              <button
+                className="btn-secondary"
+                type="button"
+                disabled={isLocked}
+                onClick={() => {
+                  const result = operationsService.addSalesChannel(store, "Custom Channel", "channel");
+                  setStore(result.state);
+                  setRows((current) => [
+                    ...current,
+                    { id: undefined, channel_id: result.channel.id, channelName: result.channel.name, type: "channel", amount: "", remark: "", custom: true },
+                  ]);
+                }}
+              >
+                <Plus size={16} /> Add Custom Channel
+              </button>
+              <button
+                className="btn-secondary"
+                type="button"
+                disabled={isLocked}
+                onClick={() => {
+                  const result = operationsService.addSalesChannel(store, "Other Deduction", "adjustment");
+                  setStore(result.state);
+                  setRows((current) => [
+                    ...current,
+                    { id: undefined, channel_id: result.channel.id, channelName: result.channel.name, type: "adjustment", amount: "", remark: "", custom: true },
+                  ]);
+                }}
+              >
+                <Plus size={16} /> Add Deduction
+              </button>
+            </div>
+          }
         >
-          <DataTable columns={columns} rows={rows} getRowKey={(row) => row.channel_id} />
+          <div className="space-y-5 p-5">
+            <div>
+              <div className="mb-3">
+                <h3 className="text-sm font-bold text-text-primary">1. Sales Channels</h3>
+                <p className="text-xs text-text-secondary">Enter Dine In, takeaway, delivery platforms and other revenue channels.</p>
+              </div>
+              <DataTable columns={columns} rows={salesRows} getRowKey={(row) => row.channel_id} />
+            </div>
+
+            <div>
+              <div className="mb-3">
+                <h3 className="text-sm font-bold text-text-primary">2. Adjustment / Deduction</h3>
+                <p className="text-xs text-text-secondary">Enter SST or other deductions as negative values. They reduce calculated Net Sales.</p>
+              </div>
+              <DataTable columns={columns} rows={adjustmentRows} getRowKey={(row) => row.channel_id} />
+            </div>
+
+            <div>
+              <div className="mb-3">
+                <h3 className="text-sm font-bold text-text-primary">3. Auto Summary</h3>
+                <p className="text-xs text-text-secondary">These rows are calculated by the system and cannot be edited.</p>
+              </div>
+              <DataTable columns={summaryColumns} rows={summaryRows} getRowKey={(row) => row.id} />
+            </div>
+          </div>
         </Card>
 
         <SummaryPanel
           title="Sales Summary"
           items={[
+            { label: "Gross Sales", value: toCurrency(grossSales) },
+            { label: "SST / Deduction", value: toCurrency(totalDeduction) },
             { label: "Net Sales", value: toCurrency(netSales) },
             { label: "Avg Daily Sales", value: toCurrency(netSales / 31) },
             { label: "Highest Channel", value: highest?.channelName ?? "-" },

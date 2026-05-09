@@ -13,7 +13,7 @@ export default function DataHealthPage({ store, setStore, ui }) {
   const filters = usePeriodFilters(store);
   const salesCount = store.salesRecords.filter((record) => record.outlet_id === filters.outletId && record.month === filters.month && record.year === filters.year).length;
   const purchaseCount = store.purchaseRecords.filter((record) => record.outlet_id === filters.outletId && record.month === filters.month && record.year === filters.year).length;
-  const netSales = getNetSales(store.salesRecords, filters.outletId, filters.month, filters.year);
+  const netSales = getNetSales(store.salesRecords, filters.outletId, filters.month, filters.year, store.salesChannels);
   const lock = getLock(store, filters.outletId, filters.month, filters.year);
   const isLocked = Boolean(lock?.is_locked);
   const completeness = Math.round(((salesCount ? 1 : 0) + (purchaseCount ? 1 : 0)) / 2 * 100);
