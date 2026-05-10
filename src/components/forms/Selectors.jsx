@@ -2,7 +2,7 @@ import { months } from "../../features/sales-purchase/data/mockData.js";
 
 export function FieldLabel({ label, children }) {
   return (
-    <label className="flex flex-col gap-1">
+    <label className="flex flex-col gap-0.5">
       <span className="text-xs font-semibold text-text-secondary">{label}</span>
       {children}
     </label>
@@ -26,7 +26,7 @@ export function OutletSelector({ outlets, value, onChange }) {
 export function MonthSelector({ value, onChange }) {
   return (
     <FieldLabel label="Month">
-      <select className="control" value={value} onChange={(event) => onChange(Number(event.target.value))}>
+      <select className="control min-w-32" value={value} onChange={(event) => onChange(Number(event.target.value))}>
         {months.map((month) => (
           <option key={month.value} value={month.value}>
             {month.label}
@@ -40,7 +40,7 @@ export function MonthSelector({ value, onChange }) {
 export function YearSelector({ value, onChange }) {
   return (
     <FieldLabel label="Year">
-      <select className="control" value={value} onChange={(event) => onChange(Number(event.target.value))}>
+      <select className="control min-w-32" value={value} onChange={(event) => onChange(Number(event.target.value))}>
         {[2024, 2025, 2026, 2027].map((year) => (
           <option key={year} value={year}>{year}</option>
         ))}

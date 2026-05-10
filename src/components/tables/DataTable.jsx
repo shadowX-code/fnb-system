@@ -1,13 +1,17 @@
-export default function DataTable({ columns, rows, getRowKey, footer, getRowClassName }) {
+export default function DataTable({ columns, rows, getRowKey, footer, getRowClassName, density = "normal", tableClassName = "" }) {
+  const cellPadding = density === "compact" ? "px-2.5 py-2" : "px-3 py-2.5";
+  const headerPadding = density === "compact" ? "px-2.5 py-2" : "px-3 py-2.5";
+
   return (
     <div className="overflow-x-auto">
-      <table className="w-full min-w-[880px] border-collapse text-sm">
+      <table className={`w-full min-w-[880px] border-collapse text-sm ${tableClassName}`}>
         <thead className="table-head">
           <tr>
             {columns.map((column) => (
               <th
-                key={column.key}
-                className={`px-4 py-3 ${column.align === "right" ? "text-right" : ""} ${
+                  key={column.key}
+                  style={column.width ? { width: column.width } : undefined}
+                  className={`${headerPadding} ${column.headerClassName ?? ""} ${column.align === "right" ? "text-right" : ""} ${
                   column.sticky ? "sticky left-0 z-10 bg-slate-50" : ""
                 }`}
               >
@@ -25,7 +29,8 @@ export default function DataTable({ columns, rows, getRowKey, footer, getRowClas
               {columns.map((column) => (
                 <td
                   key={column.key}
-                  className={`px-4 py-3 align-middle ${column.align === "right" ? "text-right" : ""} ${
+                  style={column.width ? { width: column.width } : undefined}
+                  className={`${cellPadding} align-middle ${column.className ?? ""} ${column.align === "right" ? "text-right" : ""} ${
                     column.sticky ? "sticky left-0 z-10 bg-white" : ""
                   }`}
                 >

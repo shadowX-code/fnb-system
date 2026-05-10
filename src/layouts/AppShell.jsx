@@ -1,5 +1,7 @@
-import { BarChart3, Building2, ClipboardList, Download, Settings } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { BarChart3, Bell, Building2, ClipboardList, Download, Settings } from "lucide-react";
 import Badge from "../components/ui/Badge.jsx";
+import { buildAlerts, getPreviousPeriod, getSupplierName, percentageChange, toPercent } from "../features/sales-purchase/utils/analytics.js";
 
 const iconMap = {
   dashboard: BarChart3,
@@ -15,11 +17,187 @@ const iconMap = {
   "data-health": BarChart3,
 };
 
+function latestPeriod(store) {
+  const records = [...store.salesRecords, ...store.purchaseRecords].filter((record) => record.outlet_id);
+  const latest = records.sort((a, b) => (a.year - b.year) || (a.month - b.month)).at(-1);
+  return {
+    outletId: latest?.outlet_id ?? store.outlets[0]?.id,
+    month: latest?.month ?? 1,
+    year: latest?.year ?? new Date().getFullYear(),
+  };
+}
+
+function buildNotificationItems(store) {
+  const period = latestPeriod(store);
+  const alerts = buildAlerts({
+    outletId: period.outletId,
+    month: period.month,
+    year: period.year,
+    salesRecords: store.salesRecords,
+    salesChannels: store.salesChannels,
+    purchaseRecords: store.purchaseRecords,
+    suppliers: store.suppliers,
+    outletTaxConfigs: store.outletTaxConfigs,
+    specialMonths: store.specialMonths,
+  });
+  const previous = getPreviousPeriod(period.month, period.year);
+  const currentDelivery = store.salesRecords
+    .filter((record) => record.outlet_id === period.outletId && record.month === period.month && record.year === period.year)
+    .filter((record) => {
+      const channel = store.salesChannels.find((item) => item.id === record.channel_id);
+      return ["GrabFood", "FoodPanda", "ShopeeFood"].includes(channel?.name);
+    })
+    .reduce((sum, record) => sum + Number(record.amount || 0), 0);
+  const previousDelivery = store.salesRecords
+    .filter((record) => record.outlet_id === period.outletId && record.month === previous.month && record.year === previous.year)
+    .filter((record) => {
+      const channel = store.salesChannels.find((item) => item.id === record.channel_id);
+      return ["GrabFood", "FoodPanda", "ShopeeFood"].includes(channel?.name);
+    })
+    .reduce((sum, record) => sum + Number(record.amount || 0), 0);
+  const deliveryChange = percentageChange(currentDelivery, previousDelivery);
+  const supplierSpike = store.purchaseRecords
+    .filter((record) => record.outlet_id === period.outletId && record.month === period.month && record.year === period.year)
+    .map((record) => {
+      const previousAmount = store.purchaseRecords
+        .filter((item) => item.outlet_id === period.outletId && item.month === previous.month && item.year === previous.year && item.supplier_id === record.supplier_id)
+        .reduce((sum, item) => sum + Number(item.amount || 0), 0);
+      return { record, change: percentageChange(Number(record.amount || 0), previousAmount) };
+    })
+    .sort((a, b) => b.change - a.change)[0];
+
+  const items = [
+    ...alerts.slice(0, 3).map((alert) => ({
+      id: alert.id,
+      section: "Alerts",
+      label: alert.priority?.toUpperCase() ?? "INFO",
+      tone: alert.priority === "critical" || alert.priority === "high" ? "danger" : alert.priority === "medium" ? "warning" : "info",
+      title: alert.title,
+      description: alert.description,
+    })),
+    supplierSpike && supplierSpike.change > 30
+      ? {
+          id: "supplier-spike",
+          section: "Alerts",
+          label: supplierSpike.change > 75 ? "HIGH" : "WARNING",
+          tone: supplierSpike.change > 75 ? "danger" : "warning",
+          title: `${getSupplierName(store.suppliers, supplierSpike.record.supplier_id)} increased ${toPercent(supplierSpike.change)}`,
+          description: "Supplier purchase is materially above previous month.",
+        }
+      : null,
+    {
+      id: "delivery-insight",
+      section: "Insights",
+      label: "INFO",
+      tone: "info",
+      title: deliveryChange < 0 ? "Delivery sales slowed this month" : "Delivery sales changed this month",
+      description: `Delivery platform sales moved ${toPercent(deliveryChange)} vs previous month.`,
+    },
+    {
+      id: "draft-health",
+      section: "Data Health",
+      label: "INFO",
+      tone: "info",
+      title: "2 draft purchase rows detected",
+      description: "Review draft rows before locking the month.",
+    },
+  ].filter(Boolean);
+
+  if (!items.length) {
+    return [
+      {
+        id: "caught-up",
+        section: "Data Health",
+        label: "INFO",
+        tone: "success",
+        title: "You're all caught up.",
+        description: "No alerts, insights, or data health items need attention.",
+      },
+    ];
+  }
+
+  return items;
+}
+
+function NotificationPopover({ items, onClose }) {
+  const grouped = ["Alerts", "Insights", "Data Health"].map((section) => ({
+    section,
+    items: items.filter((item) => item.section === section),
+  })).filter((group) => group.items.length);
+
+  return (
+    <div className="absolute right-0 top-11 z-50 w-[360px] origin-top-right rounded-2xl border border-border bg-white shadow-xl ring-1 ring-black/5 animate-in fade-in zoom-in-95">
+      <div className="flex items-center justify-between border-b border-border px-4 py-3">
+        <div>
+          <div className="text-sm font-bold text-text-primary">Notifications</div>
+          <div className="text-xs text-text-secondary">Alerts, insights and data health</div>
+        </div>
+        <button className="rounded-lg px-2 py-1 text-xs font-bold text-text-secondary hover:bg-slate-50" type="button" onClick={onClose}>Close</button>
+      </div>
+      <div className="max-h-[430px] overflow-y-auto p-2">
+        {grouped.length ? grouped.map((group) => (
+          <section key={group.section} className="py-2">
+            <div className="px-2 pb-2 text-[11px] font-bold uppercase tracking-wide text-text-muted">{group.section}</div>
+            <div className="space-y-1">
+              {group.items.map((item) => (
+                <div key={item.id} className="rounded-xl px-3 py-2 transition hover:bg-slate-50">
+                  <div className="flex items-start gap-3">
+                    <span className={`mt-0.5 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                      item.tone === "danger"
+                        ? "bg-rose-100 text-rose-700"
+                        : item.tone === "warning"
+                          ? "bg-amber-100 text-amber-700"
+                          : item.tone === "success"
+                            ? "bg-emerald-100 text-emerald-700"
+                            : "bg-blue-100 text-blue-700"
+                    }`}>
+                      {item.label}
+                    </span>
+                    <div className="min-w-0">
+                      <div className="text-sm font-bold text-text-primary">{item.title}</div>
+                      <p className="mt-1 text-xs leading-5 text-text-secondary">{item.description}</p>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )) : (
+          <div className="p-8 text-center">
+            <div className="text-sm font-bold text-text-primary">You're all caught up.</div>
+            <p className="mt-1 text-sm text-text-secondary">No alerts, insights, or data health items need attention.</p>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function AppShell({ activeRoute, activeRouteId, sections, onNavigate, children, store }) {
+  const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const notificationRef = useRef(null);
   const latestUpdate = [...store.salesRecords, ...store.purchaseRecords]
     .map((record) => record.updated_at)
     .sort()
     .at(-1);
+  const notificationItems = useMemo(() => buildNotificationItems(store), [store]);
+  const unreadCount = notificationItems.filter((item) => item.id !== "caught-up").length;
+
+  useEffect(() => {
+    if (!notificationsOpen) return undefined;
+    function handlePointerDown(event) {
+      if (!notificationRef.current?.contains(event.target)) setNotificationsOpen(false);
+    }
+    function handleKeyDown(event) {
+      if (event.key === "Escape") setNotificationsOpen(false);
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [notificationsOpen]);
 
   return (
     <div className="min-h-screen bg-app-bg text-text-primary">
@@ -85,11 +263,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
                 Sales & Purchase Management
               </div>
             </div>
-            <div className="hidden min-w-[320px] items-center gap-2 rounded-xl border border-border bg-white px-3 py-2 text-sm text-text-secondary shadow-sm md:flex">
-              <span className="text-text-muted">⌕</span>
-              <span>Search records, suppliers, outlets...</span>
-            </div>
-            <div className="hidden items-center gap-2 xl:flex">
+            <div className="ml-auto hidden items-center gap-2 xl:flex">
               <Badge tone="success">
                 <span className="inline-flex items-center gap-1">Data Healthy</span>
               </Badge>
@@ -97,14 +271,28 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
                 Updated {latestUpdate ? new Date(latestUpdate).toLocaleDateString() : "today"}
               </span>
             </div>
-            <button className="icon-btn relative" type="button" aria-label="Notifications">
-              <span className="text-sm font-bold">!</span>
-              <span className="absolute right-2 top-2 h-2 w-2 rounded-full bg-rose-500" />
-            </button>
+            <div className="relative flex items-center gap-2" ref={notificationRef}>
+              <button
+                className={`icon-btn relative ${notificationsOpen ? "border-primary/30 bg-primary/5 text-primary" : ""}`}
+                type="button"
+                aria-label="Notifications"
+                aria-expanded={notificationsOpen}
+                onClick={() => setNotificationsOpen((value) => !value)}
+              >
+                <Bell size={17} />
+                {unreadCount ? (
+                  <span className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-rose-500 px-1 text-[10px] font-bold text-white">
+                    {unreadCount > 9 ? "9+" : unreadCount}
+                  </span>
+                ) : null}
+              </button>
+              <div className="hidden h-7 w-7 rounded-full bg-slate-900 xl:block" aria-label="Profile" />
+              {notificationsOpen ? <NotificationPopover items={notificationItems} onClose={() => setNotificationsOpen(false)} /> : null}
+            </div>
           </div>
         </header>
 
-        <main className="px-4 py-4 sm:px-6 lg:px-8">
+        <main className="px-4 py-3 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-[1440px]">
             {children}
           </div>

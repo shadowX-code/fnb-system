@@ -54,13 +54,71 @@ export const outlets = [
   },
 ];
 
+export const outletTaxConfigs = [
+  {
+    id: "tax-outlet-001-sst-2026-01",
+    outlet_id: "outlet-001",
+    tax_type: "SST",
+    enabled: true,
+    rate: 6,
+    effective_from: "2026-01",
+    effective_until: null,
+    created_at: now,
+    updated_at: now,
+  },
+  {
+    id: "tax-outlet-002-sst-2026-01",
+    outlet_id: "outlet-002",
+    tax_type: "SST",
+    enabled: false,
+    rate: 0,
+    effective_from: "2026-01",
+    effective_until: null,
+    created_at: now,
+    updated_at: now,
+  },
+  {
+    id: "tax-outlet-003-sst-2026-01",
+    outlet_id: "outlet-003",
+    tax_type: "SST",
+    enabled: false,
+    rate: 0,
+    effective_from: "2026-01",
+    effective_until: "2027-06",
+    created_at: now,
+    updated_at: now,
+  },
+  {
+    id: "tax-outlet-003-sst-2027-07",
+    outlet_id: "outlet-003",
+    tax_type: "SST",
+    enabled: true,
+    rate: 6,
+    effective_from: "2027-07",
+    effective_until: null,
+    created_at: now,
+    updated_at: now,
+  },
+  {
+    id: "tax-outlet-004-sst-2026-01",
+    outlet_id: "outlet-004",
+    tax_type: "SST",
+    enabled: false,
+    rate: 0,
+    effective_from: "2026-01",
+    effective_until: null,
+    created_at: now,
+    updated_at: now,
+  },
+];
+
 export const salesChannels = [
   { id: "channel-dine-in", name: "Dine In", type: "channel", sort_order: 1, status: "active" },
   { id: "channel-takeaway", name: "Takeaway", type: "channel", sort_order: 2, status: "active" },
   { id: "channel-grabfood", name: "GrabFood", type: "channel", sort_order: 3, status: "active" },
   { id: "channel-foodpanda", name: "FoodPanda", type: "channel", sort_order: 4, status: "active" },
   { id: "channel-shopeefood", name: "ShopeeFood", type: "channel", sort_order: 5, status: "active" },
-  { id: "channel-sst", name: "SST (-)", type: "adjustment", sort_order: 6, status: "active" },
+  { id: "channel-sst", name: "SST Deduction", type: "adjustment", sort_order: 6, status: "active" },
 ];
 
 export const purchaseCategories = [
@@ -83,22 +141,33 @@ export const suppliers = [
   { id: "sup-006", name: "Yee Wah Frozen", default_category_id: "cat-frozen", status: "active", created_at: now, updated_at: now },
   { id: "sup-007", name: "Fresh Egg Supply Co.", default_category_id: "cat-egg", status: "active", created_at: now, updated_at: now },
   { id: "sup-008", name: "Daily Greens Market", default_category_id: "cat-vegetable", status: "active", created_at: now, updated_at: now },
+  { id: "sup-009", name: "Pasar Mini Ipoh", default_category_id: "cat-vegetable", status: "active", created_at: now, updated_at: now },
+  { id: "sup-010", name: "Pasar Fresh Market", default_category_id: "cat-vegetable", status: "active", created_at: now, updated_at: now },
+  { id: "sup-011", name: "Best Marketing", default_category_id: "cat-rice-sauce", status: "active", created_at: now, updated_at: now },
 ];
 
 const salesSeed = {
-  1: [56580, 1306, 6088, 3030, 611, -4135],
-  2: [57862, 1402, 6720, 3380, 657, -2916],
-  3: [60730, 1510, 7025, 3650, 700, -1005],
-  4: [59410, 1450, 6898, 3520, 690, -1664],
-  5: [65497.7, 1306.9, 6088.9, 3030.4, 611.6, -4072.25],
+  1: [56580, 1306, 6088, 3030, 611, 4135],
+  2: [57862, 1402, 6720, 3380, 657, 2916],
+  3: [60730, 1510, 7025, 3650, 700, 1005],
+  4: [59410, 1450, 6898, 3520, 690, 1664],
+  5: [65497.7, 1306.9, 6088.9, 3030.4, 611.6, 4072.25],
 };
 
-export const salesRecords = Object.entries(salesSeed).flatMap(([month, amounts]) =>
+const salesSeedPreviousYear = {
+  1: [51220, 1180, 5410, 2805, 520, 3820],
+  2: [53080, 1260, 5850, 3010, 560, 3950],
+  3: [55260, 1325, 6100, 3180, 590, 4125],
+  4: [54880, 1290, 6025, 3105, 570, 4080],
+  5: [58420, 1215, 5520, 2920, 535, 4310],
+};
+
+const buildSalesRecords = (seed, year) => Object.entries(seed).flatMap(([month, amounts]) =>
   amounts.map((amount, index) => ({
-    id: `sales-outlet-001-2026-${month}-${salesChannels[index].id}`,
+    id: `sales-outlet-001-${year}-${month}-${salesChannels[index].id}`,
     outlet_id: "outlet-001",
     month: Number(month),
-    year: 2026,
+    year,
     channel_id: salesChannels[index].id,
     amount,
     remark: salesChannels[index].id === "channel-sst" ? "SST Adjustment" : "",
@@ -106,6 +175,22 @@ export const salesRecords = Object.entries(salesSeed).flatMap(([month, amounts])
     updated_at: now,
   })),
 );
+
+export const salesRecords = [
+  ...buildSalesRecords(salesSeed, 2026),
+  ...buildSalesRecords(salesSeedPreviousYear, 2025),
+];
+
+export const specialMonths = [
+  {
+    id: "special-outlet-001-2026-2",
+    outlet_id: "outlet-001",
+    month: 2,
+    year: 2026,
+    flag: "festive",
+    note: "Festive campaign and altered operating pattern.",
+  },
+];
 
 const purchaseSeed = {
   1: [6080.5, 4420.4, 420.0, 910.5, 5136.0, 1504.0, 1726.5, 3310.0],
@@ -154,3 +239,5 @@ export const importRuns = [
     created_at: "2026-05-20T08:20:00.000Z",
   },
 ];
+
+export const taxConfigAuditTrail = [];

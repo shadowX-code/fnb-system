@@ -1,23 +1,249 @@
-import { useState } from "react";
-import { Plus, Settings } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { Edit3, Plus, Settings, SquarePen } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import EntityModal from "../components/EntityModal.jsx";
 import { operationsService } from "../services/operationsService.js";
+import { getOutletTaxConfig } from "../utils/analytics.js";
+import Modal from "../../../components/feedback/Modal.jsx";
+import { FieldLabel, MonthSelector, YearSelector } from "../../../components/forms/Selectors.jsx";
+import { months } from "../data/mockData.js";
+
+function latestPeriod(store) {
+  const latest = [...store.salesRecords, ...store.purchaseRecords]
+    .filter((record) => record.outlet_id)
+    .sort((a, b) => (a.year - b.year) || (a.month - b.month))
+    .at(-1);
+  return { month: latest?.month ?? 1, year: latest?.year ?? new Date().getFullYear() };
+}
+
+function periodLabel(value) {
+  if (!value) return "until further notice";
+  const [year, month] = value.split("-");
+  return new Date(Number(year), Number(month) - 1).toLocaleDateString("en-MY", { month: "short", year: "numeric" });
+}
+
+function selectedPeriodLabel(month, year) {
+  return `${months.find((item) => item.value === Number(month))?.label ?? "Month"} ${year}`;
+}
+
+function periodKeyFromParts(month, year) {
+  return `${year}-${String(month).padStart(2, "0")}`;
+}
+
+function previousMonthKey(value) {
+  const date = new Date(`${value}-01T00:00:00.000Z`);
+  date.setUTCMonth(date.getUTCMonth() - 1);
+  return `${date.getUTCFullYear()}-${String(date.getUTCMonth() + 1).padStart(2, "0")}`;
+}
+
+function TaxConfigModal({ store, values, setValues, onClose, onSubmit, ui }) {
+  const enabled = values.enabled === true || values.enabled === "true";
+  const mode = values.mode || "add";
+  const isEditing = mode === "editFuture" || mode === "forceEdit";
+  const isForceEdit = mode === "forceEdit";
+  const [forceConfirmed, setForceConfirmed] = useState(false);
+  const existingForScope = useMemo(
+    () =>
+      store.outletTaxConfigs
+        .filter((config) => config.outlet_id === values.outlet_id && config.tax_type === values.tax_type && config.id !== values.sourceId)
+        .sort((a, b) => b.effective_from.localeCompare(a.effective_from)),
+    [store.outletTaxConfigs, values.outlet_id, values.sourceId, values.tax_type],
+  );
+  const latestConfig = existingForScope[0];
+  const startsAfterLatest = values.effective_from && latestConfig ? values.effective_from > latestConfig.effective_from : true;
+
+  useEffect(() => {
+    if (!enabled && Number(values.rate || 0) !== 0) {
+      setValues((current) => ({ ...current, rate: 0 }));
+    }
+    if (enabled && (!values.rate || Number(values.rate) === 0)) {
+      setValues((current) => ({ ...current, rate: 6 }));
+    }
+  }, [enabled, setValues, values.rate]);
+
+  function validateAndSubmit() {
+    if (!values.outlet_id) return ui.notify({ title: "Outlet required", tone: "error" });
+    if (!values.tax_type) return ui.notify({ title: "Tax type required", tone: "error" });
+    if (!values.effective_from) return ui.notify({ title: "Effective From required", tone: "error" });
+    if (enabled && Number(values.rate || 0) <= 0) return ui.notify({ title: "Rate required", message: "Enabled tax config requires a rate above 0%.", tone: "error" });
+    if (values.effective_until && values.effective_until < values.effective_from) {
+      return ui.notify({ title: "Invalid effective period", message: "Effective Until cannot be earlier than Effective From.", tone: "error" });
+    }
+    if (!isEditing && latestConfig && values.effective_from <= latestConfig.effective_from) {
+      return ui.notify({
+        title: "Invalid effective month",
+        message: "Effective month must be after the latest config start month. Editing historical tax configuration is not supported in this prototype.",
+        tone: "error",
+      });
+    }
+    if (isForceEdit && !forceConfirmed) {
+      return ui.notify({ title: "Confirmation required", message: "Owner confirmation is required for force edit.", tone: "error" });
+    }
+    return onSubmit({ ...values, enabled, rate: enabled ? Number(values.rate) : 0, effective_until: values.effective_until || null });
+  }
+
+  return (
+    <Modal
+      title={isEditing ? "Edit Tax Configuration" : "Add Tax Configuration"}
+      description={isForceEdit ? "Owner-only overwrite of a financial tax configuration." : "Set outlet-level tax rules by effective month."}
+      onClose={onClose}
+      footer={
+        <>
+          <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" type="button" onClick={validateAndSubmit}>{isEditing ? "Save Changes" : "Save Tax Config"}</button>
+        </>
+      }
+    >
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+          <div className="font-bold text-blue-950">Historical months are protected.</div>
+          <p className="mt-1 text-xs leading-5">This setting only applies from the effective month onward. Historical months will not be changed.</p>
+          <p className="mt-1 text-xs leading-5">If this starts after the current active config, the previous config will automatically end one month before.</p>
+        </div>
+        {isForceEdit ? (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
+            <div className="font-bold">Force edit affects historical financial configuration.</div>
+            <p className="mt-1 text-xs leading-5">This may affect Net Sales, SST calculations, reports, and alerts. Owner confirmation is required and an audit trail will be written.</p>
+            <label className="mt-3 flex items-center gap-2 text-xs font-bold">
+              <input className="h-4 w-4 accent-rose-600" type="checkbox" checked={forceConfirmed} onChange={(event) => setForceConfirmed(event.target.checked)} />
+              I confirm this force edit is approved by Owner.
+            </label>
+          </div>
+        ) : null}
+
+        <FieldLabel label="Outlet">
+          <select className="control w-full" value={values.outlet_id} onChange={(event) => setValues((current) => ({ ...current, outlet_id: event.target.value }))}>
+            {store.outlets.map((outlet) => <option key={outlet.id} value={outlet.id}>{outlet.name}</option>)}
+          </select>
+        </FieldLabel>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <FieldLabel label="Tax Type">
+            <select className="control w-full" value={values.tax_type} onChange={(event) => setValues((current) => ({ ...current, tax_type: event.target.value }))}>
+              <option value="SST">SST</option>
+            </select>
+          </FieldLabel>
+          <FieldLabel label="Status">
+            <select className="control w-full" value={String(enabled)} onChange={(event) => setValues((current) => ({ ...current, enabled: event.target.value, rate: event.target.value === "true" ? current.rate || 6 : 0 }))}>
+              <option value="true">Enabled</option>
+              <option value="false">Disabled</option>
+            </select>
+          </FieldLabel>
+        </div>
+
+        <FieldLabel label="Rate (%)">
+          <input
+            className="control w-full disabled:bg-slate-100 disabled:text-text-muted"
+            type="number"
+            min="0"
+            step="0.1"
+            disabled={!enabled}
+            value={values.rate}
+            onChange={(event) => setValues((current) => ({ ...current, rate: event.target.value }))}
+            placeholder={enabled ? "6" : "0"}
+          />
+          {!enabled ? <p className="mt-1 text-xs font-semibold text-text-secondary">SST disabled from selected effective month.</p> : null}
+        </FieldLabel>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          <FieldLabel label="Effective From">
+            <input className="control w-full" type="month" value={values.effective_from} onChange={(event) => setValues((current) => ({ ...current, effective_from: event.target.value }))} />
+          </FieldLabel>
+          <FieldLabel label="Effective Until">
+            <input className="control w-full" type="month" value={values.effective_until || ""} onChange={(event) => setValues((current) => ({ ...current, effective_until: event.target.value }))} />
+            <p className="mt-1 text-xs text-text-secondary">Leave empty for until further notice.</p>
+          </FieldLabel>
+        </div>
+
+        {!isEditing && latestConfig && values.effective_from ? (
+          <div className={`rounded-2xl border px-4 py-3 text-sm ${startsAfterLatest ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-800"}`}>
+            <div className="font-bold">
+              {startsAfterLatest ? "Previous config will be closed automatically." : "Historical backdating is blocked."}
+            </div>
+            <p className="mt-1 text-xs leading-5">
+              Latest config starts {periodLabel(latestConfig.effective_from)} and currently ends {periodLabel(latestConfig.effective_until)}.
+              {startsAfterLatest
+                ? " Saving this will end that config one month before the new effective month."
+                : " Effective month must be after the latest config start month."}
+            </p>
+          </div>
+        ) : null}
+      </div>
+    </Modal>
+  );
+}
 
 export default function SettingsPage({ store, setStore, ui }) {
   const [tab, setTab] = useState("channels");
   const [modal, setModal] = useState(null);
+  const [taxValues, setTaxValues] = useState(null);
+  const [revisionConfig, setRevisionConfig] = useState(null);
+  const [endConfig, setEndConfig] = useState(null);
+  const [endUntil, setEndUntil] = useState("");
+  const [taxOutletFilter, setTaxOutletFilter] = useState("all");
+  const [taxMonth, setTaxMonth] = useState(() => latestPeriod(store).month);
+  const [taxYear, setTaxYear] = useState(() => latestPeriod(store).year);
+  const currentPeriodKey = periodKeyFromParts(latestPeriod(store).month, latestPeriod(store).year);
+  const currentUser = { name: "Marcus Lee", role: "Owner" };
+  const canForceEdit = currentUser.role === "Owner";
   const isChannels = tab === "channels";
-  const rows = isChannels ? store.salesChannels : store.purchaseCategories;
-  const columns = [
+  const isCategories = tab === "categories";
+  const isTax = tab === "tax";
+  const rows = isChannels ? store.salesChannels : isCategories ? store.purchaseCategories : store.outletTaxConfigs;
+  const filteredTaxRows = taxOutletFilter === "all" ? store.outletTaxConfigs : store.outletTaxConfigs.filter((row) => row.outlet_id === taxOutletFilter);
+  const masterColumns = [
     { key: "name", header: isChannels ? "Sales Channel" : "Purchase Category", sticky: true, render: (row) => <span className="font-semibold">{row.name}</span> },
     ...(isChannels ? [{ key: "type", header: "Type" }] : []),
     { key: "sort_order", header: "Sort Order", align: "right" },
     { key: "status", header: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge> },
     { key: "action", header: "Action", align: "right", render: (row) => <button className="icon-btn" onClick={() => setModal({ mode: "edit", row })}><Settings size={15} /></button> },
+  ];
+  const taxColumns = [
+    {
+      key: "outlet",
+      header: "Outlet",
+      sticky: true,
+      render: (row) => <span className="font-semibold">{store.outlets.find((outlet) => outlet.id === row.outlet_id)?.name ?? row.outlet_id}</span>,
+    },
+    { key: "tax_type", header: "Tax Type" },
+    { key: "enabled", header: "Status", render: (row) => <Badge tone={row.enabled ? "success" : "neutral"}>{row.enabled ? "Enabled" : "Disabled"}</Badge> },
+    { key: "rate", header: "Rate", align: "right", render: (row) => `${Number(row.rate || 0)}%` },
+    { key: "effective_from", header: "Effective From" },
+    { key: "effective_until", header: "Effective Until", render: (row) => row.effective_until || "Current" },
+    {
+      key: "action",
+      header: "Action",
+      align: "right",
+      render: (row) => {
+        const isFuture = row.effective_from > currentPeriodKey;
+        return (
+          <div className="flex justify-end gap-2">
+            <button
+              className="btn-secondary h-8 px-2 text-xs"
+              type="button"
+              onClick={() => {
+                if (isFuture) {
+                  setTaxValues({ ...row, enabled: String(Boolean(row.enabled)), mode: "editFuture", sourceId: row.id });
+                  return;
+                }
+                setRevisionConfig(row);
+              }}
+            >
+              <Edit3 size={13} /> Edit
+            </button>
+            <button className="btn-secondary h-8 px-2 text-xs" type="button" onClick={() => {
+              setEndConfig(row);
+              setEndUntil(row.effective_until || previousMonthKey(currentPeriodKey));
+            }}>
+              <SquarePen size={13} /> End
+            </button>
+          </div>
+        );
+      },
+    },
   ];
   const fields = [
     { name: "name", label: "Name", placeholder: "Name" },
@@ -25,24 +251,214 @@ export default function SettingsPage({ store, setStore, ui }) {
     { name: "sort_order", label: "Sort Order", placeholder: "1" },
     { name: "status", label: "Status", type: "select", options: [{ value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }] },
   ];
+  const currentTaxRows = store.outlets.map((outlet) => ({
+    outlet,
+    config: getOutletTaxConfig(store.outletTaxConfigs, outlet.id, taxMonth, taxYear, "SST"),
+  }));
   return (
     <div className="space-y-5">
       <PageHeader
         section="Management"
         title="Settings"
-        description="Manage sales channels and purchase categories for structured reporting."
-        actions={<button className="btn-primary" onClick={() => setModal({ mode: "add" })}><Plus size={16} /> Add</button>}
+        description="Manage sales channels, purchase categories, and outlet tax configuration history."
+        actions={
+          <button
+            className="btn-primary"
+            onClick={() => {
+              if (isTax) {
+                setTaxValues({ outlet_id: store.outlets[0]?.id, tax_type: "SST", enabled: "true", rate: 6, effective_from: "", effective_until: "" });
+                return;
+              }
+              setModal({ mode: "add" });
+            }}
+          >
+            <Plus size={16} /> Add
+          </button>
+        }
       />
 
       <div className="card flex items-center p-2">
         <div className="flex gap-2">
           <button className={`h-10 rounded-xl px-4 text-sm font-semibold ${isChannels ? "bg-primary text-white" : "text-text-secondary hover:bg-slate-50"}`} onClick={() => setTab("channels")}>Sales Channels</button>
-          <button className={`h-10 rounded-xl px-4 text-sm font-semibold ${!isChannels ? "bg-primary text-white" : "text-text-secondary hover:bg-slate-50"}`} onClick={() => setTab("categories")}>Purchase Categories</button>
+          <button className={`h-10 rounded-xl px-4 text-sm font-semibold ${isCategories ? "bg-primary text-white" : "text-text-secondary hover:bg-slate-50"}`} onClick={() => setTab("categories")}>Purchase Categories</button>
+          <button className={`h-10 rounded-xl px-4 text-sm font-semibold ${isTax ? "bg-primary text-white" : "text-text-secondary hover:bg-slate-50"}`} onClick={() => setTab("tax")}>Tax Settings</button>
         </div>
       </div>
-      <Card title={isChannels ? "Sales Channels" : "Purchase Categories"} description="Structured master data powers future dashboards and imports.">
-        <DataTable columns={columns} rows={rows} getRowKey={(row) => row.id} />
+      {isTax ? (
+        <>
+          <div className="card flex flex-wrap items-center justify-between gap-3 p-3">
+            <div>
+              <div className="text-sm font-bold text-text-primary">Resolve SST status for selected month</div>
+              <p className="mt-1 text-xs text-text-secondary">Top cards use the same effective-date resolver as Sales Input, Data Health, and Alerts.</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <MonthSelector value={taxMonth} onChange={setTaxMonth} />
+              <YearSelector value={taxYear} onChange={setTaxYear} />
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+            {currentTaxRows.map(({ outlet, config }) => (
+              <div key={outlet.id} className={`card p-4 ${config.missing ? "border-amber-200 bg-amber-50/50" : ""}`}>
+                <div className="text-sm font-bold text-text-primary">{outlet.name}</div>
+                <div className="mt-2 flex items-center justify-between">
+                  <Badge tone={config.missing ? "warning" : config.enabled ? "success" : "neutral"}>
+                    {config.missing ? "Missing Config" : `SST ${config.enabled ? "ON" : "OFF"}`}
+                  </Badge>
+                  <span className="text-sm font-bold text-text-primary">{Number(config.rate || 0)}%</span>
+                </div>
+                {config.missing ? (
+                  <div className="mt-2 text-xs font-semibold text-amber-800">No tax config for selected month</div>
+                ) : (
+                  <div className="mt-2 text-xs text-text-secondary">
+                    {selectedPeriodLabel(taxMonth, taxYear)}: {config.effective_from} → {config.effective_until || "Current"}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </>
+      ) : null}
+      <Card
+        title={isChannels ? "Sales Channels" : isCategories ? "Purchase Categories" : "SST Configuration History"}
+        description={isTax ? "Effective-date based tax history prevents future changes from rewriting historical months." : "Structured master data powers future dashboards and imports."}
+        action={isTax ? (
+          <select className="control h-9 w-44 text-sm" value={taxOutletFilter} onChange={(event) => setTaxOutletFilter(event.target.value)}>
+            <option value="all">All Outlets</option>
+            {store.outlets.map((outlet) => (
+              <option key={outlet.id} value={outlet.id}>{outlet.name}</option>
+            ))}
+          </select>
+        ) : null}
+      >
+        {isTax && !filteredTaxRows.length ? (
+          <div className="p-6 text-sm font-semibold text-text-secondary">No tax configuration history found for this outlet.</div>
+        ) : (
+          <DataTable columns={isTax ? taxColumns : masterColumns} rows={isTax ? filteredTaxRows : rows} getRowKey={(row) => row.id} />
+        )}
       </Card>
+      {taxValues ? (
+        <TaxConfigModal
+          store={store}
+          values={taxValues}
+          setValues={setTaxValues}
+          ui={ui}
+          onClose={() => setTaxValues(null)}
+          onSubmit={(values) => {
+            if (values.mode === "editFuture" || values.mode === "forceEdit") {
+              setStore((current) =>
+                operationsService.updateOutletTaxConfig(
+                  current,
+                  values.sourceId,
+                  values,
+                  { user: currentUser.name, action: values.mode === "forceEdit" ? "force_edit" : "edit_future" },
+                ),
+              );
+            } else {
+              setStore((current) => operationsService.addOutletTaxConfig(current, { ...values, user: currentUser.name }).state);
+            }
+            setTaxValues(null);
+            ui.notify({ title: "Tax configuration saved", message: `${values.tax_type} from ${values.effective_from}` });
+          }}
+        />
+      ) : null}
+
+      {revisionConfig ? (
+        <Modal
+          title="This configuration already affects historical records."
+          description="Create a revision instead of silently overwriting financial configuration."
+          onClose={() => setRevisionConfig(null)}
+          footer={
+            <>
+              <button className="btn-secondary" type="button" onClick={() => setRevisionConfig(null)}>Cancel</button>
+              {canForceEdit ? (
+                <button
+                  className="btn-secondary border-rose-200 text-rose-700 hover:bg-rose-50"
+                  type="button"
+                  onClick={() => {
+                    setTaxValues({ ...revisionConfig, enabled: String(Boolean(revisionConfig.enabled)), mode: "forceEdit", sourceId: revisionConfig.id });
+                    setRevisionConfig(null);
+                  }}
+                >
+                  Force Edit
+                </button>
+              ) : null}
+              <button
+                className="btn-primary"
+                type="button"
+                onClick={() => {
+                  const revisionStart = periodKeyFromParts(taxMonth, taxYear) > revisionConfig.effective_from ? periodKeyFromParts(taxMonth, taxYear) : currentPeriodKey;
+                  setTaxValues({
+                    outlet_id: revisionConfig.outlet_id,
+                    tax_type: revisionConfig.tax_type,
+                    enabled: String(Boolean(revisionConfig.enabled)),
+                    rate: revisionConfig.rate,
+                    effective_from: revisionStart,
+                    effective_until: "",
+                    mode: "add",
+                  });
+                  setRevisionConfig(null);
+                }}
+              >
+                Create Revision
+              </button>
+            </>
+          }
+        >
+          <div className="space-y-4 text-sm">
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
+              <div className="font-bold">Editing may affect:</div>
+              <ul className="mt-2 space-y-1 text-xs leading-5">
+                <li>- Net Sales</li>
+                <li>- SST calculations</li>
+                <li>- Reports</li>
+                <li>- Alerts</li>
+              </ul>
+            </div>
+            <p className="text-text-secondary">
+              Current config: {revisionConfig.effective_from} → {revisionConfig.effective_until || "Current"} · {revisionConfig.enabled ? "Enabled" : "Disabled"} · {Number(revisionConfig.rate || 0)}%
+            </p>
+          </div>
+        </Modal>
+      ) : null}
+
+      {endConfig ? (
+        <Modal
+          title="End Tax Configuration"
+          description="Set the final month this configuration remains effective."
+          onClose={() => setEndConfig(null)}
+          footer={
+            <>
+              <button className="btn-secondary" type="button" onClick={() => setEndConfig(null)}>Cancel</button>
+              <button
+                className="btn-primary"
+                type="button"
+                onClick={() => {
+                  if (!endUntil || endUntil < endConfig.effective_from) {
+                    ui.notify({ title: "Invalid end month", message: "End month cannot be earlier than Effective From.", tone: "error" });
+                    return;
+                  }
+                  setStore((current) => operationsService.endOutletTaxConfig(current, endConfig.id, endUntil, currentUser.name));
+                  setEndConfig(null);
+                  ui.notify({ title: "Tax configuration ended", message: `${endConfig.tax_type} ends ${endUntil}` });
+                }}
+              >
+                End Config
+              </button>
+            </>
+          }
+        >
+          <div className="space-y-4">
+            <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
+              <div className="font-bold">Current period</div>
+              <p className="mt-1 text-xs">{endConfig.effective_from} → {endConfig.effective_until || "Current"}</p>
+            </div>
+            <FieldLabel label="Effective Until">
+              <input className="control w-full" type="month" value={endUntil} onChange={(event) => setEndUntil(event.target.value)} />
+            </FieldLabel>
+          </div>
+        </Modal>
+      ) : null}
+
       {modal ? (
         <EntityModal
           title={`${modal.mode === "add" ? "Add" : "Edit"} ${isChannels ? "Sales Channel" : "Purchase Category"}`}

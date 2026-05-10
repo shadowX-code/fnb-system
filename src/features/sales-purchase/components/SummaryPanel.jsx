@@ -5,7 +5,7 @@ export default function SummaryPanel({ title = "Summary", items, children }) {
     <Card title={title}>
       <div className="divide-y divide-border">
         {items.map((item) => (
-          <div key={item.label} className="flex items-center justify-between gap-4 px-5 py-4 text-sm">
+          <div key={item.label} className="flex items-center justify-between gap-4 px-4 py-3 text-sm">
             <span className="text-text-secondary">{item.label}</span>
             <span className={`font-bold ${item.tone === "danger" ? "text-rose-600" : "text-text-primary"}`}>
               {item.value}
@@ -13,7 +13,7 @@ export default function SummaryPanel({ title = "Summary", items, children }) {
           </div>
         ))}
       </div>
-      {children ? <div className="border-t border-border p-5">{children}</div> : null}
+      {children ? <div className="border-t border-border p-4">{children}</div> : null}
     </Card>
   );
 }

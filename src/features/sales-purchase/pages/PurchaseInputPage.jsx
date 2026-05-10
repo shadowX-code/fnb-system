@@ -1,34 +1,36 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
+  ChevronDown,
   Copy,
+  FileText,
   MoreHorizontal,
   Percent,
   Plus,
   Save,
   Search,
+  SquarePen,
   Trash2,
-  TrendingUp,
-  Trophy,
-  Users,
   Wallet,
 } from "lucide-react";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
-import DataTable from "../../../components/tables/DataTable.jsx";
 import FilterBar from "../../../components/forms/FilterBar.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import { FieldLabel, MonthSelector, OutletSelector, YearSelector } from "../../../components/forms/Selectors.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
-import EntityModal from "../components/EntityModal.jsx";
+import SupplierCombobox from "../components/SupplierCombobox.jsx";
 import usePeriodFilters from "../hooks/usePeriodFilters.js";
 import { operationsService } from "../services/operationsService.js";
+import { months } from "../data/mockData.js";
 import {
   getCategoryName,
   getNetSales,
   getPreviousPeriod,
+  getPurchaseTotal,
   getPurchaseRowAnalysis,
+  getSupplierPurchaseAmount,
   getSupplierName,
   percentageChange,
   sumAmount,
@@ -58,42 +60,276 @@ function isAmountMissing(row) {
   return row.amount === "" || row.amount === null || row.amount === undefined;
 }
 
+function PurchaseEntryTable({
+  rows,
+  store,
+  supplierOptions,
+  isLocked,
+  focusSupplierKey,
+  expandedRows,
+  editingCategoryKey,
+  amountInputRefs,
+  totalPurchase,
+  analyzedRows,
+  updateRow,
+  setEditingCategoryKey,
+  setFocusSupplierKey,
+  createSupplierForRow,
+  toggleDetails,
+  deleteRow,
+}) {
+  const previousTotal = sumAmount(analyzedRows.map((row) => ({ amount: row.analysis.previousAmount })));
+  const varianceTotal = percentageChange(totalPurchase, previousTotal);
+
+  return (
+    <div className="overflow-x-auto">
+      <table className="w-full min-w-[1040px] table-fixed border-collapse text-sm">
+        <colgroup>
+          <col className="w-[320px]" />
+          <col className="w-[150px]" />
+          <col className="w-[140px]" />
+          <col className="w-[120px]" />
+          <col className="w-[100px]" />
+          <col className="w-[120px]" />
+          <col className="w-[90px]" />
+        </colgroup>
+        <thead className="sticky top-0 z-20 bg-slate-50 text-xs uppercase tracking-wide text-text-secondary">
+          <tr>
+            <th className="sticky left-0 z-30 bg-slate-50 px-3 py-2.5 text-left">Supplier</th>
+            <th className="px-3 py-2.5 text-left">Category</th>
+            <th className="px-3 py-2.5 text-right">Current Amount</th>
+            <th className="px-3 py-2.5 text-right">Previous</th>
+            <th className="px-3 py-2.5 text-right">Variance</th>
+            <th className="px-3 py-2.5 text-left">Status</th>
+            <th className="px-3 py-2.5 text-right">Actions</th>
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border bg-white">
+          {rows.map((row) => {
+            const isExpanded = expandedRows.has(row.localKey);
+            const rowTone =
+              row.analysis.status === "High Risk"
+                ? "bg-rose-50/60"
+                : row.analysis.status === "Warning"
+                  ? "bg-amber-50/70"
+                  : row.analysis.status === "Missing"
+                    ? "bg-slate-50"
+                    : "";
+            const isUp = row.analysis.changePercent >= 0;
+            return (
+              <Fragment key={row.localKey}>
+                <tr className={`transition hover:bg-slate-50/80 ${rowTone}`}>
+                  <td className="sticky left-0 z-10 max-w-[320px] overflow-visible bg-inherit px-3 py-2.5 align-top">
+                    <SupplierCombobox
+                      suppliers={supplierOptions}
+                      value={row.supplier_id}
+                      disabled={isLocked}
+                      error={!row.supplier_id}
+                      autoFocus={focusSupplierKey === row.localKey}
+                      onChange={(supplier) => {
+                        updateRow(row.localKey, {
+                          supplier_id: supplier?.id ?? "",
+                          category_id: supplier?.default_category_id ?? row.category_id,
+                        });
+                        setFocusSupplierKey(null);
+                      }}
+                      onCreate={(name) => createSupplierForRow(row.localKey, name)}
+                    />
+                    <div className="mt-1 flex items-center gap-2">
+                      {!row.supplier_id ? <span className="text-[11px] font-semibold text-amber-700">Supplier required</span> : null}
+                      {row.draft ? <span className="text-[11px] font-semibold text-primary">Draft row</span> : null}
+                    </div>
+                  </td>
+                  <td className="px-3 py-2 align-top">
+                    {editingCategoryKey === row.localKey ? (
+                      <select
+                        className={`control h-9 w-[150px] max-w-full text-sm ${!row.category_id ? "border-amber-300 bg-amber-50/60" : ""}`}
+                        disabled={isLocked}
+                        value={row.category_id}
+                        autoFocus
+                        onBlur={() => setEditingCategoryKey(null)}
+                        onChange={(event) => {
+                          updateRow(row.localKey, { category_id: event.target.value });
+                          setEditingCategoryKey(null);
+                        }}
+                      >
+                        <option value="">Category</option>
+                        {store.purchaseCategories.map((category) => (
+                          <option key={category.id} value={category.id}>
+                            {category.name}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <button
+                        className={`inline-flex max-w-[150px] items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition ${
+                          row.category_id ? "border-slate-200 bg-slate-50 text-text-secondary hover:border-primary/30 hover:text-primary" : "border-amber-200 bg-amber-50 text-amber-700"
+                        }`}
+                        type="button"
+                        disabled={isLocked}
+                        title={row.category_id ? getCategoryName(store.purchaseCategories, row.category_id) : "Category required"}
+                        onClick={() => setEditingCategoryKey(row.localKey)}
+                      >
+                        <span className="truncate">{row.category_id ? getCategoryName(store.purchaseCategories, row.category_id) : "Required"}</span>
+                        <SquarePen size={12} />
+                      </button>
+                    )}
+                  </td>
+                  <td className="px-3 py-2 align-top text-right">
+                    <input
+                      ref={(element) => {
+                        if (element) amountInputRefs.current.set(row.localKey, element);
+                        else amountInputRefs.current.delete(row.localKey);
+                      }}
+                      className={`control h-9 w-[132px] max-w-full text-right text-base font-bold tabular-nums ${
+                        isAmountMissing(row) ? "border-amber-300 bg-amber-50/60" : "focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/25 focus:ring-offset-1"
+                      }`}
+                      type="number"
+                      disabled={isLocked}
+                      value={row.amount}
+                      placeholder="0.00"
+                      onChange={(event) => updateRow(row.localKey, { amount: event.target.value })}
+                      onKeyDown={(event) => {
+                        if (event.key !== "Enter") return;
+                        event.preventDefault();
+                        const currentIndex = rows.findIndex((item) => item.localKey === row.localKey);
+                        const nextRow = rows[currentIndex + 1];
+                        if (nextRow) amountInputRefs.current.get(nextRow.localKey)?.focus();
+                      }}
+                    />
+                    {isAmountMissing(row) ? <div className="mt-1 text-[11px] font-semibold text-amber-700">Amount required</div> : null}
+                  </td>
+                  <td className="px-3 py-2.5 text-right align-top font-medium text-text-secondary">
+                    {row.analysis.previousAmount ? toCurrency(row.analysis.previousAmount) : "-"}
+                  </td>
+                  <td className="px-3 py-2.5 text-right align-top">
+                    <span className={`font-bold tabular-nums ${row.analysis.previousAmount ? (isUp ? "text-emerald-600" : "text-rose-600") : "text-text-muted"}`}>
+                      {row.analysis.previousAmount ? toPercent(row.analysis.changePercent) : "-"}
+                    </span>
+                  </td>
+                  <td className="px-3 py-2.5 align-top">
+                    <Badge tone={statusTone[row.analysis.status]}>{row.analysis.status}</Badge>
+                  </td>
+                  <td className="px-3 py-2.5 align-top">
+                    <div className="flex justify-end gap-1">
+                      <button
+                        className={`icon-btn ${isExpanded || row.remark ? "text-primary" : ""}`}
+                        type="button"
+                        aria-label="Toggle row details"
+                        onClick={() => toggleDetails(row.localKey)}
+                      >
+                        <FileText size={15} />
+                      </button>
+                      <button className="icon-btn" type="button" disabled={isLocked} aria-label="Delete row" onClick={() => deleteRow(row)}>
+                        <Trash2 size={15} />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+                {isExpanded ? (
+                  <tr className="bg-slate-50/70">
+                    <td className="sticky left-0 z-10 bg-slate-50 px-3 py-2.5">
+                      <button className="inline-flex items-center gap-2 text-xs font-bold text-text-secondary" type="button" onClick={() => toggleDetails(row.localKey)}>
+                        <ChevronDown size={14} /> Details
+                      </button>
+                    </td>
+                    <td colSpan={6} className="px-3 py-2.5">
+                      <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_180px_1.2fr]">
+                        <label className="block">
+                          <span className="text-xs font-semibold text-text-secondary">Remark</span>
+                          <input
+                            className="control mt-1 w-full"
+                            disabled={isLocked}
+                            value={row.remark ?? ""}
+                            placeholder="Optional note, invoice reference, stock-up reason..."
+                            onChange={(event) => updateRow(row.localKey, { remark: event.target.value })}
+                          />
+                        </label>
+                        <div className="rounded-xl border border-border bg-white px-3 py-2">
+                          <div className="text-xs font-semibold text-text-secondary">3-Month Avg</div>
+                          <div className="mt-1 font-bold text-text-primary">{row.analysis.threeMonthAverage ? toCurrency(row.analysis.threeMonthAverage) : "-"}</div>
+                        </div>
+                        <div className="rounded-xl border border-border bg-white px-3 py-2">
+                          <div className="flex items-center gap-2">
+                            <Badge tone={statusTone[row.analysis.status]}>{row.analysis.status}</Badge>
+                            <span className="text-xs font-semibold text-text-secondary">Row check</span>
+                          </div>
+                          <p className="mt-1 text-xs leading-5 text-text-secondary">{row.analysis.reason}</p>
+                        </div>
+                      </div>
+                    </td>
+                  </tr>
+                ) : null}
+              </Fragment>
+            );
+          })}
+        </tbody>
+        <tfoot className="border-t border-border bg-slate-50">
+          <tr className="font-bold text-text-primary">
+            <td className="sticky left-0 z-10 bg-slate-50 px-3 py-2.5">Total Purchase</td>
+            <td className="px-3 py-2.5" />
+            <td className="px-3 py-2.5 text-right">{toCurrency(totalPurchase)}</td>
+            <td className="px-3 py-2.5 text-right">{toCurrency(previousTotal)}</td>
+            <td className="px-3 py-2.5 text-right">
+              <span className={varianceTotal >= 0 ? "text-emerald-600" : "text-rose-600"}>{toPercent(varianceTotal)}</span>
+            </td>
+            <td className="px-3 py-2.5">Auto calculated</td>
+            <td className="px-3 py-2.5" />
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+}
+
 function PurchaseInsightPanel({ cogsMargin, highest, biggestIncrease, missingRows, reviewItems, store }) {
+  const [showAllInsights, setShowAllInsights] = useState(false);
   const cogsTone = cogsMargin > 40 ? "danger" : cogsMargin > 36 ? "warning" : "success";
+  const cards = [
+    {
+      key: "highest",
+      label: "Highest Supplier",
+      title: highest ? getSupplierName(store.suppliers, highest.supplier_id) : "-",
+      body: highest ? toCurrency(highest.amount) : "No amount yet",
+    },
+    {
+      key: "increase",
+      label: "Biggest Increase",
+      title: biggestIncrease ? getSupplierName(store.suppliers, biggestIncrease.supplier_id) : "-",
+      body: biggestIncrease ? `${toPercent(biggestIncrease.analysis.changePercent)} vs previous month` : "No comparison yet",
+    },
+    {
+      key: "cogs",
+      label: "COGS Margin Status",
+      title: toPercent(cogsMargin),
+      body: "Total Purchase / calculated Net Sales",
+      badge: <Badge tone={cogsTone}>{cogsMargin > 40 ? "COGS High" : cogsMargin > 36 ? "Review" : "Normal"}</Badge>,
+    },
+  ];
+  const visibleCards = showAllInsights ? cards : cards.slice(0, 2);
 
   return (
     <aside className="card overflow-hidden">
-      <div className="border-b border-border px-5 py-4">
+      <div className="border-b border-border px-4 py-3">
         <h2 className="text-sm font-bold text-text-primary">Purchase Insights</h2>
         <p className="mt-1 text-xs text-text-secondary">Live checks for the selected outlet and month.</p>
       </div>
-      <div className="space-y-4 p-5">
-        <div className="rounded-2xl bg-slate-50 p-4">
-          <div className="text-xs font-semibold text-text-secondary">Highest Supplier</div>
-          <div className="mt-2 text-base font-bold text-text-primary">
-            {highest ? getSupplierName(store.suppliers, highest.supplier_id) : "-"}
+      <div className="space-y-2.5 p-3">
+        {visibleCards.map((card) => (
+          <div key={card.key} className="rounded-xl bg-slate-50 p-2.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="text-xs font-semibold text-text-secondary">{card.label}</div>
+              {card.badge}
+            </div>
+            <div className="mt-1.5 truncate text-sm font-bold text-text-primary" title={card.title}>{card.title}</div>
+            <div className="mt-0.5 text-xs text-text-secondary">{card.body}</div>
           </div>
-          <div className="mt-1 text-sm text-text-secondary">{highest ? toCurrency(highest.amount) : "No amount yet"}</div>
-        </div>
-
-        <div className="rounded-2xl bg-slate-50 p-4">
-          <div className="text-xs font-semibold text-text-secondary">Biggest Increase</div>
-          <div className="mt-2 text-base font-bold text-text-primary">
-            {biggestIncrease ? getSupplierName(store.suppliers, biggestIncrease.supplier_id) : "-"}
-          </div>
-          <div className="mt-1 text-sm text-text-secondary">
-            {biggestIncrease ? `${toPercent(biggestIncrease.analysis.changePercent)} vs previous month` : "No comparison yet"}
-          </div>
-        </div>
-
-        <div className="rounded-2xl bg-slate-50 p-4">
-          <div className="flex items-center justify-between">
-            <span className="text-xs font-semibold text-text-secondary">COGS Margin Status</span>
-            <Badge tone={cogsTone}>{cogsMargin > 40 ? "COGS High" : cogsMargin > 36 ? "Review" : "Normal"}</Badge>
-          </div>
-          <div className="mt-2 text-2xl font-bold text-text-primary">{toPercent(cogsMargin)}</div>
-          <div className="mt-1 text-sm text-text-secondary">Total Purchase / calculated Net Sales</div>
-        </div>
+        ))}
+        {cards.length > 2 ? (
+          <button className="w-full rounded-xl border border-border bg-white px-3 py-2 text-xs font-bold text-text-secondary transition hover:bg-slate-50" type="button" onClick={() => setShowAllInsights((value) => !value)}>
+            {showAllInsights ? "Show top insights" : `View all insights (${cards.length})`}
+          </button>
+        ) : null}
 
         <div>
           <div className="mb-2 flex items-center justify-between text-xs font-semibold text-text-secondary">
@@ -103,7 +339,7 @@ function PurchaseInsightPanel({ cogsMargin, highest, biggestIncrease, missingRow
           <div className="space-y-2">
             {reviewItems.length ? (
               reviewItems.slice(0, 4).map((item) => (
-                <div key={item.localKey} className="rounded-2xl border border-border bg-white p-3">
+                <div key={item.localKey} className="rounded-xl border border-border bg-white p-3">
                   <div className="flex items-center justify-between gap-3">
                     <span className="font-semibold text-text-primary">{getSupplierName(store.suppliers, item.supplier_id)}</span>
                     <Badge tone={statusTone[item.analysis.status]}>{item.analysis.status}</Badge>
@@ -114,13 +350,13 @@ function PurchaseInsightPanel({ cogsMargin, highest, biggestIncrease, missingRow
                 </div>
               ))
             ) : (
-              <div className="rounded-2xl border border-dashed border-border p-4 text-sm text-text-secondary">No abnormal supplier rows found.</div>
+              <div className="rounded-xl border border-dashed border-border p-3 text-sm text-text-secondary">No abnormal supplier rows found.</div>
             )}
           </div>
         </div>
 
         {missingRows ? (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-3 text-sm text-amber-800">
             {missingRows} row{missingRows > 1 ? "s" : ""} still need an amount before saving.
           </div>
         ) : null}
@@ -131,15 +367,20 @@ function PurchaseInsightPanel({ cogsMargin, highest, biggestIncrease, missingRow
 
 export default function PurchaseInputPage({ store, setStore, ui }) {
   const filters = usePeriodFilters(store);
-  const [saveState, setSaveState] = useState("draft");
+  const amountInputRefs = useRef(new Map());
+  const [saveState, setSaveState] = useState("saved");
+  const [lastSavedAt, setLastSavedAt] = useState(null);
   const [rows, setRows] = useState(() => buildPurchaseRows(store, filters.outletId, filters.month, filters.year));
-  const [supplierModal, setSupplierModal] = useState(false);
   const [duplicateModal, setDuplicateModal] = useState(false);
+  const [duplicateMode, setDuplicateMode] = useState("supplier-only");
+  const [focusSupplierKey, setFocusSupplierKey] = useState(null);
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
   const [supplierSearch, setSupplierSearch] = useState("");
   const [sortBy, setSortBy] = useState("amount");
   const [showAbnormalOnly, setShowAbnormalOnly] = useState(false);
+  const [expandedRows, setExpandedRows] = useState(() => new Set());
+  const [editingCategoryKey, setEditingCategoryKey] = useState(null);
   const previous = getPreviousPeriod(filters.month, filters.year);
   const isLocked = Boolean(getLock(store, filters.outletId, filters.month, filters.year)?.is_locked);
   const netSales = getNetSales(store.salesRecords, filters.outletId, filters.month, filters.year, store.salesChannels);
@@ -149,14 +390,16 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
 
   useEffect(() => {
     setRows(buildPurchaseRows(store, filters.outletId, filters.month, filters.year));
-    setSaveState("draft");
+    setExpandedRows(new Set());
+    setSaveState("saved");
+    setEditingCategoryKey(null);
   }, [filters.month, filters.outletId, filters.year, store.purchaseRecords]);
 
   const analyzedRows = useMemo(
     () =>
       rows.map((row, index) => ({
         ...row,
-        localKey: row.id ?? `${row.supplier_id || "new"}-${index}`,
+        localKey: row.id ?? row.temp_id ?? `${row.supplier_id || "new"}-${index}`,
         analysis: getPurchaseRowAnalysis({
           row,
           purchaseRecords: store.purchaseRecords,
@@ -189,15 +432,66 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
   }, [analyzedRows, categoryFilter, showAbnormalOnly, sortBy, statusFilter, store.suppliers, supplierSearch]);
 
   const totalSuppliers = rows.filter((row) => row.supplier_id).length;
-  const highest = [...rows].sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0))[0];
+  const highest = [...analyzedRows].sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0))[0];
   const biggestIncrease = [...analyzedRows].filter((row) => row.analysis.previousAmount > 0).sort((a, b) => b.analysis.changePercent - a.analysis.changePercent)[0];
   const missingRows = analyzedRows.filter((row) => row.analysis.status === "Missing").length;
   const warningItems = analyzedRows.filter((row) => ["Warning", "High Risk", "Missing"].includes(row.analysis.status));
+  const previousTotalPurchase = getPurchaseTotal(store.purchaseRecords, filters.outletId, previous.month, previous.year);
+  const totalPurchaseChange = percentageChange(totalPurchase, previousTotalPurchase);
+  const highestSupplier = highest?.supplier_id ? store.suppliers.find((supplier) => supplier.id === highest.supplier_id) : null;
+  const highestCategory = highestSupplier ? getCategoryName(store.purchaseCategories, highestSupplier.default_category_id) : "";
+  const highestPrevious = highest?.supplier_id ? getSupplierPurchaseAmount(store.purchaseRecords, filters.outletId, highest.supplier_id, previous.month, previous.year) : 0;
+  const highestChange = percentageChange(Number(highest?.amount || 0), highestPrevious);
+  const trendMonths = months.filter((month) => month.value <= filters.month).slice(-6);
+  const purchaseTrend = trendMonths.map((month) => ({
+    label: month.label,
+    value: month.value === filters.month ? totalPurchase : getPurchaseTotal(store.purchaseRecords, filters.outletId, month.value, filters.year),
+    display: toCurrency(month.value === filters.month ? totalPurchase : getPurchaseTotal(store.purchaseRecords, filters.outletId, month.value, filters.year)),
+    current: month.value === filters.month,
+  }));
+  const supplierCountTrend = trendMonths.map((month) => {
+    const count = month.value === filters.month
+      ? totalSuppliers
+      : new Set(store.purchaseRecords.filter((record) => record.outlet_id === filters.outletId && record.month === month.value && record.year === filters.year && record.supplier_id).map((record) => record.supplier_id)).size;
+    return { label: month.label, value: count, display: `${count} suppliers`, current: month.value === filters.month };
+  });
+  const highestSupplierTrend = highest?.supplier_id
+    ? trendMonths.map((month) => {
+        const value = month.value === filters.month
+          ? Number(highest.amount || 0)
+          : getSupplierPurchaseAmount(store.purchaseRecords, filters.outletId, highest.supplier_id, month.value, filters.year);
+        return { label: month.label, value, display: toCurrency(value), current: month.value === filters.month };
+      })
+    : [];
+  const cogsTrend = trendMonths.map((month) => {
+    const purchase = month.value === filters.month ? totalPurchase : getPurchaseTotal(store.purchaseRecords, filters.outletId, month.value, filters.year);
+    const sales = getNetSales(store.salesRecords, filters.outletId, month.value, filters.year, store.salesChannels);
+    const value = sales ? (purchase / sales) * 100 : 0;
+    return { label: month.label, value, display: toPercent(value), current: month.value === filters.month };
+  });
+  const saveStatusLabel =
+    saveState === "saving"
+      ? "Saving..."
+      : saveState === "draft"
+        ? "● Unsaved changes"
+        : lastSavedAt
+          ? `✓ Saved successfully · ${lastSavedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
+          : "✓ Saved";
+
+  useEffect(() => {
+    function handleShortcut(event) {
+      if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "s") return;
+      event.preventDefault();
+      if (!isLocked && saveState !== "saving") savePurchaseData();
+    }
+    window.addEventListener("keydown", handleShortcut);
+    return () => window.removeEventListener("keydown", handleShortcut);
+  });
 
   function updateRow(localKey, patch) {
     setRows((current) =>
       current.map((row, index) => {
-        const key = row.id ?? `${row.supplier_id || "new"}-${index}`;
+        const key = row.id ?? row.temp_id ?? `${row.supplier_id || "new"}-${index}`;
         return key === localKey ? { ...row, ...patch } : row;
       }),
     );
@@ -205,17 +499,48 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
   }
 
   function addSupplierRow() {
+    const tempId = `draft-${crypto.randomUUID()}`;
     setRows((current) => [
       ...current,
       {
+        temp_id: tempId,
         id: undefined,
         supplier_id: "",
-        category_id: "cat-others",
+        category_id: "",
         remark: "",
         amount: "",
         draft: true,
       },
     ]);
+    setFocusSupplierKey(tempId);
+    setExpandedRows((current) => new Set([...current, tempId]));
+  }
+
+  function toggleDetails(localKey) {
+    setExpandedRows((current) => {
+      const next = new Set(current);
+      if (next.has(localKey)) next.delete(localKey);
+      else next.add(localKey);
+      return next;
+    });
+  }
+
+  async function deleteRow(row) {
+    if (
+      await ui.confirm({
+        title: "Delete purchase row?",
+        message: "This row will be removed from the current draft.",
+        danger: true,
+        confirmLabel: "Delete",
+      })
+    ) {
+      setRows((current) => current.filter((item, index) => (item.id ?? item.temp_id ?? `${item.supplier_id || "new"}-${index}`) !== row.localKey));
+      setExpandedRows((current) => {
+        const next = new Set(current);
+        next.delete(row.localKey);
+        return next;
+      });
+    }
   }
 
   function duplicatePreviousMonth(copyAmount = false) {
@@ -223,17 +548,19 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
     setRows(
       previousRows.map((row) => ({
         ...row,
+        temp_id: `draft-${crypto.randomUUID()}`,
         id: undefined,
         amount: copyAmount ? row.amount : "",
         remark: row.remark ?? "",
+        category_id: store.suppliers.find((supplier) => supplier.id === row.supplier_id)?.default_category_id ?? row.category_id,
         draft: true,
       })),
     );
     setDuplicateModal(false);
     setSaveState("draft");
-    ui.notify({
-      title: "Previous month duplicated",
-      message: copyAmount ? "Supplier list and amounts were copied as draft." : "Supplier list copied with blank amounts.",
+      ui.notify({
+        title: "Previous month duplicated",
+        message: copyAmount ? "Supplier list and amounts were copied as draft." : "Supplier list copied with blank amounts.",
     });
   }
 
@@ -250,163 +577,51 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
     return true;
   }
 
-  function savePurchaseData() {
+  async function savePurchaseData() {
     if (!validateRows()) return;
-    setStore((current) =>
-      operationsService.upsertPurchaseData(current, {
-        outletId: filters.outletId,
-        month: filters.month,
-        year: filters.year,
-        purchaseRows: rows,
-      }),
-    );
-    setSaveState("saved");
-    ui.notify({ title: "Purchase data saved successfully", message: `${rows.length} supplier rows updated.` });
+    const duplicateSupplierIds = rows
+      .filter((row) => row.supplier_id)
+      .map((row) => row.supplier_id)
+      .filter((supplierId, index, list) => list.indexOf(supplierId) !== index);
+    if (duplicateSupplierIds.length) {
+      const duplicateNames = [...new Set(duplicateSupplierIds)].map((supplierId) => getSupplierName(store.suppliers, supplierId)).join(", ");
+      const ok = await ui.confirm({
+        title: "Duplicate supplier rows?",
+        message: `${duplicateNames} appears more than once for this outlet/month. Save anyway?`,
+        confirmLabel: "Save anyway",
+      });
+      if (!ok) return;
+    }
+
+    setSaveState("saving");
+    window.setTimeout(() => {
+      setStore((current) =>
+        operationsService.upsertPurchaseData(current, {
+          outletId: filters.outletId,
+          month: filters.month,
+          year: filters.year,
+          purchaseRows: rows,
+        }),
+      );
+      setSaveState("saved");
+      setLastSavedAt(new Date());
+      ui.notify({ title: "Purchase data saved successfully", message: `${rows.length} supplier rows updated.` });
+    }, 300);
+  }
+
+  function createSupplierForRow(localKey, name) {
+    const categoryId = rows.find((row, index) => (row.id ?? row.temp_id ?? `${row.supplier_id || "new"}-${index}`) === localKey)?.category_id || "cat-others";
+    const result = operationsService.addSupplier(store, name, categoryId);
+    setStore(result.state);
+    updateRow(localKey, {
+      supplier_id: result.supplier.id,
+      category_id: result.supplier.default_category_id,
+      draft: true,
+    });
+    ui.notify({ title: "Supplier created", message: `${result.supplier.name} is ready for purchase entry.` });
   }
 
   const supplierOptions = store.suppliers.filter((supplier) => supplier.status === "active");
-
-  const columns = [
-    {
-      key: "supplier",
-      header: "Supplier",
-      sticky: true,
-      render: (row) => (
-        <div className="min-w-64">
-          <select
-            className="control w-full"
-            disabled={isLocked}
-            value={row.supplier_id}
-            onChange={(event) => {
-              const supplier = store.suppliers.find((item) => item.id === event.target.value);
-              updateRow(row.localKey, {
-                supplier_id: event.target.value,
-                category_id: supplier?.default_category_id ?? row.category_id,
-              });
-            }}
-          >
-            <option value="">Search or select supplier</option>
-            {supplierOptions.map((supplier) => (
-              <option key={supplier.id} value={supplier.id}>
-                {supplier.name}
-              </option>
-            ))}
-          </select>
-          {row.draft ? <div className="mt-1 text-[11px] font-semibold text-primary">Draft row</div> : null}
-        </div>
-      ),
-    },
-    {
-      key: "category",
-      header: "Category",
-      render: (row) => (
-        <select
-          className="control min-w-40"
-          disabled={isLocked}
-          value={row.category_id}
-          onChange={(event) => updateRow(row.localKey, { category_id: event.target.value })}
-        >
-          <option value="">Select category</option>
-          {store.purchaseCategories.map((category) => (
-            <option key={category.id} value={category.id}>
-              {category.name}
-            </option>
-          ))}
-        </select>
-      ),
-    },
-    {
-      key: "remark",
-      header: "Remark",
-      render: (row) => (
-        <input
-          className="control w-48"
-          disabled={isLocked}
-          value={row.remark ?? ""}
-          placeholder="Optional note"
-          onChange={(event) => updateRow(row.localKey, { remark: event.target.value })}
-        />
-      ),
-    },
-    {
-      key: "amount",
-      header: "Current Month Amount",
-      align: "right",
-      render: (row) => (
-        <input
-          className={`control w-36 text-right font-semibold ${
-            isAmountMissing(row) ? "border-amber-300 bg-amber-50/60" : "focus:border-primary focus:ring-4 focus:ring-primary/15"
-          }`}
-          type="number"
-          disabled={isLocked}
-          value={row.amount}
-          placeholder="Required"
-          onChange={(event) => updateRow(row.localKey, { amount: event.target.value })}
-        />
-      ),
-    },
-    {
-      key: "previous",
-      header: "Previous Month",
-      align: "right",
-      render: (row) => <span className="font-medium text-text-secondary">{row.analysis.previousAmount ? toCurrency(row.analysis.previousAmount) : "-"}</span>,
-    },
-    {
-      key: "average",
-      header: "3-Month Avg",
-      align: "right",
-      render: (row) => <span className="font-medium text-text-secondary">{row.analysis.threeMonthAverage ? toCurrency(row.analysis.threeMonthAverage) : "-"}</span>,
-    },
-    {
-      key: "change",
-      header: "Change %",
-      align: "right",
-      render: (row) => {
-        const isUp = row.analysis.changePercent >= 0;
-        return (
-          <span className={`font-bold ${isUp ? "text-emerald-600" : "text-rose-600"}`}>
-            {row.analysis.previousAmount ? toPercent(row.analysis.changePercent) : "-"}
-          </span>
-        );
-      },
-    },
-    {
-      key: "status",
-      header: "Status",
-      render: (row) => (
-        <div className="space-y-1">
-          <Badge tone={statusTone[row.analysis.status]}>{row.analysis.status}</Badge>
-          <div className="max-w-44 text-[11px] text-text-secondary">{row.analysis.reason}</div>
-        </div>
-      ),
-    },
-    {
-      key: "action",
-      header: "Action",
-      align: "right",
-      render: (row) => (
-        <button
-          className="icon-btn"
-          type="button"
-          disabled={isLocked}
-          onClick={async () => {
-            if (
-              await ui.confirm({
-                title: "Delete purchase row?",
-                message: "This row will be removed from the current draft.",
-                danger: true,
-                confirmLabel: "Delete",
-              })
-            ) {
-              setRows((current) => current.filter((item, index) => (item.id ?? `${item.supplier_id || "new"}-${index}`) !== row.localKey));
-            }
-          }}
-        >
-          <Trash2 size={15} />
-        </button>
-      ),
-    },
-  ];
 
   return (
     <div className="space-y-4">
@@ -416,11 +631,16 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
         description="Record monthly supplier purchases by outlet."
         actions={
           <>
+          <span className={`inline-flex h-10 items-center rounded-xl px-3 text-xs font-bold ${
+            saveState === "draft" ? "bg-amber-50 text-amber-700" : saveState === "saving" ? "bg-blue-50 text-blue-700" : "bg-emerald-50 text-emerald-700"
+          }`}>
+            {saveStatusLabel}
+          </span>
           <button className="btn-secondary" type="button" disabled={isLocked} onClick={() => setDuplicateModal(true)}>
             <Copy size={16} /> Duplicate Previous Month
           </button>
-          <button className="btn-primary" type="button" disabled={isLocked} onClick={savePurchaseData}>
-            <Save size={16} /> Save Purchase Data
+          <button className="btn-primary" type="button" disabled={isLocked || saveState === "saving"} onClick={savePurchaseData}>
+            <Save size={16} /> {saveState === "saving" ? "Saving..." : "Save Purchase Data"}
           </button>
           <button
             className="icon-btn"
@@ -447,14 +667,13 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
             ))}
           </select>
         </FieldLabel>
-        <FieldLabel label="Status">
+        <FieldLabel label="Row Status">
           <select className="control" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-            <option value="all">All status</option>
-            {["Normal", "Warning", "High Risk", "New", "Missing"].map((status) => (
-              <option key={status} value={status}>
-                {status}
-              </option>
-            ))}
+            <option value="all">All</option>
+            <option value="Normal">Normal</option>
+            <option value="Warning">Warning</option>
+            <option value="High Risk">High Risk</option>
+            <option value="Missing">Missing History</option>
           </select>
         </FieldLabel>
         <FieldLabel label="Search supplier">
@@ -463,7 +682,7 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
             <input
               className="control w-full pl-9"
               value={supplierSearch}
-              placeholder="Supplier or remark"
+              placeholder="Filter supplier or remark"
               onChange={(event) => setSupplierSearch(event.target.value)}
             />
           </div>
@@ -476,19 +695,32 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
         </div>
       ) : null}
 
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-6">
-        <MetricCard icon={Wallet} label="Total Purchase" value={toCurrency(totalPurchase)} helper="Auto sum from supplier rows" status={saveState === "saved" ? "Saved" : "Draft"} />
-        <MetricCard icon={Users} label="Total Suppliers" value={totalSuppliers} helper="Rows with supplier linked" />
-        <MetricCard icon={Trophy} label="Highest Supplier" value={highest ? getSupplierName(store.suppliers, highest.supplier_id) : "-"} helper={highest ? toCurrency(highest.amount) : "No purchase"} />
-        <MetricCard icon={Percent} label="COGS Margin" value={toPercent(cogsMargin)} helper="Purchase / Net Sales" tone={cogsMargin > 40 ? "danger" : cogsMargin > 36 ? "warning" : "neutral"} status={cogsMargin > 40 ? "High" : "Normal"} />
-        <MetricCard icon={TrendingUp} label="Profit Margin Est." value={toPercent(profitMargin)} helper="Before overheads" tone={profitMargin < 60 ? "warning" : "neutral"} />
+      <div className="grid gap-3 md:grid-cols-3">
+        <MetricCard
+          icon={Wallet}
+          label="Total Purchase"
+          value={toCurrency(totalPurchase)}
+          helper={`${toPercent(totalPurchaseChange)} vs previous month`}
+          trend={totalPurchaseChange >= 0 ? "Up" : "Down"}
+          status={saveState === "saved" ? "Saved" : saveState === "saving" ? "Saving" : "Draft"}
+          sparklineData={purchaseTrend}
+        />
+        <MetricCard
+          icon={Percent}
+          label="COGS Margin"
+          value={toPercent(cogsMargin)}
+          helper="Purchase / Net Sales"
+          tone={cogsMargin > 40 ? "danger" : cogsMargin > 36 ? "warning" : "neutral"}
+          status={cogsMargin > 40 ? "High Risk" : cogsMargin > 36 ? "Watch" : "Healthy"}
+          sparklineData={cogsTrend}
+        />
         <MetricCard icon={AlertTriangle} label="Warning Items" value={warningItems.length} helper="Rows needing review" tone={warningItems.length ? "warning" : "neutral"} />
       </div>
 
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
         <Card
           title="Supplier Purchase Input"
-          description="Inline monthly supplier entry with previous month and 3-month average checks."
+          description="Fast supplier and amount entry. Notes and history stay collapsed until needed."
           action={
             <div className="flex flex-wrap items-center gap-2">
               <label className="inline-flex h-10 items-center gap-2 rounded-control border border-border bg-white px-3 text-sm font-semibold text-text-primary">
@@ -500,46 +732,49 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
                 <option value="change">Sort by change %</option>
                 <option value="supplier">Sort by supplier</option>
               </select>
+            </div>
+          }
+        >
+          <div>
+            {saveState === "saving" ? (
+              <div className="border-b border-border p-4">
+                <div className="h-3 w-48 animate-pulse rounded-full bg-slate-100" />
+                <div className="mt-3 grid gap-2">
+                  {[1, 2, 3].map((item) => <div key={item} className="h-10 animate-pulse rounded-xl bg-slate-50" />)}
+                </div>
+              </div>
+            ) : null}
+            {visibleRows.length ? (
+              <PurchaseEntryTable
+                rows={visibleRows}
+                store={store}
+                supplierOptions={supplierOptions}
+                isLocked={isLocked}
+                focusSupplierKey={focusSupplierKey}
+                expandedRows={expandedRows}
+                editingCategoryKey={editingCategoryKey}
+                amountInputRefs={amountInputRefs}
+                totalPurchase={totalPurchase}
+                analyzedRows={analyzedRows}
+                updateRow={updateRow}
+                setEditingCategoryKey={setEditingCategoryKey}
+                setFocusSupplierKey={setFocusSupplierKey}
+                createSupplierForRow={createSupplierForRow}
+                toggleDetails={toggleDetails}
+                deleteRow={deleteRow}
+              />
+            ) : (
+              <div className="p-8 text-center">
+                <div className="text-sm font-bold text-text-primary">No supplier rows yet</div>
+                <p className="mt-1 text-sm text-text-secondary">Duplicate previous month or add a supplier row to start entering purchases.</p>
+              </div>
+            )}
+            <div className="border-t border-border bg-slate-50/70 p-4">
               <button className="btn-secondary" type="button" disabled={isLocked} onClick={addSupplierRow}>
                 <Plus size={16} /> Add Supplier Row
               </button>
             </div>
-          }
-        >
-          <DataTable
-            columns={columns}
-            rows={visibleRows}
-            getRowKey={(row) => row.localKey}
-            getRowClassName={(row) =>
-              row.analysis.status === "High Risk"
-                ? "bg-rose-50/60"
-                : row.analysis.status === "Warning"
-                  ? "bg-amber-50/70"
-                  : row.analysis.status === "Missing"
-                    ? "bg-slate-50"
-                    : ""
-            }
-            footer={
-              <tr className="font-bold text-text-primary">
-                <td className="sticky left-0 z-10 bg-slate-50 px-4 py-3">Total Purchase</td>
-                <td className="px-4 py-3" />
-                <td className="px-4 py-3" />
-                <td className="px-4 py-3 text-right">{toCurrency(totalPurchase)}</td>
-                <td className="px-4 py-3 text-right">{toCurrency(sumAmount(analyzedRows.map((row) => ({ amount: row.analysis.previousAmount }))))}</td>
-                <td className="px-4 py-3 text-right">{toCurrency(sumAmount(analyzedRows.map((row) => ({ amount: row.analysis.threeMonthAverage }))))}</td>
-                <td className="px-4 py-3 text-right">
-                  {toPercent(
-                    percentageChange(
-                      totalPurchase,
-                      sumAmount(analyzedRows.map((row) => ({ amount: row.analysis.previousAmount }))),
-                    ),
-                  )}
-                </td>
-                <td className="px-4 py-3">Auto calculated</td>
-                <td className="px-4 py-3" />
-              </tr>
-            }
-          />
+          </div>
         </Card>
 
         <PurchaseInsightPanel
@@ -552,51 +787,35 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
         />
       </div>
 
-      <div className="flex gap-2">
-        <button className="btn-secondary" disabled={isLocked} onClick={() => setSupplierModal(true)}>
-          <Plus size={16} /> Add New Supplier
-        </button>
-      </div>
-
       {duplicateModal ? (
         <Modal
-          title="Duplicate Previous Month"
-          description="Choose how much data to bring into the current month draft."
+          title={`Duplicate ${months[previous.month - 1]?.label} ${previous.year} into ${months[filters.month - 1]?.label} ${filters.year}?`}
+          description={`${buildPurchaseRows(store, filters.outletId, previous.month, previous.year).length} supplier rows will be copied into the current draft.`}
           onClose={() => setDuplicateModal(false)}
           footer={
             <>
               <button className="btn-secondary" type="button" onClick={() => setDuplicateModal(false)}>Cancel</button>
-              <button className="btn-secondary" type="button" onClick={() => duplicatePreviousMonth(false)}>Copy supplier only</button>
-              <button className="btn-primary" type="button" onClick={() => duplicatePreviousMonth(true)}>Copy supplier + amount</button>
+              <button className="btn-primary" type="button" onClick={() => duplicatePreviousMonth(duplicateMode === "supplier-amount")}>Duplicate</button>
             </>
           }
         >
-          <div className="space-y-3 text-sm text-text-secondary">
-            <p>Supplier-only mode keeps every amount blank so the team can enter the new month from scratch.</p>
-            <p>Copying amounts is useful for quick estimation, but every copied row will still be marked as Draft.</p>
+          <div className="space-y-3 text-sm">
+            <label className={`flex cursor-pointer gap-3 rounded-2xl border p-4 ${duplicateMode === "supplier-only" ? "border-primary bg-primary/5" : "border-border bg-white"}`}>
+              <input type="radio" name="duplicate-mode" checked={duplicateMode === "supplier-only"} onChange={() => setDuplicateMode("supplier-only")} />
+              <span>
+                <span className="block font-bold text-text-primary">Copy supplier list only</span>
+                <span className="mt-1 block text-text-secondary">Recommended. Amounts stay blank and every row is marked Draft.</span>
+              </span>
+            </label>
+            <label className={`flex cursor-pointer gap-3 rounded-2xl border p-4 ${duplicateMode === "supplier-amount" ? "border-primary bg-primary/5" : "border-border bg-white"}`}>
+              <input type="radio" name="duplicate-mode" checked={duplicateMode === "supplier-amount"} onChange={() => setDuplicateMode("supplier-amount")} />
+              <span>
+                <span className="block font-bold text-text-primary">Copy supplier list + amount</span>
+                <span className="mt-1 block text-text-secondary">Useful for estimation. Review every copied amount before saving.</span>
+              </span>
+            </label>
           </div>
         </Modal>
-      ) : null}
-
-      {supplierModal ? (
-        <EntityModal
-          title="Add Supplier"
-          description="New supplier becomes selectable immediately."
-          fields={[
-            { name: "name", label: "Supplier Name", placeholder: "Supplier name" },
-            { name: "default_category_id", label: "Default Category", type: "select", options: store.purchaseCategories.map((category) => ({ value: category.id, label: category.name })) },
-          ]}
-          initialValues={{ name: "", default_category_id: "cat-others" }}
-          onClose={() => setSupplierModal(false)}
-          onSubmit={(values) => {
-            if (!values.name?.trim()) return ui.notify({ title: "Supplier name required", tone: "error" });
-            const result = operationsService.addSupplier(store, values.name, values.default_category_id);
-            setStore(result.state);
-            setRows((current) => [...current, { supplier_id: result.supplier.id, category_id: result.supplier.default_category_id, remark: "", amount: "", draft: true }]);
-            setSupplierModal(false);
-            ui.notify({ title: "Supplier added", message: values.name });
-          }}
-        />
       ) : null}
     </div>
   );

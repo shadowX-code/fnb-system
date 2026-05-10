@@ -6,9 +6,19 @@ import DataTable from "../../../components/tables/DataTable.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import EntityModal from "../components/EntityModal.jsx";
 import { operationsService } from "../services/operationsService.js";
+import { getOutletTaxConfig } from "../utils/analytics.js";
+
+function latestPeriod(store) {
+  const latest = [...store.salesRecords, ...store.purchaseRecords]
+    .filter((record) => record.outlet_id)
+    .sort((a, b) => (a.year - b.year) || (a.month - b.month))
+    .at(-1);
+  return { month: latest?.month ?? 1, year: latest?.year ?? new Date().getFullYear() };
+}
 
 export default function OutletManagementPage({ store, setStore, ui }) {
   const [modal, setModal] = useState(null);
+  const currentPeriod = latestPeriod(store);
   const fields = [
     { name: "name", label: "Outlet Name", placeholder: "Outlet name" },
     { name: "code", label: "Outlet Code", placeholder: "HIPB" },
@@ -27,6 +37,19 @@ export default function OutletManagementPage({ store, setStore, ui }) {
     { key: "name", header: "Outlet Name", sticky: true, render: (row) => <span className="font-semibold">{row.name}</span> },
     { key: "code", header: "Code" },
     { key: "location", header: "Location" },
+    {
+      key: "sst",
+      header: "Current SST",
+      render: (row) => {
+        const config = getOutletTaxConfig(store.outletTaxConfigs, row.id, currentPeriod.month, currentPeriod.year, "SST");
+        return (
+          <div className="flex items-center gap-2">
+            <Badge tone={config.enabled ? "success" : "neutral"}>{config.enabled ? "ON" : "OFF"}</Badge>
+            <span className="text-xs font-semibold text-text-secondary">{config.enabled ? `${config.rate}%` : "No SST"}</span>
+          </div>
+        );
+      },
+    },
     { key: "status", header: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge> },
     {
       key: "action",
