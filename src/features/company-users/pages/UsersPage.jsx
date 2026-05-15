@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { BriefcaseBusiness, CreditCard, Edit3, Eye, Mail, MoreHorizontal, Plus, Power, RotateCcw, Search, ShieldCheck, UserRound, XCircle } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
+import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
@@ -14,21 +15,11 @@ import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import { employeeService } from "../../../services/employeeService.js";
 import { jobPositionService } from "../../../services/jobPositionService.js";
 import { roleService } from "../../../services/roleService.js";
+import { formatDateTime } from "../../../lib/dateTime.js";
+import { normalizeRoleOutletAccess } from "../utils/roleAccess.js";
 
 const fallbackRoleOptions = ["owner", "admin", "manager", "supervisor", "cashier", "kitchen", "purchaser", "finance", "hr", "staff"];
 const fallbackWorkplaceOptions = ["All Outlets", "Hola Ipoh Bangsar", "Hola TTDI", "Hola Mont Kiara", "Hola Subang"];
-const roleOutletAccess = {
-  owner: { mode: "all", outlets: [] },
-  admin: { mode: "all", outlets: [] },
-  manager: { mode: "selected", outlets: ["JYMT Kopitiam", "Happiness Kopitiam Ipoh", "Hola Hola Kopitiam Ipoh"] },
-  supervisor: { mode: "selected", outlets: ["Friends Corner"] },
-  cashier: { mode: "selected", outlets: ["Hola Hola Kopitiam Ipoh", "Friends Corner"] },
-  kitchen: { mode: "selected", outlets: ["Happiness Kopitiam Ipoh"] },
-  purchaser: { mode: "all", outlets: [] },
-  finance: { mode: "all", outlets: [] },
-  hr: { mode: "all", outlets: [] },
-  staff: { mode: "selected", outlets: ["Friends Corner"] },
-};
 
 function createEmptyUser() {
   return {
@@ -199,11 +190,6 @@ function validateUserForm(values) {
   return errors;
 }
 
-function formatDateTime(value) {
-  if (!value) return "Never";
-  return new Date(value).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
-}
-
 function employmentTone(status) {
   if (status === "full_time") return "success";
   if (status === "part_time") return "info";
@@ -280,9 +266,11 @@ function ReadOnlyField({ label, children }) {
   );
 }
 
-function RoleOutletAccessSummary({ role }) {
-  const config = roleOutletAccess[role];
-  if (!role || !config) {
+function RoleOutletAccessSummary({ roleName, roleRecords = [], outlets = [] }) {
+  const role = roleRecords.find((item) => item.name === roleName);
+  const access = normalizeRoleOutletAccess(role, outlets);
+
+  if (!roleName || !role || access.mode === "none") {
     return (
       <div className="flex flex-col gap-1">
         <Badge tone="warning">No outlet access configured</Badge>
@@ -290,7 +278,7 @@ function RoleOutletAccessSummary({ role }) {
       </div>
     );
   }
-  if (config.mode === "all") {
+  if (access.mode === "all") {
     return (
       <div className="flex flex-col gap-1">
         <Badge tone="success">All Outlets</Badge>
@@ -298,9 +286,9 @@ function RoleOutletAccessSummary({ role }) {
       </div>
     );
   }
-  const visible = config.outlets.slice(0, 3);
-  const remaining = config.outlets.length - visible.length;
-  if (!config.outlets.length) {
+  const visible = access.outlets.slice(0, 3);
+  const remaining = access.outlets.length - visible.length;
+  if (!access.outlets.length) {
     return (
       <div className="flex flex-col gap-1">
         <Badge tone="warning">No outlet access configured</Badge>
@@ -310,7 +298,7 @@ function RoleOutletAccessSummary({ role }) {
   }
   return (
     <div className="flex flex-wrap gap-1.5">
-      {visible.map((outlet) => <Badge key={outlet} tone="neutral">{outlet}</Badge>)}
+      {visible.map((outlet) => <Badge key={outlet.id} tone="neutral">{outlet.name}</Badge>)}
       {remaining > 0 ? <Badge tone="info">+{remaining} more</Badge> : null}
     </div>
   );
@@ -333,7 +321,9 @@ function UserFormModal({
   initialUser,
   jobPositions,
   roleOptions = fallbackRoleOptions,
+  roleRecords = [],
   workplaceOptions = fallbackWorkplaceOptions,
+  outlets = [],
   users = [],
   ui,
   onClose,
@@ -709,7 +699,7 @@ function UserFormModal({
                 <ReadOnlyField label="Email Verification"><Badge tone={values.email_verified ? "success" : "warning"}>{values.email_verified ? "Verified" : "Not verified"}</Badge></ReadOnlyField>
                 <ReadOnlyField label="Last Login">{formatDateTime(values.last_login_at)}</ReadOnlyField>
                 <ReadOnlyField label="Outlet Access">
-                  <RoleOutletAccessSummary role={values.role} />
+                  <RoleOutletAccessSummary roleName={values.role} roleRecords={roleRecords} outlets={outlets} />
                 </ReadOnlyField>
               </div>
             ) : (
@@ -786,7 +776,7 @@ function UserFormModal({
               <div className="rounded-xl border border-border bg-surface px-3 py-2.5">
                 <div className="text-xs font-semibold text-text-secondary">Outlet Access</div>
                 <div className="mt-1">
-                  <RoleOutletAccessSummary role={values.role} />
+                  <RoleOutletAccessSummary roleName={values.role} roleRecords={roleRecords} outlets={outlets} />
                 </div>
               </div>
             </div>
@@ -1127,12 +1117,18 @@ export default function UsersPage({ ui, store }) {
       align: "right",
       width: "76px",
       render: (row) => (
-        <div className="relative flex justify-end" onClick={(event) => event.stopPropagation()}>
-          <button className="icon-btn" type="button" aria-label="User actions" onClick={() => setActionMenuUserId((value) => (value === row.id ? null : row.id))}>
-            <MoreHorizontal size={15} />
-          </button>
-          {actionMenuUserId === row.id ? (
-            <div className="absolute right-0 top-9 z-50 w-48 rounded-2xl border border-border bg-white p-1.5 text-sm shadow-xl">
+        <div className="flex justify-end" onClick={(event) => event.stopPropagation()}>
+          <ActionMenu
+            open={actionMenuUserId === row.id}
+            onOpenChange={(nextOpen) => setActionMenuUserId(nextOpen ? row.id : null)}
+            width={192}
+            ariaLabel="User actions"
+            trigger={({ toggle, ariaLabel }) => (
+              <button className="icon-btn" type="button" aria-label={ariaLabel} onClick={toggle}>
+                <MoreHorizontal size={15} />
+              </button>
+            )}
+          >
               <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { openUserProfile(row); setActionMenuUserId(null); }}>
                 <Eye size={14} /> View
               </button>
@@ -1140,8 +1136,7 @@ export default function UsersPage({ ui, store }) {
                 <Edit3 size={14} /> Edit
               </button>
               {renderAccountActions(row)}
-            </div>
-          ) : null}
+          </ActionMenu>
         </div>
       ),
     },
@@ -1258,7 +1253,9 @@ export default function UsersPage({ ui, store }) {
           initialUser={selectedUser}
           jobPositions={jobPositions}
           roleOptions={roleOptions}
+          roleRecords={roleRecords}
           workplaceOptions={workplaceOptions}
+          outlets={store?.outlets ?? []}
           users={users}
           ui={ui}
           onClose={() => setSelectedUser(null)}
@@ -1275,7 +1272,9 @@ export default function UsersPage({ ui, store }) {
           initialUser={formState.user}
           jobPositions={jobPositions}
           roleOptions={roleOptions}
+          roleRecords={roleRecords}
           workplaceOptions={workplaceOptions}
+          outlets={store?.outlets ?? []}
           users={users}
           ui={ui}
           onClose={() => setFormState(null)}

@@ -653,7 +653,7 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
       setRows(savedRecords.map((record) => ({ ...record, draft: false })));
       setSaveState("saved");
       setLastSavedAt(new Date());
-      ui.notify({ title: "Purchase data saved successfully", message: `${savedRecords.length} supplier rows updated.` });
+      ui.notify({ title: "Saved to Supabase", message: `${savedRecords.length} supplier rows updated.` });
     } catch (error) {
       console.error("Unable to save purchase records", error);
       setSaveState("error");

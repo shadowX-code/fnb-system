@@ -7,6 +7,12 @@ function mapRole(row) {
   const permissions = (row.role_permissions ?? []).map((item) => item.permissions?.code).filter(Boolean);
   const selectedOutletIds = (row.role_outlets ?? []).map((item) => item.outlet_id).filter(Boolean);
   const modules = [...new Set((row.role_permissions ?? []).map((item) => item.permissions?.module).filter(Boolean))];
+  const outletAccessValue = String(row.outlet_access_type || row.outlet_access || "").toLowerCase();
+  const outletAccess = ["all", "all_outlets"].includes(outletAccessValue)
+    ? "all"
+    : selectedOutletIds.length
+      ? "selected"
+      : "all";
   return {
     id: row.id,
     name: row.name,
@@ -14,13 +20,14 @@ function mapRole(row) {
     is_system_role: Boolean(row.is_system_role),
     is_active: Boolean(row.is_active),
     assignedUsers: Number(row.assigned_users ?? 0),
-    outletAccess: selectedOutletIds.length ? "selected" : "all",
+    outletAccess,
     selectedOutletIds,
     permissions,
     modules,
-    updatedAt: row.updated_at || row.created_at || "Not saved",
+    updatedAt: row.updated_at || row.created_at || null,
     updatedBy: row.updated_by || "System",
     created_at: row.created_at,
+    createdAt: row.created_at,
   };
 }
 
@@ -50,12 +57,15 @@ export const roleService = {
   async listRoleOptions() {
     const { data, error } = await supabase
       .from("roles")
-      .select("id,name,description,is_active")
+      .select(`
+        id,name,description,is_system_role,is_active,created_at,
+        role_outlets(outlet_id)
+      `)
       .eq("is_active", true)
       .order("name", { ascending: true });
 
     throwSupabaseError("roles.options", error);
-    return data ?? [];
+    return (data ?? []).map((row) => mapRole({ ...row, role_permissions: [] }));
   },
 
   async saveRole(role) {

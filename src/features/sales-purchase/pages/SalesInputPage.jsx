@@ -246,6 +246,8 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
         filters.year,
         filters.month,
         visibleRows.map((row) => ({
+          id: row.id,
+          channel_id: row.channel_id,
           channel_name: row.channelName,
           amount: row.type === "adjustment" ? Math.abs(Number(row.amount || 0)) : Number(row.amount || 0),
           remark: row.remark ?? "",
@@ -272,7 +274,7 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
       setSavedRowsCount(visibleRows.length);
       setLastSavedAt(new Date());
       window.setTimeout(() => setSavedRecently(false), 4000);
-      ui.notify({ title: "Sales data saved successfully", message: `${visibleRows.length} sales rows saved.` });
+      ui.notify({ title: "Saved to Supabase", message: `${visibleRows.length} sales rows saved.` });
     } catch (error) {
       console.error("Unable to save sales records", error);
       setIsSaving(false);

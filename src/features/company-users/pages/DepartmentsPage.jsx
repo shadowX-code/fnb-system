@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Edit3, Eye, MoreHorizontal, Plus, Power, Search, Trash2 } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
+import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
@@ -224,12 +225,18 @@ export default function DepartmentsPage({ ui, auth }) {
       align: "right",
       width: "76px",
       render: (row) => (
-        <div className="relative flex justify-end" onClick={(event) => event.stopPropagation()}>
-          <button className="icon-btn" type="button" aria-label="Department actions" onClick={() => setActionMenuDepartmentId((value) => (value === row.id ? null : row.id))}>
-            <MoreHorizontal size={15} />
-          </button>
-          {actionMenuDepartmentId === row.id ? (
-            <div className="absolute right-0 top-9 z-50 w-48 rounded-2xl border border-border bg-white p-1.5 text-sm shadow-xl">
+        <div className="flex justify-end" onClick={(event) => event.stopPropagation()}>
+          <ActionMenu
+            open={actionMenuDepartmentId === row.id}
+            onOpenChange={(nextOpen) => setActionMenuDepartmentId(nextOpen ? row.id : null)}
+            width={192}
+            ariaLabel="Department actions"
+            trigger={({ toggle, ariaLabel }) => (
+              <button className="icon-btn" type="button" aria-label={ariaLabel} onClick={toggle}>
+                <MoreHorizontal size={15} />
+              </button>
+            )}
+          >
               <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { setSelectedDepartment(row); setActionMenuDepartmentId(null); }}>
                 <Eye size={14} /> View
               </button>
@@ -263,8 +270,7 @@ export default function DepartmentsPage({ ui, auth }) {
               >
                 <Trash2 size={14} /> Delete
               </button>
-            </div>
-          ) : null}
+          </ActionMenu>
         </div>
       ),
     },

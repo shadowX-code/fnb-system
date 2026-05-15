@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Check, Copy, Eye, MoreHorizontal, Plus, Search, Shield, ShieldAlert, Trash2 } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
+import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
@@ -10,6 +11,8 @@ import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import { defaultPermissions, defaultRoles, rolePermissionMatrix } from "../data/rbacDefaults.js";
 import { getPermissionGroups, permissionActionLabels, permissionActionOrder } from "../../../../config/modules.ts";
 import { roleService } from "../../../services/roleService.js";
+import { formatDateTime } from "../../../lib/dateTime.js";
+import { normalizeRoleOutletAccess } from "../utils/roleAccess.js";
 
 const roleMeta = {
   owner: { assignedUsers: 1, outletAccess: "all", selectedOutletIds: [], updatedAt: "2026-05-10", updatedBy: "System" },
@@ -38,29 +41,24 @@ const roleEditorOutlets = [
   { id: "friends-corner", name: "Friends Corner" },
 ];
 
-function getOutletById(outletId, outlets = roleEditorOutlets) {
-  return outlets.find((item) => item.id === outletId);
-}
-
 function getRoleSelectedOutlets(role, outlets = roleEditorOutlets) {
-  return (role.selectedOutletIds ?? []).map((outletId) => getOutletById(outletId, outlets)).filter(Boolean);
+  return normalizeRoleOutletAccess(role, outlets).outlets;
 }
 
 function getRoleOutletAccessMode(role) {
-  return role.outletAccess === "selected" ? "selected" : "all";
+  return normalizeRoleOutletAccess(role).mode === "selected" ? "selected" : "all";
 }
 
 function RoleOutletAccessDisplay({ role, compact = false, outlets = roleEditorOutlets }) {
-  const outletAccess = getRoleOutletAccessMode(role);
-  const selectedOutlets = getRoleSelectedOutlets(role, outlets);
+  const access = normalizeRoleOutletAccess(role, outlets);
 
-  if (outletAccess === "all") {
+  if (access.mode === "all") {
     return <span className="text-sm font-semibold text-text-primary">All Outlets</span>;
   }
 
   return (
     <div className={`flex flex-wrap ${compact ? "max-w-[280px] gap-1" : "gap-1.5"}`}>
-      {selectedOutlets.length ? selectedOutlets.map((outlet) => (
+      {access.outlets.length ? access.outlets.map((outlet) => (
         <Badge key={outlet.id} tone="success">{outlet.name}</Badge>
       )) : (
         <Badge tone="warning">No outlets selected</Badge>
@@ -373,7 +371,7 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
                   <div className="flex items-center justify-between gap-3"><span className="text-text-secondary">Permissions Enabled</span><strong>{enabledPermissions.length}</strong></div>
                   <div className="flex items-center justify-between gap-3"><span className="text-text-secondary">Modules Enabled</span><strong>{activeModuleCount}</strong></div>
                   <div className="flex items-center justify-between gap-3"><span className="text-text-secondary">Assigned Employees</span><strong>{role?.assignedUsers ?? 0}</strong></div>
-                  <div className="flex items-center justify-between gap-3"><span className="text-text-secondary">Last Updated</span><strong className="text-right">{role?.updatedAt ?? "Not saved"}</strong></div>
+                  <div className="flex items-center justify-between gap-3"><span className="text-text-secondary">Last Updated</span><strong className="text-right">{formatDateTime(role?.updatedAt)}</strong></div>
                 </div>
               </section>
             </aside>
@@ -487,6 +485,8 @@ function RoleDetailModal({ role, onClose, onEditRole, outlets }) {
   const activeModuleCount = roleEditorGroups
     .flatMap((group) => group.modules)
     .filter((module) => getRoleEditorModuleCodes(module).some((code) => permissions.has(code))).length;
+  const createdDate = role.createdAt || role.created_at || (isProtectedRole ? "2026-05-01" : role.updatedAt);
+  const updatedDate = role.updatedAt || role.updated_at || role.created_at;
 
   function readonlyCellEnabled(cell) {
     return cell.codes.every((code) => permissions.has(code));
@@ -545,7 +545,7 @@ function RoleDetailModal({ role, onClose, onEditRole, outlets }) {
                   <div className="flex items-center justify-between gap-3"><span className="text-text-secondary">Permissions enabled</span><strong>{permissions.size}</strong></div>
                   <div className="flex items-center justify-between gap-3"><span className="text-text-secondary">Modules with access</span><strong>{activeModuleCount}</strong></div>
                   <div className="flex items-center justify-between gap-3"><span className="text-text-secondary">Assigned employees</span><button className="font-bold text-primary underline-offset-2 hover:underline" type="button" onClick={() => setAssignedUsersOpen(true)}>{role.assignedUsers}</button></div>
-                  <div className="flex items-center justify-between gap-3"><span className="text-text-secondary">Last updated</span><strong>{role.updatedAt}</strong></div>
+                  <div className="flex items-center justify-between gap-3"><span className="text-text-secondary">Last updated</span><strong>{formatDateTime(updatedDate)}</strong></div>
                 </div>
               </section>
 
@@ -553,9 +553,9 @@ function RoleDetailModal({ role, onClose, onEditRole, outlets }) {
                 <div className="text-xs font-bold uppercase tracking-wide text-text-muted">Audit</div>
                 <div className="mt-3 space-y-2 text-sm text-text-secondary">
                   <div className="flex items-center justify-between gap-3"><span>Created by</span><strong className="text-text-primary">{isProtectedRole ? "System" : "Development Owner"}</strong></div>
-                  <div className="flex items-center justify-between gap-3"><span>Created date</span><strong className="text-text-primary">{isProtectedRole ? "2026-05-01" : role.updatedAt}</strong></div>
+                  <div className="flex items-center justify-between gap-3"><span>Created date</span><strong className="text-text-primary">{formatDateTime(createdDate)}</strong></div>
                   <div className="flex items-center justify-between gap-3"><span>Last updated by</span><strong className="text-text-primary">{role.updatedBy}</strong></div>
-                  <div className="flex items-center justify-between gap-3"><span>Last updated date</span><strong className="text-text-primary">{role.updatedAt}</strong></div>
+                  <div className="flex items-center justify-between gap-3"><span>Last updated date</span><strong className="text-text-primary">{formatDateTime(updatedDate)}</strong></div>
                 </div>
               </section>
             </aside>
@@ -728,7 +728,7 @@ export default function RolesPage({ ui, store }) {
         : getRoleSelectedOutlets(role, editorOutlets).map((outlet) => outlet.name);
       return !search || [role.name, role.description, ...outletNames].some((value) => String(value || "").toLowerCase().includes(search));
     });
-  }, [query, roles]);
+  }, [editorOutlets, query, roles]);
 
   const protectedRoles = roles.filter((role) => isProtectedRoleName(role.name));
   const customRoles = roles.filter((role) => !isProtectedRoleName(role.name));
@@ -906,19 +906,25 @@ export default function RolesPage({ ui, store }) {
         </div>
       ),
     },
-    { key: "updatedAt", header: "Last Updated", render: (row) => <span className="text-xs text-text-secondary">{row.updatedAt}</span> },
+    { key: "updatedAt", header: "Last Updated", render: (row) => <span className="text-xs text-text-secondary">{formatDateTime(row.updatedAt)}</span> },
     {
       key: "actions",
       header: "Actions",
       align: "right",
       width: "72px",
       render: (row) => (
-        <div className="relative flex justify-end" onClick={(event) => event.stopPropagation()}>
-          <button className="icon-btn" type="button" onClick={() => setActionMenuRoleId((value) => (value === row.id ? null : row.id))}>
-            <MoreHorizontal size={15} />
-          </button>
-          {actionMenuRoleId === row.id ? (
-            <div className="absolute right-0 top-9 z-50 w-52 rounded-2xl border border-border bg-white p-1.5 text-sm shadow-xl">
+        <div className="flex justify-end" onClick={(event) => event.stopPropagation()}>
+          <ActionMenu
+            open={actionMenuRoleId === row.id}
+            onOpenChange={(nextOpen) => setActionMenuRoleId(nextOpen ? row.id : null)}
+            width={208}
+            ariaLabel="Role actions"
+            trigger={({ toggle, ariaLabel }) => (
+              <button className="icon-btn" type="button" aria-label={ariaLabel} onClick={toggle}>
+                <MoreHorizontal size={15} />
+              </button>
+            )}
+          >
               <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { setSelectedRole(row); setActionMenuRoleId(null); }}>
                 <Eye size={14} /> View Permissions
               </button>
@@ -934,8 +940,7 @@ export default function RolesPage({ ui, store }) {
               <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40" disabled={isProtectedRoleName(row.name)} type="button" onClick={() => deleteRole(row)}>
                 <Trash2 size={14} /> Delete Role
               </button>
-            </div>
-          ) : null}
+          </ActionMenu>
         </div>
       ),
     },
