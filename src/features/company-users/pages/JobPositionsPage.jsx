@@ -82,7 +82,6 @@ function JobPositionDetailModal({
     if (!values.name.trim()) return;
     onSubmit({
       ...values,
-      id: values.id || `pos-${crypto.randomUUID()}`,
       name: values.name.trim(),
       department: values.department.trim(),
       description: values.description?.trim() ?? "",

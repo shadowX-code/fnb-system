@@ -37,7 +37,6 @@ function DepartmentModal({ mode, initialDepartment, onClose, onSubmit }) {
     if (!values.name.trim()) return;
     onSubmit({
       ...values,
-      id: values.id || `dept-${crypto.randomUUID()}`,
       name: values.name.trim(),
       description: values.description.trim(),
       updated_at: new Date().toISOString(),

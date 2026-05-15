@@ -236,7 +236,7 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
     const nextPermissions = [...values.selectedPermissions];
     const modules = [...new Set(nextPermissions.map((code) => defaultPermissions.find((permission) => permission.code === code)?.module).filter(Boolean))];
     onSubmit({
-      id: role?.id ?? `role-custom-${crypto.randomUUID()}`,
+      ...(role?.id ? { id: role.id } : {}),
       name: values.name.trim().toLowerCase().replace(/\s+/g, "_"),
       description: values.description || "Custom company role.",
       is_system_role: role?.is_system_role ?? false,
@@ -795,7 +795,7 @@ export default function RolesPage({ ui, store }) {
   function duplicateRole(role) {
     const duplicate = {
       ...role,
-      id: `role-custom-${crypto.randomUUID()}`,
+      id: undefined,
       name: `${role.name}_copy`,
       description: `Draft copy of ${role.name}.`,
       is_system_role: false,

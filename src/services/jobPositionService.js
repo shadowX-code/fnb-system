@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
+import { isSupabaseUuid } from "./idUtils";
 
 function mapPosition(row, employeeCounts = new Map()) {
   return {
@@ -42,7 +43,8 @@ export const jobPositionService = {
       updated_at: new Date().toISOString(),
     };
 
-    const query = position.id
+    const isUpdate = isSupabaseUuid(position.id);
+    const query = isUpdate
       ? supabase.from("job_positions").update(payload).eq("id", position.id)
       : supabase.from("job_positions").insert(payload);
 
@@ -52,10 +54,10 @@ export const jobPositionService = {
 
     throwSupabaseError("job_positions.save", error);
     await auditLogService.createAuditLog({
-      action: position.id ? "job_position_updated" : "job_position_created",
+      action: isUpdate ? "job_position_updated" : "job_position_created",
       module: "people",
       target: data.name,
-      description: position.id ? "Job position updated." : "Job position created.",
+      description: isUpdate ? "Job position updated." : "Job position created.",
       after: data,
     }).catch(() => {});
     return mapPosition(data);

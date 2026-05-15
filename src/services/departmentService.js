@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
+import { isSupabaseUuid } from "./idUtils";
 
 function mapDepartment(row) {
   return {
@@ -32,7 +33,8 @@ export const departmentService = {
       updated_at: new Date().toISOString(),
     };
 
-    const query = department.id
+    const isUpdate = isSupabaseUuid(department.id);
+    const query = isUpdate
       ? supabase.from("departments").update(payload).eq("id", department.id)
       : supabase.from("departments").insert(payload);
 
@@ -42,10 +44,10 @@ export const departmentService = {
 
     throwSupabaseError("departments.save", error);
     await auditLogService.createAuditLog({
-      action: department.id ? "department_updated" : "department_created",
+      action: isUpdate ? "department_updated" : "department_created",
       module: "people",
       target: data.name,
-      description: department.id ? "Department updated." : "Department created.",
+      description: isUpdate ? "Department updated." : "Department created.",
       after: data,
     }).catch(() => {});
     return mapDepartment(data);

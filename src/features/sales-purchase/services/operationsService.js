@@ -40,7 +40,7 @@ export const operationsService = {
           (record) => !(record.outlet_id === outletId && record.month === month && record.year === year),
         ),
         ...salesRows.map((row) => ({
-          id: row.id ?? `sales-${outletId}-${year}-${month}-${row.channel_id}`,
+          ...(row.id ? { id: row.id } : {}),
           outlet_id: outletId,
           month,
           year,
@@ -65,7 +65,7 @@ export const operationsService = {
         ...purchaseRows
           .filter((row) => row.supplier_id)
           .map((row) => ({
-            id: row.id ?? `purchase-${outletId}-${year}-${month}-${row.supplier_id}-${crypto.randomUUID()}`,
+            ...(row.id ? { id: row.id } : {}),
             outlet_id: outletId,
             month,
             year,
@@ -92,7 +92,6 @@ export const operationsService = {
 
     if (mode === "replace") {
       const created = uniqueRows.map((row) => ({
-        id: `purchase-${outletId}-${year}-${month}-${row.supplier_id}-${crypto.randomUUID()}`,
         outlet_id: outletId,
         month,
         year,
@@ -114,7 +113,6 @@ export const operationsService = {
       const created = uniqueRows
         .filter((row) => !existingSupplierIds.has(row.supplier_id))
         .map((row) => ({
-          id: `purchase-${outletId}-${year}-${month}-${row.supplier_id}-${crypto.randomUUID()}`,
           outlet_id: outletId,
           month,
           year,
@@ -147,7 +145,6 @@ export const operationsService = {
       };
     });
     const created = [...rowsBySupplier.values()].map((row) => ({
-      id: `purchase-${outletId}-${year}-${month}-${row.supplier_id}-${crypto.randomUUID()}`,
       outlet_id: outletId,
       month,
       year,

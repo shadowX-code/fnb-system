@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
+import { isSupabaseUuid } from "./idUtils";
 
 function mapRole(row) {
   const permissions = (row.role_permissions ?? []).map((item) => item.permissions?.code).filter(Boolean);
@@ -65,7 +66,8 @@ export const roleService = {
       is_active: role.is_active !== false,
     };
 
-    const roleQuery = role.id
+    const isUpdate = isSupabaseUuid(role.id);
+    const roleQuery = isUpdate
       ? supabase.from("roles").update(payload).eq("id", role.id)
       : supabase.from("roles").insert(payload);
 
@@ -100,10 +102,10 @@ export const roleService = {
     }
 
     await auditLogService.createAuditLog({
-      action: role.id ? "role_updated" : "role_created",
+      action: isUpdate ? "role_updated" : "role_created",
       module: "access-control",
       target: savedRole.name,
-      description: role.id ? "Role updated." : "Role created.",
+      description: isUpdate ? "Role updated." : "Role created.",
       after: { ...savedRole, permissions: permissionCodes, outletAccess: role.outletAccess, selectedOutletIds: role.selectedOutletIds ?? [] },
     }).catch(() => {});
 
