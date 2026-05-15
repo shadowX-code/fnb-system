@@ -1,4 +1,4 @@
-export default function DataTable({ columns, rows, getRowKey, footer, getRowClassName, density = "normal", tableClassName = "" }) {
+export default function DataTable({ columns, rows, getRowKey, footer, getRowClassName, onRowClick, density = "normal", tableClassName = "" }) {
   const cellPadding = density === "compact" ? "px-2.5 py-2" : "px-3 py-2.5";
   const headerPadding = density === "compact" ? "px-2.5 py-2" : "px-3 py-2.5";
 
@@ -24,7 +24,8 @@ export default function DataTable({ columns, rows, getRowKey, footer, getRowClas
           {rows.map((row, index) => (
             <tr
               key={getRowKey(row, index)}
-              className={`transition hover:bg-slate-50/70 ${getRowClassName ? getRowClassName(row, index) : ""}`}
+              className={`transition hover:bg-slate-50/70 ${onRowClick ? "cursor-pointer" : ""} ${getRowClassName ? getRowClassName(row, index) : ""}`}
+              onClick={onRowClick ? () => onRowClick(row, index) : undefined}
             >
               {columns.map((column) => (
                 <td

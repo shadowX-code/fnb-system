@@ -19,10 +19,12 @@ import MetricCard from "../../../components/ui/MetricCard.jsx";
 import FilterBar from "../../../components/forms/FilterBar.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import { FieldLabel, MonthSelector, OutletSelector, YearSelector } from "../../../components/forms/Selectors.jsx";
+import SelectField from "../../../components/forms/SelectField.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import SupplierCombobox from "../components/SupplierCombobox.jsx";
 import usePeriodFilters from "../hooks/usePeriodFilters.js";
 import { operationsService } from "../services/operationsService.js";
+import { purchaseRecordService } from "../../../services/purchaseRecordService.js";
 import { months } from "../data/mockData.js";
 import {
   getCategoryName,
@@ -142,24 +144,17 @@ function PurchaseEntryTable({
                   </td>
                   <td className="px-3 py-2 align-top">
                     {editingCategoryKey === row.localKey ? (
-                      <select
-                        className={`control h-9 w-[150px] max-w-full text-sm ${!row.category_id ? "border-amber-300 bg-amber-50/60" : ""}`}
+                      <SelectField
+                        className="w-[150px] max-w-full"
                         disabled={isLocked}
                         value={row.category_id}
-                        autoFocus
-                        onBlur={() => setEditingCategoryKey(null)}
-                        onChange={(event) => {
-                          updateRow(row.localKey, { category_id: event.target.value });
+                        placeholder="Category"
+                        options={store.purchaseCategories.map((category) => ({ value: category.id, label: category.name }))}
+                        onChange={(nextValue) => {
+                          updateRow(row.localKey, { category_id: nextValue });
                           setEditingCategoryKey(null);
                         }}
-                      >
-                        <option value="">Category</option>
-                        {store.purchaseCategories.map((category) => (
-                          <option key={category.id} value={category.id}>
-                            {category.name}
-                          </option>
-                        ))}
-                      </select>
+                      />
                     ) : (
                       <button
                         className={`inline-flex max-w-[150px] items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition ${
@@ -368,7 +363,8 @@ function PurchaseInsightPanel({ cogsMargin, highest, biggestIncrease, missingRow
 export default function PurchaseInputPage({ store, setStore, ui }) {
   const filters = usePeriodFilters(store);
   const amountInputRefs = useRef(new Map());
-  const [saveState, setSaveState] = useState("saved");
+  const [saveState, setSaveState] = useState("loading");
+  const [loadError, setLoadError] = useState("");
   const [lastSavedAt, setLastSavedAt] = useState(null);
   const [rows, setRows] = useState(() => buildPurchaseRows(store, filters.outletId, filters.month, filters.year));
   const [duplicateModal, setDuplicateModal] = useState(false);
@@ -389,9 +385,48 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
   const profitMargin = netSales ? 100 - cogsMargin : 0;
 
   useEffect(() => {
+    let ignore = false;
+    async function loadPurchaseRecords() {
+      if (!filters.outletId) return;
+      setSaveState("loading");
+      setLoadError("");
+      try {
+        const records = await purchaseRecordService.getPurchaseRecords(filters.outletId, filters.year, filters.month);
+        if (ignore) return;
+        setStore((current) => ({
+          ...current,
+          purchaseRecords: [
+            ...current.purchaseRecords.filter(
+              (record) =>
+                !(record.outlet_id === filters.outletId && Number(record.month) === Number(filters.month) && Number(record.year) === Number(filters.year)),
+            ),
+            ...records,
+          ],
+        }));
+        setRows(records.map((record) => ({ ...record, draft: false })));
+        setSaveState(records.length ? "saved" : "empty");
+        setExpandedRows(new Set());
+        setEditingCategoryKey(null);
+      } catch (error) {
+        console.error("Unable to load purchase records", error);
+        if (!ignore) {
+          setLoadError(error.message || "Unable to load purchase records.");
+          setRows([]);
+          setSaveState("error");
+        }
+      }
+    }
+    loadPurchaseRecords();
+    return () => {
+      ignore = true;
+    };
+  }, [filters.month, filters.outletId, filters.year]);
+
+  useEffect(() => {
+    if (saveState === "loading" || saveState === "error") return;
     setRows(buildPurchaseRows(store, filters.outletId, filters.month, filters.year));
     setExpandedRows(new Set());
-    setSaveState("saved");
+    setSaveState(buildPurchaseRows(store, filters.outletId, filters.month, filters.year).length ? "saved" : "empty");
     setEditingCategoryKey(null);
   }, [filters.month, filters.outletId, filters.year, store.purchaseRecords]);
 
@@ -470,10 +505,16 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
     return { label: month.label, value, display: toPercent(value), current: month.value === filters.month };
   });
   const saveStatusLabel =
-    saveState === "saving"
+    saveState === "loading"
+      ? "Loading purchase records..."
+      : saveState === "error"
+        ? loadError || "Unable to load purchase records."
+    : saveState === "saving"
       ? "Saving..."
       : saveState === "draft"
         ? "● Unsaved changes"
+        : saveState === "empty"
+          ? "No data yet"
         : lastSavedAt
           ? `✓ Saved successfully · ${lastSavedAt.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}`
           : "✓ Saved";
@@ -594,19 +635,31 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
     }
 
     setSaveState("saving");
-    window.setTimeout(() => {
+    setLoadError("");
+    try {
+      const savedRecords = await purchaseRecordService.savePurchaseRecords(filters.outletId, filters.year, filters.month, rows);
       setStore((current) =>
-        operationsService.upsertPurchaseData(current, {
-          outletId: filters.outletId,
-          month: filters.month,
-          year: filters.year,
-          purchaseRows: rows,
+        ({
+          ...current,
+          purchaseRecords: [
+            ...current.purchaseRecords.filter(
+              (record) =>
+                !(record.outlet_id === filters.outletId && Number(record.month) === Number(filters.month) && Number(record.year) === Number(filters.year)),
+            ),
+            ...savedRecords,
+          ],
         }),
       );
+      setRows(savedRecords.map((record) => ({ ...record, draft: false })));
       setSaveState("saved");
       setLastSavedAt(new Date());
-      ui.notify({ title: "Purchase data saved successfully", message: `${rows.length} supplier rows updated.` });
-    }, 300);
+      ui.notify({ title: "Purchase data saved successfully", message: `${savedRecords.length} supplier rows updated.` });
+    } catch (error) {
+      console.error("Unable to save purchase records", error);
+      setSaveState("error");
+      setLoadError(error.message || "Unable to save purchase records.");
+      ui.notify({ title: "Unable to save purchase records", message: error.message || "Please try again.", tone: "error" });
+    }
   }
 
   function createSupplierForRow(localKey, name) {
@@ -632,14 +685,14 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
         actions={
           <>
           <span className={`inline-flex h-10 items-center rounded-xl px-3 text-xs font-bold ${
-            saveState === "draft" ? "bg-amber-50 text-amber-700" : saveState === "saving" ? "bg-blue-50 text-blue-700" : "bg-emerald-50 text-emerald-700"
+            saveState === "draft" ? "bg-amber-50 text-amber-700" : saveState === "saving" || saveState === "loading" ? "bg-blue-50 text-blue-700" : saveState === "error" ? "bg-rose-50 text-rose-700" : saveState === "empty" ? "bg-slate-50 text-text-secondary" : "bg-emerald-50 text-emerald-700"
           }`}>
             {saveStatusLabel}
           </span>
           <button className="btn-secondary" type="button" disabled={isLocked} onClick={() => setDuplicateModal(true)}>
             <Copy size={16} /> Duplicate Previous Month
           </button>
-          <button className="btn-primary" type="button" disabled={isLocked || saveState === "saving"} onClick={savePurchaseData}>
+          <button className="btn-primary" type="button" disabled={isLocked || saveState === "saving" || saveState === "loading"} onClick={savePurchaseData}>
             <Save size={16} /> {saveState === "saving" ? "Saving..." : "Save Purchase Data"}
           </button>
           <button
@@ -658,23 +711,21 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
         <MonthSelector value={filters.month} onChange={filters.setMonth} />
         <YearSelector value={filters.year} onChange={filters.setYear} />
         <FieldLabel label="Category">
-          <select className="control" value={categoryFilter} onChange={(event) => setCategoryFilter(event.target.value)}>
-            <option value="all">All categories</option>
-            {store.purchaseCategories.map((category) => (
-              <option key={category.id} value={category.id}>
-                {category.name}
-              </option>
-            ))}
-          </select>
+          <SelectField
+            value={categoryFilter === "all" ? "" : categoryFilter}
+            placeholder="All categories"
+            searchable
+            options={store.purchaseCategories.map((category) => ({ value: category.id, label: category.name }))}
+            onChange={(nextValue) => setCategoryFilter(nextValue || "all")}
+          />
         </FieldLabel>
         <FieldLabel label="Row Status">
-          <select className="control" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-            <option value="all">All</option>
-            <option value="Normal">Normal</option>
-            <option value="Warning">Warning</option>
-            <option value="High Risk">High Risk</option>
-            <option value="Missing">Missing History</option>
-          </select>
+          <SelectField
+            value={statusFilter === "all" ? "" : statusFilter}
+            placeholder="All"
+            options={["Normal", "Warning", "High Risk", "Missing"].map((item) => ({ value: item, label: item === "Missing" ? "Missing History" : item }))}
+            onChange={(nextValue) => setStatusFilter(nextValue || "all")}
+          />
         </FieldLabel>
         <FieldLabel label="Search supplier">
           <div className="relative">
@@ -727,11 +778,16 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
                 <input type="checkbox" checked={showAbnormalOnly} onChange={(event) => setShowAbnormalOnly(event.target.checked)} />
                 Abnormal only
               </label>
-              <select className="control w-44" value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
-                <option value="amount">Sort by amount</option>
-                <option value="change">Sort by change %</option>
-                <option value="supplier">Sort by supplier</option>
-              </select>
+              <SelectField
+                value={sortBy}
+                className="w-44"
+                options={[
+                  { value: "amount", label: "Sort by amount" },
+                  { value: "change", label: "Sort by change %" },
+                  { value: "supplier", label: "Sort by supplier" },
+                ]}
+                onChange={setSortBy}
+              />
             </div>
           }
         >

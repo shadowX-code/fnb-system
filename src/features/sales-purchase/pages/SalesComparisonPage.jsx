@@ -5,6 +5,7 @@ import Card from "../../../components/ui/Card.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import { FieldLabel, OutletSelector, YearSelector } from "../../../components/forms/Selectors.jsx";
+import SelectField from "../../../components/forms/SelectField.jsx";
 import FilterBar from "../../../components/forms/FilterBar.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import usePeriodFilters from "../hooks/usePeriodFilters.js";
@@ -486,18 +487,10 @@ export default function SalesComparisonPage({ store, ui }) {
         <OutletSelector outlets={store.outlets.filter((outlet) => outlet.status === "active")} value={filters.outletId} onChange={filters.setOutletId} />
         <YearSelector value={filters.year} onChange={filters.setYear} />
         <FieldLabel label="Compare With">
-          <select className="control" value={compareWith} onChange={(event) => setCompareWith(event.target.value)}>
-            <option>Previous Year</option>
-            <option>Previous Month</option>
-            <option>3-Month Average</option>
-          </select>
+          <SelectField value={compareWith} options={["Previous Year", "Previous Month", "3-Month Average"].map((item) => ({ value: item, label: item }))} onChange={setCompareWith} />
         </FieldLabel>
         <FieldLabel label="View Mode">
-          <select className="control" value={viewMode} onChange={(event) => setViewMode(event.target.value)}>
-            <option>Summary</option>
-            <option>Detailed</option>
-            <option>Channel Mix</option>
-          </select>
+          <SelectField value={viewMode} options={["Summary", "Detailed", "Channel Mix"].map((item) => ({ value: item, label: item }))} onChange={setViewMode} />
         </FieldLabel>
       </FilterBar>
 

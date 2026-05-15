@@ -71,7 +71,7 @@ export default function OutletManagementPage({ store, setStore, ui }) {
   return (
     <div className="space-y-5">
       <PageHeader
-        section="Management"
+        section="Operations"
         title="Outlets"
         description="Outlet master data used by sales and purchase records through outlet_id."
         actions={<button className="btn-primary" onClick={() => setModal({ mode: "add" })}><Plus size={16} /> Add Outlet</button>}

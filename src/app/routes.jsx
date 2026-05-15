@@ -9,120 +9,120 @@ import SalesInputPage from "../features/sales-purchase/pages/SalesInputPage.jsx"
 import SalesComparisonPage from "../features/sales-purchase/pages/SalesComparisonPage.jsx";
 import SettingsPage from "../features/sales-purchase/pages/SettingsPage.jsx";
 import SupplierManagementPage from "../features/sales-purchase/pages/SupplierManagementPage.jsx";
+import UsersPage from "../features/company-users/pages/UsersPage.jsx";
+import JobPositionsPage from "../features/company-users/pages/JobPositionsPage.jsx";
+import DepartmentsPage from "../features/company-users/pages/DepartmentsPage.jsx";
+import RolesPage from "../features/company-users/pages/RolesPage.jsx";
+import AuditLogsPage from "../features/company-users/pages/AuditLogsPage.jsx";
+import { getSidebarSections, moduleRegistry, viewPermission } from "../../config/modules.ts";
 
-export const salesPurchaseRoutes = [
-  {
-    id: "dashboard",
-    label: "Dashboard",
-    eyebrow: "Overview",
+function ModulePlaceholderPage({ moduleLabel = "Module", moduleSection = "Workspace" }) {
+  return (
+    <div className="card p-6">
+      <div className="text-xs font-bold uppercase tracking-wide text-text-muted">{moduleSection}</div>
+      <h2 className="mt-2 text-xl font-semibold text-text-primary">{moduleLabel}</h2>
+      <p className="mt-2 text-sm text-text-secondary">
+        This module is registered for navigation, permissions, route protection and audit scope, but its working page has not been implemented yet.
+      </p>
+    </div>
+  );
+}
+
+const routeDetails = {
+  dashboard: {
     description: "Saved sales, purchase, COGS, margin and alerts overview.",
     component: DashboardOverviewPage,
   },
-  {
-    id: "sales-input",
-    label: "Sales Input",
-    eyebrow: "Sales",
+  "sales-input": {
     description: "Manual monthly sales entry by outlet and structured channel.",
     component: SalesInputPage,
   },
-  {
-    id: "sales-comparison",
-    label: "Sales Comparison",
-    eyebrow: "Sales",
+  "sales-comparison": {
     description: "Modern Jan-Dec sales comparison with totals and previous-period variance.",
     component: SalesComparisonPage,
   },
-  {
-    id: "purchase-input",
-    label: "Purchase Input",
-    eyebrow: "Purchases",
+  "sales-channels": {
+    description: "Manage structured sales channels used by sales input and analytics.",
+    component: SettingsPage,
+    props: { initialTab: "channels", settingsMode: "sales-channels" },
+  },
+  "tax-settings": {
+    description: "Manage outlet-level tax configuration history with effective dates.",
+    component: SettingsPage,
+    props: { initialTab: "tax", settingsMode: "tax" },
+  },
+  "purchase-input": {
     description: "Record monthly supplier purchases by outlet.",
     component: PurchaseInputPage,
   },
-  {
-    id: "purchase-comparison",
-    label: "Purchase Comparison",
-    eyebrow: "Purchases",
+  "purchase-comparison": {
     description: "Supplier and category purchase comparison with abnormal cell highlighting.",
     component: PurchaseComparisonPage,
   },
-  {
-    id: "suppliers",
-    label: "Suppliers",
-    eyebrow: "Management",
+  suppliers: {
     description: "Supplier master data used by purchase records through supplier_id.",
     component: SupplierManagementPage,
   },
-  {
-    id: "outlets",
-    label: "Outlets",
-    eyebrow: "Management",
+  "purchase-categories": {
+    description: "Manage structured purchase categories used by suppliers and imports.",
+    component: SettingsPage,
+    props: { initialTab: "categories", settingsMode: "purchase-categories" },
+  },
+  employees: {
+    description: "Manage employee profiles, employment data, bank information and optional system login.",
+    component: UsersPage,
+    props: { peopleMode: "employees" },
+  },
+  "job-positions": {
+    description: "Manage HR job titles used in employee profiles.",
+    component: JobPositionsPage,
+  },
+  departments: {
+    description: "Manage company departments for employee grouping.",
+    component: DepartmentsPage,
+  },
+  roles: {
+    description: "Manage company roles.",
+    component: RolesPage,
+  },
+  outlets: {
     description: "Outlet master data used by sales and purchase records through outlet_id.",
     component: OutletManagementPage,
   },
-  {
-    id: "settings",
-    label: "Settings",
-    eyebrow: "Settings",
-    description: "Manage sales channels and purchase categories for structured reporting.",
-    component: SettingsPage,
-  },
-  {
-    id: "alerts",
-    label: "Alerts & Insights",
-    eyebrow: "Controls",
+  alerts: {
     description: "Rule-based insight center for abnormal sales and supplier purchase patterns.",
     component: AlertsInsightsPage,
   },
-  {
-    id: "data-import",
-    label: "Data Import",
-    eyebrow: "Controls",
+  "data-import": {
     description: "Future-ready Excel and CSV import flow with mock progress feedback.",
     component: DataImportPage,
   },
-  {
-    id: "data-health",
-    label: "Data Health",
-    eyebrow: "Controls",
+  "data-health": {
     description: "Month lock, completeness checks and data freshness controls.",
     component: DataHealthPage,
   },
-];
+  "audit-logs": {
+    description: "Review authentication, access, employee and operational audit events.",
+    component: AuditLogsPage,
+  },
+};
 
-export const sidebarSections = [
-  {
-    label: "Overview",
-    items: [{ id: "dashboard", label: "Dashboard" }],
-  },
-  {
-    label: "Sales",
-    items: [
-      { id: "sales-input", label: "Sales Input" },
-      { id: "sales-comparison", label: "Sales Comparison" },
-    ],
-  },
-  {
-    label: "Purchases",
-    items: [
-      { id: "purchase-input", label: "Purchase Input" },
-      { id: "purchase-comparison", label: "Purchase Comparison" },
-    ],
-  },
-  {
-    label: "Management",
-    items: [
-      { id: "suppliers", label: "Suppliers" },
-      { id: "outlets", label: "Outlets" },
-      { id: "settings", label: "Settings" },
-    ],
-  },
-  {
-    label: "Controls",
-    items: [
-      { id: "alerts", label: "Alerts & Insights" },
-      { id: "data-import", label: "Data Import" },
-      { id: "data-health", label: "Data Health" },
-    ],
-  },
-];
+export const salesPurchaseRoutes = moduleRegistry.map((module) => {
+  const details = routeDetails[module.id] ?? {};
+  return {
+    id: module.id,
+    label: module.label,
+    eyebrow: module.section,
+    description: details.description ?? `${module.label} workspace.`,
+    component: details.component ?? ModulePlaceholderPage,
+    permission: viewPermission(module.id),
+    props: {
+      moduleId: module.id,
+      moduleLabel: module.label,
+      moduleSection: module.section,
+      ...(details.props ?? {}),
+    },
+  };
+});
+
+export const sidebarSections = getSidebarSections();

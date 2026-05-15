@@ -10,8 +10,6 @@ import usePeriodFilters from "../hooks/usePeriodFilters.js";
 import { operationsService } from "../services/operationsService.js";
 import { buildAlerts, getNetSales, getOutletTaxConfig, monthLabel, sumAmount, toCurrency, toPercent } from "../utils/analytics.js";
 
-const currentUser = { name: "Marcus Lee", role: "Owner" };
-const canManageLocks = ["Owner", "Admin"].includes(currentUser.role);
 const requiredSalesChannels = ["Dine In", "Takeaway", "GrabFood", "FoodPanda", "ShopeeFood"];
 
 function getLock(store, outletId, month, year) {
@@ -52,8 +50,12 @@ function getStatus({ isLocked, salesScore, purchaseScore, warnings, hasAnyData }
   return { label: "Draft", tone: "warning" };
 }
 
-export default function DataHealthPage({ store, setStore, ui }) {
+export default function DataHealthPage({ store, setStore, ui, auth }) {
   const filters = usePeriodFilters(store);
+  const currentUser = { name: auth?.profile?.full_name ?? auth?.user?.email ?? "System User" };
+  const canLockMonth = auth?.hasPermission?.("data_health.view") ?? true;
+  const canUnlockMonth = auth?.hasPermission?.("data_health.view") ?? true;
+  const canManageLocks = canLockMonth || canUnlockMonth;
   const [lockModal, setLockModal] = useState(false);
   const [unlockModal, setUnlockModal] = useState(false);
   const [lockConfirmed, setLockConfirmed] = useState(false);
@@ -134,7 +136,7 @@ export default function DataHealthPage({ store, setStore, ui }) {
   return (
     <div className="space-y-4">
       <PageHeader
-        section="Controls"
+        section="Operations"
         title="Month Closing Control Center"
         description="Check completeness, review exceptions, lock accounting month data, and preserve audit trail."
         actions={
@@ -182,8 +184,8 @@ export default function DataHealthPage({ store, setStore, ui }) {
                 <Badge tone={isLocked ? "danger" : "success"}>{isLocked ? "Locked" : "Editable"}</Badge>
               </div>
               <div className="mt-4 grid gap-2 text-xs text-text-secondary sm:grid-cols-2">
-                <div>Role: <strong className="text-text-primary">{currentUser.role}</strong></div>
-                <div>Permission: <strong className="text-text-primary">{canManageLocks ? "Owner/Admin" : "View only"}</strong></div>
+                <div>User: <strong className="text-text-primary">{currentUser.name}</strong></div>
+                <div>Permission: <strong className="text-text-primary">{canManageLocks ? "Month control" : "View only"}</strong></div>
                 <div>Locked by: <strong className="text-text-primary">{lock?.locked_by || "-"}</strong></div>
                 <div>Locked at: <strong className="text-text-primary">{formatTime(lock?.locked_at)}</strong></div>
               </div>

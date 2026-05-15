@@ -23,6 +23,12 @@ export default function usePeriodFilters(store) {
   const [year, setYear] = useState(initial.year);
 
   useEffect(() => {
+    if (!store.outlets.length) return;
+    const outletExists = store.outlets.some((outlet) => outlet.id === outletId);
+    if (!outletExists) setOutletId(store.outlets[0]?.id ?? "");
+  }, [outletId, store.outlets]);
+
+  useEffect(() => {
     localStorage.setItem(storageKey, JSON.stringify({ outletId, month, year }));
   }, [month, outletId, year]);
 

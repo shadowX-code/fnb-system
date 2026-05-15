@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
+import SelectField from "../../../components/forms/SelectField.jsx";
 import PeriodFilterBar from "../components/PeriodFilterBar.jsx";
 import usePeriodFilters from "../hooks/usePeriodFilters.js";
 import { buildAlerts, getSupplierName, monthLabel, toCurrency, toPercent } from "../utils/analytics.js";
@@ -170,7 +171,7 @@ export default function AlertsInsightsPage({ store, ui }) {
   return (
     <div className="space-y-4">
       <PageHeader
-        section="Controls"
+        section="Operations"
         title="Alerts & Insights"
         description="Operational risk inbox for abnormal supplier purchase, COGS and sales movement."
       />
@@ -181,41 +182,22 @@ export default function AlertsInsightsPage({ store, ui }) {
         compact
         actions={
           <>
-            <select className="control h-10" value={priority} onChange={(event) => setPriority(event.target.value)}>
-              <option value="all">All Priority</option>
-              <option value="critical">Critical</option>
-              <option value="high">High</option>
-              <option value="medium">Medium</option>
-              <option value="low">Low</option>
-            </select>
-            <select className="control h-10" value={severity} onChange={(event) => setSeverity(event.target.value)}>
-              <option value="all">All Severity</option>
-              <option value="danger">Danger</option>
-              <option value="warning">Warning</option>
-              <option value="info">Info</option>
-              <option value="success">Success</option>
-            </select>
-            <select className="control h-10" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
-              <option value="active">Unreviewed</option>
-              <option value="reviewed">Reviewed</option>
-              <option value="resolved">Resolved</option>
-              <option value="dismissed">Dismissed</option>
-              <option value="all">All Status</option>
-            </select>
-            <select className="control h-10" value={typeFilter} onChange={(event) => setTypeFilter(event.target.value)}>
-              <option value="all">All Alert Types</option>
-              <option value="COGS">COGS</option>
-              <option value="Supplier">Supplier</option>
-              <option value="Sales">Sales</option>
-              <option value="SST">SST</option>
-              <option value="Purchase">Purchase</option>
-            </select>
-            <select className="control h-10" value={sortBy} onChange={(event) => setSortBy(event.target.value)}>
-              <option value="priority">Priority + Unreviewed</option>
-              <option value="newest">Newest</option>
-              <option value="confidence">Highest Confidence</option>
-              <option value="unreviewed">Unreviewed First</option>
-            </select>
+            <SelectField className="w-40" value={priority === "all" ? "" : priority} placeholder="All Priority" options={["critical", "high", "medium", "low"].map((item) => ({ value: item, label: item[0].toUpperCase() + item.slice(1) }))} onChange={(nextValue) => setPriority(nextValue || "all")} />
+            <SelectField className="w-40" value={severity === "all" ? "" : severity} placeholder="All Severity" options={["danger", "warning", "info", "success"].map((item) => ({ value: item, label: item[0].toUpperCase() + item.slice(1) }))} onChange={(nextValue) => setSeverity(nextValue || "all")} />
+            <SelectField className="w-40" value={statusFilter} options={[
+              { value: "active", label: "Unreviewed" },
+              { value: "reviewed", label: "Reviewed" },
+              { value: "resolved", label: "Resolved" },
+              { value: "dismissed", label: "Dismissed" },
+              { value: "all", label: "All Status" },
+            ]} onChange={setStatusFilter} />
+            <SelectField className="w-44" value={typeFilter === "all" ? "" : typeFilter} placeholder="All Alert Types" options={["COGS", "Supplier", "Sales", "SST", "Purchase"].map((item) => ({ value: item, label: item }))} onChange={(nextValue) => setTypeFilter(nextValue || "all")} />
+            <SelectField className="w-48" value={sortBy} options={[
+              { value: "priority", label: "Priority + Unreviewed" },
+              { value: "newest", label: "Newest" },
+              { value: "confidence", label: "Highest Confidence" },
+              { value: "unreviewed", label: "Unreviewed First" },
+            ]} onChange={setSortBy} />
           </>
         }
       />

@@ -10,6 +10,7 @@ import PeriodFilterBar from "../components/PeriodFilterBar.jsx";
 import SummaryPanel from "../components/SummaryPanel.jsx";
 import usePeriodFilters from "../hooks/usePeriodFilters.js";
 import { operationsService } from "../services/operationsService.js";
+import { salesRecordService } from "../../../services/salesRecordService.js";
 import {
   getPreviousPeriod,
   getOutletTaxConfig,
@@ -24,16 +25,28 @@ function getLock(store, outletId, month, year) {
   return store.monthlyLocks.find((lock) => lock.outlet_id === outletId && lock.month === month && lock.year === year);
 }
 
-function buildSalesRows(store, outletId, month, year) {
+function canonicalChannelName(name) {
+  const normalized = String(name ?? "").toLowerCase();
+  if (normalized.includes("sst")) return "sst";
+  return normalized.replace(/\(-\)/g, "").replace(/deduction/g, "").replace(/[^a-z0-9]+/g, "").trim();
+}
+
+function buildSalesRows(store, outletId, month, year, sourceRecords = store.salesRecords) {
   return store.salesChannels
     .filter((channel) => channel.status === "active" && channel.type !== "total")
     .map((channel) => {
-      const record = store.salesRecords.find(
+      const record = sourceRecords.find(
         (item) =>
           item.outlet_id === outletId &&
-          item.month === month &&
-          item.year === year &&
+          Number(item.month) === Number(month) &&
+          Number(item.year) === Number(year) &&
           item.channel_id === channel.id,
+      ) ?? sourceRecords.find(
+        (item) =>
+          item.outlet_id === outletId &&
+          Number(item.month) === Number(month) &&
+          Number(item.year) === Number(year) &&
+          canonicalChannelName(item.channel_name) === canonicalChannelName(channel.name),
       );
       return {
         id: record?.id,
@@ -67,7 +80,7 @@ function normalizeInputAmount(value, type) {
   return type === "adjustment" ? String(Math.abs(numeric)) : value;
 }
 
-export default function SalesInputPage({ store, setStore, ui }) {
+export default function SalesInputPage({ store, setStore, ui, auth }) {
   const filters = usePeriodFilters(store);
   const amountInputRefs = useRef(new Map());
   const [isDirty, setIsDirty] = useState(false);
@@ -75,7 +88,10 @@ export default function SalesInputPage({ store, setStore, ui }) {
   const [savedRecently, setSavedRecently] = useState(false);
   const [savedRowsCount, setSavedRowsCount] = useState(0);
   const [lastSavedAt, setLastSavedAt] = useState(null);
-  const [rows, setRows] = useState(() => buildSalesRows(store, filters.outletId, filters.month, filters.year));
+  const [liveSalesRecords, setLiveSalesRecords] = useState([]);
+  const [salesRecordsLoading, setSalesRecordsLoading] = useState(false);
+  const [salesRecordsError, setSalesRecordsError] = useState("");
+  const [rows, setRows] = useState(() => buildSalesRows(store, filters.outletId, filters.month, filters.year, []));
   const [activeRowId, setActiveRowId] = useState(null);
   const [deductionModal, setDeductionModal] = useState(false);
   const [deductionType, setDeductionType] = useState("SST Deduction");
@@ -84,12 +100,9 @@ export default function SalesInputPage({ store, setStore, ui }) {
   const sstEnabled = Boolean(sstConfig.enabled);
   const sstRate = Number(sstConfig.rate || 0);
   const isLocked = Boolean(getLock(store, filters.outletId, filters.month, filters.year)?.is_locked);
-  const hasSavedRecord = store.salesRecords.some(
-    (record) =>
-      record.outlet_id === filters.outletId &&
-      record.month === filters.month &&
-      record.year === filters.year,
-  );
+  const canEditSales = auth?.hasPermission?.("sales_input.edit") ?? true;
+  const inputDisabled = isLocked || salesRecordsLoading || !canEditSales;
+  const hasSavedRecord = liveSalesRecords.length > 0;
   const visibleRows = rows.filter((row) => sstEnabled || !sstChannelNames.includes(row.channelName));
   const salesRows = visibleRows.filter((row) => row.type === "channel");
   const adjustmentRows = visibleRows.filter((row) => row.type === "adjustment");
@@ -118,19 +131,51 @@ export default function SalesInputPage({ store, setStore, ui }) {
   const highest = salesRows.filter((row) => Number(row.amount || 0) > 0).sort((a, b) => Number(b.amount || 0) - Number(a.amount || 0))[0];
   const highestShare = grossSales && highest ? (Number(highest.amount || 0) / grossSales) * 100 : 0;
 
-  function reloadRows(next = filters) {
-    setRows(buildSalesRows(store, next.outletId, next.month, next.year));
+  function resetRows(next = filters) {
+    setRows(buildSalesRows(store, next.outletId, next.month, next.year, []));
     setIsDirty(false);
     setIsSaving(false);
     setSavedRecently(false);
+    setLiveSalesRecords([]);
+    setSalesRecordsError("");
   }
 
   useEffect(() => {
-    setRows(buildSalesRows(store, filters.outletId, filters.month, filters.year));
-    setIsDirty(false);
-    setIsSaving(false);
-    setSavedRecently(false);
-  }, [filters.month, filters.outletId, filters.year, store.salesChannels, store.salesRecords]);
+    let ignore = false;
+    async function loadSalesRecords() {
+      if (!filters.outletId || !store.salesChannels.length) {
+        setRows(buildSalesRows(store, filters.outletId, filters.month, filters.year, []));
+        setLiveSalesRecords([]);
+        return;
+      }
+
+      setSalesRecordsLoading(true);
+      setSalesRecordsError("");
+      setIsDirty(false);
+      setIsSaving(false);
+      setSavedRecently(false);
+
+      try {
+        const records = await salesRecordService.getSalesRecords(filters.outletId, filters.year, filters.month);
+        if (ignore) return;
+        setLiveSalesRecords(records);
+        setRows(buildSalesRows(store, filters.outletId, filters.month, filters.year, records));
+      } catch (error) {
+        console.error("Unable to load sales records", error);
+        if (ignore) return;
+        setLiveSalesRecords([]);
+        setRows(buildSalesRows(store, filters.outletId, filters.month, filters.year, []));
+        setSalesRecordsError(error.message || "Unable to load sales records.");
+      } finally {
+        if (!ignore) setSalesRecordsLoading(false);
+      }
+    }
+
+    loadSalesRecords();
+    return () => {
+      ignore = true;
+    };
+  }, [filters.month, filters.outletId, filters.year, store.salesChannels]);
 
   useEffect(() => {
     if (!sstEnabled && deductionType === "SST Deduction") {
@@ -182,23 +227,45 @@ export default function SalesInputPage({ store, setStore, ui }) {
     nextInput?.select();
   }
 
-  function saveSalesData() {
+  async function saveSalesData() {
     if (isLocked || isSaving) return;
+    if (!canEditSales) {
+      ui.notify({ title: "Permission required", message: "You need sales_input.edit to save sales data.", tone: "error" });
+      return;
+    }
     const invalidRows = visibleRows.filter((row) => Number.isNaN(Number(row.amount || 0)));
     if (invalidRows.length) {
       ui.notify({ title: "Validation warning", message: "Please enter valid numeric amounts before saving.", tone: "error" });
       return;
     }
     setIsSaving(true);
-    window.setTimeout(() => {
-      setStore((current) =>
-        operationsService.upsertSalesData(current, {
-          outletId: filters.outletId,
-          month: filters.month,
-          year: filters.year,
-          salesRows: visibleRows.map((row) => ({ ...row, amount: row.type === "adjustment" ? Math.abs(Number(row.amount || 0)) : Number(row.amount || 0) })),
-        }),
+    setSalesRecordsError("");
+    try {
+      const savedRecords = await salesRecordService.saveSalesRecords(
+        filters.outletId,
+        filters.year,
+        filters.month,
+        visibleRows.map((row) => ({
+          channel_name: row.channelName,
+          amount: row.type === "adjustment" ? Math.abs(Number(row.amount || 0)) : Number(row.amount || 0),
+          remark: row.remark ?? "",
+        })),
       );
+      setLiveSalesRecords(savedRecords);
+      setStore((current) => ({
+        ...current,
+        salesRecords: [
+          ...current.salesRecords.filter(
+            (record) =>
+              !(record.outlet_id === filters.outletId && Number(record.month) === Number(filters.month) && Number(record.year) === Number(filters.year)),
+          ),
+          ...savedRecords.map((record) => ({
+            ...record,
+            channel_id: store.salesChannels.find((channel) => canonicalChannelName(channel.name) === canonicalChannelName(record.channel_name))?.id,
+          })),
+        ],
+      }));
+      setRows(buildSalesRows(store, filters.outletId, filters.month, filters.year, savedRecords));
       setIsSaving(false);
       setIsDirty(false);
       setSavedRecently(true);
@@ -206,7 +273,12 @@ export default function SalesInputPage({ store, setStore, ui }) {
       setLastSavedAt(new Date());
       window.setTimeout(() => setSavedRecently(false), 4000);
       ui.notify({ title: "Sales data saved successfully", message: `${visibleRows.length} sales rows saved.` });
-    }, 300);
+    } catch (error) {
+      console.error("Unable to save sales records", error);
+      setIsSaving(false);
+      setSalesRecordsError(error.message || "Unable to save sales records.");
+      ui.notify({ title: "Unable to save sales records", message: error.message || "Please try again.", tone: "error" });
+    }
   }
 
   useEffect(() => {
@@ -221,8 +293,12 @@ export default function SalesInputPage({ store, setStore, ui }) {
   });
 
   const saveStatusLabel =
-    isSaving
+    salesRecordsLoading
+      ? "Loading sales records..."
+      : isSaving
       ? "Saving..."
+      : salesRecordsError
+        ? salesRecordsError
       : isDirty
         ? hasSavedRecord
           ? "● Unsaved changes"
@@ -236,6 +312,10 @@ export default function SalesInputPage({ store, setStore, ui }) {
             : "No data yet";
   const saveStatusClass = isSaving
     ? "text-primary"
+    : salesRecordsError
+      ? "text-rose-700"
+      : salesRecordsLoading
+        ? "text-text-secondary"
     : isDirty
       ? "text-amber-700"
       : hasSavedRecord || savedRecently
@@ -276,7 +356,7 @@ export default function SalesInputPage({ store, setStore, ui }) {
             }}
             className="control h-8 w-28 text-right text-[15px] font-semibold transition focus:border-primary focus:ring-2 focus:ring-primary/20"
             type="number"
-            disabled={isLocked}
+            disabled={inputDisabled}
             value={row.amount ?? ""}
             placeholder="0.00"
             onFocus={(event) => {
@@ -337,7 +417,7 @@ export default function SalesInputPage({ store, setStore, ui }) {
         render: (row) => (
           <input
             className="control h-8 w-full"
-            disabled={isLocked}
+            disabled={inputDisabled}
             value={row.remark}
             placeholder="Optional"
             onChange={(event) => updateRow(row.channel_id, { remark: event.target.value })}
@@ -357,7 +437,7 @@ export default function SalesInputPage({ store, setStore, ui }) {
         row.custom ? (
           <button
             className="icon-btn"
-            disabled={isLocked}
+            disabled={inputDisabled}
             type="button"
             onClick={() => {
               setRows((current) => current.filter((item) => item.channel_id !== row.channel_id));
@@ -513,7 +593,7 @@ export default function SalesInputPage({ store, setStore, ui }) {
             <button
               className="btn-secondary"
               type="button"
-              disabled={isLocked}
+              disabled={inputDisabled}
               onClick={() => {
                 setRows(buildSalesRows(store, filters.outletId, previous.month, previous.year).map((row) => ({ ...row, id: undefined })));
                 setIsDirty(true);
@@ -523,7 +603,7 @@ export default function SalesInputPage({ store, setStore, ui }) {
             >
               Import Previous
             </button>
-            <button className="btn-primary" type="button" disabled={isLocked || isSaving} onClick={saveSalesData}>
+            <button className="btn-primary" type="button" disabled={isLocked || isSaving || salesRecordsLoading || !canEditSales} onClick={saveSalesData}>
               <Save size={15} /> {isSaving ? "Saving..." : "Save Sales Data"}
             </button>
           </>
@@ -536,18 +616,30 @@ export default function SalesInputPage({ store, setStore, ui }) {
           ...filters,
           setOutletId: (value) => {
             filters.setOutletId(value);
-            reloadRows({ ...filters, outletId: value });
+            resetRows({ ...filters, outletId: value });
           },
           setMonth: (value) => {
             filters.setMonth(value);
-            reloadRows({ ...filters, month: value });
+            resetRows({ ...filters, month: value });
           },
           setYear: (value) => {
             filters.setYear(value);
-            reloadRows({ ...filters, year: value });
+            resetRows({ ...filters, year: value });
           },
         }}
       />
+
+      {salesRecordsLoading ? (
+        <div className="card border-blue-100 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-700">
+          Loading sales records...
+        </div>
+      ) : null}
+
+      {salesRecordsError ? (
+        <div className="card border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">
+          {salesRecordsError}
+        </div>
+      ) : null}
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard icon={Wallet} label="Net Sales" value={toCurrency(netSales)} helper="System calculated as Gross Sales minus deductions" trend="Calculated" />
@@ -568,10 +660,10 @@ export default function SalesInputPage({ store, setStore, ui }) {
           description="Enter sales channels first, then deduction amounts. Net Sales is read-only and calculated in real time."
           action={
             <div className="flex flex-wrap gap-2">
-              <button className="btn-secondary" type="button" disabled={isLocked} onClick={addCustomChannel}>
+              <button className="btn-secondary" type="button" disabled={inputDisabled} onClick={addCustomChannel}>
                 <Plus size={15} /> Custom Channel
               </button>
-              <button className="btn-secondary" type="button" disabled={isLocked} onClick={() => setDeductionModal(true)}>
+              <button className="btn-secondary" type="button" disabled={inputDisabled} onClick={() => setDeductionModal(true)}>
                 <Plus size={15} /> Add Deduction
               </button>
             </div>
@@ -677,6 +769,7 @@ export default function SalesInputPage({ store, setStore, ui }) {
       </div>
 
       {isLocked ? <div className="card border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700">This month is locked. Sales inputs are disabled until an admin unlocks it.</div> : null}
+      {!canEditSales ? <div className="card border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">View-only access. You need sales_input.edit permission to update or save sales records.</div> : null}
 
       {deductionModal ? (
         <Modal

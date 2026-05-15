@@ -9,6 +9,7 @@ import { operationsService } from "../services/operationsService.js";
 import { getOutletTaxConfig } from "../utils/analytics.js";
 import Modal from "../../../components/feedback/Modal.jsx";
 import { FieldLabel, MonthSelector, YearSelector } from "../../../components/forms/Selectors.jsx";
+import SelectField from "../../../components/forms/SelectField.jsx";
 import { months } from "../data/mockData.js";
 
 function latestPeriod(store) {
@@ -115,22 +116,27 @@ function TaxConfigModal({ store, values, setValues, onClose, onSubmit, ui }) {
         ) : null}
 
         <FieldLabel label="Outlet">
-          <select className="control w-full" value={values.outlet_id} onChange={(event) => setValues((current) => ({ ...current, outlet_id: event.target.value }))}>
-            {store.outlets.map((outlet) => <option key={outlet.id} value={outlet.id}>{outlet.name}</option>)}
-          </select>
+          <SelectField
+            value={values.outlet_id}
+            searchable
+            options={store.outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))}
+            onChange={(nextValue) => setValues((current) => ({ ...current, outlet_id: nextValue }))}
+          />
         </FieldLabel>
 
         <div className="grid gap-3 sm:grid-cols-2">
           <FieldLabel label="Tax Type">
-            <select className="control w-full" value={values.tax_type} onChange={(event) => setValues((current) => ({ ...current, tax_type: event.target.value }))}>
-              <option value="SST">SST</option>
-            </select>
+            <SelectField value={values.tax_type} options={[{ value: "SST", label: "SST" }]} onChange={(nextValue) => setValues((current) => ({ ...current, tax_type: nextValue }))} />
           </FieldLabel>
           <FieldLabel label="Status">
-            <select className="control w-full" value={String(enabled)} onChange={(event) => setValues((current) => ({ ...current, enabled: event.target.value, rate: event.target.value === "true" ? current.rate || 6 : 0 }))}>
-              <option value="true">Enabled</option>
-              <option value="false">Disabled</option>
-            </select>
+            <SelectField
+              value={String(enabled)}
+              options={[
+                { value: "true", label: "Enabled" },
+                { value: "false", label: "Disabled" },
+              ]}
+              onChange={(nextValue) => setValues((current) => ({ ...current, enabled: nextValue, rate: nextValue === "true" ? current.rate || 6 : 0 }))}
+            />
           </FieldLabel>
         </div>
 
@@ -176,8 +182,8 @@ function TaxConfigModal({ store, values, setValues, onClose, onSubmit, ui }) {
   );
 }
 
-export default function SettingsPage({ store, setStore, ui }) {
-  const [tab, setTab] = useState("channels");
+export default function SettingsPage({ store, setStore, ui, auth, initialTab = "channels", settingsMode = "all" }) {
+  const [tab, setTab] = useState(initialTab);
   const [modal, setModal] = useState(null);
   const [taxValues, setTaxValues] = useState(null);
   const [revisionConfig, setRevisionConfig] = useState(null);
@@ -187,11 +193,16 @@ export default function SettingsPage({ store, setStore, ui }) {
   const [taxMonth, setTaxMonth] = useState(() => latestPeriod(store).month);
   const [taxYear, setTaxYear] = useState(() => latestPeriod(store).year);
   const currentPeriodKey = periodKeyFromParts(latestPeriod(store).month, latestPeriod(store).year);
-  const currentUser = { name: "Marcus Lee", role: "Owner" };
-  const canForceEdit = currentUser.role === "Owner";
+  const currentUser = { name: auth?.profile?.full_name ?? auth?.user?.email ?? "System User" };
   const isChannels = tab === "channels";
   const isCategories = tab === "categories";
   const isTax = tab === "tax";
+  const canEditSettings = isChannels
+    ? ((auth?.hasPermission?.("sales_channels.create") || auth?.hasPermission?.("sales_channels.edit") || auth?.hasPermission?.("sales_channels.delete")) ?? true)
+    : isCategories
+      ? ((auth?.hasPermission?.("purchase_categories.create") || auth?.hasPermission?.("purchase_categories.edit") || auth?.hasPermission?.("purchase_categories.delete")) ?? true)
+      : (auth?.hasPermission?.("tax_settings.edit") ?? true);
+  const canForceEdit = auth?.hasPermission?.("tax_settings.edit") ?? true;
   const rows = isChannels ? store.salesChannels : isCategories ? store.purchaseCategories : store.outletTaxConfigs;
   const filteredTaxRows = taxOutletFilter === "all" ? store.outletTaxConfigs : store.outletTaxConfigs.filter((row) => row.outlet_id === taxOutletFilter);
   const masterColumns = [
@@ -199,7 +210,7 @@ export default function SettingsPage({ store, setStore, ui }) {
     ...(isChannels ? [{ key: "type", header: "Type" }] : []),
     { key: "sort_order", header: "Sort Order", align: "right" },
     { key: "status", header: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge> },
-    { key: "action", header: "Action", align: "right", render: (row) => <button className="icon-btn" onClick={() => setModal({ mode: "edit", row })}><Settings size={15} /></button> },
+    { key: "action", header: "Action", align: "right", render: (row) => <button className="icon-btn" disabled={!canEditSettings} onClick={() => setModal({ mode: "edit", row })}><Settings size={15} /></button> },
   ];
   const taxColumns = [
     {
@@ -224,6 +235,7 @@ export default function SettingsPage({ store, setStore, ui }) {
             <button
               className="btn-secondary h-8 px-2 text-xs"
               type="button"
+              disabled={!canEditSettings}
               onClick={() => {
                 if (isFuture) {
                   setTaxValues({ ...row, enabled: String(Boolean(row.enabled)), mode: "editFuture", sourceId: row.id });
@@ -234,7 +246,7 @@ export default function SettingsPage({ store, setStore, ui }) {
             >
               <Edit3 size={13} /> Edit
             </button>
-            <button className="btn-secondary h-8 px-2 text-xs" type="button" onClick={() => {
+            <button className="btn-secondary h-8 px-2 text-xs" type="button" disabled={!canEditSettings} onClick={() => {
               setEndConfig(row);
               setEndUntil(row.effective_until || previousMonthKey(currentPeriodKey));
             }}>
@@ -255,15 +267,26 @@ export default function SettingsPage({ store, setStore, ui }) {
     outlet,
     config: getOutletTaxConfig(store.outletTaxConfigs, outlet.id, taxMonth, taxYear, "SST"),
   }));
+  const pageMeta = isChannels
+    ? { section: "Sales", title: "Sales Channels", description: "Manage structured sales channels used by sales input, comparison and import templates." }
+    : isCategories
+      ? { section: "Purchases", title: "Purchase Categories", description: "Manage purchase categories used by supplier records, purchase comparison and import templates." }
+      : { section: "Sales", title: "Tax Settings", description: "Manage outlet-level tax configuration history with effective dates." };
+
+  useEffect(() => {
+    setTab(initialTab);
+  }, [initialTab]);
+
   return (
     <div className="space-y-5">
       <PageHeader
-        section="Management"
-        title="Settings"
-        description="Manage sales channels, purchase categories, and outlet tax configuration history."
+        section={pageMeta.section}
+        title={pageMeta.title}
+        description={pageMeta.description}
         actions={
           <button
             className="btn-primary"
+            disabled={!canEditSettings}
             onClick={() => {
               if (isTax) {
                 setTaxValues({ outlet_id: store.outlets[0]?.id, tax_type: "SST", enabled: "true", rate: 6, effective_from: "", effective_until: "" });
@@ -277,13 +300,15 @@ export default function SettingsPage({ store, setStore, ui }) {
         }
       />
 
-      <div className="card flex items-center p-2">
-        <div className="flex gap-2">
-          <button className={`h-10 rounded-xl px-4 text-sm font-semibold ${isChannels ? "bg-primary text-white" : "text-text-secondary hover:bg-slate-50"}`} onClick={() => setTab("channels")}>Sales Channels</button>
-          <button className={`h-10 rounded-xl px-4 text-sm font-semibold ${isCategories ? "bg-primary text-white" : "text-text-secondary hover:bg-slate-50"}`} onClick={() => setTab("categories")}>Purchase Categories</button>
-          <button className={`h-10 rounded-xl px-4 text-sm font-semibold ${isTax ? "bg-primary text-white" : "text-text-secondary hover:bg-slate-50"}`} onClick={() => setTab("tax")}>Tax Settings</button>
+      {settingsMode === "all" ? (
+        <div className="card flex items-center p-2">
+          <div className="flex gap-2">
+            <button className={`h-10 rounded-xl px-4 text-sm font-semibold ${isChannels ? "bg-primary text-white" : "text-text-secondary hover:bg-slate-50"}`} onClick={() => setTab("channels")}>Sales Channels</button>
+            <button className={`h-10 rounded-xl px-4 text-sm font-semibold ${isCategories ? "bg-primary text-white" : "text-text-secondary hover:bg-slate-50"}`} onClick={() => setTab("categories")}>Purchase Categories</button>
+            <button className={`h-10 rounded-xl px-4 text-sm font-semibold ${isTax ? "bg-primary text-white" : "text-text-secondary hover:bg-slate-50"}`} onClick={() => setTab("tax")}>Tax Settings</button>
+          </div>
         </div>
-      </div>
+      ) : null}
       {isTax ? (
         <>
           <div className="card flex flex-wrap items-center justify-between gap-3 p-3">
@@ -322,12 +347,14 @@ export default function SettingsPage({ store, setStore, ui }) {
         title={isChannels ? "Sales Channels" : isCategories ? "Purchase Categories" : "SST Configuration History"}
         description={isTax ? "Effective-date based tax history prevents future changes from rewriting historical months." : "Structured master data powers future dashboards and imports."}
         action={isTax ? (
-          <select className="control h-9 w-44 text-sm" value={taxOutletFilter} onChange={(event) => setTaxOutletFilter(event.target.value)}>
-            <option value="all">All Outlets</option>
-            {store.outlets.map((outlet) => (
-              <option key={outlet.id} value={outlet.id}>{outlet.name}</option>
-            ))}
-          </select>
+          <SelectField
+            value={taxOutletFilter === "all" ? "" : taxOutletFilter}
+            placeholder="All Outlets"
+            className="w-44"
+            searchable
+            options={store.outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))}
+            onChange={(nextValue) => setTaxOutletFilter(nextValue || "all")}
+          />
         ) : null}
       >
         {isTax && !filteredTaxRows.length ? (

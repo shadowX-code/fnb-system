@@ -17,6 +17,7 @@ import Card from "../../../components/ui/Card.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import FilterBar from "../../../components/forms/FilterBar.jsx";
 import { FieldLabel, OutletSelector, YearSelector } from "../../../components/forms/Selectors.jsx";
+import SelectField from "../../../components/forms/SelectField.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import TrendChart from "../../../components/charts/TrendChart.jsx";
@@ -46,6 +47,21 @@ const densityClasses = {
   cell: "px-2.5 py-2",
   first: "px-3 py-2",
 };
+
+function emptyMonthlyEfficiency(month, year) {
+  return {
+    month,
+    year,
+    netSales: 0,
+    totalPurchase: 0,
+    cogsMargin: null,
+    grossProfitEstimate: 0,
+    previousNetSales: 0,
+    previousPurchase: 0,
+    salesChange: 0,
+    purchaseChange: 0,
+  };
+}
 
 function getPurchaseAmount({ store, outletId, year, month, row }) {
   return sumAmount(
@@ -427,7 +443,8 @@ export default function PurchaseComparisonPage({ store, ui }) {
       ),
     [filters.outletId, filters.year, store.purchaseRecords, store.salesChannels, store.salesRecords, visibleMonths],
   );
-  const currentMonthEfficiency = monthlyEfficiency.find((item) => item.month === currentMonth);
+  const hasComparisonData = monthlyEfficiency.some((item) => item.totalPurchase > 0 || item.netSales > 0);
+  const currentMonthEfficiency = monthlyEfficiency.find((item) => item.month === currentMonth) ?? emptyMonthlyEfficiency(currentMonth, filters.year);
   const currentMonthTotalPurchase = currentMonthEfficiency?.totalPurchase ?? 0;
 
   const decoratedRows = useMemo(() => {
@@ -505,10 +522,11 @@ export default function PurchaseComparisonPage({ store, ui }) {
     ? populatedCogs.reduce((total, item) => total + item.cogsMargin, 0) / populatedCogs.length
     : null;
   const highestRiskMonth = [...monthlyEfficiency]
-    .filter((item) => item.cogsMargin !== null)
+    .filter((item) => item.cogsMargin !== null && item.cogsMargin !== undefined)
     .sort((a, b) => b.cogsMargin - a.cogsMargin)[0];
   const targetCogs = 35;
-  const highestRiskVsAverage = highestRiskMonth?.cogsMargin && avgCogsMargin ? highestRiskMonth.cogsMargin - avgCogsMargin : null;
+  const highestRiskCogs = highestRiskMonth?.cogsMargin ?? null;
+  const highestRiskVsAverage = highestRiskCogs !== null && avgCogsMargin !== null ? highestRiskCogs - avgCogsMargin : null;
 
   const warningCells = displayRows
     .filter((row) => row.type === "supplier" || row.type === "category")
@@ -612,14 +630,14 @@ export default function PurchaseComparisonPage({ store, ui }) {
           tone: top3SupplierShare > 75 ? "danger" : top3SupplierShare > 60 ? "warning" : "info",
         }
       : null,
-    highestRiskMonth
+    highestRiskMonth && highestRiskCogs !== null
       ? {
-          title: `${months[highestRiskMonth.month - 1]?.label} has the highest COGS at ${toPercent(highestRiskMonth.cogsMargin)}`,
+          title: `${months[highestRiskMonth.month - 1]?.label} has the highest COGS at ${toPercent(highestRiskCogs)}`,
           description: `${toCurrency(highestRiskMonth.totalPurchase)} purchase against ${toCurrency(highestRiskMonth.netSales)} Net Sales.`,
           metric: `${toCurrency(highestRiskMonth.totalPurchase)} vs ${toCurrency(highestRiskMonth.netSales)}`,
-          action: highestRiskMonth.cogsMargin > 40 ? "Review supplier invoices and wastage." : "Monitor cost efficiency.",
+          action: highestRiskCogs > 40 ? "Review supplier invoices and wastage." : "Monitor cost efficiency.",
           month: highestRiskMonth.month,
-          tone: highestRiskMonth.cogsMargin > 40 ? "danger" : "warning",
+          tone: highestRiskCogs > 40 ? "danger" : "warning",
         }
       : null,
     ...monthlyEfficiency
@@ -804,18 +822,10 @@ export default function PurchaseComparisonPage({ store, ui }) {
         <OutletSelector outlets={store.outlets.filter((outlet) => outlet.status === "active")} value={filters.outletId} onChange={filters.setOutletId} />
         <YearSelector value={filters.year} onChange={filters.setYear} />
         <FieldLabel label="View Mode">
-          <select className="control" value={viewMode} onChange={(event) => setViewMode(event.target.value)}>
-            <option>Category</option>
-            <option>Supplier</option>
-            <option>Full</option>
-          </select>
+          <SelectField value={viewMode} options={["Category", "Supplier", "Full"].map((item) => ({ value: item, label: item }))} onChange={setViewMode} />
         </FieldLabel>
         <FieldLabel label="Compare With">
-          <select className="control" value={compareWith} onChange={(event) => setCompareWith(event.target.value)}>
-            <option>Previous Month</option>
-            <option>Previous Year</option>
-            <option>3-Month Average</option>
-          </select>
+          <SelectField value={compareWith} options={["Previous Month", "Previous Year", "3-Month Average"].map((item) => ({ value: item, label: item }))} onChange={setCompareWith} />
         </FieldLabel>
         <FieldLabel label="Search">
           <div className="relative">
@@ -835,12 +845,16 @@ export default function PurchaseComparisonPage({ store, ui }) {
         </FieldLabel>
         {viewMode === "Supplier" ? (
           <FieldLabel label="Sort">
-            <select className="control" value={supplierSort} onChange={(event) => setSupplierSort(event.target.value)}>
-              <option value="amount">Sort by amount</option>
-              <option value="share">Sort by % of purchase</option>
-              <option value="supplier">Sort by supplier name</option>
-              <option value="status">Sort by abnormal status</option>
-            </select>
+            <SelectField
+              value={supplierSort}
+              options={[
+                { value: "amount", label: "Sort by amount" },
+                { value: "share", label: "Sort by % of purchase" },
+                { value: "supplier", label: "Sort by supplier name" },
+                { value: "status", label: "Sort by abnormal status" },
+              ]}
+              onChange={setSupplierSort}
+            />
           </FieldLabel>
         ) : null}
         <FieldLabel label="Abnormal">
@@ -862,8 +876,8 @@ export default function PurchaseComparisonPage({ store, ui }) {
           icon={Trophy}
           label="Highest Risk Month"
           value={highestRiskMonth ? months[highestRiskMonth.month - 1]?.label : "-"}
-          helper={highestRiskMonth?.cogsMargin !== null ? `${toPercent(highestRiskMonth.cogsMargin)} COGS · ${highestRiskVsAverage === null ? "-" : `${highestRiskVsAverage >= 0 ? "+" : ""}${toPercent(highestRiskVsAverage)} vs avg`}` : "No COGS data"}
-          tone={highestRiskMonth?.cogsMargin > 40 ? "danger" : "neutral"}
+          helper={highestRiskCogs !== null ? `${toPercent(highestRiskCogs)} COGS · ${highestRiskVsAverage === null ? "-" : `${highestRiskVsAverage >= 0 ? "+" : ""}${toPercent(highestRiskVsAverage)} vs avg`}` : "No COGS data"}
+          tone={highestRiskCogs > 40 ? "danger" : "neutral"}
           title="Highlight highest COGS month"
           onClick={() => focusMonth(highestRiskMonth?.month)}
         />
@@ -893,6 +907,14 @@ export default function PurchaseComparisonPage({ store, ui }) {
             ) : null
           }
         >
+          {!hasComparisonData ? (
+            <div className="rounded-2xl border border-dashed border-border bg-slate-50 px-4 py-10 text-center">
+              <div className="text-sm font-bold text-text-primary">No purchase comparison data available for this outlet/month yet.</div>
+              <p className="mt-2 text-sm text-text-secondary">
+                Purchase comparison uses saved purchase records and calculated Net Sales. This outlet currently has no matching mock transaction data for {filters.year}.
+              </p>
+            </div>
+          ) : (
           <div className="overflow-x-auto">
             <table className={`w-full border-collapse ${densityClasses.tableText}`} style={{ minWidth: Math.max(760, 420 + visibleMonths.length * 104) }}>
               <thead className="sticky top-0 z-40 border-b border-slate-300 bg-slate-100 text-left text-[11px] font-bold uppercase tracking-[0.08em] text-slate-700 shadow-[0_1px_0_rgba(15,23,42,0.06)]">
@@ -925,12 +947,13 @@ export default function PurchaseComparisonPage({ store, ui }) {
                         <div className="text-xs font-medium text-text-secondary">{row.helper}</div>
                       </div>
                     </td>
-                    {monthlyEfficiency.map((item) => {
+                    {visibleMonths.map((month) => {
+                      const item = monthlyEfficiency.find((entry) => entry.month === month.value) ?? emptyMonthlyEfficiency(month.value, filters.year);
                       const cogsStatus = row.id === "summary-cogs" ? getCogsStatus(item.cogsMargin) : null;
                       return (
                         <td
-                          key={`${row.id}-${item.month}`}
-                          className={`sticky z-20 ${densityClasses.cell} text-right ${item.month === currentMonth ? "bg-primary/10" : ""} ${highlightedMonth === item.month ? "bg-primary/15 ring-1 ring-inset ring-primary/20" : ""} ${
+                          key={`${row.id}-${month.value}`}
+                          className={`sticky z-20 ${densityClasses.cell} text-right ${month.value === currentMonth ? "bg-primary/10" : ""} ${highlightedMonth === month.value ? "bg-primary/15 ring-1 ring-inset ring-primary/20" : ""} ${
                             row.id === "summary-cogs" && cogsStatus?.tone === "danger"
                               ? "bg-rose-50"
                               : row.id === "summary-cogs" && cogsStatus?.tone === "warning"
@@ -1091,6 +1114,7 @@ export default function PurchaseComparisonPage({ store, ui }) {
               </tbody>
             </table>
           </div>
+          )}
         </Card>
 
         <InsightPanel

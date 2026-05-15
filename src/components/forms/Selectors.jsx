@@ -1,4 +1,5 @@
 import { months } from "../../features/sales-purchase/data/mockData.js";
+import SelectField from "./SelectField.jsx";
 
 export function FieldLabel({ label, children }) {
   return (
@@ -11,40 +12,39 @@ export function FieldLabel({ label, children }) {
 
 export function OutletSelector({ outlets, value, onChange }) {
   return (
-    <FieldLabel label="Outlet">
-      <select className="control min-w-52" value={value} onChange={(event) => onChange(event.target.value)}>
-        {outlets.map((outlet) => (
-          <option key={outlet.id} value={outlet.id}>
-            {outlet.name}
-          </option>
-        ))}
-      </select>
-    </FieldLabel>
+    <SelectField
+      label="Outlet"
+      value={value}
+      disabled={!outlets.length}
+      placeholder={outlets.length ? "Select outlet" : "Loading outlets..."}
+      className="min-w-52"
+      searchable
+      options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))}
+      onChange={onChange}
+    />
   );
 }
 
 export function MonthSelector({ value, onChange }) {
   return (
-    <FieldLabel label="Month">
-      <select className="control min-w-32" value={value} onChange={(event) => onChange(Number(event.target.value))}>
-        {months.map((month) => (
-          <option key={month.value} value={month.value}>
-            {month.label}
-          </option>
-        ))}
-      </select>
-    </FieldLabel>
+    <SelectField
+      label="Month"
+      value={value}
+      className="min-w-32"
+      options={months.map((month) => ({ value: month.value, label: month.label }))}
+      onChange={(nextValue) => onChange(Number(nextValue))}
+    />
   );
 }
 
 export function YearSelector({ value, onChange }) {
   return (
-    <FieldLabel label="Year">
-      <select className="control min-w-32" value={value} onChange={(event) => onChange(Number(event.target.value))}>
-        {[2024, 2025, 2026, 2027].map((year) => (
-          <option key={year} value={year}>{year}</option>
-        ))}
-      </select>
-    </FieldLabel>
+    <SelectField
+      label="Year"
+      value={value}
+      className="min-w-32"
+      options={[2024, 2025, 2026, 2027].map((year) => ({ value: year, label: year }))}
+      onChange={(nextValue) => onChange(Number(nextValue))}
+    />
   );
 }

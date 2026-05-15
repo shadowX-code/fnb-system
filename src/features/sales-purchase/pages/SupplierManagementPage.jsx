@@ -4,6 +4,7 @@ import Badge from "../../../components/ui/Badge.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import FilterBar from "../../../components/forms/FilterBar.jsx";
+import SelectField from "../../../components/forms/SelectField.jsx";
 import { FieldLabel, MonthSelector, OutletSelector, YearSelector } from "../../../components/forms/Selectors.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import EntityModal from "../components/EntityModal.jsx";
@@ -76,7 +77,7 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
   return (
     <div className="space-y-5">
       <PageHeader
-        section="Management"
+        section="Purchases"
         title="Suppliers"
         description="Supplier master data used by purchase records through supplier_id."
         actions={<button className="btn-primary" onClick={() => setModal({ mode: "add" })}><Plus size={16} /> Add Supplier</button>}
@@ -92,17 +93,24 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
           </div>
         </FieldLabel>
         <FieldLabel label="Category">
-          <select className="control" value={category} onChange={(event) => setCategory(event.target.value)}>
-            <option value="all">All Categories</option>
-            {store.purchaseCategories.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-          </select>
+          <SelectField
+            value={category === "all" ? "" : category}
+            placeholder="All Categories"
+            searchable
+            options={store.purchaseCategories.map((item) => ({ value: item.id, label: item.name }))}
+            onChange={(nextValue) => setCategory(nextValue || "all")}
+          />
         </FieldLabel>
         <FieldLabel label="Status">
-          <select className="control" value={status} onChange={(event) => setStatus(event.target.value)}>
-            <option value="all">All Status</option>
-            <option value="active">Active</option>
-            <option value="inactive">Inactive</option>
-          </select>
+          <SelectField
+            value={status === "all" ? "" : status}
+            placeholder="All Status"
+            options={[
+              { value: "active", label: "Active" },
+              { value: "inactive", label: "Inactive" },
+            ]}
+            onChange={(nextValue) => setStatus(nextValue || "all")}
+          />
         </FieldLabel>
       </FilterBar>
       <Card title="Supplier Directory" description="Supplier master data is independent from purchase records.">

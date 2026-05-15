@@ -5,6 +5,7 @@ import Badge from "../../../components/ui/Badge.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
+import SelectField from "../../../components/forms/SelectField.jsx";
 import { operationsService } from "../services/operationsService.js";
 import { monthLabel } from "../utils/analytics.js";
 
@@ -134,6 +135,7 @@ function validateImport({ store, importType, rows, mappings }) {
   const warnings = [];
   const failures = [];
   const validRows = [];
+  const unknownSuppliers = new Map();
   const required = importType === "Sales" ? ["Outlet", "Month", "Year"] : ["Outlet", "Month", "Year", "Supplier", "Category", "Amount"];
   const missingColumns = required.filter((field) => !Object.values(mappings).includes(field));
   if (missingColumns.length) {
@@ -165,7 +167,12 @@ function validateImport({ store, importType, rows, mappings }) {
       const supplierName = mappedValue(row, mappings, "Supplier");
       const categoryName = mappedValue(row, mappings, "Category");
       const amount = Number(mappedValue(row, mappings, "Amount"));
-      if (!store.suppliers.some((supplier) => supplier.name.toLowerCase() === normalize(supplierName).toLowerCase())) rowFailures.push("Unknown supplier");
+      const supplierExists = store.suppliers.some((supplier) => supplier.name.toLowerCase() === normalize(supplierName).toLowerCase());
+      if (!supplierExists && supplierName) {
+        const name = normalize(supplierName);
+        const current = unknownSuppliers.get(name) ?? { name, rows: [] };
+        unknownSuppliers.set(name, { ...current, rows: [...current.rows, row.__row] });
+      }
       if (!store.purchaseCategories.some((category) => category.name.toLowerCase() === normalize(categoryName).toLowerCase())) rowFailures.push("Unknown category");
       if (Number.isNaN(amount)) rowFailures.push("Invalid number format");
       if (amount < 0) rowFailures.push("Negative purchase value");
@@ -180,10 +187,33 @@ function validateImport({ store, importType, rows, mappings }) {
   });
 
   const affected = validRows[0] ? { outletId: validRows[0].outletId, month: validRows[0].month, year: validRows[0].year } : null;
-  return { warnings, failures, validRows, affected };
+  return { warnings, failures, validRows, affected, unknownSuppliers: [...unknownSuppliers.values()] };
 }
 
-function buildImportedRecords({ store, importType, mappings, validRows }) {
+function getSuggestedSuppliers(store, importedName) {
+  const terms = normalize(importedName).toLowerCase().split(/\s+/).filter(Boolean);
+  return store.suppliers
+    .map((supplier) => ({
+      supplier,
+      score: terms.reduce((total, term) => total + (supplier.name.toLowerCase().includes(term) ? 1 : 0), 0),
+    }))
+    .filter((item) => item.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 3)
+    .map((item) => item.supplier);
+}
+
+function resolveSupplierId({ store, source, mappings, supplierResolutions = {}, createdSupplierIds = {} }) {
+  const supplierName = normalize(mappedValue(source, mappings, "Supplier"));
+  const supplier = store.suppliers.find((item) => item.name.toLowerCase() === supplierName.toLowerCase());
+  if (supplier) return supplier.id;
+  const resolution = supplierResolutions[supplierName];
+  if (resolution?.action === "map") return resolution.supplier_id;
+  if (resolution?.action === "create") return createdSupplierIds[supplierName] || `new:${supplierName}`;
+  return null;
+}
+
+function buildImportedRecords({ store, importType, mappings, validRows, supplierResolutions = {}, createdSupplierIds = {} }) {
   if (!validRows.length) return [];
   if (importType === "Sales") {
     const row = validRows[0].source;
@@ -198,10 +228,11 @@ function buildImportedRecords({ store, importType, mappings, validRows }) {
   }
   const rowsBySupplier = new Map();
   validRows.forEach(({ source }) => {
-    const supplier = store.suppliers.find((item) => item.name.toLowerCase() === normalize(mappedValue(source, mappings, "Supplier")).toLowerCase());
+    const supplierId = resolveSupplierId({ store, source, mappings, supplierResolutions, createdSupplierIds });
+    if (!supplierId) return;
     const category = store.purchaseCategories.find((item) => item.name.toLowerCase() === normalize(mappedValue(source, mappings, "Category")).toLowerCase());
-    rowsBySupplier.set(supplier?.id, {
-      supplier_id: supplier?.id,
+    rowsBySupplier.set(supplierId, {
+      supplier_id: supplierId,
       category_id: category?.id,
       remark: mappedValue(source, mappings, "Remark"),
       amount: Number(mappedValue(source, mappings, "Amount")) || 0,
@@ -247,16 +278,26 @@ export default function DataImportPage({ store, setStore, ui }) {
   const [validation, setValidation] = useState(null);
   const [conflict, setConflict] = useState(null);
   const [importMode, setImportMode] = useState("cancel");
+  const [supplierResolutions, setSupplierResolutions] = useState({});
 
   const fieldOptions = importType === "Sales" ? salesFieldOptions : purchaseFieldOptions;
   const previewRows = parsed.rows.slice(0, 4);
   const canContinue = validation && validation.validRows.length && !validation.failures.some((item) => item.row === "-");
-  const importedPreviewRows = validation ? buildImportedRecords({ store, importType, mappings, validRows: validation.validRows }) : [];
-  const duplicateSupplierCount = validation && importType === "Purchases"
-    ? validation.validRows.length - new Set(importedPreviewRows.map((row) => row.supplier_id)).size
-    : 0;
+  const importedPreviewRows = validation ? buildImportedRecords({ store, importType, mappings, validRows: validation.validRows, supplierResolutions }) : [];
+  const unresolvedUnknownSuppliers = validation?.unknownSuppliers?.filter((item) => {
+    const resolution = supplierResolutions[item.name];
+    if (!resolution) return true;
+    if (resolution.action === "map") return !resolution.supplier_id;
+    if (resolution.action === "create") return !resolution.category_id;
+    return false;
+  }) ?? [];
+  const resolvedSupplierIdsForRows = validation && importType === "Purchases"
+    ? validation.validRows.map(({ source }) => resolveSupplierId({ store, source, mappings, supplierResolutions })).filter(Boolean)
+    : [];
+  const duplicateSupplierCount = resolvedSupplierIdsForRows.length - new Set(resolvedSupplierIdsForRows).size;
+  const skippedSupplierCount = Object.values(supplierResolutions).filter((item) => item.action === "skip").length;
   const purchasePreviewStats = importType === "Purchases"
-    ? getPurchaseImportStats(store, validation?.affected, importedPreviewRows, validation?.failures.length ?? 0, duplicateSupplierCount)
+    ? getPurchaseImportStats(store, validation?.affected, importedPreviewRows, (validation?.failures.length ?? 0) + skippedSupplierCount, duplicateSupplierCount)
     : null;
 
   async function handleFile(file) {
@@ -272,6 +313,7 @@ export default function DataImportPage({ store, setStore, ui }) {
     setParsed(result);
     setMappings(detected);
     setValidation(null);
+    setSupplierResolutions({});
     setImportMode("cancel");
     setStep("mapping");
   }
@@ -279,7 +321,7 @@ export default function DataImportPage({ store, setStore, ui }) {
   function runValidation() {
     const result = validateImport({ store, importType, rows: parsed.rows, mappings });
     setValidation(result);
-    setStep("preview");
+    setStep(importType === "Purchases" && result.unknownSuppliers.length ? "unknown-suppliers" : "preview");
     if (result.failures.length) {
       ui.notify({ title: "Validation completed with failed rows", message: `${result.failures.length} rows need review.`, tone: "error" });
     } else {
@@ -295,13 +337,23 @@ export default function DataImportPage({ store, setStore, ui }) {
       return;
     }
     const affected = validation.affected;
-    const importedRows = buildImportedRecords({ store, importType, mappings, validRows: validation.validRows });
     let writeStats = { created_rows: validation.validRows.length, updated_rows: 0, replaced_rows: 0, skipped_rows: validation.failures.length };
     setStore((current) => {
       const rollbackData = { salesRecords: current.salesRecords, purchaseRecords: current.purchaseRecords };
       let next = current;
+      const createdSupplierIds = {};
+      if (importType === "Purchases") {
+        Object.entries(supplierResolutions).forEach(([supplierName, resolution]) => {
+          if (resolution.action === "create") {
+            const result = operationsService.addSupplier(next, supplierName, resolution.category_id);
+            next = result.state;
+            createdSupplierIds[supplierName] = result.supplier.id;
+          }
+        });
+      }
+      const importedRows = buildImportedRecords({ store: next, importType, mappings, validRows: validation.validRows, supplierResolutions, createdSupplierIds });
       if (importType === "Sales") {
-        next = operationsService.upsertSalesData(current, {
+        next = operationsService.upsertSalesData(next, {
           outletId: affected.outletId,
           month: affected.month,
           year: affected.year,
@@ -316,13 +368,13 @@ export default function DataImportPage({ store, setStore, ui }) {
           mode,
         });
         next = result.state;
-        writeStats = result.stats;
+        writeStats = { ...result.stats, skipped_rows: (result.stats.skipped_rows || 0) + skippedSupplierCount };
       }
       return operationsService.addImportRun(next, {
         file_name: fileMeta?.name || `${importType}_Import.csv`,
         import_type: importType,
         rows_count: parsed.rows.length,
-        imported_rows: validation.validRows.length,
+        imported_rows: importedRows.length,
         failed_rows: validation.failures.length,
         warnings_count: validation.warnings.length,
         import_mode: "confirmed",
@@ -338,6 +390,7 @@ export default function DataImportPage({ store, setStore, ui }) {
     setConflict(null);
     setStep("upload");
     setValidation(null);
+    setSupplierResolutions({});
     setParsed({ headers: [], rows: [] });
     ui.notify({ title: "Import complete", message: `${validation.validRows.length} rows imported using ${mode}.` });
   }
@@ -368,7 +421,10 @@ export default function DataImportPage({ store, setStore, ui }) {
   }
 
   function downloadErrorReport() {
-    const lines = ["Row,Error", ...(validation?.failures ?? []).map((item) => `${item.row},"${item.reason}"`)];
+    const skippedUnknowns = (validation?.unknownSuppliers ?? [])
+      .filter((item) => supplierResolutions[item.name]?.action === "skip")
+      .flatMap((item) => item.rows.map((row) => ({ row, reason: `Skipped unknown supplier: ${item.name}` })));
+    const lines = ["Row,Error", ...(validation?.failures ?? []).map((item) => `${item.row},"${item.reason}"`), ...skippedUnknowns.map((item) => `${item.row},"${item.reason}"`)];
     downloadTextFile("Import_Error_Report.csv", lines.join("\n"));
   }
 
@@ -405,7 +461,7 @@ export default function DataImportPage({ store, setStore, ui }) {
   return (
     <div className="space-y-4">
       <PageHeader
-        section="Controls"
+        section="Operations"
         title="Data Import"
         description="Upload, map, validate, preview and confirm sales or purchase imports without silent overwrite."
         actions={<button className="btn-secondary" onClick={downloadTemplate}><Download size={16} /> Dynamic Template</button>}
@@ -449,9 +505,13 @@ export default function DataImportPage({ store, setStore, ui }) {
                         <tr key={header}>
                           <td className="px-3 py-2 font-semibold">{header}</td>
                           <td className="px-3 py-2">
-                            <select className="control h-9 w-52" value={mappings[header] || "Ignore"} onChange={(event) => setMappings((current) => ({ ...current, [header]: event.target.value }))}>
-                              {fieldOptions.map((option) => <option key={option}>{option}</option>)}
-                            </select>
+                            <SelectField
+                              className="w-52"
+                              buttonClassName="h-9"
+                              value={mappings[header] || "Ignore"}
+                              options={fieldOptions.map((option) => ({ value: option, label: option }))}
+                              onChange={(nextValue) => setMappings((current) => ({ ...current, [header]: nextValue }))}
+                            />
                           </td>
                           <td className="px-3 py-2 text-text-secondary">{previewRows[0]?.[header] || "-"}</td>
                         </tr>
@@ -462,6 +522,72 @@ export default function DataImportPage({ store, setStore, ui }) {
                 <div className="flex justify-end gap-2">
                   <button className="btn-secondary" type="button" onClick={() => setStep("upload")}>Cancel</button>
                   <button className="btn-primary" type="button" onClick={runValidation}>Validate Import</button>
+                </div>
+              </div>
+            ) : null}
+
+            {step === "unknown-suppliers" && validation ? (
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  <div className="font-bold">Unknown Supplier Review Required</div>
+                  <p className="mt-1 text-xs leading-5">Import cannot be finalized until every unknown supplier is mapped, created, or skipped.</p>
+                </div>
+                <div className="space-y-3">
+                  {validation.unknownSuppliers.map((item) => {
+                    const resolution = supplierResolutions[item.name] ?? { action: "map", supplier_id: "", category_id: "" };
+                    const suggestions = getSuggestedSuppliers(store, item.name);
+                    return (
+                      <div key={item.name} className="rounded-2xl border border-border p-3">
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div>
+                            <div className="text-sm font-bold text-text-primary">{item.name}</div>
+                            <div className="mt-1 text-xs text-text-secondary">Rows: {item.rows.join(", ")}</div>
+                            {suggestions.length ? <div className="mt-1 text-xs text-text-secondary">Suggested: {suggestions.map((supplier) => supplier.name).join(", ")}</div> : null}
+                          </div>
+                          <SelectField
+                            className="w-44"
+                            buttonClassName="h-9"
+                            value={resolution.action}
+                            options={[
+                              { value: "map", label: "Map to existing" },
+                              { value: "create", label: "Create new supplier" },
+                              { value: "skip", label: "Skip row" },
+                            ]}
+                            onChange={(nextValue) => setSupplierResolutions((current) => ({ ...current, [item.name]: { action: nextValue, supplier_id: "", category_id: "" } }))}
+                          />
+                        </div>
+                        {resolution.action === "map" ? (
+                          <SelectField
+                            className="mt-3 w-full"
+                            buttonClassName="h-9"
+                            value={resolution.supplier_id}
+                            placeholder="Select supplier"
+                            searchable
+                            options={store.suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))}
+                            onChange={(nextValue) => setSupplierResolutions((current) => ({ ...current, [item.name]: { ...resolution, supplier_id: nextValue } }))}
+                          />
+                        ) : null}
+                        {resolution.action === "create" ? (
+                          <div className="mt-3 grid gap-2 sm:grid-cols-2">
+                            <div className="rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-text-secondary">Status: Active</div>
+                            <SelectField
+                              buttonClassName="h-9"
+                              value={resolution.category_id}
+                              placeholder="Select category"
+                              searchable
+                              options={store.purchaseCategories.map((category) => ({ value: category.id, label: category.name }))}
+                              onChange={(nextValue) => setSupplierResolutions((current) => ({ ...current, [item.name]: { ...resolution, category_id: nextValue } }))}
+                            />
+                          </div>
+                        ) : null}
+                        {resolution.action === "skip" ? <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-text-secondary">This supplier row will be excluded and listed in skipped rows.</div> : null}
+                      </div>
+                    );
+                  })}
+                </div>
+                <div className="flex justify-end gap-2">
+                  <button className="btn-secondary" type="button" onClick={() => setStep("mapping")}>Back</button>
+                  <button className="btn-primary" type="button" disabled={unresolvedUnknownSuppliers.length > 0} onClick={() => setStep("preview")}>Continue to Preview</button>
                 </div>
               </div>
             ) : null}
