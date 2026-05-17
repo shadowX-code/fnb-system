@@ -6,6 +6,7 @@ import Card from "../../../components/ui/Card.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import { importService } from "../../../services/importService.js";
+import { purchaseCategoryService } from "../../../services/purchaseCategoryService.js";
 import { supplierService } from "../../../services/supplierService.js";
 import { monthLabel } from "../utils/analytics.js";
 
@@ -26,6 +27,11 @@ function normalize(value) {
 
 function canonical(value) {
   return normalize(value).toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function canonicalSingular(value) {
+  const key = canonical(value);
+  return key.endsWith("s") ? key.slice(0, -1) : key;
 }
 
 function parseMonth(value) {
@@ -194,6 +200,13 @@ function findByName(items, value) {
   return items.find((item) => canonical(item.name) === raw);
 }
 
+function findCategoryByName(items, value) {
+  const raw = canonical(value);
+  const singular = canonicalSingular(value);
+  return items.find((item) => canonical(item.name) === raw)
+    || items.find((item) => canonicalSingular(item.name) === singular);
+}
+
 function isLocked(store, outletId, month, year) {
   return store.monthlyLocks.some((lock) => lock.outlet_id === outletId && lock.month === month && lock.year === year && lock.is_locked);
 }
@@ -287,6 +300,8 @@ export default function DataImportPage({ store, setStore, ui }) {
   const [preview, setPreview] = useState(null);
   const [unknownSuppliers, setUnknownSuppliers] = useState([]);
   const [supplierResolutions, setSupplierResolutions] = useState({});
+  const [unknownCategories, setUnknownCategories] = useState([]);
+  const [categoryResolutions, setCategoryResolutions] = useState({});
   const [recentImports, setRecentImports] = useState([]);
   const [isImporting, setIsImporting] = useState(false);
   const [validationState, setValidationState] = useState({ loading: false, message: "", error: "" });
@@ -309,6 +324,12 @@ export default function DataImportPage({ store, setStore, ui }) {
     if (!resolution) return true;
     if (resolution.action === "map") return !resolution.supplier_id;
     if (resolution.action === "create") return !resolution.category_id;
+    return false;
+  });
+  const unresolvedUnknownCategories = unknownCategories.filter((item) => {
+    const resolution = categoryResolutions[item.name];
+    if (!resolution) return true;
+    if (resolution.action === "map") return !resolution.category_id;
     return false;
   });
 
@@ -342,6 +363,8 @@ export default function DataImportPage({ store, setStore, ui }) {
       setPreview(null);
       setUnknownSuppliers([]);
       setSupplierResolutions({});
+      setUnknownCategories([]);
+      setCategoryResolutions({});
       setValidationState({ loading: false, message: "", error: "" });
       setImportSummary(null);
       setConfirmImport(false);
@@ -383,7 +406,7 @@ export default function DataImportPage({ store, setStore, ui }) {
       });
 
       if (rowIssues.length) {
-        issues.push({ row: row.__row, severity: "error", message: rowIssues.join("; ") });
+        issues.push({ row: row.__row, severity: "error", message: rowIssues.join("; "), rawSupplier: supplierName, rawCategory: categoryName, rawRow: row });
         return;
       }
 
@@ -410,10 +433,11 @@ export default function DataImportPage({ store, setStore, ui }) {
     return { records, issues };
   }
 
-  function buildPurchaseRecords(createdSupplierMap = {}, options = {}) {
+  function buildPurchaseRecords(createdSupplierMap = {}, createdCategoryMap = {}, options = {}) {
     const records = [];
     const issues = [];
     const unknowns = new Map();
+    const categoryUnknowns = new Map();
     const skippedRows = [];
     const required = ["Outlet", "Month", "Year", "Supplier", "Category", "Amount"];
     required.filter((field) => !Object.values(mappings).includes(field)).forEach((field) => {
@@ -428,26 +452,49 @@ export default function DataImportPage({ store, setStore, ui }) {
       const categoryName = normalize(mappedValue(row, mappings, "Category"));
       const amount = parseAmount(mappedValue(row, mappings, "Amount"));
       const supplier = findByName(store.suppliers, supplierName) || createdSupplierMap[supplierName];
-      const category = findByName(store.purchaseCategories, categoryName);
+      const categoryResolution = categoryResolutions[categoryName];
+      const category = findCategoryByName(store.purchaseCategories, categoryName)
+        || store.purchaseCategories.find((item) => item.id === categoryResolution?.category_id)
+        || createdCategoryMap[categoryName]
+        || (options.allowPendingCategoryCreate && categoryResolution?.action === "create"
+          ? { id: `__new_category__:${categoryName}`, name: categoryName }
+          : null);
       const rowIssues = [];
       const resolution = supplierResolutions[supplierName];
+      console.info("[Import:category-resolution]", {
+        row: row.__row,
+        rawCategory: categoryName,
+        normalizedCategory: canonicalSingular(categoryName),
+        matchedCategoryId: category?.id ?? null,
+        resolution: categoryResolution?.action ?? null,
+      });
 
       if (!outlet) rowIssues.push("Invalid outlet");
       if (!month) rowIssues.push("Invalid month");
       if (!Number.isInteger(year) || year < 2020) rowIssues.push("Invalid year");
       if (outlet && month && year && isLocked(store, outlet.id, month, year)) rowIssues.push("Locked month protection");
       if (!supplierName) rowIssues.push("Missing supplier");
+      if (categoryResolution?.action === "skip") {
+        skippedRows.push({ row: row.__row, severity: "skipped", message: `Skipped unknown category: ${categoryName}`, rawRow: row });
+        return;
+      }
       if (!supplier && !resolution) {
         const current = unknowns.get(supplierName) ?? { name: supplierName, rows: [] };
         unknowns.set(supplierName, { ...current, rows: [...current.rows, row.__row] });
       }
+      if (!categoryName) rowIssues.push("Missing category");
+      if (categoryName && !category && !categoryResolution) {
+        const current = categoryUnknowns.get(categoryName) ?? { name: categoryName, rows: [] };
+        categoryUnknowns.set(categoryName, { ...current, rows: [...current.rows, row.__row] });
+      }
       if (resolution?.action === "skip") {
-        skippedRows.push({ row: row.__row, severity: "skipped", message: `Skipped unknown supplier: ${supplierName}` });
+        skippedRows.push({ row: row.__row, severity: "skipped", message: `Skipped unknown supplier: ${supplierName}`, rawRow: row });
         return;
       }
       if (!supplier && resolution?.action === "map" && !resolution.supplier_id) rowIssues.push("Unresolved supplier mapping");
       if (!supplier && resolution?.action === "create" && !resolution.category_id) rowIssues.push("New supplier category required");
-      if (!category) rowIssues.push("Unknown category");
+      if (!category && categoryResolution?.action === "map" && !categoryResolution.category_id) rowIssues.push(`Unresolved category mapping for "${categoryName}"`);
+      if (!category && categoryName) rowIssues.push(`Unknown category "${categoryName}"`);
       if (amount === null) rowIssues.push("Invalid number format");
       if (amount !== null && amount < 0) rowIssues.push("Negative purchase value");
       if (amount !== null && amount > highAmountThreshold) {
@@ -465,7 +512,7 @@ export default function DataImportPage({ store, setStore, ui }) {
           : null
       );
       if (!finalSupplier) {
-        issues.push({ row: row.__row, severity: "error", message: "Supplier resolution failed" });
+        issues.push({ row: row.__row, severity: "error", message: "Supplier resolution failed", rawSupplier: supplierName, rawCategory: categoryName, rawRow: row });
         return;
       }
       records.push({
@@ -484,7 +531,7 @@ export default function DataImportPage({ store, setStore, ui }) {
         remark: mappedValue(row, mappings, "Remark") || "",
       });
     });
-    return { records, issues, skippedRows, unknownSuppliers: [...unknowns.values()] };
+    return { records, issues, skippedRows, unknownSuppliers: [...unknowns.values()], unknownCategories: [...categoryUnknowns.values()] };
   }
 
   function describeConflict(record, existing) {
@@ -499,12 +546,20 @@ export default function DataImportPage({ store, setStore, ui }) {
     setPreview(null);
     setValidationState({ loading: true, message: "Validating file rows...", error: "" });
     try {
-      const base = importType === "Sales" ? buildSalesRecords() : buildPurchaseRecords({}, { allowPendingCreate: false });
+      const base = importType === "Sales" ? buildSalesRecords() : buildPurchaseRecords({}, {}, { allowPendingCreate: false, allowPendingCategoryCreate: false });
       console.info("[Import:validate] built records", {
         records: base.records.length,
         issues: base.issues.length,
+        unknownCategories: base.unknownCategories?.length ?? 0,
         unknownSuppliers: base.unknownSuppliers?.length ?? 0,
       });
+      if (importType === "Purchases" && base.unknownCategories?.length) {
+        setValidationState({ loading: false, message: "", error: "" });
+        setUnknownCategories(base.unknownCategories);
+        setStep("unknown-categories");
+        console.info("[Import:validate] moved to unknown category review", base.unknownCategories);
+        return;
+      }
       if (importType === "Purchases" && base.unknownSuppliers?.length) {
         setValidationState({ loading: false, message: "", error: "" });
         setUnknownSuppliers(base.unknownSuppliers);
@@ -581,13 +636,42 @@ export default function DataImportPage({ store, setStore, ui }) {
     }
     setValidationState({ loading: true, message: "Resolving suppliers and generating preview...", error: "" });
     try {
-      const rebuilt = buildPurchaseRecords({}, { allowPendingCreate: true });
+      const rebuilt = buildPurchaseRecords({}, {}, { allowPendingCreate: true, allowPendingCategoryCreate: true });
       console.info("[Import:unknownSuppliers] rebuilt records", { records: rebuilt.records.length, issues: rebuilt.issues.length, skippedRows: rebuilt.skippedRows.length });
       await withTimeout(buildPreview(rebuilt.records, rebuilt.issues, rebuilt.skippedRows), "Supplier resolution preview");
     } catch (error) {
       console.error("[Import:unknownSuppliers] failed", error);
       setValidationState({ loading: false, message: "", error: error.message });
       ui.notify({ title: "Unable to generate preview", message: error.message, tone: "error" });
+    }
+  }
+
+  async function continueFromUnknownCategories() {
+    console.info("[Import:unknownCategories] continue", { unresolved: unresolvedUnknownCategories.length, resolutions: categoryResolutions });
+    if (unresolvedUnknownCategories.length) {
+      ui.notify({ title: "Resolve unknown categories first", message: `${unresolvedUnknownCategories.length} category resolutions are incomplete.`, tone: "error" });
+      return;
+    }
+    setValidationState({ loading: true, message: "Resolving categories and checking suppliers...", error: "" });
+    try {
+      const rebuilt = buildPurchaseRecords({}, {}, { allowPendingCreate: false, allowPendingCategoryCreate: true });
+      console.info("[Import:unknownCategories] rebuilt records", {
+        records: rebuilt.records.length,
+        issues: rebuilt.issues.length,
+        unknownSuppliers: rebuilt.unknownSuppliers?.length ?? 0,
+        skippedRows: rebuilt.skippedRows.length,
+      });
+      if (rebuilt.unknownSuppliers?.length) {
+        setValidationState({ loading: false, message: "", error: "" });
+        setUnknownSuppliers(rebuilt.unknownSuppliers);
+        setStep("unknown-suppliers");
+        return;
+      }
+      await withTimeout(buildPreview(rebuilt.records, rebuilt.issues, rebuilt.skippedRows), "Category resolution preview");
+    } catch (error) {
+      console.error("[Import:unknownCategories] failed", error);
+      setValidationState({ loading: false, message: "", error: error.message });
+      ui.notify({ title: "Unable to resolve categories", message: error.message, tone: "error" });
     }
   }
 
@@ -608,11 +692,20 @@ export default function DataImportPage({ store, setStore, ui }) {
     }
     setIsImporting(true);
     try {
+      let createdCategoryMap = {};
       let createdSupplierMap = {};
       let finalRecords = preview.records;
       let finalConflicts = preview.conflicts;
 
       if (importType === "Purchases") {
+        for (const [name, resolution] of Object.entries(categoryResolutions)) {
+          if (resolution.action !== "create") continue;
+          const category = await purchaseCategoryService.savePurchaseCategory({
+            name,
+            status: "active",
+          });
+          createdCategoryMap[name] = category;
+        }
         for (const [name, resolution] of Object.entries(supplierResolutions)) {
           if (resolution.action !== "create") continue;
           const category = store.purchaseCategories.find((item) => item.id === resolution.category_id);
@@ -624,12 +717,13 @@ export default function DataImportPage({ store, setStore, ui }) {
           });
           createdSupplierMap[name] = supplier;
         }
-        const rebuilt = buildPurchaseRecords(createdSupplierMap);
+        const rebuilt = buildPurchaseRecords(createdSupplierMap, createdCategoryMap);
         finalRecords = rebuilt.records;
         finalConflicts = await importService.detectPurchaseConflicts(finalRecords);
-        if (Object.keys(createdSupplierMap).length) {
+        if (Object.keys(createdSupplierMap).length || Object.keys(createdCategoryMap).length) {
           setStore((current) => ({
             ...current,
+            purchaseCategories: [...current.purchaseCategories, ...Object.values(createdCategoryMap)].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name)),
             suppliers: [...current.suppliers, ...Object.values(createdSupplierMap)].sort((a, b) => a.name.localeCompare(b.name)),
           }));
         }
@@ -679,6 +773,8 @@ export default function DataImportPage({ store, setStore, ui }) {
       setParsed({ headers: [], rows: [] });
       setSupplierResolutions({});
       setUnknownSuppliers([]);
+      setCategoryResolutions({});
+      setUnknownCategories([]);
       ui.notify({ title: "Import saved to Supabase", message: `${result.createdCount} created · ${result.updatedCount} updated.` });
     } catch (error) {
       console.error("Unable to import records", error);
@@ -698,10 +794,10 @@ export default function DataImportPage({ store, setStore, ui }) {
 
   const previewColumns = [
     { key: "sourceRow", header: "Row", align: "right" },
-    { key: "period", header: "Period", render: (row) => `${row.outletCode || row.outletName} · ${monthLabel(row.month)} ${row.year}` },
-    { key: "record", header: "Record", render: (row) => importType === "Sales" ? row.channel_name : `${row.supplier_name} / ${row.category_name}` },
-    { key: "amount", header: "Amount", align: "right", render: (row) => `RM ${Number(row.amount || 0).toLocaleString("en-MY", { minimumFractionDigits: 2 })}` },
-    { key: "action", header: "Action", render: (row) => <Badge tone={row.action === "update" ? "warning" : "success"}>{row.action}</Badge> },
+    { key: "period", header: "Period", render: (row) => row.isFailure ? "-" : `${row.outletCode || row.outletName} · ${monthLabel(row.month)} ${row.year}` },
+    { key: "record", header: "Record", render: (row) => row.isFailure ? row.record : importType === "Sales" ? row.channel_name : `${row.supplier_name} / ${row.category_name}` },
+    { key: "amount", header: "Amount", align: "right", render: (row) => row.isFailure ? "-" : `RM ${Number(row.amount || 0).toLocaleString("en-MY", { minimumFractionDigits: 2 })}` },
+    { key: "action", header: "Action", render: (row) => <Badge tone={row.isFailure ? "danger" : row.action === "update" ? "warning" : "success"}>{row.action}</Badge> },
     { key: "message", header: "Validation", render: (row) => <span className="text-xs text-text-secondary">{row.message}</span> },
   ];
   const batchColumns = [
@@ -714,6 +810,19 @@ export default function DataImportPage({ store, setStore, ui }) {
     { key: "failed_count", header: "Failed", align: "right" },
     { key: "created_at", header: "Imported At", render: (row) => row.created_at ? new Date(row.created_at).toLocaleString("en-MY") : "-" },
   ];
+  const previewTableRows = useMemo(() => {
+    if (!preview) return [];
+    const failedRows = preview.failures.map((item) => ({
+      sourceRow: item.row,
+      record: importType === "Purchases"
+        ? `${item.rawSupplier || "Unknown Supplier"} / ${item.rawCategory || "Unknown Category"}`
+        : "Invalid row",
+      action: "action required",
+      message: item.message,
+      isFailure: true,
+    }));
+    return [...preview.validationRows, ...failedRows];
+  }, [importType, preview]);
 
   return (
     <div className="space-y-4">
@@ -753,6 +862,11 @@ export default function DataImportPage({ store, setStore, ui }) {
             {step === "mapping" ? (
               <div className="space-y-3">
                 <div className="rounded-xl bg-slate-50 px-3 py-2 text-sm font-semibold text-text-secondary">{fileMeta?.name} · {parsed.rows.length} source rows</div>
+                {importType === "Purchases" ? (
+                  <div className="rounded-2xl border border-blue-200 bg-blue-50 p-3 text-xs font-semibold text-blue-800">
+                    Column mapped. Values still need to match existing categories and suppliers.
+                  </div>
+                ) : null}
                 <div className="overflow-x-auto rounded-2xl border border-border">
                   <table className="w-full min-w-[720px] text-sm">
                     <thead className="table-head">
@@ -785,6 +899,70 @@ export default function DataImportPage({ store, setStore, ui }) {
                   <button className="btn-secondary" type="button" onClick={() => setStep("upload")}>Cancel</button>
                   <button className="btn-primary" type="button" disabled={validationState.loading} onClick={validateImport}>
                     {validationState.loading ? "Validating..." : "Validate Against Supabase"}
+                  </button>
+                </div>
+              </div>
+            ) : null}
+
+            {step === "unknown-categories" ? (
+              <div className="space-y-4">
+                <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                  <div className="font-bold">Unknown Category Review Required</div>
+                  <p className="mt-1 text-xs">The Category column is mapped, but these category values do not match purchase category master data. Map them, create new categories, or skip affected rows.</p>
+                </div>
+                {unknownCategories.map((item) => {
+                  const resolution = categoryResolutions[item.name] || { action: "map", category_id: "" };
+                  return (
+                    <div key={item.name} className="rounded-2xl border border-border p-3">
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div>
+                          <div className="font-bold text-text-primary">{item.name || "Unknown Category"}</div>
+                          <div className="mt-1 text-xs text-text-secondary">Rows: {item.rows.join(", ")}</div>
+                        </div>
+                        <SelectField
+                          className="w-48"
+                          value={resolution.action}
+                          options={[{ value: "map", label: "Map existing" }, { value: "create", label: "Create category" }, { value: "skip", label: "Skip rows" }]}
+                          onChange={(action) => setCategoryResolutions((current) => ({ ...current, [item.name]: { action, category_id: "" } }))}
+                        />
+                      </div>
+                      {resolution.action === "map" ? (
+                        <SelectField
+                          className="mt-3 w-full"
+                          searchable
+                          placeholder="Select category"
+                          value={resolution.category_id}
+                          options={store.purchaseCategories.map((category) => ({ value: category.id, label: category.name }))}
+                          onChange={(category_id) => setCategoryResolutions((current) => ({ ...current, [item.name]: { ...resolution, category_id } }))}
+                        />
+                      ) : null}
+                      {resolution.action === "create" ? (
+                        <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
+                          New active category “{item.name}” will be created only when you confirm the import.
+                        </div>
+                      ) : null}
+                      {resolution.action === "skip" ? (
+                        <div className="mt-3 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs font-semibold text-text-secondary">
+                          Rows {item.rows.join(", ")} will be excluded from this import.
+                        </div>
+                      ) : null}
+                    </div>
+                  );
+                })}
+                {validationState.error ? (
+                  <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">
+                    {validationState.error}
+                  </div>
+                ) : null}
+                {validationState.loading ? (
+                  <div className="rounded-2xl border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-800">
+                    {validationState.message || "Resolving categories..."}
+                  </div>
+                ) : null}
+                <div className="flex justify-end gap-2">
+                  <button className="btn-secondary" type="button" onClick={() => setStep("mapping")}>Back</button>
+                  <button className="btn-primary" type="button" disabled={validationState.loading || unresolvedUnknownCategories.length > 0} onClick={continueFromUnknownCategories}>
+                    {validationState.loading ? "Checking..." : "Continue"}
                   </button>
                 </div>
               </div>
@@ -866,7 +1044,7 @@ export default function DataImportPage({ store, setStore, ui }) {
                     <button className="btn-secondary mt-3 h-8 text-xs" type="button" onClick={() => downloadTextFile("Import_Error_Report.csv", buildErrorReport(preview.failures))}>Download error report</button>
                   </div>
                 ) : null}
-                <DataTable columns={previewColumns} rows={preview.validationRows.slice(0, 100)} getRowKey={(row) => `${row.sourceRow}-${row.channel_id || row.supplier_id}-${row.category_id || ""}-${row.action}`} />
+                <DataTable columns={previewColumns} rows={previewTableRows.slice(0, 100)} getRowKey={(row) => `${row.sourceRow}-${row.channel_id || row.supplier_id || row.record}-${row.category_id || ""}-${row.action}`} />
                 <div className="flex justify-end gap-2">
                   <button className="btn-secondary" type="button" onClick={() => downloadTextFile(`${importType}_Import_Report.csv`, buildImportReport(preview))}>
                     <Download size={15} /> Download report
