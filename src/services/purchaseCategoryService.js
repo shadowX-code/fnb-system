@@ -70,4 +70,96 @@ export const purchaseCategoryService = {
 
     return mapPurchaseCategory(data);
   },
+
+  async getPurchaseCategoryUsage(categoryId) {
+    const [supplierResult, purchaseResult] = await Promise.all([
+      supabase
+        .from("suppliers")
+        .select("id", { count: "exact", head: true })
+        .eq("default_category_id", categoryId)
+        .eq("is_active", true),
+      supabase
+        .from("purchase_records")
+        .select("id", { count: "exact", head: true })
+        .eq("category_id", categoryId),
+    ]);
+
+    throwSupabaseError("purchase_categories.usage.suppliers", supplierResult.error);
+    throwSupabaseError("purchase_categories.usage.purchase_records", purchaseResult.error);
+
+    const activeSupplierCount = supplierResult.count ?? 0;
+    const purchaseRecordCount = purchaseResult.count ?? 0;
+
+    return {
+      activeSupplierCount,
+      purchaseRecordCount,
+      isInUse: activeSupplierCount > 0 || purchaseRecordCount > 0,
+    };
+  },
+
+  async getPurchaseCategoryUsageMap(categoryIds = []) {
+    const entries = await Promise.all(
+      categoryIds.map(async (categoryId) => [categoryId, await this.getPurchaseCategoryUsage(categoryId)]),
+    );
+    return Object.fromEntries(entries);
+  },
+
+  async updatePurchaseCategorySortOrder(categories = []) {
+    const updates = categories.map((category, index) => ({
+      id: category.id,
+      sort_order: index + 1,
+      updated_at: new Date().toISOString(),
+    }));
+
+    for (const update of updates) {
+      const { error } = await supabase
+        .from("purchase_categories")
+        .update({ sort_order: update.sort_order, updated_at: update.updated_at })
+        .eq("id", update.id);
+
+      throwSupabaseError("purchase_categories.reorder", error);
+    }
+
+    await auditLogService.createAuditLog({
+      action: "purchase_category_reordered",
+      module: "purchase-categories",
+      target: "Purchase Categories",
+      description: "Purchase category sort order updated.",
+      after: updates,
+    }).catch(() => {});
+
+    return this.listPurchaseCategories();
+  },
+
+  async setPurchaseCategoryActive(category, isActive) {
+    return this.savePurchaseCategory({
+      ...category,
+      status: isActive ? "active" : "inactive",
+      is_active: isActive,
+    });
+  },
+
+  async deletePurchaseCategory(category) {
+    const usage = await this.getPurchaseCategoryUsage(category.id);
+    if (usage.isInUse) {
+      throw new Error("This category is in use. Deactivate it instead.");
+    }
+
+    const { error } = await supabase
+      .from("purchase_categories")
+      .delete()
+      .eq("id", category.id);
+
+    throwSupabaseError("purchase_categories.delete", error);
+
+    await auditLogService.createAuditLog({
+      action: "purchase_category_deleted",
+      module: "purchase-categories",
+      target: category.name,
+      description: "Purchase category deleted.",
+      before: category,
+    }).catch(() => {});
+
+    return true;
+  },
 };

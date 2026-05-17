@@ -83,4 +83,86 @@ export const supplierService = {
 
     return saved;
   },
+
+  async setSupplierActive(supplier, isActive) {
+    return this.saveSupplier({
+      ...supplier,
+      status: isActive ? "active" : "inactive",
+      is_active: isActive,
+    });
+  },
+
+  async getSupplierUsageMap(supplierIds = []) {
+    if (!supplierIds.length) return {};
+
+    const { data, error } = await supabase
+      .from("purchase_records")
+      .select("supplier_id,outlet_id,year,month,updated_at,created_at")
+      .in("supplier_id", supplierIds);
+
+    throwSupabaseError("suppliers.usage", error);
+
+    const usageMap = Object.fromEntries(
+      supplierIds.map((supplierId) => [
+        supplierId,
+        {
+          outletIds: [],
+          purchaseRecordCount: 0,
+          latestPurchase: null,
+        },
+      ]),
+    );
+
+    (data ?? []).forEach((record) => {
+      if (!record.supplier_id) return;
+      const usage = usageMap[record.supplier_id] ?? {
+        outletIds: [],
+        purchaseRecordCount: 0,
+        latestPurchase: null,
+      };
+      usage.purchaseRecordCount += 1;
+      if (record.outlet_id && !usage.outletIds.includes(record.outlet_id)) {
+        usage.outletIds.push(record.outlet_id);
+      }
+
+      const currentPeriodValue = Number(record.year || 0) * 100 + Number(record.month || 0);
+      const latestPeriodValue = usage.latestPurchase
+        ? Number(usage.latestPurchase.year || 0) * 100 + Number(usage.latestPurchase.month || 0)
+        : -1;
+      if (currentPeriodValue > latestPeriodValue) {
+        usage.latestPurchase = {
+          year: record.year,
+          month: record.month,
+          updated_at: record.updated_at ?? record.created_at,
+        };
+      }
+      usageMap[record.supplier_id] = usage;
+    });
+
+    return usageMap;
+  },
+
+  async deleteSupplier(supplier) {
+    const usageMap = await this.getSupplierUsageMap([supplier.id]);
+    if ((usageMap[supplier.id]?.purchaseRecordCount ?? 0) > 0) {
+      throw new Error("This supplier is already used in purchase records. Deactivate it instead.");
+    }
+
+    const { error } = await supabase
+      .from("suppliers")
+      .delete()
+      .eq("id", supplier.id);
+
+    throwSupabaseError("suppliers.delete", error);
+
+    await auditLogService.createAuditLog({
+      action: "supplier_deleted",
+      module: "suppliers",
+      target: supplier.name,
+      description: "Supplier deleted.",
+      before: supplier,
+    }).catch(() => {});
+
+    return true;
+  },
 };

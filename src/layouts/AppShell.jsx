@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BarChart3, Bell, Building2, Check, ChevronsDownUp, ChevronsUpDown, ChevronDown, ClipboardList, Download, KeyRound, LogOut, Monitor, Moon, Settings, Shield, Sun, Users } from "lucide-react";
+import { BarChart3, Bell, Building2, Check, ChevronsDownUp, ChevronsUpDown, ChevronDown, ClipboardList, Download, KeyRound, LogOut, Menu, Monitor, Moon, Settings, Shield, Sun, Users, X } from "lucide-react";
 import Badge from "../components/ui/Badge.jsx";
 import { buildAlerts, getPreviousPeriod, getSupplierName, percentageChange, toPercent } from "../features/sales-purchase/utils/analytics.js";
 
@@ -234,6 +234,7 @@ function ThemeMenu({ themeChoice, resolvedTheme, onThemeChange, onLogout }) {
 export default function AppShell({ activeRoute, activeRouteId, sections, onNavigate, children, store, auth, onLogout }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [themeChoice, setThemeChoice] = useState(() => {
     if (typeof window === "undefined") return "system";
     try {
@@ -324,6 +325,11 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
     }
   }
 
+  function handleNavigate(itemId) {
+    onNavigate(itemId);
+    setMobileSidebarOpen(false);
+  }
+
   useEffect(() => {
     if (!notificationsOpen && !profileMenuOpen) return undefined;
     function handlePointerDown(event) {
@@ -346,17 +352,46 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
     };
   }, [notificationsOpen, profileMenuOpen]);
 
-  return (
-    <div className="min-h-screen bg-app-bg text-text-primary">
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[248px] border-r border-border bg-sidebar lg:flex lg:flex-col">
-        <div className="flex h-16 items-center gap-3 px-5">
-          <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-white shadow-sm">
-            <BarChart3 size={18} />
-          </div>
-          <div className="min-w-0">
-            <div className="text-sm font-bold text-text-primary">FeedX</div>
-            <div className="text-xs text-text-secondary">F&amp;B Intelligence</div>
-          </div>
+  useEffect(() => {
+    if (!mobileSidebarOpen) return undefined;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") setMobileSidebarOpen(false);
+    }
+
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [mobileSidebarOpen]);
+
+  useEffect(() => {
+    setMobileSidebarOpen(false);
+  }, [activeRouteId]);
+
+  const sidebarContent = (isMobile = false) => (
+    <>
+      <div className="flex h-16 items-center gap-3 px-5">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-white shadow-sm">
+          <BarChart3 size={18} />
+        </div>
+        <div className="min-w-0">
+          <div className="text-sm font-bold text-text-primary">FeedX</div>
+          <div className="text-xs text-text-secondary">F&amp;B Intelligence</div>
+        </div>
+        {isMobile ? (
+          <button
+            className="icon-btn ml-auto"
+            type="button"
+            aria-label="Close navigation"
+            onClick={() => setMobileSidebarOpen(false)}
+          >
+            <X size={17} />
+          </button>
+        ) : (
           <button
             className="ml-auto flex h-8 w-8 items-center justify-center rounded-xl border border-transparent text-text-muted transition hover:border-primary/20 hover:bg-primary/10 hover:text-primary"
             type="button"
@@ -367,23 +402,24 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
           >
             {allSectionsExpanded ? <ChevronsDownUp size={16} /> : <ChevronsUpDown size={16} />}
           </button>
-        </div>
+        )}
+      </div>
 
-        <nav className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
-          {sections.map((section) => {
-            const isOpen = openSections[section.label] ?? section.label === activeSectionLabel;
-            return (
-              <div key={section.label}>
-                <button
-                  className="mb-2 flex w-full items-center justify-between rounded-lg px-3 py-1 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-text-muted transition hover:bg-slate-50 hover:text-text-secondary"
-                  type="button"
-                  aria-expanded={isOpen}
-                  onClick={() => toggleSection(section.label)}
-                >
-                  <span>{section.label}</span>
-                  <ChevronDown size={13} className={`transition-transform duration-200 ${isOpen ? "rotate-0" : "-rotate-90"}`} />
-                </button>
-                <div className={`space-y-1 overflow-hidden transition-all duration-200 ${isOpen ? "max-h-[520px] opacity-100" : "max-h-0 opacity-0"}`}>
+      <nav className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
+        {sections.map((section) => {
+          const isOpen = openSections[section.label] ?? section.label === activeSectionLabel;
+          return (
+            <div key={section.label}>
+              <button
+                className="mb-2 flex w-full items-center justify-between rounded-lg px-3 py-1 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-text-muted transition hover:bg-slate-50 hover:text-text-secondary"
+                type="button"
+                aria-expanded={isOpen}
+                onClick={() => toggleSection(section.label)}
+              >
+                <span>{section.label}</span>
+                <ChevronDown size={13} className={`transition-transform duration-200 ${isOpen ? "rotate-0" : "-rotate-90"}`} />
+              </button>
+              <div className={`space-y-1 overflow-hidden transition-all duration-200 ${isOpen ? "max-h-[520px] opacity-100" : "max-h-0 opacity-0"}`}>
                 {section.items.map((item) => {
                   if (item.type === "label") {
                     return (
@@ -398,7 +434,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
                     <button
                       key={item.id}
                       type="button"
-                      onClick={() => onNavigate(item.id)}
+                      onClick={() => handleNavigate(item.id)}
                       className={`flex h-10 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition ${
                         active
                           ? "bg-primary/10 text-primary"
@@ -410,31 +446,63 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
                     </button>
                   );
                 })}
-                </div>
               </div>
-            );
-          })}
-        </nav>
+            </div>
+          );
+        })}
+      </nav>
 
-        <div className="border-t border-border p-4">
-          <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-3">
-            <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">
-              {(auth?.profile?.full_name ?? auth?.user?.email ?? "U").slice(0, 1).toUpperCase()}
-            </div>
-            <div className="min-w-0">
-              <div className="truncate text-sm font-semibold">{auth?.profile?.full_name ?? auth?.user?.email ?? "User"}</div>
-              <div className="text-xs text-text-secondary">{auth?.profile?.role_name ?? "Authenticated"}</div>
-            </div>
-            <button className="icon-btn ml-auto" type="button" title="Logout" onClick={onLogout}>
-              <LogOut size={15} />
-            </button>
+      <div className="border-t border-border p-4">
+        <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">
+            {(auth?.profile?.full_name ?? auth?.user?.email ?? "U").slice(0, 1).toUpperCase()}
           </div>
+          <div className="min-w-0">
+            <div className="truncate text-sm font-semibold">{auth?.profile?.full_name ?? auth?.user?.email ?? "User"}</div>
+            <div className="text-xs text-text-secondary">{auth?.profile?.role_name ?? "Authenticated"}</div>
+          </div>
+          <button className="icon-btn ml-auto" type="button" title="Logout" onClick={onLogout}>
+            <LogOut size={15} />
+          </button>
         </div>
+      </div>
+    </>
+  );
+
+  return (
+    <div className="min-h-screen bg-app-bg text-text-primary">
+      <div
+        className={`fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-[1px] transition-opacity duration-200 lg:hidden ${
+          mobileSidebarOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
+        }`}
+        aria-hidden="true"
+        onClick={() => setMobileSidebarOpen(false)}
+      />
+      <aside
+        className={`fixed inset-y-0 left-0 z-50 flex w-[292px] max-w-[86vw] flex-col border-r border-border bg-sidebar shadow-2xl transition-transform duration-200 ease-out lg:hidden ${
+          mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
+        }`}
+        aria-label="Mobile navigation"
+        aria-hidden={!mobileSidebarOpen}
+      >
+        {sidebarContent(true)}
+      </aside>
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[248px] border-r border-border bg-sidebar lg:flex lg:flex-col">
+        {sidebarContent(false)}
       </aside>
 
       <div className="lg:pl-[248px]">
         <header className="sticky top-0 z-20 border-b border-border bg-app-bg/95 backdrop-blur">
           <div className="flex h-12 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+            <button
+              className="icon-btn lg:hidden"
+              type="button"
+              aria-label="Open navigation"
+              aria-expanded={mobileSidebarOpen}
+              onClick={() => setMobileSidebarOpen(true)}
+            >
+              <Menu size={18} />
+            </button>
             <div className="min-w-0">
               <div className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
                 Smart Operations Workspace

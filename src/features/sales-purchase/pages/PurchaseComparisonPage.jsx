@@ -66,6 +66,28 @@ function attachChannelIds(records, salesChannels) {
   });
 }
 
+function normalizeKey(value) {
+  return String(value ?? "").toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function getRecordSupplierName(record, suppliers) {
+  if (record.supplier_id) {
+    const supplier = suppliers.find((item) => item.id === record.supplier_id);
+    if (supplier?.name) return supplier.name;
+  }
+  return record.supplier_name || "Unknown Supplier";
+}
+
+function getRecordCategoryInfo(record, suppliers, categories) {
+  const supplier = record.supplier_id ? suppliers.find((item) => item.id === record.supplier_id) : null;
+  const categoryId = record.category_id || supplier?.default_category_id || null;
+  const category = categoryId ? categories.find((item) => item.id === categoryId) : null;
+  return {
+    id: categoryId || record.category_name || "unknown-category",
+    name: category?.name || record.category_name || supplier?.category || "Unknown Category",
+  };
+}
+
 function emptyMonthlyEfficiency(month, year) {
   return {
     month,
@@ -85,8 +107,14 @@ function getPurchaseAmount({ store, outletId, year, month, row }) {
   return sumAmount(
     store.purchaseRecords.filter((record) => {
       const samePeriod = record.outlet_id === outletId && record.year === year && record.month === month;
-      if (row.type === "supplier") return samePeriod && record.supplier_id === row.id;
-      if (row.type === "category" || row.type === "subtotal") return samePeriod && record.category_id === row.id;
+      if (row.type === "supplier") {
+        if (row.supplier_id) return samePeriod && record.supplier_id === row.supplier_id;
+        return samePeriod && normalizeKey(record.supplier_name || "Unknown Supplier") === row.supplierKey;
+      }
+      if (row.type === "category" || row.type === "subtotal") {
+        if (row.category_id) return samePeriod && record.category_id === row.category_id;
+        return samePeriod && normalizeKey(record.category_name || getRecordCategoryInfo(record, store.suppliers, store.purchaseCategories).name) === row.categoryKey;
+      }
       if (row.type === "total") return samePeriod;
       return false;
     }),
@@ -207,40 +235,79 @@ function analyzeCell({ store, outletId, year, month, row }) {
   };
 }
 
-function getSuppliersByCategory(store, category) {
-  return store.suppliers
-    .filter((supplier) => supplier.status === "active" && supplier.default_category_id === category.id)
-    .map((supplier) => ({
-      id: supplier.id,
-      name: supplier.name,
-      type: "supplier",
-      category_id: category.id,
-      categoryName: category.name,
-    }));
+function getSuppliersByCategory(store, categoryRow, outletId, year, visibleMonths) {
+  const monthValues = new Set(visibleMonths.map((month) => month.value));
+  const supplierMap = new Map();
+
+  store.purchaseRecords
+    .filter((record) => record.outlet_id === outletId && record.year === year && monthValues.has(record.month))
+    .forEach((record) => {
+      const category = getRecordCategoryInfo(record, store.suppliers, store.purchaseCategories);
+      const belongsToCategory = categoryRow.category_id
+        ? category.id === categoryRow.category_id
+        : normalizeKey(category.name) === categoryRow.categoryKey;
+      if (!belongsToCategory) return;
+
+      const supplierName = getRecordSupplierName(record, store.suppliers);
+      const supplierKey = record.supplier_id || normalizeKey(supplierName || "Unknown Supplier");
+      const existing = supplierMap.get(supplierKey);
+      supplierMap.set(supplierKey, {
+        id: record.supplier_id || `supplier-${supplierKey}`,
+        supplier_id: record.supplier_id || null,
+        supplierKey: record.supplier_id ? null : supplierKey,
+        name: supplierName || existing?.name || "Unknown Supplier",
+        type: "supplier",
+        category_id: categoryRow.category_id || null,
+        categoryKey: categoryRow.categoryKey,
+        categoryName: categoryRow.name,
+      });
+    });
+
+  return [...supplierMap.values()].sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function buildComparisonRows(store, viewMode, expandedCategories) {
+function buildComparisonRows(store, viewMode, expandedCategories, outletId, year, visibleMonths) {
   const rows = [];
-  const categories = store.purchaseCategories.filter((category) => category.status === "active");
+  const monthValues = new Set(visibleMonths.map((month) => month.value));
+  const categoryMap = new Map();
+
+  store.purchaseRecords
+    .filter((record) => record.outlet_id === outletId && record.year === year && monthValues.has(record.month))
+    .forEach((record) => {
+      const category = getRecordCategoryInfo(record, store.suppliers, store.purchaseCategories);
+      const categoryKey = category.id || normalizeKey(category.name);
+      if (!categoryMap.has(categoryKey)) {
+        categoryMap.set(categoryKey, {
+          id: category.id || `category-${normalizeKey(category.name)}`,
+          category_id: category.id && store.purchaseCategories.some((item) => item.id === category.id) ? category.id : null,
+          categoryKey: category.id && store.purchaseCategories.some((item) => item.id === category.id) ? null : normalizeKey(category.name),
+          name: category.name,
+          type: "category",
+        });
+      }
+    });
+
+  const categories = [...categoryMap.values()].sort((a, b) => a.name.localeCompare(b.name));
 
   if (viewMode === "Supplier") {
-    categories.forEach((category) => rows.push(...getSuppliersByCategory(store, category)));
+    categories.forEach((category) => rows.push(...getSuppliersByCategory(store, category, outletId, year, visibleMonths)));
     return rows;
   }
 
   categories.forEach((category) => {
-    const suppliers = getSuppliersByCategory(store, category);
+    const suppliers = getSuppliersByCategory(store, category, outletId, year, visibleMonths);
     const categoryRow = {
-      id: category.id,
+      ...category,
       name: category.name,
       type: "category",
       supplierCount: suppliers.length,
+      supplierNames: suppliers.map((supplier) => supplier.name),
       isExpanded: viewMode === "Full" || expandedCategories.has(category.id),
     };
 
     rows.push(categoryRow);
     if (viewMode === "Full" || expandedCategories.has(category.id)) {
-        rows.push(...suppliers);
+      rows.push(...suppliers);
     }
   });
 
@@ -494,7 +561,10 @@ export default function PurchaseComparisonPage({ store, setStore, ui }) {
     [filters.outletId, filters.year, store.purchaseRecords],
   );
 
-  const rows = useMemo(() => buildComparisonRows(store, viewMode, expandedCategories), [expandedCategories, store, viewMode]);
+  const rows = useMemo(
+    () => buildComparisonRows(store, viewMode, expandedCategories, filters.outletId, filters.year, visibleMonths),
+    [expandedCategories, filters.outletId, filters.year, store, viewMode, visibleMonths],
+  );
   const monthlyEfficiency = useMemo(
     () =>
       visibleMonths.map((month) =>
@@ -546,11 +616,7 @@ export default function PurchaseComparisonPage({ store, setStore, ui }) {
       .filter((row) => {
         const supplierSearchMatch =
           row.type === "category" &&
-          store.suppliers.some(
-            (supplier) =>
-              supplier.default_category_id === row.id &&
-              supplier.name.toLowerCase().includes(search),
-          );
+          (row.supplierNames || []).some((supplierName) => supplierName.toLowerCase().includes(search));
         const matchesSearch =
           !search ||
           row.name.toLowerCase().includes(search) ||
@@ -771,7 +837,7 @@ export default function PurchaseComparisonPage({ store, setStore, ui }) {
   }
 
   function expandAllCategories() {
-    setExpandedCategories(new Set(store.purchaseCategories.filter((category) => category.status === "active").map((category) => category.id)));
+    setExpandedCategories(new Set(rows.filter((row) => row.type === "category").map((row) => row.id)));
   }
 
   function collapseAllCategories() {
@@ -1123,7 +1189,7 @@ export default function PurchaseComparisonPage({ store, setStore, ui }) {
                             <div className={`text-[14px] font-medium ${row.type === "supplier" && !row.currentAmount ? "text-text-muted" : "text-text-primary"}`}>{row.name}</div>
                           )}
                           {row.type === "supplier" ? <div className="text-xs text-text-secondary">{row.categoryName}</div> : null}
-                          {row.type === "category" ? <div className="mt-1 text-xs font-medium text-text-secondary">{row.supplierCount} suppliers. Click to inspect supplier detail.</div> : null}
+                          {row.type === "category" ? <div className="mt-1 text-xs font-medium text-text-secondary">{row.supplierCount} suppliers · Expand to view supplier breakdown</div> : null}
                         </div>
                       </td>
                       {row.cells.map((cell) => (

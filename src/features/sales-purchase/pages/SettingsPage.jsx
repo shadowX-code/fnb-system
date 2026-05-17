@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Edit3, Plus, Settings, SquarePen } from "lucide-react";
+import { Edit3, GripVertical, MoreHorizontal, Plus, Settings, SquarePen, Trash2 } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import Card from "../../../components/ui/Card.jsx";
@@ -9,6 +9,7 @@ import { getOutletTaxConfig } from "../utils/analytics.js";
 import Modal from "../../../components/feedback/Modal.jsx";
 import { FieldLabel, MonthSelector, YearSelector } from "../../../components/forms/Selectors.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
+import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import { months } from "../data/mockData.js";
 import { salesChannelService } from "../../../services/salesChannelService.js";
 import { purchaseCategoryService } from "../../../services/purchaseCategoryService.js";
@@ -194,6 +195,10 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
   const [taxOutletFilter, setTaxOutletFilter] = useState("all");
   const [taxMonth, setTaxMonth] = useState(() => latestPeriod(store).month);
   const [taxYear, setTaxYear] = useState(() => latestPeriod(store).year);
+  const [draggedCategoryId, setDraggedCategoryId] = useState(null);
+  const [categoryUsage, setCategoryUsage] = useState({});
+  const [categoryActionId, setCategoryActionId] = useState(null);
+  const [categoryConfirm, setCategoryConfirm] = useState(null);
   const currentPeriodKey = periodKeyFromParts(latestPeriod(store).month, latestPeriod(store).year);
   const currentUser = { name: auth?.profile?.full_name ?? auth?.user?.email ?? "System User" };
   const isChannels = tab === "channels";
@@ -205,14 +210,106 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
       ? ((auth?.hasPermission?.("purchase_categories.create") || auth?.hasPermission?.("purchase_categories.edit") || auth?.hasPermission?.("purchase_categories.delete")) ?? true)
       : (auth?.hasPermission?.("tax_settings.edit") ?? true);
   const canForceEdit = auth?.hasPermission?.("tax_settings.edit") ?? true;
-  const rows = isChannels ? store.salesChannels : isCategories ? store.purchaseCategories : store.outletTaxConfigs;
+  const categoryRows = useMemo(
+    () => [...store.purchaseCategories].sort((a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name)),
+    [store.purchaseCategories],
+  );
+  const rows = isChannels ? store.salesChannels : isCategories ? categoryRows : store.outletTaxConfigs;
   const filteredTaxRows = taxOutletFilter === "all" ? store.outletTaxConfigs : store.outletTaxConfigs.filter((row) => row.outlet_id === taxOutletFilter);
+  const supplierCountFallback = useMemo(() => {
+    return store.suppliers.reduce((counts, supplier) => {
+      if (supplier.status !== "active" || !supplier.default_category_id) return counts;
+      counts[supplier.default_category_id] = (counts[supplier.default_category_id] ?? 0) + 1;
+      return counts;
+    }, {});
+  }, [store.suppliers]);
+  function getCategoryUsage(row) {
+    return categoryUsage[row.id] ?? {
+      activeSupplierCount: supplierCountFallback[row.id] ?? 0,
+      purchaseRecordCount: store.purchaseRecords.filter((record) => record.category_id === row.id).length,
+      isInUse: Boolean((supplierCountFallback[row.id] ?? 0) || store.purchaseRecords.some((record) => record.category_id === row.id)),
+    };
+  }
   const masterColumns = [
-    { key: "name", header: isChannels ? "Sales Channel" : "Purchase Category", sticky: true, render: (row) => <span className="font-semibold">{row.name}</span> },
+    { key: "name", header: "Sales Channel", sticky: true, render: (row) => <span className="font-semibold">{row.name}</span> },
     ...(isChannels ? [{ key: "type", header: "Type" }] : []),
     { key: "sort_order", header: "Sort Order", align: "right" },
     { key: "status", header: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge> },
     { key: "action", header: "Action", align: "right", render: (row) => <button className="icon-btn" disabled={!canEditSettings} onClick={() => setModal({ mode: "edit", row })}><Settings size={15} /></button> },
+  ];
+  const categoryColumns = [
+    {
+      key: "name",
+      header: "Purchase Category",
+      sticky: true,
+      width: "42%",
+      render: (row) => (
+        <div className="flex items-center gap-2">
+          <GripVertical size={15} className={`shrink-0 text-text-muted ${canEditSettings ? "cursor-grab" : "opacity-40"}`} aria-hidden="true" />
+          <span className="font-semibold">{row.name}</span>
+        </div>
+      ),
+    },
+    {
+      key: "supplier_count",
+      header: "Supplier Count",
+      render: (row) => {
+        const count = getCategoryUsage(row).activeSupplierCount;
+        return <span className="font-semibold text-text-primary">{count} supplier{count === 1 ? "" : "s"}</span>;
+      },
+    },
+    { key: "status", header: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge> },
+    {
+      key: "action",
+      header: "Actions",
+      align: "right",
+      width: "86px",
+      render: (row) => {
+        const usage = getCategoryUsage(row);
+        const isActive = row.status === "active";
+        return (
+          <div className="flex justify-end" onClick={(event) => event.stopPropagation()}>
+            <ActionMenu
+              open={categoryActionId === row.id}
+              onOpenChange={(nextOpen) => setCategoryActionId(nextOpen ? row.id : null)}
+              width={224}
+              ariaLabel="Purchase category actions"
+              trigger={({ toggle, ariaLabel }) => (
+                <button className="icon-btn" type="button" aria-label={ariaLabel} disabled={!canEditSettings} onClick={toggle}>
+                  <MoreHorizontal size={15} />
+                </button>
+              )}
+            >
+              <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { setModal({ mode: "edit", row }); setCategoryActionId(null); }}>
+                <Edit3 size={14} /> Edit
+              </button>
+              <button
+                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold text-amber-700 hover:bg-amber-50"
+                type="button"
+                onClick={() => {
+                  setCategoryConfirm({ type: "status", row, nextActive: !isActive });
+                  setCategoryActionId(null);
+                }}
+              >
+                <Settings size={14} /> {isActive ? "Deactivate" : "Reactivate"}
+              </button>
+              <button
+                className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
+                type="button"
+                disabled={usage.isInUse}
+                title={usage.isInUse ? "This category is in use. Deactivate it instead." : "Delete category"}
+                onClick={() => {
+                  setCategoryConfirm({ type: "delete", row });
+                  setCategoryActionId(null);
+                }}
+              >
+                <Trash2 size={14} /> Delete
+              </button>
+            </ActionMenu>
+          </div>
+        );
+      },
+    },
   ];
   const taxColumns = [
     {
@@ -262,7 +359,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
   const fields = [
     { name: "name", label: "Name", placeholder: "Name" },
     ...(isChannels ? [{ name: "type", label: "Type", type: "select", options: [{ value: "channel", label: "Channel" }, { value: "total", label: "Total" }, { value: "adjustment", label: "Adjustment" }] }] : []),
-    { name: "sort_order", label: "Sort Order", placeholder: "1" },
+    ...(isChannels ? [{ name: "sort_order", label: "Sort Order", placeholder: "1" }] : []),
     { name: "status", label: "Status", type: "select", options: [{ value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }] },
   ];
   const currentTaxRows = store.outlets.map((outlet) => ({
@@ -278,6 +375,21 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
   useEffect(() => {
     setTab(initialTab);
   }, [initialTab]);
+
+  useEffect(() => {
+    if (!isCategories || !store.purchaseCategories.length) return undefined;
+    let cancelled = false;
+    purchaseCategoryService.getPurchaseCategoryUsageMap(store.purchaseCategories.map((category) => category.id))
+      .then((usageMap) => {
+        if (!cancelled) setCategoryUsage(usageMap);
+      })
+      .catch((error) => {
+        console.error("Unable to load purchase category usage", error);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [isCategories, store.purchaseCategories]);
 
   async function refreshTaxConfigs() {
     const configs = await outletTaxConfigService.listOutletTaxConfigs();
@@ -340,6 +452,71 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
     } catch (error) {
       console.error("Unable to save settings", error);
       ui.notify({ title: "Unable to save settings", message: error.message, tone: "error" });
+    }
+  }
+
+  async function handleCategoryDrop(targetCategoryId) {
+    if (!canEditSettings || !draggedCategoryId || draggedCategoryId === targetCategoryId) {
+      setDraggedCategoryId(null);
+      return;
+    }
+
+    const currentOrder = [...categoryRows];
+    const fromIndex = currentOrder.findIndex((category) => category.id === draggedCategoryId);
+    const toIndex = currentOrder.findIndex((category) => category.id === targetCategoryId);
+    if (fromIndex < 0 || toIndex < 0) {
+      setDraggedCategoryId(null);
+      return;
+    }
+
+    const reordered = [...currentOrder];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, moved);
+    const optimistic = reordered.map((category, index) => ({ ...category, sort_order: index + 1 }));
+
+    setDraggedCategoryId(null);
+    setStore((current) => ({ ...current, purchaseCategories: optimistic }));
+
+    try {
+      const saved = await purchaseCategoryService.updatePurchaseCategorySortOrder(optimistic);
+      setStore((current) => ({ ...current, purchaseCategories: saved }));
+      ui.notify({ title: "Purchase category order updated", message: "Saved to Supabase" });
+    } catch (error) {
+      console.error("Unable to reorder purchase categories", error);
+      setStore((current) => ({ ...current, purchaseCategories: currentOrder }));
+      ui.notify({ title: "Unable to reorder categories", message: error.message, tone: "error" });
+    }
+  }
+
+  async function handleCategoryStatus(row, nextActive) {
+    try {
+      const saved = await purchaseCategoryService.setPurchaseCategoryActive(row, nextActive);
+      setStore((current) => ({
+        ...current,
+        purchaseCategories: current.purchaseCategories
+          .map((category) => (category.id === saved.id ? saved : category))
+          .sort((a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name)),
+      }));
+      setCategoryConfirm(null);
+      ui.notify({ title: nextActive ? "Purchase category reactivated" : "Purchase category deactivated", message: "Saved to Supabase" });
+    } catch (error) {
+      console.error("Unable to update purchase category status", error);
+      ui.notify({ title: "Unable to update purchase category", message: error.message, tone: "error" });
+    }
+  }
+
+  async function handleCategoryDelete(row) {
+    try {
+      await purchaseCategoryService.deletePurchaseCategory(row);
+      setStore((current) => ({
+        ...current,
+        purchaseCategories: current.purchaseCategories.filter((category) => category.id !== row.id),
+      }));
+      setCategoryConfirm(null);
+      ui.notify({ title: "Purchase category deleted", message: "Saved to Supabase" });
+    } catch (error) {
+      console.error("Unable to delete purchase category", error);
+      ui.notify({ title: "Unable to delete purchase category", message: error.message, tone: "error" });
     }
   }
 
@@ -411,7 +588,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
       ) : null}
       <Card
         title={isChannels ? "Sales Channels" : isCategories ? "Purchase Categories" : "SST Configuration History"}
-        description={isTax ? "Effective-date based tax history prevents future changes from rewriting historical months." : "Structured master data powers future dashboards and imports."}
+        description={isTax ? "Effective-date based tax history prevents future changes from rewriting historical months." : isCategories ? "Drag rows to set category order. Supplier counts and delete protection use live Supabase data." : "Structured master data powers future dashboards and imports."}
         action={isTax ? (
           <SelectField
             value={taxOutletFilter === "all" ? "" : taxOutletFilter}
@@ -425,8 +602,28 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
       >
         {isTax && !filteredTaxRows.length ? (
           <div className="p-6 text-sm font-semibold text-text-secondary">No tax configuration history found for this outlet.</div>
+        ) : isCategories && !rows.length ? (
+          <div className="p-6 text-sm font-semibold text-text-secondary">No purchase categories found.</div>
         ) : (
-          <DataTable columns={isTax ? taxColumns : masterColumns} rows={isTax ? filteredTaxRows : rows} getRowKey={(row) => row.id} />
+          <DataTable
+            columns={isTax ? taxColumns : isCategories ? categoryColumns : masterColumns}
+            rows={isTax ? filteredTaxRows : rows}
+            getRowKey={(row) => row.id}
+            density={isCategories ? "compact" : "normal"}
+            getRowProps={isCategories ? (row) => ({
+              draggable: canEditSettings,
+              onDragStart: () => setDraggedCategoryId(row.id),
+              onDragEnd: () => setDraggedCategoryId(null),
+              onDragOver: (event) => {
+                if (canEditSettings) event.preventDefault();
+              },
+              onDrop: (event) => {
+                event.preventDefault();
+                handleCategoryDrop(row.id);
+              },
+              className: draggedCategoryId === row.id ? "opacity-50" : "",
+            }) : undefined}
+          />
         )}
       </Card>
       {taxValues ? (
@@ -537,6 +734,41 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
           onClose={() => setModal(null)}
           onSubmit={handleMasterSubmit}
         />
+      ) : null}
+
+      {categoryConfirm ? (
+        <Modal
+          title={categoryConfirm.type === "delete" ? "Delete purchase category?" : `${categoryConfirm.nextActive ? "Reactivate" : "Deactivate"} ${categoryConfirm.row.name}?`}
+          description={
+            categoryConfirm.type === "delete"
+              ? "This permanently removes the category. This is only allowed when it has no linked suppliers or purchase records."
+              : categoryConfirm.nextActive
+                ? "This category will become available for new supplier and import selections."
+                : "Deactivating this category hides it from new supplier/import selections but keeps historical records intact."
+          }
+          onClose={() => setCategoryConfirm(null)}
+          footer={
+            <>
+              <button className="btn-secondary" type="button" onClick={() => setCategoryConfirm(null)}>Cancel</button>
+              {categoryConfirm.type === "delete" ? (
+                <button className="btn-secondary border-rose-200 text-rose-700 hover:bg-rose-50" type="button" onClick={() => handleCategoryDelete(categoryConfirm.row)}>
+                  Delete
+                </button>
+              ) : (
+                <button className="btn-primary" type="button" onClick={() => handleCategoryStatus(categoryConfirm.row, categoryConfirm.nextActive)}>
+                  {categoryConfirm.nextActive ? "Reactivate" : "Deactivate"}
+                </button>
+              )}
+            </>
+          }
+        >
+          <div className="rounded-2xl border border-border bg-slate-50 px-4 py-3 text-sm text-text-secondary">
+            <div className="font-semibold text-text-primary">{categoryConfirm.row.name}</div>
+            <div className="mt-1">
+              {getCategoryUsage(categoryConfirm.row).activeSupplierCount} linked active suppliers · {getCategoryUsage(categoryConfirm.row).purchaseRecordCount} purchase records
+            </div>
+          </div>
+        </Modal>
       ) : null}
     </div>
   );

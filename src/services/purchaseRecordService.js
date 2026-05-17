@@ -6,7 +6,7 @@ export const purchaseRecordService = {
   async getPurchaseRecords(outletId, year, month) {
     const { data, error } = await supabase
       .from("purchase_records")
-      .select("id,outlet_id,year,month,supplier_id,category_id,amount,remark,created_at,updated_at")
+      .select("id,outlet_id,year,month,supplier_id,supplier_name,category_id,category_name,amount,remark,created_at,updated_at")
       .eq("outlet_id", outletId)
       .eq("year", year)
       .eq("month", month)
@@ -19,7 +19,7 @@ export const purchaseRecordService = {
   async getPurchaseRecordsForYear(outletId, year) {
     const { data, error } = await supabase
       .from("purchase_records")
-      .select("id,outlet_id,year,month,supplier_id,category_id,amount,remark,created_at,updated_at")
+      .select("id,outlet_id,year,month,supplier_id,supplier_name,category_id,category_name,amount,remark,created_at,updated_at")
       .eq("outlet_id", outletId)
       .eq("year", year)
       .order("month", { ascending: true })
@@ -57,6 +57,8 @@ export const purchaseRecordService = {
       month,
       supplier_id: record.supplier_id || null,
       category_id: record.category_id || null,
+      supplier_name: record.supplier_name || null,
+      category_name: record.category_name || null,
       amount: Number(record.amount) || 0,
       remark: record.remark ?? "",
     }));
@@ -71,7 +73,7 @@ export const purchaseRecordService = {
           .from("purchase_records")
           .update({ ...updatePayload, updated_at: new Date().toISOString() })
           .eq("id", id)
-          .select("id,outlet_id,year,month,supplier_id,category_id,amount,remark,created_at,updated_at")
+          .select("id,outlet_id,year,month,supplier_id,supplier_name,category_id,category_name,amount,remark,created_at,updated_at")
           .single();
         throwSupabaseError("purchase_records.update_row", error);
         savedRows.push(data);
@@ -80,7 +82,7 @@ export const purchaseRecordService = {
         const { data, error } = await supabase
           .from("purchase_records")
           .insert(insertPayload)
-          .select("id,outlet_id,year,month,supplier_id,category_id,amount,remark,created_at,updated_at")
+          .select("id,outlet_id,year,month,supplier_id,supplier_name,category_id,category_name,amount,remark,created_at,updated_at")
           .single();
         throwSupabaseError("purchase_records.insert_row", error);
         savedRows.push(data);

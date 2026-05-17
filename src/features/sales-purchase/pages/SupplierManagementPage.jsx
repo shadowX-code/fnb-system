@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react";
-import { Plus, Settings, Trash2 } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
+import { BarChart3, Edit3, MoreHorizontal, Plus, Settings, Trash2 } from "lucide-react";
 import Badge from "../../../components/ui/Badge.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
@@ -11,6 +11,15 @@ import EntityModal from "../components/EntityModal.jsx";
 import usePeriodFilters from "../hooks/usePeriodFilters.js";
 import { getCategoryName, sumAmount, toCurrency } from "../utils/analytics.js";
 import { supplierService } from "../../../services/supplierService.js";
+import ActionMenu from "../../../components/ui/ActionMenu.jsx";
+
+function purchasePeriodLabel(period) {
+  if (!period?.month || !period?.year) return "—";
+  return new Date(Number(period.year), Number(period.month) - 1).toLocaleDateString("en-MY", {
+    month: "short",
+    year: "numeric",
+  });
+}
 
 export default function SupplierManagementPage({ store, setStore, ui }) {
   const filters = usePeriodFilters(store);
@@ -22,6 +31,8 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
   const [category, setCategory] = useState("all");
   const [status, setStatus] = useState("all");
   const [modal, setModal] = useState(null);
+  const [usageMap, setUsageMap] = useState({});
+  const [actionMenuSupplierId, setActionMenuSupplierId] = useState(null);
   const rows = useMemo(
     () =>
       store.suppliers.filter((supplier) => {
@@ -32,6 +43,73 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
       }),
     [category, query, status, store.suppliers],
   );
+  useEffect(() => {
+    if (!store.suppliers.length) return undefined;
+    let cancelled = false;
+    supplierService.getSupplierUsageMap(store.suppliers.map((supplier) => supplier.id))
+      .then((nextUsageMap) => {
+        if (!cancelled) setUsageMap(nextUsageMap);
+      })
+      .catch((error) => {
+        console.error("Unable to load supplier usage", error);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [store.suppliers]);
+
+  function getSupplierUsage(supplier) {
+    return usageMap[supplier.id] ?? {
+      outletIds: [],
+      purchaseRecordCount: 0,
+      latestPurchase: null,
+    };
+  }
+
+  function formatOutletUsage(supplier) {
+    const outletIds = getSupplierUsage(supplier).outletIds;
+    if (!outletIds.length) return <span className="text-text-muted">No usage yet</span>;
+    const outletNames = outletIds
+      .map((outletId) => store.outlets.find((outlet) => outlet.id === outletId)?.name)
+      .filter(Boolean);
+    if (!outletNames.length) return <span className="text-text-muted">No usage yet</span>;
+    if (outletNames.length <= 2) return outletNames.join(", ");
+    return `${outletNames.length} outlets`;
+  }
+
+  async function updateSupplierStatus(row, nextActive) {
+    const confirmMessage = nextActive
+      ? `${row.name} will become available for new purchase entries.`
+      : `${row.name} will be hidden from new supplier/import selections but historical purchase records remain intact.`;
+    if (!(await ui.confirm({ title: `${nextActive ? "Reactivate" : "Deactivate"} supplier?`, message: confirmMessage, danger: !nextActive, confirmLabel: nextActive ? "Reactivate" : "Deactivate" }))) return;
+    try {
+      const saved = await supplierService.setSupplierActive(row, nextActive);
+      setStore((current) => ({
+        ...current,
+        suppliers: current.suppliers.map((supplier) => (supplier.id === saved.id ? saved : supplier)),
+      }));
+      ui.notify({ title: nextActive ? "Supplier reactivated" : "Supplier deactivated", message: "Saved to Supabase" });
+    } catch (error) {
+      console.error("Unable to update supplier status", error);
+      ui.notify({ title: "Unable to update supplier", message: error.message, tone: "error" });
+    }
+  }
+
+  async function deleteSupplier(row) {
+    if (!(await ui.confirm({ title: "Delete supplier?", message: `${row.name} will be permanently removed. This is only allowed when it has no purchase records.`, danger: true, confirmLabel: "Delete" }))) return;
+    try {
+      await supplierService.deleteSupplier(row);
+      setStore((current) => ({
+        ...current,
+        suppliers: current.suppliers.filter((supplier) => supplier.id !== row.id),
+      }));
+      ui.notify({ title: "Supplier deleted", message: "Saved to Supabase" });
+    } catch (error) {
+      console.error("Unable to delete supplier", error);
+      ui.notify({ title: "Unable to delete supplier", message: error.message, tone: "error" });
+    }
+  }
+
   const fields = [
     { name: "name", label: "Supplier Name", placeholder: "Supplier name" },
     {
@@ -54,6 +132,16 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
     { key: "name", header: "Supplier Name", sticky: true, render: (row) => <span className="font-semibold">{row.name}</span> },
     { key: "category", header: "Category", render: (row) => getCategoryName(store.purchaseCategories, row.default_category_id) },
     {
+      key: "outlet_usage",
+      header: "Outlet Usage",
+      render: (row) => <span className="text-sm font-medium text-text-secondary">{formatOutletUsage(row)}</span>,
+    },
+    {
+      key: "last_purchase",
+      header: "Last Purchase",
+      render: (row) => <span className="text-sm font-semibold text-text-primary">{purchasePeriodLabel(getSupplierUsage(row).latestPurchase)}</span>,
+    },
+    {
       key: "total",
       header: "Total Purchase This Month",
       align: "right",
@@ -62,26 +150,43 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
     { key: "status", header: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge> },
     {
       key: "action",
-      header: "Action",
+      header: "Actions",
       align: "right",
       render: (row) => (
-        <div className="flex justify-end gap-2">
-          <button className="icon-btn" onClick={() => setModal({ mode: "edit", row })}><Settings size={15} /></button>
-          <button className="icon-btn" onClick={async () => {
-            if (await ui.confirm({ title: "Deactivate supplier?", message: `${row.name} will remain in history but cannot be selected by default.`, danger: true, confirmLabel: "Deactivate" })) {
-              try {
-                const saved = await supplierService.deactivateSupplier(row);
-                setStore((current) => ({
-                  ...current,
-                  suppliers: current.suppliers.map((supplier) => (supplier.id === saved.id ? saved : supplier)),
-                }));
-                ui.notify({ title: "Supplier deactivated", message: "Saved to Supabase" });
-              } catch (error) {
-                console.error("Unable to deactivate supplier", error);
-                ui.notify({ title: "Unable to deactivate supplier", message: error.message, tone: "error" });
-              }
-            }
-          }}><Trash2 size={15} /></button>
+        <div className="flex justify-end" onClick={(event) => event.stopPropagation()}>
+          <ActionMenu
+            open={actionMenuSupplierId === row.id}
+            onOpenChange={(nextOpen) => setActionMenuSupplierId(nextOpen ? row.id : null)}
+            width={236}
+            ariaLabel="Supplier actions"
+            trigger={({ toggle, ariaLabel }) => (
+              <button className="icon-btn" type="button" aria-label={ariaLabel} onClick={toggle}>
+                <MoreHorizontal size={15} />
+              </button>
+            )}
+          >
+            <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { setModal({ mode: "edit", row }); setActionMenuSupplierId(null); }}>
+              <Edit3 size={14} /> Edit
+            </button>
+            <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { ui.navigate?.("purchase-comparison"); setActionMenuSupplierId(null); }}>
+              <BarChart3 size={14} /> View Purchases
+            </button>
+            <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold text-amber-700 hover:bg-amber-50" type="button" onClick={() => { updateSupplierStatus(row, row.status !== "active"); setActionMenuSupplierId(null); }}>
+              <Settings size={14} /> {row.status === "active" ? "Deactivate" : "Reactivate"}
+            </button>
+            <button
+              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
+              type="button"
+              disabled={getSupplierUsage(row).purchaseRecordCount > 0}
+              title={getSupplierUsage(row).purchaseRecordCount > 0 ? "This supplier is already used in purchase records. Deactivate it instead." : "Delete supplier"}
+              onClick={() => {
+                deleteSupplier(row);
+                setActionMenuSupplierId(null);
+              }}
+            >
+              <Trash2 size={14} /> Delete
+            </button>
+          </ActionMenu>
         </div>
       ),
     },

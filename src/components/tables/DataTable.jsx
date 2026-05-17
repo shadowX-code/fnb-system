@@ -1,4 +1,4 @@
-export default function DataTable({ columns, rows, getRowKey, footer, getRowClassName, onRowClick, density = "normal", tableClassName = "" }) {
+export default function DataTable({ columns, rows, getRowKey, footer, getRowClassName, getRowProps, onRowClick, density = "normal", tableClassName = "" }) {
   const cellPadding = density === "compact" ? "px-2.5 py-2" : "px-3 py-2.5";
   const headerPadding = density === "compact" ? "px-2.5 py-2" : "px-3 py-2.5";
 
@@ -21,25 +21,32 @@ export default function DataTable({ columns, rows, getRowKey, footer, getRowClas
           </tr>
         </thead>
         <tbody className="divide-y divide-border bg-white">
-          {rows.map((row, index) => (
-            <tr
-              key={getRowKey(row, index)}
-              className={`transition hover:bg-slate-50/70 ${onRowClick ? "cursor-pointer" : ""} ${getRowClassName ? getRowClassName(row, index) : ""}`}
-              onClick={onRowClick ? () => onRowClick(row, index) : undefined}
-            >
-              {columns.map((column) => (
-                <td
-                  key={column.key}
-                  style={column.width ? { width: column.width } : undefined}
-                  className={`${cellPadding} align-middle ${column.className ?? ""} ${column.align === "right" ? "text-right" : ""} ${
-                    column.sticky ? "sticky left-0 z-10 bg-white" : ""
-                  }`}
-                >
-                  {column.render ? column.render(row, index) : row[column.key]}
-                </td>
-              ))}
-            </tr>
-          ))}
+          {rows.map((row, index) => {
+            const rowProps = getRowProps ? getRowProps(row, index) : {};
+            const rowClassName = rowProps.className ?? "";
+            const rowOnClick = rowProps.onClick ?? (onRowClick ? () => onRowClick(row, index) : undefined);
+            const { className: _className, onClick: _onClick, ...restRowProps } = rowProps;
+            return (
+              <tr
+                key={getRowKey(row, index)}
+                className={`transition hover:bg-slate-50/70 ${rowOnClick ? "cursor-pointer" : ""} ${getRowClassName ? getRowClassName(row, index) : ""} ${rowClassName}`}
+                onClick={rowOnClick}
+                {...restRowProps}
+              >
+                {columns.map((column) => (
+                  <td
+                    key={column.key}
+                    style={column.width ? { width: column.width } : undefined}
+                    className={`${cellPadding} align-middle ${column.className ?? ""} ${column.align === "right" ? "text-right" : ""} ${
+                      column.sticky ? "sticky left-0 z-10 bg-white" : ""
+                    }`}
+                  >
+                    {column.render ? column.render(row, index) : row[column.key]}
+                  </td>
+                ))}
+              </tr>
+            );
+          })}
         </tbody>
         {footer ? <tfoot className="border-t border-border bg-slate-50">{footer}</tfoot> : null}
       </table>
