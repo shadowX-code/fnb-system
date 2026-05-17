@@ -2,6 +2,13 @@ import { supabase } from "../lib/supabase";
 import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
 
+const supplierSelect = "id,name,category,default_category_id,phone,remark,is_active,status,created_at,updated_at";
+const fallbackSupplierSelect = "id,name,category,default_category_id,is_active,status,created_at,updated_at";
+
+function isMissingOptionalSupplierField(error) {
+  return error?.code === "42703" && /suppliers\.(phone|remark)|column .*suppliers\.(phone|remark)|column .*phone|column .*remark/i.test(error.message ?? "");
+}
+
 function mapSupplier(supplier) {
   const isActive = supplier.is_active ?? supplier.status !== "inactive";
   return {
@@ -20,23 +27,46 @@ function mapSupplier(supplier) {
 
 export const supplierService = {
   async listSuppliers() {
-    const { data, error } = await supabase
+    const result = await supabase
       .from("suppliers")
-      .select("id,name,category,default_category_id,phone,remark,is_active,status,created_at,updated_at")
+      .select(supplierSelect)
       .order("name", { ascending: true });
 
+    if (isMissingOptionalSupplierField(result.error)) {
+      console.warn("[Supabase:suppliers.list] Optional phone/remark columns missing. Falling back until migration is applied.", result.error);
+      const { data, error } = await supabase
+        .from("suppliers")
+        .select(fallbackSupplierSelect)
+        .order("name", { ascending: true });
+      throwSupabaseError("suppliers.list_fallback", error);
+      return (data ?? []).map(mapSupplier);
+    }
+
+    const { data, error } = result;
     throwSupabaseError("suppliers.list", error);
 
     return (data ?? []).map(mapSupplier);
   },
 
   async listActiveSuppliers() {
-    const { data, error } = await supabase
+    const result = await supabase
       .from("suppliers")
-      .select("id,name,category,default_category_id,phone,remark,is_active,status,created_at,updated_at")
+      .select(supplierSelect)
       .eq("is_active", true)
       .order("name", { ascending: true });
 
+    if (isMissingOptionalSupplierField(result.error)) {
+      console.warn("[Supabase:suppliers.list_active] Optional phone/remark columns missing. Falling back until migration is applied.", result.error);
+      const { data, error } = await supabase
+        .from("suppliers")
+        .select(fallbackSupplierSelect)
+        .eq("is_active", true)
+        .order("name", { ascending: true });
+      throwSupabaseError("suppliers.list_active_fallback", error);
+      return (data ?? []).map(mapSupplier);
+    }
+
+    const { data, error } = result;
     throwSupabaseError("suppliers.list_active", error);
 
     return (data ?? []).map(mapSupplier);
@@ -54,15 +84,24 @@ export const supplierService = {
       updated_at: new Date().toISOString(),
     };
 
-    const query = supplier.id
-      ? supabase.from("suppliers").update(payload).eq("id", supplier.id)
-      : supabase.from("suppliers").insert(payload);
+    async function executeSave(savePayload, selectColumns, scope) {
+      const query = supplier.id
+        ? supabase.from("suppliers").update(savePayload).eq("id", supplier.id)
+        : supabase.from("suppliers").insert(savePayload);
+      const { data, error } = await query.select(selectColumns).single();
+      throwSupabaseError(scope, error);
+      return data;
+    }
 
-    const { data, error } = await query
-      .select("id,name,category,default_category_id,phone,remark,is_active,status,created_at,updated_at")
-      .single();
-
-    throwSupabaseError("suppliers.save", error);
+    let data;
+    try {
+      data = await executeSave(payload, supplierSelect, "suppliers.save");
+    } catch (error) {
+      if (!isMissingOptionalSupplierField(error.cause)) throw error;
+      console.warn("[Supabase:suppliers.save] Optional phone/remark columns missing. Saving base supplier fields until migration is applied.", error.cause);
+      const { phone: _phone, remark: _remark, ...fallbackPayload } = payload;
+      data = await executeSave(fallbackPayload, fallbackSupplierSelect, "suppliers.save_fallback");
+    }
 
     await auditLogService.createAuditLog({
       action: supplier.id ? "supplier_updated" : "supplier_created",
