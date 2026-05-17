@@ -10,6 +10,50 @@ function purchaseKey(record) {
   return `${record.outlet_id}|${record.year}|${record.month}|${record.supplier_id}|${record.category_id}`;
 }
 
+const purchaseRecordSelect = `
+  id,
+  outlet_id,
+  year,
+  month,
+  supplier_id,
+  category_id,
+  amount,
+  remark,
+  created_at,
+  updated_at,
+  supplier:suppliers(id,name),
+  category:purchase_categories(id,name)
+`;
+
+function purchasePayload(record) {
+  return {
+    outlet_id: record.outlet_id,
+    year: record.year,
+    month: record.month,
+    supplier_id: record.supplier_id,
+    category_id: record.category_id,
+    amount: Number(record.amount) || 0,
+    remark: record.remark ?? "",
+  };
+}
+
+function mapPurchaseRecord(record) {
+  return {
+    id: record.id,
+    outlet_id: record.outlet_id,
+    year: record.year,
+    month: record.month,
+    supplier_id: record.supplier_id,
+    supplier_name: record.supplier?.name ?? "",
+    category_id: record.category_id,
+    category_name: record.category?.name ?? "",
+    amount: record.amount,
+    remark: record.remark,
+    created_at: record.created_at,
+    updated_at: record.updated_at,
+  };
+}
+
 function getPeriodRange(records) {
   const periods = records
     .map((record) => ({ year: Number(record.year), month: Number(record.month) }))
@@ -92,13 +136,13 @@ export const importService = {
       if (!supplierIds.length) continue;
       const { data, error } = await supabase
         .from("purchase_records")
-        .select("id,outlet_id,year,month,supplier_id,supplier_name,category_id,category_name,amount,remark,created_at,updated_at")
+        .select(purchaseRecordSelect)
         .eq("outlet_id", outletId)
         .eq("year", Number(year))
         .eq("month", Number(month))
         .in("supplier_id", supplierIds);
       throwSupabaseError("imports.purchase_conflicts", error);
-      (data ?? []).forEach((record) => conflicts.set(purchaseKey(record), record));
+      (data ?? []).map(mapPurchaseRecord).forEach((record) => conflicts.set(purchaseKey(record), record));
     }
 
     return conflicts;
@@ -152,24 +196,25 @@ export const importService = {
 
     for (const record of records) {
       const existing = conflicts.get(purchaseKey(record));
+      const payload = purchasePayload(record);
       if (existing) {
         const { data, error } = await supabase
           .from("purchase_records")
-          .update({ ...record, updated_at: new Date().toISOString() })
+          .update({ ...payload, updated_at: new Date().toISOString() })
           .eq("id", existing.id)
-          .select("id,outlet_id,year,month,supplier_id,supplier_name,category_id,category_name,amount,remark,created_at,updated_at")
+          .select(purchaseRecordSelect)
           .single();
         throwSupabaseError("imports.purchase_update", error);
-        savedRows.push(data);
+        savedRows.push(mapPurchaseRecord(data));
         updatedCount += 1;
       } else {
         const { data, error } = await supabase
           .from("purchase_records")
-          .insert(record)
-          .select("id,outlet_id,year,month,supplier_id,supplier_name,category_id,category_name,amount,remark,created_at,updated_at")
+          .insert(payload)
+          .select(purchaseRecordSelect)
           .single();
         throwSupabaseError("imports.purchase_insert", error);
-        savedRows.push(data);
+        savedRows.push(mapPurchaseRecord(data));
         createdCount += 1;
       }
     }

@@ -2,31 +2,63 @@ import { supabase } from "../lib/supabase";
 import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
 
+const purchaseRecordSelect = `
+  id,
+  outlet_id,
+  year,
+  month,
+  supplier_id,
+  category_id,
+  amount,
+  remark,
+  created_at,
+  updated_at,
+  supplier:suppliers(id,name,default_category_id,category),
+  category:purchase_categories(id,name)
+`;
+
+function mapPurchaseRecord(record) {
+  return {
+    id: record.id,
+    outlet_id: record.outlet_id,
+    year: record.year,
+    month: record.month,
+    supplier_id: record.supplier_id,
+    category_id: record.category_id,
+    amount: record.amount,
+    remark: record.remark,
+    created_at: record.created_at,
+    updated_at: record.updated_at,
+    supplier_name: record.supplier?.name ?? "",
+    category_name: record.category?.name ?? record.supplier?.category ?? "",
+  };
+}
+
 export const purchaseRecordService = {
   async getPurchaseRecords(outletId, year, month) {
     const { data, error } = await supabase
       .from("purchase_records")
-      .select("id,outlet_id,year,month,supplier_id,supplier_name,category_id,category_name,amount,remark,created_at,updated_at")
+      .select(purchaseRecordSelect)
       .eq("outlet_id", outletId)
       .eq("year", year)
       .eq("month", month)
       .order("amount", { ascending: false });
 
     throwSupabaseError("purchase_records.list", error);
-    return data ?? [];
+    return (data ?? []).map(mapPurchaseRecord);
   },
 
   async getPurchaseRecordsForYear(outletId, year) {
     const { data, error } = await supabase
       .from("purchase_records")
-      .select("id,outlet_id,year,month,supplier_id,supplier_name,category_id,category_name,amount,remark,created_at,updated_at")
+      .select(purchaseRecordSelect)
       .eq("outlet_id", outletId)
       .eq("year", year)
       .order("month", { ascending: true })
       .order("amount", { ascending: false });
 
     throwSupabaseError("purchase_records.list_year", error);
-    return data ?? [];
+    return (data ?? []).map(mapPurchaseRecord);
   },
 
   async deletePurchaseRecords(outletId, year, month) {
@@ -57,8 +89,6 @@ export const purchaseRecordService = {
       month,
       supplier_id: record.supplier_id || null,
       category_id: record.category_id || null,
-      supplier_name: record.supplier_name || null,
-      category_name: record.category_name || null,
       amount: Number(record.amount) || 0,
       remark: record.remark ?? "",
     }));
@@ -73,19 +103,19 @@ export const purchaseRecordService = {
           .from("purchase_records")
           .update({ ...updatePayload, updated_at: new Date().toISOString() })
           .eq("id", id)
-          .select("id,outlet_id,year,month,supplier_id,supplier_name,category_id,category_name,amount,remark,created_at,updated_at")
+          .select(purchaseRecordSelect)
           .single();
         throwSupabaseError("purchase_records.update_row", error);
-        savedRows.push(data);
+        savedRows.push(mapPurchaseRecord(data));
       } else {
         const { id: _ignoredId, ...insertPayload } = row;
         const { data, error } = await supabase
           .from("purchase_records")
           .insert(insertPayload)
-          .select("id,outlet_id,year,month,supplier_id,supplier_name,category_id,category_name,amount,remark,created_at,updated_at")
+          .select(purchaseRecordSelect)
           .single();
         throwSupabaseError("purchase_records.insert_row", error);
-        savedRows.push(data);
+        savedRows.push(mapPurchaseRecord(data));
       }
     }
 
