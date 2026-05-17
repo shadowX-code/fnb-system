@@ -18,6 +18,7 @@ const monthAliases = {
 const salesFields = ["Ignore", "Outlet", "Month", "Year", "Dine In", "FoodPanda", "GrabFood", "ShopeeFood", "Takeaway"];
 const purchaseFields = ["Ignore", "Outlet", "Month", "Year", "Supplier", "Category", "Amount", "Remark"];
 const salesImportChannels = ["Dine In", "FoodPanda", "GrabFood", "ShopeeFood", "Takeaway"];
+const highAmountThreshold = 1_000_000;
 
 function normalize(value) {
   return String(value ?? "").trim();
@@ -37,6 +38,7 @@ function parseMonth(value) {
 function parseAmount(value) {
   const cleaned = normalize(value).replace(/,/g, "");
   if (cleaned === "") return 0;
+  if (!/^-?\d+(\.\d{1,2})?$/.test(cleaned)) return null;
   const amount = Number(cleaned);
   return Number.isFinite(amount) ? amount : null;
 }
@@ -210,6 +212,52 @@ function buildErrorReport(failures) {
   return ["Row,Status,Detail", ...failures.map((item) => `${item.row},"${item.severity}","${item.message.replace(/"/g, '""')}"`)].join("\n");
 }
 
+function csvCell(value) {
+  return `"${String(value ?? "").replace(/"/g, '""')}"`;
+}
+
+function buildImportReport(preview) {
+  const rows = [
+    ["Row", "Status", "Action", "Record", "Amount", "Detail"],
+    ...preview.validationRows.map((row) => [
+      row.sourceRow,
+      "valid",
+      row.action,
+      row.channel_name || `${row.supplier_name} / ${row.category_name}`,
+      row.amount,
+      row.message,
+    ]),
+    ...(preview.skippedRows ?? []).map((row) => [row.row, "skipped", "skip", "", "", row.message]),
+    ...preview.warnings.map((row) => [row.row, "warning", "", "", "", row.message]),
+    ...preview.failures.map((row) => [row.row, "failed", "failed", "", "", row.message]),
+  ];
+  return rows.map((row) => row.map(csvCell).join(",")).join("\n");
+}
+
+function importRecordKey(importType, record) {
+  return importType === "Sales"
+    ? `${record.outlet_id}|${record.year}|${record.month}|${record.channel_id}`
+    : `${record.outlet_id}|${record.year}|${record.month}|${record.supplier_id}|${record.category_id}`;
+}
+
+function collapseDuplicateRows(importType, records) {
+  const byKey = new Map();
+  const warnings = [];
+  records.forEach((record) => {
+    const key = importRecordKey(importType, record);
+    const existing = byKey.get(key);
+    if (existing) {
+      warnings.push({
+        row: record.sourceRow,
+        severity: "warning",
+        message: `Duplicate import key. Row ${record.sourceRow} will replace row ${existing.sourceRow} in this import preview.`,
+      });
+    }
+    byKey.set(key, record);
+  });
+  return { records: [...byKey.values()], duplicateWarnings: warnings };
+}
+
 function downloadTextFile(filename, text) {
   const blob = new Blob([text], { type: "text/csv;charset=utf-8" });
   const url = URL.createObjectURL(blob);
@@ -218,6 +266,15 @@ function downloadTextFile(filename, text) {
   link.download = filename;
   link.click();
   URL.revokeObjectURL(url);
+}
+
+function withTimeout(promise, label, timeoutMs = 15000) {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => {
+      window.setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s. Please try again or check Supabase connectivity.`)), timeoutMs);
+    }),
+  ]);
 }
 
 export default function DataImportPage({ store, setStore, ui }) {
@@ -232,6 +289,10 @@ export default function DataImportPage({ store, setStore, ui }) {
   const [supplierResolutions, setSupplierResolutions] = useState({});
   const [recentImports, setRecentImports] = useState([]);
   const [isImporting, setIsImporting] = useState(false);
+  const [validationState, setValidationState] = useState({ loading: false, message: "", error: "" });
+  const [importSummary, setImportSummary] = useState(null);
+  const [dryRun, setDryRun] = useState(false);
+  const [confirmImport, setConfirmImport] = useState(false);
 
   useEffect(() => {
     importService.listImportBatches()
@@ -260,13 +321,30 @@ export default function DataImportPage({ store, setStore, ui }) {
     }
     try {
       const result = extension === "csv" ? parseCsv(await file.text()) : await parseXlsx(file);
+      if (!result.headers.length) {
+        throw new Error("Malformed header row. The file must include column headers.");
+      }
+      if (result.headers.some((header) => !header)) {
+        throw new Error("Malformed header row. Empty column names are not supported.");
+      }
+      const normalizedHeaders = result.headers.map(canonical);
+      if (new Set(normalizedHeaders).size !== normalizedHeaders.length) {
+        throw new Error("Malformed header row. Duplicate column names are not supported.");
+      }
+      if (!result.rows.length) {
+        throw new Error("Empty file detected. Add at least one data row before importing.");
+      }
       const detected = autoDetect(result.headers, importType);
+      console.info("[Import:file] parsed", { file: file.name, importType, headers: result.headers, rows: result.rows.length, detected });
       setFileMeta({ name: file.name, extension });
       setParsed(result);
       setMappings(detected);
       setPreview(null);
       setUnknownSuppliers([]);
       setSupplierResolutions({});
+      setValidationState({ loading: false, message: "", error: "" });
+      setImportSummary(null);
+      setConfirmImport(false);
       setStep("mapping");
     } catch (error) {
       console.error("Unable to parse import file", error);
@@ -299,6 +377,9 @@ export default function DataImportPage({ store, setStore, ui }) {
         if (!channel) rowIssues.push(`Sales channel missing: ${channelName}`);
         if (amount === null) rowIssues.push(`Invalid number in ${channelName}`);
         if (amount !== null && amount < 0) rowIssues.push(`Negative sales value in ${channelName}`);
+        if (amount !== null && amount > highAmountThreshold) {
+          issues.push({ row: row.__row, severity: "warning", message: `${channelName} amount is unusually high. Review before importing.` });
+        }
       });
 
       if (rowIssues.length) {
@@ -316,6 +397,7 @@ export default function DataImportPage({ store, setStore, ui }) {
           outlet_id: outlet.id,
           outletName: outlet.name,
           outletCode: outlet.code,
+          rawRow: row,
           year,
           month,
           channel_id: channel.id,
@@ -328,10 +410,11 @@ export default function DataImportPage({ store, setStore, ui }) {
     return { records, issues };
   }
 
-  function buildPurchaseRecords(createdSupplierMap = {}) {
+  function buildPurchaseRecords(createdSupplierMap = {}, options = {}) {
     const records = [];
     const issues = [];
     const unknowns = new Map();
+    const skippedRows = [];
     const required = ["Outlet", "Month", "Year", "Supplier", "Category", "Amount"];
     required.filter((field) => !Object.values(mappings).includes(field)).forEach((field) => {
       issues.push({ row: "-", severity: "error", message: `Missing required column: ${field}` });
@@ -358,24 +441,39 @@ export default function DataImportPage({ store, setStore, ui }) {
         const current = unknowns.get(supplierName) ?? { name: supplierName, rows: [] };
         unknowns.set(supplierName, { ...current, rows: [...current.rows, row.__row] });
       }
-      if (resolution?.action === "skip") return;
+      if (resolution?.action === "skip") {
+        skippedRows.push({ row: row.__row, severity: "skipped", message: `Skipped unknown supplier: ${supplierName}` });
+        return;
+      }
       if (!supplier && resolution?.action === "map" && !resolution.supplier_id) rowIssues.push("Unresolved supplier mapping");
       if (!supplier && resolution?.action === "create" && !resolution.category_id) rowIssues.push("New supplier category required");
       if (!category) rowIssues.push("Unknown category");
       if (amount === null) rowIssues.push("Invalid number format");
       if (amount !== null && amount < 0) rowIssues.push("Negative purchase value");
+      if (amount !== null && amount > highAmountThreshold) {
+        issues.push({ row: row.__row, severity: "warning", message: "Purchase amount is unusually high. Review before importing." });
+      }
 
       if (rowIssues.length) {
         issues.push({ row: row.__row, severity: "error", message: rowIssues.join("; ") });
         return;
       }
 
-      const finalSupplier = supplier || store.suppliers.find((item) => item.id === resolution?.supplier_id) || createdSupplierMap[supplierName];
+      const finalSupplier = supplier || store.suppliers.find((item) => item.id === resolution?.supplier_id) || createdSupplierMap[supplierName] || (
+        options.allowPendingCreate && resolution?.action === "create"
+          ? { id: `__new__:${supplierName}`, name: supplierName }
+          : null
+      );
+      if (!finalSupplier) {
+        issues.push({ row: row.__row, severity: "error", message: "Supplier resolution failed" });
+        return;
+      }
       records.push({
         sourceRow: row.__row,
         outlet_id: outlet.id,
         outletName: outlet.name,
         outletCode: outlet.code,
+        rawRow: row,
         year,
         month,
         supplier_id: finalSupplier.id,
@@ -386,7 +484,7 @@ export default function DataImportPage({ store, setStore, ui }) {
         remark: mappedValue(row, mappings, "Remark") || "",
       });
     });
-    return { records, issues, unknownSuppliers: [...unknowns.values()] };
+    return { records, issues, skippedRows, unknownSuppliers: [...unknowns.values()] };
   }
 
   function describeConflict(record, existing) {
@@ -397,21 +495,41 @@ export default function DataImportPage({ store, setStore, ui }) {
   }
 
   async function validateImport() {
+    console.info("[Import:validate] clicked", { importType, rows: parsed.rows.length, mappings });
     setPreview(null);
-    const base = importType === "Sales" ? buildSalesRecords() : buildPurchaseRecords();
-    if (importType === "Purchases" && base.unknownSuppliers?.length) {
-      setUnknownSuppliers(base.unknownSuppliers);
-      setStep("unknown-suppliers");
-      return;
+    setValidationState({ loading: true, message: "Validating file rows...", error: "" });
+    try {
+      const base = importType === "Sales" ? buildSalesRecords() : buildPurchaseRecords({}, { allowPendingCreate: false });
+      console.info("[Import:validate] built records", {
+        records: base.records.length,
+        issues: base.issues.length,
+        unknownSuppliers: base.unknownSuppliers?.length ?? 0,
+      });
+      if (importType === "Purchases" && base.unknownSuppliers?.length) {
+        setValidationState({ loading: false, message: "", error: "" });
+        setUnknownSuppliers(base.unknownSuppliers);
+        setStep("unknown-suppliers");
+        console.info("[Import:validate] moved to unknown supplier review", base.unknownSuppliers);
+        return;
+      }
+      await withTimeout(buildPreview(base.records, base.issues, base.skippedRows ?? []), "Import validation");
+    } catch (error) {
+      console.error("[Import:validate] failed", error);
+      setValidationState({ loading: false, message: "", error: error.message });
+      ui.notify({ title: "Unable to validate import", message: error.message, tone: "error" });
     }
-    await buildPreview(base.records, base.issues);
   }
 
-  async function buildPreview(records, issues) {
+  async function buildPreview(records, issues, skippedRows = []) {
     try {
+      const deduped = collapseDuplicateRows(importType, records);
+      records = deduped.records;
+      setValidationState({ loading: true, message: "Detecting existing Supabase records...", error: "" });
+      console.info("[Import:preview] conflict detection start", { importType, records: records.length, issues: issues.length, skippedRows: skippedRows.length, duplicateWarnings: deduped.duplicateWarnings.length });
       const conflicts = importType === "Sales"
         ? await importService.detectSalesConflicts(records)
         : await importService.detectPurchaseConflicts(records);
+      console.info("[Import:preview] conflicts detected", { count: conflicts.size });
       const validationRows = records.map((record) => {
         const key = importType === "Sales"
           ? `${record.outlet_id}|${record.year}|${record.month}|${record.channel_id}`
@@ -423,31 +541,71 @@ export default function DataImportPage({ store, setStore, ui }) {
           message: existing ? describeConflict(record, existing) : "New record will be created.",
         };
       });
-      const warnings = validationRows.filter((row) => row.action === "update").map((row) => ({ row: row.sourceRow, severity: "warning", message: row.message }));
+      const warnings = [
+        ...issues.filter((item) => item.severity === "warning"),
+        ...deduped.duplicateWarnings,
+        ...validationRows.filter((row) => row.action === "update").map((row) => ({ row: row.sourceRow, severity: "warning", message: row.message })),
+      ];
       setPreview({
         records,
         validationRows,
         conflicts,
         failures: issues.filter((item) => item.severity === "error"),
         warnings,
+        skippedRows,
         createCount: validationRows.filter((row) => row.action === "create").length,
         updateCount: validationRows.filter((row) => row.action === "update").length,
         affectedRange: affectedRange(records),
       });
+      console.info("[Import:preview] generated", {
+        create: validationRows.filter((row) => row.action === "create").length,
+        update: validationRows.filter((row) => row.action === "update").length,
+        failed: issues.filter((item) => item.severity === "error").length,
+        warnings: warnings.length,
+      });
+      setValidationState({ loading: false, message: "", error: "" });
       setStep("preview");
     } catch (error) {
-      console.error("Unable to validate import against Supabase", error);
+      console.error("[Import:preview] failed", error);
+      setValidationState({ loading: false, message: "", error: error.message });
       ui.notify({ title: "Unable to validate import", message: error.message, tone: "error" });
+      throw error;
     }
   }
 
   async function continueFromUnknownSuppliers() {
-    if (unresolvedUnknownSuppliers.length) return;
-    await buildPreview(buildPurchaseRecords().records, buildPurchaseRecords().issues);
+    console.info("[Import:unknownSuppliers] continue", { unresolved: unresolvedUnknownSuppliers.length, resolutions: supplierResolutions });
+    if (unresolvedUnknownSuppliers.length) {
+      ui.notify({ title: "Resolve unknown suppliers first", message: `${unresolvedUnknownSuppliers.length} supplier resolutions are incomplete.`, tone: "error" });
+      return;
+    }
+    setValidationState({ loading: true, message: "Resolving suppliers and generating preview...", error: "" });
+    try {
+      const rebuilt = buildPurchaseRecords({}, { allowPendingCreate: true });
+      console.info("[Import:unknownSuppliers] rebuilt records", { records: rebuilt.records.length, issues: rebuilt.issues.length, skippedRows: rebuilt.skippedRows.length });
+      await withTimeout(buildPreview(rebuilt.records, rebuilt.issues, rebuilt.skippedRows), "Supplier resolution preview");
+    } catch (error) {
+      console.error("[Import:unknownSuppliers] failed", error);
+      setValidationState({ loading: false, message: "", error: error.message });
+      ui.notify({ title: "Unable to generate preview", message: error.message, tone: "error" });
+    }
   }
 
   async function runImport() {
     if (!preview || preview.failures.length) return;
+    if (dryRun) {
+      setConfirmImport(false);
+      setImportSummary({
+        created: preview.createCount,
+        updated: preview.updateCount,
+        skipped: preview.skippedRows?.length ?? 0,
+        failed: preview.failures.length,
+        migrationWarning: "Dry run only. No Supabase records were created or updated.",
+        report: buildImportReport(preview),
+      });
+      ui.notify({ title: "Dry run complete", message: `${preview.createCount} create · ${preview.updateCount} update simulated.` });
+      return;
+    }
     setIsImporting(true);
     try {
       let createdSupplierMap = {};
@@ -480,16 +638,18 @@ export default function DataImportPage({ store, setStore, ui }) {
       const result = importType === "Sales"
         ? await importService.importSales({
             fileName: fileMeta?.name || "sales-import.csv",
-            records: finalRecords.map(({ sourceRow, outletName, outletCode, action, message, ...record }) => record),
+            records: finalRecords,
             conflicts: finalConflicts,
-            failedCount: preview.failures.length,
+            failedRows: preview.failures,
+            skippedRows: preview.skippedRows ?? [],
             warningCount: preview.warnings.length,
           })
         : await importService.importPurchases({
             fileName: fileMeta?.name || "purchase-import.csv",
-            records: finalRecords.map(({ sourceRow, outletName, outletCode, action, message, ...record }) => record),
+            records: finalRecords,
             conflicts: finalConflicts,
-            failedCount: preview.failures.length,
+            failedRows: preview.failures,
+            skippedRows: preview.skippedRows ?? [],
             warningCount: preview.warnings.length,
           });
 
@@ -505,6 +665,15 @@ export default function DataImportPage({ store, setStore, ui }) {
         };
       });
       setRecentImports((current) => [result.batch, ...current]);
+      setImportSummary({
+        created: result.createdCount,
+        updated: result.updatedCount,
+        skipped: preview.skippedRows?.length ?? 0,
+        failed: preview.failures.length,
+        migrationWarning: result.batch?.migration_warning ?? "",
+        report: buildImportReport(preview),
+      });
+      setConfirmImport(false);
       setStep("upload");
       setPreview(null);
       setParsed({ headers: [], rows: [] });
@@ -515,6 +684,7 @@ export default function DataImportPage({ store, setStore, ui }) {
       console.error("Unable to import records", error);
       ui.notify({ title: "Import failed", message: error.message, tone: "error" });
     } finally {
+      setConfirmImport(false);
       setIsImporting(false);
     }
   }
@@ -537,6 +707,7 @@ export default function DataImportPage({ store, setStore, ui }) {
   const batchColumns = [
     { key: "source_filename", header: "File" },
     { key: "import_type", header: "Type", render: (row) => <Badge tone="info">{row.import_type}</Badge> },
+    { key: "status", header: "Status", render: (row) => <Badge tone={row.status === "failed" ? "danger" : row.status === "partial_failed" ? "warning" : row.status === "completed" ? "success" : "info"}>{row.status || "completed"}</Badge> },
     { key: "total_rows", header: "Rows", align: "right" },
     { key: "created_count", header: "Created", align: "right" },
     { key: "updated_count", header: "Updated", align: "right" },
@@ -561,6 +732,13 @@ export default function DataImportPage({ store, setStore, ui }) {
                 <button key={type} className={`h-9 rounded-xl px-4 text-sm font-semibold ${importType === type ? "bg-primary text-white" : "bg-white text-text-secondary ring-1 ring-border hover:bg-slate-50"}`} type="button" onClick={() => setImportType(type)}>{type}</button>
               ))}
               <Badge tone="info">Step: {step}</Badge>
+              <button
+                type="button"
+                className={`h-9 rounded-xl px-3 text-xs font-bold ring-1 transition ${dryRun ? "bg-primary-soft text-primary ring-primary/30" : "bg-white text-text-secondary ring-border hover:bg-slate-50"}`}
+                onClick={() => setDryRun((current) => !current)}
+              >
+                Dry Run Mode: {dryRun ? "On" : "Off"}
+              </button>
             </div>
 
             {step === "upload" ? (
@@ -593,9 +771,21 @@ export default function DataImportPage({ store, setStore, ui }) {
                     </tbody>
                   </table>
                 </div>
+                {validationState.error ? (
+                  <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">
+                    {validationState.error}
+                  </div>
+                ) : null}
+                {validationState.loading ? (
+                  <div className="rounded-2xl border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-800">
+                    {validationState.message || "Validating..."}
+                  </div>
+                ) : null}
                 <div className="flex justify-end gap-2">
                   <button className="btn-secondary" type="button" onClick={() => setStep("upload")}>Cancel</button>
-                  <button className="btn-primary" type="button" onClick={validateImport}>Validate Against Supabase</button>
+                  <button className="btn-primary" type="button" disabled={validationState.loading} onClick={validateImport}>
+                    {validationState.loading ? "Validating..." : "Validate Against Supabase"}
+                  </button>
                 </div>
               </div>
             ) : null}
@@ -626,9 +816,21 @@ export default function DataImportPage({ store, setStore, ui }) {
                     </div>
                   );
                 })}
+                {validationState.error ? (
+                  <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">
+                    {validationState.error}
+                  </div>
+                ) : null}
+                {validationState.loading ? (
+                  <div className="rounded-2xl border border-blue-200 bg-blue-50 p-3 text-sm font-semibold text-blue-800">
+                    {validationState.message || "Resolving suppliers..."}
+                  </div>
+                ) : null}
                 <div className="flex justify-end gap-2">
                   <button className="btn-secondary" type="button" onClick={() => setStep("mapping")}>Back</button>
-                  <button className="btn-primary" type="button" disabled={unresolvedUnknownSuppliers.length > 0} onClick={continueFromUnknownSuppliers}>Continue to Preview</button>
+                  <button className="btn-primary" type="button" disabled={validationState.loading || unresolvedUnknownSuppliers.length > 0} onClick={continueFromUnknownSuppliers}>
+                    {validationState.loading ? "Generating preview..." : "Continue to Preview"}
+                  </button>
                 </div>
               </div>
             ) : null}
@@ -640,8 +842,17 @@ export default function DataImportPage({ store, setStore, ui }) {
                   <div className="rounded-xl border border-border p-3"><div className="text-xs text-text-secondary">Create</div><div className="text-xl font-bold text-emerald-700">{preview.createCount}</div></div>
                   <div className="rounded-xl border border-border p-3"><div className="text-xs text-text-secondary">Update</div><div className="text-xl font-bold text-amber-700">{preview.updateCount}</div></div>
                   <div className="rounded-xl border border-border p-3"><div className="text-xs text-text-secondary">Failed</div><div className="text-xl font-bold text-rose-700">{preview.failures.length}</div></div>
-                  <div className="rounded-xl border border-border p-3"><div className="text-xs text-text-secondary">Affected Range</div><div className="text-sm font-bold">{preview.affectedRange}</div></div>
+                  <div className="rounded-xl border border-border p-3"><div className="text-xs text-text-secondary">Warnings</div><div className="text-xl font-bold text-blue-700">{preview.warnings.length}</div></div>
                 </div>
+                <div className="rounded-xl border border-border bg-slate-50 px-3 py-2 text-xs font-semibold text-text-secondary">
+                  Affected range: {preview.affectedRange} · Skipped rows: {preview.skippedRows?.length ?? 0}
+                </div>
+                {!preview.validationRows.length ? (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                    <div className="font-bold">No valid rows to import</div>
+                    <p className="mt-1 text-xs">Fix failed rows, resolve suppliers, or check column mappings before continuing.</p>
+                  </div>
+                ) : null}
                 {preview.warnings.length ? (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
                     <div className="flex items-center gap-2 font-bold"><AlertTriangle size={15} /> Records that will update existing Supabase rows</div>
@@ -655,11 +866,14 @@ export default function DataImportPage({ store, setStore, ui }) {
                     <button className="btn-secondary mt-3 h-8 text-xs" type="button" onClick={() => downloadTextFile("Import_Error_Report.csv", buildErrorReport(preview.failures))}>Download error report</button>
                   </div>
                 ) : null}
-                <DataTable columns={previewColumns} rows={preview.validationRows.slice(0, 100)} getRowKey={(row) => `${row.sourceRow}-${row.record}-${row.action}`} />
+                <DataTable columns={previewColumns} rows={preview.validationRows.slice(0, 100)} getRowKey={(row) => `${row.sourceRow}-${row.channel_id || row.supplier_id}-${row.category_id || ""}-${row.action}`} />
                 <div className="flex justify-end gap-2">
+                  <button className="btn-secondary" type="button" onClick={() => downloadTextFile(`${importType}_Import_Report.csv`, buildImportReport(preview))}>
+                    <Download size={15} /> Download report
+                  </button>
                   <button className="btn-secondary" type="button" onClick={() => setStep("upload")}>Cancel</button>
-                  <button className="btn-primary" type="button" disabled={isImporting || preview.failures.length > 0} onClick={runImport}>
-                    {isImporting ? "Importing..." : <><CheckCircle2 size={16} /> Continue Import</>}
+                  <button className="btn-primary" type="button" disabled={isImporting || preview.failures.length > 0 || !preview.validationRows.length} onClick={() => setConfirmImport(true)}>
+                    {isImporting ? "Importing..." : <><CheckCircle2 size={16} /> {dryRun ? "Complete Dry Run" : "Continue Import"}</>}
                   </button>
                 </div>
               </div>
@@ -680,6 +894,67 @@ export default function DataImportPage({ store, setStore, ui }) {
           <DataTable columns={batchColumns} rows={recentImports} getRowKey={(row) => row.id} />
         </Card>
       </div>
+
+      {confirmImport && preview ? (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/40 px-4">
+          <div className="w-full max-w-lg rounded-3xl border border-border bg-surface p-5 shadow-2xl">
+            <div className="text-lg font-bold text-text-primary">
+              {dryRun ? "Complete dry run?" : "Confirm import to Supabase"}
+            </div>
+            <p className="mt-2 text-sm text-text-secondary">
+              {dryRun
+                ? "Dry Run Mode is on. No records will be written."
+                : `You are about to update ${preview.updateCount} existing rows and create ${preview.createCount} new rows.`}
+            </p>
+            {!dryRun && preview.updateCount > 0 ? (
+              <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+                <div className="font-bold">Existing records will be overwritten</div>
+                <p className="mt-1 text-xs">Matching rows use the imported value as the source of truth. This cannot be undone from this screen; use the import report and audit log for review.</p>
+              </div>
+            ) : null}
+            <div className="mt-4 grid grid-cols-3 gap-3 text-sm">
+              <div className="rounded-2xl border border-border p-3"><div className="text-xs text-text-secondary">Create</div><div className="text-xl font-bold text-emerald-700">{preview.createCount}</div></div>
+              <div className="rounded-2xl border border-border p-3"><div className="text-xs text-text-secondary">Update</div><div className="text-xl font-bold text-amber-700">{preview.updateCount}</div></div>
+              <div className="rounded-2xl border border-border p-3"><div className="text-xs text-text-secondary">Skipped</div><div className="text-xl font-bold text-text-secondary">{preview.skippedRows?.length ?? 0}</div></div>
+            </div>
+            <div className="mt-5 flex justify-end gap-2">
+              <button className="btn-secondary" type="button" disabled={isImporting} onClick={() => setConfirmImport(false)}>Cancel</button>
+              <button className="btn-primary" type="button" disabled={isImporting} onClick={runImport}>
+                {isImporting ? "Importing..." : dryRun ? "Complete Dry Run" : "Confirm Import"}
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {importSummary ? (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/40 px-4">
+          <div className="w-full max-w-md rounded-3xl border border-border bg-surface p-5 shadow-2xl">
+            <div className="flex items-center gap-2 text-lg font-bold text-text-primary">
+              <CheckCircle2 className="text-emerald-600" size={20} /> Import complete
+            </div>
+            <div className="mt-4 grid grid-cols-2 gap-3 text-sm">
+              <div className="rounded-2xl border border-border p-3"><div className="text-xs text-text-secondary">Created</div><div className="text-xl font-bold text-emerald-700">{importSummary.created}</div></div>
+              <div className="rounded-2xl border border-border p-3"><div className="text-xs text-text-secondary">Updated</div><div className="text-xl font-bold text-amber-700">{importSummary.updated}</div></div>
+              <div className="rounded-2xl border border-border p-3"><div className="text-xs text-text-secondary">Skipped</div><div className="text-xl font-bold text-text-secondary">{importSummary.skipped}</div></div>
+              <div className="rounded-2xl border border-border p-3"><div className="text-xs text-text-secondary">Failed</div><div className="text-xl font-bold text-rose-700">{importSummary.failed}</div></div>
+            </div>
+            {importSummary.migrationWarning ? (
+              <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800">
+                {importSummary.migrationWarning}
+              </div>
+            ) : null}
+            <div className="mt-4 flex justify-end">
+              {importSummary.report ? (
+                <button className="btn-secondary mr-2" type="button" onClick={() => downloadTextFile(`${importType}_Import_Report.csv`, importSummary.report)}>
+                  <Download size={15} /> Download report
+                </button>
+              ) : null}
+              <button className="btn-primary" type="button" onClick={() => setImportSummary(null)}>Done</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

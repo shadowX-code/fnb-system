@@ -25,15 +25,51 @@ const purchaseRecordSelect = `
   category:purchase_categories(id,name)
 `;
 
+const importBatchSelect = `
+  id,
+  import_type,
+  outlet_id,
+  year,
+  month_start,
+  month_end,
+  source_filename,
+  total_rows,
+  created_count,
+  updated_count,
+  failed_count,
+  warning_count,
+  status,
+  created_by,
+  imported_by,
+  imported_at,
+  completed_at,
+  failure_reason,
+  created_at
+`;
+
+function salesPayload(record) {
+  return {
+    outlet_id: record.outlet_id,
+    year: Number(record.year),
+    month: Number(record.month),
+    channel_id: record.channel_id,
+    channel_name: record.channel_name,
+    amount: Number(record.amount) || 0,
+    remark: record.remark ?? "",
+    updated_at: new Date().toISOString(),
+  };
+}
+
 function purchasePayload(record) {
   return {
     outlet_id: record.outlet_id,
-    year: record.year,
-    month: record.month,
+    year: Number(record.year),
+    month: Number(record.month),
     supplier_id: record.supplier_id,
     category_id: record.category_id,
     amount: Number(record.amount) || 0,
     remark: record.remark ?? "",
+    updated_at: new Date().toISOString(),
   };
 }
 
@@ -66,7 +102,15 @@ function getPeriodRange(records) {
   };
 }
 
-async function createImportBatch({ importType, fileName, records, createdCount, updatedCount, failedCount, warningCount }) {
+function isMissingImportInfrastructure(error) {
+  return error?.code === "42P01" || error?.code === "42703";
+}
+
+function isLocalBatch(batch) {
+  return String(batch?.id ?? "").startsWith("local-");
+}
+
+async function createImportBatch({ importType, fileName, records, createdCount, updatedCount, failedCount, warningCount, status = "pending" }) {
   const range = getPeriodRange(records);
   const outletIds = [...new Set(records.map((record) => record.outlet_id).filter(Boolean))];
   const payload = {
@@ -81,153 +125,309 @@ async function createImportBatch({ importType, fileName, records, createdCount, 
     updated_count: updatedCount,
     failed_count: failedCount,
     warning_count: warningCount,
+    status,
+    imported_at: null,
+    completed_at: null,
   };
   const { data, error } = await supabase
     .from("import_batches")
     .insert(payload)
-    .select("id,import_type,outlet_id,year,month_start,month_end,source_filename,total_rows,created_count,updated_count,failed_count,warning_count,created_by,created_at")
+    .select(importBatchSelect)
     .single();
+
+  if (isMissingImportInfrastructure(error)) {
+    console.warn("[Supabase:import_batches.insert] import batch schema is missing or outdated. Import will continue without persisted batch history.", error);
+    return {
+      id: `local-${Date.now()}`,
+      ...payload,
+      created_by: null,
+      created_at: new Date().toISOString(),
+      migration_warning: "Import batch schema is missing or outdated. Apply migration 202605180001_import_integrity_safety.sql.",
+    };
+  }
 
   throwSupabaseError("import_batches.insert", error);
   return data;
+}
+
+async function updateImportBatch(batch, patch) {
+  if (!batch?.id || isLocalBatch(batch)) return { ...batch, ...patch };
+  const { data, error } = await supabase
+    .from("import_batches")
+    .update(patch)
+    .eq("id", batch.id)
+    .select(importBatchSelect)
+    .single();
+
+  if (isMissingImportInfrastructure(error)) {
+    console.warn("[Supabase:import_batches.update] import batch schema is missing or outdated. Import will continue without persisted batch status.", error);
+    return { ...batch, ...patch };
+  }
+
+  throwSupabaseError("import_batches.update", error);
+  return data;
+}
+
+async function insertImportBatchRows(batch, rows) {
+  if (!batch?.id || isLocalBatch(batch) || !rows.length) return;
+  const payload = rows.map((row) => ({
+    batch_id: batch.id,
+    source_row: Number.isFinite(Number(row.source_row)) ? Number(row.source_row) : null,
+    raw_row: row.raw_row ?? null,
+    action: row.action,
+    validation_result: row.validation_result,
+    imported_record_id: row.imported_record_id ?? null,
+    failure_reason: row.failure_reason ?? null,
+  }));
+  const { error } = await supabase.from("import_batch_rows").insert(payload);
+  if (isMissingImportInfrastructure(error)) {
+    console.warn("[Supabase:import_batch_rows.insert] import_batch_rows table is missing. Apply Sprint 4C migration to persist row-level import reports.", error);
+    return;
+  }
+  throwSupabaseError("import_batch_rows.insert", error);
+}
+
+function buildRowDetails({ batch, records, savedRows, conflicts, keyFn, skippedRows = [], failedRows = [] }) {
+  const savedByKey = new Map(savedRows.map((row) => [keyFn(row), row]));
+  const importedRows = records.map((record) => {
+    const key = keyFn(record);
+    const saved = savedByKey.get(key);
+    return {
+      batch_id: batch.id,
+      source_row: record.sourceRow,
+      raw_row: record.rawRow ?? record,
+      action: conflicts.has(key) ? "update" : "create",
+      validation_result: saved ? "success" : "failed",
+      imported_record_id: saved?.id ?? null,
+      failure_reason: saved ? null : "Imported record was not returned by post-import verification.",
+    };
+  });
+  const skipped = skippedRows.map((row) => ({
+    batch_id: batch.id,
+    source_row: row.row,
+    raw_row: row.rawRow ?? null,
+    action: "skip",
+    validation_result: "skipped",
+    failure_reason: row.message ?? "Skipped during import preview.",
+  }));
+  const failed = failedRows.map((row) => ({
+    batch_id: batch.id,
+    source_row: row.row,
+    raw_row: row.rawRow ?? null,
+    action: "failed",
+    validation_result: "failed",
+    failure_reason: row.message ?? "Validation failed.",
+  }));
+  return [...importedRows, ...skipped, ...failed];
+}
+
+function verifySavedRows(records, savedRows, keyFn) {
+  const savedKeys = new Set(savedRows.map(keyFn));
+  const missingKeys = records.filter((record) => !savedKeys.has(keyFn(record)));
+  if (missingKeys.length) {
+    throw new Error(`Post-import verification failed for ${missingKeys.length} row(s). No partial silent success was recorded.`);
+  }
+}
+
+async function detectSalesConflictsForRecords(records) {
+  const conflicts = new Map();
+  const periods = [...new Set(records.map((record) => `${record.outlet_id}|${record.year}|${record.month}`))];
+
+  for (const period of periods) {
+    const [outletId, year, month] = period.split("|");
+    const channelIds = [...new Set(records.filter((record) => record.outlet_id === outletId && String(record.year) === year && String(record.month) === month).map((record) => record.channel_id))];
+    if (!channelIds.length) continue;
+    const { data, error } = await supabase
+      .from("sales_records")
+      .select("id,outlet_id,year,month,channel_id,channel_name,amount,remark,created_at,updated_at")
+      .eq("outlet_id", outletId)
+      .eq("year", Number(year))
+      .eq("month", Number(month))
+      .in("channel_id", channelIds);
+    throwSupabaseError("imports.sales_conflicts", error);
+    (data ?? []).forEach((record) => conflicts.set(salesKey(record), record));
+  }
+
+  return conflicts;
+}
+
+async function detectPurchaseConflictsForRecords(records) {
+  const conflicts = new Map();
+  const recordsWithSupplierIds = records.filter((record) => record.supplier_id && !String(record.supplier_id).startsWith("__new__:"));
+  const periods = [...new Set(recordsWithSupplierIds.map((record) => `${record.outlet_id}|${record.year}|${record.month}`))];
+
+  for (const period of periods) {
+    const [outletId, year, month] = period.split("|");
+    const supplierIds = [...new Set(recordsWithSupplierIds.filter((record) => record.outlet_id === outletId && String(record.year) === year && String(record.month) === month).map((record) => record.supplier_id))];
+    if (!supplierIds.length) continue;
+    const { data, error } = await supabase
+      .from("purchase_records")
+      .select(purchaseRecordSelect)
+      .eq("outlet_id", outletId)
+      .eq("year", Number(year))
+      .eq("month", Number(month))
+      .in("supplier_id", supplierIds);
+    throwSupabaseError("imports.purchase_conflicts", error);
+    (data ?? []).map(mapPurchaseRecord).forEach((record) => conflicts.set(purchaseKey(record), record));
+  }
+
+  return conflicts;
 }
 
 export const importService = {
   async listImportBatches() {
     const { data, error } = await supabase
       .from("import_batches")
-      .select("id,import_type,outlet_id,year,month_start,month_end,source_filename,total_rows,created_count,updated_count,failed_count,warning_count,created_by,created_at")
+      .select(importBatchSelect)
       .order("created_at", { ascending: false })
       .limit(50);
+
+    if (isMissingImportInfrastructure(error)) {
+      console.warn("[Supabase:import_batches.list] import batch schema is missing or outdated. Apply import batch migration to enable import history.", error);
+      return [];
+    }
 
     throwSupabaseError("import_batches.list", error);
     return data ?? [];
   },
 
   async detectSalesConflicts(records) {
-    const conflicts = new Map();
-    const periods = [...new Set(records.map((record) => `${record.outlet_id}|${record.year}|${record.month}`))];
-
-    for (const period of periods) {
-      const [outletId, year, month] = period.split("|");
-      const channelIds = [...new Set(records.filter((record) => record.outlet_id === outletId && String(record.year) === year && String(record.month) === month).map((record) => record.channel_id))];
-      if (!channelIds.length) continue;
-      const { data, error } = await supabase
-        .from("sales_records")
-        .select("id,outlet_id,year,month,channel_id,channel_name,amount,remark,created_at,updated_at")
-        .eq("outlet_id", outletId)
-        .eq("year", Number(year))
-        .eq("month", Number(month))
-        .in("channel_id", channelIds);
-      throwSupabaseError("imports.sales_conflicts", error);
-      (data ?? []).forEach((record) => conflicts.set(salesKey(record), record));
-    }
-
-    return conflicts;
+    return detectSalesConflictsForRecords(records);
   },
 
   async detectPurchaseConflicts(records) {
-    const conflicts = new Map();
-    const periods = [...new Set(records.map((record) => `${record.outlet_id}|${record.year}|${record.month}`))];
+    return detectPurchaseConflictsForRecords(records);
+  },
 
-    for (const period of periods) {
-      const [outletId, year, month] = period.split("|");
-      const supplierIds = [...new Set(records.filter((record) => record.outlet_id === outletId && String(record.year) === year && String(record.month) === month).map((record) => record.supplier_id))];
-      if (!supplierIds.length) continue;
+  async importSales({ fileName, records, conflicts, failedRows = [], skippedRows = [], warningCount = 0 }) {
+    const createdCount = records.filter((record) => !conflicts.has(salesKey(record))).length;
+    const updatedCount = records.length - createdCount;
+    let batch = await createImportBatch({
+      importType: "sales",
+      fileName,
+      records,
+      createdCount,
+      updatedCount,
+      failedCount: failedRows.length,
+      warningCount,
+      status: "pending",
+    });
+
+    try {
+      batch = await updateImportBatch(batch, { status: "validating" });
+      const { data, error } = await supabase
+        .from("sales_records")
+        .upsert(records.map(salesPayload), { onConflict: "outlet_id,year,month,channel_id" })
+        .select("id,outlet_id,year,month,channel_id,channel_name,amount,remark,created_at,updated_at");
+      throwSupabaseError("imports.sales_upsert", error);
+      const savedRows = data ?? [];
+      verifySavedRows(records, savedRows, salesKey);
+      const persistedRows = [...(await detectSalesConflictsForRecords(records)).values()];
+      verifySavedRows(records, persistedRows, salesKey);
+      await insertImportBatchRows(batch, buildRowDetails({ batch, records, savedRows, conflicts, keyFn: salesKey, skippedRows, failedRows }));
+      batch = await updateImportBatch(batch, {
+        status: failedRows.length ? "partial_failed" : "completed",
+        imported_at: new Date().toISOString(),
+        completed_at: new Date().toISOString(),
+      });
+
+      await auditLogService.createAuditLog({
+        action: "sales_import_completed",
+        module: "data-import",
+        target: fileName,
+        outlet: batch.outlet_id || "Multiple outlets",
+        description: "Sales import completed.",
+        after: { batch_id: batch.id, createdCount, updatedCount, failedCount: failedRows.length, warningCount },
+      }).catch(() => {});
+      return { savedRows, batch, createdCount, updatedCount };
+    } catch (error) {
+      await updateImportBatch(batch, {
+        status: "failed",
+        imported_at: new Date().toISOString(),
+        completed_at: new Date().toISOString(),
+        failure_reason: error.message,
+      }).catch(() => {});
+      await insertImportBatchRows(batch, records.map((record) => ({
+        source_row: record.sourceRow,
+        raw_row: record.rawRow ?? record,
+        action: conflicts.has(salesKey(record)) ? "update" : "create",
+        validation_result: "failed",
+        failure_reason: error.message,
+      }))).catch(() => {});
+      await auditLogService.createAuditLog({
+        action: "sales_import_failed",
+        module: "data-import",
+        target: fileName,
+        description: error.message,
+        after: { batch_id: batch.id, createdCount, updatedCount, failedCount: records.length, warningCount },
+      }).catch(() => {});
+      throw error;
+    }
+  },
+
+  async importPurchases({ fileName, records, conflicts, failedRows = [], skippedRows = [], warningCount = 0 }) {
+    const createdCount = records.filter((record) => !conflicts.has(purchaseKey(record))).length;
+    const updatedCount = records.length - createdCount;
+    let batch = await createImportBatch({
+      importType: "purchase",
+      fileName,
+      records,
+      createdCount,
+      updatedCount,
+      failedCount: failedRows.length,
+      warningCount,
+      status: "pending",
+    });
+
+    try {
+      batch = await updateImportBatch(batch, { status: "validating" });
       const { data, error } = await supabase
         .from("purchase_records")
-        .select(purchaseRecordSelect)
-        .eq("outlet_id", outletId)
-        .eq("year", Number(year))
-        .eq("month", Number(month))
-        .in("supplier_id", supplierIds);
-      throwSupabaseError("imports.purchase_conflicts", error);
-      (data ?? []).map(mapPurchaseRecord).forEach((record) => conflicts.set(purchaseKey(record), record));
+        .upsert(records.map(purchasePayload), { onConflict: "outlet_id,year,month,supplier_id,category_id" })
+        .select(purchaseRecordSelect);
+      throwSupabaseError("imports.purchase_upsert", error);
+      const savedRows = (data ?? []).map(mapPurchaseRecord);
+      verifySavedRows(records, savedRows, purchaseKey);
+      const persistedRows = [...(await detectPurchaseConflictsForRecords(records)).values()];
+      verifySavedRows(records, persistedRows, purchaseKey);
+      await insertImportBatchRows(batch, buildRowDetails({ batch, records, savedRows, conflicts, keyFn: purchaseKey, skippedRows, failedRows }));
+      batch = await updateImportBatch(batch, {
+        status: failedRows.length ? "partial_failed" : "completed",
+        imported_at: new Date().toISOString(),
+        completed_at: new Date().toISOString(),
+      });
+
+      await auditLogService.createAuditLog({
+        action: "purchase_import_completed",
+        module: "data-import",
+        target: fileName,
+        outlet: batch.outlet_id || "Multiple outlets",
+        description: "Purchase import completed.",
+        after: { batch_id: batch.id, createdCount, updatedCount, failedCount: failedRows.length, warningCount },
+      }).catch(() => {});
+      return { savedRows, batch, createdCount, updatedCount };
+    } catch (error) {
+      await updateImportBatch(batch, {
+        status: "failed",
+        imported_at: new Date().toISOString(),
+        completed_at: new Date().toISOString(),
+        failure_reason: error.message,
+      }).catch(() => {});
+      await insertImportBatchRows(batch, records.map((record) => ({
+        source_row: record.sourceRow,
+        raw_row: record.rawRow ?? record,
+        action: conflicts.has(purchaseKey(record)) ? "update" : "create",
+        validation_result: "failed",
+        failure_reason: error.message,
+      }))).catch(() => {});
+      await auditLogService.createAuditLog({
+        action: "purchase_import_failed",
+        module: "data-import",
+        target: fileName,
+        description: error.message,
+        after: { batch_id: batch.id, createdCount, updatedCount, failedCount: records.length, warningCount },
+      }).catch(() => {});
+      throw error;
     }
-
-    return conflicts;
-  },
-
-  async importSales({ fileName, records, conflicts, failedCount = 0, warningCount = 0 }) {
-    const savedRows = [];
-    let createdCount = 0;
-    let updatedCount = 0;
-
-    for (const record of records) {
-      const existing = conflicts.get(salesKey(record));
-      if (existing) {
-        const { data, error } = await supabase
-          .from("sales_records")
-          .update({ ...record, updated_at: new Date().toISOString() })
-          .eq("id", existing.id)
-          .select("id,outlet_id,year,month,channel_id,channel_name,amount,remark,created_at,updated_at")
-          .single();
-        throwSupabaseError("imports.sales_update", error);
-        savedRows.push(data);
-        updatedCount += 1;
-      } else {
-        const { data, error } = await supabase
-          .from("sales_records")
-          .insert(record)
-          .select("id,outlet_id,year,month,channel_id,channel_name,amount,remark,created_at,updated_at")
-          .single();
-        throwSupabaseError("imports.sales_insert", error);
-        savedRows.push(data);
-        createdCount += 1;
-      }
-    }
-
-    const batch = await createImportBatch({ importType: "sales", fileName, records, createdCount, updatedCount, failedCount, warningCount });
-    await auditLogService.createAuditLog({
-      action: "sales_import_completed",
-      module: "data-import",
-      target: fileName,
-      outlet: batch.outlet_id || "Multiple outlets",
-      description: "Sales import completed.",
-      after: { batch_id: batch.id, createdCount, updatedCount, failedCount, warningCount },
-    }).catch(() => {});
-    return { savedRows, batch, createdCount, updatedCount };
-  },
-
-  async importPurchases({ fileName, records, conflicts, failedCount = 0, warningCount = 0 }) {
-    const savedRows = [];
-    let createdCount = 0;
-    let updatedCount = 0;
-
-    for (const record of records) {
-      const existing = conflicts.get(purchaseKey(record));
-      const payload = purchasePayload(record);
-      if (existing) {
-        const { data, error } = await supabase
-          .from("purchase_records")
-          .update({ ...payload, updated_at: new Date().toISOString() })
-          .eq("id", existing.id)
-          .select(purchaseRecordSelect)
-          .single();
-        throwSupabaseError("imports.purchase_update", error);
-        savedRows.push(mapPurchaseRecord(data));
-        updatedCount += 1;
-      } else {
-        const { data, error } = await supabase
-          .from("purchase_records")
-          .insert(payload)
-          .select(purchaseRecordSelect)
-          .single();
-        throwSupabaseError("imports.purchase_insert", error);
-        savedRows.push(mapPurchaseRecord(data));
-        createdCount += 1;
-      }
-    }
-
-    const batch = await createImportBatch({ importType: "purchase", fileName, records, createdCount, updatedCount, failedCount, warningCount });
-    await auditLogService.createAuditLog({
-      action: "purchase_import_completed",
-      module: "data-import",
-      target: fileName,
-      outlet: batch.outlet_id || "Multiple outlets",
-      description: "Purchase import completed.",
-      after: { batch_id: batch.id, createdCount, updatedCount, failedCount, warningCount },
-    }).catch(() => {});
-    return { savedRows, batch, createdCount, updatedCount };
   },
 };
