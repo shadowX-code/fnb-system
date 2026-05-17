@@ -21,6 +21,17 @@ function purchasePeriodLabel(period) {
   });
 }
 
+function periodDistance(fromPeriod, toPeriod) {
+  if (!fromPeriod?.month || !fromPeriod?.year || !toPeriod?.month || !toPeriod?.year) return null;
+  return (Number(toPeriod.year) - Number(fromPeriod.year)) * 12 + (Number(toPeriod.month) - Number(fromPeriod.month));
+}
+
+function truncateText(value, maxLength = 44) {
+  const text = String(value ?? "").trim();
+  if (!text) return "";
+  return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
+}
+
 export default function SupplierManagementPage({ store, setStore, ui }) {
   const filters = usePeriodFilters(store);
   const fallbackCategoryId =
@@ -68,13 +79,22 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
 
   function formatOutletUsage(supplier) {
     const outletIds = getSupplierUsage(supplier).outletIds;
-    if (!outletIds.length) return <span className="text-text-muted">No usage yet</span>;
+    if (!outletIds.length) return <span className="text-text-muted">No purchase records yet</span>;
     const outletNames = outletIds
       .map((outletId) => store.outlets.find((outlet) => outlet.id === outletId)?.name)
       .filter(Boolean);
-    if (!outletNames.length) return <span className="text-text-muted">No usage yet</span>;
+    if (!outletNames.length) return <span className="text-text-muted">No purchase records yet</span>;
     if (outletNames.length <= 2) return outletNames.join(", ");
-    return `${outletNames.length} outlets`;
+    return <span className="cursor-help" title={outletNames.join(", ")}>{outletNames.length} outlets</span>;
+  }
+
+  function getActivityStatus(supplier) {
+    const latestPurchase = getSupplierUsage(supplier).latestPurchase;
+    if (!latestPurchase) return { label: "No history", tone: "neutral", health: "Unused", healthTone: "neutral" };
+    const distance = periodDistance(latestPurchase, { month: filters.month, year: filters.year });
+    if (distance === null || distance <= 0) return { label: "Recent", tone: "success", health: "Stable", healthTone: "success" };
+    if (distance <= 2) return { label: "Idle", tone: "warning", health: "Stable", healthTone: "success" };
+    return { label: "Dormant", tone: "danger", health: "Dormant", healthTone: "danger" };
   }
 
   async function updateSupplierStatus(row, nextActive) {
@@ -114,10 +134,12 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
     { name: "name", label: "Supplier Name", placeholder: "Supplier name" },
     {
       name: "default_category_id",
-      label: "Default Category",
+      label: "Category",
       type: "select",
       options: store.purchaseCategories.map((item) => ({ value: item.id, label: item.name })),
     },
+    { name: "phone", label: "Phone", placeholder: "Supplier phone" },
+    { name: "remark", label: "Remark", placeholder: "Optional supplier note" },
     {
       name: "status",
       label: "Status",
@@ -132,6 +154,15 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
     { key: "name", header: "Supplier Name", sticky: true, render: (row) => <span className="font-semibold">{row.name}</span> },
     { key: "category", header: "Category", render: (row) => getCategoryName(store.purchaseCategories, row.default_category_id) },
     {
+      key: "remark",
+      header: "Remark",
+      render: (row) => {
+        const remark = String(row.remark ?? "").trim();
+        if (!remark) return <span className="text-text-muted">—</span>;
+        return <span className="block max-w-[220px] truncate text-sm text-text-secondary" title={remark}>{truncateText(remark)}</span>;
+      },
+    },
+    {
       key: "outlet_usage",
       header: "Outlet Usage",
       render: (row) => <span className="text-sm font-medium text-text-secondary">{formatOutletUsage(row)}</span>,
@@ -139,13 +170,29 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
     {
       key: "last_purchase",
       header: "Last Purchase",
-      render: (row) => <span className="text-sm font-semibold text-text-primary">{purchasePeriodLabel(getSupplierUsage(row).latestPurchase)}</span>,
+      render: (row) => {
+        const activity = getActivityStatus(row);
+        return (
+          <div className="flex flex-wrap items-center gap-2">
+            <span className="text-sm font-semibold text-text-primary">{purchasePeriodLabel(getSupplierUsage(row).latestPurchase)}</span>
+            <Badge tone={activity.tone}>{activity.label}</Badge>
+          </div>
+        );
+      },
     },
     {
       key: "total",
       header: "Total Purchase This Month",
       align: "right",
       render: (row) => toCurrency(sumAmount(store.purchaseRecords.filter((record) => record.supplier_id === row.id && record.outlet_id === filters.outletId && record.month === filters.month && record.year === filters.year))),
+    },
+    {
+      key: "health",
+      header: "Supplier Health",
+      render: (row) => {
+        const activity = getActivityStatus(row);
+        return <Badge tone={activity.healthTone}>{activity.health}</Badge>;
+      },
     },
     { key: "status", header: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge> },
     {
@@ -166,10 +213,10 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
             )}
           >
             <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { setModal({ mode: "edit", row }); setActionMenuSupplierId(null); }}>
-              <Edit3 size={14} /> Edit
+              <Edit3 size={14} /> Edit Supplier
             </button>
             <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { ui.navigate?.("purchase-comparison"); setActionMenuSupplierId(null); }}>
-              <BarChart3 size={14} /> View Purchases
+              <BarChart3 size={14} /> View Purchase History
             </button>
             <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold text-amber-700 hover:bg-amber-50" type="button" onClick={() => { updateSupplierStatus(row, row.status !== "active"); setActionMenuSupplierId(null); }}>
               <Settings size={14} /> {row.status === "active" ? "Deactivate" : "Reactivate"}
@@ -197,7 +244,7 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
       <PageHeader
         section="Purchases"
         title="Suppliers"
-        description="Supplier master data used by purchase records through supplier_id."
+        description="Suppliers used across all outlets and purchase records."
         actions={<button className="btn-primary" onClick={() => setModal({ mode: "add" })}><Plus size={16} /> Add Supplier</button>}
       />
       <FilterBar compact>
@@ -231,15 +278,15 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
           />
         </FieldLabel>
       </FilterBar>
-      <Card title="Supplier Directory" description="Supplier master data is independent from purchase records.">
+      <Card title="Supplier Directory" description="Suppliers used across all outlets and purchase records.">
         <DataTable columns={columns} rows={rows} getRowKey={(row) => row.id} />
       </Card>
       {modal ? (
         <EntityModal
           title={modal.mode === "add" ? "Add Supplier" : "Edit Supplier"}
-          description="Assign a default category for faster purchase entry."
+          description="Maintain supplier details used by purchase entry, imports and reporting."
           fields={fields}
-          initialValues={modal.row ?? { name: "", default_category_id: fallbackCategoryId, status: "active" }}
+          initialValues={modal.row ?? { name: "", default_category_id: fallbackCategoryId, phone: "", remark: "", status: "active" }}
           onClose={() => setModal(null)}
           onSubmit={async (values) => {
             if (!values.name?.trim()) return ui.notify({ title: "Supplier name required", tone: "error" });

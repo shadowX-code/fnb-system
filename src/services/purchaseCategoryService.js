@@ -15,6 +15,14 @@ function mapPurchaseCategory(category, index = 0) {
   };
 }
 
+function mapPeriod(record) {
+  if (!record?.month || !record?.year) return null;
+  return {
+    month: record.month,
+    year: record.year,
+  };
+}
+
 export const purchaseCategoryService = {
   async listPurchaseCategories() {
     const { data, error } = await supabase
@@ -95,6 +103,53 @@ export const purchaseCategoryService = {
       purchaseRecordCount,
       isInUse: activeSupplierCount > 0 || purchaseRecordCount > 0,
     };
+  },
+
+  async listCategorySuppliers(categoryId) {
+    const { data: suppliers, error: supplierError } = await supabase
+      .from("suppliers")
+      .select("id,name,is_active,status,default_category_id,category")
+      .eq("default_category_id", categoryId)
+      .order("name", { ascending: true });
+
+    throwSupabaseError("purchase_categories.suppliers", supplierError);
+    if (!suppliers?.length) return [];
+
+    const supplierIds = suppliers.map((supplier) => supplier.id);
+    const { data: records, error: recordError } = await supabase
+      .from("purchase_records")
+      .select("supplier_id,outlet_id,month,year")
+      .in("supplier_id", supplierIds);
+
+    throwSupabaseError("purchase_categories.supplier_purchase_usage", recordError);
+
+    const usageMap = Object.fromEntries(
+      supplierIds.map((supplierId) => [supplierId, { outletIds: [], latestPurchase: null }]),
+    );
+
+    (records ?? []).forEach((record) => {
+      const usage = usageMap[record.supplier_id];
+      if (!usage) return;
+      if (record.outlet_id && !usage.outletIds.includes(record.outlet_id)) {
+        usage.outletIds.push(record.outlet_id);
+      }
+      const latestValue = usage.latestPurchase ? Number(usage.latestPurchase.year) * 100 + Number(usage.latestPurchase.month) : -1;
+      const recordValue = Number(record.year || 0) * 100 + Number(record.month || 0);
+      if (recordValue > latestValue) {
+        usage.latestPurchase = mapPeriod(record);
+      }
+    });
+
+    return suppliers.map((supplier) => {
+      const isActive = supplier.is_active ?? supplier.status !== "inactive";
+      return {
+        id: supplier.id,
+        name: supplier.name,
+        status: isActive ? "active" : "inactive",
+        outletIds: usageMap[supplier.id]?.outletIds ?? [],
+        latestPurchase: usageMap[supplier.id]?.latestPurchase ?? null,
+      };
+    });
   },
 
   async getPurchaseCategoryUsageMap(categoryIds = []) {

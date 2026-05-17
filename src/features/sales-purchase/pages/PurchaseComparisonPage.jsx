@@ -623,10 +623,10 @@ export default function PurchaseComparisonPage({ store, setStore, ui }) {
           row.categoryName?.toLowerCase().includes(search) ||
           supplierSearchMatch;
         const matchesAbnormal = !abnormalOnly || row.hasWarning;
-        const activeInCurrentMonth = Number(row.currentAmount || 0) > 0;
+        const activeInDisplayedRange = Number(row.total || 0) > 0;
         const matchesActivity =
           showInactiveSuppliers ||
-          activeInCurrentMonth ||
+          activeInDisplayedRange ||
           (row.type === "category" && viewMode === "Category");
         return matchesSearch && matchesAbnormal && matchesActivity;
       });
@@ -1189,7 +1189,11 @@ export default function PurchaseComparisonPage({ store, setStore, ui }) {
                             <div className={`text-[14px] font-medium ${row.type === "supplier" && !row.currentAmount ? "text-text-muted" : "text-text-primary"}`}>{row.name}</div>
                           )}
                           {row.type === "supplier" ? <div className="text-xs text-text-secondary">{row.categoryName}</div> : null}
-                          {row.type === "category" ? <div className="mt-1 text-xs font-medium text-text-secondary">{row.supplierCount} suppliers · Expand to view supplier breakdown</div> : null}
+                          {row.type === "category" ? (
+                            <div className="mt-1 text-xs font-medium text-text-secondary">
+                              {row.supplierCount} supplier{row.supplierCount === 1 ? "" : "s"} · Expand to view supplier breakdown
+                            </div>
+                          ) : null}
                         </div>
                       </td>
                       {row.cells.map((cell) => (

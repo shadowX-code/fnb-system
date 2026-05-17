@@ -15,6 +15,14 @@ import { salesChannelService } from "../../../services/salesChannelService.js";
 import { purchaseCategoryService } from "../../../services/purchaseCategoryService.js";
 import { outletTaxConfigService } from "../../../services/outletTaxConfigService.js";
 
+function purchasePeriodLabel(period) {
+  if (!period?.month || !period?.year) return "No purchase records yet";
+  return new Date(Number(period.year), Number(period.month) - 1).toLocaleDateString("en-MY", {
+    month: "short",
+    year: "numeric",
+  });
+}
+
 function latestPeriod(store) {
   const latest = [...store.salesRecords, ...store.purchaseRecords]
     .filter((record) => record.outlet_id)
@@ -199,6 +207,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
   const [categoryUsage, setCategoryUsage] = useState({});
   const [categoryActionId, setCategoryActionId] = useState(null);
   const [categoryConfirm, setCategoryConfirm] = useState(null);
+  const [categorySuppliers, setCategorySuppliers] = useState(null);
   const currentPeriodKey = periodKeyFromParts(latestPeriod(store).month, latestPeriod(store).year);
   const currentUser = { name: auth?.profile?.full_name ?? auth?.user?.email ?? "System User" };
   const isChannels = tab === "channels";
@@ -255,7 +264,19 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
       header: "Supplier Count",
       render: (row) => {
         const count = getCategoryUsage(row).activeSupplierCount;
-        return <span className="font-semibold text-text-primary">{count} supplier{count === 1 ? "" : "s"}</span>;
+        if (!count) return <span className="font-semibold text-text-muted">0 suppliers</span>;
+        return (
+          <button
+            className="rounded-lg text-left font-semibold text-primary underline-offset-4 transition hover:underline focus:outline-none focus:ring-2 focus:ring-primary/20"
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              openCategorySuppliers(row);
+            }}
+          >
+            {count} supplier{count === 1 ? "" : "s"}
+          </button>
+        );
       },
     },
     { key: "status", header: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge> },
@@ -520,6 +541,27 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
     }
   }
 
+  async function openCategorySuppliers(row) {
+    setCategorySuppliers({ row, suppliers: [], loading: true, error: "" });
+    try {
+      const suppliers = await purchaseCategoryService.listCategorySuppliers(row.id);
+      setCategorySuppliers({ row, suppliers, loading: false, error: "" });
+    } catch (error) {
+      console.error("Unable to load linked suppliers", error);
+      setCategorySuppliers({ row, suppliers: [], loading: false, error: error.message });
+    }
+  }
+
+  function formatSupplierOutlets(supplier) {
+    if (!supplier.outletIds?.length) return "No purchase records yet";
+    const names = supplier.outletIds
+      .map((outletId) => store.outlets.find((outlet) => outlet.id === outletId)?.name)
+      .filter(Boolean);
+    if (!names.length) return "No purchase records yet";
+    if (names.length <= 2) return names.join(", ");
+    return `${names.length} outlets`;
+  }
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -768,6 +810,48 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
               {getCategoryUsage(categoryConfirm.row).activeSupplierCount} linked active suppliers · {getCategoryUsage(categoryConfirm.row).purchaseRecordCount} purchase records
             </div>
           </div>
+        </Modal>
+      ) : null}
+
+      {categorySuppliers ? (
+        <Modal
+          title={`${categorySuppliers.row.name} suppliers`}
+          description="Suppliers linked to this purchase category."
+          onClose={() => setCategorySuppliers(null)}
+          footer={<button className="btn-secondary" type="button" onClick={() => setCategorySuppliers(null)}>Close</button>}
+        >
+          {categorySuppliers.loading ? (
+            <div className="rounded-2xl border border-border bg-slate-50 p-4 text-sm font-semibold text-text-secondary">Loading linked suppliers...</div>
+          ) : categorySuppliers.error ? (
+            <div className="rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700">{categorySuppliers.error}</div>
+          ) : !categorySuppliers.suppliers.length ? (
+            <div className="rounded-2xl border border-border bg-slate-50 p-4 text-sm font-semibold text-text-secondary">No suppliers linked to this category.</div>
+          ) : (
+            <div className="space-y-2">
+              {categorySuppliers.suppliers.map((supplier) => (
+                <div key={supplier.id} className="rounded-2xl border border-border bg-white p-3">
+                  <div className="flex flex-wrap items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-bold text-text-primary">{supplier.name}</div>
+                      <div className="mt-1 text-xs text-text-secondary">
+                        Last purchase {purchasePeriodLabel(supplier.latestPurchase)} · {formatSupplierOutlets(supplier)}
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Badge tone={supplier.status === "active" ? "success" : "neutral"}>{supplier.status}</Badge>
+                      <button
+                        className="btn-secondary h-8 px-2 text-xs"
+                        type="button"
+                        onClick={() => ui.navigate?.("suppliers")}
+                      >
+                        View Supplier
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </Modal>
       ) : null}
     </div>

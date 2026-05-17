@@ -9,6 +9,8 @@ function mapSupplier(supplier) {
     name: supplier.name,
     category: supplier.category,
     default_category_id: supplier.default_category_id ?? supplier.category_id ?? "",
+    phone: supplier.phone ?? "",
+    remark: supplier.remark ?? "",
     is_active: Boolean(isActive),
     status: isActive ? "active" : "inactive",
     created_at: supplier.created_at,
@@ -20,7 +22,7 @@ export const supplierService = {
   async listSuppliers() {
     const { data, error } = await supabase
       .from("suppliers")
-      .select("id,name,category,default_category_id,is_active,status,created_at,updated_at")
+      .select("id,name,category,default_category_id,phone,remark,is_active,status,created_at,updated_at")
       .order("name", { ascending: true });
 
     throwSupabaseError("suppliers.list", error);
@@ -31,7 +33,7 @@ export const supplierService = {
   async listActiveSuppliers() {
     const { data, error } = await supabase
       .from("suppliers")
-      .select("id,name,category,default_category_id,is_active,status,created_at,updated_at")
+      .select("id,name,category,default_category_id,phone,remark,is_active,status,created_at,updated_at")
       .eq("is_active", true)
       .order("name", { ascending: true });
 
@@ -45,6 +47,8 @@ export const supplierService = {
       name: supplier.name?.trim(),
       category: supplier.category || null,
       default_category_id: supplier.default_category_id || null,
+      phone: supplier.phone?.trim() || null,
+      remark: supplier.remark?.trim() || null,
       is_active: supplier.status ? supplier.status === "active" : supplier.is_active !== false,
       status: supplier.status ?? (supplier.is_active === false ? "inactive" : "active"),
       updated_at: new Date().toISOString(),
@@ -55,7 +59,7 @@ export const supplierService = {
       : supabase.from("suppliers").insert(payload);
 
     const { data, error } = await query
-      .select("id,name,category,default_category_id,is_active,status,created_at,updated_at")
+      .select("id,name,category,default_category_id,phone,remark,is_active,status,created_at,updated_at")
       .single();
 
     throwSupabaseError("suppliers.save", error);

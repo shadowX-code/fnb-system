@@ -25,6 +25,8 @@ function normalizeSuppliers(suppliers, categories) {
       id: supplier.id,
       name: supplier.name,
       category: supplier.category ?? category?.name ?? "",
+      phone: supplier.phone ?? "",
+      remark: supplier.remark ?? "",
       is_active: Boolean(isActive),
       status: isActive ? "active" : "inactive",
       default_category_id: supplier.default_category_id || category?.id || categories[0]?.id || "",
