@@ -8,6 +8,7 @@ import { outletService } from "../services/outletService.js";
 import { supplierService } from "../services/supplierService.js";
 import { purchaseCategoryService } from "../services/purchaseCategoryService.js";
 import { salesChannelService } from "../services/salesChannelService.js";
+import { outletTaxConfigService } from "../services/outletTaxConfigService.js";
 import { useAuth } from "../auth/AuthContext.jsx";
 import LoginPage from "../auth/LoginPage.jsx";
 
@@ -15,18 +16,20 @@ function normalizeSuppliers(suppliers, categories) {
   return suppliers.map((supplier) => {
     const category = categories.find(
       (item) =>
+        item.id === supplier.default_category_id ||
         item.id === supplier.category ||
         item.name.toLowerCase() === String(supplier.category ?? "").toLowerCase(),
     );
+    const isActive = supplier.is_active ?? supplier.status !== "inactive";
     return {
       id: supplier.id,
       name: supplier.name,
-      category: supplier.category,
-      is_active: supplier.is_active,
-      status: supplier.is_active ? "active" : "inactive",
-      default_category_id: category?.id ?? categories[0]?.id ?? "",
-      created_at: "",
-      updated_at: "",
+      category: supplier.category ?? category?.name ?? "",
+      is_active: Boolean(isActive),
+      status: isActive ? "active" : "inactive",
+      default_category_id: supplier.default_category_id || category?.id || categories[0]?.id || "",
+      created_at: supplier.created_at ?? "",
+      updated_at: supplier.updated_at ?? "",
     };
   });
 }
@@ -59,10 +62,12 @@ function normalizeSalesChannels(channels) {
   return channels.map((channel, index) => ({
     id: channel.id,
     name: channel.name,
-    is_active: channel.is_active,
-    status: channel.is_active ? "active" : "inactive",
-    type: inferSalesChannelType(channel.name),
-    sort_order: index + 1,
+    is_active: channel.is_active ?? channel.status !== "inactive",
+    status: channel.status ?? ((channel.is_active ?? true) ? "active" : "inactive"),
+    type: channel.type || inferSalesChannelType(channel.name),
+    sort_order: channel.sort_order ?? index + 1,
+    created_at: channel.created_at,
+    updated_at: channel.updated_at,
   }));
 }
 
@@ -126,12 +131,14 @@ export default function App() {
       let suppliers = [];
       let purchaseCategories = [];
       let salesChannels = [];
+      let outletTaxConfigs = [];
 
-      const [outletResult, supplierResult, categoryResult, salesChannelResult] = await Promise.allSettled([
+      const [outletResult, supplierResult, categoryResult, salesChannelResult, taxConfigResult] = await Promise.allSettled([
         outletService.listActiveOutlets(),
-        supplierService.listActiveSuppliers(),
-        purchaseCategoryService.listActivePurchaseCategories(),
-        salesChannelService.listActiveSalesChannels(),
+        supplierService.listSuppliers(),
+        purchaseCategoryService.listPurchaseCategories(),
+        salesChannelService.listSalesChannels(),
+        outletTaxConfigService.listOutletTaxConfigs(),
       ]);
       if (outletResult.status === "fulfilled") outlets = outletResult.value;
       else {
@@ -153,11 +160,17 @@ export default function App() {
         console.error("Unable to load sales channels", salesChannelResult.reason);
         errors.push("Unable to load sales channels.");
       }
+      if (taxConfigResult.status === "fulfilled") outletTaxConfigs = taxConfigResult.value;
+      else {
+        console.error("Unable to load tax settings", taxConfigResult.reason);
+        errors.push("Unable to load tax settings.");
+      }
 
       if (!ignore && !errors.length) {
         setStore((current) => ({
           ...current,
           outlets,
+          outletTaxConfigs,
           purchaseCategories,
           suppliers: normalizeSuppliers(suppliers, purchaseCategories),
           salesRecords: remapSalesRecordsToChannels(current.salesRecords, operationsService.getBootstrapData().salesChannels, salesChannels),
@@ -257,6 +270,7 @@ export default function App() {
             <div>Loading FeedX suppliers...</div>
             <div>Loading FeedX categories...</div>
             <div>Loading FeedX sales channels...</div>
+            <div>Loading FeedX tax settings...</div>
           </div>
         ) : masterDataStatus.errors.length ? (
           <div className="card border-rose-200 bg-rose-50 p-6 text-sm font-semibold text-rose-700">

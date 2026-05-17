@@ -5,12 +5,14 @@ import Badge from "../../../components/ui/Badge.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import EntityModal from "../components/EntityModal.jsx";
-import { operationsService } from "../services/operationsService.js";
 import { getOutletTaxConfig } from "../utils/analytics.js";
 import Modal from "../../../components/feedback/Modal.jsx";
 import { FieldLabel, MonthSelector, YearSelector } from "../../../components/forms/Selectors.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import { months } from "../data/mockData.js";
+import { salesChannelService } from "../../../services/salesChannelService.js";
+import { purchaseCategoryService } from "../../../services/purchaseCategoryService.js";
+import { outletTaxConfigService } from "../../../services/outletTaxConfigService.js";
 
 function latestPeriod(store) {
   const latest = [...store.salesRecords, ...store.purchaseRecords]
@@ -277,6 +279,70 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
     setTab(initialTab);
   }, [initialTab]);
 
+  async function refreshTaxConfigs() {
+    const configs = await outletTaxConfigService.listOutletTaxConfigs();
+    setStore((current) => ({ ...current, outletTaxConfigs: configs }));
+    return configs;
+  }
+
+  async function handleTaxSubmit(values) {
+    try {
+      await outletTaxConfigService.saveOutletTaxConfig(values);
+      await refreshTaxConfigs();
+      setTaxValues(null);
+      ui.notify({ title: "Tax configuration saved", message: "Saved to Supabase" });
+    } catch (error) {
+      console.error("Unable to save tax configuration", error);
+      ui.notify({ title: "Unable to save tax configuration", message: error.message, tone: "error" });
+    }
+  }
+
+  async function handleEndTaxConfig() {
+    if (!endUntil || endUntil < endConfig.effective_from) {
+      ui.notify({ title: "Invalid end month", message: "End month cannot be earlier than Effective From.", tone: "error" });
+      return;
+    }
+    try {
+      await outletTaxConfigService.endOutletTaxConfig(endConfig.id, endUntil);
+      await refreshTaxConfigs();
+      setEndConfig(null);
+      ui.notify({ title: "Tax configuration ended", message: "Saved to Supabase" });
+    } catch (error) {
+      console.error("Unable to end tax configuration", error);
+      ui.notify({ title: "Unable to end tax configuration", message: error.message, tone: "error" });
+    }
+  }
+
+  async function handleMasterSubmit(values) {
+    if (!values.name?.trim()) return ui.notify({ title: "Name required", tone: "error" });
+    try {
+      if (isChannels) {
+        const saved = await salesChannelService.saveSalesChannel({ ...(modal.row ?? {}), ...values });
+        setStore((current) => ({
+          ...current,
+          salesChannels: [
+            ...current.salesChannels.filter((channel) => channel.id !== saved.id),
+            saved,
+          ].sort((a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name)),
+        }));
+      } else {
+        const saved = await purchaseCategoryService.savePurchaseCategory({ ...(modal.row ?? {}), ...values });
+        setStore((current) => ({
+          ...current,
+          purchaseCategories: [
+            ...current.purchaseCategories.filter((category) => category.id !== saved.id),
+            saved,
+          ].sort((a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name)),
+        }));
+      }
+      setModal(null);
+      ui.notify({ title: "Settings saved", message: "Saved to Supabase" });
+    } catch (error) {
+      console.error("Unable to save settings", error);
+      ui.notify({ title: "Unable to save settings", message: error.message, tone: "error" });
+    }
+  }
+
   return (
     <div className="space-y-5">
       <PageHeader
@@ -370,22 +436,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
           setValues={setTaxValues}
           ui={ui}
           onClose={() => setTaxValues(null)}
-          onSubmit={(values) => {
-            if (values.mode === "editFuture" || values.mode === "forceEdit") {
-              setStore((current) =>
-                operationsService.updateOutletTaxConfig(
-                  current,
-                  values.sourceId,
-                  values,
-                  { user: currentUser.name, action: values.mode === "forceEdit" ? "force_edit" : "edit_future" },
-                ),
-              );
-            } else {
-              setStore((current) => operationsService.addOutletTaxConfig(current, { ...values, user: currentUser.name }).state);
-            }
-            setTaxValues(null);
-            ui.notify({ title: "Tax configuration saved", message: `${values.tax_type} from ${values.effective_from}` });
-          }}
+          onSubmit={handleTaxSubmit}
         />
       ) : null}
 
@@ -459,15 +510,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
               <button
                 className="btn-primary"
                 type="button"
-                onClick={() => {
-                  if (!endUntil || endUntil < endConfig.effective_from) {
-                    ui.notify({ title: "Invalid end month", message: "End month cannot be earlier than Effective From.", tone: "error" });
-                    return;
-                  }
-                  setStore((current) => operationsService.endOutletTaxConfig(current, endConfig.id, endUntil, currentUser.name));
-                  setEndConfig(null);
-                  ui.notify({ title: "Tax configuration ended", message: `${endConfig.tax_type} ends ${endUntil}` });
-                }}
+                onClick={handleEndTaxConfig}
               >
                 End Config
               </button>
@@ -492,16 +535,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
           fields={fields}
           initialValues={modal.row ?? { name: "", type: "channel", sort_order: rows.length + 1, status: "active" }}
           onClose={() => setModal(null)}
-          onSubmit={(values) => {
-            if (!values.name?.trim()) return ui.notify({ title: "Name required", tone: "error" });
-            if (isChannels) {
-              if (modal.mode === "add") setStore((current) => operationsService.addSalesChannel(current, values.name, values.type).state);
-              else setStore((current) => operationsService.updateSalesChannel(current, modal.row.id, values));
-            } else if (modal.mode === "add") setStore((current) => operationsService.addPurchaseCategory(current, values.name).state);
-            else setStore((current) => operationsService.updatePurchaseCategory(current, modal.row.id, values));
-            setModal(null);
-            ui.notify({ title: "Settings saved", message: values.name });
-          }}
+          onSubmit={handleMasterSubmit}
         />
       ) : null}
     </div>

@@ -9,8 +9,8 @@ import Modal from "../../../components/feedback/Modal.jsx";
 import PeriodFilterBar from "../components/PeriodFilterBar.jsx";
 import SummaryPanel from "../components/SummaryPanel.jsx";
 import usePeriodFilters from "../hooks/usePeriodFilters.js";
-import { operationsService } from "../services/operationsService.js";
 import { salesRecordService } from "../../../services/salesRecordService.js";
+import { salesChannelService } from "../../../services/salesChannelService.js";
 import {
   getPreviousPeriod,
   getOutletTaxConfig,
@@ -543,17 +543,31 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
     },
   ];
 
-  function addCustomChannel() {
-    const result = operationsService.addSalesChannel(store, "Custom Channel", "channel");
-    setStore(result.state);
-    setRows((current) => [
-      ...current,
-      { id: undefined, channel_id: result.channel.id, channelName: result.channel.name, type: "channel", amount: "", remark: "", custom: true },
-    ]);
-    markDraft();
+  async function addCustomChannel() {
+    try {
+      const channel = await salesChannelService.saveSalesChannel({
+        name: "Custom Channel",
+        type: "channel",
+        sort_order: store.salesChannels.length + 1,
+        status: "active",
+      });
+      setStore((current) => ({
+        ...current,
+        salesChannels: [...current.salesChannels.filter((item) => item.id !== channel.id), channel].sort((a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name)),
+      }));
+      setRows((current) => [
+        ...current,
+        { id: undefined, channel_id: channel.id, channelName: channel.name, type: "channel", amount: "", remark: "", custom: true },
+      ]);
+      markDraft();
+      ui.notify({ title: "Sales channel created", message: "Saved to Supabase" });
+    } catch (error) {
+      console.error("Unable to create custom sales channel", error);
+      ui.notify({ title: "Unable to create sales channel", message: error.message, tone: "error" });
+    }
   }
 
-  function addDeduction() {
+  async function addDeduction() {
     if (!sstEnabled && deductionType === "SST Deduction") {
       ui.notify({ title: "SST not enabled", message: "This outlet is not configured for SST.", tone: "info" });
       return;
@@ -572,12 +586,27 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
         { id: undefined, channel_id: existingChannel.id, channelName: existingChannel.name, type: "adjustment", amount: "", remark: "", custom: true },
       ]);
     } else {
-      const result = operationsService.addSalesChannel(store, deductionType, "adjustment");
-      setStore(result.state);
-      setRows((current) => [
-        ...current,
-        { id: undefined, channel_id: result.channel.id, channelName: result.channel.name, type: "adjustment", amount: "", remark: "", custom: true },
-      ]);
+      try {
+        const channel = await salesChannelService.saveSalesChannel({
+          name: deductionType,
+          type: "adjustment",
+          sort_order: store.salesChannels.length + 1,
+          status: "active",
+        });
+        setStore((current) => ({
+          ...current,
+          salesChannels: [...current.salesChannels.filter((item) => item.id !== channel.id), channel].sort((a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name)),
+        }));
+        setRows((current) => [
+          ...current,
+          { id: undefined, channel_id: channel.id, channelName: channel.name, type: "adjustment", amount: "", remark: "", custom: true },
+        ]);
+        ui.notify({ title: "Deduction channel created", message: "Saved to Supabase" });
+      } catch (error) {
+        console.error("Unable to create deduction channel", error);
+        ui.notify({ title: "Unable to create deduction channel", message: error.message, tone: "error" });
+        return;
+      }
     }
     markDraft();
     setDeductionModal(false);

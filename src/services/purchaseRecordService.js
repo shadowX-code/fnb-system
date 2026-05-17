@@ -16,6 +16,19 @@ export const purchaseRecordService = {
     return data ?? [];
   },
 
+  async getPurchaseRecordsForYear(outletId, year) {
+    const { data, error } = await supabase
+      .from("purchase_records")
+      .select("id,outlet_id,year,month,supplier_id,category_id,amount,remark,created_at,updated_at")
+      .eq("outlet_id", outletId)
+      .eq("year", year)
+      .order("month", { ascending: true })
+      .order("amount", { ascending: false });
+
+    throwSupabaseError("purchase_records.list_year", error);
+    return data ?? [];
+  },
+
   async deletePurchaseRecords(outletId, year, month) {
     const existing = await this.getPurchaseRecords(outletId, year, month);
     await this.deletePurchaseRecordIds(existing.map((record) => record.id));

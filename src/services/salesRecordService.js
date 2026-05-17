@@ -17,6 +17,19 @@ export const salesRecordService = {
     return data ?? [];
   },
 
+  async getSalesRecordsForYear(outletId, year) {
+    const { data, error } = await supabase
+      .from("sales_records")
+      .select("id,outlet_id,year,month,channel_id,channel_name,amount,remark,created_at,updated_at")
+      .eq("outlet_id", outletId)
+      .eq("year", year)
+      .order("month", { ascending: true })
+      .order("channel_name", { ascending: true });
+
+    throwSupabaseError("sales_records.list_year", error);
+    return data ?? [];
+  },
+
   async listExistingSalesRecords(outletId, year, month) {
     const { data, error } = await supabase
       .from("sales_records")

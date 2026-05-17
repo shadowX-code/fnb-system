@@ -9,11 +9,15 @@ import { FieldLabel, MonthSelector, OutletSelector, YearSelector } from "../../.
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import EntityModal from "../components/EntityModal.jsx";
 import usePeriodFilters from "../hooks/usePeriodFilters.js";
-import { operationsService } from "../services/operationsService.js";
 import { getCategoryName, sumAmount, toCurrency } from "../utils/analytics.js";
+import { supplierService } from "../../../services/supplierService.js";
 
 export default function SupplierManagementPage({ store, setStore, ui }) {
   const filters = usePeriodFilters(store);
+  const fallbackCategoryId =
+    store.purchaseCategories.find((categoryItem) => categoryItem.name?.toLowerCase() === "others")?.id ||
+    store.purchaseCategories[0]?.id ||
+    "";
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [status, setStatus] = useState("all");
@@ -65,8 +69,17 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
           <button className="icon-btn" onClick={() => setModal({ mode: "edit", row })}><Settings size={15} /></button>
           <button className="icon-btn" onClick={async () => {
             if (await ui.confirm({ title: "Deactivate supplier?", message: `${row.name} will remain in history but cannot be selected by default.`, danger: true, confirmLabel: "Deactivate" })) {
-              setStore((current) => operationsService.deactivateSupplier(current, row.id));
-              ui.notify({ title: "Supplier deactivated", message: row.name });
+              try {
+                const saved = await supplierService.deactivateSupplier(row);
+                setStore((current) => ({
+                  ...current,
+                  suppliers: current.suppliers.map((supplier) => (supplier.id === saved.id ? saved : supplier)),
+                }));
+                ui.notify({ title: "Supplier deactivated", message: "Saved to Supabase" });
+              } catch (error) {
+                console.error("Unable to deactivate supplier", error);
+                ui.notify({ title: "Unable to deactivate supplier", message: error.message, tone: "error" });
+              }
             }
           }}><Trash2 size={15} /></button>
         </div>
@@ -121,18 +134,26 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
           title={modal.mode === "add" ? "Add Supplier" : "Edit Supplier"}
           description="Assign a default category for faster purchase entry."
           fields={fields}
-          initialValues={modal.row ?? { name: "", default_category_id: "cat-others", status: "active" }}
+          initialValues={modal.row ?? { name: "", default_category_id: fallbackCategoryId, status: "active" }}
           onClose={() => setModal(null)}
-          onSubmit={(values) => {
+          onSubmit={async (values) => {
             if (!values.name?.trim()) return ui.notify({ title: "Supplier name required", tone: "error" });
-            if (modal.mode === "add") {
-              const result = operationsService.addSupplier(store, values.name, values.default_category_id);
-              setStore(result.state);
-            } else {
-              setStore((current) => operationsService.updateSupplier(current, modal.row.id, values));
+            try {
+              const categoryName = store.purchaseCategories.find((categoryItem) => categoryItem.id === values.default_category_id)?.name ?? "";
+              const saved = await supplierService.saveSupplier({ ...(modal.row ?? {}), ...values, category: categoryName });
+              setStore((current) => ({
+                ...current,
+                suppliers: [
+                  ...current.suppliers.filter((supplier) => supplier.id !== saved.id),
+                  saved,
+                ].sort((a, b) => a.name.localeCompare(b.name)),
+              }));
+              setModal(null);
+              ui.notify({ title: "Supplier saved", message: "Saved to Supabase" });
+            } catch (error) {
+              console.error("Unable to save supplier", error);
+              ui.notify({ title: "Unable to save supplier", message: error.message, tone: "error" });
             }
-            setModal(null);
-            ui.notify({ title: "Supplier saved", message: values.name });
           }}
         />
       ) : null}

@@ -32,6 +32,47 @@ create unique index if not exists outlets_code_unique_idx
   where code is not null;
 
 -- ---------------------------------------------------------------------------
+-- Master table guards required by transaction foreign keys
+-- ---------------------------------------------------------------------------
+create table if not exists public.sales_channels (
+  id uuid primary key default gen_random_uuid()
+);
+
+alter table public.sales_channels
+  add column if not exists name text,
+  add column if not exists type text not null default 'channel',
+  add column if not exists sort_order integer not null default 0,
+  add column if not exists status text not null default 'active',
+  add column if not exists is_active boolean not null default true,
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
+
+create table if not exists public.purchase_categories (
+  id uuid primary key default gen_random_uuid()
+);
+
+alter table public.purchase_categories
+  add column if not exists name text,
+  add column if not exists sort_order integer not null default 0,
+  add column if not exists status text not null default 'active',
+  add column if not exists is_active boolean not null default true,
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
+
+create table if not exists public.suppliers (
+  id uuid primary key default gen_random_uuid()
+);
+
+alter table public.suppliers
+  add column if not exists name text,
+  add column if not exists category text,
+  add column if not exists default_category_id uuid references public.purchase_categories(id) on delete set null,
+  add column if not exists status text not null default 'active',
+  add column if not exists is_active boolean not null default true,
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
+
+-- ---------------------------------------------------------------------------
 -- Sales Records
 -- ---------------------------------------------------------------------------
 create table if not exists public.sales_records (

@@ -11,8 +11,25 @@ import PageHeader from "../../../components/layout/PageHeader.jsx";
 import usePeriodFilters from "../hooks/usePeriodFilters.js";
 import { months } from "../data/mockData.js";
 import { getOutletTaxConfig, getPreviousPeriod, getSalesBreakdown, percentageChange, sumAbsoluteAmount, sumAmount, toCurrency, toPercent, toSignedCurrency } from "../utils/analytics.js";
+import { salesRecordService } from "../../../services/salesRecordService.js";
+import { auditLogService } from "../../../services/auditLogService.js";
 
 const deliveryChannels = new Set(["GrabFood", "FoodPanda", "ShopeeFood"]);
+
+function canonicalChannelName(name) {
+  const normalized = String(name ?? "").toLowerCase();
+  if (normalized.includes("sst")) return "sst";
+  return normalized.replace(/\(-\)/g, "").replace(/deduction/g, "").replace(/[^a-z0-9]+/g, "").trim();
+}
+
+function attachChannelIds(records, salesChannels) {
+  const channelsByName = new Map(salesChannels.map((channel) => [canonicalChannelName(channel.name), channel]));
+  return records.map((record) => {
+    if (record.channel_id) return record;
+    const channel = channelsByName.get(canonicalChannelName(record.channel_name));
+    return channel ? { ...record, channel_id: channel.id } : record;
+  });
+}
 
 function getChannelAmount(records, outletId, year, month, channelId) {
   return sumAmount(records.filter((record) => record.outlet_id === outletId && record.year === year && record.month === month && record.channel_id === channelId));
@@ -375,18 +392,54 @@ function SalesMatrix({ rows, visibleMonths, selectedMonth, compareWith, compareL
   );
 }
 
-export default function SalesComparisonPage({ store, ui }) {
+export default function SalesComparisonPage({ store, setStore, ui }) {
   const filters = usePeriodFilters(store);
   const [compareWith, setCompareWith] = useState("Previous Year");
   const [viewMode, setViewMode] = useState("Summary");
   const [highlightedRows, setHighlightedRows] = useState(() => new Set());
   const [loading, setLoading] = useState(false);
+  const [recordsError, setRecordsError] = useState("");
 
   useEffect(() => {
     setLoading(true);
     const timer = window.setTimeout(() => setLoading(false), 180);
     return () => window.clearTimeout(timer);
   }, [compareWith, filters.outletId, filters.year, viewMode]);
+
+  useEffect(() => {
+    if (!filters.outletId || !filters.year) return undefined;
+    let ignore = false;
+    async function loadSalesComparisonRecords() {
+      setLoading(true);
+      setRecordsError("");
+      try {
+        const years = [filters.year, filters.year - 1];
+        const yearRecords = await Promise.all(years.map((year) => salesRecordService.getSalesRecordsForYear(filters.outletId, year)));
+        const records = attachChannelIds(yearRecords.flat(), store.salesChannels);
+        if (ignore) return;
+        setStore((current) => ({
+          ...current,
+          salesRecords: [
+            ...current.salesRecords.filter(
+              (record) => !(record.outlet_id === filters.outletId && years.includes(record.year)),
+            ),
+            ...records,
+          ],
+        }));
+      } catch (error) {
+        if (!ignore) {
+          console.error("Unable to load sales comparison records", error);
+          setRecordsError(error.message || "Unable to load sales comparison records.");
+        }
+      } finally {
+        if (!ignore) setLoading(false);
+      }
+    }
+    loadSalesComparisonRecords();
+    return () => {
+      ignore = true;
+    };
+  }, [filters.outletId, filters.year, setStore, store.salesChannels]);
 
   const selectedMonth = currentMonthFor(store, filters.outletId, filters.year);
   const visibleMonths = useMemo(
@@ -475,6 +528,18 @@ export default function SalesComparisonPage({ store, ui }) {
     setHighlightedRows(new Set(ids));
   }
 
+  async function queueExport(format) {
+    ui.notify({ title: `${format} queued`, message: `Sales comparison ${format.toLowerCase()} is being prepared.` });
+    await auditLogService.createAuditLog({
+      action: "sales_comparison_exported",
+      module: "sales-comparison",
+      target: `${filters.year} sales comparison`,
+      outlet: filters.outletId,
+      description: `Sales comparison ${format} export queued.`,
+      after: { format, year: filters.year, compareWith, viewMode },
+    }).catch((error) => console.error("Unable to write sales comparison export audit log", error));
+  }
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -518,10 +583,10 @@ export default function SalesComparisonPage({ store, ui }) {
           action={
             <div className="flex flex-wrap items-center justify-end gap-3">
               <Badge tone="info">{compareLabel}</Badge>
-              <button className="btn-secondary h-9" type="button" onClick={() => ui.notify({ title: "Export queued", message: "Sales comparison CSV is being prepared." })}>
+              <button className="btn-secondary h-9" type="button" onClick={() => queueExport("CSV")}>
                 <Download size={15} /> CSV
               </button>
-              <button className="btn-secondary h-9" type="button" onClick={() => ui.notify({ title: "PDF queued", message: "Sales comparison PDF export is mocked." })}>
+              <button className="btn-secondary h-9" type="button" onClick={() => queueExport("PDF")}>
                 <Download size={15} /> PDF
               </button>
               <button className="btn-secondary h-9" type="button" onClick={() => window.print()}>
@@ -536,6 +601,10 @@ export default function SalesComparisonPage({ store, ui }) {
             </div>
           ) : hasVisibleData ? (
             <SalesMatrix rows={tableRows} visibleMonths={visibleMonths} selectedMonth={selectedMonth} compareWith={compareWith} compareLabel={compareLabel} year={filters.year} highlightedRows={highlightedRows} />
+          ) : recordsError ? (
+            <div className="p-4">
+              <EmptyState title="Unable to load sales data" description={recordsError} />
+            </div>
           ) : (
             <div className="p-4">
               <EmptyState title="No sales data found" description="Try another outlet, year, or save sales records for this period first." />

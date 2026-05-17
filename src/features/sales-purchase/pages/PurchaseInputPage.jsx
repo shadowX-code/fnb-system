@@ -23,8 +23,8 @@ import SelectField from "../../../components/forms/SelectField.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import SupplierCombobox from "../components/SupplierCombobox.jsx";
 import usePeriodFilters from "../hooks/usePeriodFilters.js";
-import { operationsService } from "../services/operationsService.js";
 import { purchaseRecordService } from "../../../services/purchaseRecordService.js";
+import { supplierService } from "../../../services/supplierService.js";
 import { months } from "../data/mockData.js";
 import {
   getCategoryName,
@@ -662,16 +662,34 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
     }
   }
 
-  function createSupplierForRow(localKey, name) {
-    const categoryId = rows.find((row, index) => (row.id ?? row.temp_id ?? `${row.supplier_id || "new"}-${index}`) === localKey)?.category_id || "cat-others";
-    const result = operationsService.addSupplier(store, name, categoryId);
-    setStore(result.state);
-    updateRow(localKey, {
-      supplier_id: result.supplier.id,
-      category_id: result.supplier.default_category_id,
-      draft: true,
-    });
-    ui.notify({ title: "Supplier created", message: `${result.supplier.name} is ready for purchase entry.` });
+  async function createSupplierForRow(localKey, name) {
+    const fallbackCategoryId =
+      store.purchaseCategories.find((categoryItem) => categoryItem.name?.toLowerCase() === "others")?.id ||
+      store.purchaseCategories[0]?.id ||
+      null;
+    const categoryId = rows.find((row, index) => (row.id ?? row.temp_id ?? `${row.supplier_id || "new"}-${index}`) === localKey)?.category_id || fallbackCategoryId;
+    try {
+      const categoryName = getCategoryName(store.purchaseCategories, categoryId);
+      const supplier = await supplierService.saveSupplier({
+        name,
+        default_category_id: categoryId,
+        category: categoryName,
+        status: "active",
+      });
+      setStore((current) => ({
+        ...current,
+        suppliers: [...current.suppliers.filter((item) => item.id !== supplier.id), supplier].sort((a, b) => a.name.localeCompare(b.name)),
+      }));
+      updateRow(localKey, {
+        supplier_id: supplier.id,
+        category_id: supplier.default_category_id,
+        draft: true,
+      });
+      ui.notify({ title: "Supplier created", message: "Saved to Supabase" });
+    } catch (error) {
+      console.error("Unable to create supplier", error);
+      ui.notify({ title: "Unable to create supplier", message: error.message, tone: "error" });
+    }
   }
 
   const supplierOptions = store.suppliers.filter((supplier) => supplier.status === "active");

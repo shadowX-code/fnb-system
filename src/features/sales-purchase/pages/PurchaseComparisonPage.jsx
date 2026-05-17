@@ -1,4 +1,4 @@
-import { Fragment, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
 import {
   ChevronDown,
   ChevronRight,
@@ -33,6 +33,9 @@ import {
   toCurrency,
   toPercent,
 } from "../utils/analytics.js";
+import { purchaseRecordService } from "../../../services/purchaseRecordService.js";
+import { salesRecordService } from "../../../services/salesRecordService.js";
+import { auditLogService } from "../../../services/auditLogService.js";
 
 const statusTone = {
   normal: "success",
@@ -47,6 +50,21 @@ const densityClasses = {
   cell: "px-2.5 py-2",
   first: "px-3 py-2",
 };
+
+function canonicalChannelName(name) {
+  const normalized = String(name ?? "").toLowerCase();
+  if (normalized.includes("sst")) return "sst";
+  return normalized.replace(/\(-\)/g, "").replace(/deduction/g, "").replace(/[^a-z0-9]+/g, "").trim();
+}
+
+function attachChannelIds(records, salesChannels) {
+  const channelsByName = new Map(salesChannels.map((channel) => [canonicalChannelName(channel.name), channel]));
+  return records.map((record) => {
+    if (record.channel_id) return record;
+    const channel = channelsByName.get(canonicalChannelName(record.channel_name));
+    return channel ? { ...record, channel_id: channel.id } : record;
+  });
+}
 
 function emptyMonthlyEfficiency(month, year) {
   return {
@@ -389,7 +407,7 @@ function InsightPanel({ warningCells, topSuppliers, biggestIncrease, stableSuppl
   );
 }
 
-export default function PurchaseComparisonPage({ store, ui }) {
+export default function PurchaseComparisonPage({ store, setStore, ui }) {
   const filters = usePeriodFilters(store);
   const [viewMode, setViewMode] = useState("Category");
   const [compareWith, setCompareWith] = useState("3-Month Average");
@@ -405,6 +423,54 @@ export default function PurchaseComparisonPage({ store, ui }) {
   const [selectedCell, setSelectedCell] = useState(null);
   const [highlightedMonth, setHighlightedMonth] = useState(null);
   const [highlightedRowId, setHighlightedRowId] = useState(null);
+  const [recordsLoading, setRecordsLoading] = useState(false);
+  const [recordsError, setRecordsError] = useState("");
+
+  useEffect(() => {
+    if (!filters.outletId || !filters.year) return undefined;
+    let ignore = false;
+    async function loadPurchaseComparisonRecords() {
+      setRecordsLoading(true);
+      setRecordsError("");
+      try {
+        const years = [filters.year, filters.year - 1];
+        const [purchaseByYear, salesByYear] = await Promise.all([
+          Promise.all(years.map((year) => purchaseRecordService.getPurchaseRecordsForYear(filters.outletId, year))),
+          Promise.all(years.map((year) => salesRecordService.getSalesRecordsForYear(filters.outletId, year))),
+        ]);
+        const purchaseRecords = purchaseByYear.flat();
+        const salesRecords = attachChannelIds(salesByYear.flat(), store.salesChannels);
+        if (ignore) return;
+        setStore((current) => ({
+          ...current,
+          purchaseRecords: [
+            ...current.purchaseRecords.filter(
+              (record) => !(record.outlet_id === filters.outletId && years.includes(record.year)),
+            ),
+            ...purchaseRecords,
+          ],
+          salesRecords: [
+            ...current.salesRecords.filter(
+              (record) => !(record.outlet_id === filters.outletId && years.includes(record.year)),
+            ),
+            ...salesRecords,
+          ],
+        }));
+      } catch (error) {
+        if (!ignore) {
+          console.error("Unable to load purchase comparison records", error);
+          setRecordsError(error.message || "Unable to load purchase comparison records.");
+        }
+      } finally {
+        if (!ignore) setRecordsLoading(false);
+      }
+    }
+    loadPurchaseComparisonRecords();
+    return () => {
+      ignore = true;
+    };
+  }, [filters.outletId, filters.year, setStore, store.salesChannels]);
+
   const currentMonth = Math.max(
     ...store.salesRecords
       .filter((record) => record.outlet_id === filters.outletId && record.year === filters.year)
@@ -740,6 +806,18 @@ export default function PurchaseComparisonPage({ store, ui }) {
     if (note.rowId) setHighlightedRowId(note.rowId);
   }
 
+  async function queueExport() {
+    ui.notify({ title: "Export queued", message: "Purchase comparison export is being prepared." });
+    await auditLogService.createAuditLog({
+      action: "purchase_comparison_exported",
+      module: "purchase-comparison",
+      target: `${filters.year} purchase comparison`,
+      outlet: filters.outletId,
+      description: "Purchase comparison export queued.",
+      after: { year: filters.year, compareWith, viewMode },
+    }).catch((error) => console.error("Unable to write purchase comparison export audit log", error));
+  }
+
   const grossProfitTotal = monthlyEfficiency.reduce((total, item) => total + item.grossProfitEstimate, 0);
   const summaryRows = [
     {
@@ -808,7 +886,7 @@ export default function PurchaseComparisonPage({ store, ui }) {
         description="Compare monthly supplier spending, category cost and abnormal purchase trends."
         actions={
           <>
-          <button className="btn-secondary" type="button" onClick={() => ui.notify({ title: "Export queued", message: "Purchase comparison export is mocked." })}>
+          <button className="btn-secondary" type="button" onClick={queueExport}>
             <Download size={16} /> Export
           </button>
           <button className="btn-secondary" type="button" onClick={() => window.print()}>
@@ -907,11 +985,20 @@ export default function PurchaseComparisonPage({ store, ui }) {
             ) : null
           }
         >
-          {!hasComparisonData ? (
+          {recordsLoading ? (
+            <div className="space-y-2.5 p-4">
+              {[1, 2, 3, 4, 5].map((item) => <div key={item} className="h-9 animate-pulse rounded-xl bg-slate-50" />)}
+            </div>
+          ) : recordsError ? (
+            <div className="rounded-2xl border border-dashed border-border bg-slate-50 px-4 py-10 text-center">
+              <div className="text-sm font-bold text-text-primary">Unable to load purchase comparison data</div>
+              <p className="mt-2 text-sm text-text-secondary">{recordsError}</p>
+            </div>
+          ) : !hasComparisonData ? (
             <div className="rounded-2xl border border-dashed border-border bg-slate-50 px-4 py-10 text-center">
               <div className="text-sm font-bold text-text-primary">No purchase comparison data available for this outlet/month yet.</div>
               <p className="mt-2 text-sm text-text-secondary">
-                Purchase comparison uses saved purchase records and calculated Net Sales. This outlet currently has no matching mock transaction data for {filters.year}.
+                Purchase comparison uses saved Supabase purchase records and calculated Net Sales. This outlet currently has no matching transaction data for {filters.year}.
               </p>
             </div>
           ) : (
