@@ -8,17 +8,12 @@ import usePeriodFilters from "../hooks/usePeriodFilters.js";
 import { buildAlerts, getSupplierName, monthLabel, toCurrency, toPercent } from "../utils/analytics.js";
 
 const priorityRank = { critical: 4, high: 3, medium: 2, low: 1 };
-const statusRank = { active: 4, reviewed: 3, resolved: 2, dismissed: 1 };
 
 function formatAlertValue(alert, value) {
   if (["cogs_margin_critical", "cogs_margin_high", "cogs_margin_watch", "sst_unusual", "delivery_platform_dependency_high"].includes(alert.alert_type)) {
     return toPercent(Number(value));
   }
   return toCurrency(value);
-}
-
-function normalizeStatus(status) {
-  return status === "open" ? "active" : status ?? "active";
 }
 
 function alertTypeGroup(alertType = "") {
@@ -39,9 +34,6 @@ function severityTone(alert) {
 
 function cardTone(alert) {
   const tone = severityTone(alert);
-  if (alert.status === "reviewed") return "border-amber-200 bg-amber-50/35";
-  if (alert.status === "resolved") return "border-emerald-200 bg-emerald-50/40 opacity-80";
-  if (alert.status === "dismissed") return "border-slate-200 bg-slate-50/70 opacity-75";
   if (tone === "danger") return "border-rose-200 bg-rose-50/55";
   if (tone === "warning") return "border-amber-200 bg-amber-50/55";
   if (tone === "success") return "border-emerald-200 bg-emerald-50/45";
@@ -49,20 +41,7 @@ function cardTone(alert) {
 }
 
 function statusBadge(alert) {
-  if (alert.status === "reviewed") return { tone: "warning", label: "Reviewed" };
-  if (alert.status === "resolved") return { tone: "success", label: "Resolved" };
-  if (alert.status === "dismissed") return { tone: "neutral", label: "Dismissed" };
   return { tone: severityTone(alert), label: alert.priority };
-}
-
-function relativeTime(timestamp) {
-  if (!timestamp) return "";
-  const diffMs = Date.now() - new Date(timestamp).getTime();
-  const minutes = Math.max(1, Math.round(diffMs / 60000));
-  if (minutes < 60) return `${minutes}m ago`;
-  const hours = Math.round(minutes / 60);
-  if (hours < 24) return `${hours}h ago`;
-  return hours < 48 ? "yesterday" : `${Math.round(hours / 24)}d ago`;
 }
 
 function possibleCauses(alert) {
@@ -83,12 +62,25 @@ function relatedRecords(alert, store) {
   return records;
 }
 
-function EmptyState({ statusFilter }) {
-  const activeCopy = statusFilter === "active" || statusFilter === "all";
+function investigationChecklist(alert) {
+  if (alert.alert_type?.includes("cogs")) return ["Compare supplier invoices against receiving records", "Check wastage and stock movement", "Review high-value purchase categories"];
+  if (alert.alert_type?.includes("supplier")) return ["Check invoice quantity and unit price", "Confirm whether this was a bulk purchase", "Compare against supplier purchase history"];
+  if (alert.alert_type?.includes("sales")) return ["Check outlet traffic and operating hours", "Review channel mix movement", "Compare against promotions or special events"];
+  if (alert.alert_type?.includes("sst")) return ["Compare SST entry with expected tax amount", "Review refunds, voids, or adjustments", "Confirm outlet tax configuration"];
+  return ["Review source records", "Check month-end adjustments", "Confirm whether this was intentional"];
+}
+
+function hasPeriodData(store, filters) {
+  const salesCount = store.salesRecords.filter((record) => record.outlet_id === filters.outletId && record.month === filters.month && record.year === filters.year).length;
+  const purchaseCount = store.purchaseRecords.filter((record) => record.outlet_id === filters.outletId && record.month === filters.month && record.year === filters.year).length;
+  return salesCount > 0 || purchaseCount > 0;
+}
+
+function EmptyState({ hasData }) {
   return (
-    <div className={`rounded-2xl border border-dashed p-8 text-center text-sm ${activeCopy ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-border bg-slate-50 text-text-secondary"}`}>
-      <div className="font-bold text-text-primary">{activeCopy ? "Operations look healthy this month." : "No alerts found for this filter."}</div>
-      <p className="mt-1">{activeCopy ? "No active abnormal activity detected." : "Try another status, alert type, priority or period."}</p>
+    <div className={`rounded-2xl border border-dashed p-8 text-center text-sm ${hasData ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-border bg-slate-50 text-text-secondary"}`}>
+      <div className="font-bold text-text-primary">{hasData ? "No risk alerts for this period." : "Not enough data to generate insights yet."}</div>
+      <p className="mt-1">{hasData ? "Operations look healthy." : "Save sales and purchase records for this outlet and month to generate risk insights."}</p>
     </div>
   );
 }
@@ -96,12 +88,9 @@ function EmptyState({ statusFilter }) {
 export default function AlertsInsightsPage({ store, ui }) {
   const filters = usePeriodFilters(store);
   const [severity, setSeverity] = useState("all");
-  const [priority, setPriority] = useState("all");
-  const [statusFilter, setStatusFilter] = useState("active");
   const [typeFilter, setTypeFilter] = useState("all");
-  const [sortBy, setSortBy] = useState("priority");
-  const [alertMeta, setAlertMeta] = useState({});
   const [selected, setSelected] = useState(null);
+  const hasData = useMemo(() => hasPeriodData(store, filters), [filters, store]);
 
   const allAlerts = useMemo(() => {
     const generated = buildAlerts({
@@ -115,54 +104,28 @@ export default function AlertsInsightsPage({ store, ui }) {
     outletTaxConfigs: store.outletTaxConfigs,
     specialMonths: store.specialMonths,
   });
-    return generated.map((alert) => {
-      const meta = alertMeta[alert.id] ?? {};
-      return {
-        ...alert,
-        ...meta,
-        status: normalizeStatus(meta.status ?? alert.status),
-        possible_causes: meta.possible_causes ?? possibleCauses(alert),
-        related_records: meta.related_records ?? relatedRecords(alert, store),
-      };
-    });
-  }, [alertMeta, filters.month, filters.outletId, filters.year, store]);
+    return generated.map((alert) => ({
+      ...alert,
+      possible_causes: possibleCauses(alert),
+      related_records: relatedRecords(alert, store),
+      investigation_checklist: investigationChecklist(alert),
+    }));
+  }, [filters.month, filters.outletId, filters.year, store]);
 
   const counters = useMemo(() => ({
     critical: allAlerts.filter((alert) => alert.priority === "critical").length,
     high: allAlerts.filter((alert) => alert.priority === "high").length,
     medium: allAlerts.filter((alert) => alert.priority === "medium").length,
     low: allAlerts.filter((alert) => alert.priority === "low").length,
-    unreviewed: allAlerts.filter((alert) => alert.status === "active").length,
   }), [allAlerts]);
 
   const alerts = useMemo(() => {
     const filtered = allAlerts
       .filter((alert) => severity === "all" || alert.severity === severity)
-      .filter((alert) => priority === "all" || alert.priority === priority)
-      .filter((alert) => statusFilter === "all" || alert.status === statusFilter)
       .filter((alert) => typeFilter === "all" || alertTypeGroup(alert.alert_type) === typeFilter);
 
-    return filtered.sort((a, b) => {
-      if (sortBy === "newest") return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
-      if (sortBy === "confidence") return (b.confidence_score ?? 0) - (a.confidence_score ?? 0);
-      if (sortBy === "unreviewed") return (statusRank[b.status] ?? 0) - (statusRank[a.status] ?? 0) || (priorityRank[b.priority] ?? 0) - (priorityRank[a.priority] ?? 0);
-      return (a.status === "active" ? -1 : 1) - (b.status === "active" ? -1 : 1) || (priorityRank[b.priority] ?? 0) - (priorityRank[a.priority] ?? 0) || (b.confidence_score ?? 0) - (a.confidence_score ?? 0);
-    });
-  }, [allAlerts, priority, severity, sortBy, statusFilter, typeFilter]);
-
-  function setAlertStatus(alert, status) {
-    const timestampKey = status === "reviewed" ? "reviewed_at" : status === "resolved" ? "resolved_at" : "dismissed_at";
-    setAlertMeta((current) => ({
-      ...current,
-      [alert.id]: {
-        ...current[alert.id],
-        status,
-        [timestampKey]: new Date().toISOString(),
-        handled_by: "Marcus",
-      },
-    }));
-    ui.notify({ title: `Alert ${status}`, message: alert.title });
-  }
+    return filtered.sort((a, b) => (priorityRank[b.priority] ?? 0) - (priorityRank[a.priority] ?? 0) || (b.confidence_score ?? 0) - (a.confidence_score ?? 0));
+  }, [allAlerts, severity, typeFilter]);
 
   function confidenceTitle() {
     return "Confidence is based on:\n- historical variance\n- month-over-month deviation\n- 3-month average comparison\n- sales vs purchase movement";
@@ -182,22 +145,8 @@ export default function AlertsInsightsPage({ store, ui }) {
         compact
         actions={
           <>
-            <SelectField className="w-40" value={priority === "all" ? "" : priority} placeholder="All Priority" options={["critical", "high", "medium", "low"].map((item) => ({ value: item, label: item[0].toUpperCase() + item.slice(1) }))} onChange={(nextValue) => setPriority(nextValue || "all")} />
             <SelectField className="w-40" value={severity === "all" ? "" : severity} placeholder="All Severity" options={["danger", "warning", "info", "success"].map((item) => ({ value: item, label: item[0].toUpperCase() + item.slice(1) }))} onChange={(nextValue) => setSeverity(nextValue || "all")} />
-            <SelectField className="w-40" value={statusFilter} options={[
-              { value: "active", label: "Unreviewed" },
-              { value: "reviewed", label: "Reviewed" },
-              { value: "resolved", label: "Resolved" },
-              { value: "dismissed", label: "Dismissed" },
-              { value: "all", label: "All Status" },
-            ]} onChange={setStatusFilter} />
             <SelectField className="w-44" value={typeFilter === "all" ? "" : typeFilter} placeholder="All Alert Types" options={["COGS", "Supplier", "Sales", "SST", "Purchase"].map((item) => ({ value: item, label: item }))} onChange={(nextValue) => setTypeFilter(nextValue || "all")} />
-            <SelectField className="w-48" value={sortBy} options={[
-              { value: "priority", label: "Priority + Unreviewed" },
-              { value: "newest", label: "Newest" },
-              { value: "confidence", label: "Highest Confidence" },
-              { value: "unreviewed", label: "Unreviewed First" },
-            ]} onChange={setSortBy} />
           </>
         }
       />
@@ -208,46 +157,25 @@ export default function AlertsInsightsPage({ store, ui }) {
           ["high", "High", counters.high, "danger"],
           ["medium", "Medium", counters.medium, "warning"],
           ["low", "Low", counters.low, "info"],
-          ["active", "Unreviewed", counters.unreviewed, "neutral"],
-        ].map(([key, label, count, tone]) => {
-          const isActive = key === "active" ? statusFilter === "active" && priority === "all" : priority === key;
-          return (
+        ].map(([key, label, count, tone]) => (
           <button
             key={key}
-            className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
-              isActive
-                ? "border-primary/40 bg-primary/10 text-primary shadow-sm"
-                : "border-border bg-white text-text-secondary hover:border-primary/30 hover:bg-slate-50 hover:text-primary"
-            }`}
+            className="rounded-full border border-border bg-white px-3 py-1.5 text-xs font-bold text-text-secondary transition hover:border-primary/30 hover:bg-slate-50 hover:text-primary"
             type="button"
             onClick={() => {
-              if (key === "active") {
-                setStatusFilter("active");
-                setPriority("all");
-                return;
-              }
-              setPriority(key);
-              setStatusFilter("all");
+              setSeverity(key === "critical" || key === "high" ? "danger" : key === "medium" ? "warning" : "info");
             }}
           >
             <Badge tone={tone}>{count}</Badge>
             <span className="ml-2">{label}</span>
           </button>
-          );
-        })}
+        ))}
       </div>
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
         {alerts.map((alert) => {
           const badge = statusBadge(alert);
-          const timestamp =
-            alert.status === "reviewed"
-              ? `Reviewed ${relativeTime(alert.reviewed_at)}`
-              : alert.status === "resolved"
-                ? `Resolved by ${alert.handled_by ?? "Marcus"}`
-                : alert.status === "dismissed"
-                  ? "Dismissed"
-                  : `Triggered from ${monthLabel(alert.month)} ${alert.year} data`;
+          const timestamp = `Detected from ${monthLabel(alert.month)} ${alert.year} data`;
 
           return (
             <article key={alert.id} className={`rounded-2xl border p-3 transition hover:-translate-y-0.5 hover:shadow-card ${cardTone(alert)}`}>
@@ -271,54 +199,61 @@ export default function AlertsInsightsPage({ store, ui }) {
               </div>
 
               <div className="mt-3 flex flex-wrap gap-1.5">
-                <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setSelected(alert)}>Details</button>
-                {alert.status === "active" ? (
-                  <>
-                    <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setAlertStatus(alert, "reviewed")}>Mark Reviewed</button>
-                    <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setAlertStatus(alert, "dismissed")}>Dismiss</button>
-                    <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setAlertStatus(alert, "resolved")}>Resolve</button>
-                  </>
-                ) : null}
-                {alert.status === "reviewed" ? (
-                  <>
-                    <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setAlertStatus(alert, "resolved")}>Resolve</button>
-                    <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setAlertStatus(alert, "dismissed")}>Dismiss</button>
-                  </>
-                ) : null}
+                <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setSelected(alert)}>View Details</button>
               </div>
             </article>
           );
         })}
       </div>
 
-      {!alerts.length ? <EmptyState statusFilter={statusFilter} /> : null}
+      {!alerts.length ? <EmptyState hasData={hasData} /> : null}
 
       {selected ? (
-        <Modal title={selected.title} description="Alert detail and suggested response" onClose={() => setSelected(null)} footer={<button className="btn-primary" type="button" onClick={() => setSelected(null)}>Done</button>}>
+        <Modal title={selected.title} description="Why this risk alert was generated" onClose={() => setSelected(null)} footer={<button className="btn-primary" type="button" onClick={() => setSelected(null)}>Done</button>}>
           <div className="space-y-4 text-sm">
             <div className="flex flex-wrap gap-2">
               <Badge tone={selected.severity}>{selected.priority}</Badge>
-              <Badge tone={statusBadge(selected).tone}>{statusBadge(selected).label}</Badge>
+              <Badge tone="info">{alertTypeGroup(selected.alert_type)}</Badge>
               <span className="rounded-full bg-slate-100 px-2 py-1 text-xs font-bold text-text-secondary" title={confidenceTitle()}>{selected.confidence_score}% confidence</span>
             </div>
             <p className="text-text-secondary">{selected.description}</p>
+            <div className="rounded-2xl border border-border bg-slate-50 p-4">
+              <div className="text-xs font-bold uppercase text-text-muted">Rule Used</div>
+              <p className="mt-1 font-semibold text-text-primary">{selected.alert_type?.replace(/_/g, " ") || "Business rule threshold"}</p>
+            </div>
             <div className="grid gap-3 md:grid-cols-3">
-              <div className="rounded-2xl bg-slate-50 p-4"><div className="text-xs text-text-secondary">Current</div><strong>{formatAlertValue(selected, selected.current_value)}</strong></div>
-              <div className="rounded-2xl bg-slate-50 p-4"><div className="text-xs text-text-secondary">Comparison</div><strong>{formatAlertValue(selected, selected.comparison_value)}</strong></div>
+              <div className="rounded-2xl bg-slate-50 p-4"><div className="text-xs text-text-secondary">Current Value</div><strong>{formatAlertValue(selected, selected.current_value)}</strong></div>
+              <div className="rounded-2xl bg-slate-50 p-4"><div className="text-xs text-text-secondary">Comparison Baseline</div><strong>{formatAlertValue(selected, selected.comparison_value)}</strong></div>
               <div className="rounded-2xl bg-slate-50 p-4"><div className="text-xs text-text-secondary">Change</div><strong>{toPercent(selected.percentage_change)}</strong></div>
             </div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <div className="rounded-2xl border border-border p-4">
+                <div className="text-xs font-bold uppercase text-text-muted">Sales Value</div>
+                <strong>{selected.alert_type?.includes("sales") ? formatAlertValue(selected, selected.current_value) : selected.current_value != null ? formatAlertValue(selected, selected.current_value) : "—"}</strong>
+              </div>
+              <div className="rounded-2xl border border-border p-4">
+                <div className="text-xs font-bold uppercase text-text-muted">Purchase Value</div>
+                <strong>{selected.alert_type?.includes("purchase") || selected.alert_type?.includes("cogs") || selected.alert_type?.includes("supplier") ? formatAlertValue(selected, selected.current_value) : selected.comparison_value != null ? formatAlertValue(selected, selected.comparison_value) : "—"}</strong>
+              </div>
+            </div>
             <div>
-              <strong>Possible causes</strong>
+              <strong>Why it may have triggered</strong>
               <ul className="mt-1 space-y-1 text-text-secondary">
                 {selected.possible_causes.map((cause) => <li key={cause}>- {cause}</li>)}
               </ul>
             </div>
             <div>
-              <strong>Suggested action</strong>
+              <strong>Suggested check</strong>
               <p className="mt-1 text-text-secondary">{selected.suggested_action}</p>
             </div>
             <div>
-              <strong>Related records</strong>
+              <strong>Investigation checklist</strong>
+              <ul className="mt-1 space-y-1 text-text-secondary">
+                {selected.investigation_checklist.map((item) => <li key={item}>- {item}</li>)}
+              </ul>
+            </div>
+            <div>
+              <strong>Detected period / source</strong>
               <ul className="mt-1 space-y-1 text-text-secondary">
                 {selected.related_records.map((record) => <li key={record}>- {record}</li>)}
               </ul>
