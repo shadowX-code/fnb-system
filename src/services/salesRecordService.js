@@ -2,8 +2,14 @@ import { supabase } from "../lib/supabase";
 import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
 
+function logSalesRecordQuery(operation, permission, context = {}) {
+  if (!import.meta.env.DEV) return;
+  console.info("[Supabase:sales_records.query]", { operation, permission, ...context });
+}
+
 export const salesRecordService = {
   async listSalesRecords() {
+    logSalesRecordQuery("select:list_all", "dashboard.view OR sales_input.view OR sales_comparison.view");
     const { data, error } = await supabase
       .from("sales_records")
       .select("id,outlet_id,year,month,channel_id,channel_name,amount,remark,created_at,updated_at")
@@ -16,6 +22,7 @@ export const salesRecordService = {
   },
 
   async getSalesRecords(outletId, year, month) {
+    logSalesRecordQuery("select:list_period", "sales_input.view", { outletId, year, month });
     const { data, error } = await supabase
       .from("sales_records")
       .select("id,outlet_id,year,month,channel_id,channel_name,amount,remark,created_at,updated_at")
@@ -30,6 +37,7 @@ export const salesRecordService = {
   },
 
   async getSalesRecordsForYear(outletId, year) {
+    logSalesRecordQuery("select:list_year", "sales_comparison.view OR dashboard.view", { outletId, year });
     const { data, error } = await supabase
       .from("sales_records")
       .select("id,outlet_id,year,month,channel_id,channel_name,amount,remark,created_at,updated_at")
@@ -43,6 +51,7 @@ export const salesRecordService = {
   },
 
   async listExistingSalesRecords(outletId, year, month) {
+    logSalesRecordQuery("select:list_existing", "sales_input.view", { outletId, year, month });
     const { data, error } = await supabase
       .from("sales_records")
       .select("id,outlet_id,year,month,channel_id,channel_name,amount,remark")
@@ -56,6 +65,7 @@ export const salesRecordService = {
 
   async deleteSalesRecordIds(ids) {
     if (!ids.length) return;
+    logSalesRecordQuery("delete:removed_rows", "sales_input.delete OR data_import.import", { rows: ids.length });
     const { error } = await supabase
       .from("sales_records")
       .delete()
@@ -92,6 +102,7 @@ export const salesRecordService = {
       if (row.id && existingById.has(row.id)) {
         seenExistingIds.add(row.id);
         const { id, ...updatePayload } = row;
+        logSalesRecordQuery("update:row", "sales_input.edit OR data_import.import", { id, outletId, year, month });
         const { data, error } = await supabase
           .from("sales_records")
           .update({ ...updatePayload, updated_at: new Date().toISOString() })
@@ -102,6 +113,13 @@ export const salesRecordService = {
         savedRows.push(data);
       } else {
         const { id: _ignoredId, ...insertPayload } = row;
+        logSalesRecordQuery("insert:row", "sales_input.create OR data_import.import", {
+          outletId,
+          year,
+          month,
+          channel_id: insertPayload.channel_id,
+          channel_name: insertPayload.channel_name,
+        });
         const { data, error } = await supabase
           .from("sales_records")
           .insert(insertPayload)

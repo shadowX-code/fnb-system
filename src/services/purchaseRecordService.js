@@ -2,6 +2,11 @@ import { supabase } from "../lib/supabase";
 import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
 
+function logPurchaseRecordQuery(operation, permission, context = {}) {
+  if (!import.meta.env.DEV) return;
+  console.info("[Supabase:purchase_records.query]", { operation, permission, ...context });
+}
+
 const purchaseRecordSelect = `
   id,
   outlet_id,
@@ -36,6 +41,7 @@ function mapPurchaseRecord(record) {
 
 export const purchaseRecordService = {
   async listPurchaseRecords() {
+    logPurchaseRecordQuery("select:list_all", "dashboard.view OR purchase_input.view OR purchase_comparison.view");
     const { data, error } = await supabase
       .from("purchase_records")
       .select(purchaseRecordSelect)
@@ -48,6 +54,7 @@ export const purchaseRecordService = {
   },
 
   async getPurchaseRecords(outletId, year, month) {
+    logPurchaseRecordQuery("select:list_period", "purchase_input.view", { outletId, year, month });
     const { data, error } = await supabase
       .from("purchase_records")
       .select(purchaseRecordSelect)
@@ -61,6 +68,7 @@ export const purchaseRecordService = {
   },
 
   async getPurchaseRecordsForYear(outletId, year) {
+    logPurchaseRecordQuery("select:list_year", "purchase_comparison.view OR dashboard.view", { outletId, year });
     const { data, error } = await supabase
       .from("purchase_records")
       .select(purchaseRecordSelect)
@@ -80,6 +88,7 @@ export const purchaseRecordService = {
 
   async deletePurchaseRecordIds(ids) {
     if (!ids.length) return;
+    logPurchaseRecordQuery("delete:removed_rows", "purchase_input.delete OR data_import.import", { rows: ids.length });
     const { error } = await supabase
       .from("purchase_records")
       .delete()
@@ -111,6 +120,7 @@ export const purchaseRecordService = {
       if (row.id && existingById.has(row.id)) {
         seenExistingIds.add(row.id);
         const { id, ...updatePayload } = row;
+        logPurchaseRecordQuery("update:row", "purchase_input.edit OR data_import.import", { id, outletId, year, month });
         const { data, error } = await supabase
           .from("purchase_records")
           .update({ ...updatePayload, updated_at: new Date().toISOString() })
@@ -121,6 +131,13 @@ export const purchaseRecordService = {
         savedRows.push(mapPurchaseRecord(data));
       } else {
         const { id: _ignoredId, ...insertPayload } = row;
+        logPurchaseRecordQuery("insert:row", "purchase_input.create OR data_import.import", {
+          outletId,
+          year,
+          month,
+          supplier_id: insertPayload.supplier_id,
+          category_id: insertPayload.category_id,
+        });
         const { data, error } = await supabase
           .from("purchase_records")
           .insert(insertPayload)
