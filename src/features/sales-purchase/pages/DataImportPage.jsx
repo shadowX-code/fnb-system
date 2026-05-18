@@ -207,6 +207,14 @@ function findCategoryByName(items, value) {
     || items.find((item) => canonicalSingular(item.name) === singular);
 }
 
+function pendingCategoryId(name) {
+  return `__new_category__:${name}`;
+}
+
+function pendingCategoryName(id) {
+  return String(id ?? "").startsWith("__new_category__:") ? String(id).replace("__new_category__:", "") : "";
+}
+
 function isLocked(store, outletId, month, year) {
   return store.monthlyLocks.some((lock) => lock.outlet_id === outletId && lock.month === month && lock.year === year && lock.is_locked);
 }
@@ -332,6 +340,13 @@ export default function DataImportPage({ store, setStore, ui }) {
     if (resolution.action === "map") return !resolution.category_id;
     return false;
   });
+  const pendingCategoryOptions = useMemo(() => Object.entries(categoryResolutions)
+    .filter(([, resolution]) => resolution.action === "create")
+    .map(([name]) => ({ id: pendingCategoryId(name), name, isPending: true })), [categoryResolutions]);
+  const supplierCategoryOptions = useMemo(() => [
+    ...store.purchaseCategories.map((category) => ({ value: category.id, label: category.name })),
+    ...pendingCategoryOptions.map((category) => ({ value: category.id, label: `${category.name} (new)` })),
+  ], [pendingCategoryOptions, store.purchaseCategories]);
 
   async function handleFile(file) {
     if (!file) return;
@@ -457,7 +472,7 @@ export default function DataImportPage({ store, setStore, ui }) {
         || store.purchaseCategories.find((item) => item.id === categoryResolution?.category_id)
         || createdCategoryMap[categoryName]
         || (options.allowPendingCategoryCreate && categoryResolution?.action === "create"
-          ? { id: `__new_category__:${categoryName}`, name: categoryName }
+          ? { id: pendingCategoryId(categoryName), name: categoryName }
           : null);
       const rowIssues = [];
       const resolution = supplierResolutions[supplierName];
@@ -480,7 +495,15 @@ export default function DataImportPage({ store, setStore, ui }) {
       }
       if (!supplier && !resolution) {
         const current = unknowns.get(supplierName) ?? { name: supplierName, rows: [] };
-        unknowns.set(supplierName, { ...current, rows: [...current.rows, row.__row] });
+        const categoryIds = [...new Set([...(current.categoryIds ?? []), category?.id].filter(Boolean))];
+        const categoryNames = [...new Set([...(current.categoryNames ?? []), category?.name].filter(Boolean))];
+        unknowns.set(supplierName, {
+          ...current,
+          rows: [...current.rows, row.__row],
+          categoryIds,
+          categoryNames,
+          default_category_id: categoryIds[0] ?? "",
+        });
       }
       if (!categoryName) rowIssues.push("Missing category");
       if (categoryName && !category && !categoryResolution) {
@@ -664,6 +687,15 @@ export default function DataImportPage({ store, setStore, ui }) {
       if (rebuilt.unknownSuppliers?.length) {
         setValidationState({ loading: false, message: "", error: "" });
         setUnknownSuppliers(rebuilt.unknownSuppliers);
+        setSupplierResolutions((current) => {
+          const next = { ...current };
+          rebuilt.unknownSuppliers.forEach((supplier) => {
+            if (!next[supplier.name]) {
+              next[supplier.name] = { action: "create", supplier_id: "", category_id: supplier.default_category_id || "" };
+            }
+          });
+          return next;
+        });
         setStep("unknown-suppliers");
         return;
       }
@@ -708,10 +740,15 @@ export default function DataImportPage({ store, setStore, ui }) {
         }
         for (const [name, resolution] of Object.entries(supplierResolutions)) {
           if (resolution.action !== "create") continue;
-          const category = store.purchaseCategories.find((item) => item.id === resolution.category_id);
+          const pendingName = pendingCategoryName(resolution.category_id);
+          const category = store.purchaseCategories.find((item) => item.id === resolution.category_id)
+            || createdCategoryMap[pendingName];
+          if (!category?.id) {
+            throw new Error(`Default category is missing for new supplier "${name}".`);
+          }
           const supplier = await supplierService.saveSupplier({
             name,
-            default_category_id: resolution.category_id,
+            default_category_id: category.id,
             category: category?.name || "",
             status: "active",
           });
@@ -975,21 +1012,33 @@ export default function DataImportPage({ store, setStore, ui }) {
                   <p className="mt-1 text-xs">Map to an existing supplier, create a new active supplier, or skip the row before continuing.</p>
                 </div>
                 {unknownSuppliers.map((item) => {
-                  const resolution = supplierResolutions[item.name] || { action: "map", supplier_id: "", category_id: "" };
+                  const hasMultipleCategories = (item.categoryIds?.length ?? 0) > 1;
+                  const resolution = supplierResolutions[item.name] || { action: "create", supplier_id: "", category_id: item.default_category_id || "" };
                   return (
                     <div key={item.name} className="rounded-2xl border border-border p-3">
                       <div className="flex flex-wrap items-center justify-between gap-3">
                         <div>
                           <div className="font-bold text-text-primary">{item.name || "Unknown Supplier"}</div>
                           <div className="mt-1 text-xs text-text-secondary">Rows: {item.rows.join(", ")}</div>
+                          {item.categoryNames?.length ? (
+                            <div className="mt-1 text-xs text-text-secondary">Imported categories: {item.categoryNames.join(", ")}</div>
+                          ) : null}
                         </div>
-                        <SelectField className="w-48" value={resolution.action} options={[{ value: "map", label: "Map existing" }, { value: "create", label: "Create supplier" }, { value: "skip", label: "Skip row" }]} onChange={(action) => setSupplierResolutions((current) => ({ ...current, [item.name]: { action, supplier_id: "", category_id: "" } }))} />
+                        <SelectField className="w-48" value={resolution.action} options={[{ value: "map", label: "Map existing" }, { value: "create", label: "Create supplier" }, { value: "skip", label: "Skip row" }]} onChange={(action) => setSupplierResolutions((current) => ({ ...current, [item.name]: { action, supplier_id: "", category_id: item.default_category_id || "" } }))} />
                       </div>
+                      {hasMultipleCategories && resolution.action === "create" ? (
+                        <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
+                          Supplier appears under multiple categories. Choose the main supplier category. Purchase rows will still use their imported category.
+                        </div>
+                      ) : null}
                       {resolution.action === "map" ? (
                         <SelectField className="mt-3 w-full" searchable placeholder="Select supplier" value={resolution.supplier_id} options={store.suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))} onChange={(supplier_id) => setSupplierResolutions((current) => ({ ...current, [item.name]: { ...resolution, supplier_id } }))} />
                       ) : null}
                       {resolution.action === "create" ? (
-                        <SelectField className="mt-3 w-full" searchable placeholder="Required category for new supplier" value={resolution.category_id} options={store.purchaseCategories.map((category) => ({ value: category.id, label: category.name }))} onChange={(category_id) => setSupplierResolutions((current) => ({ ...current, [item.name]: { ...resolution, category_id } }))} />
+                        <div className="mt-3 space-y-2">
+                          <SelectField className="w-full" searchable placeholder="Default category for new supplier" value={resolution.category_id} options={supplierCategoryOptions} onChange={(category_id) => setSupplierResolutions((current) => ({ ...current, [item.name]: { ...resolution, category_id } }))} />
+                          <p className="text-xs font-medium text-text-secondary">This sets the supplier’s default category. Purchase rows will still use their imported category.</p>
+                        </div>
                       ) : null}
                     </div>
                   );
