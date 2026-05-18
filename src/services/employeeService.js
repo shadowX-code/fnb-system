@@ -80,7 +80,7 @@ export const employeeService = {
       access_state: employee.access_state ?? (employee.enable_system_login ? "not_sent" : "no_access"),
       is_active: Boolean(employee.is_active),
       email_verified: Boolean(employee.email_verified),
-      verification_sent_at: employee.access_state === "invited" ? new Date().toISOString() : employee.verification_sent_at ?? null,
+      verification_sent_at: employee.access_state === "invited" || employee.access_state === "temp_password_active" ? new Date().toISOString() : employee.verification_sent_at ?? null,
       access_disabled_at: employee.access_state === "disabled" ? new Date().toISOString() : employee.access_disabled_at ?? null,
       last_login_at: employee.last_login_at ?? null,
       audit_summary: employee.audit_summary ?? "",

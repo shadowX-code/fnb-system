@@ -314,7 +314,6 @@ export default function DataImportPage({ store, setStore, ui }) {
   const [isImporting, setIsImporting] = useState(false);
   const [validationState, setValidationState] = useState({ loading: false, message: "", error: "" });
   const [importSummary, setImportSummary] = useState(null);
-  const [dryRun, setDryRun] = useState(false);
   const [confirmImport, setConfirmImport] = useState(false);
 
   useEffect(() => {
@@ -709,19 +708,6 @@ export default function DataImportPage({ store, setStore, ui }) {
 
   async function runImport() {
     if (!preview || preview.failures.length) return;
-    if (dryRun) {
-      setConfirmImport(false);
-      setImportSummary({
-        created: preview.createCount,
-        updated: preview.updateCount,
-        skipped: preview.skippedRows?.length ?? 0,
-        failed: preview.failures.length,
-        migrationWarning: "Dry run only. No Supabase records were created or updated.",
-        report: buildImportReport(preview),
-      });
-      ui.notify({ title: "Dry run complete", message: `${preview.createCount} create · ${preview.updateCount} update simulated.` });
-      return;
-    }
     setIsImporting(true);
     try {
       let createdCategoryMap = {};
@@ -878,13 +864,6 @@ export default function DataImportPage({ store, setStore, ui }) {
                 <button key={type} className={`h-9 rounded-xl px-4 text-sm font-semibold ${importType === type ? "bg-primary text-white" : "bg-white text-text-secondary ring-1 ring-border hover:bg-slate-50"}`} type="button" onClick={() => setImportType(type)}>{type}</button>
               ))}
               <Badge tone="info">Step: {step}</Badge>
-              <button
-                type="button"
-                className={`h-9 rounded-xl px-3 text-xs font-bold ring-1 transition ${dryRun ? "bg-primary-soft text-primary ring-primary/30" : "bg-white text-text-secondary ring-border hover:bg-slate-50"}`}
-                onClick={() => setDryRun((current) => !current)}
-              >
-                Dry Run Mode: {dryRun ? "On" : "Off"}
-              </button>
             </div>
 
             {step === "upload" ? (
@@ -1100,7 +1079,7 @@ export default function DataImportPage({ store, setStore, ui }) {
                   </button>
                   <button className="btn-secondary" type="button" onClick={() => setStep("upload")}>Cancel</button>
                   <button className="btn-primary" type="button" disabled={isImporting || preview.failures.length > 0 || !preview.validationRows.length} onClick={() => setConfirmImport(true)}>
-                    {isImporting ? "Importing..." : <><CheckCircle2 size={16} /> {dryRun ? "Complete Dry Run" : "Continue Import"}</>}
+                    {isImporting ? "Importing..." : <><CheckCircle2 size={16} /> Continue Import</>}
                   </button>
                 </div>
               </div>
@@ -1126,14 +1105,12 @@ export default function DataImportPage({ store, setStore, ui }) {
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/40 px-4">
           <div className="w-full max-w-lg rounded-3xl border border-border bg-surface p-5 shadow-2xl">
             <div className="text-lg font-bold text-text-primary">
-              {dryRun ? "Complete dry run?" : "Confirm import to Supabase"}
+              Confirm import to Supabase
             </div>
             <p className="mt-2 text-sm text-text-secondary">
-              {dryRun
-                ? "Dry Run Mode is on. No records will be written."
-                : `You are about to update ${preview.updateCount} existing rows and create ${preview.createCount} new rows.`}
+              You are about to update {preview.updateCount} existing rows and create {preview.createCount} new rows.
             </p>
-            {!dryRun && preview.updateCount > 0 ? (
+            {preview.updateCount > 0 ? (
               <div className="mt-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
                 <div className="font-bold">Existing records will be overwritten</div>
                 <p className="mt-1 text-xs">Matching rows use the imported value as the source of truth. This cannot be undone from this screen; use the import report and audit log for review.</p>
@@ -1147,7 +1124,7 @@ export default function DataImportPage({ store, setStore, ui }) {
             <div className="mt-5 flex justify-end gap-2">
               <button className="btn-secondary" type="button" disabled={isImporting} onClick={() => setConfirmImport(false)}>Cancel</button>
               <button className="btn-primary" type="button" disabled={isImporting} onClick={runImport}>
-                {isImporting ? "Importing..." : dryRun ? "Complete Dry Run" : "Confirm Import"}
+                {isImporting ? "Importing..." : "Confirm Import"}
               </button>
             </div>
           </div>

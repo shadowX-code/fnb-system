@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { BriefcaseBusiness, CreditCard, Edit3, Eye, Mail, MoreHorizontal, Plus, Power, RotateCcw, Search, ShieldCheck, UserRound, XCircle } from "lucide-react";
+import { BriefcaseBusiness, Copy, CreditCard, Edit3, Eye, KeyRound, MoreHorizontal, Plus, Power, Search, ShieldCheck, UserRound } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import Card from "../../../components/ui/Card.jsx";
@@ -95,16 +95,18 @@ function getAccessState(employee) {
   if (!hasSystemLogin(employee)) return "no_access";
   const state = employee.access_state ?? employee.account_status;
   if (state === "not_sent") return "not_sent";
+  if (state === "temp_password_active" || state === "invited") return "temp_password_active";
   if (state === "active") return "active";
   if (state === "inactive" || state === "disabled") return "disabled";
-  return "invited";
+  return "not_sent";
 }
 
 function getAccessStateCopy(employee) {
   const state = getAccessState(employee);
   if (state === "no_access") return "System login is not enabled for this employee.";
-  if (state === "not_sent") return "Verification email will be sent after saving.";
-  if (state === "invited") return "Verification email sent. Waiting for password setup.";
+  if (state === "not_sent") return "Temporary password can be generated after saving.";
+  if (state === "temp_password_active") return "Temporary password active. Employee must change password on first login.";
+  if (state === "invited") return "Temporary password active. Employee must change password on first login.";
   if (state === "active") return "Employee can sign in. Role permissions and outlet scope apply.";
   return "System access is disabled. Historical records remain available.";
 }
@@ -198,7 +200,7 @@ function employmentTone(status) {
 
 function accountTone(status) {
   if (status === "active") return "success";
-  if (status === "invited") return "warning";
+  if (status === "invited" || status === "temp_password_active") return "warning";
   if (status === "disabled") return "neutral";
   if (status === "not_sent") return "info";
   return "neutral";
@@ -207,10 +209,16 @@ function accountTone(status) {
 function accountLabel(status) {
   if (status === "no_access") return "No Access";
   if (status === "not_sent") return "Not Sent";
-  if (status === "invited") return "Invitation Pending";
+  if (status === "temp_password_active" || status === "invited") return "Temporary Password Active";
   if (status === "active") return "Access Active";
   if (status === "disabled") return "Access Disabled";
   return titleCase(status);
+}
+
+function generateTemporaryPassword() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
+  const body = Array.from({ length: 8 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
+  return `Temp${body}!`;
 }
 
 function findJobPosition(jobPositions, positionName) {
@@ -328,6 +336,7 @@ function UserFormModal({
   ui,
   onClose,
   onSubmit,
+  onTemporaryPassword,
   onSwitchToEdit,
 }) {
   const [values, setValues] = useState(() => {
@@ -413,7 +422,7 @@ function UserFormModal({
   function resolveSavedAccessStatus() {
     if (!values.enable_system_login) return "no_access";
     if (values.access_state === "active" || values.access_state === "disabled" || values.access_state === "inactive") return getAccessState(values);
-    if (values.access_state === "invited") return "invited";
+    if (values.access_state === "temp_password_active" || values.access_state === "invited") return "temp_password_active";
     return "not_sent";
   }
 
@@ -443,13 +452,13 @@ function UserFormModal({
         enable_system_login: Boolean(values.enable_system_login),
         email_verified: values.enable_system_login ? (values.email_verified ?? false) : false,
         audit_summary: values.enable_system_login
-          ? "Employee profile saved. System access follows verification lifecycle."
+          ? "Employee profile saved. Temporary password can be generated when needed."
           : "Employee profile saved without system login.",
       });
     }, 450);
   }
 
-  async function saveAndInvite() {
+  async function saveAndGenerateTemporaryPassword() {
     if (!values.enable_system_login || emailStatus !== "valid") {
       ui.notify({ title: "Please provide a valid unused email.", tone: "danger" });
       return;
@@ -465,13 +474,14 @@ function UserFormModal({
       return;
     }
     const confirmed = await ui.confirm({
-      title: "Send verification email?",
-      message: "An invite email will be sent so the user can verify their email and set their own password. Admins cannot create, view, or recover passwords.",
-      confirmLabel: "Send Verification",
+      title: "Generate temporary password?",
+      message: "A temporary development password will be created and shown once. The employee must change it on first login.",
+      confirmLabel: "Generate Password",
     });
     if (!confirmed) return;
     setIsSaving(true);
     const normalizedFullName = normalizeOfficialName(values.full_name);
+    const temporaryPassword = generateTemporaryPassword();
     window.setTimeout(() => {
       onSubmit({
         ...values,
@@ -479,33 +489,25 @@ function UserFormModal({
         nickname: values.nickname.trim(),
         bank_account_name: values.bank_account_name?.trim() || normalizedFullName,
         enable_system_login: true,
-        access_state: "invited",
-        is_active: false,
-        email_verified: false,
-        audit_summary: "Invitation pending. Employee must verify email and set password.",
+        access_state: "temp_password_active",
+        is_active: true,
+        email_verified: true,
+        temporary_password: temporaryPassword,
+        audit_summary: "Temporary password generated for development onboarding.",
       });
-      ui.notify({ title: "Invite email sent.", message: values.email });
     }, 450);
   }
 
-  async function sendResetLink() {
+  async function generateTempPasswordForExistingEmployee() {
     const confirmed = await ui.confirm({
-      title: "Send reset link?",
-      message: "A secure password reset email will be sent. Admins cannot create, view, or recover passwords.",
-      confirmLabel: "Send Reset Link",
+      title: "Generate new temporary password?",
+      message: "A new temporary password will replace the previous development password.",
+      confirmLabel: "Generate Password",
     });
     if (!confirmed) return;
-    ui.notify({ title: "Reset link sent.", message: values.email || values.full_name });
-  }
-
-  async function sendInviteAgain(title = "Verification email sent.") {
-    const confirmed = await ui.confirm({
-      title: getAccessState(values) === "invited" ? "Resend verification email?" : "Send verification email?",
-      message: "An invite email will be sent so the user can verify their email and set their own password.",
-      confirmLabel: getAccessState(values) === "invited" ? "Resend Verification" : "Send Verification",
-    });
-    if (!confirmed) return;
-    ui.notify({ title, message: values.email || values.full_name });
+    const temporaryPassword = generateTemporaryPassword();
+    onTemporaryPassword?.({ email: values.email, password: temporaryPassword, employee: values });
+    ui.notify({ title: "Temporary password generated.", message: values.email || values.full_name });
   }
 
   return (
@@ -525,7 +527,7 @@ function UserFormModal({
           <>
             <button className="btn-secondary" type="button" disabled={isSaving} onClick={onClose}>Cancel</button>
             {values.enable_system_login ? (
-              <button className="btn-primary" type="button" disabled={isSaving || emailStatus !== "valid"} onClick={saveAndInvite}>{isSaving ? "Sending..." : "Save & Send Verification"}</button>
+              <button className="btn-primary" type="button" disabled={isSaving || emailStatus !== "valid"} onClick={saveAndGenerateTemporaryPassword}>{isSaving ? "Generating..." : "Save & Generate Temp Password"}</button>
             ) : null}
             <button className="btn-primary" type="button" disabled={isSaving} onClick={handleSubmit}>{isSaving ? "Saving..." : "Save Employee"}</button>
           </>
@@ -696,7 +698,17 @@ function UserFormModal({
                     <span className="text-xs font-medium text-text-muted">{getAccessStateCopy(values)}</span>
                   </div>
                 </ReadOnlyField>
-                <ReadOnlyField label="Email Verification"><Badge tone={values.email_verified ? "success" : "warning"}>{values.email_verified ? "Verified" : "Not verified"}</Badge></ReadOnlyField>
+                <ReadOnlyField label="Password Setup">
+                  {getAccessState(values) === "temp_password_active" ? (
+                    <Badge tone="warning">Reset Required</Badge>
+                  ) : getAccessState(values) === "active" ? (
+                    <Badge tone="success">Completed</Badge>
+                  ) : getAccessState(values) === "not_sent" ? (
+                    <Badge tone="info">Not Generated</Badge>
+                  ) : (
+                    <Badge tone="neutral">Disabled</Badge>
+                  )}
+                </ReadOnlyField>
                 <ReadOnlyField label="Last Login">{formatDateTime(values.last_login_at)}</ReadOnlyField>
                 <ReadOnlyField label="Outlet Access">
                   <RoleOutletAccessSummary roleName={values.role} roleRecords={roleRecords} outlets={outlets} />
@@ -743,13 +755,13 @@ function UserFormModal({
                             : "text-text-muted"
                     }`}>
                       {emailStatus === "valid"
-                        ? "Email can receive verification."
+                        ? "Email can be used for temporary login."
                         : emailStatus === "used"
                           ? "Employee profile or auth account may already exist."
                           : emailStatus === "invalid"
                             ? "Enter a valid email address."
                             : emailStatus === "checking"
-                              ? "Checking employee profile and auth account..."
+                              ? "Checking employee profile and temporary login..."
                               : "Validation runs automatically."}
                     </span>
                   </div>
@@ -782,14 +794,9 @@ function UserFormModal({
             </div>
           {mode === "edit" ? (
             <div className="mt-3 flex flex-wrap gap-2">
-              {["invited", "not_sent"].includes(getAccessState(values)) ? (
-                <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={() => sendInviteAgain("Verification email sent.")}>
-                  <Mail size={14} /> {getAccessState(values) === "invited" ? "Resend Verification" : "Send Verification"}
-                </button>
-              ) : null}
-              {getAccessState(values) === "active" || (getAccessState(values) === "disabled" && values.email_verified) ? (
-                <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={sendResetLink}>
-                  <RotateCcw size={14} /> Send Reset Link
+              {["not_sent", "temp_password_active", "active"].includes(getAccessState(values)) ? (
+                <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={generateTempPasswordForExistingEmployee}>
+                  <KeyRound size={14} /> Generate Temp Password
                 </button>
               ) : null}
             </div>
@@ -808,7 +815,7 @@ function UserFormModal({
   );
 }
 
-export default function UsersPage({ ui, store }) {
+export default function UsersPage({ ui, store, auth }) {
   const [users, setUsers] = useState([]);
   const [jobPositions, setJobPositions] = useState([]);
   const [roleRecords, setRoleRecords] = useState([]);
@@ -823,6 +830,7 @@ export default function UsersPage({ ui, store }) {
   const [profileMode, setProfileMode] = useState("view");
   const [formState, setFormState] = useState(null);
   const [actionMenuUserId, setActionMenuUserId] = useState(null);
+  const [temporaryCredential, setTemporaryCredential] = useState(null);
   const roleOptions = useMemo(() => (roleRecords.length ? roleRecords.map((role) => role.name) : fallbackRoleOptions), [roleRecords]);
   const workplaceOptions = useMemo(
     () => ["All Outlets", ...(store?.outlets ?? []).map((outlet) => outlet.name)].filter(Boolean),
@@ -900,51 +908,24 @@ export default function UsersPage({ ui, store }) {
     setActionMenuUserId(null);
   }
 
-  async function resendInvite(user) {
-    const accessState = getAccessState(user);
+  async function generateTempPasswordForUser(user) {
     const confirmed = await ui.confirm({
-      title: accessState === "invited" ? "Resend verification email?" : "Send verification email?",
-      message: "An invite email will be sent so the user can verify their email and set their own password. Admins cannot create, view, or recover passwords.",
-      confirmLabel: accessState === "invited" ? "Resend Verification" : "Send Verification",
+      title: "Generate temporary password?",
+      message: "A temporary development password will be created and shown once. The employee must change it on first login.",
+      confirmLabel: "Generate Password",
     });
     if (!confirmed) return;
+    const temporaryPassword = generateTemporaryPassword();
     updateUserAccount(user.id, {
-      access_state: "invited",
+      access_state: "temp_password_active",
       enable_system_login: true,
-      is_active: false,
-      email_verified: false,
-      audit_summary: "Invitation pending. Employee must verify email and set password.",
+      is_active: true,
+      email_verified: true,
+      audit_summary: "Temporary password generated for development onboarding.",
     });
-    ui.notify({ title: "Verification email sent.", message: user.email });
-    closeActionMenu();
-  }
-
-  async function cancelInvite(user) {
-    const confirmed = await ui.confirm({
-      title: "Cancel invite?",
-      message: "The pending verification will be cancelled. The employee profile will remain, but system login will be turned off.",
-      confirmLabel: "Cancel Verification",
-      danger: true,
-    });
-    if (!confirmed) return;
-    updateUserAccount(user.id, { enable_system_login: false, access_state: "no_access", is_active: false, email_verified: false, audit_summary: "Verification cancelled locally. System login disabled." });
-    ui.notify({ title: "Verification cancelled.", message: user.email });
-    closeActionMenu();
-  }
-
-  async function sendResetLink(user) {
-    if (getAccessState(user) === "disabled" && !user.email_verified) {
-      ui.notify({ title: "Reset link unavailable.", message: "Access-disabled employees need a verified email before reset links can be sent.", tone: "warning" });
-      closeActionMenu();
-      return;
-    }
-    const confirmed = await ui.confirm({
-      title: "Send reset link?",
-      message: "A secure password reset email will be sent. Admins cannot create, view, or recover passwords.",
-      confirmLabel: "Send Reset Link",
-    });
-    if (!confirmed) return;
-    ui.notify({ title: "Reset link sent.", message: user.email });
+    auth?.createTemporaryLogin?.({ ...user, access_state: "temp_password_active", is_active: true, email_verified: true }, temporaryPassword);
+    setTemporaryCredential({ email: user.email, password: temporaryPassword });
+    ui.notify({ title: "Temporary password generated.", message: user.email });
     closeActionMenu();
   }
 
@@ -985,18 +966,40 @@ export default function UsersPage({ ui, store }) {
 
   async function saveUser(user) {
     try {
-      const saved = await employeeService.saveEmployee(user);
+      const temporaryPassword = user.temporary_password;
+      const payload = { ...user };
+      delete payload.temporary_password;
+      const saved = await employeeService.saveEmployee(payload);
+      if (temporaryPassword) {
+        auth?.createTemporaryLogin?.(saved, temporaryPassword);
+        setTemporaryCredential({ email: saved.email, password: temporaryPassword });
+      }
       setUsers((current) => {
         const exists = current.some((item) => item.id === saved.id);
         return exists ? current.map((item) => (item.id === saved.id ? saved : item)) : [saved, ...current];
       });
       setSelectedUser(null);
       setFormState(null);
-      ui.notify({ title: "Employee saved successfully.", message: saved.email || saved.full_name });
+      ui.notify({ title: temporaryPassword ? "Temporary password generated." : "Employee saved successfully.", message: saved.email || saved.full_name });
     } catch (error) {
       console.error("Unable to save employee", error);
       ui.notify({ title: "Unable to save employee", message: error.message || "Please try again.", tone: "error" });
     }
+  }
+
+  function handleTemporaryCredential({ email, password, employee }) {
+    const target = employee || users.find((item) => String(item.email).toLowerCase() === String(email).toLowerCase());
+    if (target?.id) {
+      updateUserAccount(target.id, {
+        access_state: "temp_password_active",
+        enable_system_login: true,
+        is_active: true,
+        email_verified: true,
+        audit_summary: "Temporary password generated for development onboarding.",
+      });
+      auth?.createTemporaryLogin?.({ ...target, access_state: "temp_password_active", is_active: true, email_verified: true }, password);
+    }
+    setTemporaryCredential({ email, password });
   }
 
   function renderAccountActions(row) {
@@ -1015,8 +1018,8 @@ export default function UsersPage({ ui, store }) {
     if (accessState === "active") {
       return (
         <>
-          <button className={buttonClass} type="button" onClick={() => sendResetLink(row)}>
-            <RotateCcw size={14} /> Send Reset Link
+          <button className={buttonClass} type="button" onClick={() => generateTempPasswordForUser(row)}>
+            <KeyRound size={14} /> Generate Temp Password
           </button>
           <button className={dangerClass} type="button" onClick={() => disableUserAccess(row)}>
             <Power size={14} /> Disable Access
@@ -1025,27 +1028,11 @@ export default function UsersPage({ ui, store }) {
       );
     }
 
-    if (accessState === "invited") {
+    if (accessState === "not_sent" || accessState === "temp_password_active") {
       return (
         <>
-          <button className={buttonClass} type="button" onClick={() => resendInvite(row)}>
-            <Mail size={14} /> Resend Verification
-          </button>
-          <button className={buttonClass} type="button" onClick={() => cancelInvite(row)}>
-            <XCircle size={14} /> Cancel Verification
-          </button>
-          <button className={dangerClass} type="button" onClick={() => disableUserAccess(row)}>
-            <Power size={14} /> Disable Access
-          </button>
-        </>
-      );
-    }
-
-    if (accessState === "not_sent") {
-      return (
-        <>
-          <button className={buttonClass} type="button" onClick={() => resendInvite(row)}>
-            <Mail size={14} /> Send Verification
+          <button className={buttonClass} type="button" onClick={() => generateTempPasswordForUser(row)}>
+            <KeyRound size={14} /> Generate Temp Password
           </button>
           <button className={dangerClass} type="button" onClick={() => disableUserAccess(row)}>
             <Power size={14} /> Disable Access
@@ -1060,11 +1047,6 @@ export default function UsersPage({ ui, store }) {
           <button className={buttonClass} type="button" onClick={() => activateUser(row)}>
             <Power size={14} /> Activate Access
           </button>
-          {row.email_verified ? (
-            <button className={buttonClass} type="button" onClick={() => sendResetLink(row)}>
-              <RotateCcw size={14} /> Send Reset Link
-            </button>
-          ) : null}
         </>
       );
     }
@@ -1214,7 +1196,7 @@ export default function UsersPage({ ui, store }) {
             options={[
               { value: "no_access", label: "No Access" },
               { value: "not_sent", label: "Not Sent" },
-              { value: "invited", label: "Invitation Pending" },
+              { value: "temp_password_active", label: "Temporary Password Active" },
               { value: "active", label: "Access Active" },
               { value: "disabled", label: "Access Disabled" },
             ]}
@@ -1227,7 +1209,7 @@ export default function UsersPage({ ui, store }) {
         <div className="flex items-start gap-2">
           <ShieldCheck className="mt-0.5 shrink-0 text-blue-700" size={16} />
           <p>
-            <strong>Security note:</strong> Admins can invite users and send reset links, but cannot create, view, or recover passwords.
+            <strong>Alpha security note:</strong> Temporary passwords are for development onboarding only. Production will use Supabase inviteUserByEmail, SMTP, branded invitation emails, and password setup links.
           </p>
         </div>
       </div>
@@ -1260,6 +1242,7 @@ export default function UsersPage({ ui, store }) {
           ui={ui}
           onClose={() => setSelectedUser(null)}
           onSwitchToEdit={() => setProfileMode("edit")}
+          onTemporaryPassword={handleTemporaryCredential}
           onSubmit={(user) => {
             saveUser(user);
             setSelectedUser(null);
@@ -1278,8 +1261,40 @@ export default function UsersPage({ ui, store }) {
           users={users}
           ui={ui}
           onClose={() => setFormState(null)}
+          onTemporaryPassword={handleTemporaryCredential}
           onSubmit={saveUser}
         />
+      ) : null}
+      {temporaryCredential ? (
+        <Modal
+          title="Temporary Login Created"
+          description="Show this temporary password to the employee. They must change it on first login."
+          onClose={() => setTemporaryCredential(null)}
+          footer={<button className="btn-primary" type="button" onClick={() => setTemporaryCredential(null)}>Done</button>}
+        >
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-border bg-slate-50 p-4">
+              <div className="text-xs font-bold uppercase text-text-muted">Email</div>
+              <div className="mt-1 font-semibold text-text-primary">{temporaryCredential.email}</div>
+            </div>
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+              <div className="text-xs font-bold uppercase text-amber-700">Temporary Password</div>
+              <div className="mt-1 flex items-center justify-between gap-3">
+                <code className="text-lg font-bold text-text-primary">{temporaryCredential.password}</code>
+                <button
+                  className="btn-secondary h-9 text-xs"
+                  type="button"
+                  onClick={() => {
+                    navigator.clipboard?.writeText(temporaryCredential.password);
+                    ui.notify({ title: "Temporary password copied." });
+                  }}
+                >
+                  <Copy size={14} /> Copy
+                </button>
+              </div>
+            </div>
+          </div>
+        </Modal>
       ) : null}
     </div>
   );

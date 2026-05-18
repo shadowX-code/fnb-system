@@ -54,9 +54,8 @@ function previousMonthKey(value) {
 function TaxConfigModal({ store, values, setValues, onClose, onSubmit, ui }) {
   const enabled = values.enabled === true || values.enabled === "true";
   const mode = values.mode || "add";
-  const isEditing = mode === "editFuture" || mode === "forceEdit";
-  const isForceEdit = mode === "forceEdit";
-  const [forceConfirmed, setForceConfirmed] = useState(false);
+  const isEditing = mode === "editFuture";
+  const isSstUpdate = mode === "update";
   const existingForScope = useMemo(
     () =>
       store.outletTaxConfigs
@@ -87,44 +86,31 @@ function TaxConfigModal({ store, values, setValues, onClose, onSubmit, ui }) {
     if (!isEditing && latestConfig && values.effective_from <= latestConfig.effective_from) {
       return ui.notify({
         title: "Invalid effective month",
-        message: "Effective month must be after the latest config start month. Editing historical tax configuration is not supported in this prototype.",
+        message: "Choose an effective month after the latest SST configuration start month.",
         tone: "error",
       });
-    }
-    if (isForceEdit && !forceConfirmed) {
-      return ui.notify({ title: "Confirmation required", message: "Owner confirmation is required for force edit.", tone: "error" });
     }
     return onSubmit({ ...values, enabled, rate: enabled ? Number(values.rate) : 0, effective_until: values.effective_until || null });
   }
 
   return (
     <Modal
-      title={isEditing ? "Edit Tax Configuration" : "Add Tax Configuration"}
-      description={isForceEdit ? "Owner-only overwrite of a financial tax configuration." : "Set outlet-level tax rules by effective month."}
+      title={isSstUpdate ? "Update SST Configuration" : isEditing ? "Edit SST Configuration" : "Add SST Configuration"}
+      description={isSstUpdate ? "Changes apply from the selected effective month onward. Historical months remain unchanged." : "Set outlet-level SST rules by effective month."}
       onClose={onClose}
       footer={
         <>
           <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="button" onClick={validateAndSubmit}>{isEditing ? "Save Changes" : "Save Tax Config"}</button>
+          <button className="btn-primary" type="button" onClick={validateAndSubmit}>{isSstUpdate ? "Update SST Config" : isEditing ? "Save Changes" : "Save SST Config"}</button>
         </>
       }
     >
       <div className="space-y-4">
         <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">
-          <div className="font-bold text-blue-950">Historical months are protected.</div>
-          <p className="mt-1 text-xs leading-5">This setting only applies from the effective month onward. Historical months will not be changed.</p>
-          <p className="mt-1 text-xs leading-5">If this starts after the current active config, the previous config will automatically end one month before.</p>
+          <div className="font-bold text-blue-950">Effective-date SST logic</div>
+          <p className="mt-1 text-xs leading-5">Effective From Month defines when this SST rule starts. Historical months remain unchanged.</p>
+          <p className="mt-1 text-xs leading-5">Future months use the latest matching effective configuration. If this starts after the current active config, the previous config will automatically end one month before.</p>
         </div>
-        {isForceEdit ? (
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
-            <div className="font-bold">Force edit affects historical financial configuration.</div>
-            <p className="mt-1 text-xs leading-5">This may affect Net Sales, SST calculations, reports, and alerts. Owner confirmation is required and an audit trail will be written.</p>
-            <label className="mt-3 flex items-center gap-2 text-xs font-bold">
-              <input className="h-4 w-4 accent-rose-600" type="checkbox" checked={forceConfirmed} onChange={(event) => setForceConfirmed(event.target.checked)} />
-              I confirm this force edit is approved by Owner.
-            </label>
-          </div>
-        ) : null}
 
         <FieldLabel label="Outlet">
           <SelectField
@@ -168,6 +154,7 @@ function TaxConfigModal({ store, values, setValues, onClose, onSubmit, ui }) {
         <div className="grid gap-3 sm:grid-cols-2">
           <FieldLabel label="Effective From">
             <input className="control w-full" type="month" value={values.effective_from} onChange={(event) => setValues((current) => ({ ...current, effective_from: event.target.value }))} />
+            <p className="mt-1 text-xs text-text-secondary">The first accounting month this SST rule applies to.</p>
           </FieldLabel>
           <FieldLabel label="Effective Until">
             <input className="control w-full" type="month" value={values.effective_until || ""} onChange={(event) => setValues((current) => ({ ...current, effective_until: event.target.value }))} />
@@ -178,12 +165,12 @@ function TaxConfigModal({ store, values, setValues, onClose, onSubmit, ui }) {
         {!isEditing && latestConfig && values.effective_from ? (
           <div className={`rounded-2xl border px-4 py-3 text-sm ${startsAfterLatest ? "border-emerald-200 bg-emerald-50 text-emerald-800" : "border-rose-200 bg-rose-50 text-rose-800"}`}>
             <div className="font-bold">
-              {startsAfterLatest ? "Previous config will be closed automatically." : "Historical backdating is blocked."}
+              {startsAfterLatest ? "Previous SST setting will end automatically." : "Choose a later effective month."}
             </div>
             <p className="mt-1 text-xs leading-5">
               Latest config starts {periodLabel(latestConfig.effective_from)} and currently ends {periodLabel(latestConfig.effective_until)}.
               {startsAfterLatest
-                ? " Saving this will end that config one month before the new effective month."
+                ? " Saving this will apply the new SST setting from the selected month onward."
                 : " Effective month must be after the latest config start month."}
             </p>
           </div>
@@ -197,7 +184,6 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
   const [tab, setTab] = useState(initialTab);
   const [modal, setModal] = useState(null);
   const [taxValues, setTaxValues] = useState(null);
-  const [revisionConfig, setRevisionConfig] = useState(null);
   const [endConfig, setEndConfig] = useState(null);
   const [endUntil, setEndUntil] = useState("");
   const [taxOutletFilter, setTaxOutletFilter] = useState("all");
@@ -218,7 +204,6 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
     : isCategories
       ? ((auth?.hasPermission?.("purchase_categories.create") || auth?.hasPermission?.("purchase_categories.edit") || auth?.hasPermission?.("purchase_categories.delete")) ?? true)
       : (auth?.hasPermission?.("tax_settings.edit") ?? true);
-  const canForceEdit = auth?.hasPermission?.("tax_settings.edit") ?? true;
   const categoryRows = useMemo(
     () => [...store.purchaseCategories].sort((a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name)),
     [store.purchaseCategories],
@@ -361,7 +346,16 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
                   setTaxValues({ ...row, enabled: String(Boolean(row.enabled)), mode: "editFuture", sourceId: row.id });
                   return;
                 }
-                setRevisionConfig(row);
+                const effectiveFrom = periodKeyFromParts(taxMonth, taxYear) > row.effective_from ? periodKeyFromParts(taxMonth, taxYear) : currentPeriodKey;
+                setTaxValues({
+                  outlet_id: row.outlet_id,
+                  tax_type: row.tax_type,
+                  enabled: String(Boolean(row.enabled)),
+                  rate: row.rate,
+                  effective_from: effectiveFrom,
+                  effective_until: "",
+                  mode: "update",
+                });
               }}
             >
               <Edit3 size={13} /> Edit
@@ -580,7 +574,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
               setModal({ mode: "add" });
             }}
           >
-            <Plus size={16} /> Add
+            <Plus size={16} /> {isTax ? "Add SST Config" : "Add"}
           </button>
         }
       />
@@ -598,8 +592,8 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
         <>
           <div className="card flex flex-wrap items-center justify-between gap-3 p-3">
             <div>
-              <div className="text-sm font-bold text-text-primary">Resolve SST status for selected month</div>
-              <p className="mt-1 text-xs text-text-secondary">Top cards use the same effective-date resolver as Sales Input, Data Health, and Alerts.</p>
+              <div className="text-sm font-bold text-text-primary">SST Status Snapshot</div>
+              <p className="mt-1 text-xs text-text-secondary">View active SST configuration based on selected accounting month.</p>
             </div>
             <div className="flex items-center gap-2">
               <MonthSelector value={taxMonth} onChange={setTaxMonth} />
@@ -608,22 +602,29 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
           </div>
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             {currentTaxRows.map(({ outlet, config }) => (
-              <div key={outlet.id} className={`card p-4 ${config.missing ? "border-amber-200 bg-amber-50/50" : ""}`}>
+              <button
+                key={outlet.id}
+                className="card p-4 text-left transition hover:border-primary/30 hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-primary/15"
+                type="button"
+                onClick={() => setTaxOutletFilter(outlet.id)}
+              >
                 <div className="text-sm font-bold text-text-primary">{outlet.name}</div>
                 <div className="mt-2 flex items-center justify-between">
-                  <Badge tone={config.missing ? "warning" : config.enabled ? "success" : "neutral"}>
-                    {config.missing ? "Missing Config" : `SST ${config.enabled ? "ON" : "OFF"}`}
+                  <Badge tone={!config.missing && config.enabled ? "success" : "neutral"}>
+                    {!config.missing && config.enabled ? "SST Enabled" : "SST Disabled"}
                   </Badge>
-                  <span className="text-sm font-bold text-text-primary">{Number(config.rate || 0)}%</span>
+                  <span className="text-sm font-bold text-text-primary">{!config.missing && config.enabled ? `${Number(config.rate || 0)}%` : "No tax applied"}</span>
                 </div>
-                {config.missing ? (
-                  <div className="mt-2 text-xs font-semibold text-amber-800">No tax config for selected month</div>
+                {!config.missing && config.enabled ? (
+                  <div className="mt-2 text-xs text-text-secondary">Effective from {periodLabel(config.effective_from)}</div>
+                ) : config.missing ? (
+                  <div className="mt-2 text-xs text-text-secondary">No SST Config</div>
                 ) : (
                   <div className="mt-2 text-xs text-text-secondary">
                     {selectedPeriodLabel(taxMonth, taxYear)}: {config.effective_from} → {config.effective_until || "Current"}
                   </div>
                 )}
-              </div>
+              </button>
             ))}
           </div>
         </>
@@ -643,7 +644,18 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
         ) : null}
       >
         {isTax && !filteredTaxRows.length ? (
-          <div className="p-6 text-sm font-semibold text-text-secondary">No tax configuration history found for this outlet.</div>
+          <div className="p-6 text-sm text-text-secondary">
+            <div className="font-bold text-text-primary">No SST configuration history yet.</div>
+            <p className="mt-1">Add your first SST effective-date configuration to preserve historical accounting logic.</p>
+            <button
+              className="btn-primary mt-4"
+              type="button"
+              disabled={!canEditSettings}
+              onClick={() => setTaxValues({ outlet_id: taxOutletFilter === "all" ? store.outlets[0]?.id : taxOutletFilter, tax_type: "SST", enabled: "true", rate: 6, effective_from: "", effective_until: "" })}
+            >
+              <Plus size={15} /> Add SST Config
+            </button>
+          </div>
         ) : isCategories && !rows.length ? (
           <div className="p-6 text-sm font-semibold text-text-secondary">No purchase categories found.</div>
         ) : (
@@ -677,65 +689,6 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
           onClose={() => setTaxValues(null)}
           onSubmit={handleTaxSubmit}
         />
-      ) : null}
-
-      {revisionConfig ? (
-        <Modal
-          title="This configuration already affects historical records."
-          description="Create a revision instead of silently overwriting financial configuration."
-          onClose={() => setRevisionConfig(null)}
-          footer={
-            <>
-              <button className="btn-secondary" type="button" onClick={() => setRevisionConfig(null)}>Cancel</button>
-              {canForceEdit ? (
-                <button
-                  className="btn-secondary border-rose-200 text-rose-700 hover:bg-rose-50"
-                  type="button"
-                  onClick={() => {
-                    setTaxValues({ ...revisionConfig, enabled: String(Boolean(revisionConfig.enabled)), mode: "forceEdit", sourceId: revisionConfig.id });
-                    setRevisionConfig(null);
-                  }}
-                >
-                  Force Edit
-                </button>
-              ) : null}
-              <button
-                className="btn-primary"
-                type="button"
-                onClick={() => {
-                  const revisionStart = periodKeyFromParts(taxMonth, taxYear) > revisionConfig.effective_from ? periodKeyFromParts(taxMonth, taxYear) : currentPeriodKey;
-                  setTaxValues({
-                    outlet_id: revisionConfig.outlet_id,
-                    tax_type: revisionConfig.tax_type,
-                    enabled: String(Boolean(revisionConfig.enabled)),
-                    rate: revisionConfig.rate,
-                    effective_from: revisionStart,
-                    effective_until: "",
-                    mode: "add",
-                  });
-                  setRevisionConfig(null);
-                }}
-              >
-                Create Revision
-              </button>
-            </>
-          }
-        >
-          <div className="space-y-4 text-sm">
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-amber-900">
-              <div className="font-bold">Editing may affect:</div>
-              <ul className="mt-2 space-y-1 text-xs leading-5">
-                <li>- Net Sales</li>
-                <li>- SST calculations</li>
-                <li>- Reports</li>
-                <li>- Alerts</li>
-              </ul>
-            </div>
-            <p className="text-text-secondary">
-              Current config: {revisionConfig.effective_from} → {revisionConfig.effective_until || "Current"} · {revisionConfig.enabled ? "Enabled" : "Disabled"} · {Number(revisionConfig.rate || 0)}%
-            </p>
-          </div>
-        </Modal>
       ) : null}
 
       {endConfig ? (

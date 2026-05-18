@@ -12,6 +12,51 @@ import { outletTaxConfigService } from "../services/outletTaxConfigService.js";
 import { useAuth } from "../auth/AuthContext.jsx";
 import LoginPage from "../auth/LoginPage.jsx";
 
+function TemporaryPasswordReset({ auth }) {
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [error, setError] = useState("");
+
+  function submit(event) {
+    event.preventDefault();
+    setError("");
+    if (password.length < 8) {
+      setError("Use at least 8 characters.");
+      return;
+    }
+    if (password !== confirm) {
+      setError("Passwords do not match.");
+      return;
+    }
+    auth.completeTemporaryPasswordReset(password);
+  }
+
+  return (
+    <div className="flex min-h-screen items-center justify-center bg-app-bg px-4">
+      <form className="card w-full max-w-md space-y-4 p-6" onSubmit={submit}>
+        <div>
+          <div className="text-xs font-bold uppercase tracking-wide text-primary">Temporary Password</div>
+          <h1 className="mt-2 text-xl font-semibold text-text-primary">Please change your password before continuing.</h1>
+          <p className="mt-2 text-sm text-text-secondary">This alpha onboarding flow uses a temporary password. Production will use branded Supabase invitation emails.</p>
+        </div>
+        <label className="block">
+          <span className="text-xs font-semibold text-text-secondary">New Password</span>
+          <input className="control mt-1 h-11 w-full" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" />
+        </label>
+        <label className="block">
+          <span className="text-xs font-semibold text-text-secondary">Confirm Password</span>
+          <input className="control mt-1 h-11 w-full" type="password" value={confirm} onChange={(event) => setConfirm(event.target.value)} autoComplete="new-password" />
+        </label>
+        {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
+        <div className="flex justify-end gap-2">
+          <button className="btn-secondary" type="button" onClick={auth.signOut}>Back to Login</button>
+          <button className="btn-primary" type="submit">Change Password</button>
+        </div>
+      </form>
+    </div>
+  );
+}
+
 function normalizeSuppliers(suppliers, categories) {
   return suppliers.map((supplier) => {
     const category = categories.find(
@@ -227,6 +272,10 @@ export default function App() {
 
   if (!auth.session) {
     return <LoginPage />;
+  }
+
+  if (auth.requiresPasswordReset) {
+    return <TemporaryPasswordReset auth={auth} />;
   }
 
   if (auth.error) {

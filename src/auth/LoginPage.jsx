@@ -57,7 +57,7 @@ export default function LoginPage() {
               <div className="text-xs font-bold uppercase tracking-[0.14em] text-primary">Smart Operations Workspace</div>
               <h1 className="mt-4 text-3xl font-bold tracking-tight text-text-primary">Login to manage AI-enabled F&amp;B intelligence workflows.</h1>
               <p className="mt-4 text-sm leading-6 text-text-secondary">
-                Access is controlled through role-based permissions. Admins invite team members through Supabase Auth and assign roles, permissions, and outlet access.
+                Access is controlled through role-based permissions. During alpha, admins can issue temporary passwords before production invitation email is configured.
               </p>
             </div>
           </section>

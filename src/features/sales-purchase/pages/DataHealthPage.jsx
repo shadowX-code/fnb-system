@@ -82,7 +82,7 @@ export default function DataHealthPage({ store, setStore, ui, auth }) {
     specialMonths: store.specialMonths,
   }), [filters.month, filters.outletId, filters.year, store]);
 
-  const unresolvedHighAlerts = alerts.filter((alert) => ["critical", "high"].includes(alert.priority));
+  const highRiskOperationalAlerts = alerts.filter((alert) => ["critical", "high"].includes(alert.priority));
   const salesChannelNames = salesRows.map((record) => store.salesChannels.find((channel) => channel.id === record.channel_id)?.name).filter(Boolean);
   const missingRequiredChannels = requiredSalesChannels.filter((name) => !salesChannelNames.includes(name));
   const sstRecord = salesRows.find((record) => {
@@ -103,7 +103,6 @@ export default function DataHealthPage({ store, setStore, ui, auth }) {
     salesEmptyCriticalRows.length ? `${salesEmptyCriticalRows.length} critical sales rows are empty.` : null,
     purchaseRows.length && !salesRows.length ? "Purchase exists but sales data is missing." : null,
     purchaseEmptyRows.length ? `${purchaseEmptyRows.length} supplier rows incomplete.` : null,
-    unresolvedHighAlerts.length ? `${unresolvedHighAlerts.length} unresolved high or critical alerts.` : null,
   ].filter(Boolean);
 
   const salesScore = !salesRows.length
@@ -111,10 +110,10 @@ export default function DataHealthPage({ store, setStore, ui, auth }) {
     : Math.max(0, Math.round(100 - missingRequiredChannels.length * 12 - salesEmptyCriticalRows.length * 10 - (sstEnabled && !hasSst ? 10 : 0)));
   const purchaseScore = !purchaseRows.length
     ? 0
-    : Math.max(0, Math.round(100 - purchaseEmptyRows.length * 15 - unresolvedHighAlerts.length * 12));
+    : Math.max(0, Math.round(100 - purchaseEmptyRows.length * 15));
   const overallScore = Math.round(salesScore * 0.45 + purchaseScore * 0.45 + (warnings.length ? 0 : 10));
   const monthStatus = getStatus({ isLocked, salesScore, purchaseScore, warnings, hasAnyData });
-  const readyToLock = canManageLocks && !isLocked && hasAnyData && salesScore === 100 && purchaseScore === 100 && !unresolvedHighAlerts.length && !warnings.length;
+  const readyToLock = canManageLocks && !isLocked && hasAnyData && salesScore === 100 && purchaseScore === 100 && !warnings.length;
   const auditTrail = buildAuditTrail({ lock, salesRows, purchaseRows, isLocked });
 
   function lockMonth() {
@@ -149,7 +148,7 @@ export default function DataHealthPage({ store, setStore, ui, auth }) {
               className="btn-primary"
               type="button"
               disabled={!readyToLock}
-              title={!readyToLock ? "Resolve all critical issues before locking." : undefined}
+              title={!readyToLock ? "Review critical warnings before locking this month." : undefined}
               onClick={() => setLockModal(true)}
             >
               <Lock size={15} /> Lock Month
@@ -191,7 +190,7 @@ export default function DataHealthPage({ store, setStore, ui, auth }) {
               </div>
               {!readyToLock && !isLocked ? (
                 <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
-                  Resolve all critical issues before locking.
+                  Review critical warnings before locking this month.
                 </div>
               ) : null}
             </div>
@@ -224,12 +223,12 @@ export default function DataHealthPage({ store, setStore, ui, auth }) {
 
       <div className="grid gap-3 md:grid-cols-3">
         <MetricCard label="Sales Records" value={`${salesRows.length} channels`} helper={salesRows.length ? `Last updated ${formatTime(salesRows.at(-1)?.updated_at)}` : "Missing"} tone={salesScore === 100 ? "success" : "warning"} />
-        <MetricCard label="Purchase Records" value={`${purchaseRows.length} suppliers`} helper={`${unresolvedHighAlerts.length} abnormal rows`} tone={purchaseScore === 100 ? "success" : unresolvedHighAlerts.length ? "danger" : "warning"} />
+        <MetricCard label="Purchase Records" value={`${purchaseRows.length} suppliers`} helper={purchaseEmptyRows.length ? `${purchaseEmptyRows.length} incomplete rows` : "Required fields complete"} tone={purchaseScore === 100 ? "success" : "warning"} />
         <MetricCard label="Month Status" value={monthStatus.label} helper={`${toCurrency(netSales)} sales · ${toCurrency(totalPurchase)} purchase`} tone={monthStatus.tone === "danger" ? "danger" : monthStatus.tone === "success" ? "success" : "warning"} />
       </div>
 
       {warnings.length ? (
-        <Card title="Warnings Detected" description="Resolve these before locking the month.">
+        <Card title="Warnings Detected" description="Fix missing or empty data before locking the month.">
           <div className="grid gap-2 p-4 md:grid-cols-2">
             {warnings.map((warning) => (
               <div key={warning} className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">{warning}</div>
@@ -239,9 +238,28 @@ export default function DataHealthPage({ store, setStore, ui, auth }) {
       ) : (
         <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
           <div className="flex items-center gap-2 font-bold"><ShieldCheck size={16} /> Ready for closing review.</div>
-          <p className="mt-1">Sales, purchase and alert checks are complete for this month.</p>
+          <p className="mt-1">Sales and purchase completeness checks are ready for month closing.</p>
         </div>
       )}
+
+      {highRiskOperationalAlerts.length ? (
+        <Card title="Operational Alerts Detected" description="Advisory risk signals. Alerts do not reduce completeness score or block month locking.">
+          <div className="grid gap-2 p-4 md:grid-cols-2">
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+              {highRiskOperationalAlerts.length} high-risk operational alerts detected.
+            </div>
+            {highRiskOperationalAlerts.slice(0, 5).map((alert) => (
+              <div key={alert.id} className="rounded-xl border border-border bg-white px-3 py-2 text-sm">
+                <div className="flex items-center justify-between gap-2">
+                  <span className="font-semibold text-text-primary">{alert.title}</span>
+                  <Badge tone={alert.priority === "critical" ? "danger" : "warning"}>{alert.priority}</Badge>
+                </div>
+                <p className="mt-1 text-xs text-text-secondary">{alert.description}</p>
+              </div>
+            ))}
+          </div>
+        </Card>
+      ) : null}
 
       <Card title="Recent Activity" description="Audit trail for closing and data updates.">
         <div className="divide-y divide-border">

@@ -1,11 +1,13 @@
-export default function MetricCard({ label, value, helper, trend, tone = "neutral", icon: Icon, status, sparklineData, onClick, title }) {
+export default function MetricCard({ label, value, helper, trend, tone = "neutral", icon: Icon, status, sparklineData, insight, onClick, title }) {
   const trendColor = tone === "danger" ? "text-rose-600" : tone === "warning" ? "text-amber-600" : "text-emerald-600";
-  const maxValue = Math.max(...(sparklineData ?? []).map((item) => Number(item.value) || 0), 1);
   const Component = onClick ? "button" : "div";
+  // Reserved for a future labeled mini-sparkline. Do not render decorative bars
+  // unless the chart has clear labels, interaction, and trend meaning.
+  void sparklineData;
 
   return (
     <Component
-      className={`card w-full px-2.5 py-2 text-left transition ${onClick ? "hover:border-primary/30 hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-primary/15" : ""} ${tone === "warning" ? "bg-amber-50/25" : tone === "danger" ? "bg-rose-50/25" : ""}`}
+      className={`card flex min-h-[96px] w-full flex-col justify-between gap-2 px-3 py-3 text-left transition duration-150 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-card ${onClick ? "hover:border-primary/30 hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-primary/15" : ""} ${tone === "warning" ? "bg-amber-50/25" : tone === "danger" ? "bg-rose-50/25" : ""}`}
       type={onClick ? "button" : undefined}
       title={title}
       onClick={onClick}
@@ -26,33 +28,7 @@ export default function MetricCard({ label, value, helper, trend, tone = "neutra
         <span className="min-w-0 truncate text-text-secondary">{helper}</span>
         {trend ? <span className={`font-semibold ${trendColor}`}>{trend}</span> : null}
       </div>
-      {sparklineData?.length ? (
-        <div className="mt-1 flex h-3 items-end gap-0.5" aria-label={`${label} recent trend`}>
-          {sparklineData.map((item) => {
-            const height = Math.max(16, (Number(item.value) / maxValue) * 100);
-            return (
-              <span
-                key={item.label}
-                title={`${item.label}: ${item.display ?? item.value}`}
-                className={`w-full rounded-t transition hover:opacity-80 ${
-                  item.current
-                    ? tone === "warning"
-                      ? "bg-amber-500"
-                      : tone === "danger"
-                        ? "bg-rose-500"
-                        : "bg-primary"
-                    : tone === "warning"
-                      ? "bg-amber-200"
-                      : tone === "danger"
-                        ? "bg-rose-200"
-                        : "bg-primary/25"
-                }`}
-                style={{ height: `${height}%` }}
-              />
-            );
-          })}
-        </div>
-      ) : null}
+      {insight ? <div className="text-xs leading-4 text-text-muted">{insight}</div> : null}
     </Component>
   );
 }

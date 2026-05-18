@@ -1,17 +1,17 @@
 import { useEffect, useMemo, useState } from "react";
-import { BarChart3, Edit3, MoreHorizontal, Plus, Settings, Trash2 } from "lucide-react";
+import { Edit3, Plus, Power, Trash2 } from "lucide-react";
 import Badge from "../../../components/ui/Badge.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import FilterBar from "../../../components/forms/FilterBar.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
-import { FieldLabel, MonthSelector, OutletSelector, YearSelector } from "../../../components/forms/Selectors.jsx";
+import { FieldLabel, MonthSelector, YearSelector } from "../../../components/forms/Selectors.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import EntityModal from "../components/EntityModal.jsx";
 import usePeriodFilters from "../hooks/usePeriodFilters.js";
 import { getCategoryName, sumAmount, toCurrency } from "../utils/analytics.js";
 import { supplierService } from "../../../services/supplierService.js";
-import ActionMenu from "../../../components/ui/ActionMenu.jsx";
+import Modal from "../../../components/feedback/Modal.jsx";
 
 function purchasePeriodLabel(period) {
   if (!period?.month || !period?.year) return "—";
@@ -42,17 +42,21 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
   const [category, setCategory] = useState("all");
   const [status, setStatus] = useState("all");
   const [modal, setModal] = useState(null);
+  const [detailSupplier, setDetailSupplier] = useState(null);
+  const [usageSupplier, setUsageSupplier] = useState(null);
+  const [outletFilter, setOutletFilter] = useState("all");
   const [usageMap, setUsageMap] = useState({});
-  const [actionMenuSupplierId, setActionMenuSupplierId] = useState(null);
   const rows = useMemo(
     () =>
       store.suppliers.filter((supplier) => {
         const matchesQuery = supplier.name.toLowerCase().includes(query.toLowerCase());
         const matchesCategory = category === "all" || supplier.default_category_id === category;
         const matchesStatus = status === "all" || supplier.status === status;
-        return matchesQuery && matchesCategory && matchesStatus;
+        const outletIds = usageMap[supplier.id]?.outletIds ?? [];
+        const matchesOutlet = outletFilter === "all" || outletIds.includes(outletFilter);
+        return matchesQuery && matchesCategory && matchesStatus && matchesOutlet;
       }),
-    [category, query, status, store.suppliers],
+    [category, outletFilter, query, status, store.suppliers, usageMap],
   );
   useEffect(() => {
     if (!store.suppliers.length) return undefined;
@@ -79,13 +83,26 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
 
   function formatOutletUsage(supplier) {
     const outletIds = getSupplierUsage(supplier).outletIds;
-    if (!outletIds.length) return <span className="text-text-muted">No purchase records yet</span>;
-    const outletNames = outletIds
+    const count = outletIds.length;
+    if (!count) return <span className="text-text-muted">0 outlets</span>;
+    return (
+      <button
+        className="rounded-full px-2 py-1 text-xs font-bold text-primary transition hover:bg-primary-soft"
+        type="button"
+        onClick={(event) => {
+          event.stopPropagation();
+          setUsageSupplier(supplier);
+        }}
+      >
+        {count} {count === 1 ? "outlet" : "outlets"}
+      </button>
+    );
+  }
+
+  function getOutletNames(supplier) {
+    return getSupplierUsage(supplier).outletIds
       .map((outletId) => store.outlets.find((outlet) => outlet.id === outletId)?.name)
       .filter(Boolean);
-    if (!outletNames.length) return <span className="text-text-muted">No purchase records yet</span>;
-    if (outletNames.length <= 2) return outletNames.join(", ");
-    return <span className="cursor-help" title={outletNames.join(", ")}>{outletNames.length} outlets</span>;
   }
 
   function getActivityStatus(supplier) {
@@ -130,6 +147,15 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
     }
   }
 
+  function getSelectedMonthTotal(row) {
+    return toCurrency(sumAmount(store.purchaseRecords.filter((record) => {
+      const matchesSupplier = record.supplier_id === row.id;
+      const matchesPeriod = record.month === filters.month && record.year === filters.year;
+      const matchesOutlet = outletFilter === "all" ? true : record.outlet_id === outletFilter;
+      return matchesSupplier && matchesPeriod && matchesOutlet;
+    })));
+  }
+
   const fields = [
     { name: "name", label: "Supplier Name", placeholder: "Supplier name" },
     {
@@ -171,20 +197,14 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
       key: "last_purchase",
       header: "Last Purchase",
       render: (row) => {
-        const activity = getActivityStatus(row);
-        return (
-          <div className="flex flex-wrap items-center gap-2">
-            <span className="text-sm font-semibold text-text-primary">{purchasePeriodLabel(getSupplierUsage(row).latestPurchase)}</span>
-            <Badge tone={activity.tone}>{activity.label}</Badge>
-          </div>
-        );
+        return <span className="text-sm font-semibold text-text-primary">{purchasePeriodLabel(getSupplierUsage(row).latestPurchase)}</span>;
       },
     },
     {
       key: "total",
       header: "Total Purchase This Month",
       align: "right",
-      render: (row) => toCurrency(sumAmount(store.purchaseRecords.filter((record) => record.supplier_id === row.id && record.outlet_id === filters.outletId && record.month === filters.month && record.year === filters.year))),
+      render: (row) => getSelectedMonthTotal(row),
     },
     {
       key: "health",
@@ -200,40 +220,22 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
       header: "Actions",
       align: "right",
       render: (row) => (
-        <div className="flex justify-end" onClick={(event) => event.stopPropagation()}>
-          <ActionMenu
-            open={actionMenuSupplierId === row.id}
-            onOpenChange={(nextOpen) => setActionMenuSupplierId(nextOpen ? row.id : null)}
-            width={236}
-            ariaLabel="Supplier actions"
-            trigger={({ toggle, ariaLabel }) => (
-              <button className="icon-btn" type="button" aria-label={ariaLabel} onClick={toggle}>
-                <MoreHorizontal size={15} />
-              </button>
-            )}
+        <div className="flex flex-wrap justify-end gap-1.5" onClick={(event) => event.stopPropagation()}>
+          <button className="rounded-full border border-border px-2.5 py-1 text-xs font-bold text-text-secondary transition hover:bg-slate-50" type="button" onClick={() => setModal({ mode: "edit", row })}>
+            <Edit3 className="inline" size={12} /> Edit
+          </button>
+          <button className="rounded-full border border-amber-200 px-2.5 py-1 text-xs font-bold text-amber-700 transition hover:bg-amber-50" type="button" onClick={() => updateSupplierStatus(row, row.status !== "active")}>
+            <Power className="inline" size={12} /> {row.status === "active" ? "Deactivate" : "Reactivate"}
+          </button>
+          <button
+            className="rounded-full border border-rose-200 px-2.5 py-1 text-xs font-bold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
+            type="button"
+            disabled={getSupplierUsage(row).purchaseRecordCount > 0}
+            title={getSupplierUsage(row).purchaseRecordCount > 0 ? "This supplier is already used in purchase records. Deactivate it instead." : "Delete supplier"}
+            onClick={() => deleteSupplier(row)}
           >
-            <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { setModal({ mode: "edit", row }); setActionMenuSupplierId(null); }}>
-              <Edit3 size={14} /> Edit Supplier
-            </button>
-            <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { ui.navigate?.("purchase-comparison"); setActionMenuSupplierId(null); }}>
-              <BarChart3 size={14} /> View Purchase History
-            </button>
-            <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold text-amber-700 hover:bg-amber-50" type="button" onClick={() => { updateSupplierStatus(row, row.status !== "active"); setActionMenuSupplierId(null); }}>
-              <Settings size={14} /> {row.status === "active" ? "Deactivate" : "Reactivate"}
-            </button>
-            <button
-              className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
-              type="button"
-              disabled={getSupplierUsage(row).purchaseRecordCount > 0}
-              title={getSupplierUsage(row).purchaseRecordCount > 0 ? "This supplier is already used in purchase records. Deactivate it instead." : "Delete supplier"}
-              onClick={() => {
-                deleteSupplier(row);
-                setActionMenuSupplierId(null);
-              }}
-            >
-              <Trash2 size={14} /> Delete
-            </button>
-          </ActionMenu>
+            <Trash2 className="inline" size={12} /> Delete
+          </button>
         </div>
       ),
     },
@@ -248,7 +250,15 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
         actions={<button className="btn-primary" onClick={() => setModal({ mode: "add" })}><Plus size={16} /> Add Supplier</button>}
       />
       <FilterBar compact>
-        <OutletSelector outlets={store.outlets.filter((outlet) => outlet.status === "active")} value={filters.outletId} onChange={filters.setOutletId} />
+        <SelectField
+          label="Outlet"
+          value={outletFilter === "all" ? "" : outletFilter}
+          placeholder="All Outlets"
+          className="min-w-56"
+          searchable
+          options={store.outlets.filter((outlet) => outlet.status === "active").map((outlet) => ({ value: outlet.id, label: outlet.name }))}
+          onChange={(nextValue) => setOutletFilter(nextValue || "all")}
+        />
         <MonthSelector value={filters.month} onChange={filters.setMonth} />
         <YearSelector value={filters.year} onChange={filters.setYear} />
         <FieldLabel label="Search">
@@ -279,7 +289,18 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
         </FieldLabel>
       </FilterBar>
       <Card title="Supplier Directory" description="Suppliers used across all outlets and purchase records.">
-        <DataTable columns={columns} rows={rows} getRowKey={(row) => row.id} />
+        <DataTable
+          columns={columns}
+          rows={rows}
+          getRowKey={(row) => row.id}
+          onRowClick={(row) => setDetailSupplier(row)}
+        />
+        {!rows.length ? (
+          <div className="border-t border-border p-6 text-sm text-text-secondary">
+            <div className="font-bold text-text-primary">{outletFilter === "all" ? "No suppliers found." : "No suppliers found for this outlet."}</div>
+            <p className="mt-1">{outletFilter === "all" ? "Adjust filters or add a supplier." : "Suppliers will appear here after purchase records are added."}</p>
+          </div>
+        ) : null}
       </Card>
       {modal ? (
         <EntityModal
@@ -308,6 +329,58 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
             }
           }}
         />
+      ) : null}
+      {usageSupplier ? (
+        <Modal
+          title="Linked Outlets"
+          description={usageSupplier.name}
+          onClose={() => setUsageSupplier(null)}
+          footer={<button className="btn-primary" type="button" onClick={() => setUsageSupplier(null)}>Done</button>}
+        >
+          <div className="space-y-2">
+            {getOutletNames(usageSupplier).map((outletName) => (
+              <div key={outletName} className="rounded-xl border border-border bg-slate-50 px-3 py-2 text-sm font-semibold text-text-primary">{outletName}</div>
+            ))}
+          </div>
+        </Modal>
+      ) : null}
+      {detailSupplier ? (
+        <Modal
+          title="Supplier Detail"
+          description={detailSupplier.name}
+          size="md"
+          onClose={() => setDetailSupplier(null)}
+          footer={
+            <>
+              <button className="btn-secondary" type="button" onClick={() => setDetailSupplier(null)}>Close</button>
+              <button className="btn-primary" type="button" onClick={() => { setModal({ mode: "edit", row: detailSupplier }); setDetailSupplier(null); }}>
+                <Edit3 size={15} /> Edit Supplier
+              </button>
+            </>
+          }
+        >
+          <div className="grid gap-3 md:grid-cols-2">
+            {[
+              ["Supplier Name", detailSupplier.name],
+              ["Category", getCategoryName(store.purchaseCategories, detailSupplier.default_category_id)],
+              ["Phone", detailSupplier.phone || "—"],
+              ["Last Purchase", purchasePeriodLabel(getSupplierUsage(detailSupplier).latestPurchase)],
+              ["Total Purchase Selected Month", getSelectedMonthTotal(detailSupplier)],
+              ["Status", <Badge key="status" tone={detailSupplier.status === "active" ? "success" : "neutral"}>{detailSupplier.status}</Badge>],
+              ["Supplier Health", <Badge key="health" tone={getActivityStatus(detailSupplier).healthTone}>{getActivityStatus(detailSupplier).health}</Badge>],
+              ["Outlet Usage", getOutletNames(detailSupplier).length ? getOutletNames(detailSupplier).join(", ") : "0 outlets"],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-xl border border-border bg-slate-50 px-3 py-2">
+                <div className="text-xs font-bold uppercase text-text-muted">{label}</div>
+                <div className="mt-1 text-sm font-semibold text-text-primary">{value}</div>
+              </div>
+            ))}
+            <div className="rounded-xl border border-border bg-slate-50 px-3 py-2 md:col-span-2">
+              <div className="text-xs font-bold uppercase text-text-muted">Remark</div>
+              <div className="mt-1 text-sm font-semibold text-text-primary">{detailSupplier.remark || "—"}</div>
+            </div>
+          </div>
+        </Modal>
       ) : null}
     </div>
   );

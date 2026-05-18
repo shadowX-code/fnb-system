@@ -79,14 +79,20 @@ export default function DashboardOverviewPage({ store }) {
   );
   const trendMonths = useMemo(
     () =>
-      monthly
-        .filter((item) => Number(item.netSales || 0) > 0 || Number(item.totalPurchase || 0) > 0)
-        .slice(-6)
-        .map((item) => ({
-          ...item,
-          label: months[item.month - 1]?.label?.toUpperCase() ?? "",
-        })),
-    [filters.month, monthly],
+      months.map((month) => {
+        const savedMonth = monthly.find((item) => item.month === month.value);
+        return {
+          month: month.value,
+          netSales: 0,
+          totalPurchase: 0,
+          cogsMargin: 0,
+          profitMargin: 0,
+          ...savedMonth,
+          label: month.label.toUpperCase(),
+          displayLabel: `${month.label} ${filters.year}`,
+        };
+      }),
+    [filters.year, monthly],
   );
   const salesPurchaseTrendData = useMemo(
     () =>
@@ -97,7 +103,33 @@ export default function DashboardOverviewPage({ store }) {
       })),
     [trendMonths],
   );
-  const current = monthly.find((item) => item.month === filters.month) ?? monthly[0];
+  const current = monthly.find((item) => item.month === filters.month) ?? {
+    month: filters.month,
+    netSales: 0,
+    totalPurchase: 0,
+    cogsMargin: 0,
+    profitMargin: 0,
+  };
+  const currentMonthIndex = Math.max(0, filters.month - 1);
+  const previousTrendMonth = trendMonths[currentMonthIndex - 1];
+  const peakSalesMonth = trendMonths.reduce(
+    (best, item) => (Number(item.netSales || 0) > Number(best.netSales || 0) ? item : best),
+    trendMonths[0] ?? { netSales: 0, label: "JAN", displayLabel: `Jan ${filters.year}` },
+  );
+  const salesTrendInsight = peakSalesMonth.netSales
+    ? `Net sales peaked in ${peakSalesMonth.displayLabel} at ${toCurrency(peakSalesMonth.netSales)}.`
+    : "Not enough saved monthly records yet to identify a sales peak.";
+  const cogsDelta = previousTrendMonth ? Number(current.cogsMargin || 0) - Number(previousTrendMonth.cogsMargin || 0) : null;
+  const cogsTrendInsight =
+    cogsDelta === null
+      ? "COGS movement will appear after at least two saved months."
+      : Math.abs(cogsDelta) < 0.1
+        ? "COGS ratio stayed stable compared with the previous month."
+        : cogsDelta < 0
+          ? `COGS ratio improved by ${toPercent(Math.abs(cogsDelta))} compared with the previous month.`
+          : `COGS ratio increased by ${toPercent(cogsDelta)} compared with the previous month.`;
+  const cogsPeak = Math.max(...trendMonths.map((item) => Number(item.cogsMargin || 0)), 0);
+  const cogsChartColor = cogsPeak > 40 ? "#ef4444" : cogsPeak > 35 ? "#f59e0b" : "#22c55e";
   const previous = getPreviousPeriod(filters.month, filters.year);
   const alerts = buildAlerts({
     outletId: filters.outletId,
@@ -198,52 +230,68 @@ export default function DashboardOverviewPage({ store }) {
       <div className="grid gap-5 xl:grid-cols-[1.2fr_1fr]">
         {isLoading ? (
           <>
-            <ChartSkeleton title="Sales vs Purchase Trend" description="Last six saved months" />
+            <ChartSkeleton title="Sales vs Purchase Trend" description="Full-year monthly movement" />
             <ChartSkeleton title="COGS Margin Trend" description="Food cost ratio by month" />
           </>
         ) : (
           <>
-            <Card title="Sales vs Purchase Trend" description="Last six saved months">
-              <div className="p-5">
+            <Card title="Sales vs Purchase Trend" description="Full-year monthly movement">
+              <div className="px-4 pb-4 pt-3">
                 <TrendChart
-                  type="bar"
+                  type="area"
                   yAxisType="currency"
+                  highlightIndex={currentMonthIndex}
                   labels={salesPurchaseTrendData.map((item) => item.month)}
                   series={[
                     {
                       name: "Net Sales",
                       data: salesPurchaseTrendData.map((item) => item.netSales),
-                      color: "bg-primary",
-                      fill: "#5b5ce2",
+                      stroke: "#16a34a",
+                      fill: "#22c55e",
+                      area: true,
+                      areaOpacity: 0.24,
                       format: toCurrency,
                     },
                     {
                       name: "Total Purchase",
                       data: salesPurchaseTrendData.map((item) => item.totalPurchase),
-                      color: "bg-emerald-500",
-                      fill: "#10b981",
+                      stroke: "#0ea5e9",
+                      fill: "#0ea5e9",
+                      area: false,
+                      strokeWidth: 2.6,
                       format: toCurrency,
                     },
                   ]}
                 />
+                <div className="mt-3 rounded-xl border border-border bg-primary/5 px-3 py-2 text-xs font-medium text-text-secondary">
+                  {salesTrendInsight}
+                </div>
               </div>
             </Card>
             <Card title="COGS Margin Trend" description="Food cost ratio by month">
-              <div className="p-5">
+              <div className="px-4 pb-4 pt-3">
                 <TrendChart
+                  type="area"
                   labels={trendMonths.map((item) => item.label)}
                   yLabel="COGS %"
                   yAxisType="percent"
+                  highlightIndex={currentMonthIndex}
                   series={[
                     {
                       name: "COGS Margin",
                       data: trendMonths.map((item) => item.cogsMargin),
-                      color: "bg-orange-500",
-                      stroke: "#f97316",
+                      stroke: cogsChartColor,
+                      fill: cogsChartColor,
+                      area: true,
+                      areaOpacity: 0.18,
+                      strokeWidth: 3,
                       format: (value) => toPercent(value),
                     },
                   ]}
                 />
+                <div className="mt-3 rounded-xl border border-border bg-primary/5 px-3 py-2 text-xs font-medium text-text-secondary">
+                  {cogsTrendInsight}
+                </div>
               </div>
             </Card>
           </>

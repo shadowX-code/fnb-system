@@ -366,13 +366,12 @@ function createAlert({
   percentage_change = 0,
   suggested_action = "Review source records and compare against sales context before taking action.",
   status = "open",
-  unresolved_months = 1,
+  consecutive_months = 1,
 }) {
-  const suffix = unresolved_months > 1 ? ` Still unresolved for ${unresolved_months} months.` : "";
   return {
     id,
     title,
-    description: `${description}${suffix}`,
+    description,
     severity,
     priority,
     confidence_score: clampConfidence(confidence_score),
@@ -387,7 +386,7 @@ function createAlert({
     percentage_change,
     suggested_action,
     status,
-    unresolved_months,
+    consecutive_months,
     created_at: new Date().toISOString(),
   };
 }
@@ -555,7 +554,7 @@ export function buildAlerts({
 
   const cogsMargin = currentSales ? (currentPurchaseTotal / currentSales) * 100 : 0;
   const cogsStatus = getCogsStatus(cogsMargin);
-  const unresolvedCogsMonths = countConsecutiveMonths({
+  const consecutiveHighCogsMonths = countConsecutiveMonths({
     month,
     year,
     predicate: (cursorMonth, cursorYear) => {
@@ -565,13 +564,13 @@ export function buildAlerts({
     },
   });
   if (cogsMargin > 35) {
-    const critical = cogsMargin > 45 || unresolvedCogsMonths >= 3;
+    const critical = cogsMargin > 45 || consecutiveHighCogsMonths >= 3;
     alerts.push(createAlert({
       id: `alert-cogs-${outletId}-${year}-${month}`,
       alert_type: critical ? "cogs_margin_critical" : cogsMargin > 40 ? "cogs_margin_high" : "cogs_margin_watch",
       severity: critical || cogsMargin > 40 ? "danger" : "warning",
-      priority: cogsMargin > 45 || unresolvedCogsMonths >= 3 ? "critical" : cogsMargin > 40 ? "high" : "medium",
-      confidence_score: cogsMargin > 50 ? 95 : cogsMargin > 45 ? 90 : unresolvedCogsMonths >= 3 ? 88 : cogsMargin > 40 ? 78 : 62,
+      priority: cogsMargin > 45 || consecutiveHighCogsMonths >= 3 ? "critical" : cogsMargin > 40 ? "high" : "medium",
+      confidence_score: cogsMargin > 50 ? 95 : cogsMargin > 45 ? 90 : consecutiveHighCogsMonths >= 3 ? 88 : cogsMargin > 40 ? 78 : 62,
       title: cogsMargin > 50 ? "COGS Margin Urgent Review" : cogsStatus.label === "Watch" ? "COGS Margin Watch" : "COGS Margin High",
       description: cogsMargin > 50
         ? "COGS margin is above 50%; urgent review is required."
@@ -587,7 +586,7 @@ export function buildAlerts({
       comparison_value: cogsMargin > 40 ? 40 : 35,
       percentage_change: cogsMargin - (cogsMargin > 40 ? 40 : 35),
       suggested_action: "Review supplier invoices, category spikes, wastage, stock-up activity, and menu pricing before month lock.",
-      unresolved_months: Math.max(1, unresolvedCogsMonths),
+      consecutive_months: Math.max(1, consecutiveHighCogsMonths),
     }));
   }
 

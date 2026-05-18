@@ -36,7 +36,44 @@ function defaultTickFormatter(value, yAxisType) {
   return compactCurrency(value);
 }
 
-export default function TrendChart({ series, labels, type = "line", yLabel = "RM", yAxisType = "currency", tickFormat }) {
+function buildPointList(data, yForValue) {
+  return data.map((value, index) => ({
+    x: (index / Math.max(data.length - 1, 1)) * 100,
+    y: yForValue(value),
+    value,
+  }));
+}
+
+function buildSmoothPath(points) {
+  if (!points.length) return "";
+  if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+
+  return points.reduce((path, point, index) => {
+    if (index === 0) return `M ${point.x} ${point.y}`;
+
+    const previous = points[index - 1];
+    const controlX = previous.x + (point.x - previous.x) / 2;
+    return `${path} C ${controlX} ${previous.y}, ${controlX} ${point.y}, ${point.x} ${point.y}`;
+  }, "");
+}
+
+function buildAreaPath(points, baseline) {
+  if (!points.length) return "";
+  const line = buildSmoothPath(points);
+  const first = points[0];
+  const last = points[points.length - 1];
+  return `${line} L ${last.x} ${baseline} L ${first.x} ${baseline} Z`;
+}
+
+export default function TrendChart({
+  series,
+  labels,
+  type = "line",
+  yLabel = "RM",
+  yAxisType = "currency",
+  tickFormat,
+  highlightIndex,
+}) {
   const [hoverIndex, setHoverIndex] = useState(null);
   const safeLabels = Array.isArray(labels) ? labels : [];
   const safeSeries = Array.isArray(series)
@@ -50,39 +87,36 @@ export default function TrendChart({ series, labels, type = "line", yLabel = "RM
   const maxValue = Math.max(...allValues, 0);
   const { ticks, top } = useMemo(() => buildTicks(maxValue, yAxisType, safeLabels.length > 6), [maxValue, safeLabels.length, yAxisType]);
   const formatTick = tickFormat ?? ((value) => defaultTickFormatter(value, yAxisType));
-  const plotTop = 8;
-  const plotBottom = 90;
+  const gradientPrefix = useMemo(() => `trend-${Math.random().toString(36).slice(2)}`, []);
+  const plotTop = 7;
+  const plotBottom = 91;
   const plotHeight = plotBottom - plotTop;
+  const activeIndex = hoverIndex ?? (Number.isInteger(highlightIndex) ? highlightIndex : null);
+  const activeX = activeIndex !== null ? (activeIndex / Math.max(safeLabels.length - 1, 1)) * 100 : null;
 
   function yForValue(value) {
     return plotBottom - (Math.max(Number(value) || 0, 0) / Math.max(top, 1)) * plotHeight;
   }
 
-  function points(data) {
-    return data
-      .map((value, index) => {
-        const x = (index / Math.max(data.length - 1, 1)) * 100;
-        return `${x},${yForValue(value)}`;
-      })
-      .join(" ");
-  }
-
   return (
     <div className="relative">
-      <div className="mb-3 flex items-center justify-between gap-4">
-        <div className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">{yLabel}</div>
+      <div className="mb-2 flex items-center justify-between gap-4">
+        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">{yLabel}</div>
         <div className="flex flex-wrap gap-3">
           {safeSeries.map((item) => (
             <div key={item.name} className="flex items-center gap-2 text-xs font-semibold text-text-secondary">
-              <span className={`h-2.5 w-2.5 rounded-full ${item.fill ? "" : item.color}`} style={item.fill ? { backgroundColor: item.fill } : undefined} />
+              <span
+                className={`h-2.5 w-2.5 rounded-full ${item.fill || item.stroke ? "" : item.color}`}
+                style={item.fill || item.stroke ? { backgroundColor: item.legendColor ?? item.stroke ?? item.fill } : undefined}
+              />
               {item.name}
             </div>
           ))}
         </div>
       </div>
-      <div className="relative h-56 rounded-2xl border border-border bg-white py-4 pl-14 pr-4">
+      <div className="relative h-64 rounded-2xl border border-border bg-surface/95 py-3 pl-12 pr-3 shadow-sm">
         {!hasData ? (
-          <div className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-white/80">
+          <div className="absolute inset-0 z-20 flex items-center justify-center rounded-2xl bg-surface/85 backdrop-blur-sm">
             <div className="text-center">
               <div className="text-sm font-bold text-text-primary">Not enough saved monthly records yet</div>
               <div className="mt-1 text-xs text-text-secondary">Save sales and purchase data to populate this trend.</div>
@@ -90,11 +124,11 @@ export default function TrendChart({ series, labels, type = "line", yLabel = "RM
           </div>
         ) : null}
 
-        <div className="absolute bottom-10 left-3 top-4 w-10">
+        <div className="absolute bottom-8 left-2 top-3 w-9">
           {ticks.map((tick) => (
             <span
               key={tick}
-              className="absolute right-0 -translate-y-1/2 whitespace-nowrap text-[11px] font-semibold text-slate-400"
+              className="absolute right-0 -translate-y-1/2 whitespace-nowrap text-[10px] font-medium text-text-muted/70"
               style={{ top: `${yForValue(tick)}%` }}
             >
               {formatTick(tick)}
@@ -102,17 +136,26 @@ export default function TrendChart({ series, labels, type = "line", yLabel = "RM
           ))}
         </div>
 
-        <div className="absolute bottom-10 left-14 right-4 top-4">
+        <div className="absolute bottom-8 left-12 right-3 top-3">
           {ticks.map((tick) => (
             <div
               key={tick}
-              className="absolute left-0 right-0 border-t border-dashed border-slate-300/80"
+              className="absolute left-0 right-0 border-t border-border/60"
               style={{ top: `${yForValue(tick)}%` }}
             />
           ))}
         </div>
 
-        <div className="absolute bottom-10 left-14 right-4 top-4">
+        <div className="absolute bottom-8 left-12 right-3 top-3">
+          {activeX !== null ? (
+            <div className="pointer-events-none absolute bottom-0 top-0 z-10 w-px bg-primary/30 transition-all duration-150" style={{ left: `${activeX}%` }} />
+          ) : null}
+          {Number.isInteger(highlightIndex) && highlightIndex >= 0 && highlightIndex < safeLabels.length ? (
+            <div
+              className="pointer-events-none absolute bottom-0 top-0 z-0 w-8 -translate-x-1/2 rounded-full bg-primary/10 transition-all"
+              style={{ left: `${(highlightIndex / Math.max(safeLabels.length - 1, 1)) * 100}%` }}
+            />
+          ) : null}
           {type === "bar" ? (
             <svg className="relative z-10 h-full w-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none">
               {safeLabels.map((label, index) => {
@@ -150,34 +193,48 @@ export default function TrendChart({ series, labels, type = "line", yLabel = "RM
             </svg>
           ) : (
             <svg className="relative z-10 h-full w-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none">
-              {safeSeries.map((item) => (
+              <defs>
+                {safeSeries.map((item, seriesIndex) => (
+                  <linearGradient key={item.name} id={`${gradientPrefix}-area-${seriesIndex}`} x1="0" x2="0" y1="0" y2="1">
+                    <stop offset="0%" stopColor={item.fill ?? item.stroke ?? "#22c55e"} stopOpacity={item.areaOpacity ?? 0.22} />
+                    <stop offset="72%" stopColor={item.fill ?? item.stroke ?? "#22c55e"} stopOpacity={0.04} />
+                    <stop offset="100%" stopColor={item.fill ?? item.stroke ?? "#22c55e"} stopOpacity={0} />
+                  </linearGradient>
+                ))}
+              </defs>
+              {safeSeries.map((item, seriesIndex) => {
+                const pointList = buildPointList(item.data, yForValue);
+                const smoothPath = buildSmoothPath(pointList);
+                return (
                 <g key={item.name}>
-                  <polyline
+                  {item.area || type === "area" ? (
+                    <path d={buildAreaPath(pointList, plotBottom)} fill={`url(#${gradientPrefix}-area-${seriesIndex})`} />
+                  ) : null}
+                  <path
+                    d={smoothPath}
                     fill="none"
-                    points={points(item.data)}
                     stroke={item.stroke}
                     strokeLinecap="round"
                     strokeLinejoin="round"
-                    strokeWidth="3"
+                    strokeWidth={item.strokeWidth ?? 3}
                     vectorEffect="non-scaling-stroke"
                   />
                   {safeLabels.map((label, index) => {
-                    const x = (index / Math.max(safeLabels.length - 1, 1)) * 100;
-                    const y = yForValue(item.data[index]);
+                    const point = pointList[index];
                     return (
                       <circle
                         key={`${item.name}-${label}`}
-                        cx={x}
-                        cy={y}
+                        cx={point.x}
+                        cy={point.y}
                         r={hoverIndex === index ? 2.2 : 1.4}
-                        fill={item.stroke}
-                        className={hoverIndex === index ? "drop-shadow-[0_0_6px_rgba(249,115,22,0.8)]" : ""}
+                        fill={item.pointColor ?? item.stroke}
+                        className={hoverIndex === index ? "drop-shadow-[0_0_8px_rgba(34,197,94,0.55)]" : ""}
                         vectorEffect="non-scaling-stroke"
                       />
                     );
                   })}
                 </g>
-              ))}
+              )})}
               {safeLabels.map((label, index) => {
                 const x = (index / Math.max(safeLabels.length - 1, 1)) * 100;
                 return (
@@ -197,13 +254,16 @@ export default function TrendChart({ series, labels, type = "line", yLabel = "RM
           )}
         </div>
 
-        <div className="absolute bottom-3 left-14 right-4 flex justify-between">
+        <div className="absolute bottom-2 left-12 right-3 flex justify-between">
           {safeLabels.map((label) => (
-            <span key={label} className="text-[11px] font-semibold text-text-muted">{label}</span>
+            <span key={label} className="text-[10px] font-semibold text-text-muted/80">{label}</span>
           ))}
         </div>
         {hoverIndex !== null ? (
-          <div className="absolute right-4 top-4 z-20 rounded-xl border border-border bg-white p-3 text-xs shadow-card">
+          <div
+            className="pointer-events-none absolute top-3 z-20 rounded-xl border border-border bg-surface/95 p-3 text-xs shadow-card backdrop-blur transition-all duration-150"
+            style={{ left: `${Math.min(86, Math.max(14, activeX ?? 50))}%`, transform: "translateX(-50%)" }}
+          >
             <div className="font-bold text-text-primary">{safeLabels[hoverIndex]}</div>
             {safeSeries.map((item) => (
               <div key={item.name} className="mt-1 flex justify-between gap-6 text-text-secondary">
