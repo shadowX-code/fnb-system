@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { BriefcaseBusiness, Copy, CreditCard, Edit3, Eye, KeyRound, MoreHorizontal, Plus, Power, Search, ShieldCheck, UserRound } from "lucide-react";
+import { BriefcaseBusiness, CreditCard, Edit3, Eye, KeyRound, MoreHorizontal, Plus, Power, Search, ShieldCheck, UserRound } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import Card from "../../../components/ui/Card.jsx";
@@ -101,8 +101,8 @@ function getAccessState(employee) {
 function getAccessStateCopy(employee) {
   const state = getAccessState(employee);
   if (state === EMPLOYEE_ACCESS_STATE.NO_ACCESS) return "System login is not enabled for this employee.";
-  if (state === EMPLOYEE_ACCESS_STATE.NOT_SENT) return "Temporary password can be generated after saving.";
-  if (state === EMPLOYEE_ACCESS_STATE.INVITED) return "Temporary password active. Employee must change password on first login.";
+  if (state === EMPLOYEE_ACCESS_STATE.NOT_SENT) return "Create the Supabase Auth account before this employee can sign in.";
+  if (state === EMPLOYEE_ACCESS_STATE.INVITED) return "Supabase account setup is pending.";
   if (state === EMPLOYEE_ACCESS_STATE.ACTIVE) return "Employee can sign in. Role permissions and outlet scope apply.";
   return "System access is disabled. Historical records remain available.";
 }
@@ -204,12 +204,6 @@ function accountTone(status) {
 
 function accountLabel(status) {
   return EMPLOYEE_ACCESS_STATE_LABEL[normalizeEmployeeAccessState(status, true)] ?? titleCase(status);
-}
-
-function generateTemporaryPassword() {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz23456789";
-  const body = Array.from({ length: 8 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
-  return `Temp${body}!`;
 }
 
 function findJobPosition(jobPositions, positionName) {
@@ -327,7 +321,7 @@ function UserFormModal({
   ui,
   onClose,
   onSubmit,
-  onTemporaryPassword,
+  onSendResetLink,
   onSwitchToEdit,
 }) {
   const [values, setValues] = useState(() => {
@@ -441,62 +435,25 @@ function UserFormModal({
         enable_system_login: Boolean(values.enable_system_login),
         email_verified: values.enable_system_login ? (values.email_verified ?? false) : false,
         audit_summary: values.enable_system_login
-          ? "Employee profile saved. Temporary password can be generated when needed."
+          ? "Employee profile saved with system login enabled. Supabase Auth account must exist before login."
           : "Employee profile saved without system login.",
       });
     }, 450);
   }
 
-  async function saveAndGenerateTemporaryPassword() {
-    if (!values.enable_system_login || emailStatus !== "valid") {
-      ui.notify({ title: "Please provide a valid unused email.", tone: "danger" });
-      return;
-    }
-    const nextErrors = validateUserForm(values);
-    if (values.email && ["invalid", "used"].includes(emailStatus)) {
-      nextErrors.email = emailStatus === "used" ? "Email is already used." : "Enter a valid email address.";
-    }
-    setErrors(nextErrors);
-    setTouchedFields((current) => ({ ...current, ...Object.fromEntries(Object.keys(nextErrors).map((key) => [key, true])) }));
-    if (Object.keys(nextErrors).length) {
-      ui.notify({ title: "Please complete required fields.", tone: "danger" });
+  async function sendResetLinkForExistingEmployee() {
+    if (!values.email) {
+      ui.notify({ title: "Email required", message: "Add an email before sending a reset link.", tone: "error" });
       return;
     }
     const confirmed = await ui.confirm({
-      title: "Generate temporary password?",
-      message: "A temporary development password will be created and shown once. The employee must change it on first login.",
-      confirmLabel: "Generate Password",
+      title: "Send reset link?",
+      message: "A secure Supabase password reset email will be sent. Admins cannot view or create passwords.",
+      confirmLabel: "Send Reset Link",
     });
     if (!confirmed) return;
-    setIsSaving(true);
-    const normalizedFullName = normalizeOfficialName(values.full_name);
-    const temporaryPassword = generateTemporaryPassword();
-    window.setTimeout(() => {
-      onSubmit({
-        ...values,
-        full_name: normalizedFullName,
-        nickname: values.nickname.trim(),
-        bank_account_name: values.bank_account_name?.trim() || normalizedFullName,
-        enable_system_login: true,
-        access_state: EMPLOYEE_ACCESS_STATE.INVITED,
-        is_active: true,
-        email_verified: true,
-        temporary_password: temporaryPassword,
-        audit_summary: "Temporary password generated for development onboarding.",
-      });
-    }, 450);
-  }
-
-  async function generateTempPasswordForExistingEmployee() {
-    const confirmed = await ui.confirm({
-      title: "Generate new temporary password?",
-      message: "A new temporary password will replace the previous development password.",
-      confirmLabel: "Generate Password",
-    });
-    if (!confirmed) return;
-    const temporaryPassword = generateTemporaryPassword();
-    onTemporaryPassword?.({ email: values.email, password: temporaryPassword, employee: values });
-    ui.notify({ title: "Temporary password generated.", message: values.email || values.full_name });
+    await onSendResetLink?.(values.email);
+    ui.notify({ title: "Reset link sent.", message: values.email || values.full_name });
   }
 
   return (
@@ -515,9 +472,6 @@ function UserFormModal({
         ) : (
           <>
             <button className="btn-secondary" type="button" disabled={isSaving} onClick={onClose}>Cancel</button>
-            {values.enable_system_login ? (
-              <button className="btn-primary" type="button" disabled={isSaving || emailStatus !== "valid"} onClick={saveAndGenerateTemporaryPassword}>{isSaving ? "Generating..." : "Save & Generate Temp Password"}</button>
-            ) : null}
             <button className="btn-primary" type="button" disabled={isSaving} onClick={handleSubmit}>{isSaving ? "Saving..." : "Save Employee"}</button>
           </>
         )
@@ -744,13 +698,13 @@ function UserFormModal({
                             : "text-text-muted"
                     }`}>
                       {emailStatus === "valid"
-                        ? "Email can be used for temporary login."
+                        ? "Email format is valid."
                         : emailStatus === "used"
                           ? "Employee profile or auth account may already exist."
                           : emailStatus === "invalid"
                             ? "Enter a valid email address."
                             : emailStatus === "checking"
-                              ? "Checking employee profile and temporary login..."
+                              ? "Checking employee profile..."
                               : "Validation runs automatically."}
                     </span>
                   </div>
@@ -784,8 +738,8 @@ function UserFormModal({
           {mode === "edit" ? (
             <div className="mt-3 flex flex-wrap gap-2">
               {[EMPLOYEE_ACCESS_STATE.NOT_SENT, EMPLOYEE_ACCESS_STATE.INVITED, EMPLOYEE_ACCESS_STATE.ACTIVE].includes(getAccessState(values)) ? (
-                <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={generateTempPasswordForExistingEmployee}>
-                  <KeyRound size={14} /> Generate Temp Password
+                <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={sendResetLinkForExistingEmployee}>
+                  <KeyRound size={14} /> Send Reset Link
                 </button>
               ) : null}
             </div>
@@ -819,7 +773,6 @@ export default function UsersPage({ ui, store, auth }) {
   const [profileMode, setProfileMode] = useState("view");
   const [formState, setFormState] = useState(null);
   const [actionMenuUserId, setActionMenuUserId] = useState(null);
-  const [temporaryCredential, setTemporaryCredential] = useState(null);
   const roleOptions = useMemo(() => (roleRecords.length ? roleRecords.map((role) => role.name) : fallbackRoleOptions), [roleRecords]);
   const workplaceOptions = useMemo(
     () => ["All Outlets", ...(store?.outlets ?? []).map((outlet) => outlet.name)].filter(Boolean),
@@ -897,24 +850,19 @@ export default function UsersPage({ ui, store, auth }) {
     setActionMenuUserId(null);
   }
 
-  async function generateTempPasswordForUser(user) {
+  async function sendResetLinkForUser(user) {
+    if (!user.email) {
+      ui.notify({ title: "Email required", message: "Add an email before sending a reset link.", tone: "error" });
+      return;
+    }
     const confirmed = await ui.confirm({
-      title: "Generate temporary password?",
-      message: "A temporary development password will be created and shown once. The employee must change it on first login.",
-      confirmLabel: "Generate Password",
+      title: "Send reset link?",
+      message: "A secure Supabase password reset email will be sent. Admins cannot view or create passwords.",
+      confirmLabel: "Send Reset Link",
     });
     if (!confirmed) return;
-    const temporaryPassword = generateTemporaryPassword();
-    updateUserAccount(user.id, {
-      access_state: EMPLOYEE_ACCESS_STATE.INVITED,
-      enable_system_login: true,
-      is_active: true,
-      email_verified: true,
-      audit_summary: "Temporary password generated for development onboarding.",
-    });
-    auth?.createTemporaryLogin?.({ ...user, access_state: EMPLOYEE_ACCESS_STATE.INVITED, is_active: true, email_verified: true, permissions: permissionsForRoleName(user.role) }, temporaryPassword);
-    setTemporaryCredential({ email: user.email, password: temporaryPassword });
-    ui.notify({ title: "Temporary password generated.", message: user.email });
+    await auth?.resetPassword?.(user.email);
+    ui.notify({ title: "Reset link sent.", message: user.email });
     closeActionMenu();
   }
 
@@ -953,46 +901,21 @@ export default function UsersPage({ ui, store, auth }) {
     setProfileMode(mode);
   }
 
-  function permissionsForRoleName(roleName) {
-    return roleRecords.find((role) => role.name === roleName)?.permissions ?? [];
-  }
-
   async function saveUser(user) {
     try {
-      const temporaryPassword = user.temporary_password;
       const payload = { ...user };
-      delete payload.temporary_password;
       const saved = await employeeService.saveEmployee(payload);
-      if (temporaryPassword) {
-        auth?.createTemporaryLogin?.({ ...saved, permissions: permissionsForRoleName(saved.role) }, temporaryPassword);
-        setTemporaryCredential({ email: saved.email, password: temporaryPassword });
-      }
       setUsers((current) => {
         const exists = current.some((item) => item.id === saved.id);
         return exists ? current.map((item) => (item.id === saved.id ? saved : item)) : [saved, ...current];
       });
       setSelectedUser(null);
       setFormState(null);
-      ui.notify({ title: temporaryPassword ? "Temporary password generated." : "Employee saved successfully.", message: saved.email || saved.full_name });
+      ui.notify({ title: "Employee saved successfully.", message: saved.email || saved.full_name });
     } catch (error) {
       console.error("Unable to save employee", error);
       ui.notify({ title: "Unable to save employee", message: error.message || "Please try again.", tone: "error" });
     }
-  }
-
-  function handleTemporaryCredential({ email, password, employee }) {
-    const target = employee || users.find((item) => String(item.email).toLowerCase() === String(email).toLowerCase());
-    if (target?.id) {
-      updateUserAccount(target.id, {
-        access_state: EMPLOYEE_ACCESS_STATE.INVITED,
-        enable_system_login: true,
-        is_active: true,
-        email_verified: true,
-        audit_summary: "Temporary password generated for development onboarding.",
-      });
-      auth?.createTemporaryLogin?.({ ...target, access_state: EMPLOYEE_ACCESS_STATE.INVITED, is_active: true, email_verified: true, permissions: permissionsForRoleName(target.role) }, password);
-    }
-    setTemporaryCredential({ email, password });
   }
 
   function renderAccountActions(row) {
@@ -1011,8 +934,8 @@ export default function UsersPage({ ui, store, auth }) {
     if (accessState === EMPLOYEE_ACCESS_STATE.ACTIVE) {
       return (
         <>
-          <button className={buttonClass} type="button" onClick={() => generateTempPasswordForUser(row)}>
-            <KeyRound size={14} /> Generate Temp Password
+          <button className={buttonClass} type="button" onClick={() => sendResetLinkForUser(row)}>
+            <KeyRound size={14} /> Send Reset Link
           </button>
           <button className={dangerClass} type="button" onClick={() => disableUserAccess(row)}>
             <Power size={14} /> Disable Access
@@ -1024,8 +947,8 @@ export default function UsersPage({ ui, store, auth }) {
     if (accessState === EMPLOYEE_ACCESS_STATE.NOT_SENT || accessState === EMPLOYEE_ACCESS_STATE.INVITED) {
       return (
         <>
-          <button className={buttonClass} type="button" onClick={() => generateTempPasswordForUser(row)}>
-            <KeyRound size={14} /> Generate Temp Password
+          <button className={buttonClass} type="button" onClick={() => sendResetLinkForUser(row)}>
+            <KeyRound size={14} /> Send Reset Link
           </button>
           <button className={dangerClass} type="button" onClick={() => disableUserAccess(row)}>
             <Power size={14} /> Disable Access
@@ -1202,7 +1125,7 @@ export default function UsersPage({ ui, store, auth }) {
         <div className="flex items-start gap-2">
           <ShieldCheck className="mt-0.5 shrink-0 text-blue-700" size={16} />
           <p>
-            <strong>Alpha security note:</strong> Temporary passwords are for development onboarding only. Production will use Supabase inviteUserByEmail, SMTP, branded invitation emails, and password setup links.
+            <strong>Security note:</strong> FeedX now uses real Supabase Auth sessions only. Admins can send reset links, but cannot create, view, or recover passwords.
           </p>
         </div>
       </div>
@@ -1234,8 +1157,8 @@ export default function UsersPage({ ui, store, auth }) {
           users={users}
           ui={ui}
           onClose={() => setSelectedUser(null)}
+          onSendResetLink={auth?.resetPassword}
           onSwitchToEdit={() => setProfileMode("edit")}
-          onTemporaryPassword={handleTemporaryCredential}
           onSubmit={(user) => {
             saveUser(user);
             setSelectedUser(null);
@@ -1254,40 +1177,9 @@ export default function UsersPage({ ui, store, auth }) {
           users={users}
           ui={ui}
           onClose={() => setFormState(null)}
-          onTemporaryPassword={handleTemporaryCredential}
+          onSendResetLink={auth?.resetPassword}
           onSubmit={saveUser}
         />
-      ) : null}
-      {temporaryCredential ? (
-        <Modal
-          title="Temporary Login Created"
-          description="Show this temporary password to the employee. They must change it on first login."
-          onClose={() => setTemporaryCredential(null)}
-          footer={<button className="btn-primary" type="button" onClick={() => setTemporaryCredential(null)}>Done</button>}
-        >
-          <div className="space-y-3">
-            <div className="rounded-2xl border border-border bg-slate-50 p-4">
-              <div className="text-xs font-bold uppercase text-text-muted">Email</div>
-              <div className="mt-1 font-semibold text-text-primary">{temporaryCredential.email}</div>
-            </div>
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
-              <div className="text-xs font-bold uppercase text-amber-700">Temporary Password</div>
-              <div className="mt-1 flex items-center justify-between gap-3">
-                <code className="text-lg font-bold text-text-primary">{temporaryCredential.password}</code>
-                <button
-                  className="btn-secondary h-9 text-xs"
-                  type="button"
-                  onClick={() => {
-                    navigator.clipboard?.writeText(temporaryCredential.password);
-                    ui.notify({ title: "Temporary password copied." });
-                  }}
-                >
-                  <Copy size={14} /> Copy
-                </button>
-              </div>
-            </div>
-          </div>
-        </Modal>
       ) : null}
     </div>
   );

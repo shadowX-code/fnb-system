@@ -14,51 +14,6 @@ import { purchaseRecordService } from "../services/purchaseRecordService.js";
 import { useAuth } from "../auth/AuthContext.jsx";
 import LoginPage from "../auth/LoginPage.jsx";
 
-function TemporaryPasswordReset({ auth }) {
-  const [password, setPassword] = useState("");
-  const [confirm, setConfirm] = useState("");
-  const [error, setError] = useState("");
-
-  function submit(event) {
-    event.preventDefault();
-    setError("");
-    if (password.length < 8) {
-      setError("Use at least 8 characters.");
-      return;
-    }
-    if (password !== confirm) {
-      setError("Passwords do not match.");
-      return;
-    }
-    auth.completeTemporaryPasswordReset(password);
-  }
-
-  return (
-    <div className="flex min-h-screen items-center justify-center bg-app-bg px-4">
-      <form className="card w-full max-w-md space-y-4 p-6" onSubmit={submit}>
-        <div>
-          <div className="text-xs font-bold uppercase tracking-wide text-primary">Temporary Password</div>
-          <h1 className="mt-2 text-xl font-semibold text-text-primary">Please change your password before continuing.</h1>
-          <p className="mt-2 text-sm text-text-secondary">This alpha onboarding flow uses a temporary password. Production will use branded Supabase invitation emails.</p>
-        </div>
-        <label className="block">
-          <span className="text-xs font-semibold text-text-secondary">New Password</span>
-          <input className="control mt-1 h-11 w-full" type="password" value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="new-password" />
-        </label>
-        <label className="block">
-          <span className="text-xs font-semibold text-text-secondary">Confirm Password</span>
-          <input className="control mt-1 h-11 w-full" type="password" value={confirm} onChange={(event) => setConfirm(event.target.value)} autoComplete="new-password" />
-        </label>
-        {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
-        <div className="flex justify-end gap-2">
-          <button className="btn-secondary" type="button" onClick={auth.signOut}>Back to Login</button>
-          <button className="btn-primary" type="submit">Change Password</button>
-        </div>
-      </form>
-    </div>
-  );
-}
-
 function normalizeSuppliers(suppliers, categories) {
   return suppliers.map((supplier) => {
     const category = categories.find(
@@ -152,6 +107,110 @@ function filterSectionsByPermission(sections, routes, auth) {
     .filter((section) => section.items.length);
 }
 
+const BOOTSTRAP_LOADS = [
+  { key: "outlets", label: "Outlets", table: "outlets", operation: "SELECT", permission: "outlets.view OR dashboard.view" },
+  { key: "suppliers", label: "Suppliers", table: "suppliers", operation: "SELECT", permission: "suppliers.view OR purchase_input.view OR purchase_comparison.view OR data_import.view" },
+  { key: "purchaseCategories", label: "Purchase Categories", table: "purchase_categories", operation: "SELECT", permission: "purchase_categories.view OR purchase_input.view OR purchase_comparison.view OR data_import.view" },
+  { key: "salesChannels", label: "Sales Channels", table: "sales_channels", operation: "SELECT", permission: "sales_channels.view OR sales_input.view OR sales_comparison.view OR data_import.view" },
+  { key: "outletTaxConfigs", label: "Tax Settings", table: "outlet_tax_configs", operation: "SELECT", permission: "tax_settings.view OR sales_input.view OR dashboard.view" },
+  { key: "salesRecords", label: "Sales Records", table: "sales_records", operation: "SELECT", permission: "dashboard.view OR sales_input.view OR sales_comparison.view" },
+  { key: "purchaseRecords", label: "Purchase Records", table: "purchase_records", operation: "SELECT", permission: "dashboard.view OR purchase_input.view OR purchase_comparison.view" },
+];
+
+function RbacDiagnosticsPanel({ auth, loads }) {
+  if (!import.meta.env.DEV) return null;
+
+  const permissionChecks = [
+    "dashboard.view",
+    "sales_input.view",
+    "sales_input.create",
+    "sales_input.edit",
+    "sales_comparison.view",
+    "purchase_input.view",
+    "purchase_input.create",
+    "purchase_input.edit",
+    "purchase_comparison.view",
+    "suppliers.view",
+    "purchase_categories.view",
+    "sales_channels.view",
+    "tax_settings.view",
+    "outlets.view",
+    "employees.view",
+    "departments.view",
+    "job_positions.view",
+    "roles.view",
+    "audit_logs.view",
+    "data_import.import",
+  ];
+  const failedLoads = loads.filter((load) => load.status === "error");
+  return (
+    <details className="card mb-4 border-amber-200 bg-amber-50 p-4 text-xs text-amber-950">
+      <summary className="cursor-pointer text-sm font-bold text-amber-900">RBAC Diagnostics</summary>
+      <div className="mt-3 grid gap-3 lg:grid-cols-2">
+        <div className="rounded-xl border border-amber-200 bg-white/70 p-3">
+          <div className="font-bold uppercase tracking-wide text-amber-700">Current User</div>
+          <div className="mt-2 space-y-1">
+            <div>auth.uid: {auth.user?.id ?? "—"}</div>
+            <div>email: {auth.user?.email ?? "—"}</div>
+            <div>employee id: {auth.profile?.id ?? "—"}</div>
+            <div>role: {auth.profile?.role_name ?? "—"}</div>
+            <div>access_state: {auth.profile?.access_state ?? "—"}</div>
+            <div>auth source: {auth.source}</div>
+            <div>permission count: {auth.permissions.length}</div>
+          </div>
+          {auth.source !== "database" ? (
+            <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-2 font-semibold text-red-700">
+              Data access requires a real Supabase Auth session with database-backed employee RBAC.
+            </div>
+          ) : null}
+        </div>
+        <div className="rounded-xl border border-amber-200 bg-white/70 p-3">
+          <div className="font-bold uppercase tracking-wide text-amber-700">Permission Checks</div>
+          <div className="mt-2 grid grid-cols-1 gap-1 sm:grid-cols-2">
+            {permissionChecks.map((code) => (
+              <div key={code} className={auth.hasPermission(code) ? "text-emerald-700" : "text-red-700"}>
+                {auth.hasPermission(code) ? "OK" : "NO"} {code}
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+      <div className="mt-3 rounded-xl border border-amber-200 bg-white/70 p-3">
+        <div className="font-bold uppercase tracking-wide text-amber-700">Bootstrap Module Loads</div>
+        <div className="mt-2 overflow-x-auto">
+          <table className="w-full text-left">
+            <thead>
+              <tr className="border-b border-amber-100 text-[11px] uppercase text-amber-700">
+                <th className="py-1 pr-3">Module</th>
+                <th className="py-1 pr-3">Table</th>
+                <th className="py-1 pr-3">Op</th>
+                <th className="py-1 pr-3">Required Permission</th>
+                <th className="py-1 pr-3">Status</th>
+                <th className="py-1 pr-3">Error</th>
+              </tr>
+            </thead>
+            <tbody>
+              {loads.map((load) => (
+                <tr key={load.key} className="border-b border-amber-50">
+                  <td className="py-1 pr-3 font-semibold">{load.label}</td>
+                  <td className="py-1 pr-3">{load.table}</td>
+                  <td className="py-1 pr-3">{load.operation}</td>
+                  <td className="py-1 pr-3">{load.permission}</td>
+                  <td className={load.status === "loaded" ? "py-1 pr-3 font-semibold text-emerald-700" : "py-1 pr-3 font-semibold text-red-700"}>
+                    {load.status}
+                  </td>
+                  <td className="py-1 pr-3">{load.error ?? "—"}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        {failedLoads.length ? <div className="mt-2 font-semibold text-red-700">{failedLoads.length} module load failure(s) detected.</div> : null}
+      </div>
+    </details>
+  );
+}
+
 export default function App() {
   const auth = useAuth();
   const initialRoute = window.location.hash?.replace("#", "") || "dashboard";
@@ -159,7 +218,7 @@ export default function App() {
     salesPurchaseRoutes.some((route) => route.id === initialRoute) ? initialRoute : "dashboard",
   );
   const [store, setStore] = useState(() => ({ ...operationsService.getBootstrapData(), outlets: [], suppliers: [], purchaseCategories: [], salesChannels: [] }));
-  const [masterDataStatus, setMasterDataStatus] = useState({ loading: true, errors: [] });
+  const [masterDataStatus, setMasterDataStatus] = useState({ loading: true, errors: [], loads: BOOTSTRAP_LOADS.map((load) => ({ ...load, status: "pending" })) });
   const [toasts, setToasts] = useState([]);
   const [confirmRequest, setConfirmRequest] = useState(null);
   const accessibleRoutes = useMemo(() => filterRoutesByPermission(salesPurchaseRoutes, auth), [auth.permissions]);
@@ -174,8 +233,22 @@ export default function App() {
     if (!auth.session) return undefined;
     let ignore = false;
     async function loadMasterData() {
-      setMasterDataStatus({ loading: true, errors: [] });
+      setMasterDataStatus({ loading: true, errors: [], loads: BOOTSTRAP_LOADS.map((load) => ({ ...load, status: "pending" })) });
       const errors = [];
+      const loads = BOOTSTRAP_LOADS.map((load) => ({ ...load, status: "pending" }));
+      const markLoad = (key, result, message) => {
+        const index = loads.findIndex((load) => load.key === key);
+        if (index === -1) return;
+        loads[index] = { ...loads[index], status: result, error: message };
+        if (import.meta.env.DEV) {
+          console.info("[FeedX module load]", {
+            ...loads[index],
+            role: auth.profile?.role_name ?? null,
+            permission_count: auth.permissions.length,
+            permission_result: loads[index].permission.split(" OR ").some((permission) => auth.hasPermission(permission)),
+          });
+        }
+      };
       let outlets = [];
       let suppliers = [];
       let purchaseCategories = [];
@@ -193,39 +266,67 @@ export default function App() {
         salesRecordService.listSalesRecords(),
         purchaseRecordService.listPurchaseRecords(),
       ]);
-      if (outletResult.status === "fulfilled") outlets = outletResult.value;
+      if (outletResult.status === "fulfilled") {
+        outlets = outletResult.value;
+        markLoad("outlets", "loaded");
+      }
       else {
         console.error("Unable to load outlets", outletResult.reason);
+        markLoad("outlets", "error", outletResult.reason?.message || "Unable to load outlets.");
         errors.push("Unable to load outlets. Please refresh.");
       }
-      if (supplierResult.status === "fulfilled") suppliers = supplierResult.value;
+      if (supplierResult.status === "fulfilled") {
+        suppliers = supplierResult.value;
+        markLoad("suppliers", "loaded");
+      }
       else {
         console.error("Unable to load suppliers", supplierResult.reason);
+        markLoad("suppliers", "error", supplierResult.reason?.message || "Unable to load suppliers.");
         errors.push("Unable to load suppliers.");
       }
-      if (categoryResult.status === "fulfilled") purchaseCategories = categoryResult.value;
+      if (categoryResult.status === "fulfilled") {
+        purchaseCategories = categoryResult.value;
+        markLoad("purchaseCategories", "loaded");
+      }
       else {
         console.error("Unable to load categories", categoryResult.reason);
+        markLoad("purchaseCategories", "error", categoryResult.reason?.message || "Unable to load categories.");
         errors.push("Unable to load categories.");
       }
-      if (salesChannelResult.status === "fulfilled") salesChannels = normalizeSalesChannels(salesChannelResult.value);
+      if (salesChannelResult.status === "fulfilled") {
+        salesChannels = normalizeSalesChannels(salesChannelResult.value);
+        markLoad("salesChannels", "loaded");
+      }
       else {
         console.error("Unable to load sales channels", salesChannelResult.reason);
+        markLoad("salesChannels", "error", salesChannelResult.reason?.message || "Unable to load sales channels.");
         errors.push("Unable to load sales channels.");
       }
-      if (taxConfigResult.status === "fulfilled") outletTaxConfigs = taxConfigResult.value;
+      if (taxConfigResult.status === "fulfilled") {
+        outletTaxConfigs = taxConfigResult.value;
+        markLoad("outletTaxConfigs", "loaded");
+      }
       else {
         console.error("Unable to load tax settings", taxConfigResult.reason);
+        markLoad("outletTaxConfigs", "error", taxConfigResult.reason?.message || "Unable to load tax settings.");
         errors.push("Unable to load tax settings.");
       }
-      if (salesRecordResult.status === "fulfilled") salesRecords = salesRecordResult.value;
+      if (salesRecordResult.status === "fulfilled") {
+        salesRecords = salesRecordResult.value;
+        markLoad("salesRecords", "loaded");
+      }
       else {
         console.error("Unable to load sales records", salesRecordResult.reason);
+        markLoad("salesRecords", "error", salesRecordResult.reason?.message || "Unable to load sales records.");
         errors.push("Unable to load sales records.");
       }
-      if (purchaseRecordResult.status === "fulfilled") purchaseRecords = purchaseRecordResult.value;
+      if (purchaseRecordResult.status === "fulfilled") {
+        purchaseRecords = purchaseRecordResult.value;
+        markLoad("purchaseRecords", "loaded");
+      }
       else {
         console.error("Unable to load purchase records", purchaseRecordResult.reason);
+        markLoad("purchaseRecords", "error", purchaseRecordResult.reason?.message || "Unable to load purchase records.");
         errors.push("Unable to load purchase records.");
       }
 
@@ -240,7 +341,7 @@ export default function App() {
           ...(salesRecordResult.status === "fulfilled" ? { salesRecords } : {}),
           ...(purchaseRecordResult.status === "fulfilled" ? { purchaseRecords } : {}),
         }));
-        setMasterDataStatus({ loading: false, errors });
+        setMasterDataStatus({ loading: false, errors, loads });
       }
     }
     loadMasterData();
@@ -287,10 +388,6 @@ export default function App() {
 
   if (!auth.session) {
     return <LoginPage />;
-  }
-
-  if (auth.requiresPasswordReset) {
-    return <TemporaryPasswordReset auth={auth} />;
   }
 
   if (auth.error) {
@@ -348,6 +445,7 @@ export default function App() {
                 </div>
               </div>
             ) : null}
+            <RbacDiagnosticsPanel auth={auth} loads={masterDataStatus.loads} />
             <ActivePage store={store} setStore={setStore} ui={ui} auth={auth} {...(activeRoute.props ?? {})} />
           </>
         )}

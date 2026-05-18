@@ -31,8 +31,6 @@ export function normalizeEmployeeAccessState(value, enableSystemLogin = true) {
     invitation_pending: EMPLOYEE_ACCESS_STATE.INVITED,
     pending_invite: EMPLOYEE_ACCESS_STATE.INVITED,
     invited: EMPLOYEE_ACCESS_STATE.INVITED,
-    temp_password_active: EMPLOYEE_ACCESS_STATE.INVITED,
-    temporary_password_active: EMPLOYEE_ACCESS_STATE.INVITED,
     active: EMPLOYEE_ACCESS_STATE.ACTIVE,
     inactive: EMPLOYEE_ACCESS_STATE.DISABLED,
     disabled: EMPLOYEE_ACCESS_STATE.DISABLED,
