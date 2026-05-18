@@ -157,7 +157,7 @@ function PurchaseEntryTable({
                       />
                     ) : (
                       <button
-                        className={`inline-flex max-w-[150px] items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold transition ${
+                        className={`inline-flex max-w-[150px] items-center gap-1 rounded-full border px-2 py-0.5 text-[11px] font-semibold transition ${
                           row.category_id ? "border-slate-200 bg-slate-50 text-text-secondary hover:border-primary/30 hover:text-primary" : "border-amber-200 bg-amber-50 text-amber-700"
                         }`}
                         type="button"
@@ -166,7 +166,7 @@ function PurchaseEntryTable({
                         onClick={() => setEditingCategoryKey(row.localKey)}
                       >
                         <span className="truncate">{row.category_id ? getCategoryName(store.purchaseCategories, row.category_id) : "Required"}</span>
-                        <SquarePen size={12} />
+                        <SquarePen size={11} />
                       </button>
                     )}
                   </td>

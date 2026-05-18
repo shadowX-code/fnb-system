@@ -12,6 +12,7 @@ import MultiSelectField from "../../../components/forms/MultiSelectField.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import DatePickerField from "../../../components/forms/DatePickerField.jsx";
+import { EMPLOYEE_ACCESS_STATE, EMPLOYEE_ACCESS_STATE_LABEL, normalizeEmployeeAccessState } from "../../../constants/employeeAccessStates.js";
 import { employeeService } from "../../../services/employeeService.js";
 import { jobPositionService } from "../../../services/jobPositionService.js";
 import { roleService } from "../../../services/roleService.js";
@@ -37,7 +38,7 @@ function createEmptyUser() {
     workplace: "",
     outlet_access: [],
     employment_status: "full_time",
-    access_state: "no_access",
+    access_state: EMPLOYEE_ACCESS_STATE.NO_ACCESS,
     enable_system_login: false,
     is_active: false,
     email_verified: false,
@@ -92,22 +93,17 @@ function hasSystemLogin(employee) {
 }
 
 function getAccessState(employee) {
-  if (!hasSystemLogin(employee)) return "no_access";
+  if (!hasSystemLogin(employee)) return EMPLOYEE_ACCESS_STATE.NO_ACCESS;
   const state = employee.access_state ?? employee.account_status;
-  if (state === "not_sent") return "not_sent";
-  if (state === "temp_password_active" || state === "invited") return "temp_password_active";
-  if (state === "active") return "active";
-  if (state === "inactive" || state === "disabled") return "disabled";
-  return "not_sent";
+  return normalizeEmployeeAccessState(state, true);
 }
 
 function getAccessStateCopy(employee) {
   const state = getAccessState(employee);
-  if (state === "no_access") return "System login is not enabled for this employee.";
-  if (state === "not_sent") return "Temporary password can be generated after saving.";
-  if (state === "temp_password_active") return "Temporary password active. Employee must change password on first login.";
-  if (state === "invited") return "Temporary password active. Employee must change password on first login.";
-  if (state === "active") return "Employee can sign in. Role permissions and outlet scope apply.";
+  if (state === EMPLOYEE_ACCESS_STATE.NO_ACCESS) return "System login is not enabled for this employee.";
+  if (state === EMPLOYEE_ACCESS_STATE.NOT_SENT) return "Temporary password can be generated after saving.";
+  if (state === EMPLOYEE_ACCESS_STATE.INVITED) return "Temporary password active. Employee must change password on first login.";
+  if (state === EMPLOYEE_ACCESS_STATE.ACTIVE) return "Employee can sign in. Role permissions and outlet scope apply.";
   return "System access is disabled. Historical records remain available.";
 }
 
@@ -199,20 +195,15 @@ function employmentTone(status) {
 }
 
 function accountTone(status) {
-  if (status === "active") return "success";
-  if (status === "invited" || status === "temp_password_active") return "warning";
-  if (status === "disabled") return "neutral";
-  if (status === "not_sent") return "info";
+  if (status === EMPLOYEE_ACCESS_STATE.ACTIVE) return "success";
+  if (status === EMPLOYEE_ACCESS_STATE.INVITED) return "warning";
+  if (status === EMPLOYEE_ACCESS_STATE.DISABLED) return "neutral";
+  if (status === EMPLOYEE_ACCESS_STATE.NOT_SENT) return "info";
   return "neutral";
 }
 
 function accountLabel(status) {
-  if (status === "no_access") return "No Access";
-  if (status === "not_sent") return "Not Sent";
-  if (status === "temp_password_active" || status === "invited") return "Temporary Password Active";
-  if (status === "active") return "Access Active";
-  if (status === "disabled") return "Access Disabled";
-  return titleCase(status);
+  return EMPLOYEE_ACCESS_STATE_LABEL[normalizeEmployeeAccessState(status, true)] ?? titleCase(status);
 }
 
 function generateTemporaryPassword() {
@@ -413,17 +404,15 @@ function UserFormModal({
       ...(key === "nationality" && value === "Malaysia" ? { ic_no: formatMalaysiaIc(current.ic_no), contact: formatMalaysiaContact(current.contact) } : {}),
       ...(key === "full_name" && !current.bank_account_name ? { bank_account_name: value } : {}),
       ...(key === "employment_status" && value !== "resigned" ? { resigned_date: "" } : {}),
-      ...(key === "enable_system_login" && !value ? { email: "", role: "", access_state: "no_access", is_active: false, email_verified: false } : {}),
-      ...(key === "enable_system_login" && value ? { access_state: hasSystemLogin(current) ? getAccessState(current) : "not_sent", is_active: getAccessState(current) === "active" } : {}),
+      ...(key === "enable_system_login" && !value ? { email: "", role: "", access_state: EMPLOYEE_ACCESS_STATE.NO_ACCESS, is_active: false, email_verified: false } : {}),
+      ...(key === "enable_system_login" && value ? { access_state: hasSystemLogin(current) ? getAccessState(current) : EMPLOYEE_ACCESS_STATE.NOT_SENT, is_active: getAccessState(current) === EMPLOYEE_ACCESS_STATE.ACTIVE } : {}),
     }));
     setTouchedFields((current) => (current[key] ? current : { ...current, [key]: true }));
   }
 
   function resolveSavedAccessStatus() {
-    if (!values.enable_system_login) return "no_access";
-    if (values.access_state === "active" || values.access_state === "disabled" || values.access_state === "inactive") return getAccessState(values);
-    if (values.access_state === "temp_password_active" || values.access_state === "invited") return "temp_password_active";
-    return "not_sent";
+    if (!values.enable_system_login) return EMPLOYEE_ACCESS_STATE.NO_ACCESS;
+    return normalizeEmployeeAccessState(values.access_state ?? EMPLOYEE_ACCESS_STATE.NOT_SENT, true);
   }
 
   function handleSubmit() {
@@ -447,8 +436,8 @@ function UserFormModal({
         full_name: normalizedFullName,
         nickname: values.nickname.trim(),
         bank_account_name: values.bank_account_name?.trim() || normalizedFullName,
-        access_state: nextAccessStatus,
-        is_active: values.enable_system_login && nextAccessStatus === "active",
+        access_state: normalizeEmployeeAccessState(nextAccessStatus, values.enable_system_login),
+        is_active: values.enable_system_login && nextAccessStatus === EMPLOYEE_ACCESS_STATE.ACTIVE,
         enable_system_login: Boolean(values.enable_system_login),
         email_verified: values.enable_system_login ? (values.email_verified ?? false) : false,
         audit_summary: values.enable_system_login
@@ -489,7 +478,7 @@ function UserFormModal({
         nickname: values.nickname.trim(),
         bank_account_name: values.bank_account_name?.trim() || normalizedFullName,
         enable_system_login: true,
-        access_state: "temp_password_active",
+        access_state: EMPLOYEE_ACCESS_STATE.INVITED,
         is_active: true,
         email_verified: true,
         temporary_password: temporaryPassword,
@@ -699,11 +688,11 @@ function UserFormModal({
                   </div>
                 </ReadOnlyField>
                 <ReadOnlyField label="Password Setup">
-                  {getAccessState(values) === "temp_password_active" ? (
+                  {getAccessState(values) === EMPLOYEE_ACCESS_STATE.INVITED ? (
                     <Badge tone="warning">Reset Required</Badge>
-                  ) : getAccessState(values) === "active" ? (
+                  ) : getAccessState(values) === EMPLOYEE_ACCESS_STATE.ACTIVE ? (
                     <Badge tone="success">Completed</Badge>
-                  ) : getAccessState(values) === "not_sent" ? (
+                  ) : getAccessState(values) === EMPLOYEE_ACCESS_STATE.NOT_SENT ? (
                     <Badge tone="info">Not Generated</Badge>
                   ) : (
                     <Badge tone="neutral">Disabled</Badge>
@@ -716,7 +705,7 @@ function UserFormModal({
               </div>
             ) : (
               <div className="rounded-xl border border-border bg-slate-50 px-4 py-3 text-sm text-text-secondary">
-                <Badge tone={accountTone("no_access")}>{accountLabel("no_access")}</Badge>
+                <Badge tone={accountTone(EMPLOYEE_ACCESS_STATE.NO_ACCESS)}>{accountLabel(EMPLOYEE_ACCESS_STATE.NO_ACCESS)}</Badge>
                 <p className="mt-2">This employee profile has no system login account. HR data remains available for operations.</p>
               </div>
             )
@@ -794,7 +783,7 @@ function UserFormModal({
             </div>
           {mode === "edit" ? (
             <div className="mt-3 flex flex-wrap gap-2">
-              {["not_sent", "temp_password_active", "active"].includes(getAccessState(values)) ? (
+              {[EMPLOYEE_ACCESS_STATE.NOT_SENT, EMPLOYEE_ACCESS_STATE.INVITED, EMPLOYEE_ACCESS_STATE.ACTIVE].includes(getAccessState(values)) ? (
                 <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={generateTempPasswordForExistingEmployee}>
                   <KeyRound size={14} /> Generate Temp Password
                 </button>
@@ -884,8 +873,8 @@ export default function UsersPage({ ui, store, auth }) {
   }, [accountFilter, employmentFilter, query, roleFilter, users, workplaceFilter]);
 
   const stats = {
-    active: users.filter((user) => getAccessState(user) === "active").length,
-    disabled: users.filter((user) => getAccessState(user) === "disabled").length,
+    active: users.filter((user) => getAccessState(user) === EMPLOYEE_ACCESS_STATE.ACTIVE).length,
+    disabled: users.filter((user) => getAccessState(user) === EMPLOYEE_ACCESS_STATE.DISABLED).length,
     loginEnabled: users.filter(hasSystemLogin).length,
     fullTime: users.filter((user) => user.employment_status === "full_time").length,
     partTime: users.filter((user) => user.employment_status === "part_time").length,
@@ -917,13 +906,13 @@ export default function UsersPage({ ui, store, auth }) {
     if (!confirmed) return;
     const temporaryPassword = generateTemporaryPassword();
     updateUserAccount(user.id, {
-      access_state: "temp_password_active",
+      access_state: EMPLOYEE_ACCESS_STATE.INVITED,
       enable_system_login: true,
       is_active: true,
       email_verified: true,
       audit_summary: "Temporary password generated for development onboarding.",
     });
-    auth?.createTemporaryLogin?.({ ...user, access_state: "temp_password_active", is_active: true, email_verified: true }, temporaryPassword);
+    auth?.createTemporaryLogin?.({ ...user, access_state: EMPLOYEE_ACCESS_STATE.INVITED, is_active: true, email_verified: true }, temporaryPassword);
     setTemporaryCredential({ email: user.email, password: temporaryPassword });
     ui.notify({ title: "Temporary password generated.", message: user.email });
     closeActionMenu();
@@ -939,7 +928,7 @@ export default function UsersPage({ ui, store, auth }) {
     });
     if (!confirmed) return;
     updateUserAccount(user.id, {
-      access_state: "disabled",
+      access_state: EMPLOYEE_ACCESS_STATE.DISABLED,
       is_active: false,
       audit_summary: "System access disabled locally. Historical records remain available.",
     });
@@ -950,7 +939,7 @@ export default function UsersPage({ ui, store, auth }) {
   function activateUser(user) {
     updateUserAccount(user.id, {
       enable_system_login: true,
-      access_state: "active",
+      access_state: EMPLOYEE_ACCESS_STATE.ACTIVE,
       is_active: true,
       email_verified: true,
       audit_summary: "System access reactivated locally.",
@@ -991,13 +980,13 @@ export default function UsersPage({ ui, store, auth }) {
     const target = employee || users.find((item) => String(item.email).toLowerCase() === String(email).toLowerCase());
     if (target?.id) {
       updateUserAccount(target.id, {
-        access_state: "temp_password_active",
+        access_state: EMPLOYEE_ACCESS_STATE.INVITED,
         enable_system_login: true,
         is_active: true,
         email_verified: true,
         audit_summary: "Temporary password generated for development onboarding.",
       });
-      auth?.createTemporaryLogin?.({ ...target, access_state: "temp_password_active", is_active: true, email_verified: true }, password);
+      auth?.createTemporaryLogin?.({ ...target, access_state: EMPLOYEE_ACCESS_STATE.INVITED, is_active: true, email_verified: true }, password);
     }
     setTemporaryCredential({ email, password });
   }
@@ -1007,7 +996,7 @@ export default function UsersPage({ ui, store, auth }) {
     const dangerClass = "flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold text-rose-700 hover:bg-rose-50";
     const accessState = getAccessState(row);
 
-    if (accessState === "no_access") {
+    if (accessState === EMPLOYEE_ACCESS_STATE.NO_ACCESS) {
       return (
         <button className={buttonClass} type="button" onClick={() => { openUserProfile({ ...row, enable_system_login: true }, "edit"); setActionMenuUserId(null); }}>
           <ShieldCheck size={14} /> Enable Login
@@ -1015,7 +1004,7 @@ export default function UsersPage({ ui, store, auth }) {
       );
     }
 
-    if (accessState === "active") {
+    if (accessState === EMPLOYEE_ACCESS_STATE.ACTIVE) {
       return (
         <>
           <button className={buttonClass} type="button" onClick={() => generateTempPasswordForUser(row)}>
@@ -1028,7 +1017,7 @@ export default function UsersPage({ ui, store, auth }) {
       );
     }
 
-    if (accessState === "not_sent" || accessState === "temp_password_active") {
+    if (accessState === EMPLOYEE_ACCESS_STATE.NOT_SENT || accessState === EMPLOYEE_ACCESS_STATE.INVITED) {
       return (
         <>
           <button className={buttonClass} type="button" onClick={() => generateTempPasswordForUser(row)}>
@@ -1041,7 +1030,7 @@ export default function UsersPage({ ui, store, auth }) {
       );
     }
 
-    if (accessState === "disabled") {
+    if (accessState === EMPLOYEE_ACCESS_STATE.DISABLED) {
       return (
         <>
           <button className={buttonClass} type="button" onClick={() => activateUser(row)}>
@@ -1194,11 +1183,11 @@ export default function UsersPage({ ui, store, auth }) {
             value={accountFilter}
             placeholder="All Access"
             options={[
-              { value: "no_access", label: "No Access" },
-              { value: "not_sent", label: "Not Sent" },
-              { value: "temp_password_active", label: "Temporary Password Active" },
-              { value: "active", label: "Access Active" },
-              { value: "disabled", label: "Access Disabled" },
+              { value: EMPLOYEE_ACCESS_STATE.NO_ACCESS, label: EMPLOYEE_ACCESS_STATE_LABEL[EMPLOYEE_ACCESS_STATE.NO_ACCESS] },
+              { value: EMPLOYEE_ACCESS_STATE.NOT_SENT, label: EMPLOYEE_ACCESS_STATE_LABEL[EMPLOYEE_ACCESS_STATE.NOT_SENT] },
+              { value: EMPLOYEE_ACCESS_STATE.INVITED, label: EMPLOYEE_ACCESS_STATE_LABEL[EMPLOYEE_ACCESS_STATE.INVITED] },
+              { value: EMPLOYEE_ACCESS_STATE.ACTIVE, label: EMPLOYEE_ACCESS_STATE_LABEL[EMPLOYEE_ACCESS_STATE.ACTIVE] },
+              { value: EMPLOYEE_ACCESS_STATE.DISABLED, label: EMPLOYEE_ACCESS_STATE_LABEL[EMPLOYEE_ACCESS_STATE.DISABLED] },
             ]}
             onApply={setAccountFilter}
           />

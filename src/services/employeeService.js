@@ -2,8 +2,10 @@ import { supabase } from "../lib/supabase";
 import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
 import { isSupabaseUuid } from "./idUtils";
+import { EMPLOYEE_ACCESS_STATE, normalizeEmployeeAccessState } from "../constants/employeeAccessStates";
 
 function mapEmployee(row) {
+  const enableSystemLogin = Boolean(row.enable_system_login);
   return {
     id: row.id,
     full_name: row.full_name ?? "",
@@ -21,8 +23,8 @@ function mapEmployee(row) {
     department: row.department ?? "",
     outlet_access: [],
     employment_status: row.employment_status ?? "full_time",
-    access_state: row.access_state ?? "no_access",
-    enable_system_login: Boolean(row.enable_system_login),
+    access_state: normalizeEmployeeAccessState(row.access_state, enableSystemLogin),
+    enable_system_login: enableSystemLogin,
     is_active: Boolean(row.is_active),
     email_verified: Boolean(row.email_verified),
     last_login_at: row.last_login_at,
@@ -56,11 +58,17 @@ export const employeeService = {
       roleId = role?.id ?? null;
     }
 
+    const enableSystemLogin = Boolean(employee.enable_system_login);
+    const accessState = normalizeEmployeeAccessState(
+      employee.access_state ?? (enableSystemLogin ? EMPLOYEE_ACCESS_STATE.NOT_SENT : EMPLOYEE_ACCESS_STATE.NO_ACCESS),
+      enableSystemLogin,
+    );
+
     const payload = {
       full_name: employee.full_name,
       nickname: employee.nickname ?? "",
       nationality: employee.nationality ?? "Malaysia",
-      email: employee.enable_system_login ? employee.email : null,
+      email: enableSystemLogin ? employee.email : null,
       contact: employee.contact ?? "",
       ic_no: employee.ic_no ?? "",
       gender: employee.gender ?? "",
@@ -75,13 +83,13 @@ export const employeeService = {
       bank_name: employee.bank_name || null,
       bank_account_number: employee.bank_account_number || null,
       bank_account_name: employee.bank_account_name || employee.full_name,
-      enable_system_login: Boolean(employee.enable_system_login),
-      role_id: employee.enable_system_login ? roleId : null,
-      access_state: employee.access_state ?? (employee.enable_system_login ? "not_sent" : "no_access"),
-      is_active: Boolean(employee.is_active),
-      email_verified: Boolean(employee.email_verified),
-      verification_sent_at: employee.access_state === "invited" || employee.access_state === "temp_password_active" ? new Date().toISOString() : employee.verification_sent_at ?? null,
-      access_disabled_at: employee.access_state === "disabled" ? new Date().toISOString() : employee.access_disabled_at ?? null,
+      enable_system_login: enableSystemLogin,
+      role_id: enableSystemLogin ? roleId : null,
+      access_state: accessState,
+      is_active: accessState === EMPLOYEE_ACCESS_STATE.ACTIVE,
+      email_verified: enableSystemLogin ? Boolean(employee.email_verified) : false,
+      verification_sent_at: accessState === EMPLOYEE_ACCESS_STATE.INVITED ? new Date().toISOString() : employee.verification_sent_at ?? null,
+      access_disabled_at: accessState === EMPLOYEE_ACCESS_STATE.DISABLED ? new Date().toISOString() : employee.access_disabled_at ?? null,
       last_login_at: employee.last_login_at ?? null,
       audit_summary: employee.audit_summary ?? "",
       updated_at: new Date().toISOString(),

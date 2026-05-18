@@ -1,6 +1,7 @@
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
 import { authService } from "./authService.js";
 import { allPermissionCodes, rolePermissionMatrix } from "../features/company-users/data/rbacDefaults.js";
+import { EMPLOYEE_ACCESS_STATE, normalizeEmployeeAccessState } from "../constants/employeeAccessStates.js";
 
 const AuthContext = createContext(null);
 const DEV_BYPASS_AUTH = import.meta.env.DEV === true && import.meta.env.VITE_DEV_BYPASS_AUTH === "true";
@@ -53,7 +54,7 @@ function tempAccountToContext(account) {
       nickname: account.nickname,
       email: account.email,
       role_name: account.role_name,
-      is_active: account.access_state !== "disabled",
+      is_active: normalizeEmployeeAccessState(account.access_state, true) !== EMPLOYEE_ACCESS_STATE.DISABLED,
       email_verified: true,
       temporary_password_active: Boolean(account.must_reset_password),
     },
@@ -172,7 +173,7 @@ export function AuthProvider({ children }) {
     setError("");
     const tempAccount = findTempAccount(email);
     if (tempAccount && tempAccount.password === password) {
-      if (tempAccount.access_state === "disabled") {
+      if (normalizeEmployeeAccessState(tempAccount.access_state, true) === EMPLOYEE_ACCESS_STATE.DISABLED) {
         throw new Error("System access is disabled for this employee.");
       }
       localStorage.setItem(TEMP_SESSION_KEY, tempAccount.email);
@@ -211,7 +212,7 @@ export function AuthProvider({ children }) {
       full_name: employee.full_name,
       nickname: employee.nickname,
       role_name: employee.role || employee.role_name || "staff",
-      access_state: "temp_password_active",
+      access_state: EMPLOYEE_ACCESS_STATE.INVITED,
       must_reset_password: true,
       created_at: new Date().toISOString(),
     };
@@ -225,7 +226,7 @@ export function AuthProvider({ children }) {
     const accounts = readTempAccounts();
     const account = accounts.find((item) => item.email.toLowerCase() === email.toLowerCase());
     if (!account) throw new Error("Temporary account was not found.");
-    const updated = { ...account, password: newPassword, must_reset_password: false, access_state: "active", updated_at: new Date().toISOString() };
+    const updated = { ...account, password: newPassword, must_reset_password: false, access_state: EMPLOYEE_ACCESS_STATE.ACTIVE, updated_at: new Date().toISOString() };
     writeTempAccounts([updated, ...accounts.filter((item) => item.email.toLowerCase() !== email.toLowerCase())]);
     localStorage.setItem(TEMP_SESSION_KEY, updated.email);
     loadTempContext(updated);

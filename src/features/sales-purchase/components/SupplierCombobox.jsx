@@ -162,7 +162,7 @@ export default function SupplierCombobox({
         ? createPortal(
             <div
               ref={dropdownRef}
-              className="fixed z-[9999] overflow-hidden rounded-2xl border border-border bg-white shadow-2xl ring-1 ring-slate-900/5"
+              className="fixed z-[9999] overflow-hidden rounded-xl border border-border bg-surface shadow-2xl ring-1 ring-slate-900/5"
               style={{ left: position.left, top: position.top, width: position.width }}
             >
               <div className="max-h-72 overflow-y-auto py-1">
@@ -170,17 +170,14 @@ export default function SupplierCombobox({
                   <button
                     key={supplier.id}
                     type="button"
-                    className={`flex w-full items-center justify-between gap-3 px-3 py-2.5 text-left text-sm transition ${
-                      index === activeIndex ? "bg-primary/10 text-primary" : "hover:bg-slate-50"
+                    className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition ${
+                      index === activeIndex ? "bg-primary/[0.06] text-text-primary" : "hover:bg-slate-50"
                     }`}
                     onMouseEnter={() => setActiveIndex(index)}
                     onClick={() => selectSupplier(supplier)}
                   >
-                    <span>
-                      <span className="block font-semibold">{supplier.name}</span>
-                      <span className="text-xs text-text-secondary">Default category auto-fills after selection</span>
-                    </span>
-                    {supplier.id === value ? <Check size={15} /> : null}
+                    <span className="min-w-0 truncate font-semibold">{supplier.name}</span>
+                    {supplier.id === value ? <Check className="text-primary" size={14} /> : null}
                   </button>
                 ))}
 
@@ -191,7 +188,7 @@ export default function SupplierCombobox({
                 {canCreate ? (
                   <button
                     type="button"
-                    className={`flex w-full items-center gap-2 border-t border-border px-3 py-2.5 text-left text-sm font-semibold text-primary transition hover:bg-primary/5 ${
+                    className={`flex w-full items-center gap-2 border-t border-border px-3 py-2 text-left text-sm font-semibold text-primary transition hover:bg-primary/5 ${
                       activeIndex >= options.length ? "bg-primary/5" : ""
                     }`}
                     onMouseEnter={() => setActiveIndex(options.length)}
