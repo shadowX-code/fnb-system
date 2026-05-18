@@ -912,7 +912,7 @@ export default function UsersPage({ ui, store, auth }) {
       email_verified: true,
       audit_summary: "Temporary password generated for development onboarding.",
     });
-    auth?.createTemporaryLogin?.({ ...user, access_state: EMPLOYEE_ACCESS_STATE.INVITED, is_active: true, email_verified: true }, temporaryPassword);
+    auth?.createTemporaryLogin?.({ ...user, access_state: EMPLOYEE_ACCESS_STATE.INVITED, is_active: true, email_verified: true, permissions: permissionsForRoleName(user.role) }, temporaryPassword);
     setTemporaryCredential({ email: user.email, password: temporaryPassword });
     ui.notify({ title: "Temporary password generated.", message: user.email });
     closeActionMenu();
@@ -953,6 +953,10 @@ export default function UsersPage({ ui, store, auth }) {
     setProfileMode(mode);
   }
 
+  function permissionsForRoleName(roleName) {
+    return roleRecords.find((role) => role.name === roleName)?.permissions ?? [];
+  }
+
   async function saveUser(user) {
     try {
       const temporaryPassword = user.temporary_password;
@@ -960,7 +964,7 @@ export default function UsersPage({ ui, store, auth }) {
       delete payload.temporary_password;
       const saved = await employeeService.saveEmployee(payload);
       if (temporaryPassword) {
-        auth?.createTemporaryLogin?.(saved, temporaryPassword);
+        auth?.createTemporaryLogin?.({ ...saved, permissions: permissionsForRoleName(saved.role) }, temporaryPassword);
         setTemporaryCredential({ email: saved.email, password: temporaryPassword });
       }
       setUsers((current) => {
@@ -986,7 +990,7 @@ export default function UsersPage({ ui, store, auth }) {
         email_verified: true,
         audit_summary: "Temporary password generated for development onboarding.",
       });
-      auth?.createTemporaryLogin?.({ ...target, access_state: EMPLOYEE_ACCESS_STATE.INVITED, is_active: true, email_verified: true }, password);
+      auth?.createTemporaryLogin?.({ ...target, access_state: EMPLOYEE_ACCESS_STATE.INVITED, is_active: true, email_verified: true, permissions: permissionsForRoleName(target.role) }, password);
     }
     setTemporaryCredential({ email, password });
   }

@@ -284,7 +284,7 @@ export default function App() {
         <div className="card max-w-md border-amber-200 bg-amber-50 p-6 text-center">
           <div className="text-sm font-bold uppercase tracking-wide text-amber-700">Access Error</div>
           <h1 className="mt-2 text-xl font-semibold text-text-primary">Unable to load your access permissions</h1>
-          <p className="mt-2 text-sm text-text-secondary">Please contact admin.</p>
+          <p className="mt-2 text-sm text-text-secondary">{auth.error || "Please contact admin."}</p>
           <button className="btn-secondary mt-4" type="button" onClick={auth.signOut}>Back to Login</button>
         </div>
       </div>

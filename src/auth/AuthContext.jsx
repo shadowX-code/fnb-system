@@ -34,7 +34,8 @@ function writeTempAccounts(accounts) {
   localStorage.setItem(TEMP_AUTH_KEY, JSON.stringify(accounts));
 }
 
-function getTempPermissions(roleName) {
+function getTempPermissions(roleName, explicitPermissions) {
+  if (Array.isArray(explicitPermissions) && explicitPermissions.length) return explicitPermissions;
   return rolePermissionMatrix[roleName] ?? rolePermissionMatrix.staff ?? [];
 }
 
@@ -58,7 +59,7 @@ function tempAccountToContext(account) {
       email_verified: true,
       temporary_password_active: Boolean(account.must_reset_password),
     },
-    permissions: getTempPermissions(account.role_name),
+    permissions: getTempPermissions(account.role_name, account.permissions),
     source: "temporary-password",
   };
 }
@@ -115,7 +116,7 @@ export function AuthProvider({ children }) {
       setRequiresPasswordReset(false);
     } catch (loadError) {
       console.error("Unable to load user context", loadError);
-      setError("Unable to load your access permissions. Please contact admin.");
+      setError(loadError.message === "Unable to load role permissions." ? loadError.message : "Unable to load your access permissions. Please contact admin.");
       setProfile(null);
       setPermissions([]);
       setSource("error");
@@ -169,6 +170,19 @@ export function AuthProvider({ children }) {
     };
   }, []);
 
+  useEffect(() => {
+    if (!import.meta.env.DEV || loading || contextLoading || !user) return;
+    console.info("[FeedX RBAC]", {
+      auth_uid: user.id,
+      profile_id: profile?.id ?? null,
+      role_name: profile?.role_name ?? null,
+      access_state: profile?.access_state ?? null,
+      source,
+      permission_count: permissions.length,
+      permission_sample: permissions.slice(0, 20),
+    });
+  }, [contextLoading, loading, permissions, profile, source, user]);
+
   async function signIn(email, password) {
     setError("");
     const tempAccount = findTempAccount(email);
@@ -213,6 +227,7 @@ export function AuthProvider({ children }) {
       nickname: employee.nickname,
       role_name: employee.role || employee.role_name || "staff",
       access_state: EMPLOYEE_ACCESS_STATE.INVITED,
+      permissions: employee.permissions ?? [],
       must_reset_password: true,
       created_at: new Date().toISOString(),
     };
