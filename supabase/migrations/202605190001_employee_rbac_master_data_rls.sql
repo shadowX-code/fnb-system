@@ -64,6 +64,13 @@ grant select on table public.roles to authenticated;
 grant select on table public.permissions to authenticated;
 grant select on table public.role_permissions to authenticated;
 
+insert into public.role_permissions (role_id, permission_id)
+select r.id, p.id
+from public.roles r
+cross join public.permissions p
+where r.name in ('owner', 'admin')
+on conflict do nothing;
+
 alter table public.roles enable row level security;
 alter table public.permissions enable row level security;
 alter table public.role_permissions enable row level security;
@@ -180,6 +187,30 @@ begin
         public.current_user_has_permission(''tax_settings.view'')
         or public.current_user_has_permission(''sales_input.view'')
         or public.current_user_has_permission(''dashboard.view'')
+      )';
+  end if;
+
+  if to_regclass('public.sales_records') is not null then
+    execute 'grant select on table public.sales_records to authenticated';
+    execute 'drop policy if exists "sales input and comparison viewers can view sales records" on public.sales_records';
+    execute 'create policy "sales input and comparison viewers can view sales records"
+      on public.sales_records for select to authenticated
+      using (
+        public.current_user_has_permission(''dashboard.view'')
+        or public.current_user_has_permission(''sales_input.view'')
+        or public.current_user_has_permission(''sales_comparison.view'')
+      )';
+  end if;
+
+  if to_regclass('public.purchase_records') is not null then
+    execute 'grant select on table public.purchase_records to authenticated';
+    execute 'drop policy if exists "purchase input and comparison viewers can view purchase records" on public.purchase_records';
+    execute 'create policy "purchase input and comparison viewers can view purchase records"
+      on public.purchase_records for select to authenticated
+      using (
+        public.current_user_has_permission(''dashboard.view'')
+        or public.current_user_has_permission(''purchase_input.view'')
+        or public.current_user_has_permission(''purchase_comparison.view'')
       )';
   end if;
 end $$;

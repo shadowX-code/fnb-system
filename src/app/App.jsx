@@ -9,6 +9,8 @@ import { supplierService } from "../services/supplierService.js";
 import { purchaseCategoryService } from "../services/purchaseCategoryService.js";
 import { salesChannelService } from "../services/salesChannelService.js";
 import { outletTaxConfigService } from "../services/outletTaxConfigService.js";
+import { salesRecordService } from "../services/salesRecordService.js";
+import { purchaseRecordService } from "../services/purchaseRecordService.js";
 import { useAuth } from "../auth/AuthContext.jsx";
 import LoginPage from "../auth/LoginPage.jsx";
 
@@ -179,13 +181,17 @@ export default function App() {
       let purchaseCategories = [];
       let salesChannels = [];
       let outletTaxConfigs = [];
+      let salesRecords = [];
+      let purchaseRecords = [];
 
-      const [outletResult, supplierResult, categoryResult, salesChannelResult, taxConfigResult] = await Promise.allSettled([
+      const [outletResult, supplierResult, categoryResult, salesChannelResult, taxConfigResult, salesRecordResult, purchaseRecordResult] = await Promise.allSettled([
         outletService.listActiveOutlets(),
         supplierService.listSuppliers(),
         purchaseCategoryService.listPurchaseCategories(),
         salesChannelService.listSalesChannels(),
         outletTaxConfigService.listOutletTaxConfigs(),
+        salesRecordService.listSalesRecords(),
+        purchaseRecordService.listPurchaseRecords(),
       ]);
       if (outletResult.status === "fulfilled") outlets = outletResult.value;
       else {
@@ -212,19 +218,28 @@ export default function App() {
         console.error("Unable to load tax settings", taxConfigResult.reason);
         errors.push("Unable to load tax settings.");
       }
+      if (salesRecordResult.status === "fulfilled") salesRecords = salesRecordResult.value;
+      else {
+        console.error("Unable to load sales records", salesRecordResult.reason);
+        errors.push("Unable to load sales records.");
+      }
+      if (purchaseRecordResult.status === "fulfilled") purchaseRecords = purchaseRecordResult.value;
+      else {
+        console.error("Unable to load purchase records", purchaseRecordResult.reason);
+        errors.push("Unable to load purchase records.");
+      }
 
-      if (!ignore && !errors.length) {
+      if (!ignore) {
         setStore((current) => ({
           ...current,
-          outlets,
-          outletTaxConfigs,
-          purchaseCategories,
-          suppliers: normalizeSuppliers(suppliers, purchaseCategories),
-          salesRecords: remapSalesRecordsToChannels(current.salesRecords, operationsService.getBootstrapData().salesChannels, salesChannels),
-          salesChannels,
+          ...(outletResult.status === "fulfilled" ? { outlets } : {}),
+          ...(taxConfigResult.status === "fulfilled" ? { outletTaxConfigs } : {}),
+          ...(categoryResult.status === "fulfilled" ? { purchaseCategories } : {}),
+          ...(supplierResult.status === "fulfilled" ? { suppliers: normalizeSuppliers(suppliers, purchaseCategories.length ? purchaseCategories : current.purchaseCategories) } : {}),
+          ...(salesChannelResult.status === "fulfilled" ? { salesChannels } : {}),
+          ...(salesRecordResult.status === "fulfilled" ? { salesRecords } : {}),
+          ...(purchaseRecordResult.status === "fulfilled" ? { purchaseRecords } : {}),
         }));
-        setMasterDataStatus({ loading: false, errors: [] });
-      } else if (!ignore) {
         setMasterDataStatus({ loading: false, errors });
       }
     }
@@ -323,12 +338,18 @@ export default function App() {
             <div>Loading FeedX sales channels...</div>
             <div>Loading FeedX tax settings...</div>
           </div>
-        ) : masterDataStatus.errors.length ? (
-          <div className="card border-rose-200 bg-rose-50 p-6 text-sm font-semibold text-rose-700">
-            {masterDataStatus.errors.map((error) => <div key={error}>{error}</div>)}
-          </div>
         ) : (
-          <ActivePage store={store} setStore={setStore} ui={ui} auth={auth} {...(activeRoute.props ?? {})} />
+          <>
+            {masterDataStatus.errors.length ? (
+              <div className="card mb-4 border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">
+                <div>Some data could not be loaded. Available modules will continue using the data that loaded successfully.</div>
+                <div className="mt-2 space-y-1 text-xs">
+                  {masterDataStatus.errors.map((error) => <div key={error}>{error}</div>)}
+                </div>
+              </div>
+            ) : null}
+            <ActivePage store={store} setStore={setStore} ui={ui} auth={auth} {...(activeRoute.props ?? {})} />
+          </>
         )}
       </AppShell>
       <ToastViewport

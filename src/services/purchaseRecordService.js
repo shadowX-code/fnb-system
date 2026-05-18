@@ -35,6 +35,18 @@ function mapPurchaseRecord(record) {
 }
 
 export const purchaseRecordService = {
+  async listPurchaseRecords() {
+    const { data, error } = await supabase
+      .from("purchase_records")
+      .select(purchaseRecordSelect)
+      .order("year", { ascending: true })
+      .order("month", { ascending: true })
+      .order("amount", { ascending: false });
+
+    throwSupabaseError("purchase_records.list_all", error);
+    return (data ?? []).map(mapPurchaseRecord);
+  },
+
   async getPurchaseRecords(outletId, year, month) {
     const { data, error } = await supabase
       .from("purchase_records")

@@ -3,6 +3,18 @@ import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
 
 export const salesRecordService = {
+  async listSalesRecords() {
+    const { data, error } = await supabase
+      .from("sales_records")
+      .select("id,outlet_id,year,month,channel_id,channel_name,amount,remark,created_at,updated_at")
+      .order("year", { ascending: true })
+      .order("month", { ascending: true })
+      .order("channel_name", { ascending: true });
+
+    throwSupabaseError("sales_records.list_all", error);
+    return data ?? [];
+  },
+
   async getSalesRecords(outletId, year, month) {
     const { data, error } = await supabase
       .from("sales_records")
