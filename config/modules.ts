@@ -72,7 +72,7 @@ export const moduleRegistry: AppModule[] = [
   },
   {
     id: "sales-comparison",
-    section: "Sales",
+    section: "Overview",
     label: "Sales Comparison",
     route: "/sales/comparison",
     icon: "sales-comparison",
@@ -108,7 +108,7 @@ export const moduleRegistry: AppModule[] = [
   },
   {
     id: "purchase-comparison",
-    section: "Purchases",
+    section: "Overview",
     label: "Purchase Comparison",
     route: "/purchases/comparison",
     icon: "purchase-comparison",
@@ -180,7 +180,7 @@ export const moduleRegistry: AppModule[] = [
   },
   {
     id: "alerts",
-    section: "Operations",
+    section: "Overview",
     label: "Alerts & Insights",
     route: "/operations/alerts",
     icon: "alerts",

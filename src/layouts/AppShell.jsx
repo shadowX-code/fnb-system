@@ -512,10 +512,6 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
       return {};
     }
   });
-  const latestUpdate = [...store.salesRecords, ...store.purchaseRecords]
-    .map((record) => record.updated_at)
-    .sort()
-    .at(-1);
   const notificationItems = useMemo(() => buildNotificationItems(store), [store]);
   const unreadCount = notificationItems.filter((item) => item.id !== "caught-up").length;
   const resolvedTheme = themeChoice === "system" ? systemTheme : themeChoice;
@@ -811,15 +807,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
                 Smart Operations Workspace
               </div>
             </div>
-            <div className="ml-auto hidden items-center gap-2 xl:flex">
-              <Badge tone="success">
-                <span className="inline-flex items-center gap-1">Data Healthy</span>
-              </Badge>
-              <span className="text-xs font-medium text-text-secondary">
-                Updated {latestUpdate ? new Date(latestUpdate).toLocaleDateString() : "today"}
-              </span>
-            </div>
-            <div className="relative flex items-center gap-2" ref={notificationRef}>
+            <div className="relative ml-auto flex items-center gap-2" ref={notificationRef}>
               <button
                 className={`icon-btn relative ${notificationsOpen ? "border-primary/30 bg-primary/5 text-primary" : ""}`}
                 type="button"
