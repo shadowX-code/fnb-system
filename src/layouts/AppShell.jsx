@@ -1,7 +1,10 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BarChart3, Bell, Building2, Check, ChevronsDownUp, ChevronsUpDown, ChevronDown, ClipboardList, Download, KeyRound, LogOut, Menu, Monitor, Moon, Settings, Shield, Sun, Users, X } from "lucide-react";
+import { BarChart3, Bell, Building2, CalendarDays, Check, ChevronsDownUp, ChevronsUpDown, ChevronDown, ClipboardList, Download, KeyRound, LogOut, Menu, Monitor, Moon, Settings, Shield, Sun, UserRound, Users, X } from "lucide-react";
+import Modal from "../components/feedback/Modal.jsx";
 import Badge from "../components/ui/Badge.jsx";
+import { EMPLOYEE_ACCESS_STATE, EMPLOYEE_ACCESS_STATE_LABEL } from "../constants/employeeAccessStates.js";
 import { buildAlerts, getPreviousPeriod, getSupplierName, percentageChange, toPercent } from "../features/sales-purchase/utils/analytics.js";
+import { formatDateTime } from "../lib/dateTime.js";
 
 const iconMap = {
   dashboard: BarChart3,
@@ -231,9 +234,261 @@ function ThemeMenu({ themeChoice, resolvedTheme, onThemeChange, onLogout }) {
   );
 }
 
-export default function AppShell({ activeRoute, activeRouteId, sections, onNavigate, children, store, auth, onLogout }) {
+function getProfileDisplayName(profile, user) {
+  return profile?.nickname || profile?.full_name || user?.email || "User";
+}
+
+function getProfileFullName(profile, user) {
+  return profile?.full_name || user?.email || "User";
+}
+
+function getProfileInitials(profile, user) {
+  const source = profile?.nickname || profile?.full_name || user?.email || "U";
+  const words = String(source).trim().split(/\s+/).filter(Boolean);
+  if (words.length >= 2) return `${words[0][0]}${words[1][0]}`.toUpperCase();
+  return String(source).slice(0, 2).toUpperCase();
+}
+
+function formatDateForProfile(value) {
+  if (!value) return "—";
+  const [year, month, day] = String(value).split("-");
+  if (!year || !month || !day) return "—";
+  return `${day}/${month}/${year}`;
+}
+
+function formatValue(value) {
+  return value || "—";
+}
+
+function accessTone(accessState) {
+  if (accessState === EMPLOYEE_ACCESS_STATE.ACTIVE) return "success";
+  if (accessState === EMPLOYEE_ACCESS_STATE.INVITED || accessState === EMPLOYEE_ACCESS_STATE.NOT_SENT) return "warning";
+  if (accessState === EMPLOYEE_ACCESS_STATE.DISABLED) return "neutral";
+  return "neutral";
+}
+
+function ReadOnlyProfileField({ label, value, children }) {
+  return (
+    <div className="rounded-xl border border-border bg-surface px-3 py-2.5">
+      <div className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">{label}</div>
+      <div className="mt-1 min-h-5 text-sm font-semibold text-text-primary">{children ?? formatValue(value)}</div>
+    </div>
+  );
+}
+
+function ProfileSection({ title, icon: Icon, children }) {
+  return (
+    <section className="rounded-2xl border border-border bg-slate-50/70 p-4">
+      <div className="mb-3 flex items-center gap-2 text-sm font-bold text-text-primary">
+        {Icon ? <Icon size={16} className="text-primary" /> : null}
+        {title}
+      </div>
+      <div className="grid gap-3 sm:grid-cols-2">{children}</div>
+    </section>
+  );
+}
+
+function MyProfileModal({ auth, onClose }) {
+  const profile = auth?.profile ?? {};
+  const accessState = profile.access_state ?? EMPLOYEE_ACCESS_STATE.NO_ACCESS;
+  const workplace = profile.workplace || profile.outlet_name || profile.workplace_name || "—";
+
+  return (
+    <Modal
+      title="My Profile"
+      description={`${getProfileDisplayName(profile, auth?.user)} · ${profile.role_name ?? "No role"}`}
+      size="xl"
+      onClose={onClose}
+      footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}
+    >
+      <div className="space-y-4">
+        <div className="flex items-center gap-4 rounded-2xl border border-border bg-surface p-4">
+          <div className="flex h-14 w-14 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-base font-bold text-primary">
+            {getProfileInitials(profile, auth?.user)}
+          </div>
+          <div className="min-w-0">
+            <div className="text-lg font-bold text-text-primary">{getProfileFullName(profile, auth?.user)}</div>
+            <div className="mt-1 text-sm text-text-secondary">{profile.nickname ? `${profile.nickname} · ` : ""}{profile.email || auth?.user?.email || "No email"}</div>
+          </div>
+          <Badge tone={accessTone(accessState)}>{EMPLOYEE_ACCESS_STATE_LABEL[accessState] ?? "No Access"}</Badge>
+        </div>
+
+        <ProfileSection title="Personal Info" icon={UserRound}>
+          <ReadOnlyProfileField label="Full Name" value={profile.full_name} />
+          <ReadOnlyProfileField label="Nickname" value={profile.nickname} />
+          <ReadOnlyProfileField label="Gender" value={profile.gender} />
+          <ReadOnlyProfileField label="Nationality" value={profile.nationality} />
+          <ReadOnlyProfileField label="IC / Passport" value={profile.ic_no} />
+          <ReadOnlyProfileField label="Contact" value={profile.contact} />
+          <ReadOnlyProfileField label="Birthday" value={formatDateForProfile(profile.birthday)} />
+        </ProfileSection>
+
+        <ProfileSection title="Employment Info" icon={Building2}>
+          <ReadOnlyProfileField label="Department" value={profile.department} />
+          <ReadOnlyProfileField label="Job Position" value={profile.position} />
+          <ReadOnlyProfileField label="Work Place / Outlet" value={workplace} />
+          <ReadOnlyProfileField label="Employment Status" value={String(profile.employment_status || "—").replace(/_/g, " ")} />
+          <ReadOnlyProfileField label="Joined Date" value={formatDateForProfile(profile.joined_date)} />
+          <ReadOnlyProfileField label="Resigned Date" value={formatDateForProfile(profile.resigned_date)} />
+        </ProfileSection>
+
+        <ProfileSection title="System Access" icon={Shield}>
+          <ReadOnlyProfileField label="Email" value={profile.email || auth?.user?.email} />
+          <ReadOnlyProfileField label="Role">
+            <Badge tone="info">{profile.role_name ?? "No role"}</Badge>
+          </ReadOnlyProfileField>
+          <ReadOnlyProfileField label="Access State">
+            <Badge tone={accessTone(accessState)}>{EMPLOYEE_ACCESS_STATE_LABEL[accessState] ?? "No Access"}</Badge>
+          </ReadOnlyProfileField>
+          <ReadOnlyProfileField label="Last Login" value={formatDateTime(profile.last_login_at)} />
+          <ReadOnlyProfileField label="Email Verified" value={profile.email_verified ? "Verified" : "Not verified"} />
+        </ProfileSection>
+      </div>
+    </Modal>
+  );
+}
+
+function ChangePasswordModal({ onClose, onSubmit, onError }) {
+  const [values, setValues] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
+  const [error, setError] = useState("");
+  const [saving, setSaving] = useState(false);
+
+  async function handleSubmit(event) {
+    event.preventDefault();
+    setError("");
+    if (!values.currentPassword) {
+      setError("Current password is required.");
+      return;
+    }
+    if (values.newPassword.length < 8) {
+      setError("New password must be at least 8 characters.");
+      return;
+    }
+    if (values.newPassword !== values.confirmPassword) {
+      setError("New password and confirmation do not match.");
+      return;
+    }
+
+    setSaving(true);
+    try {
+      await onSubmit({ currentPassword: values.currentPassword, newPassword: values.newPassword });
+    } catch (submitError) {
+      const message = submitError.message || "Unable to change password.";
+      setError(message);
+      onError?.(message);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      title="Change Password"
+      description="Update the password for your current FeedX login."
+      size="md"
+      onClose={saving ? undefined : onClose}
+      footer={(
+        <>
+          <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
+          <button className="btn-primary" type="submit" form="change-password-form" disabled={saving}>
+            {saving ? "Saving..." : "Save Password"}
+          </button>
+        </>
+      )}
+    >
+      <form id="change-password-form" className="space-y-4" onSubmit={handleSubmit}>
+        {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
+        <label className="block">
+          <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">Current Password</span>
+          <input
+            className="mt-1 w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm font-semibold outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+            type="password"
+            autoComplete="current-password"
+            value={values.currentPassword}
+            onChange={(event) => setValues((current) => ({ ...current, currentPassword: event.target.value }))}
+          />
+        </label>
+        <div className="grid gap-3 sm:grid-cols-2">
+          <label className="block">
+            <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">New Password</span>
+            <input
+              className="mt-1 w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm font-semibold outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+              type="password"
+              autoComplete="new-password"
+              value={values.newPassword}
+              onChange={(event) => setValues((current) => ({ ...current, newPassword: event.target.value }))}
+            />
+          </label>
+          <label className="block">
+            <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">Confirm Password</span>
+            <input
+              className="mt-1 w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm font-semibold outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+              type="password"
+              autoComplete="new-password"
+              value={values.confirmPassword}
+              onChange={(event) => setValues((current) => ({ ...current, confirmPassword: event.target.value }))}
+            />
+          </label>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
+function SidebarProfilePopover({ auth, onViewProfile, onChangePassword, onSignOut }) {
+  const profile = auth?.profile ?? {};
+  const accessState = profile.access_state ?? EMPLOYEE_ACCESS_STATE.NO_ACCESS;
+  const workplace = profile.workplace || profile.outlet_name || profile.workplace_name || "—";
+
+  return (
+    <div className="absolute bottom-full left-3 right-3 z-[70] mb-2 rounded-2xl border border-border bg-surface p-3 shadow-xl ring-1 ring-black/5 animate-in fade-in zoom-in-95">
+      <div className="flex items-start gap-3 border-b border-border pb-3">
+        <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-sm font-bold text-primary">
+          {getProfileInitials(profile, auth?.user)}
+        </div>
+        <div className="min-w-0">
+          <div className="truncate text-sm font-bold text-text-primary">{getProfileDisplayName(profile, auth?.user)}</div>
+          <div className="truncate text-xs font-medium text-text-secondary">{profile.email || auth?.user?.email || "No email"}</div>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <Badge tone="info">{profile.role_name ?? "No role"}</Badge>
+            <Badge tone={accessTone(accessState)}>{EMPLOYEE_ACCESS_STATE_LABEL[accessState] ?? "No Access"}</Badge>
+          </div>
+        </div>
+      </div>
+      <div className="space-y-2 border-b border-border py-3 text-xs text-text-secondary">
+        <div className="flex items-center gap-2">
+          <Building2 size={13} />
+          <span className="truncate">{workplace}</span>
+        </div>
+        <div className="flex items-center gap-2">
+          <CalendarDays size={13} />
+          <span>Last login: {formatDateTime(profile.last_login_at)}</span>
+        </div>
+      </div>
+      <div className="pt-2">
+        <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text-secondary transition hover:bg-slate-50 hover:text-text-primary" type="button" onClick={onViewProfile}>
+          <UserRound size={15} />
+          View My Profile
+        </button>
+        <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text-secondary transition hover:bg-slate-50 hover:text-text-primary" type="button" onClick={onChangePassword}>
+          <KeyRound size={15} />
+          Change Password
+        </button>
+        <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-rose-600 transition hover:bg-rose-50" type="button" onClick={onSignOut}>
+          <LogOut size={15} />
+          Sign Out
+        </button>
+      </div>
+    </div>
+  );
+}
+
+export default function AppShell({ activeRoute, activeRouteId, sections, onNavigate, children, store, auth, onLogout, onNotify }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
+  const [sidebarProfileOpen, setSidebarProfileOpen] = useState(false);
+  const [myProfileOpen, setMyProfileOpen] = useState(false);
+  const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
   const [themeChoice, setThemeChoice] = useState(() => {
     if (typeof window === "undefined") return "system";
@@ -328,20 +583,25 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
   function handleNavigate(itemId) {
     onNavigate(itemId);
     setMobileSidebarOpen(false);
+    setSidebarProfileOpen(false);
   }
 
   useEffect(() => {
-    if (!notificationsOpen && !profileMenuOpen) return undefined;
+    if (!notificationsOpen && !profileMenuOpen && !sidebarProfileOpen) return undefined;
     function handlePointerDown(event) {
       if (!notificationRef.current?.contains(event.target)) {
         setNotificationsOpen(false);
         setProfileMenuOpen(false);
+      }
+      if (!event.target.closest?.("[data-sidebar-profile-menu]")) {
+        setSidebarProfileOpen(false);
       }
     }
     function handleKeyDown(event) {
       if (event.key === "Escape") {
         setNotificationsOpen(false);
         setProfileMenuOpen(false);
+        setSidebarProfileOpen(false);
       }
     }
     document.addEventListener("pointerdown", handlePointerDown);
@@ -350,7 +610,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
     };
-  }, [notificationsOpen, profileMenuOpen]);
+  }, [notificationsOpen, profileMenuOpen, sidebarProfileOpen]);
 
   useEffect(() => {
     if (!mobileSidebarOpen) return undefined;
@@ -371,6 +631,12 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
   useEffect(() => {
     setMobileSidebarOpen(false);
   }, [activeRouteId]);
+
+  async function handleChangePassword({ currentPassword, newPassword }) {
+    await auth.changePassword({ currentPassword, newPassword });
+    setChangePasswordOpen(false);
+    onNotify?.({ title: "Password changed", message: "Your FeedX login password was updated." });
+  }
 
   const sidebarContent = (isMobile = false) => (
     <>
@@ -452,25 +718,62 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
         })}
       </nav>
 
-      <div className="border-t border-border p-4">
-        <div className="flex items-center gap-3 rounded-2xl bg-slate-50 p-3">
-          <div className="flex h-9 w-9 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">
-            {(auth?.profile?.full_name ?? auth?.user?.email ?? "U").slice(0, 1).toUpperCase()}
+      <div className="relative border-t border-border p-4" data-sidebar-profile-menu>
+        <button
+          className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left transition ${
+            sidebarProfileOpen ? "bg-primary/10 ring-1 ring-primary/20" : "bg-slate-50 hover:bg-primary/5"
+          }`}
+          type="button"
+          aria-haspopup="menu"
+          aria-expanded={sidebarProfileOpen}
+          onClick={() => {
+            setNotificationsOpen(false);
+            setProfileMenuOpen(false);
+            setSidebarProfileOpen((value) => !value);
+          }}
+        >
+          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">
+            {getProfileInitials(auth?.profile, auth?.user)}
           </div>
           <div className="min-w-0">
-            <div className="truncate text-sm font-semibold">{auth?.profile?.full_name ?? auth?.user?.email ?? "User"}</div>
-            <div className="text-xs text-text-secondary">{auth?.profile?.role_name ?? "Authenticated"}</div>
+            <div className="truncate text-sm font-semibold">{getProfileDisplayName(auth?.profile, auth?.user)}</div>
+            <div className="truncate text-xs text-text-secondary">{auth?.profile?.role_name ?? "Authenticated"}</div>
           </div>
-          <button className="icon-btn ml-auto" type="button" title="Logout" onClick={onLogout}>
-            <LogOut size={15} />
-          </button>
-        </div>
+          <ChevronDown size={15} className={`ml-auto text-text-muted transition-transform ${sidebarProfileOpen ? "rotate-180" : ""}`} />
+        </button>
+        {sidebarProfileOpen ? (
+          <SidebarProfilePopover
+            auth={auth}
+            onViewProfile={() => {
+              setSidebarProfileOpen(false);
+              setMobileSidebarOpen(false);
+              setMyProfileOpen(true);
+            }}
+            onChangePassword={() => {
+              setSidebarProfileOpen(false);
+              setMobileSidebarOpen(false);
+              setChangePasswordOpen(true);
+            }}
+            onSignOut={() => {
+              setSidebarProfileOpen(false);
+              onLogout();
+            }}
+          />
+        ) : null}
       </div>
     </>
   );
 
   return (
     <div className="min-h-screen bg-app-bg text-text-primary">
+      {myProfileOpen ? <MyProfileModal auth={auth} onClose={() => setMyProfileOpen(false)} /> : null}
+      {changePasswordOpen ? (
+        <ChangePasswordModal
+          onClose={() => setChangePasswordOpen(false)}
+          onSubmit={handleChangePassword}
+          onError={(message) => onNotify?.({ title: "Unable to change password", message, tone: "error" })}
+        />
+      ) : null}
       <div
         className={`fixed inset-0 z-40 bg-slate-950/40 backdrop-blur-[1px] transition-opacity duration-200 lg:hidden ${
           mobileSidebarOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"

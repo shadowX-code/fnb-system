@@ -164,6 +164,15 @@ export function AuthProvider({ children }) {
     await loadContext(null);
   }
 
+  async function changePassword({ currentPassword, newPassword }) {
+    if (!user?.email) throw new Error("Current login email is not available.");
+    setError("");
+    await authService.signInWithPassword({ email: user.email, password: currentPassword });
+    await authService.updatePassword(newPassword);
+    const nextSession = await authService.getSession();
+    await loadContext(nextSession);
+  }
+
   const permissionSet = useMemo(() => new Set(permissions), [permissions]);
 
   const value = useMemo(
@@ -179,6 +188,7 @@ export function AuthProvider({ children }) {
       error,
       signIn,
       signOut,
+      changePassword,
       resetPassword: authService.resetPassword,
       completePasswordSetup,
       cancelPasswordSetup,

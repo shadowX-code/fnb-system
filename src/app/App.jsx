@@ -431,6 +431,7 @@ export default function App() {
         store={store}
         auth={auth}
         onLogout={auth.signOut}
+        onNotify={notify}
       >
         {masterDataStatus.loading ? (
           <div className="card space-y-2 p-6 text-sm font-semibold text-text-secondary">
