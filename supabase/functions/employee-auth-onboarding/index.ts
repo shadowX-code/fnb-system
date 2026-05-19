@@ -1,0 +1,170 @@
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.105.4";
+
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
+};
+
+function json(body: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(body), {
+    status,
+    headers: { ...corsHeaders, "Content-Type": "application/json" },
+  });
+}
+
+function normalizeEmail(value: unknown) {
+  return String(value ?? "").trim().toLowerCase();
+}
+
+async function findAuthUserByEmail(adminClient: ReturnType<typeof createClient>, email: string) {
+  let page = 1;
+  const perPage = 100;
+  while (page <= 20) {
+    const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage });
+    if (error) throw error;
+    const user = data.users.find((item) => normalizeEmail(item.email) === email);
+    if (user) return user;
+    if (data.users.length < perPage) return null;
+    page += 1;
+  }
+  return null;
+}
+
+Deno.serve(async (request) => {
+  if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
+
+  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const siteUrl = Deno.env.get("FEEDX_SITE_URL") || Deno.env.get("SITE_URL") || Deno.env.get("PUBLIC_SITE_URL");
+
+  if (!supabaseUrl || !anonKey || !serviceRoleKey) {
+    return json({ error: "Supabase Edge Function environment is not configured." }, 500);
+  }
+
+  const authorization = request.headers.get("Authorization") ?? "";
+  if (!authorization) return json({ error: "Missing authorization header." }, 401);
+
+  const userClient = createClient(supabaseUrl, anonKey, {
+    global: { headers: { Authorization: authorization } },
+  });
+  const adminClient = createClient(supabaseUrl, serviceRoleKey);
+
+  const { data: permissionResult, error: permissionError } = await userClient.rpc("current_user_has_permission", {
+    permission_code: "employees.enable_login",
+  });
+  if (permissionError) return json({ error: permissionError.message }, 403);
+  if (!permissionResult) return json({ error: "You do not have permission to manage employee login access." }, 403);
+
+  const body = await request.json().catch(() => ({}));
+  const employeeId = body.employee_id;
+  const allowManualLink = Boolean(body.allow_manual_link);
+  if (allowManualLink) {
+    const { data: canCreateManualLink, error: manualPermissionError } = await userClient.rpc("current_user_has_permission", {
+      permission_code: "roles.edit",
+    });
+    if (manualPermissionError) return json({ error: manualPermissionError.message }, 403);
+    if (!canCreateManualLink) return json({ error: "Only owner/admin-level users can generate manual setup links." }, 403);
+  }
+  if (!employeeId) return json({ error: "employee_id is required." }, 400);
+
+  const { data: employee, error: employeeError } = await adminClient
+    .from("employees")
+    .select("id,email,full_name,role_id,enable_system_login,access_state")
+    .eq("id", employeeId)
+    .maybeSingle();
+  if (employeeError) return json({ error: employeeError.message }, 500);
+  if (!employee) return json({ error: "Employee was not found." }, 404);
+  if (!employee.role_id) return json({ error: "Assign a role before sending login setup email." }, 400);
+
+  const email = normalizeEmail(employee.email);
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return json({ error: "Employee must have a valid email before login setup." }, 400);
+  }
+
+  const redirectTo = siteUrl ? `${siteUrl.replace(/\/$/, "")}/` : undefined;
+  const existingUser = await findAuthUserByEmail(adminClient, email);
+  let authUser = existingUser;
+  let mode: "invite" | "recovery" = existingUser ? "recovery" : "invite";
+  let manualLink: string | null = null;
+
+  try {
+    if (!existingUser) {
+      const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email, {
+        data: { employee_id: employee.id, full_name: employee.full_name },
+        redirectTo,
+      });
+      if (error) throw error;
+      authUser = data.user;
+    } else {
+      const { error } = await userClient.auth.resetPasswordForEmail(email, { redirectTo });
+      if (error) throw error;
+    }
+  } catch (emailError) {
+    const message = emailError instanceof Error ? emailError.message : String(emailError);
+    const likelyEmailConfigIssue = /smtp|email|mail|provider|not configured|sending/i.test(message);
+
+    if (allowManualLink) {
+      const { data: manualData, error: linkError } = await adminClient.auth.admin.generateLink({
+        type: existingUser ? "recovery" : "invite",
+        email,
+        options: {
+          data: { employee_id: employee.id, full_name: employee.full_name },
+          redirectTo,
+        },
+      });
+      if (!linkError) {
+        manualLink = dataToLink(manualData);
+        authUser = manualData.user ?? existingUser;
+        mode = existingUser ? "recovery" : "invite";
+      }
+    }
+
+    if (!manualLink) {
+      return json({
+        error: likelyEmailConfigIssue
+          ? "Email sending is not configured. Please configure Supabase Auth SMTP or use manual setup."
+          : message,
+        code: likelyEmailConfigIssue ? "email_not_configured" : "auth_email_failed",
+      }, 500);
+    }
+  }
+
+  const { error: updateError } = await adminClient
+    .from("employees")
+    .update({
+      auth_user_id: authUser?.id ?? null,
+      enable_system_login: true,
+      access_state: "invited",
+      email_verified: false,
+      is_active: true,
+      verification_sent_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", employee.id);
+  if (updateError) return json({ error: updateError.message }, 500);
+
+  await adminClient.from("audit_logs").insert({
+    action: "employee_login_setup_sent",
+    module: "people",
+    description: `Login setup ${mode === "invite" ? "invite" : "reset"} sent to ${email}.`,
+    metadata: { target: employee.full_name, employee_id: employee.id, email, mode },
+  }).catch(() => {});
+
+  return json({
+    ok: true,
+    mode,
+    email,
+    employee_id: employee.id,
+    auth_user_id: authUser?.id ?? null,
+    access_state: "invited",
+    manual_link: manualLink,
+  });
+});
+
+function dataToLink(data: unknown) {
+  const value = data as { properties?: { action_link?: string; email_otp?: string }; action_link?: string };
+  return value?.properties?.action_link ?? value?.action_link ?? null;
+}

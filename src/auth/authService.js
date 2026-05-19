@@ -27,6 +27,32 @@ async function loadEmployeeProfile(user) {
   return data ? normalizeContextProfile(data, "employees") : null;
 }
 
+async function activateEmployeeProfile(profile, user) {
+  if (!profile?.enable_system_login || profile.access_state === EMPLOYEE_ACCESS_STATE.NO_ACCESS) return profile;
+  if (profile.access_state === EMPLOYEE_ACCESS_STATE.DISABLED) return profile;
+
+  const { data, error } = await supabase
+    .from("employees")
+    .update({
+      auth_user_id: user.id,
+      access_state: EMPLOYEE_ACCESS_STATE.ACTIVE,
+      email_verified: true,
+      is_active: true,
+      last_login_at: new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    })
+    .eq("id", profile.id)
+    .select("*, role:roles(id,name,description)")
+    .single();
+
+  if (error) {
+    console.error("Unable to activate employee login", error);
+    return profile;
+  }
+
+  return normalizeContextProfile(data, "employees");
+}
+
 async function loadLegacyUserProfile(user) {
   const { data, error } = await supabase
     .from("user_profiles")
@@ -66,10 +92,14 @@ export const authService = {
   },
 
   async getUserContext(user) {
-    const profile = await loadEmployeeProfile(user) ?? await loadLegacyUserProfile(user);
+    let profile = await loadEmployeeProfile(user) ?? await loadLegacyUserProfile(user);
 
     if (!profile) {
       throw new Error("No employee profile is linked to this login.");
+    }
+
+    if (profile.source === "employees") {
+      profile = await activateEmployeeProfile(profile, user);
     }
 
     if (profile.is_active === false || profile.access_state === EMPLOYEE_ACCESS_STATE.DISABLED) {

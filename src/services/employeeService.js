@@ -8,6 +8,7 @@ function mapEmployee(row) {
   const enableSystemLogin = Boolean(row.enable_system_login);
   return {
     id: row.id,
+    auth_user_id: row.auth_user_id ?? "",
     full_name: row.full_name ?? "",
     nickname: row.nickname ?? "",
     nationality: row.nationality ?? "Malaysia",
@@ -69,6 +70,7 @@ export const employeeService = {
       nickname: employee.nickname ?? "",
       nationality: employee.nationality ?? "Malaysia",
       email: enableSystemLogin ? employee.email : null,
+      auth_user_id: enableSystemLogin ? employee.auth_user_id || null : null,
       contact: employee.contact ?? "",
       ic_no: employee.ic_no ?? "",
       gender: employee.gender ?? "",
@@ -86,7 +88,7 @@ export const employeeService = {
       enable_system_login: enableSystemLogin,
       role_id: enableSystemLogin ? roleId : null,
       access_state: accessState,
-      is_active: accessState === EMPLOYEE_ACCESS_STATE.ACTIVE,
+      is_active: employee.is_active === false && accessState === EMPLOYEE_ACCESS_STATE.DISABLED ? false : true,
       email_verified: enableSystemLogin ? Boolean(employee.email_verified) : false,
       verification_sent_at: accessState === EMPLOYEE_ACCESS_STATE.INVITED ? new Date().toISOString() : employee.verification_sent_at ?? null,
       access_disabled_at: accessState === EMPLOYEE_ACCESS_STATE.DISABLED ? new Date().toISOString() : employee.access_disabled_at ?? null,

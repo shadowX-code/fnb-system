@@ -14,6 +14,7 @@ import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import { EMPLOYEE_ACCESS_STATE, EMPLOYEE_ACCESS_STATE_LABEL, normalizeEmployeeAccessState } from "../../../constants/employeeAccessStates.js";
 import { employeeService } from "../../../services/employeeService.js";
+import { employeeAuthOnboardingService } from "../../../services/employeeAuthOnboardingService.js";
 import { jobPositionService } from "../../../services/jobPositionService.js";
 import { roleService } from "../../../services/roleService.js";
 import { formatDateTime } from "../../../lib/dateTime.js";
@@ -321,7 +322,7 @@ function UserFormModal({
   ui,
   onClose,
   onSubmit,
-  onSendResetLink,
+  onSendLoginSetup,
   onSwitchToEdit,
 }) {
   const [values, setValues] = useState(() => {
@@ -409,7 +410,7 @@ function UserFormModal({
     return normalizeEmployeeAccessState(values.access_state ?? EMPLOYEE_ACCESS_STATE.NOT_SENT, true);
   }
 
-  function handleSubmit() {
+  function handleSubmit({ sendLoginSetup = false } = {}) {
     const nextErrors = validateUserForm(values);
     if (values.enable_system_login && values.email && ["invalid", "used"].includes(emailStatus)) {
       nextErrors.email = emailStatus === "used" ? "Email is already used." : "Enter a valid email address.";
@@ -434,6 +435,7 @@ function UserFormModal({
         is_active: values.enable_system_login && nextAccessStatus === EMPLOYEE_ACCESS_STATE.ACTIVE,
         enable_system_login: Boolean(values.enable_system_login),
         email_verified: values.enable_system_login ? (values.email_verified ?? false) : false,
+        send_login_setup: sendLoginSetup,
         audit_summary: values.enable_system_login
           ? "Employee profile saved with system login enabled. Supabase Auth account must exist before login."
           : "Employee profile saved without system login.",
@@ -441,19 +443,22 @@ function UserFormModal({
     }, 450);
   }
 
-  async function sendResetLinkForExistingEmployee() {
+  async function sendLoginSetupForExistingEmployee() {
     if (!values.email) {
-      ui.notify({ title: "Email required", message: "Add an email before sending a reset link.", tone: "error" });
+      ui.notify({ title: "Email required", message: "Add an email before sending login setup.", tone: "error" });
+      return;
+    }
+    if (!values.id) {
+      ui.notify({ title: "Save employee first", message: "Save the employee profile before sending login setup email.", tone: "error" });
       return;
     }
     const confirmed = await ui.confirm({
-      title: "Send reset link?",
-      message: "A secure Supabase password reset email will be sent. Admins cannot view or create passwords.",
-      confirmLabel: "Send Reset Link",
+      title: "Send login setup email?",
+      message: "A secure Supabase email will let the employee set their own password. Admins cannot view or create passwords.",
+      confirmLabel: "Send Login Setup",
     });
     if (!confirmed) return;
-    await onSendResetLink?.(values.email);
-    ui.notify({ title: "Reset link sent.", message: values.email || values.full_name });
+    await onSendLoginSetup?.(values);
   }
 
   return (
@@ -472,7 +477,17 @@ function UserFormModal({
         ) : (
           <>
             <button className="btn-secondary" type="button" disabled={isSaving} onClick={onClose}>Cancel</button>
-            <button className="btn-primary" type="button" disabled={isSaving} onClick={handleSubmit}>{isSaving ? "Saving..." : "Save Employee"}</button>
+              {values.enable_system_login ? (
+                <button
+                  className="btn-primary"
+                  type="button"
+                  disabled={isSaving || emailStatus !== "valid"}
+                  onClick={() => handleSubmit({ sendLoginSetup: true })}
+                >
+                  {isSaving ? "Saving..." : "Save & Send Login Setup"}
+                </button>
+              ) : null}
+              <button className="btn-primary" type="button" disabled={isSaving} onClick={() => handleSubmit()}>{isSaving ? "Saving..." : "Save Employee"}</button>
           </>
         )
       }
@@ -738,8 +753,8 @@ function UserFormModal({
           {mode === "edit" ? (
             <div className="mt-3 flex flex-wrap gap-2">
               {[EMPLOYEE_ACCESS_STATE.NOT_SENT, EMPLOYEE_ACCESS_STATE.INVITED, EMPLOYEE_ACCESS_STATE.ACTIVE].includes(getAccessState(values)) ? (
-                <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={sendResetLinkForExistingEmployee}>
-                  <KeyRound size={14} /> Send Reset Link
+                <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={sendLoginSetupForExistingEmployee}>
+                  <KeyRound size={14} /> Send Login Setup Email
                 </button>
               ) : null}
             </div>
@@ -850,20 +865,41 @@ export default function UsersPage({ ui, store, auth }) {
     setActionMenuUserId(null);
   }
 
-  async function sendResetLinkForUser(user) {
+  const [setupLink, setSetupLink] = useState(null);
+
+  async function sendLoginSetupForUser(user, { allowManualLink = false } = {}) {
     if (!user.email) {
-      ui.notify({ title: "Email required", message: "Add an email before sending a reset link.", tone: "error" });
+      ui.notify({ title: "Email required", message: "Add an email before sending login setup.", tone: "error" });
       return;
     }
-    const confirmed = await ui.confirm({
-      title: "Send reset link?",
-      message: "A secure Supabase password reset email will be sent. Admins cannot view or create passwords.",
-      confirmLabel: "Send Reset Link",
-    });
-    if (!confirmed) return;
-    await auth?.resetPassword?.(user.email);
-    ui.notify({ title: "Reset link sent.", message: user.email });
-    closeActionMenu();
+    try {
+      const result = await employeeAuthOnboardingService.sendLoginSetupEmail(user.id, { allowManualLink });
+      updateUserAccount(user.id, {
+        auth_user_id: result.auth_user_id,
+        access_state: EMPLOYEE_ACCESS_STATE.INVITED,
+        enable_system_login: true,
+        is_active: true,
+        email_verified: false,
+        verification_sent_at: new Date().toISOString(),
+        audit_summary: "Supabase login setup email sent.",
+      });
+      if (result.manual_link) setSetupLink({ email: result.email, link: result.manual_link });
+      ui.notify({ title: result.manual_link ? "Setup link generated." : "Login setup email sent.", message: result.email || user.email });
+      closeActionMenu();
+      return result;
+    } catch (error) {
+      console.error("Unable to send login setup", error);
+      if (error.code === "email_not_configured" && auth?.hasPermission?.("roles.edit") && !allowManualLink) {
+        const ok = await ui.confirm({
+          title: "Email sending is not configured",
+          message: "Supabase Auth SMTP is not configured. Generate a secure setup link to copy manually?",
+          confirmLabel: "Generate Setup Link",
+        });
+        if (ok) return sendLoginSetupForUser(user, { allowManualLink: true });
+      }
+      ui.notify({ title: "Unable to send login setup", message: error.message || "Please configure Supabase Auth SMTP.", tone: "error" });
+      throw error;
+    }
   }
 
   async function disableUserAccess(user) {
@@ -903,8 +939,23 @@ export default function UsersPage({ ui, store, auth }) {
 
   async function saveUser(user) {
     try {
+      const shouldSendLoginSetup = Boolean(user.send_login_setup);
       const payload = { ...user };
-      const saved = await employeeService.saveEmployee(payload);
+      delete payload.send_login_setup;
+      let saved = await employeeService.saveEmployee(payload);
+      if (shouldSendLoginSetup) {
+        const setupResult = await sendLoginSetupForUser(saved);
+        if (setupResult?.auth_user_id) {
+          saved = {
+            ...saved,
+            auth_user_id: setupResult.auth_user_id,
+            access_state: EMPLOYEE_ACCESS_STATE.INVITED,
+            enable_system_login: true,
+            email_verified: false,
+            is_active: true,
+          };
+        }
+      }
       setUsers((current) => {
         const exists = current.some((item) => item.id === saved.id);
         return exists ? current.map((item) => (item.id === saved.id ? saved : item)) : [saved, ...current];
@@ -934,8 +985,8 @@ export default function UsersPage({ ui, store, auth }) {
     if (accessState === EMPLOYEE_ACCESS_STATE.ACTIVE) {
       return (
         <>
-          <button className={buttonClass} type="button" onClick={() => sendResetLinkForUser(row)}>
-            <KeyRound size={14} /> Send Reset Link
+          <button className={buttonClass} type="button" onClick={() => sendLoginSetupForUser(row)}>
+            <KeyRound size={14} /> Send Login Setup
           </button>
           <button className={dangerClass} type="button" onClick={() => disableUserAccess(row)}>
             <Power size={14} /> Disable Access
@@ -947,8 +998,8 @@ export default function UsersPage({ ui, store, auth }) {
     if (accessState === EMPLOYEE_ACCESS_STATE.NOT_SENT || accessState === EMPLOYEE_ACCESS_STATE.INVITED) {
       return (
         <>
-          <button className={buttonClass} type="button" onClick={() => sendResetLinkForUser(row)}>
-            <KeyRound size={14} /> Send Reset Link
+          <button className={buttonClass} type="button" onClick={() => sendLoginSetupForUser(row)}>
+            <KeyRound size={14} /> Send Login Setup
           </button>
           <button className={dangerClass} type="button" onClick={() => disableUserAccess(row)}>
             <Power size={14} /> Disable Access
@@ -1157,7 +1208,7 @@ export default function UsersPage({ ui, store, auth }) {
           users={users}
           ui={ui}
           onClose={() => setSelectedUser(null)}
-          onSendResetLink={auth?.resetPassword}
+          onSendLoginSetup={sendLoginSetupForUser}
           onSwitchToEdit={() => setProfileMode("edit")}
           onSubmit={(user) => {
             saveUser(user);
@@ -1177,9 +1228,38 @@ export default function UsersPage({ ui, store, auth }) {
           users={users}
           ui={ui}
           onClose={() => setFormState(null)}
-          onSendResetLink={auth?.resetPassword}
+          onSendLoginSetup={sendLoginSetupForUser}
           onSubmit={saveUser}
         />
+      ) : null}
+      {setupLink ? (
+        <Modal
+          title="Login Setup Link Generated"
+          description="Email sending is not configured, so this secure Supabase setup link was generated manually."
+          onClose={() => setSetupLink(null)}
+          footer={<button className="btn-primary" type="button" onClick={() => setSetupLink(null)}>Done</button>}
+        >
+          <div className="space-y-3">
+            <div className="rounded-2xl border border-border bg-slate-50 p-4">
+              <div className="text-xs font-bold uppercase text-text-muted">Email</div>
+              <div className="mt-1 font-semibold text-text-primary">{setupLink.email}</div>
+            </div>
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+              <div className="text-xs font-bold uppercase text-amber-700">Setup Link</div>
+              <div className="mt-2 break-all rounded-xl bg-white p-3 text-xs font-semibold text-text-primary">{setupLink.link}</div>
+              <button
+                className="btn-secondary mt-3 h-9 text-xs"
+                type="button"
+                onClick={() => {
+                  navigator.clipboard?.writeText(setupLink.link);
+                  ui.notify({ title: "Setup link copied." });
+                }}
+              >
+                Copy Link
+              </button>
+            </div>
+          </div>
+        </Modal>
       ) : null}
     </div>
   );
