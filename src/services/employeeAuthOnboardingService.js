@@ -6,11 +6,11 @@ function formatFunctionError(error) {
 }
 
 export const employeeAuthOnboardingService = {
-  async sendLoginSetupEmail(employeeId, { allowManualLink = false } = {}) {
+  async sendLoginSetupEmail(employeeId, { mode = "email" } = {}) {
     const { data, error } = await supabase.functions.invoke("employee-auth-onboarding", {
       body: {
         employee_id: employeeId,
-        allow_manual_link: allowManualLink,
+        mode,
       },
     });
 
@@ -24,14 +24,16 @@ export const employeeAuthOnboardingService = {
       }
       const setupError = new Error(payload?.error || formatFunctionError(error));
       setupError.code = payload?.code;
-      setupError.manual_link = payload?.manual_link;
+      setupError.canGenerateManualLink = Boolean(payload?.canGenerateManualLink);
+      setupError.setupUrl = payload?.setupUrl;
       throw setupError;
     }
 
-    if (data?.error) {
-      const setupError = new Error(data.error);
+    if (data?.ok === false || data?.error) {
+      const setupError = new Error(data.message || data.error || "Unable to send login setup email.");
       setupError.code = data.code;
-      setupError.manual_link = data.manual_link;
+      setupError.canGenerateManualLink = Boolean(data.canGenerateManualLink);
+      setupError.setupUrl = data.setupUrl;
       throw setupError;
     }
 

@@ -35,6 +35,15 @@ Deno.serve(async (request) => {
   if (request.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (request.method !== "POST") return json({ error: "Method not allowed" }, 405);
 
+  try {
+    return await handleRequest(request);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    return json({ ok: false, code: "UNHANDLED_ERROR", message }, 500);
+  }
+});
+
+async function handleRequest(request: Request) {
   const supabaseUrl = Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
   const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
@@ -60,8 +69,9 @@ Deno.serve(async (request) => {
 
   const body = await request.json().catch(() => ({}));
   const employeeId = body.employee_id;
-  const allowManualLink = Boolean(body.allow_manual_link);
-  if (allowManualLink) {
+  const modeRequest = String(body.mode ?? "").trim();
+  const manualLinkRequested = modeRequest === "manual_link" || Boolean(body.allow_manual_link);
+  if (manualLinkRequested) {
     const { data: canCreateManualLink, error: manualPermissionError } = await userClient.rpc("current_user_has_permission", {
       permission_code: "roles.edit",
     });
@@ -88,9 +98,20 @@ Deno.serve(async (request) => {
   const existingUser = await findAuthUserByEmail(adminClient, email);
   let authUser = existingUser;
   let mode: "invite" | "recovery" = existingUser ? "recovery" : "invite";
-  let manualLink: string | null = null;
+  let setupUrl: string | null = null;
 
-  try {
+  if (manualLinkRequested) {
+    const manual = await generateManualSetupLink(adminClient, {
+      email,
+      employee,
+      existingUser,
+      redirectTo,
+    });
+    setupUrl = manual.setupUrl;
+    authUser = manual.authUser;
+    mode = "manual_link";
+  } else {
+    try {
     if (!existingUser) {
       const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email, {
         data: { employee_id: employee.id, full_name: employee.full_name },
@@ -106,29 +127,21 @@ Deno.serve(async (request) => {
     const message = emailError instanceof Error ? emailError.message : String(emailError);
     const likelyEmailConfigIssue = /smtp|email|mail|provider|not configured|sending/i.test(message);
 
-    if (allowManualLink) {
-      const { data: manualData, error: linkError } = await adminClient.auth.admin.generateLink({
-        type: existingUser ? "recovery" : "invite",
-        email,
-        options: {
-          data: { employee_id: employee.id, full_name: employee.full_name },
-          redirectTo,
-        },
+    if (likelyEmailConfigIssue) {
+      return json({
+        ok: false,
+        code: "SMTP_NOT_CONFIGURED",
+        message: "Email sending is not configured.",
+        canGenerateManualLink: true,
       });
-      if (!linkError) {
-        manualLink = dataToLink(manualData);
-        authUser = manualData.user ?? existingUser;
-        mode = existingUser ? "recovery" : "invite";
-      }
     }
 
-    if (!manualLink) {
-      return json({
-        error: likelyEmailConfigIssue
-          ? "Email sending is not configured. Please configure Supabase Auth SMTP or use manual setup."
-          : message,
-        code: likelyEmailConfigIssue ? "email_not_configured" : "auth_email_failed",
-      }, 500);
+    return json({
+      ok: false,
+      code: "AUTH_EMAIL_FAILED",
+      message,
+      canGenerateManualLink: false,
+    }, 500);
     }
   }
 
@@ -156,15 +169,51 @@ Deno.serve(async (request) => {
   return json({
     ok: true,
     mode,
+    setupUrl,
     email,
+    employeeId: employee.id,
     employee_id: employee.id,
+    authUserId: authUser?.id ?? null,
     auth_user_id: authUser?.id ?? null,
+    accessState: "invited",
     access_state: "invited",
-    manual_link: manualLink,
   });
-});
+}
 
 function dataToLink(data: unknown) {
   const value = data as { properties?: { action_link?: string; email_otp?: string }; action_link?: string };
   return value?.properties?.action_link ?? value?.action_link ?? null;
+}
+
+async function generateManualSetupLink(
+  adminClient: ReturnType<typeof createClient>,
+  {
+    email,
+    employee,
+    existingUser,
+    redirectTo,
+  }: {
+    email: string;
+    employee: { id: string; full_name?: string };
+    existingUser: { id: string } | null;
+    redirectTo?: string;
+  },
+) {
+  const { data, error } = await adminClient.auth.admin.generateLink({
+    type: existingUser ? "recovery" : "invite",
+    email,
+    options: {
+      data: { employee_id: employee.id, full_name: employee.full_name },
+      redirectTo,
+    },
+  });
+  if (error) throw error;
+
+  const setupUrl = dataToLink(data);
+  if (!setupUrl) throw new Error("Supabase did not return a setup link.");
+
+  return {
+    setupUrl,
+    authUser: data.user ?? existingUser,
+  };
 }

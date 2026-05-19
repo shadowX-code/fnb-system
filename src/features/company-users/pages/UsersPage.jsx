@@ -867,13 +867,13 @@ export default function UsersPage({ ui, store, auth }) {
 
   const [setupLink, setSetupLink] = useState(null);
 
-  async function sendLoginSetupForUser(user, { allowManualLink = false } = {}) {
+  async function sendLoginSetupForUser(user, { mode = "email" } = {}) {
     if (!user.email) {
       ui.notify({ title: "Email required", message: "Add an email before sending login setup.", tone: "error" });
       return;
     }
     try {
-      const result = await employeeAuthOnboardingService.sendLoginSetupEmail(user.id, { allowManualLink });
+      const result = await employeeAuthOnboardingService.sendLoginSetupEmail(user.id, { mode });
       updateUserAccount(user.id, {
         auth_user_id: result.auth_user_id,
         access_state: EMPLOYEE_ACCESS_STATE.INVITED,
@@ -883,19 +883,19 @@ export default function UsersPage({ ui, store, auth }) {
         verification_sent_at: new Date().toISOString(),
         audit_summary: "Supabase login setup email sent.",
       });
-      if (result.manual_link) setSetupLink({ email: result.email, link: result.manual_link });
-      ui.notify({ title: result.manual_link ? "Setup link generated." : "Login setup email sent.", message: result.email || user.email });
+      if (result.setupUrl) setSetupLink({ email: result.email, link: result.setupUrl });
+      ui.notify({ title: result.setupUrl ? "Setup link generated." : "Login setup email sent.", message: result.email || user.email });
       closeActionMenu();
       return result;
     } catch (error) {
       console.error("Unable to send login setup", error);
-      if (error.code === "email_not_configured" && auth?.hasPermission?.("roles.edit") && !allowManualLink) {
+      if (error.code === "SMTP_NOT_CONFIGURED" && error.canGenerateManualLink && auth?.hasPermission?.("roles.edit") && mode !== "manual_link") {
         const ok = await ui.confirm({
           title: "Email sending is not configured",
           message: "Supabase Auth SMTP is not configured. Generate a secure setup link to copy manually?",
           confirmLabel: "Generate Setup Link",
         });
-        if (ok) return sendLoginSetupForUser(user, { allowManualLink: true });
+        if (ok) return sendLoginSetupForUser(user, { mode: "manual_link" });
       }
       ui.notify({ title: "Unable to send login setup", message: error.message || "Please configure Supabase Auth SMTP.", tone: "error" });
       throw error;
