@@ -1,7 +1,21 @@
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { authService } from "./authService.js";
 
 const AuthContext = createContext(null);
+
+function readRecoveryCallback() {
+  const hashParams = new URLSearchParams(window.location.hash.replace(/^#/, ""));
+  const queryParams = new URLSearchParams(window.location.search);
+  const type = hashParams.get("type") || queryParams.get("type");
+  const accessToken = hashParams.get("access_token") || queryParams.get("access_token");
+  const refreshToken = hashParams.get("refresh_token") || queryParams.get("refresh_token");
+  if (type !== "recovery" || !accessToken || !refreshToken) return null;
+  return { accessToken, refreshToken };
+}
+
+function clearAuthCallbackUrl() {
+  window.history.replaceState(null, "", `${window.location.pathname}#dashboard`);
+}
 
 export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
@@ -9,6 +23,8 @@ export function AuthProvider({ children }) {
   const [profile, setProfile] = useState(null);
   const [permissions, setPermissions] = useState([]);
   const [source, setSource] = useState("loading");
+  const [passwordRecovery, setPasswordRecovery] = useState(false);
+  const passwordRecoveryRef = useRef(false);
   const [loading, setLoading] = useState(true);
   const [contextLoading, setContextLoading] = useState(false);
   const [error, setError] = useState("");
@@ -47,10 +63,26 @@ export function AuthProvider({ children }) {
 
   useEffect(() => {
     let ignore = false;
-    authService.getSession()
-      .then((initialSession) => {
-        if (!ignore) loadContext(initialSession);
-      })
+    const recoveryCallback = readRecoveryCallback();
+    if (recoveryCallback) passwordRecoveryRef.current = true;
+    const initialLoad = recoveryCallback
+      ? authService.setSessionFromRecoveryTokens(recoveryCallback).then((recoverySession) => {
+          if (ignore) return;
+          setSession(recoverySession);
+          setUser(recoverySession?.user ?? null);
+          passwordRecoveryRef.current = true;
+          setPasswordRecovery(true);
+          setProfile(null);
+          setPermissions([]);
+          setSource("password-recovery");
+          setLoading(false);
+          setContextLoading(false);
+        })
+      : authService.getSession().then((initialSession) => {
+          if (!ignore) loadContext(initialSession);
+        });
+
+    initialLoad
       .catch((sessionError) => {
         console.error("Unable to load auth session", sessionError);
         if (!ignore) {
@@ -59,8 +91,21 @@ export function AuthProvider({ children }) {
         }
       });
 
-    const { data } = authService.onAuthStateChange((_event, nextSession) => {
-      if (!ignore) loadContext(nextSession);
+    const { data } = authService.onAuthStateChange((event, nextSession) => {
+      if (ignore) return;
+      if (event === "PASSWORD_RECOVERY") {
+        setSession(nextSession);
+        setUser(nextSession?.user ?? null);
+        passwordRecoveryRef.current = true;
+        setPasswordRecovery(true);
+        setProfile(null);
+        setPermissions([]);
+        setSource("password-recovery");
+        setLoading(false);
+        setContextLoading(false);
+        return;
+      }
+      if (!passwordRecoveryRef.current) loadContext(nextSession);
     });
 
     return () => {
@@ -68,6 +113,23 @@ export function AuthProvider({ children }) {
       data.subscription.unsubscribe();
     };
   }, []);
+
+  async function completePasswordSetup(newPassword) {
+    setError("");
+    await authService.updatePassword(newPassword);
+    clearAuthCallbackUrl();
+    passwordRecoveryRef.current = false;
+    setPasswordRecovery(false);
+    const initialSession = await authService.getSession();
+    await loadContext(initialSession);
+  }
+
+  async function cancelPasswordSetup() {
+    clearAuthCallbackUrl();
+    passwordRecoveryRef.current = false;
+    setPasswordRecovery(false);
+    await signOut();
+  }
 
   useEffect(() => {
     if (!import.meta.env.DEV || loading || contextLoading || !user) return;
@@ -86,6 +148,8 @@ export function AuthProvider({ children }) {
     setError("");
     try {
       const result = await authService.signInWithPassword({ email, password });
+      passwordRecoveryRef.current = false;
+      setPasswordRecovery(false);
       await loadContext(result.session);
       return result;
     } catch (signInError) {
@@ -94,6 +158,8 @@ export function AuthProvider({ children }) {
   }
 
   async function signOut() {
+    passwordRecoveryRef.current = false;
+    setPasswordRecovery(false);
     await authService.signOut();
     await loadContext(null);
   }
@@ -107,16 +173,19 @@ export function AuthProvider({ children }) {
       profile,
       permissions,
       source,
+      passwordRecovery,
       loading,
       contextLoading,
       error,
       signIn,
       signOut,
       resetPassword: authService.resetPassword,
+      completePasswordSetup,
+      cancelPasswordSetup,
       hasPermission: (permissionCode) => permissionSet.has(permissionCode),
       hasAnyPermission: (permissionCodes = []) => permissionCodes.some((code) => permissionSet.has(code)),
     }),
-    [contextLoading, error, loading, permissionSet, permissions, profile, session, source, user],
+    [contextLoading, error, loading, passwordRecovery, permissionSet, permissions, profile, session, source, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

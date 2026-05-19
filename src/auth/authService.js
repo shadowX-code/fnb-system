@@ -71,6 +71,15 @@ export const authService = {
     return data.session;
   },
 
+  async setSessionFromRecoveryTokens({ accessToken, refreshToken }) {
+    const { data, error } = await supabase.auth.setSession({
+      access_token: accessToken,
+      refresh_token: refreshToken,
+    });
+    if (error) throw error;
+    return data.session;
+  },
+
   onAuthStateChange(callback) {
     return supabase.auth.onAuthStateChange(callback);
   },
@@ -89,6 +98,12 @@ export const authService = {
   async resetPassword(email) {
     const { error } = await supabase.auth.resetPasswordForEmail(email);
     if (error) throw error;
+  },
+
+  async updatePassword(password) {
+    const { data, error } = await supabase.auth.updateUser({ password });
+    if (error) throw error;
+    return data;
   },
 
   async getUserContext(user) {

@@ -874,17 +874,31 @@ export default function UsersPage({ ui, store, auth }) {
     }
     try {
       const result = await employeeAuthOnboardingService.sendLoginSetupEmail(user.id, { mode });
-      updateUserAccount(user.id, {
+      const updatedUser = {
+        ...user,
         auth_user_id: result.auth_user_id,
         access_state: EMPLOYEE_ACCESS_STATE.INVITED,
         enable_system_login: true,
         is_active: true,
         email_verified: false,
         verification_sent_at: new Date().toISOString(),
-        audit_summary: "Supabase login setup email sent.",
-      });
+        audit_summary: result.warning || "Supabase login setup email sent.",
+      };
+      setUsers((list) => list.map((item) => (item.id === user.id ? updatedUser : item)));
+      setSelectedUser((selected) => (selected?.id === user.id ? updatedUser : selected));
+      try {
+        const refreshedUsers = await employeeService.listEmployees();
+        setUsers(refreshedUsers);
+        setSelectedUser((selected) => refreshedUsers.find((item) => item.id === selected?.id) ?? selected);
+      } catch (refreshError) {
+        console.warn("Login setup succeeded, but employee refresh failed", refreshError);
+      }
       if (result.setupUrl) setSetupLink({ email: result.email, link: result.setupUrl });
-      ui.notify({ title: result.setupUrl ? "Setup link generated." : "Login setup email sent.", message: result.email || user.email });
+      ui.notify({
+        title: result.setupUrl ? "Setup link generated." : "Login setup email sent.",
+        message: result.warning || result.message || result.email || user.email,
+        tone: result.warning ? "warning" : undefined,
+      });
       closeActionMenu();
       return result;
     } catch (error) {
@@ -1176,7 +1190,7 @@ export default function UsersPage({ ui, store, auth }) {
         <div className="flex items-start gap-2">
           <ShieldCheck className="mt-0.5 shrink-0 text-blue-700" size={16} />
           <p>
-            <strong>Security note:</strong> FeedX now uses real Supabase Auth sessions only. Admins can send reset links, but cannot create, view, or recover passwords.
+            <strong>Security note:</strong> FeedX now uses real Supabase Auth sessions only. Admins can send password setup links, but cannot create, view, or recover passwords.
           </p>
         </div>
       </div>

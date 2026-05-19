@@ -13,6 +13,7 @@ import { salesRecordService } from "../services/salesRecordService.js";
 import { purchaseRecordService } from "../services/purchaseRecordService.js";
 import { useAuth } from "../auth/AuthContext.jsx";
 import LoginPage from "../auth/LoginPage.jsx";
+import SetNewPasswordPage from "../auth/SetNewPasswordPage.jsx";
 
 function normalizeSuppliers(suppliers, categories) {
   return suppliers.map((supplier) => {
@@ -230,7 +231,7 @@ export default function App() {
   const ActivePage = activeRoute.component;
 
   useEffect(() => {
-    if (!auth.session) return undefined;
+    if (!auth.session || auth.passwordRecovery) return undefined;
     let ignore = false;
     async function loadMasterData() {
       setMasterDataStatus({ loading: true, errors: [], loads: BOOTSTRAP_LOADS.map((load) => ({ ...load, status: "pending" })) });
@@ -348,7 +349,7 @@ export default function App() {
     return () => {
       ignore = true;
     };
-  }, [auth.session]);
+  }, [auth.passwordRecovery, auth.session]);
 
   useEffect(() => {
     if (!auth.session || auth.loading || auth.contextLoading || !accessibleRoutes.length) return;
@@ -384,6 +385,10 @@ export default function App() {
         <div className="card p-6 text-sm font-semibold text-text-secondary">Loading Smart Operations Workspace...</div>
       </div>
     );
+  }
+
+  if (auth.passwordRecovery) {
+    return <SetNewPasswordPage />;
   }
 
   if (!auth.session) {

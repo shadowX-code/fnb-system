@@ -5,6 +5,20 @@ function formatFunctionError(error) {
   return error.message || String(error);
 }
 
+async function parseFunctionErrorPayload(error) {
+  const context = error?.context;
+  try {
+    if (typeof context?.json === "function") return await context.json();
+    if (typeof context?.text === "function") {
+      const text = await context.text();
+      return text ? JSON.parse(text) : null;
+    }
+  } catch (parseError) {
+    console.warn("[Supabase:functions.employee-auth-onboarding] Unable to parse error response", parseError);
+  }
+  return null;
+}
+
 export const employeeAuthOnboardingService = {
   async sendLoginSetupEmail(employeeId, { mode = "email" } = {}) {
     const { data, error } = await supabase.functions.invoke("employee-auth-onboarding", {
@@ -15,14 +29,14 @@ export const employeeAuthOnboardingService = {
     });
 
     if (error) {
-      console.error("[Supabase:functions.employee-auth-onboarding]", error);
-      let payload = null;
-      try {
-        payload = typeof error.context?.json === "function" ? await error.context.json() : null;
-      } catch {
-        payload = null;
-      }
-      const setupError = new Error(payload?.error || formatFunctionError(error));
+      const payload = await parseFunctionErrorPayload(error);
+      console.error("[Supabase:functions.employee-auth-onboarding]", {
+        status: error.context?.status,
+        message: error.message,
+        payload,
+      });
+      if (payload?.ok === true) return payload;
+      const setupError = new Error(payload?.message || payload?.error || formatFunctionError(error));
       setupError.code = payload?.code;
       setupError.canGenerateManualLink = Boolean(payload?.canGenerateManualLink);
       setupError.setupUrl = payload?.setupUrl;
@@ -30,6 +44,11 @@ export const employeeAuthOnboardingService = {
     }
 
     if (data?.ok === false || data?.error) {
+      console.error("[Supabase:functions.employee-auth-onboarding] rejected", {
+        code: data.code,
+        message: data.message || data.error,
+        data,
+      });
       const setupError = new Error(data.message || data.error || "Unable to send login setup email.");
       setupError.code = data.code;
       setupError.canGenerateManualLink = Boolean(data.canGenerateManualLink);

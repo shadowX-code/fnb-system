@@ -97,7 +97,7 @@ async function handleRequest(request: Request) {
   const redirectTo = siteUrl ? `${siteUrl.replace(/\/$/, "")}/` : undefined;
   const existingUser = await findAuthUserByEmail(adminClient, email);
   let authUser = existingUser;
-  let mode: "invite" | "recovery" = existingUser ? "recovery" : "invite";
+  let mode: "email" | "manual_link" = "email";
   let setupUrl: string | null = null;
 
   if (manualLinkRequested) {
@@ -112,36 +112,36 @@ async function handleRequest(request: Request) {
     mode = "manual_link";
   } else {
     try {
-    if (!existingUser) {
-      const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email, {
-        data: { employee_id: employee.id, full_name: employee.full_name },
-        redirectTo,
-      });
-      if (error) throw error;
-      authUser = data.user;
-    } else {
-      const { error } = await userClient.auth.resetPasswordForEmail(email, { redirectTo });
-      if (error) throw error;
-    }
-  } catch (emailError) {
-    const message = emailError instanceof Error ? emailError.message : String(emailError);
-    const likelyEmailConfigIssue = /smtp|email|mail|provider|not configured|sending/i.test(message);
+      if (!existingUser) {
+        const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email, {
+          data: { employee_id: employee.id, full_name: employee.full_name },
+          redirectTo,
+        });
+        if (error) throw error;
+        authUser = data.user;
+      } else {
+        const { error } = await userClient.auth.resetPasswordForEmail(email, { redirectTo });
+        if (error) throw error;
+      }
+    } catch (emailError) {
+      const message = emailError instanceof Error ? emailError.message : String(emailError);
+      const likelyEmailConfigIssue = /smtp|email|mail|provider|not configured|sending/i.test(message);
 
-    if (likelyEmailConfigIssue) {
+      if (likelyEmailConfigIssue) {
+        return json({
+          ok: false,
+          code: "SMTP_NOT_CONFIGURED",
+          message: "Email sending is not configured.",
+          canGenerateManualLink: true,
+        });
+      }
+
       return json({
         ok: false,
-        code: "SMTP_NOT_CONFIGURED",
-        message: "Email sending is not configured.",
-        canGenerateManualLink: true,
-      });
-    }
-
-    return json({
-      ok: false,
-      code: "AUTH_EMAIL_FAILED",
-      message,
-      canGenerateManualLink: false,
-    }, 500);
+        code: "AUTH_EMAIL_FAILED",
+        message,
+        canGenerateManualLink: false,
+      }, 500);
     }
   }
 
@@ -157,18 +157,21 @@ async function handleRequest(request: Request) {
       updated_at: new Date().toISOString(),
     })
     .eq("id", employee.id);
-  if (updateError) return json({ error: updateError.message }, 500);
+  const warning = updateError ? "Email sent but employee status update failed." : undefined;
 
   await adminClient.from("audit_logs").insert({
     action: "employee_login_setup_sent",
     module: "people",
-    description: `Login setup ${mode === "invite" ? "invite" : "reset"} sent to ${email}.`,
+    description: `Login setup ${mode === "manual_link" ? "manual setup link" : "email"} sent to ${email}.`,
     metadata: { target: employee.full_name, employee_id: employee.id, email, mode },
   }).catch(() => {});
 
   return json({
     ok: true,
     mode,
+    message: mode === "manual_link" ? "Login setup link generated." : "Login setup email sent.",
+    warning,
+    updateError: updateError?.message,
     setupUrl,
     email,
     employeeId: employee.id,

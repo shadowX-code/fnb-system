@@ -26,16 +26,16 @@ export default function LoginPage() {
 
   async function handleResetPassword() {
     if (!email) {
-      setError("Enter your email first, then request a password reset.");
+      setError("Enter your email first, then request a password setup link.");
       return;
     }
     setError("");
     setMessage("");
     try {
       await auth.resetPassword(email);
-      setMessage("Password reset email sent.");
+      setMessage("Password setup email sent.");
     } catch (resetError) {
-      setError(resetError.message || "Unable to send password reset email.");
+      setError(resetError.message || "Unable to send password setup email.");
     }
   }
 
@@ -120,7 +120,7 @@ export default function LoginPage() {
                 {isSubmitting ? "Signing in..." : "Login"}
               </button>
               <button className="w-full rounded-xl px-3 py-2 text-sm font-bold text-text-secondary transition hover:bg-slate-50" type="button" onClick={handleResetPassword}>
-                Send password reset email
+                Send password setup email
               </button>
             </form>
           </section>
