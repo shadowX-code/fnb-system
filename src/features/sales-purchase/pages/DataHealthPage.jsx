@@ -10,8 +10,6 @@ import usePeriodFilters from "../hooks/usePeriodFilters.js";
 import { operationsService } from "../services/operationsService.js";
 import { buildAlerts, getNetSales, getOutletTaxConfig, monthLabel, sumAmount, toCurrency, toPercent } from "../utils/analytics.js";
 
-const requiredSalesChannels = ["Dine In", "Takeaway", "GrabFood", "FoodPanda", "ShopeeFood"];
-
 function getLock(store, outletId, month, year) {
   return store.monthlyLocks.find((lock) => lock.outlet_id === outletId && lock.month === month && lock.year === year);
 }
@@ -23,6 +21,18 @@ function formatTime(value) {
 
 function getSalesRecordRows(store, outletId, month, year) {
   return store.salesRecords.filter((record) => record.outlet_id === outletId && record.month === month && record.year === year);
+}
+
+function getSalesChannelKey(record) {
+  return record.channel_id || String(record.channel_name ?? "").trim().toLowerCase();
+}
+
+function countUniqueSalesChannels(rows) {
+  return new Set(rows.map(getSalesChannelKey).filter(Boolean)).size;
+}
+
+function getLatestUpdatedRecord(rows) {
+  return [...rows].sort((a, b) => new Date(a.updated_at || a.created_at || 0) - new Date(b.updated_at || b.created_at || 0)).at(-1);
 }
 
 function getPurchaseRecordRows(store, outletId, month, year) {
@@ -83,31 +93,27 @@ export default function DataHealthPage({ store, setStore, ui, auth }) {
   }), [filters.month, filters.outletId, filters.year, store]);
 
   const highRiskOperationalAlerts = alerts.filter((alert) => ["critical", "high"].includes(alert.priority));
-  const salesChannelNames = salesRows.map((record) => store.salesChannels.find((channel) => channel.id === record.channel_id)?.name).filter(Boolean);
-  const missingRequiredChannels = requiredSalesChannels.filter((name) => !salesChannelNames.includes(name));
+  const uniqueSalesChannelCount = countUniqueSalesChannels(salesRows);
+  const latestSalesRecord = getLatestUpdatedRecord(salesRows);
   const sstRecord = salesRows.find((record) => {
     const name = store.salesChannels.find((channel) => channel.id === record.channel_id)?.name;
     return ["SST Deduction", "SST", "SST (-)"].includes(name);
   });
   const hasSst = Boolean(sstRecord && Number(sstRecord.amount || 0) > 0);
-  const salesEmptyCriticalRows = salesRows.filter((record) => {
-    const name = store.salesChannels.find((channel) => channel.id === record.channel_id)?.name;
-    return requiredSalesChannels.includes(name) && Number(record.amount || 0) <= 0;
-  });
   const purchaseEmptyRows = purchaseRows.filter((record) => !record.supplier_id || !record.category_id || record.amount === "" || record.amount === null || record.amount === undefined);
 
   const warnings = [
     !hasAnyData ? "No records entered for this month." : null,
-    missingRequiredChannels.length ? `${missingRequiredChannels.length} required sales channels missing.` : null,
+    !salesRows.length ? "No saved sales data found for this month." : null,
     sstEnabled && !hasSst && salesRows.length ? "SST deduction missing." : null,
-    salesEmptyCriticalRows.length ? `${salesEmptyCriticalRows.length} critical sales rows are empty.` : null,
     purchaseRows.length && !salesRows.length ? "Purchase exists but sales data is missing." : null,
+    purchaseRows.length && salesRows.length && netSales <= 0 ? "Net sales is zero while purchases exist. Please review." : null,
     purchaseEmptyRows.length ? `${purchaseEmptyRows.length} supplier rows incomplete.` : null,
   ].filter(Boolean);
 
   const salesScore = !salesRows.length
     ? 0
-    : Math.max(0, Math.round(100 - missingRequiredChannels.length * 12 - salesEmptyCriticalRows.length * 10 - (sstEnabled && !hasSst ? 10 : 0)));
+    : Math.max(0, Math.round(100 - (purchaseRows.length && netSales <= 0 ? 25 : 0) - (sstEnabled && !hasSst ? 10 : 0)));
   const purchaseScore = !purchaseRows.length
     ? 0
     : Math.max(0, Math.round(100 - purchaseEmptyRows.length * 15));
@@ -222,7 +228,7 @@ export default function DataHealthPage({ store, setStore, ui, auth }) {
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">
-        <MetricCard label="Sales Records" value={`${salesRows.length} channels`} helper={salesRows.length ? `Last updated ${formatTime(salesRows.at(-1)?.updated_at)}` : "Missing"} tone={salesScore === 100 ? "success" : "warning"} />
+        <MetricCard label="Sales Records" value={`${uniqueSalesChannelCount} channels`} helper={salesRows.length ? `Last updated ${formatTime(latestSalesRecord?.updated_at)}` : "Missing"} tone={salesScore === 100 ? "success" : "warning"} />
         <MetricCard label="Purchase Records" value={`${purchaseRows.length} suppliers`} helper={purchaseEmptyRows.length ? `${purchaseEmptyRows.length} incomplete rows` : "Required fields complete"} tone={purchaseScore === 100 ? "success" : "warning"} />
         <MetricCard label="Month Status" value={monthStatus.label} helper={`${toCurrency(netSales)} sales · ${toCurrency(totalPurchase)} purchase`} tone={monthStatus.tone === "danger" ? "danger" : monthStatus.tone === "success" ? "success" : "warning"} />
       </div>

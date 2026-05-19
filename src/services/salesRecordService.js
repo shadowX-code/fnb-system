@@ -7,6 +7,20 @@ function logSalesRecordQuery(operation, permission, context = {}) {
   console.info("[Supabase:sales_records.query]", { operation, permission, ...context });
 }
 
+function salesRecordKey(record) {
+  return record.channel_id || String(record.channel_name ?? "").trim().toLowerCase();
+}
+
+function dedupeSalesRecordPayload(records) {
+  const deduped = new Map();
+  records.forEach((record) => {
+    const key = salesRecordKey(record);
+    if (!key) return;
+    deduped.set(key, record);
+  });
+  return [...deduped.values()];
+}
+
 export const salesRecordService = {
   async listSalesRecords() {
     logSalesRecordQuery("select:list_all", "dashboard.view OR sales_input.view OR sales_comparison.view");
@@ -81,12 +95,7 @@ export const salesRecordService = {
 
   async saveSalesRecords(outletId, year, month, records) {
     const existing = await this.listExistingSalesRecords(outletId, year, month);
-    const existingById = new Map(existing.map((record) => [record.id, record]));
-    const seenExistingIds = new Set();
-    const savedRows = [];
-
-    const payload = records.map((record) => ({
-      id: record.id,
+    const payload = dedupeSalesRecordPayload(records.map((record) => ({
       outlet_id: outletId,
       year,
       month,
@@ -94,43 +103,29 @@ export const salesRecordService = {
       channel_name: record.channel_name,
       amount: Number(record.amount) || 0,
       remark: record.remark ?? "",
-    }));
+      updated_at: new Date().toISOString(),
+    })));
 
     if (!payload.length) return [];
 
-    for (const row of payload) {
-      if (row.id && existingById.has(row.id)) {
-        seenExistingIds.add(row.id);
-        const { id, ...updatePayload } = row;
-        logSalesRecordQuery("update:row", "sales_input.edit OR data_import.import", { id, outletId, year, month });
-        const { data, error } = await supabase
-          .from("sales_records")
-          .update({ ...updatePayload, updated_at: new Date().toISOString() })
-          .eq("id", id)
-          .select("id,outlet_id,year,month,channel_id,channel_name,amount,remark,created_at,updated_at")
-          .single();
-        throwSupabaseError("sales_records.update_row", error);
-        savedRows.push(data);
-      } else {
-        const { id: _ignoredId, ...insertPayload } = row;
-        logSalesRecordQuery("insert:row", "sales_input.create OR data_import.import", {
-          outletId,
-          year,
-          month,
-          channel_id: insertPayload.channel_id,
-          channel_name: insertPayload.channel_name,
-        });
-        const { data, error } = await supabase
-          .from("sales_records")
-          .insert(insertPayload)
-          .select("id,outlet_id,year,month,channel_id,channel_name,amount,remark,created_at,updated_at")
-          .single();
-        throwSupabaseError("sales_records.insert_row", error);
-        savedRows.push(data);
-      }
-    }
+    logSalesRecordQuery("upsert:period_rows", "sales_input.create/edit OR data_import.import", {
+      outletId,
+      year,
+      month,
+      rows: payload.length,
+    });
+    const { data, error } = await supabase
+      .from("sales_records")
+      .upsert(payload, { onConflict: "outlet_id,year,month,channel_id" })
+      .select("id,outlet_id,year,month,channel_id,channel_name,amount,remark,created_at,updated_at");
+    throwSupabaseError("sales_records.upsert_period_rows", error);
 
-    const removedIds = existing.map((record) => record.id).filter((id) => !seenExistingIds.has(id));
+    const savedRows = data ?? [];
+
+    const savedChannelKeys = new Set(payload.map(salesRecordKey));
+    const removedIds = existing
+      .filter((record) => !savedChannelKeys.has(salesRecordKey(record)))
+      .map((record) => record.id);
     await this.deleteSalesRecordIds(removedIds);
 
     await auditLogService.createAuditLog({

@@ -1,9 +1,9 @@
 export default function DataTable({ columns, rows, getRowKey, footer, getRowClassName, getRowProps, onRowClick, density = "normal", tableClassName = "" }) {
-  const cellPadding = density === "compact" ? "px-2.5 py-2" : "px-3 py-2.5";
-  const headerPadding = density === "compact" ? "px-2.5 py-2" : "px-3 py-2.5";
+  const cellPadding = density === "compact" ? "px-2.5 py-1.5" : "px-3 py-2";
+  const headerPadding = density === "compact" ? "px-2.5 py-2" : "px-3 py-2";
 
   return (
-    <div className="overflow-x-auto">
+    <div className="data-table-scroll overflow-x-auto">
       <table className={`w-full min-w-[880px] border-collapse text-sm ${tableClassName}`}>
         <thead className="table-head">
           <tr>
@@ -12,7 +12,7 @@ export default function DataTable({ columns, rows, getRowKey, footer, getRowClas
                   key={column.key}
                   style={column.width ? { width: column.width } : undefined}
                   className={`${headerPadding} ${column.headerClassName ?? ""} ${column.align === "right" ? "text-right" : ""} ${
-                  column.sticky ? "sticky left-0 z-10 bg-slate-50" : ""
+                  column.sticky ? "table-sticky-cell sticky left-0 z-10" : ""
                 }`}
               >
                 {column.header}
@@ -20,7 +20,7 @@ export default function DataTable({ columns, rows, getRowKey, footer, getRowClas
             ))}
           </tr>
         </thead>
-        <tbody className="divide-y divide-border bg-white">
+        <tbody className="table-body divide-y divide-border">
           {rows.map((row, index) => {
             const rowProps = getRowProps ? getRowProps(row, index) : {};
             const rowClassName = rowProps.className ?? "";
@@ -29,7 +29,7 @@ export default function DataTable({ columns, rows, getRowKey, footer, getRowClas
             return (
               <tr
                 key={getRowKey(row, index)}
-                className={`transition hover:bg-slate-50/70 ${rowOnClick ? "cursor-pointer" : ""} ${getRowClassName ? getRowClassName(row, index) : ""} ${rowClassName}`}
+                className={`table-row transition ${rowOnClick ? "cursor-pointer" : ""} ${getRowClassName ? getRowClassName(row, index) : ""} ${rowClassName}`}
                 onClick={rowOnClick}
                 {...restRowProps}
               >
@@ -38,7 +38,7 @@ export default function DataTable({ columns, rows, getRowKey, footer, getRowClas
                     key={column.key}
                     style={column.width ? { width: column.width } : undefined}
                     className={`${cellPadding} align-middle ${column.className ?? ""} ${column.align === "right" ? "text-right" : ""} ${
-                      column.sticky ? "sticky left-0 z-10 bg-white" : ""
+                      column.sticky ? "table-sticky-cell sticky left-0 z-10" : ""
                     }`}
                   >
                     {column.render ? column.render(row, index) : row[column.key]}
@@ -48,7 +48,7 @@ export default function DataTable({ columns, rows, getRowKey, footer, getRowClas
             );
           })}
         </tbody>
-        {footer ? <tfoot className="border-t border-border bg-slate-50">{footer}</tfoot> : null}
+        {footer ? <tfoot className="table-summary-row border-t border-border">{footer}</tfoot> : null}
       </table>
     </div>
   );
