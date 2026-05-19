@@ -11,6 +11,7 @@ import SummaryPanel from "../components/SummaryPanel.jsx";
 import usePeriodFilters from "../hooks/usePeriodFilters.js";
 import { salesRecordService } from "../../../services/salesRecordService.js";
 import { salesChannelService } from "../../../services/salesChannelService.js";
+import { canWrite, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import {
   getPreviousPeriod,
   getOutletTaxConfig,
@@ -100,8 +101,8 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
   const sstEnabled = Boolean(sstConfig.enabled);
   const sstRate = Number(sstConfig.rate || 0);
   const isLocked = Boolean(getLock(store, filters.outletId, filters.month, filters.year)?.is_locked);
-  const canEditSales = auth?.hasPermission?.("sales_input.edit") ?? true;
-  const inputDisabled = isLocked || salesRecordsLoading || !canEditSales;
+  const canWriteSales = canWrite(auth, "sales_input");
+  const inputDisabled = isLocked || salesRecordsLoading || !canWriteSales;
   const hasSavedRecord = liveSalesRecords.length > 0;
   const visibleRows = rows.filter((row) => sstEnabled || !sstChannelNames.includes(row.channelName));
   const salesRows = visibleRows.filter((row) => row.type === "channel");
@@ -229,8 +230,8 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
 
   async function saveSalesData() {
     if (isLocked || isSaving) return;
-    if (!canEditSales) {
-      ui.notify({ title: "Permission required", message: "You need sales_input.edit to save sales data.", tone: "error" });
+    if (!canWriteSales) {
+      notifyPermissionDenied(ui, "save sales data");
       return;
     }
     const invalidRows = visibleRows.filter((row) => Number.isNaN(Number(row.amount || 0)));
@@ -454,7 +455,7 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
     });
 
     return baseColumns;
-  }, [grossSales, isLocked, store.salesRecords, filters.outletId, previous.month, previous.year, rows, activeRowId]);
+  }, [grossSales, inputDisabled, store.salesRecords, filters.outletId, previous.month, previous.year, rows, activeRowId]);
 
   const summaryRows = [
     {
@@ -544,6 +545,10 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
   ];
 
   async function addCustomChannel() {
+    if (!canWriteSales) {
+      notifyPermissionDenied(ui, "add custom sales channels");
+      return;
+    }
     try {
       const channel = await salesChannelService.saveSalesChannel({
         name: "Custom Channel",
@@ -568,6 +573,10 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
   }
 
   async function addDeduction() {
+    if (!canWriteSales) {
+      notifyPermissionDenied(ui, "add deductions");
+      return;
+    }
     if (!sstEnabled && deductionType === "SST Deduction") {
       ui.notify({ title: "SST not enabled", message: "This outlet is not configured for SST.", tone: "info" });
       return;
@@ -634,9 +643,13 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
             >
               Import Previous
             </button>
-            <button className="btn-primary" type="button" disabled={isLocked || isSaving || salesRecordsLoading || !canEditSales} onClick={saveSalesData}>
-              <Save size={15} /> {isSaving ? "Saving..." : "Save Sales Data"}
-            </button>
+            {canWriteSales ? (
+              <button className="btn-primary" type="button" disabled={isLocked || isSaving || salesRecordsLoading} onClick={saveSalesData}>
+                <Save size={15} /> {isSaving ? "Saving..." : "Save Sales Data"}
+              </button>
+            ) : (
+              <Badge tone="neutral">Read-only access</Badge>
+            )}
           </>
         }
       />
@@ -691,12 +704,16 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
           description="Enter sales channels first, then deduction amounts. Net Sales is read-only and calculated in real time."
           action={
             <div className="flex flex-wrap gap-2">
-              <button className="btn-secondary" type="button" disabled={inputDisabled} onClick={addCustomChannel}>
-                <Plus size={15} /> Custom Channel
-              </button>
-              <button className="btn-secondary" type="button" disabled={inputDisabled} onClick={() => setDeductionModal(true)}>
-                <Plus size={15} /> Add Deduction
-              </button>
+              {canWriteSales ? (
+                <>
+                  <button className="btn-secondary" type="button" disabled={inputDisabled} onClick={addCustomChannel}>
+                    <Plus size={15} /> Custom Channel
+                  </button>
+                  <button className="btn-secondary" type="button" disabled={inputDisabled} onClick={() => setDeductionModal(true)}>
+                    <Plus size={15} /> Add Deduction
+                  </button>
+                </>
+              ) : <Badge tone="neutral">Read-only access</Badge>}
             </div>
           }
         >
@@ -800,7 +817,7 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
       </div>
 
       {isLocked ? <div className="card border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700">This month is locked. Sales inputs are disabled until an admin unlocks it.</div> : null}
-      {!canEditSales ? <div className="card border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">View-only access. You need sales_input.edit permission to update or save sales records.</div> : null}
+      {!canWriteSales ? <div className="card border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">Read-only access. You need Sales Input create or edit permission to update sales records.</div> : null}
 
       {deductionModal ? (
         <Modal

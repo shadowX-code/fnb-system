@@ -19,6 +19,7 @@ import { jobPositionService } from "../../../services/jobPositionService.js";
 import { roleService } from "../../../services/roleService.js";
 import { formatDateTime } from "../../../lib/dateTime.js";
 import { normalizeRoleOutletAccess } from "../utils/roleAccess.js";
+import { canCreate, canEdit, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 
 const fallbackRoleOptions = ["owner", "admin", "manager", "supervisor", "cashier", "kitchen", "purchaser", "finance", "hr", "staff"];
 const fallbackWorkplaceOptions = ["All Outlets", "Hola Ipoh Bangsar", "Hola TTDI", "Hola Mont Kiara", "Hola Subang"];
@@ -324,6 +325,9 @@ function UserFormModal({
   onSubmit,
   onSendLoginSetup,
   onSwitchToEdit,
+  canEditEmployee = false,
+  canEnableLogin = false,
+  canResetPassword = false,
 }) {
   const [values, setValues] = useState(() => {
     const merged = { ...createEmptyUser(), ...initialUser };
@@ -411,6 +415,14 @@ function UserFormModal({
   }
 
   function handleSubmit({ sendLoginSetup = false } = {}) {
+    if (!canEditEmployee) {
+      notifyPermissionDenied(ui, "save employee profiles");
+      return;
+    }
+    if (sendLoginSetup && !canResetPassword) {
+      notifyPermissionDenied(ui, "send password setup links");
+      return;
+    }
     const nextErrors = validateUserForm(values);
     if (values.enable_system_login && values.email && ["invalid", "used"].includes(emailStatus)) {
       nextErrors.email = emailStatus === "used" ? "Email is already used." : "Enter a valid email address.";
@@ -444,6 +456,10 @@ function UserFormModal({
   }
 
   async function sendLoginSetupForExistingEmployee() {
+    if (!canResetPassword) {
+      notifyPermissionDenied(ui, "send password setup links");
+      return;
+    }
     if (!values.email) {
       ui.notify({ title: "Email required", message: "Add an email before sending login setup.", tone: "error" });
       return;
@@ -472,12 +488,12 @@ function UserFormModal({
         isViewMode ? (
           <>
             <button className="btn-secondary" type="button" onClick={onClose}>Close</button>
-            <button className="btn-primary" type="button" onClick={onSwitchToEdit}>Edit Employee</button>
+            {canEditEmployee ? <button className="btn-primary" type="button" onClick={onSwitchToEdit}>Edit Employee</button> : <Badge tone="neutral">Read-only access</Badge>}
           </>
         ) : (
           <>
             <button className="btn-secondary" type="button" disabled={isSaving} onClick={onClose}>Cancel</button>
-              {values.enable_system_login ? (
+              {values.enable_system_login && canResetPassword ? (
                 <button
                   className="btn-primary"
                   type="button"
@@ -487,7 +503,7 @@ function UserFormModal({
                   {isSaving ? "Saving..." : "Save & Send Login Setup"}
                 </button>
               ) : null}
-              <button className="btn-primary" type="button" disabled={isSaving} onClick={() => handleSubmit()}>{isSaving ? "Saving..." : "Save Employee"}</button>
+              <button className="btn-primary" type="button" disabled={isSaving || !canEditEmployee} onClick={() => handleSubmit()}>{isSaving ? "Saving..." : "Save Employee"}</button>
           </>
         )
       }
@@ -686,6 +702,7 @@ function UserFormModal({
                   className="mt-1 h-4 w-4 accent-primary"
                   type="checkbox"
                   checked={Boolean(values.enable_system_login)}
+                  disabled={!canEnableLogin}
                   onChange={(event) => updateValue("enable_system_login", event.target.checked)}
                 />
                 <span>
@@ -753,7 +770,7 @@ function UserFormModal({
           {mode === "edit" ? (
             <div className="mt-3 flex flex-wrap gap-2">
               {[EMPLOYEE_ACCESS_STATE.NOT_SENT, EMPLOYEE_ACCESS_STATE.INVITED, EMPLOYEE_ACCESS_STATE.ACTIVE].includes(getAccessState(values)) ? (
-                <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={sendLoginSetupForExistingEmployee}>
+                <button className="btn-secondary h-9 px-3 text-xs" type="button" disabled={!canResetPassword} onClick={sendLoginSetupForExistingEmployee}>
                   <KeyRound size={14} /> Send Login Setup Email
                 </button>
               ) : null}
@@ -788,6 +805,11 @@ export default function UsersPage({ ui, store, auth }) {
   const [profileMode, setProfileMode] = useState("view");
   const [formState, setFormState] = useState(null);
   const [actionMenuUserId, setActionMenuUserId] = useState(null);
+  const canCreateEmployee = canCreate(auth, "employees");
+  const canEditEmployee = canEdit(auth, "employees");
+  const canDeactivateEmployee = hasPermission(auth, "employees.deactivate");
+  const canEnableLogin = hasPermission(auth, "employees.enable_login");
+  const canResetPassword = hasPermission(auth, "employees.reset_password");
   const roleOptions = useMemo(() => (roleRecords.length ? roleRecords.map((role) => role.name) : fallbackRoleOptions), [roleRecords]);
   const workplaceOptions = useMemo(
     () => ["All Outlets", ...(store?.outlets ?? []).map((outlet) => outlet.name)].filter(Boolean),
@@ -868,6 +890,10 @@ export default function UsersPage({ ui, store, auth }) {
   const [setupLink, setSetupLink] = useState(null);
 
   async function sendLoginSetupForUser(user, { mode = "email" } = {}) {
+    if (!canResetPassword) {
+      notifyPermissionDenied(ui, "send password setup links");
+      return;
+    }
     if (!user.email) {
       ui.notify({ title: "Email required", message: "Add an email before sending login setup.", tone: "error" });
       return;
@@ -917,6 +943,10 @@ export default function UsersPage({ ui, store, auth }) {
   }
 
   async function disableUserAccess(user) {
+    if (!canDeactivateEmployee) {
+      notifyPermissionDenied(ui, "disable employee access");
+      return;
+    }
     // TODO: support scheduled deactivation windows once account policy rules are added.
     const confirmed = await ui.confirm({
       title: "Disable system access?",
@@ -935,6 +965,10 @@ export default function UsersPage({ ui, store, auth }) {
   }
 
   function activateUser(user) {
+    if (!canEnableLogin) {
+      notifyPermissionDenied(ui, "activate employee login");
+      return;
+    }
     updateUserAccount(user.id, {
       enable_system_login: true,
       access_state: EMPLOYEE_ACCESS_STATE.ACTIVE,
@@ -952,6 +986,11 @@ export default function UsersPage({ ui, store, auth }) {
   }
 
   async function saveUser(user) {
+    const isNew = !user.id;
+    if ((isNew && !canCreateEmployee) || (!isNew && !canEditEmployee)) {
+      notifyPermissionDenied(ui, isNew ? "create employees" : "edit employees");
+      return;
+    }
     try {
       const shouldSendLoginSetup = Boolean(user.send_login_setup);
       const payload = { ...user };
@@ -989,22 +1028,22 @@ export default function UsersPage({ ui, store, auth }) {
     const accessState = getAccessState(row);
 
     if (accessState === EMPLOYEE_ACCESS_STATE.NO_ACCESS) {
-      return (
+      return canEnableLogin ? (
         <button className={buttonClass} type="button" onClick={() => { openUserProfile({ ...row, enable_system_login: true }, "edit"); setActionMenuUserId(null); }}>
           <ShieldCheck size={14} /> Enable Login
         </button>
-      );
+      ) : null;
     }
 
     if (accessState === EMPLOYEE_ACCESS_STATE.ACTIVE) {
       return (
         <>
-          <button className={buttonClass} type="button" onClick={() => sendLoginSetupForUser(row)}>
+          {canResetPassword ? <button className={buttonClass} type="button" onClick={() => sendLoginSetupForUser(row)}>
             <KeyRound size={14} /> Send Login Setup
-          </button>
-          <button className={dangerClass} type="button" onClick={() => disableUserAccess(row)}>
+          </button> : null}
+          {canDeactivateEmployee ? <button className={dangerClass} type="button" onClick={() => disableUserAccess(row)}>
             <Power size={14} /> Disable Access
-          </button>
+          </button> : null}
         </>
       );
     }
@@ -1012,12 +1051,12 @@ export default function UsersPage({ ui, store, auth }) {
     if (accessState === EMPLOYEE_ACCESS_STATE.NOT_SENT || accessState === EMPLOYEE_ACCESS_STATE.INVITED) {
       return (
         <>
-          <button className={buttonClass} type="button" onClick={() => sendLoginSetupForUser(row)}>
+          {canResetPassword ? <button className={buttonClass} type="button" onClick={() => sendLoginSetupForUser(row)}>
             <KeyRound size={14} /> Send Login Setup
-          </button>
-          <button className={dangerClass} type="button" onClick={() => disableUserAccess(row)}>
+          </button> : null}
+          {canDeactivateEmployee ? <button className={dangerClass} type="button" onClick={() => disableUserAccess(row)}>
             <Power size={14} /> Disable Access
-          </button>
+          </button> : null}
         </>
       );
     }
@@ -1025,17 +1064,17 @@ export default function UsersPage({ ui, store, auth }) {
     if (accessState === EMPLOYEE_ACCESS_STATE.DISABLED) {
       return (
         <>
-          <button className={buttonClass} type="button" onClick={() => activateUser(row)}>
+          {canEnableLogin ? <button className={buttonClass} type="button" onClick={() => activateUser(row)}>
             <Power size={14} /> Activate Access
-          </button>
+          </button> : null}
         </>
       );
     }
 
     return (
-      <button className={buttonClass} type="button" onClick={() => activateUser(row)}>
+      canEnableLogin ? <button className={buttonClass} type="button" onClick={() => activateUser(row)}>
         <Power size={14} /> Activate Access
-      </button>
+      </button> : null
     );
   }
 
@@ -1095,9 +1134,9 @@ export default function UsersPage({ ui, store, auth }) {
               <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { openUserProfile(row); setActionMenuUserId(null); }}>
                 <Eye size={14} /> View
               </button>
-              <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { openUserProfile(row, "edit"); setActionMenuUserId(null); }}>
+              {canEditEmployee ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { openUserProfile(row, "edit"); setActionMenuUserId(null); }}>
                 <Edit3 size={14} /> Edit
-              </button>
+              </button> : null}
               {renderAccountActions(row)}
           </ActionMenu>
         </div>
@@ -1120,9 +1159,9 @@ export default function UsersPage({ ui, store, auth }) {
         title={pageCopy.title}
         description={pageCopy.description}
         actions={
-          <button className="btn-primary" type="button" onClick={() => setFormState({ mode: "add", user: createEmptyUser() })}>
+          canCreateEmployee ? <button className="btn-primary" type="button" onClick={() => setFormState({ mode: "add", user: createEmptyUser() })}>
             <Plus size={16} /> {pageCopy.action}
-          </button>
+          </button> : <Badge tone="neutral">Read-only access</Badge>
         }
       />
 
@@ -1221,6 +1260,9 @@ export default function UsersPage({ ui, store, auth }) {
           outlets={store?.outlets ?? []}
           users={users}
           ui={ui}
+          canEditEmployee={canEditEmployee}
+          canEnableLogin={canEnableLogin}
+          canResetPassword={canResetPassword}
           onClose={() => setSelectedUser(null)}
           onSendLoginSetup={sendLoginSetupForUser}
           onSwitchToEdit={() => setProfileMode("edit")}
@@ -1241,6 +1283,9 @@ export default function UsersPage({ ui, store, auth }) {
           outlets={store?.outlets ?? []}
           users={users}
           ui={ui}
+          canEditEmployee={formState.mode === "add" ? canCreateEmployee : canEditEmployee}
+          canEnableLogin={canEnableLogin}
+          canResetPassword={canResetPassword}
           onClose={() => setFormState(null)}
           onSendLoginSetup={sendLoginSetupForUser}
           onSubmit={saveUser}

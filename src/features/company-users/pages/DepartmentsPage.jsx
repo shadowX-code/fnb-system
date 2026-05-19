@@ -12,6 +12,7 @@ import Modal from "../../../components/feedback/Modal.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import { departmentService } from "../../../services/departmentService.js";
 import { jobPositionService } from "../../../services/jobPositionService.js";
+import { canCreate, canDelete, canEdit, notifyPermissionDenied } from "../../../utils/accessControl.js";
 
 function statusTone(status) {
   return status === "active" ? "success" : "neutral";
@@ -105,7 +106,10 @@ export default function DepartmentsPage({ ui, auth }) {
   const [formState, setFormState] = useState(null);
   const [selectedDepartment, setSelectedDepartment] = useState(null);
   const [actionMenuDepartmentId, setActionMenuDepartmentId] = useState(null);
-  const canManage = auth?.hasPermission?.("departments.create") || auth?.hasPermission?.("departments.edit") || auth?.hasPermission?.("departments.delete") || false;
+  const canCreateDepartment = canCreate(auth, "departments");
+  const canEditDepartment = canEdit(auth, "departments");
+  const canDeleteDepartment = canDelete(auth, "departments");
+  const canManage = canCreateDepartment || canEditDepartment || canDeleteDepartment;
 
   useEffect(() => {
     let ignore = false;
@@ -162,6 +166,11 @@ export default function DepartmentsPage({ ui, auth }) {
   };
 
   async function saveDepartment(department) {
+    const isNew = !department.id;
+    if ((isNew && !canCreateDepartment) || (!isNew && !canEditDepartment)) {
+      notifyPermissionDenied(ui, isNew ? "create departments" : "edit departments");
+      return;
+    }
     try {
       const saved = await departmentService.saveDepartment(department);
       setDepartments((current) => {
@@ -177,10 +186,18 @@ export default function DepartmentsPage({ ui, auth }) {
   }
 
   async function disableDepartment(department) {
+    if (!canEditDepartment) {
+      notifyPermissionDenied(ui, "edit departments");
+      return;
+    }
     await saveDepartment({ ...department, status: "inactive", updated_at: new Date().toISOString() });
   }
 
   async function deleteDepartment(department) {
+    if (!canDeleteDepartment) {
+      notifyPermissionDenied(ui, "delete departments");
+      return;
+    }
     const usage = departmentUsage.get(department.name);
     if ((usage?.activePositions ?? 0) || (usage?.activeUsers ?? 0)) return;
     try {
@@ -240,13 +257,13 @@ export default function DepartmentsPage({ ui, auth }) {
               <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { setSelectedDepartment(row); setActionMenuDepartmentId(null); }}>
                 <Eye size={14} /> View
               </button>
-              <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50" type="button" disabled={!canManage} onClick={() => { setFormState({ mode: "edit", department: row }); setActionMenuDepartmentId(null); }}>
+              {canEditDepartment ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50" type="button" onClick={() => { setFormState({ mode: "edit", department: row }); setActionMenuDepartmentId(null); }}>
                 <Edit3 size={14} /> Edit
-              </button>
-              <button
+              </button> : null}
+              {canEditDepartment ? <button
                 className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
                 type="button"
-                disabled={!canManage || row.status === "inactive"}
+                disabled={row.status === "inactive"}
                 onClick={() => {
                   const usage = departmentUsage.get(row.name);
                   if ((usage?.activePositions ?? 0) || (usage?.activeUsers ?? 0)) {
@@ -261,15 +278,15 @@ export default function DepartmentsPage({ ui, auth }) {
                 }}
               >
                 <Power size={14} /> Disable
-              </button>
-              <button
+              </button> : null}
+              {canDeleteDepartment ? <button
                 className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50"
                 type="button"
-                disabled={!canManage || Boolean(departmentUsage.get(row.name)?.activePositions || departmentUsage.get(row.name)?.activeUsers)}
+                disabled={Boolean(departmentUsage.get(row.name)?.activePositions || departmentUsage.get(row.name)?.activeUsers)}
                 onClick={() => { deleteDepartment(row); setActionMenuDepartmentId(null); }}
               >
                 <Trash2 size={14} /> Delete
-              </button>
+              </button> : null}
           </ActionMenu>
         </div>
       ),
@@ -283,9 +300,9 @@ export default function DepartmentsPage({ ui, auth }) {
         title="Departments"
         description="Manage company departments used for employee profiles and job positions."
         actions={
-          <button className="btn-primary" type="button" disabled={!canManage} onClick={() => setFormState({ mode: "add", department: createEmptyDepartment() })}>
+          canCreateDepartment ? <button className="btn-primary" type="button" onClick={() => setFormState({ mode: "add", department: createEmptyDepartment() })}>
             <Plus size={16} /> Add Department
-          </button>
+          </button> : <Badge tone="neutral">Read-only access</Badge>
         }
       />
 

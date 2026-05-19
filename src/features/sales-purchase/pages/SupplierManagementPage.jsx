@@ -12,6 +12,7 @@ import usePeriodFilters from "../hooks/usePeriodFilters.js";
 import { getCategoryName, sumAmount, toCurrency } from "../utils/analytics.js";
 import { supplierService } from "../../../services/supplierService.js";
 import Modal from "../../../components/feedback/Modal.jsx";
+import { canCreate, canDelete, canEdit, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 
 function purchasePeriodLabel(period) {
   if (!period?.month || !period?.year) return "—";
@@ -32,7 +33,7 @@ function truncateText(value, maxLength = 44) {
   return text.length > maxLength ? `${text.slice(0, maxLength - 1)}…` : text;
 }
 
-export default function SupplierManagementPage({ store, setStore, ui }) {
+export default function SupplierManagementPage({ store, setStore, ui, auth }) {
   const filters = usePeriodFilters(store);
   const fallbackCategoryId =
     store.purchaseCategories.find((categoryItem) => categoryItem.name?.toLowerCase() === "others")?.id ||
@@ -46,6 +47,10 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
   const [usageSupplier, setUsageSupplier] = useState(null);
   const [outletFilter, setOutletFilter] = useState("all");
   const [usageMap, setUsageMap] = useState({});
+  const canCreateSupplier = canCreate(auth, "suppliers");
+  const canEditSupplier = canEdit(auth, "suppliers");
+  const canDeleteSupplier = canDelete(auth, "suppliers");
+  const canDeactivateSupplier = hasPermission(auth, "suppliers.deactivate") || canEditSupplier;
   const rows = useMemo(
     () =>
       store.suppliers.filter((supplier) => {
@@ -115,6 +120,10 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
   }
 
   async function updateSupplierStatus(row, nextActive) {
+    if (!canDeactivateSupplier) {
+      notifyPermissionDenied(ui, "deactivate suppliers");
+      return;
+    }
     const confirmMessage = nextActive
       ? `${row.name} will become available for new purchase entries.`
       : `${row.name} will be hidden from new supplier/import selections but historical purchase records remain intact.`;
@@ -133,6 +142,10 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
   }
 
   async function deleteSupplier(row) {
+    if (!canDeleteSupplier) {
+      notifyPermissionDenied(ui, "delete suppliers");
+      return;
+    }
     if (!(await ui.confirm({ title: "Delete supplier?", message: `${row.name} will be permanently removed. This is only allowed when it has no purchase records.`, danger: true, confirmLabel: "Delete" }))) return;
     try {
       await supplierService.deleteSupplier(row);
@@ -221,13 +234,13 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
       align: "right",
       render: (row) => (
         <div className="flex flex-wrap justify-end gap-1.5" onClick={(event) => event.stopPropagation()}>
-          <button className="rounded-full border border-border px-2.5 py-1 text-xs font-bold text-text-secondary transition hover:bg-slate-50" type="button" onClick={() => setModal({ mode: "edit", row })}>
+          {canEditSupplier ? <button className="rounded-full border border-border px-2.5 py-1 text-xs font-bold text-text-secondary transition hover:bg-slate-50" type="button" onClick={() => setModal({ mode: "edit", row })}>
             <Edit3 className="inline" size={12} /> Edit
-          </button>
-          <button className="rounded-full border border-amber-200 px-2.5 py-1 text-xs font-bold text-amber-700 transition hover:bg-amber-50" type="button" onClick={() => updateSupplierStatus(row, row.status !== "active")}>
+          </button> : null}
+          {canDeactivateSupplier ? <button className="rounded-full border border-amber-200 px-2.5 py-1 text-xs font-bold text-amber-700 transition hover:bg-amber-50" type="button" onClick={() => updateSupplierStatus(row, row.status !== "active")}>
             <Power className="inline" size={12} /> {row.status === "active" ? "Deactivate" : "Reactivate"}
-          </button>
-          <button
+          </button> : null}
+          {canDeleteSupplier ? <button
             className="rounded-full border border-rose-200 px-2.5 py-1 text-xs font-bold text-rose-700 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
             type="button"
             disabled={getSupplierUsage(row).purchaseRecordCount > 0}
@@ -235,7 +248,7 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
             onClick={() => deleteSupplier(row)}
           >
             <Trash2 className="inline" size={12} /> Delete
-          </button>
+          </button> : null}
         </div>
       ),
     },
@@ -247,8 +260,13 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
         section="Purchases"
         title="Suppliers"
         description="Suppliers used across all outlets and purchase records."
-        actions={<button className="btn-primary" onClick={() => setModal({ mode: "add" })}><Plus size={16} /> Add Supplier</button>}
+        actions={canCreateSupplier ? <button className="btn-primary" onClick={() => setModal({ mode: "add" })}><Plus size={16} /> Add Supplier</button> : <Badge tone="neutral">Read-only access</Badge>}
       />
+      {!canCreateSupplier && !canEditSupplier && !canDeleteSupplier ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+          Read-only access. You need supplier create, edit, or delete permission to change suppliers.
+        </div>
+      ) : null}
       <FilterBar compact>
         <SelectField
           label="Outlet"
@@ -310,6 +328,11 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
           initialValues={modal.row ?? { name: "", default_category_id: fallbackCategoryId, phone: "", remark: "", status: "active" }}
           onClose={() => setModal(null)}
           onSubmit={async (values) => {
+            const isNew = modal.mode === "add";
+            if ((isNew && !canCreateSupplier) || (!isNew && !canEditSupplier)) {
+              notifyPermissionDenied(ui, isNew ? "create suppliers" : "edit suppliers");
+              return;
+            }
             if (!values.name?.trim()) return ui.notify({ title: "Supplier name required", tone: "error" });
             try {
               const categoryName = store.purchaseCategories.find((categoryItem) => categoryItem.id === values.default_category_id)?.name ?? "";
@@ -353,9 +376,9 @@ export default function SupplierManagementPage({ store, setStore, ui }) {
           footer={
             <>
               <button className="btn-secondary" type="button" onClick={() => setDetailSupplier(null)}>Close</button>
-              <button className="btn-primary" type="button" onClick={() => { setModal({ mode: "edit", row: detailSupplier }); setDetailSupplier(null); }}>
+              {canEditSupplier ? <button className="btn-primary" type="button" onClick={() => { setModal({ mode: "edit", row: detailSupplier }); setDetailSupplier(null); }}>
                 <Edit3 size={15} /> Edit Supplier
-              </button>
+              </button> : null}
             </>
           }
         >

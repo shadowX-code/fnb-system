@@ -14,6 +14,7 @@ import { months } from "../data/mockData.js";
 import { salesChannelService } from "../../../services/salesChannelService.js";
 import { purchaseCategoryService } from "../../../services/purchaseCategoryService.js";
 import { outletTaxConfigService } from "../../../services/outletTaxConfigService.js";
+import { canCreate, canDelete, canEdit, notifyPermissionDenied } from "../../../utils/accessControl.js";
 
 function purchasePeriodLabel(period) {
   if (!period?.month || !period?.year) return "No purchase records yet";
@@ -199,11 +200,21 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
   const isChannels = tab === "channels";
   const isCategories = tab === "categories";
   const isTax = tab === "tax";
+  const canCreateSalesChannel = canCreate(auth, "sales_channels");
+  const canEditSalesChannel = canEdit(auth, "sales_channels");
+  const canDeleteSalesChannel = canDelete(auth, "sales_channels");
+  const canCreatePurchaseCategory = canCreate(auth, "purchase_categories");
+  const canEditPurchaseCategory = canEdit(auth, "purchase_categories");
+  const canDeletePurchaseCategory = canDelete(auth, "purchase_categories");
+  const canEditTaxSettings = canEdit(auth, "tax_settings");
   const canEditSettings = isChannels
-    ? ((auth?.hasPermission?.("sales_channels.create") || auth?.hasPermission?.("sales_channels.edit") || auth?.hasPermission?.("sales_channels.delete")) ?? true)
+    ? canCreateSalesChannel || canEditSalesChannel || canDeleteSalesChannel
     : isCategories
-      ? ((auth?.hasPermission?.("purchase_categories.create") || auth?.hasPermission?.("purchase_categories.edit") || auth?.hasPermission?.("purchase_categories.delete")) ?? true)
-      : (auth?.hasPermission?.("tax_settings.edit") ?? true);
+      ? canCreatePurchaseCategory || canEditPurchaseCategory || canDeletePurchaseCategory
+      : canEditTaxSettings;
+  const canCreateCurrent = isChannels ? canCreateSalesChannel : isCategories ? canCreatePurchaseCategory : canEditTaxSettings;
+  const canEditCurrent = isChannels ? canEditSalesChannel : isCategories ? canEditPurchaseCategory : canEditTaxSettings;
+  const canDeleteCurrent = isChannels ? canDeleteSalesChannel : isCategories ? canDeletePurchaseCategory : false;
   const categoryRows = useMemo(
     () => [...store.purchaseCategories].sort((a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name)),
     [store.purchaseCategories],
@@ -229,7 +240,9 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
     ...(isChannels ? [{ key: "type", header: "Type" }] : []),
     { key: "sort_order", header: "Sort Order", align: "right" },
     { key: "status", header: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge> },
-    { key: "action", header: "Action", align: "right", render: (row) => <button className="icon-btn" disabled={!canEditSettings} onClick={() => setModal({ mode: "edit", row })}><Settings size={15} /></button> },
+    { key: "action", header: "Action", align: "right", render: (row) => (
+      canEditCurrent ? <button className="icon-btn" onClick={() => setModal({ mode: "edit", row })}><Settings size={15} /></button> : <Badge tone="neutral">Read-only</Badge>
+    ) },
   ];
   const categoryColumns = [
     {
@@ -239,7 +252,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
       width: "42%",
       render: (row) => (
         <div className="flex items-center gap-2">
-          <GripVertical size={15} className={`shrink-0 text-text-muted ${canEditSettings ? "cursor-grab" : "opacity-40"}`} aria-hidden="true" />
+          <GripVertical size={15} className={`shrink-0 text-text-muted ${canEditPurchaseCategory ? "cursor-grab" : "opacity-40"}`} aria-hidden="true" />
           <span className="font-semibold">{row.name}</span>
         </div>
       ),
@@ -286,10 +299,10 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
                 </button>
               )}
             >
-              <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { setModal({ mode: "edit", row }); setCategoryActionId(null); }}>
+              {canEditPurchaseCategory ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { setModal({ mode: "edit", row }); setCategoryActionId(null); }}>
                 <Edit3 size={14} /> Edit
-              </button>
-              <button
+              </button> : null}
+              {canEditPurchaseCategory ? <button
                 className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold text-amber-700 hover:bg-amber-50"
                 type="button"
                 onClick={() => {
@@ -298,8 +311,8 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
                 }}
               >
                 <Settings size={14} /> {isActive ? "Deactivate" : "Reactivate"}
-              </button>
-              <button
+              </button> : null}
+              {canDeletePurchaseCategory ? <button
                 className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40"
                 type="button"
                 disabled={usage.isInUse}
@@ -310,7 +323,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
                 }}
               >
                 <Trash2 size={14} /> Delete
-              </button>
+              </button> : null}
             </ActionMenu>
           </div>
         );
@@ -340,7 +353,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
             <button
               className="btn-secondary h-8 px-2 text-xs"
               type="button"
-              disabled={!canEditSettings}
+              disabled={!canEditTaxSettings}
               onClick={() => {
                 if (isFuture) {
                   setTaxValues({ ...row, enabled: String(Boolean(row.enabled)), mode: "editFuture", sourceId: row.id });
@@ -360,7 +373,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
             >
               <Edit3 size={13} /> Edit
             </button>
-            <button className="btn-secondary h-8 px-2 text-xs" type="button" disabled={!canEditSettings} onClick={() => {
+            <button className="btn-secondary h-8 px-2 text-xs" type="button" disabled={!canEditTaxSettings} onClick={() => {
               setEndConfig(row);
               setEndUntil(row.effective_until || previousMonthKey(currentPeriodKey));
             }}>
@@ -413,6 +426,10 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
   }
 
   async function handleTaxSubmit(values) {
+    if (!canEditTaxSettings) {
+      notifyPermissionDenied(ui, "edit tax settings");
+      return;
+    }
     try {
       await outletTaxConfigService.saveOutletTaxConfig(values);
       await refreshTaxConfigs();
@@ -425,6 +442,10 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
   }
 
   async function handleEndTaxConfig() {
+    if (!canEditTaxSettings) {
+      notifyPermissionDenied(ui, "edit tax settings");
+      return;
+    }
     if (!endUntil || endUntil < endConfig.effective_from) {
       ui.notify({ title: "Invalid end month", message: "End month cannot be earlier than Effective From.", tone: "error" });
       return;
@@ -441,6 +462,11 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
   }
 
   async function handleMasterSubmit(values) {
+    const isNew = modal?.mode === "add";
+    if ((isNew && !canCreateCurrent) || (!isNew && !canEditCurrent)) {
+      notifyPermissionDenied(ui, isNew ? "create master data" : "edit master data");
+      return;
+    }
     if (!values.name?.trim()) return ui.notify({ title: "Name required", tone: "error" });
     try {
       if (isChannels) {
@@ -471,7 +497,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
   }
 
   async function handleCategoryDrop(targetCategoryId) {
-    if (!canEditSettings || !draggedCategoryId || draggedCategoryId === targetCategoryId) {
+    if (!canEditPurchaseCategory || !draggedCategoryId || draggedCategoryId === targetCategoryId) {
       setDraggedCategoryId(null);
       return;
     }
@@ -504,6 +530,10 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
   }
 
   async function handleCategoryStatus(row, nextActive) {
+    if (!canEditPurchaseCategory) {
+      notifyPermissionDenied(ui, "edit purchase categories");
+      return;
+    }
     try {
       const saved = await purchaseCategoryService.setPurchaseCategoryActive(row, nextActive);
       setStore((current) => ({
@@ -521,6 +551,10 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
   }
 
   async function handleCategoryDelete(row) {
+    if (!canDeletePurchaseCategory) {
+      notifyPermissionDenied(ui, "delete purchase categories");
+      return;
+    }
     try {
       await purchaseCategoryService.deletePurchaseCategory(row);
       setStore((current) => ({
@@ -565,7 +599,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
         actions={
           <button
             className="btn-primary"
-            disabled={!canEditSettings}
+            disabled={!canCreateCurrent}
             onClick={() => {
               if (isTax) {
                 setTaxValues({ outlet_id: store.outlets[0]?.id, tax_type: "SST", enabled: "true", rate: 6, effective_from: "", effective_until: "" });
@@ -665,11 +699,11 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
             getRowKey={(row) => row.id}
             density={isCategories ? "compact" : "normal"}
             getRowProps={isCategories ? (row) => ({
-              draggable: canEditSettings,
+            draggable: canEditPurchaseCategory,
               onDragStart: () => setDraggedCategoryId(row.id),
               onDragEnd: () => setDraggedCategoryId(null),
               onDragOver: (event) => {
-                if (canEditSettings) event.preventDefault();
+                if (canEditPurchaseCategory) event.preventDefault();
               },
               onDrop: (event) => {
                 event.preventDefault();

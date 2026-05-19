@@ -9,6 +9,7 @@ import { importService } from "../../../services/importService.js";
 import { purchaseCategoryService } from "../../../services/purchaseCategoryService.js";
 import { supplierService } from "../../../services/supplierService.js";
 import { monthLabel } from "../utils/analytics.js";
+import { canCreate, canImport, notifyPermissionDenied } from "../../../utils/accessControl.js";
 
 const monthAliases = {
   jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3, apr: 4, april: 4, may: 5,
@@ -298,7 +299,7 @@ function withTimeout(promise, label, timeoutMs = 15000) {
   ]);
 }
 
-export default function DataImportPage({ store, setStore, ui }) {
+export default function DataImportPage({ store, setStore, ui, auth }) {
   const inputRef = useRef(null);
   const [importType, setImportType] = useState("Sales");
   const [step, setStep] = useState("upload");
@@ -315,6 +316,9 @@ export default function DataImportPage({ store, setStore, ui }) {
   const [validationState, setValidationState] = useState({ loading: false, message: "", error: "" });
   const [importSummary, setImportSummary] = useState(null);
   const [confirmImport, setConfirmImport] = useState(false);
+  const canRunImport = canImport(auth, "data_import");
+  const canCreateImportSupplier = canCreate(auth, "suppliers");
+  const canCreateImportCategory = canCreate(auth, "purchase_categories");
 
   useEffect(() => {
     importService.listImportBatches()
@@ -348,6 +352,10 @@ export default function DataImportPage({ store, setStore, ui }) {
   ], [pendingCategoryOptions, store.purchaseCategories]);
 
   async function handleFile(file) {
+    if (!canRunImport) {
+      notifyPermissionDenied(ui, "import data");
+      return;
+    }
     if (!file) return;
     const extension = file.name.split(".").pop()?.toLowerCase();
     if (!["xlsx", "csv"].includes(extension)) {
@@ -564,6 +572,10 @@ export default function DataImportPage({ store, setStore, ui }) {
   }
 
   async function validateImport() {
+    if (!canRunImport) {
+      notifyPermissionDenied(ui, "import data");
+      return;
+    }
     console.info("[Import:validate] clicked", { importType, rows: parsed.rows.length, mappings });
     setPreview(null);
     setValidationState({ loading: true, message: "Validating file rows...", error: "" });
@@ -707,6 +719,10 @@ export default function DataImportPage({ store, setStore, ui }) {
   }
 
   async function runImport() {
+    if (!canRunImport) {
+      notifyPermissionDenied(ui, "import data");
+      return;
+    }
     if (!preview || preview.failures.length) return;
     setIsImporting(true);
     try {
@@ -718,6 +734,9 @@ export default function DataImportPage({ store, setStore, ui }) {
       if (importType === "Purchases") {
         for (const [name, resolution] of Object.entries(categoryResolutions)) {
           if (resolution.action !== "create") continue;
+          if (!canCreateImportCategory) {
+            throw new Error("You do not have permission to create purchase categories during import.");
+          }
           const category = await purchaseCategoryService.savePurchaseCategory({
             name,
             status: "active",
@@ -726,6 +745,9 @@ export default function DataImportPage({ store, setStore, ui }) {
         }
         for (const [name, resolution] of Object.entries(supplierResolutions)) {
           if (resolution.action !== "create") continue;
+          if (!canCreateImportSupplier) {
+            throw new Error("You do not have permission to create suppliers during import.");
+          }
           const pendingName = pendingCategoryName(resolution.category_id);
           const category = store.purchaseCategories.find((item) => item.id === resolution.category_id)
             || createdCategoryMap[pendingName];
@@ -855,6 +877,11 @@ export default function DataImportPage({ store, setStore, ui }) {
         description="Upload, validate, preview and upsert sales or purchase data into Supabase."
         actions={<button className="btn-secondary" type="button" onClick={downloadTemplate}><Download size={16} /> Download Template</button>}
       />
+      {!canRunImport ? (
+        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
+          Read-only access. You need Data Import permission to validate and import files.
+        </div>
+      ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
         <Card title="Import Engine" description="No silent overwrite. Existing records are detected by unique business key and updated only after preview.">
@@ -867,7 +894,7 @@ export default function DataImportPage({ store, setStore, ui }) {
             </div>
 
             {step === "upload" ? (
-              <button type="button" onClick={() => inputRef.current?.click()} className="w-full rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-8 text-center transition hover:bg-primary/10">
+              <button type="button" disabled={!canRunImport} onClick={() => canRunImport ? inputRef.current?.click() : notifyPermissionDenied(ui, "import data")} className="w-full rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-8 text-center transition hover:bg-primary/10 disabled:cursor-not-allowed disabled:opacity-60">
                 <Upload className="mx-auto text-primary" size={28} />
                 <div className="mt-3 text-sm font-bold">Upload CSV or XLSX</div>
                 <div className="mt-1 text-sm text-text-secondary">CSV is fully supported. XLSX is parsed in-browser when the browser supports ZIP decompression.</div>
@@ -913,7 +940,7 @@ export default function DataImportPage({ store, setStore, ui }) {
                 ) : null}
                 <div className="flex justify-end gap-2">
                   <button className="btn-secondary" type="button" onClick={() => setStep("upload")}>Cancel</button>
-                  <button className="btn-primary" type="button" disabled={validationState.loading} onClick={validateImport}>
+                  <button className="btn-primary" type="button" disabled={validationState.loading || !canRunImport} onClick={validateImport}>
                     {validationState.loading ? "Validating..." : "Validate Against Supabase"}
                   </button>
                 </div>
@@ -938,7 +965,7 @@ export default function DataImportPage({ store, setStore, ui }) {
                         <SelectField
                           className="w-48"
                           value={resolution.action}
-                          options={[{ value: "map", label: "Map existing" }, { value: "create", label: "Create category" }, { value: "skip", label: "Skip rows" }]}
+                          options={[{ value: "map", label: "Map existing" }, ...(canCreateImportCategory ? [{ value: "create", label: "Create category" }] : []), { value: "skip", label: "Skip rows" }]}
                           onChange={(action) => setCategoryResolutions((current) => ({ ...current, [item.name]: { action, category_id: "" } }))}
                         />
                       </div>
@@ -1003,7 +1030,7 @@ export default function DataImportPage({ store, setStore, ui }) {
                             <div className="mt-1 text-xs text-text-secondary">Imported categories: {item.categoryNames.join(", ")}</div>
                           ) : null}
                         </div>
-                        <SelectField className="w-48" value={resolution.action} options={[{ value: "map", label: "Map existing" }, { value: "create", label: "Create supplier" }, { value: "skip", label: "Skip row" }]} onChange={(action) => setSupplierResolutions((current) => ({ ...current, [item.name]: { action, supplier_id: "", category_id: item.default_category_id || "" } }))} />
+                        <SelectField className="w-48" value={resolution.action} options={[{ value: "map", label: "Map existing" }, ...(canCreateImportSupplier ? [{ value: "create", label: "Create supplier" }] : []), { value: "skip", label: "Skip row" }]} onChange={(action) => setSupplierResolutions((current) => ({ ...current, [item.name]: { action, supplier_id: "", category_id: item.default_category_id || "" } }))} />
                       </div>
                       {hasMultipleCategories && resolution.action === "create" ? (
                         <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
@@ -1078,7 +1105,7 @@ export default function DataImportPage({ store, setStore, ui }) {
                     <Download size={15} /> Download report
                   </button>
                   <button className="btn-secondary" type="button" onClick={() => setStep("upload")}>Cancel</button>
-                  <button className="btn-primary" type="button" disabled={isImporting || preview.failures.length > 0 || !preview.validationRows.length} onClick={() => setConfirmImport(true)}>
+                  <button className="btn-primary" type="button" disabled={isImporting || preview.failures.length > 0 || !preview.validationRows.length || !canRunImport} onClick={() => setConfirmImport(true)}>
                     {isImporting ? "Importing..." : <><CheckCircle2 size={16} /> Continue Import</>}
                   </button>
                 </div>

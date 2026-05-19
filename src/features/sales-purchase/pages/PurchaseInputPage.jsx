@@ -25,6 +25,7 @@ import SupplierCombobox from "../components/SupplierCombobox.jsx";
 import usePeriodFilters from "../hooks/usePeriodFilters.js";
 import { purchaseRecordService } from "../../../services/purchaseRecordService.js";
 import { supplierService } from "../../../services/supplierService.js";
+import { canCreate, canWrite, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { months } from "../data/mockData.js";
 import {
   getCategoryName,
@@ -79,6 +80,7 @@ function PurchaseEntryTable({
   createSupplierForRow,
   toggleDetails,
   deleteRow,
+  canWritePurchase,
 }) {
   const previousTotal = sumAmount(analyzedRows.map((row) => ({ amount: row.analysis.previousAmount })));
   const varianceTotal = percentageChange(totalPurchase, previousTotal);
@@ -125,7 +127,7 @@ function PurchaseEntryTable({
                     <SupplierCombobox
                       suppliers={supplierOptions}
                       value={row.supplier_id}
-                      disabled={isLocked}
+                      disabled={isLocked || !canWritePurchase}
                       error={!row.supplier_id}
                       autoFocus={focusSupplierKey === row.localKey}
                       onChange={(supplier) => {
@@ -146,7 +148,7 @@ function PurchaseEntryTable({
                     {editingCategoryKey === row.localKey ? (
                       <SelectField
                         className="w-[150px] max-w-full"
-                        disabled={isLocked}
+                        disabled={isLocked || !canWritePurchase}
                         value={row.category_id}
                         placeholder="Category"
                         options={store.purchaseCategories.map((category) => ({ value: category.id, label: category.name }))}
@@ -161,7 +163,7 @@ function PurchaseEntryTable({
                           row.category_id ? "border-slate-200 bg-slate-50 text-text-secondary hover:border-primary/30 hover:text-primary" : "border-amber-200 bg-amber-50 text-amber-700"
                         }`}
                         type="button"
-                        disabled={isLocked}
+                        disabled={isLocked || !canWritePurchase}
                         title={row.category_id ? getCategoryName(store.purchaseCategories, row.category_id) : "Category required"}
                         onClick={() => setEditingCategoryKey(row.localKey)}
                       >
@@ -180,7 +182,7 @@ function PurchaseEntryTable({
                         isAmountMissing(row) ? "border-amber-300 bg-amber-50/60" : "focus:border-primary focus:bg-white focus:ring-4 focus:ring-primary/25 focus:ring-offset-1"
                       }`}
                       type="number"
-                      disabled={isLocked}
+                      disabled={isLocked || !canWritePurchase}
                       value={row.amount}
                       placeholder="0.00"
                       onChange={(event) => updateRow(row.localKey, { amount: event.target.value })}
@@ -215,7 +217,7 @@ function PurchaseEntryTable({
                       >
                         <FileText size={15} />
                       </button>
-                      <button className="icon-btn" type="button" disabled={isLocked} aria-label="Delete row" onClick={() => deleteRow(row)}>
+                      <button className="icon-btn" type="button" disabled={isLocked || !canWritePurchase} aria-label="Delete row" onClick={() => deleteRow(row)}>
                         <Trash2 size={15} />
                       </button>
                     </div>
@@ -234,7 +236,7 @@ function PurchaseEntryTable({
                           <span className="text-xs font-semibold text-text-secondary">Remark</span>
                           <input
                             className="control mt-1 w-full"
-                            disabled={isLocked}
+                            disabled={isLocked || !canWritePurchase}
                             value={row.remark ?? ""}
                             placeholder="Optional note, invoice reference, stock-up reason..."
                             onChange={(event) => updateRow(row.localKey, { remark: event.target.value })}
@@ -360,7 +362,7 @@ function PurchaseInsightPanel({ cogsMargin, highest, biggestIncrease, missingRow
   );
 }
 
-export default function PurchaseInputPage({ store, setStore, ui }) {
+export default function PurchaseInputPage({ store, setStore, ui, auth }) {
   const filters = usePeriodFilters(store);
   const amountInputRefs = useRef(new Map());
   const [saveState, setSaveState] = useState("loading");
@@ -379,6 +381,8 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
   const [editingCategoryKey, setEditingCategoryKey] = useState(null);
   const previous = getPreviousPeriod(filters.month, filters.year);
   const isLocked = Boolean(getLock(store, filters.outletId, filters.month, filters.year)?.is_locked);
+  const canWritePurchase = canWrite(auth, "purchase_input");
+  const canCreateSupplier = canCreate(auth, "suppliers");
   const netSales = getNetSales(store.salesRecords, filters.outletId, filters.month, filters.year, store.salesChannels);
   const totalPurchase = sumAmount(rows);
   const cogsMargin = netSales ? (totalPurchase / netSales) * 100 : 0;
@@ -523,13 +527,14 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
     function handleShortcut(event) {
       if (!(event.metaKey || event.ctrlKey) || event.key.toLowerCase() !== "s") return;
       event.preventDefault();
-      if (!isLocked && saveState !== "saving") savePurchaseData();
+      if (!isLocked && saveState !== "saving" && canWritePurchase) savePurchaseData();
     }
     window.addEventListener("keydown", handleShortcut);
     return () => window.removeEventListener("keydown", handleShortcut);
   });
 
   function updateRow(localKey, patch) {
+    if (!canWritePurchase) return;
     setRows((current) =>
       current.map((row, index) => {
         const key = row.id ?? row.temp_id ?? `${row.supplier_id || "new"}-${index}`;
@@ -540,6 +545,10 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
   }
 
   function addSupplierRow() {
+    if (!canWritePurchase) {
+      notifyPermissionDenied(ui, "add purchase rows");
+      return;
+    }
     const tempId = `draft-${crypto.randomUUID()}`;
     setRows((current) => [
       ...current,
@@ -567,6 +576,10 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
   }
 
   async function deleteRow(row) {
+    if (!canWritePurchase) {
+      notifyPermissionDenied(ui, "delete purchase rows");
+      return;
+    }
     if (
       await ui.confirm({
         title: "Delete purchase row?",
@@ -585,6 +598,10 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
   }
 
   function duplicatePreviousMonth(copyAmount = false) {
+    if (!canWritePurchase) {
+      notifyPermissionDenied(ui, "duplicate purchase rows");
+      return;
+    }
     const previousRows = buildPurchaseRows(store, filters.outletId, previous.month, previous.year);
     setRows(
       previousRows.map((row) => ({
@@ -619,6 +636,10 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
   }
 
   async function savePurchaseData() {
+    if (!canWritePurchase) {
+      notifyPermissionDenied(ui, "save purchase data");
+      return;
+    }
     if (!validateRows()) return;
     const duplicateSupplierIds = rows
       .filter((row) => row.supplier_id)
@@ -663,6 +684,10 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
   }
 
   async function createSupplierForRow(localKey, name) {
+    if (!canWritePurchase || !canCreateSupplier) {
+      notifyPermissionDenied(ui, "create suppliers");
+      return;
+    }
     const fallbackCategoryId =
       store.purchaseCategories.find((categoryItem) => categoryItem.name?.toLowerCase() === "others")?.id ||
       store.purchaseCategories[0]?.id ||
@@ -707,12 +732,16 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
           }`}>
             {saveStatusLabel}
           </span>
-          <button className="btn-secondary" type="button" disabled={isLocked} onClick={() => setDuplicateModal(true)}>
-            <Copy size={16} /> Duplicate Previous Month
-          </button>
-          <button className="btn-primary" type="button" disabled={isLocked || saveState === "saving" || saveState === "loading"} onClick={savePurchaseData}>
-            <Save size={16} /> {saveState === "saving" ? "Saving..." : "Save Purchase Data"}
-          </button>
+          {canWritePurchase ? (
+            <>
+              <button className="btn-secondary" type="button" disabled={isLocked} onClick={() => setDuplicateModal(true)}>
+                <Copy size={16} /> Duplicate Previous Month
+              </button>
+              <button className="btn-primary" type="button" disabled={isLocked || saveState === "saving" || saveState === "loading"} onClick={savePurchaseData}>
+                <Save size={16} /> {saveState === "saving" ? "Saving..." : "Save Purchase Data"}
+              </button>
+            </>
+          ) : <Badge tone="neutral">Read-only access</Badge>}
           <button
             className="icon-btn"
             type="button"
@@ -761,6 +790,11 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
       {isLocked ? (
         <div className="card border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700">
           This month is locked. Purchase inputs are disabled until an admin unlocks it.
+        </div>
+      ) : null}
+      {!canWritePurchase ? (
+        <div className="card border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">
+          Read-only access. You need Purchase Input create or edit permission to update purchase records.
         </div>
       ) : null}
 
@@ -836,6 +870,7 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
                 createSupplierForRow={createSupplierForRow}
                 toggleDetails={toggleDetails}
                 deleteRow={deleteRow}
+                canWritePurchase={canWritePurchase}
               />
             ) : (
               <div className="p-8 text-center">
@@ -844,9 +879,11 @@ export default function PurchaseInputPage({ store, setStore, ui }) {
               </div>
             )}
             <div className="border-t border-border bg-slate-50/70 p-4">
-              <button className="btn-secondary" type="button" disabled={isLocked} onClick={addSupplierRow}>
-                <Plus size={16} /> Add Supplier Row
-              </button>
+              {canWritePurchase ? (
+                <button className="btn-secondary" type="button" disabled={isLocked} onClick={addSupplierRow}>
+                  <Plus size={16} /> Add Supplier Row
+                </button>
+              ) : <Badge tone="neutral">Read-only access</Badge>}
             </div>
           </div>
         </Card>
