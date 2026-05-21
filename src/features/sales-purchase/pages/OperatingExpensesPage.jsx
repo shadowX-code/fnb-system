@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Copy, Lock, Repeat2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Copy, Lock } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
@@ -64,14 +64,14 @@ function summaryFromDrafts(drafts) {
 function MiniTrend({ rows, average }) {
   const max = Math.max(...rows.map((row) => row.amount), 1);
   return (
-    <div className="mt-4 flex h-16 items-end gap-1.5 rounded-2xl border border-border bg-slate-50 px-3 py-2">
+    <div className="mt-4 flex h-14 items-end gap-2 rounded-2xl border border-border bg-slate-50 px-3.5 py-2.5">
       {rows.map((row) => {
         const abnormal = average > 0 && row.amount > average * 1.5;
         return (
           <div key={row.value} className="flex flex-1 flex-col items-center gap-1">
             <div
-              className={`w-full rounded-t-md ${abnormal ? "bg-amber-400" : "bg-primary/70"}`}
-              style={{ height: `${Math.max(8, (row.amount / max) * 44)}px` }}
+              className={`w-full max-w-3 rounded-t-full ${abnormal ? "bg-amber-400" : "bg-gradient-to-t from-primary/70 to-primary/40"}`}
+              style={{ height: `${Math.max(7, (row.amount / max) * 36)}px` }}
               title={`${row.label}: ${toCurrency(row.amount)}`}
             />
           </div>
@@ -197,34 +197,8 @@ export default function OperatingExpensesPage({ store, setStore, ui, auth }) {
     await saveMonths(touched, nextDrafts);
   }
 
-  async function applyCurrentValueToRemaining() {
-    if (!writeAllowed) {
-      notifyPermissionDenied(ui, "update operating expenses");
-      return;
-    }
-    const source = [...months].reverse().find((month) => numericAmount(drafts[month.value]?.amount) > 0);
-    if (!source) {
-      ui.notify({ title: "No value to apply", message: "Enter at least one monthly OpEx value first.", tone: "error" });
-      return;
-    }
-    const sourceIndex = months.findIndex((month) => month.value === source.value);
-    const nextDrafts = { ...drafts };
-    const touched = [];
-    months.slice(sourceIndex + 1).forEach((month) => {
-      if (!canEditMonth(month.value)) return;
-      nextDrafts[month.value] = {
-        ...nextDrafts[month.value],
-        amount: nextDrafts[source.value]?.amount ?? "",
-        saved: false,
-      };
-      touched.push(month.value);
-    });
-    setDrafts(nextDrafts);
-    await saveMonths(touched, nextDrafts);
-  }
-
   return (
-    <div className="space-y-4">
+    <div className="mx-auto max-w-[1500px] space-y-5">
       <PageHeader
         section="Operations"
         title="Operating Expenses"
@@ -238,9 +212,6 @@ export default function OperatingExpensesPage({ store, setStore, ui, auth }) {
           <>
             <button className="btn-secondary" type="button" disabled={readOnlyAccess} onClick={duplicatePreviousMonth}>
               <Copy size={15} /> Duplicate Previous Month
-            </button>
-            <button className="btn-secondary" type="button" disabled={readOnlyAccess} onClick={applyCurrentValueToRemaining}>
-              <Repeat2 size={15} /> Apply Current Value to Remaining
             </button>
           </>
         )}
@@ -264,17 +235,17 @@ export default function OperatingExpensesPage({ store, setStore, ui, auth }) {
 
       {error ? <div className="card border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700">{error}</div> : null}
 
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+      <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_330px]">
         <Card title="Yearly Operating Expenses Matrix" description="One total OpEx amount and one optional remark per month. Category breakdown can be added later.">
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1180px] border-collapse text-sm">
+          <div className="overflow-x-auto px-1 pb-1 pt-2">
+            <table className="w-full min-w-[1360px] border-collapse text-sm">
               <thead className="table-head">
                 <tr>
-                  <th className="sticky left-0 z-10 w-44 bg-surface px-3 py-2 text-left">Metric</th>
+                  <th className="sticky left-0 z-10 w-56 bg-surface px-4 py-3 text-left">Metric</th>
                   {months.map((month) => {
                     const locked = isLocked(month.value);
                     return (
-                      <th key={month.value} className="w-24 border-l border-border px-2 py-2 text-center">
+                      <th key={month.value} className="w-28 border-l border-border px-3 py-3 text-center">
                         <div className="flex items-center justify-center gap-1">
                           <span>{month.label}</span>
                           {locked ? <Lock size={12} className="text-amber-600" /> : null}
@@ -282,14 +253,14 @@ export default function OperatingExpensesPage({ store, setStore, ui, auth }) {
                       </th>
                     );
                   })}
-                  <th className="w-32 border-l border-border bg-primary/5 px-3 py-2 text-right">Total</th>
+                  <th className="w-36 border-l border-border bg-primary/5 px-4 py-3 text-right">Total</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                <tr className="table-row">
-                  <td className="sticky left-0 z-10 bg-surface px-3 py-3">
+                <tr className="table-row bg-surface">
+                  <td className="sticky left-0 z-10 bg-surface px-4 py-5">
                     <div className="font-bold text-text-primary">Operating Expenses</div>
-                    <div className="mt-0.5 text-xs text-text-muted">Monthly total OpEx</div>
+                    <div className="mt-1.5 text-xs leading-4 text-text-muted">Monthly total OpEx</div>
                   </td>
                   {summary.rows.map((row) => {
                     const locked = isLocked(row.value);
@@ -297,10 +268,10 @@ export default function OperatingExpensesPage({ store, setStore, ui, auth }) {
                     const saving = savingCells[row.value];
                     const editable = canEditMonth(row.value);
                     return (
-                      <td key={row.value} className={`border-l border-border px-2 py-3 align-top ${abnormal ? "bg-amber-50/60" : ""}`}>
-                        <div className="relative">
+                      <td key={row.value} className={`border-l border-border px-3 py-5 align-top ${abnormal ? "bg-amber-50/60" : ""}`}>
+                        <div className="relative space-y-2">
                           <input
-                            className={`control h-9 w-full px-2 text-right text-sm ${abnormal ? "border-amber-300 bg-amber-50" : ""}`}
+                            className={`control h-10 w-full rounded-xl px-3 text-right text-sm shadow-sm transition focus:border-primary/60 focus:ring-4 focus:ring-primary/10 ${abnormal ? "border-amber-300 bg-amber-50" : "border-border/80"}`}
                             type="number"
                             min="0"
                             step="0.01"
@@ -311,7 +282,7 @@ export default function OperatingExpensesPage({ store, setStore, ui, auth }) {
                             onBlur={() => { setEditingCell(null); if (editable) saveMonth(row.value); }}
                             onChange={(event) => updateDraft(row.value, "amount", event.target.value)}
                           />
-                          <div className="mt-1 flex min-h-4 items-center justify-end gap-1 text-[10px] font-semibold">
+                          <div className="flex min-h-5 items-center justify-end gap-1 text-[10px] font-semibold">
                             {locked ? <span className="text-amber-700">Locked</span> : saving ? <span className="text-text-muted">Saving...</span> : row.saved ? <span className="inline-flex items-center gap-1 text-emerald-700"><CheckCircle2 size={11} /> Saved</span> : editingCell === `${row.value}:amount` ? <span className="text-primary">Editing</span> : null}
                             {abnormal ? <AlertTriangle size={11} className="text-amber-600" /> : null}
                           </div>
@@ -319,22 +290,22 @@ export default function OperatingExpensesPage({ store, setStore, ui, auth }) {
                       </td>
                     );
                   })}
-                  <td className="border-l border-border bg-primary/5 px-3 py-3 text-right align-top">
+                  <td className="border-l border-border bg-primary/5 px-4 py-5 text-right align-top">
                     <div className="text-base font-bold text-text-primary">{toCurrency(summary.total)}</div>
                     <div className="mt-1 text-[11px] font-semibold text-text-muted">Yearly OpEx</div>
                   </td>
                 </tr>
-                <tr className="table-row">
-                  <td className="sticky left-0 z-10 bg-surface px-3 py-3">
+                <tr className="table-row bg-slate-50/60">
+                  <td className="sticky left-0 z-10 bg-slate-50 px-4 py-5">
                     <div className="font-bold text-text-primary">Remark</div>
-                    <div className="mt-0.5 text-xs text-text-muted">Optional monthly note</div>
+                    <div className="mt-1.5 text-xs leading-4 text-text-muted">Optional monthly note</div>
                   </td>
                   {summary.rows.map((row) => {
                     const editable = canEditMonth(row.value);
                     return (
-                      <td key={row.value} className="border-l border-border px-2 py-3 align-top">
+                      <td key={row.value} className="border-l border-border px-3 py-5 align-top">
                         <input
-                          className="control h-9 w-full px-2 text-xs"
+                          className="control h-10 w-full rounded-xl border-border/80 px-3 text-xs shadow-sm transition focus:border-primary/60 focus:ring-4 focus:ring-primary/10"
                           disabled={!editable}
                           placeholder="Optional"
                           value={drafts[row.value]?.remark ?? ""}
@@ -345,7 +316,7 @@ export default function OperatingExpensesPage({ store, setStore, ui, auth }) {
                       </td>
                     );
                   })}
-                  <td className="border-l border-border bg-primary/5 px-3 py-3 text-right text-xs font-semibold text-text-muted">
+                  <td className="border-l border-border bg-primary/5 px-4 py-5 text-right text-xs font-semibold text-text-muted">
                     {summary.rows.filter((row) => row.remark).length} notes
                   </td>
                 </tr>
@@ -355,24 +326,24 @@ export default function OperatingExpensesPage({ store, setStore, ui, auth }) {
         </Card>
 
         <Card title="Yearly Summary" description="Full-year operating expense control.">
-          <div className="space-y-3 p-4">
-            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+          <div className="space-y-3 p-3.5">
+            <div className="rounded-2xl border border-primary/15 bg-primary/5 p-3.5">
               <div className="text-xs font-bold uppercase tracking-wide text-text-muted">YTD OpEx</div>
-              <div className="mt-2 text-3xl font-semibold tracking-tight text-text-primary">{toCurrency(summary.total)}</div>
+              <div className="mt-2 text-[28px] font-semibold tracking-tight text-text-primary">{toCurrency(summary.total)}</div>
               <div className="mt-1 text-xs text-text-secondary">One total monthly value per month</div>
             </div>
-            <div className="grid gap-2">
-              <div className="flex items-center justify-between rounded-xl border border-border bg-surface px-3 py-2">
+            <div className="grid gap-2.5">
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-border/80 bg-slate-50/70 px-3 py-2.5">
                 <span className="text-xs font-semibold text-text-secondary">Average Monthly OpEx</span>
                 <strong className="text-sm text-text-primary">{toCurrency(summary.average)}</strong>
               </div>
-              <div className="flex items-center justify-between rounded-xl border border-border bg-surface px-3 py-2">
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-border/80 bg-slate-50/70 px-3 py-2.5">
                 <span className="text-xs font-semibold text-text-secondary">Highest Expense Month</span>
-                <strong className="text-sm text-text-primary">{summary.highest ? `${summary.highest.label} · ${toCurrency(summary.highest.amount)}` : "—"}</strong>
+                <strong className="text-right text-sm text-text-primary">{summary.highest ? `${summary.highest.label} · ${toCurrency(summary.highest.amount)}` : "—"}</strong>
               </div>
-              <div className="flex items-center justify-between rounded-xl border border-border bg-surface px-3 py-2">
+              <div className="flex items-center justify-between gap-3 rounded-xl border border-border/80 bg-slate-50/70 px-3 py-2.5">
                 <span className="text-xs font-semibold text-text-secondary">Lowest Expense Month</span>
-                <strong className="text-sm text-text-primary">{summary.lowest ? `${summary.lowest.label} · ${toCurrency(summary.lowest.amount)}` : "—"}</strong>
+                <strong className="text-right text-sm text-text-primary">{summary.lowest ? `${summary.lowest.label} · ${toCurrency(summary.lowest.amount)}` : "—"}</strong>
               </div>
             </div>
             <MiniTrend rows={summary.rows} average={summary.average} />

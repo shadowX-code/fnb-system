@@ -4,7 +4,6 @@ import PageHeader from "../../../components/layout/PageHeader.jsx";
 import FilterBar from "../../../components/forms/FilterBar.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import Card from "../../../components/ui/Card.jsx";
-import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import TrendChart from "../../../components/charts/TrendChart.jsx";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
@@ -93,6 +92,29 @@ function FinanceBadge({ children, tone = "neutral" }) {
   };
 
   return <span className={`inline-flex rounded-full border px-2 py-0.5 text-[11px] font-bold ${classes[tone]}`}>{children}</span>;
+}
+
+function monthMarginBadgeClass(item) {
+  if (item.revenue <= 0) return "border-slate-200 bg-slate-50 text-slate-500";
+  if (item.margin < 0) return "border-rose-200 bg-rose-50 text-rose-700";
+  if (item.margin === 0) return "border-slate-200 bg-slate-50 text-slate-500";
+  if (item.margin < 10) return "border-amber-200 bg-amber-50 text-amber-700";
+  return "border-emerald-200 bg-emerald-50 text-emerald-700";
+}
+
+function pnlRatio(value, revenue) {
+  if (!revenue) return "--";
+  return `(${toPercent(Math.abs(value) / revenue * 100)})`;
+}
+
+function PnlStatementRow({ label, amount, ratio, muted = false }) {
+  return (
+    <div className="grid grid-cols-[minmax(0,1fr)_auto_3.5rem] items-baseline gap-2">
+      <span className="min-w-0 text-[11px] font-medium text-text-muted">{label}</span>
+      <strong className={`text-right text-xs ${muted ? "text-text-secondary" : "text-text-primary"}`}>{amount}</strong>
+      <span className="text-right text-[10px] font-semibold text-text-muted">{ratio}</span>
+    </div>
+  );
 }
 
 function PnlKpiCard({ label, value, helper, icon: Icon, primary = false, tone = "neutral", badge, insight }) {
@@ -198,39 +220,51 @@ function pnlInsights({ total, previousTotal, monthly, missingOpexCount, rankingR
 }
 
 function BreakdownBar({ total }) {
-  const absolute = Math.max(total.cogs + total.opex + Math.max(total.netProfit, 0), 1);
+  const absolute = Math.max(total.revenue, total.cogs + total.opex + Math.max(total.netProfit, 0), 1);
   const parts = [
-    { label: "COGS", value: total.cogs, color: "bg-emerald-500" },
-    { label: "OpEx", value: total.opex, color: "bg-amber-400" },
-    { label: "Net Profit", value: Math.max(total.netProfit, 0), color: "bg-blue-500" },
+    { label: "Revenue", value: total.revenue, color: "bg-slate-900", ring: "#0f172a", muted: true },
+    { label: "COGS", value: total.cogs, color: "bg-emerald-500", ring: "#22c55e" },
+    { label: "OpEx", value: total.opex, color: "bg-amber-400", ring: "#f59e0b" },
+    { label: "Net Profit", value: Math.max(total.netProfit, 0), color: "bg-blue-500", ring: "#3b82f6" },
   ];
-  const cogsPct = (parts[0].value / absolute) * 100;
-  const opexPct = (parts[1].value / absolute) * 100;
-  const profitPct = (parts[2].value / absolute) * 100;
+  const cogsPct = (parts[1].value / absolute) * 100;
+  const opexPct = (parts[2].value / absolute) * 100;
+  const profitPct = (parts[3].value / absolute) * 100;
+  const ringBackground = `conic-gradient(
+    #22c55e 0 ${cogsPct}%,
+    #f59e0b ${cogsPct}% ${cogsPct + opexPct}%,
+    #3b82f6 ${cogsPct + opexPct}% ${cogsPct + opexPct + profitPct}%,
+    #e2e8f0 ${cogsPct + opexPct + profitPct}% 100%
+  )`;
   return (
-    <div className="space-y-4">
-      <div className="mx-auto grid h-36 w-36 place-items-center rounded-full"
-        style={{
-          background: `conic-gradient(#22c55e 0 ${cogsPct}%, #f59e0b ${cogsPct}% ${cogsPct + opexPct}%, #3b82f6 ${cogsPct + opexPct}% ${cogsPct + opexPct + profitPct}%, #e5e7eb ${cogsPct + opexPct + profitPct}% 100%)`,
-        }}
-      >
-        <div className="grid h-24 w-24 place-items-center rounded-full bg-white text-center shadow-sm">
-          <div>
-            <div className="text-[11px] font-semibold uppercase tracking-wide text-text-muted">Margin</div>
-            <div className="text-lg font-bold text-text-primary">{toPercent(total.margin)}</div>
+    <div className="space-y-5">
+      <div className="mx-auto grid h-44 w-44 place-items-center rounded-full bg-surface shadow-[0_18px_50px_rgba(15,23,42,0.08)]">
+        <div className="grid h-40 w-40 place-items-center rounded-full p-2" style={{ background: ringBackground }}>
+          <div className="grid h-[7.1rem] w-[7.1rem] place-items-center rounded-full bg-surface text-center shadow-[inset_0_0_0_1px_rgba(226,232,240,0.9)]">
+            <div>
+              <div className="text-[10px] font-bold uppercase tracking-[0.12em] text-text-muted">Net Margin</div>
+              <div className={`mt-1 text-2xl font-semibold tracking-tight ${total.margin < 0 ? "text-rose-600" : "text-text-primary"}`}>{toPercent(total.margin)}</div>
+              <div className="mt-1 text-[10px] font-semibold text-text-muted">YTD</div>
+            </div>
           </div>
         </div>
       </div>
-      <div className="flex h-3 overflow-hidden rounded-full bg-slate-100">
+      <div className="space-y-2.5">
         {parts.map((part) => (
-          <div key={part.label} className={part.color} style={{ width: `${(part.value / absolute) * 100}%` }} />
-        ))}
-      </div>
-      <div className="grid gap-2 text-xs">
-        {parts.map((part) => (
-          <div key={part.label} className="flex items-center justify-between">
-            <span className="flex items-center gap-2 font-semibold text-text-secondary"><span className={`h-2.5 w-2.5 rounded-full ${part.color}`} />{part.label}</span>
-            <span className="font-bold text-text-primary">{toCurrency(part.value)}</span>
+          <div key={part.label} className="rounded-xl border border-border/80 bg-surface px-3 py-2">
+            <div className="flex items-center justify-between gap-4">
+              <span className="flex items-center gap-2 text-xs font-semibold text-text-secondary">
+                <span className={`h-2 w-2 rounded-full ${part.color}`} />
+                {part.label}
+              </span>
+              <span className="text-sm font-bold text-text-primary">{part.label === "Net Profit" ? signedCurrency(total.netProfit) : toCurrency(part.value)}</span>
+            </div>
+            <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100">
+              <div
+                className={`h-full rounded-full ${part.color}`}
+                style={{ width: `${Math.min(100, Math.max(0, part.value / absolute * 100))}%` }}
+              />
+            </div>
           </div>
         ))}
       </div>
@@ -253,6 +287,11 @@ export default function OutletPnlPage({ store, ui, auth }) {
   const missingOpexCount = current.monthly.filter((item) => item.revenue > 0 && item.opex === 0).length;
   const insights = pnlInsights({ total: current.total, previousTotal: previous.total, monthly: current.monthly, missingOpexCount, rankingRows });
   const marginHealth = marginStatus(current.total.margin);
+  const today = new Date();
+  const currentCalendarYear = today.getFullYear();
+  const currentCalendarMonth = today.getMonth() + 1;
+  const visibleMonthLimit = Number(year) < currentCalendarYear ? 12 : Number(year) === currentCalendarYear ? currentCalendarMonth : 0;
+  const visibleMonthly = current.monthly.filter((item) => item.month <= visibleMonthLimit);
 
   function queueExport(format) {
     if (!exportAllowed) {
@@ -409,23 +448,28 @@ export default function OutletPnlPage({ store, ui, auth }) {
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
         <Card title="Monthly P&L Breakdown" description="Hover-ready month cards for management review.">
           <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
-            {current.monthly.map((item) => (
-              <button key={item.month} className="rounded-2xl border border-border bg-white p-3 text-left transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-card" type="button" onClick={() => ui.notify({ title: `${item.label} detail`, message: "Month detail modal will be connected later." })}>
+            {visibleMonthly.map((item) => (
+              <button key={item.month} className="rounded-2xl border border-border bg-surface p-3 text-left transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-card" type="button" onClick={() => ui.notify({ title: `${item.label} detail`, message: "Month detail modal will be connected later." })}>
                 <div className="flex items-center justify-between">
                   <div className="text-sm font-bold text-text-primary">{item.label}</div>
-                  <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-bold ${item.netProfit < 0 ? "border-rose-200 bg-rose-50 text-rose-700" : item.margin < 10 ? "border-amber-200 bg-amber-50 text-amber-700" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
-                    {item.netProfit < 0 ? <AlertTriangle size={12} /> : null}
+                  <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-bold ${monthMarginBadgeClass(item)}`}>
+                    {item.revenue > 0 && item.margin < 0 ? <AlertTriangle size={12} /> : null}
                     {toPercent(item.margin)}
                   </span>
                 </div>
-                <div className="mt-3 grid gap-1.5 text-xs">
-                  <div className="flex justify-between"><span className="text-text-secondary">Revenue</span><strong className="text-text-primary">{toCurrency(item.revenue)}</strong></div>
-                  <div className="flex justify-between"><span className="text-text-secondary">COGS</span><strong className="text-text-primary">-{toCurrency(item.cogs)}</strong></div>
-                  <div className="flex justify-between"><span className="text-text-secondary">OpEx</span><strong className="text-text-primary">-{toCurrency(item.opex)}</strong></div>
-                  <div className="mt-1 flex justify-between border-t border-border pt-2"><span className="font-bold text-text-primary">Net Profit</span><strong className={`text-sm ${item.netProfit < 0 ? "text-rose-600" : "text-text-primary"}`}>{signedCurrency(item.netProfit)}</strong></div>
+                <div className="mt-3 grid gap-1.5">
+                  <PnlStatementRow label="Revenue" amount={toCurrency(item.revenue)} ratio="" />
+                  <PnlStatementRow label="COGS" amount={`-${toCurrency(item.cogs)}`} ratio={pnlRatio(item.cogs, item.revenue)} />
+                  <PnlStatementRow label="OpEx" amount={`-${toCurrency(item.opex)}`} ratio={pnlRatio(item.opex, item.revenue)} />
+                  <div className="mt-1.5 flex justify-between border-t border-border pt-2.5"><span className="text-xs font-bold text-text-primary">Net Profit</span><strong className={`text-base font-bold ${item.netProfit < 0 ? "text-rose-500" : "text-text-primary"}`}>{signedCurrency(item.netProfit)}</strong></div>
                 </div>
               </button>
             ))}
+            {!visibleMonthly.length ? (
+              <div className="col-span-full rounded-2xl border border-border bg-slate-50 p-6 text-sm font-semibold text-text-secondary">
+                No months are available for this future year yet.
+              </div>
+            ) : null}
           </div>
         </Card>
 
@@ -436,15 +480,15 @@ export default function OutletPnlPage({ store, ui, auth }) {
             </div>
           </Card>
           <Card title="Profitability Insights">
-            <div className="space-y-2 p-3">
+            <div className="space-y-2.5 p-3">
               {insights.map((insight) => (
-                <div key={insight.title} className={`rounded-2xl border p-3 ${insight.tone === "danger" ? "border-rose-200 bg-rose-50/55" : insight.tone === "warning" ? "border-amber-200 bg-amber-50/55" : insight.tone === "success" ? "border-emerald-200 bg-emerald-50/45" : "border-blue-200 bg-blue-50/35"}`}>
+                <div key={insight.title} className={`rounded-2xl border p-3 transition hover:-translate-y-0.5 hover:shadow-sm ${insight.tone === "danger" ? "border-rose-100 bg-rose-50/40" : insight.tone === "warning" ? "border-amber-100 bg-amber-50/40" : insight.tone === "success" ? "border-emerald-100 bg-emerald-50/30" : "border-blue-100 bg-blue-50/25"}`}>
                   <div className="flex items-start gap-3">
-                    <span className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl ${insight.tone === "danger" ? "bg-rose-100 text-rose-700" : insight.tone === "warning" ? "bg-amber-100 text-amber-700" : insight.tone === "success" ? "bg-emerald-100 text-emerald-700" : "bg-blue-100 text-blue-700"}`}>
+                    <span className={`mt-0.5 grid h-8 w-8 shrink-0 place-items-center rounded-xl ${insight.tone === "danger" ? "bg-rose-100/70 text-rose-700" : insight.tone === "warning" ? "bg-amber-100/70 text-amber-700" : insight.tone === "success" ? "bg-emerald-100/70 text-emerald-700" : "bg-blue-100/60 text-blue-700"}`}>
                       <insight.icon size={15} />
                     </span>
                     <div className="min-w-0">
-                      <Badge tone={insight.tone}>{insight.label}</Badge>
+                      <FinanceBadge tone={insight.tone}>{insight.label}</FinanceBadge>
                       <div className="mt-1.5 text-sm font-bold text-text-primary">{insight.title}</div>
                       <p className="mt-1 text-xs leading-5 text-text-secondary">{insight.body}</p>
                     </div>
