@@ -57,7 +57,7 @@ function buildPointList(data, yForValue) {
   }));
 }
 
-function buildSmoothPath(points) {
+function buildSmoothPath(points, tension = 0.4) {
   if (!points.length) return "";
   if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
 
@@ -65,14 +65,16 @@ function buildSmoothPath(points) {
     if (index === 0) return `M ${point.x} ${point.y}`;
 
     const previous = points[index - 1];
-    const controlX = previous.x + (point.x - previous.x) / 2;
-    return `${path} C ${controlX} ${previous.y}, ${controlX} ${point.y}, ${point.x} ${point.y}`;
+    const distance = point.x - previous.x;
+    const firstControlX = previous.x + distance * tension;
+    const secondControlX = point.x - distance * tension;
+    return `${path} C ${firstControlX} ${previous.y}, ${secondControlX} ${point.y}, ${point.x} ${point.y}`;
   }, "");
 }
 
-function buildAreaPath(points, baseline) {
+function buildAreaPath(points, baseline, tension) {
   if (!points.length) return "";
-  const line = buildSmoothPath(points);
+  const line = buildSmoothPath(points, tension);
   const first = points[0];
   const last = points[points.length - 1];
   return `${line} L ${last.x} ${baseline} L ${first.x} ${baseline} Z`;
@@ -93,7 +95,7 @@ function ChartDot({ point, color, active }) {
         width: size,
         height: size,
         transform: "translate(-50%, -50%)",
-        filter: active ? "drop-shadow(0 0 8px rgba(34, 197, 94, 0.45))" : undefined,
+        filter: active ? "drop-shadow(0 0 6px rgba(34, 197, 94, 0.28))" : undefined,
       }}
       viewBox={`0 0 ${size} ${size}`}
     >
@@ -110,6 +112,8 @@ export default function TrendChart({
   yAxisType = "currency",
   tickFormat,
   highlightIndex,
+  tension = 0.4,
+  renderTooltip,
 }) {
   const [hoverIndex, setHoverIndex] = useState(null);
   const safeLabels = Array.isArray(labels) ? labels : [];
@@ -245,11 +249,11 @@ export default function TrendChart({
               </defs>
               {safeSeries.map((item, seriesIndex) => {
                 const pointList = buildPointList(item.data, yForValue);
-                const smoothPath = buildSmoothPath(pointList);
+                const smoothPath = buildSmoothPath(pointList, tension);
                 return (
                 <g key={item.name}>
                   {item.area || type === "area" ? (
-                    <path d={buildAreaPath(pointList, yForValue(0))} fill={`url(#${gradientPrefix}-area-${seriesIndex})`} />
+                    <path d={buildAreaPath(pointList, yForValue(0), tension)} fill={`url(#${gradientPrefix}-area-${seriesIndex})`} />
                   ) : null}
                   <path
                     d={smoothPath}
@@ -303,13 +307,19 @@ export default function TrendChart({
             className="pointer-events-none absolute top-3 z-20 rounded-xl border border-border bg-surface/95 p-3 text-xs shadow-card backdrop-blur transition-all duration-150"
             style={{ left: `${Math.min(86, Math.max(14, activeX ?? 50))}%`, transform: "translateX(-50%)" }}
           >
-            <div className="font-bold text-text-primary">{safeLabels[hoverIndex]}</div>
-            {safeSeries.map((item) => (
-              <div key={item.name} className="mt-1 flex justify-between gap-6 text-text-secondary">
-                <span>{item.name}</span>
-                <strong className="text-text-primary">{item.format ? item.format(item.data[hoverIndex]) : item.data[hoverIndex]}</strong>
-              </div>
-            ))}
+            {renderTooltip ? (
+              renderTooltip({ label: safeLabels[hoverIndex], index: hoverIndex, series: safeSeries })
+            ) : (
+              <>
+                <div className="font-bold text-text-primary">{safeLabels[hoverIndex]}</div>
+                {safeSeries.map((item) => (
+                  <div key={item.name} className="mt-1 flex justify-between gap-6 text-text-secondary">
+                    <span>{item.name}</span>
+                    <strong className="text-text-primary">{item.format ? item.format(item.data[hoverIndex]) : item.data[hoverIndex]}</strong>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         ) : null}
       </div>

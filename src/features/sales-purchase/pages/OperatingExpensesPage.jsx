@@ -1,103 +1,226 @@
 import { useEffect, useMemo, useState } from "react";
-import { Save, Trash2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Copy, Lock, Repeat2 } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
-import PeriodFilterBar from "../components/PeriodFilterBar.jsx";
-import SummaryPanel from "../components/SummaryPanel.jsx";
-import usePeriodFilters from "../hooks/usePeriodFilters.js";
+import FilterBar from "../../../components/forms/FilterBar.jsx";
+import SelectField from "../../../components/forms/SelectField.jsx";
+import { months } from "../data/mockData.js";
 import { operatingExpenseService } from "../../../services/operatingExpenseService.js";
-import { canDelete, canWrite, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { canWrite, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { monthLabel, toCurrency } from "../utils/analytics.js";
 
+function defaultYear(store) {
+  const years = (store.operatingExpenses ?? [])
+    .map((record) => Number(record.year))
+    .filter(Boolean);
+  return years.length ? Math.max(...years) : new Date().getFullYear();
+}
+
 function getLock(store, outletId, month, year) {
-  return store.monthlyLocks.find((lock) => lock.outlet_id === outletId && Number(lock.month) === Number(month) && Number(lock.year) === Number(year));
+  return (store.monthlyLocks ?? []).find(
+    (lock) => lock.outlet_id === outletId && Number(lock.month) === Number(month) && Number(lock.year) === Number(year),
+  );
 }
 
 function getExpense(store, outletId, year, month) {
-  return (store.operatingExpenses ?? []).find((expense) => expense.outlet_id === outletId && Number(expense.year) === Number(year) && Number(expense.month) === Number(month));
+  return (store.operatingExpenses ?? []).find(
+    (expense) => expense.outlet_id === outletId && Number(expense.year) === Number(year) && Number(expense.month) === Number(month),
+  );
+}
+
+function buildDrafts(store, outletId, year) {
+  return months.reduce((drafts, month) => {
+    const expense = getExpense(store, outletId, year, month.value);
+    drafts[month.value] = {
+      amount: expense?.amount === undefined || expense?.amount === null ? "" : String(expense.amount),
+      remark: expense?.remark ?? "",
+      saved: Boolean(expense?.id),
+    };
+    return drafts;
+  }, {});
+}
+
+function numericAmount(value) {
+  return Math.max(0, Number(value) || 0);
+}
+
+function summaryFromDrafts(drafts) {
+  const rows = months.map((month) => ({
+    ...month,
+    amount: numericAmount(drafts[month.value]?.amount),
+    remark: drafts[month.value]?.remark ?? "",
+    saved: Boolean(drafts[month.value]?.saved),
+  }));
+  const total = rows.reduce((sum, row) => sum + row.amount, 0);
+  const average = total / 12;
+  const monthsWithAmount = rows.filter((row) => row.amount > 0);
+  const highest = monthsWithAmount.length ? monthsWithAmount.reduce((best, row) => (row.amount > best.amount ? row : best), monthsWithAmount[0]) : null;
+  const lowest = monthsWithAmount.length ? monthsWithAmount.reduce((best, row) => (row.amount < best.amount ? row : best), monthsWithAmount[0]) : null;
+
+  return { rows, total, average, highest, lowest };
+}
+
+function MiniTrend({ rows, average }) {
+  const max = Math.max(...rows.map((row) => row.amount), 1);
+  return (
+    <div className="mt-4 flex h-16 items-end gap-1.5 rounded-2xl border border-border bg-slate-50 px-3 py-2">
+      {rows.map((row) => {
+        const abnormal = average > 0 && row.amount > average * 1.5;
+        return (
+          <div key={row.value} className="flex flex-1 flex-col items-center gap-1">
+            <div
+              className={`w-full rounded-t-md ${abnormal ? "bg-amber-400" : "bg-primary/70"}`}
+              style={{ height: `${Math.max(8, (row.amount / max) * 44)}px` }}
+              title={`${row.label}: ${toCurrency(row.amount)}`}
+            />
+          </div>
+        );
+      })}
+    </div>
+  );
 }
 
 export default function OperatingExpensesPage({ store, setStore, ui, auth }) {
-  const filters = usePeriodFilters(store);
-  const currentExpense = useMemo(() => getExpense(store, filters.outletId, filters.year, filters.month), [filters.month, filters.outletId, filters.year, store]);
-  const [amount, setAmount] = useState(currentExpense?.amount ?? "");
-  const [remark, setRemark] = useState(currentExpense?.remark ?? "");
-  const [saving, setSaving] = useState(false);
+  const initialOutletId = store.outlets[0]?.id ?? "";
+  const [outletId, setOutletId] = useState(initialOutletId);
+  const [year, setYear] = useState(defaultYear(store));
+  const [drafts, setDrafts] = useState(() => buildDrafts(store, initialOutletId, defaultYear(store)));
+  const [savingCells, setSavingCells] = useState({});
+  const [editingCell, setEditingCell] = useState(null);
   const [error, setError] = useState("");
-  const locked = Boolean(getLock(store, filters.outletId, filters.month, filters.year)?.is_locked);
   const writeAllowed = canWrite(auth, "operating_expenses");
-  const deleteAllowed = canDelete(auth, "operating_expenses");
-  const readOnly = locked || !writeAllowed;
+  const readOnlyAccess = !writeAllowed;
 
   useEffect(() => {
-    setAmount(currentExpense?.amount ?? "");
-    setRemark(currentExpense?.remark ?? "");
+    setDrafts(buildDrafts(store, outletId, year));
+    setSavingCells({});
+    setEditingCell(null);
     setError("");
-  }, [currentExpense?.id, filters.month, filters.outletId, filters.year]);
+  }, [outletId, year, store.operatingExpenses]);
 
-  async function saveExpense() {
-    if (locked) {
-      ui.notify({ title: "Month locked", message: "Operating Expenses are read-only for this month.", tone: "error" });
+  const summary = useMemo(() => summaryFromDrafts(drafts), [drafts]);
+
+  function isLocked(month) {
+    return Boolean(getLock(store, outletId, month, year)?.is_locked);
+  }
+
+  function canEditMonth(month) {
+    return writeAllowed && !isLocked(month);
+  }
+
+  function updateDraft(month, field, value) {
+    setDrafts((current) => ({
+      ...current,
+      [month]: {
+        ...current[month],
+        [field]: value,
+        saved: false,
+      },
+    }));
+  }
+
+  async function saveMonth(month, draftSource = drafts) {
+    if (!outletId) return;
+    if (isLocked(month)) {
+      ui.notify({ title: "Month locked", message: `${monthLabel(month)} ${year} is read-only.`, tone: "error" });
       return;
     }
     if (!writeAllowed) {
       notifyPermissionDenied(ui, "save operating expenses");
       return;
     }
-    setSaving(true);
+
+    const draft = draftSource[month] ?? { amount: "", remark: "" };
+    setSavingCells((current) => ({ ...current, [month]: true }));
     setError("");
     try {
       const saved = await operatingExpenseService.saveOperatingExpense({
-        outletId: filters.outletId,
-        year: filters.year,
-        month: filters.month,
-        amount,
-        remark,
+        outletId,
+        year,
+        month,
+        amount: draft.amount,
+        remark: draft.remark,
       });
       setStore((current) => ({
         ...current,
         operatingExpenses: [
           ...(current.operatingExpenses ?? []).filter(
-            (expense) => !(expense.outlet_id === filters.outletId && Number(expense.year) === Number(filters.year) && Number(expense.month) === Number(filters.month)),
+            (expense) => !(expense.outlet_id === outletId && Number(expense.year) === Number(year) && Number(expense.month) === Number(month)),
           ),
           saved,
         ],
       }));
-      ui.notify({ title: "Operating expense saved", message: "Saved to Supabase" });
+      setDrafts((current) => ({
+        ...current,
+        [month]: {
+          amount: String(saved.amount ?? 0),
+          remark: saved.remark ?? "",
+          saved: true,
+        },
+      }));
+      ui.notify({ title: "OpEx saved", message: `${monthLabel(month)} ${year} saved to Supabase.` });
     } catch (saveError) {
       console.error("Unable to save operating expense", saveError);
       setError(saveError.message || "Unable to save operating expense.");
       ui.notify({ title: "Unable to save operating expense", message: saveError.message || "Please try again.", tone: "error" });
     } finally {
-      setSaving(false);
+      setSavingCells((current) => ({ ...current, [month]: false }));
     }
   }
 
-  async function deleteExpense() {
-    if (!currentExpense?.id) return;
-    if (!deleteAllowed) {
-      notifyPermissionDenied(ui, "delete operating expenses");
+  async function saveMonths(monthValues, draftSource = drafts) {
+    const editableMonths = monthValues.filter((month) => canEditMonth(month));
+    if (!editableMonths.length) return;
+    await Promise.all(editableMonths.map((month) => saveMonth(month, draftSource)));
+  }
+
+  async function duplicatePreviousMonth() {
+    if (!writeAllowed) {
+      notifyPermissionDenied(ui, "update operating expenses");
       return;
     }
-    const confirmed = await ui.confirm({
-      title: "Delete Operating Expense?",
-      message: `Remove OpEx for ${monthLabel(filters.month)} ${filters.year}?`,
-      confirmLabel: "Delete",
-      tone: "danger",
+    const nextDrafts = { ...drafts };
+    const touched = [];
+    months.forEach((month, index) => {
+      if (index === 0 || !canEditMonth(month.value)) return;
+      const previousMonth = months[index - 1].value;
+      nextDrafts[month.value] = {
+        ...nextDrafts[month.value],
+        amount: nextDrafts[previousMonth]?.amount ?? "",
+        remark: nextDrafts[month.value]?.remark ?? "",
+        saved: false,
+      };
+      touched.push(month.value);
     });
-    if (!confirmed) return;
-    try {
-      await operatingExpenseService.deleteOperatingExpense(currentExpense.id);
-      setStore((current) => ({
-        ...current,
-        operatingExpenses: (current.operatingExpenses ?? []).filter((expense) => expense.id !== currentExpense.id),
-      }));
-      ui.notify({ title: "Operating expense deleted", message: "Saved to Supabase" });
-    } catch (deleteError) {
-      console.error("Unable to delete operating expense", deleteError);
-      ui.notify({ title: "Unable to delete operating expense", message: deleteError.message || "Please try again.", tone: "error" });
+    setDrafts(nextDrafts);
+    await saveMonths(touched, nextDrafts);
+  }
+
+  async function applyCurrentValueToRemaining() {
+    if (!writeAllowed) {
+      notifyPermissionDenied(ui, "update operating expenses");
+      return;
     }
+    const source = [...months].reverse().find((month) => numericAmount(drafts[month.value]?.amount) > 0);
+    if (!source) {
+      ui.notify({ title: "No value to apply", message: "Enter at least one monthly OpEx value first.", tone: "error" });
+      return;
+    }
+    const sourceIndex = months.findIndex((month) => month.value === source.value);
+    const nextDrafts = { ...drafts };
+    const touched = [];
+    months.slice(sourceIndex + 1).forEach((month) => {
+      if (!canEditMonth(month.value)) return;
+      nextDrafts[month.value] = {
+        ...nextDrafts[month.value],
+        amount: nextDrafts[source.value]?.amount ?? "",
+        saved: false,
+      };
+      touched.push(month.value);
+    });
+    setDrafts(nextDrafts);
+    await saveMonths(touched, nextDrafts);
   }
 
   return (
@@ -105,63 +228,159 @@ export default function OperatingExpensesPage({ store, setStore, ui, auth }) {
       <PageHeader
         section="Operations"
         title="Operating Expenses"
-        description="Enter total monthly OpEx for management P&L. Category breakdown can be added later."
-        actions={readOnly ? <Badge tone={locked ? "warning" : "neutral"}>{locked ? "Month Locked" : "Read-only access"}</Badge> : null}
+        description="Manage one total monthly OpEx value per month for yearly management P&L."
+        actions={readOnlyAccess ? <Badge tone="neutral">Read-only access</Badge> : null}
       />
 
-      <PeriodFilterBar store={store} filters={filters} compact />
+      <FilterBar
+        compact
+        actions={(
+          <>
+            <button className="btn-secondary" type="button" disabled={readOnlyAccess} onClick={duplicatePreviousMonth}>
+              <Copy size={15} /> Duplicate Previous Month
+            </button>
+            <button className="btn-secondary" type="button" disabled={readOnlyAccess} onClick={applyCurrentValueToRemaining}>
+              <Repeat2 size={15} /> Apply Current Value to Remaining
+            </button>
+          </>
+        )}
+      >
+        <SelectField
+          label="Outlet"
+          value={outletId}
+          className="min-w-56"
+          options={store.outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))}
+          onChange={setOutletId}
+          searchable
+        />
+        <SelectField
+          label="Year"
+          value={year}
+          className="min-w-32"
+          options={[2024, 2025, 2026, 2027].map((item) => ({ value: item, label: item }))}
+          onChange={(nextValue) => setYear(Number(nextValue))}
+        />
+      </FilterBar>
 
       {error ? <div className="card border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700">{error}</div> : null}
-      {locked ? <div className="card border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">This month is locked. Operating Expenses are read-only.</div> : null}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-        <Card title="Monthly OpEx Input" description="One total monthly amount per outlet. Missing months are treated as RM0 in Outlet P&L.">
-          <div className="grid gap-4 p-4 md:grid-cols-2">
-            <label className="block">
-              <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">Total OpEx</span>
-              <input
-                className="control mt-1 w-full text-right"
-                type="number"
-                min="0"
-                step="0.01"
-                disabled={readOnly}
-                placeholder="0.00"
-                value={amount}
-                onChange={(event) => setAmount(event.target.value)}
-              />
-            </label>
-            <label className="block">
-              <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">Remark</span>
-              <input
-                className="control mt-1 w-full"
-                disabled={readOnly}
-                placeholder="Optional note"
-                value={remark}
-                onChange={(event) => setRemark(event.target.value)}
-              />
-            </label>
-          </div>
-          <div className="flex justify-end gap-2 border-t border-border bg-slate-50 px-4 py-3">
-            {currentExpense?.id ? (
-              <button className="btn-secondary text-rose-600" type="button" disabled={!deleteAllowed || locked} onClick={deleteExpense}>
-                <Trash2 size={15} /> Delete
-              </button>
-            ) : null}
-            <button className="btn-primary" type="button" disabled={readOnly || saving} onClick={saveExpense}>
-              <Save size={15} /> {saving ? "Saving..." : "Save OpEx"}
-            </button>
+        <Card title="Yearly Operating Expenses Matrix" description="One total OpEx amount and one optional remark per month. Category breakdown can be added later.">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1180px] border-collapse text-sm">
+              <thead className="table-head">
+                <tr>
+                  <th className="sticky left-0 z-10 w-44 bg-surface px-3 py-2 text-left">Metric</th>
+                  {months.map((month) => {
+                    const locked = isLocked(month.value);
+                    return (
+                      <th key={month.value} className="w-24 border-l border-border px-2 py-2 text-center">
+                        <div className="flex items-center justify-center gap-1">
+                          <span>{month.label}</span>
+                          {locked ? <Lock size={12} className="text-amber-600" /> : null}
+                        </div>
+                      </th>
+                    );
+                  })}
+                  <th className="w-32 border-l border-border bg-primary/5 px-3 py-2 text-right">Total</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                <tr className="table-row">
+                  <td className="sticky left-0 z-10 bg-surface px-3 py-3">
+                    <div className="font-bold text-text-primary">Operating Expenses</div>
+                    <div className="mt-0.5 text-xs text-text-muted">Monthly total OpEx</div>
+                  </td>
+                  {summary.rows.map((row) => {
+                    const locked = isLocked(row.value);
+                    const abnormal = summary.average > 0 && row.amount > summary.average * 1.5;
+                    const saving = savingCells[row.value];
+                    const editable = canEditMonth(row.value);
+                    return (
+                      <td key={row.value} className={`border-l border-border px-2 py-3 align-top ${abnormal ? "bg-amber-50/60" : ""}`}>
+                        <div className="relative">
+                          <input
+                            className={`control h-9 w-full px-2 text-right text-sm ${abnormal ? "border-amber-300 bg-amber-50" : ""}`}
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            disabled={!editable}
+                            placeholder="0.00"
+                            value={drafts[row.value]?.amount ?? ""}
+                            onFocus={() => setEditingCell(`${row.value}:amount`)}
+                            onBlur={() => { setEditingCell(null); if (editable) saveMonth(row.value); }}
+                            onChange={(event) => updateDraft(row.value, "amount", event.target.value)}
+                          />
+                          <div className="mt-1 flex min-h-4 items-center justify-end gap-1 text-[10px] font-semibold">
+                            {locked ? <span className="text-amber-700">Locked</span> : saving ? <span className="text-text-muted">Saving...</span> : row.saved ? <span className="inline-flex items-center gap-1 text-emerald-700"><CheckCircle2 size={11} /> Saved</span> : editingCell === `${row.value}:amount` ? <span className="text-primary">Editing</span> : null}
+                            {abnormal ? <AlertTriangle size={11} className="text-amber-600" /> : null}
+                          </div>
+                        </div>
+                      </td>
+                    );
+                  })}
+                  <td className="border-l border-border bg-primary/5 px-3 py-3 text-right align-top">
+                    <div className="text-base font-bold text-text-primary">{toCurrency(summary.total)}</div>
+                    <div className="mt-1 text-[11px] font-semibold text-text-muted">Yearly OpEx</div>
+                  </td>
+                </tr>
+                <tr className="table-row">
+                  <td className="sticky left-0 z-10 bg-surface px-3 py-3">
+                    <div className="font-bold text-text-primary">Remark</div>
+                    <div className="mt-0.5 text-xs text-text-muted">Optional monthly note</div>
+                  </td>
+                  {summary.rows.map((row) => {
+                    const editable = canEditMonth(row.value);
+                    return (
+                      <td key={row.value} className="border-l border-border px-2 py-3 align-top">
+                        <input
+                          className="control h-9 w-full px-2 text-xs"
+                          disabled={!editable}
+                          placeholder="Optional"
+                          value={drafts[row.value]?.remark ?? ""}
+                          onFocus={() => setEditingCell(`${row.value}:remark`)}
+                          onBlur={() => { setEditingCell(null); if (editable) saveMonth(row.value); }}
+                          onChange={(event) => updateDraft(row.value, "remark", event.target.value)}
+                        />
+                      </td>
+                    );
+                  })}
+                  <td className="border-l border-border bg-primary/5 px-3 py-3 text-right text-xs font-semibold text-text-muted">
+                    {summary.rows.filter((row) => row.remark).length} notes
+                  </td>
+                </tr>
+              </tbody>
+            </table>
           </div>
         </Card>
 
-        <SummaryPanel
-          title="Current Period"
-          items={[
-            { label: "Outlet", value: store.outlets.find((outlet) => outlet.id === filters.outletId)?.name ?? "—" },
-            { label: "Period", value: `${monthLabel(filters.month)} ${filters.year}` },
-            { label: "Saved OpEx", value: toCurrency(Number(currentExpense?.amount ?? amount ?? 0)) },
-            { label: "Status", value: currentExpense ? "Saved" : "Not entered" },
-          ]}
-        />
+        <Card title="Yearly Summary" description="Full-year operating expense control.">
+          <div className="space-y-3 p-4">
+            <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+              <div className="text-xs font-bold uppercase tracking-wide text-text-muted">YTD OpEx</div>
+              <div className="mt-2 text-3xl font-semibold tracking-tight text-text-primary">{toCurrency(summary.total)}</div>
+              <div className="mt-1 text-xs text-text-secondary">One total monthly value per month</div>
+            </div>
+            <div className="grid gap-2">
+              <div className="flex items-center justify-between rounded-xl border border-border bg-surface px-3 py-2">
+                <span className="text-xs font-semibold text-text-secondary">Average Monthly OpEx</span>
+                <strong className="text-sm text-text-primary">{toCurrency(summary.average)}</strong>
+              </div>
+              <div className="flex items-center justify-between rounded-xl border border-border bg-surface px-3 py-2">
+                <span className="text-xs font-semibold text-text-secondary">Highest Expense Month</span>
+                <strong className="text-sm text-text-primary">{summary.highest ? `${summary.highest.label} · ${toCurrency(summary.highest.amount)}` : "—"}</strong>
+              </div>
+              <div className="flex items-center justify-between rounded-xl border border-border bg-surface px-3 py-2">
+                <span className="text-xs font-semibold text-text-secondary">Lowest Expense Month</span>
+                <strong className="text-sm text-text-primary">{summary.lowest ? `${summary.lowest.label} · ${toCurrency(summary.lowest.amount)}` : "—"}</strong>
+              </div>
+            </div>
+            <MiniTrend rows={summary.rows} average={summary.average} />
+            <div className="rounded-2xl border border-border bg-slate-50 p-3 text-xs leading-5 text-text-secondary">
+              Months above 150% of the yearly average are highlighted in amber for management review.
+            </div>
+          </div>
+        </Card>
       </div>
     </div>
   );
