@@ -236,90 +236,75 @@ export default function OperatingExpensesPage({ store, setStore, ui, auth }) {
       {error ? <div className="card border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700">{error}</div> : null}
 
       <div className="grid items-start gap-6 xl:grid-cols-[minmax(0,1fr)_330px]">
-        <Card title="Yearly Operating Expenses Matrix" description="One total OpEx amount and one optional remark per month. Category breakdown can be added later.">
-          <div className="overflow-x-auto px-0 pb-1 pt-3">
-            <table className="w-full min-w-[1900px] border-collapse text-sm">
+        <Card title="Yearly Operating Expenses Worksheet" description="One total OpEx amount and one optional remark per month. Category breakdown can be added later.">
+          <div className="overflow-x-auto px-1 pb-1 pt-3">
+            <table className="w-full min-w-[920px] border-collapse text-sm">
               <thead className="table-head">
                 <tr>
-                  <th className="sticky left-0 z-10 w-64 bg-surface px-5 py-3.5 text-left">Metric</th>
-                  {months.map((month) => {
-                    const locked = isLocked(month.value);
-                    return (
-                      <th key={month.value} className="w-40 border-l border-border/80 px-3.5 py-3.5 text-center">
-                        <div className="flex items-center justify-center gap-1 text-[12px] font-bold uppercase tracking-[0.04em] text-text-secondary">
-                          <span>{month.label}</span>
-                          {locked ? <Lock size={12} className="text-amber-600" /> : null}
-                        </div>
-                      </th>
-                    );
-                  })}
-                  <th className="w-44 border-l border-border bg-primary/5 px-5 py-3.5 text-right">Total</th>
+                  <th className="w-28 px-4 py-3.5 text-left">Month</th>
+                  <th className="w-64 px-4 py-3.5 text-left">Operating Expenses</th>
+                  <th className="min-w-[320px] px-4 py-3.5 text-left">Remark</th>
+                  <th className="w-36 px-4 py-3.5 text-left">Status</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                <tr className="table-row bg-surface">
-                  <td className="sticky left-0 z-10 bg-surface px-5 py-7">
-                    <div className="text-sm font-bold text-text-primary">Operating Expenses</div>
-                    <div className="mt-2 text-xs leading-4 text-text-muted">Monthly total OpEx</div>
-                  </td>
-                  {summary.rows.map((row) => {
-                    const locked = isLocked(row.value);
-                    const abnormal = summary.average > 0 && row.amount > summary.average * 1.5;
-                    const saving = savingCells[row.value];
-                    const editable = canEditMonth(row.value);
-                    return (
-                      <td key={row.value} className={`border-l border-border/80 px-3.5 py-7 align-top transition hover:bg-primary/5 ${editingCell === `${row.value}:amount` ? "bg-primary/5" : abnormal ? "bg-amber-50/60" : "odd:bg-slate-50/20"}`}>
-                        <div className="relative space-y-3.5">
-                          <input
-                            className={`h-14 w-full rounded-xl border px-4 text-center text-[17px] font-semibold tracking-tight outline-none shadow-sm transition placeholder:text-text-muted/50 hover:-translate-y-px hover:border-primary/30 hover:shadow-md focus:border-primary/70 focus:bg-surface focus:shadow-[0_10px_24px_rgba(34,197,94,0.12)] focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-text-muted ${abnormal ? "border-amber-300 bg-amber-50" : "border-border/80 bg-surface"}`}
-                            type="number"
-                            min="0"
-                            step="0.01"
-                            disabled={!editable}
-                            placeholder="0.00"
-                            value={drafts[row.value]?.amount ?? ""}
-                            onFocus={(event) => { event.target.select(); setEditingCell(`${row.value}:amount`); }}
-                            onBlur={() => { setEditingCell(null); if (editable) saveMonth(row.value); }}
-                            onChange={(event) => updateDraft(row.value, "amount", event.target.value)}
-                          />
-                          <div className="flex min-h-5 items-center justify-center gap-1 text-[10px] font-medium opacity-80">
-                            {locked ? <span className="text-amber-700">Locked</span> : saving ? <span className="text-text-muted">Saving...</span> : row.saved ? <span className="inline-flex items-center gap-1 text-emerald-700/70"><CheckCircle2 size={10} /> Saved</span> : editingCell === `${row.value}:amount` ? <span className="text-primary">Editing</span> : null}
-                            {abnormal ? <AlertTriangle size={11} className="text-amber-600" /> : null}
-                          </div>
+                {summary.rows.map((row, index) => {
+                  const locked = isLocked(row.value);
+                  const abnormal = summary.average > 0 && row.amount > summary.average * 1.5;
+                  const saving = savingCells[row.value];
+                  const editable = canEditMonth(row.value);
+                  const active = editingCell?.startsWith(`${row.value}:`);
+                  const status = locked ? "Locked" : saving ? "Saving..." : abnormal ? "Warning" : row.saved ? "Saved" : "Unsaved";
+                  return (
+                    <tr key={row.value} className={`table-row transition hover:bg-primary/5 ${active ? "bg-primary/5" : abnormal ? "bg-amber-50/55" : index % 2 ? "bg-slate-50/45" : "bg-surface"}`}>
+                      <td className="px-4 py-4 align-middle">
+                        <div className="flex items-center gap-2">
+                          <span className="text-sm font-bold text-text-primary">{row.label}</span>
+                          {locked ? <Lock size={13} className="text-amber-600" /> : null}
                         </div>
+                        <div className="mt-1 text-[11px] font-medium text-text-muted">{year}</div>
                       </td>
-                    );
-                  })}
-                  <td className="border-l border-border bg-primary/5 px-5 py-7 text-right align-top">
-                    <div className="text-base font-bold text-text-primary">{toCurrency(summary.total)}</div>
-                    <div className="mt-1 text-[11px] font-semibold text-text-muted">Yearly OpEx</div>
-                  </td>
-                </tr>
-                <tr className="table-row bg-slate-50/60">
-                  <td className="sticky left-0 z-10 bg-slate-50 px-5 py-7">
-                    <div className="text-sm font-bold text-text-primary">Remark</div>
-                    <div className="mt-2 text-xs leading-4 text-text-muted">Optional monthly note</div>
-                  </td>
-                  {summary.rows.map((row) => {
-                    const editable = canEditMonth(row.value);
-                    return (
-                      <td key={row.value} className={`border-l border-border/80 px-3.5 py-7 align-top transition hover:bg-primary/5 ${editingCell === `${row.value}:remark` ? "bg-primary/5" : ""}`}>
+                      <td className="px-4 py-4 align-middle">
+                        <input
+                          className={`h-12 w-full rounded-xl border px-4 text-right text-[16px] font-semibold tracking-tight outline-none shadow-sm transition placeholder:text-text-muted/50 hover:-translate-y-px hover:border-primary/30 hover:shadow-md focus:border-primary/70 focus:bg-surface focus:shadow-[0_10px_24px_rgba(34,197,94,0.12)] focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-text-muted ${abnormal ? "border-amber-300 bg-amber-50" : "border-border/80 bg-surface"}`}
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          disabled={!editable}
+                          placeholder="0.00"
+                          value={drafts[row.value]?.amount ?? ""}
+                          onFocus={(event) => { event.target.select(); setEditingCell(`${row.value}:amount`); }}
+                          onBlur={() => { setEditingCell(null); if (editable) saveMonth(row.value); }}
+                          onChange={(event) => updateDraft(row.value, "amount", event.target.value)}
+                        />
+                      </td>
+                      <td className="px-4 py-4 align-middle">
                         <input
                           className="h-12 w-full rounded-xl border border-border/80 bg-surface px-4 text-left text-[13px] font-medium text-text-primary outline-none shadow-sm transition placeholder:text-text-muted/60 hover:-translate-y-px hover:border-primary/25 hover:shadow-md focus:border-primary/60 focus:bg-surface focus:shadow-[0_10px_24px_rgba(34,197,94,0.10)] focus:ring-4 focus:ring-primary/10 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-text-muted"
                           disabled={!editable}
-                          placeholder="Optional"
+                          placeholder="Optional monthly note"
                           value={drafts[row.value]?.remark ?? ""}
                           onFocus={(event) => { event.target.select(); setEditingCell(`${row.value}:remark`); }}
                           onBlur={() => { setEditingCell(null); if (editable) saveMonth(row.value); }}
                           onChange={(event) => updateDraft(row.value, "remark", event.target.value)}
                         />
                       </td>
-                    );
-                  })}
-                  <td className="border-l border-border bg-primary/5 px-5 py-7 text-right text-xs font-semibold text-text-muted">
-                    {summary.rows.filter((row) => row.remark).length} notes
-                  </td>
-                </tr>
+                      <td className="px-4 py-4 align-middle">
+                        <div className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-bold ${
+                          locked ? "border-amber-200 bg-amber-50 text-amber-700" :
+                          saving ? "border-slate-200 bg-slate-50 text-text-muted" :
+                          abnormal ? "border-amber-200 bg-amber-50 text-amber-700" :
+                          row.saved ? "border-emerald-200 bg-emerald-50 text-emerald-700" :
+                          "border-slate-200 bg-slate-50 text-text-muted"
+                        }`}>
+                          {row.saved && !locked && !saving && !abnormal ? <CheckCircle2 size={11} /> : null}
+                          {abnormal ? <AlertTriangle size={11} /> : null}
+                          {status}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
