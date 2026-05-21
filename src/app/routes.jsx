@@ -7,6 +7,8 @@ import PurchaseInputPage from "../features/sales-purchase/pages/PurchaseInputPag
 import PurchaseComparisonPage from "../features/sales-purchase/pages/PurchaseComparisonPage.jsx";
 import SalesInputPage from "../features/sales-purchase/pages/SalesInputPage.jsx";
 import SalesComparisonPage from "../features/sales-purchase/pages/SalesComparisonPage.jsx";
+import OutletPnlPage from "../features/sales-purchase/pages/OutletPnlPage.jsx";
+import OperatingExpensesPage from "../features/sales-purchase/pages/OperatingExpensesPage.jsx";
 import SettingsPage from "../features/sales-purchase/pages/SettingsPage.jsx";
 import SupplierManagementPage from "../features/sales-purchase/pages/SupplierManagementPage.jsx";
 import UsersPage from "../features/company-users/pages/UsersPage.jsx";
@@ -92,6 +94,14 @@ const routeDetails = {
   alerts: {
     description: "Rule-based insight center for abnormal sales and supplier purchase patterns.",
     component: AlertsInsightsPage,
+  },
+  "outlet-pnl": {
+    description: "Yearly management P&L performance by outlet.",
+    component: OutletPnlPage,
+  },
+  "operating-expenses": {
+    description: "Monthly operating expense input for management P&L.",
+    component: OperatingExpensesPage,
   },
   "data-import": {
     description: "Future-ready Excel and CSV import flow with mock progress feedback.",

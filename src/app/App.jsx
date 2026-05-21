@@ -11,6 +11,7 @@ import { salesChannelService } from "../services/salesChannelService.js";
 import { outletTaxConfigService } from "../services/outletTaxConfigService.js";
 import { salesRecordService } from "../services/salesRecordService.js";
 import { purchaseRecordService } from "../services/purchaseRecordService.js";
+import { operatingExpenseService } from "../services/operatingExpenseService.js";
 import { useAuth } from "../auth/AuthContext.jsx";
 import LoginPage from "../auth/LoginPage.jsx";
 import SetNewPasswordPage from "../auth/SetNewPasswordPage.jsx";
@@ -109,13 +110,14 @@ function filterSectionsByPermission(sections, routes, auth) {
 }
 
 const BOOTSTRAP_LOADS = [
-  { key: "outlets", label: "Outlets", table: "outlets", operation: "SELECT", permission: "outlets.view OR dashboard.view" },
+  { key: "outlets", label: "Outlets", table: "outlets", operation: "SELECT", permission: "outlets.view OR dashboard.view OR outlet_pnl.view OR operating_expenses.view" },
   { key: "suppliers", label: "Suppliers", table: "suppliers", operation: "SELECT", permission: "suppliers.view OR purchase_input.view OR purchase_comparison.view OR data_import.view" },
   { key: "purchaseCategories", label: "Purchase Categories", table: "purchase_categories", operation: "SELECT", permission: "purchase_categories.view OR purchase_input.view OR purchase_comparison.view OR data_import.view" },
-  { key: "salesChannels", label: "Sales Channels", table: "sales_channels", operation: "SELECT", permission: "sales_channels.view OR sales_input.view OR sales_comparison.view OR data_import.view" },
+  { key: "salesChannels", label: "Sales Channels", table: "sales_channels", operation: "SELECT", permission: "sales_channels.view OR sales_input.view OR sales_comparison.view OR data_import.view OR outlet_pnl.view" },
   { key: "outletTaxConfigs", label: "Tax Settings", table: "outlet_tax_configs", operation: "SELECT", permission: "tax_settings.view OR sales_input.view OR dashboard.view" },
-  { key: "salesRecords", label: "Sales Records", table: "sales_records", operation: "SELECT", permission: "dashboard.view OR sales_input.view OR sales_comparison.view" },
-  { key: "purchaseRecords", label: "Purchase Records", table: "purchase_records", operation: "SELECT", permission: "dashboard.view OR purchase_input.view OR purchase_comparison.view" },
+  { key: "salesRecords", label: "Sales Records", table: "sales_records", operation: "SELECT", permission: "dashboard.view OR sales_input.view OR sales_comparison.view OR outlet_pnl.view" },
+  { key: "purchaseRecords", label: "Purchase Records", table: "purchase_records", operation: "SELECT", permission: "dashboard.view OR purchase_input.view OR purchase_comparison.view OR outlet_pnl.view" },
+  { key: "operatingExpenses", label: "Operating Expenses", table: "operating_expenses", operation: "SELECT", permission: "operating_expenses.view OR outlet_pnl.view" },
 ];
 
 function RbacDiagnosticsPanel({ auth, loads }) {
@@ -131,6 +133,12 @@ function RbacDiagnosticsPanel({ auth, loads }) {
     "purchase_input.create",
     "purchase_input.edit",
     "purchase_comparison.view",
+    "outlet_pnl.view",
+    "outlet_pnl.export",
+    "operating_expenses.view",
+    "operating_expenses.create",
+    "operating_expenses.edit",
+    "operating_expenses.delete",
     "suppliers.view",
     "purchase_categories.view",
     "sales_channels.view",
@@ -218,7 +226,7 @@ export default function App() {
   const [activeRouteId, setActiveRouteId] = useState(
     salesPurchaseRoutes.some((route) => route.id === initialRoute) ? initialRoute : "dashboard",
   );
-  const [store, setStore] = useState(() => ({ ...operationsService.getBootstrapData(), outlets: [], suppliers: [], purchaseCategories: [], salesChannels: [] }));
+  const [store, setStore] = useState(() => ({ ...operationsService.getBootstrapData(), outlets: [], suppliers: [], purchaseCategories: [], salesChannels: [], operatingExpenses: [] }));
   const [masterDataStatus, setMasterDataStatus] = useState({ loading: true, errors: [], loads: BOOTSTRAP_LOADS.map((load) => ({ ...load, status: "pending" })) });
   const [toasts, setToasts] = useState([]);
   const [confirmRequest, setConfirmRequest] = useState(null);
@@ -257,8 +265,9 @@ export default function App() {
       let outletTaxConfigs = [];
       let salesRecords = [];
       let purchaseRecords = [];
+      let operatingExpenses = [];
 
-      const [outletResult, supplierResult, categoryResult, salesChannelResult, taxConfigResult, salesRecordResult, purchaseRecordResult] = await Promise.allSettled([
+      const [outletResult, supplierResult, categoryResult, salesChannelResult, taxConfigResult, salesRecordResult, purchaseRecordResult, operatingExpenseResult] = await Promise.allSettled([
         outletService.listActiveOutlets(),
         supplierService.listSuppliers(),
         purchaseCategoryService.listPurchaseCategories(),
@@ -266,6 +275,7 @@ export default function App() {
         outletTaxConfigService.listOutletTaxConfigs(),
         salesRecordService.listSalesRecords(),
         purchaseRecordService.listPurchaseRecords(),
+        operatingExpenseService.listOperatingExpenses(),
       ]);
       if (outletResult.status === "fulfilled") {
         outlets = outletResult.value;
@@ -330,6 +340,15 @@ export default function App() {
         markLoad("purchaseRecords", "error", purchaseRecordResult.reason?.message || "Unable to load purchase records.");
         errors.push("Unable to load purchase records.");
       }
+      if (operatingExpenseResult.status === "fulfilled") {
+        operatingExpenses = operatingExpenseResult.value;
+        markLoad("operatingExpenses", "loaded");
+      }
+      else {
+        console.error("Unable to load operating expenses", operatingExpenseResult.reason);
+        markLoad("operatingExpenses", "error", operatingExpenseResult.reason?.message || "Unable to load operating expenses.");
+        errors.push("Unable to load operating expenses.");
+      }
 
       if (!ignore) {
         setStore((current) => ({
@@ -341,6 +360,7 @@ export default function App() {
           ...(salesChannelResult.status === "fulfilled" ? { salesChannels } : {}),
           ...(salesRecordResult.status === "fulfilled" ? { salesRecords } : {}),
           ...(purchaseRecordResult.status === "fulfilled" ? { purchaseRecords } : {}),
+          ...(operatingExpenseResult.status === "fulfilled" ? { operatingExpenses } : {}),
         }));
         setMasterDataStatus({ loading: false, errors, loads });
       }
@@ -440,6 +460,7 @@ export default function App() {
             <div>Loading FeedX categories...</div>
             <div>Loading FeedX sales channels...</div>
             <div>Loading FeedX tax settings...</div>
+            <div>Loading FeedX operating expenses...</div>
           </div>
         ) : (
           <>

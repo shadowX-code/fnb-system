@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BarChart3, Bell, Building2, CalendarDays, Check, ChevronsDownUp, ChevronsUpDown, ChevronDown, ClipboardList, Download, KeyRound, LogOut, Menu, Monitor, Moon, Settings, Shield, Sun, UserRound, Users, X } from "lucide-react";
+import { BarChart3, Bell, Building2, CalendarDays, Check, ChevronsDownUp, ChevronsUpDown, ChevronDown, ClipboardList, Download, KeyRound, LogOut, Menu, Monitor, Moon, Settings, Shield, Sun, UserRound, Users, Wallet, X } from "lucide-react";
 import Modal from "../components/feedback/Modal.jsx";
 import Badge from "../components/ui/Badge.jsx";
 import { EMPLOYEE_ACCESS_STATE, EMPLOYEE_ACCESS_STATE_LABEL } from "../constants/employeeAccessStates.js";
@@ -18,6 +18,8 @@ const iconMap = {
   "tax-settings": Settings,
   "purchase-categories": Settings,
   alerts: BarChart3,
+  "outlet-pnl": BarChart3,
+  "operating-expenses": Wallet,
   "data-import": Download,
   "data-health": BarChart3,
   "audit-logs": KeyRound,

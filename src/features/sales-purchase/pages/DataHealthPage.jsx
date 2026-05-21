@@ -72,6 +72,7 @@ export default function DataHealthPage({ store, setStore, ui, auth }) {
   const [unlockReason, setUnlockReason] = useState("");
   const salesRows = getSalesRecordRows(store, filters.outletId, filters.month, filters.year);
   const purchaseRows = getPurchaseRecordRows(store, filters.outletId, filters.month, filters.year);
+  const opexRow = (store.operatingExpenses ?? []).find((record) => record.outlet_id === filters.outletId && Number(record.month) === Number(filters.month) && Number(record.year) === Number(filters.year));
   const netSales = getNetSales(store.salesRecords, filters.outletId, filters.month, filters.year, store.salesChannels);
   const totalPurchase = sumAmount(purchaseRows);
   const lock = getLock(store, filters.outletId, filters.month, filters.year);
@@ -247,6 +248,13 @@ export default function DataHealthPage({ store, setStore, ui, auth }) {
           <p className="mt-1">Sales and purchase completeness checks are ready for month closing.</p>
         </div>
       )}
+
+      {!opexRow && hasAnyData ? (
+        <div className="rounded-2xl border border-blue-200 bg-blue-50/35 p-4 text-sm text-blue-800">
+          <div className="font-bold text-text-primary">OpEx not entered</div>
+          <p className="mt-1">Outlet P&L can still render with OpEx = RM0, but monthly operating expense has not been saved for this period.</p>
+        </div>
+      ) : null}
 
       {highRiskOperationalAlerts.length ? (
         <Card title="Operational Alerts Detected" description="Advisory risk signals. Alerts do not reduce completeness score or block month locking.">

@@ -31,6 +31,19 @@ function buildTicks(maxValue, yAxisType, compact = false) {
   return { ticks, top };
 }
 
+function buildSignedTicks(minValue, maxValue, yAxisType, compact = false) {
+  if (minValue >= 0) return { ...buildTicks(maxValue, yAxisType, compact), bottom: 0 };
+  const desired = compact ? 4 : 5;
+  const step = niceStep(Math.max(maxValue - minValue, 1) / desired, yAxisType);
+  const top = Math.max(step, Math.ceil(maxValue / step) * step);
+  const bottom = Math.min(-step, Math.floor(minValue / step) * step);
+  const ticks = [];
+  for (let value = bottom; value <= top + step / 2; value += step) {
+    ticks.push(value);
+  }
+  return { ticks, top, bottom };
+}
+
 function defaultTickFormatter(value, yAxisType) {
   if (yAxisType === "percent") return `${Math.round(value)}%`;
   return compactCurrency(value);
@@ -65,6 +78,30 @@ function buildAreaPath(points, baseline) {
   return `${line} L ${last.x} ${baseline} L ${first.x} ${baseline} Z`;
 }
 
+function ChartDot({ point, color, active }) {
+  const size = active ? 14 : 10;
+  const radius = active ? 6 : 4;
+  const center = size / 2;
+
+  return (
+    <svg
+      aria-hidden="true"
+      className="pointer-events-none absolute z-20 overflow-visible transition-all duration-150"
+      style={{
+        left: `${point.x}%`,
+        top: `${point.y}%`,
+        width: size,
+        height: size,
+        transform: "translate(-50%, -50%)",
+        filter: active ? "drop-shadow(0 0 8px rgba(34, 197, 94, 0.45))" : undefined,
+      }}
+      viewBox={`0 0 ${size} ${size}`}
+    >
+      <circle cx={center} cy={center} r={radius} fill={color} stroke="var(--theme-surface)" strokeWidth="1.5" />
+    </svg>
+  );
+}
+
 export default function TrendChart({
   series,
   labels,
@@ -85,7 +122,8 @@ export default function TrendChart({
   const allValues = safeSeries.flatMap((item) => item.data).filter((value) => Number.isFinite(value));
   const hasData = safeLabels.length > 0 && allValues.some((value) => Math.abs(value) > 0);
   const maxValue = Math.max(...allValues, 0);
-  const { ticks, top } = useMemo(() => buildTicks(maxValue, yAxisType, safeLabels.length > 6), [maxValue, safeLabels.length, yAxisType]);
+  const minValue = Math.min(...allValues, 0);
+  const { ticks, top, bottom } = useMemo(() => buildSignedTicks(minValue, maxValue, yAxisType, safeLabels.length > 6), [maxValue, minValue, safeLabels.length, yAxisType]);
   const formatTick = tickFormat ?? ((value) => defaultTickFormatter(value, yAxisType));
   const gradientPrefix = useMemo(() => `trend-${Math.random().toString(36).slice(2)}`, []);
   const plotTop = 7;
@@ -95,7 +133,8 @@ export default function TrendChart({
   const activeX = activeIndex !== null ? (activeIndex / Math.max(safeLabels.length - 1, 1)) * 100 : null;
 
   function yForValue(value) {
-    return plotBottom - (Math.max(Number(value) || 0, 0) / Math.max(top, 1)) * plotHeight;
+    const range = Math.max(top - bottom, 1);
+    return plotBottom - ((Number(value) || 0) - bottom) / range * plotHeight;
   }
 
   return (
@@ -170,15 +209,16 @@ export default function TrendChart({
                     onMouseLeave={() => setHoverIndex(null)}
                   >
                     {safeSeries.map((item, seriesIndex) => {
-                      const value = Math.max(Number(item.data[index] || 0), 0);
-                      const y = yForValue(value);
-                      const height = plotBottom - y;
+                    const value = Number(item.data[index] || 0);
+                    const y = yForValue(value);
+                      const baseline = yForValue(0);
+                      const height = Math.abs(baseline - y);
                       const x = groupStart + seriesIndex * (barWidth + barGap);
                       return (
                         <rect
                           key={item.name}
                           x={x}
-                          y={y}
+                          y={Math.min(y, baseline)}
                           width={barWidth}
                           height={Math.max(height, value > 0 ? 2.5 : 0)}
                           rx="1.4"
@@ -192,6 +232,7 @@ export default function TrendChart({
               })}
             </svg>
           ) : (
+            <>
             <svg className="relative z-10 h-full w-full overflow-visible" viewBox="0 0 100 100" preserveAspectRatio="none">
               <defs>
                 {safeSeries.map((item, seriesIndex) => (
@@ -208,7 +249,7 @@ export default function TrendChart({
                 return (
                 <g key={item.name}>
                   {item.area || type === "area" ? (
-                    <path d={buildAreaPath(pointList, plotBottom)} fill={`url(#${gradientPrefix}-area-${seriesIndex})`} />
+                    <path d={buildAreaPath(pointList, yForValue(0))} fill={`url(#${gradientPrefix}-area-${seriesIndex})`} />
                   ) : null}
                   <path
                     d={smoothPath}
@@ -219,20 +260,6 @@ export default function TrendChart({
                     strokeWidth={item.strokeWidth ?? 3}
                     vectorEffect="non-scaling-stroke"
                   />
-                  {safeLabels.map((label, index) => {
-                    const point = pointList[index];
-                    return (
-                      <circle
-                        key={`${item.name}-${label}`}
-                        cx={point.x}
-                        cy={point.y}
-                        r={hoverIndex === index ? 2.2 : 1.4}
-                        fill={item.pointColor ?? item.stroke}
-                        className={hoverIndex === index ? "drop-shadow-[0_0_8px_rgba(34,197,94,0.55)]" : ""}
-                        vectorEffect="non-scaling-stroke"
-                      />
-                    );
-                  })}
                 </g>
               )})}
               {safeLabels.map((label, index) => {
@@ -251,6 +278,18 @@ export default function TrendChart({
                 );
               })}
             </svg>
+            {safeSeries.map((item) => {
+              const pointList = buildPointList(item.data, yForValue);
+              return pointList.map((point, index) => (
+                <ChartDot
+                  key={`${item.name}-${safeLabels[index]}-dot`}
+                  point={point}
+                  color={item.pointColor ?? item.stroke}
+                  active={hoverIndex === index}
+                />
+              ));
+            })}
+            </>
           )}
         </div>
 

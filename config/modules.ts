@@ -170,6 +170,15 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, create: true, edit: true, delete: true },
   },
   {
+    id: "operating-expenses",
+    section: "Operations",
+    label: "Operating Expenses",
+    route: "/operations/operating-expenses",
+    icon: "operating-expenses",
+    sidebar: true,
+    permissions: { view: true, create: true, edit: true, delete: true },
+  },
+  {
     id: "outlets",
     section: "Operations",
     label: "Outlets",
@@ -186,6 +195,15 @@ export const moduleRegistry: AppModule[] = [
     icon: "alerts",
     sidebar: true,
     permissions: { view: true, manage: true },
+  },
+  {
+    id: "outlet-pnl",
+    section: "Overview",
+    label: "Outlet P&L",
+    route: "/overview/outlet-pnl",
+    icon: "outlet-pnl",
+    sidebar: true,
+    permissions: { view: true, export: true },
   },
   {
     id: "data-import",
