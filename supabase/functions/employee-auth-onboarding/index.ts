@@ -38,8 +38,12 @@ Deno.serve(async (request) => {
   try {
     return await handleRequest(request);
   } catch (error) {
-    const message = error instanceof Error ? error.message : String(error);
-    return json({ ok: false, code: "UNHANDLED_ERROR", message }, 500);
+    console.error("employee-auth-onboarding failed", error);
+    return json({
+      ok: false,
+      code: "UNHANDLED_ERROR",
+      message: "Unable to complete login setup. Please try again or contact admin.",
+    }, 500);
   }
 });
 
@@ -74,8 +78,20 @@ async function handleRequest(request: Request) {
   const { data: permissionResult, error: permissionError } = await userClient.rpc("current_user_has_permission", {
     permission_code: "employees.enable_login",
   });
-  if (permissionError) return json({ error: permissionError.message }, 403);
-  if (!permissionResult) return json({ error: "You do not have permission to manage employee login access." }, 403);
+  if (permissionError) {
+    return json({
+      ok: false,
+      code: "PERMISSION_CHECK_FAILED",
+      message: "Unable to verify your access. Please try again or contact admin.",
+    }, 403);
+  }
+  if (!permissionResult) {
+    return json({
+      ok: false,
+      code: "PERMISSION_DENIED",
+      message: "You do not have permission to manage employee login access.",
+    }, 403);
+  }
 
   const body = await request.json().catch(() => ({}));
   const employeeId = body.employee_id;
@@ -85,23 +101,63 @@ async function handleRequest(request: Request) {
     const { data: canCreateManualLink, error: manualPermissionError } = await userClient.rpc("current_user_has_permission", {
       permission_code: "roles.edit",
     });
-    if (manualPermissionError) return json({ error: manualPermissionError.message }, 403);
-    if (!canCreateManualLink) return json({ error: "Only owner/admin-level users can generate manual setup links." }, 403);
+    if (manualPermissionError) {
+      return json({
+        ok: false,
+        code: "MANUAL_LINK_PERMISSION_CHECK_FAILED",
+        message: "Unable to verify manual setup link access. Please try again or contact admin.",
+      }, 403);
+    }
+    if (!canCreateManualLink) {
+      return json({
+        ok: false,
+        code: "MANUAL_LINK_PERMISSION_DENIED",
+        message: "Only authorized users can generate manual setup links.",
+      }, 403);
+    }
   }
-  if (!employeeId) return json({ error: "employee_id is required." }, 400);
+  if (!employeeId) {
+    return json({
+      ok: false,
+      code: "EMPLOYEE_REQUIRED",
+      message: "Employee is required.",
+    }, 400);
+  }
 
   const { data: employee, error: employeeError } = await adminClient
     .from("employees")
     .select("id,email,full_name,role_id,enable_system_login,access_state")
     .eq("id", employeeId)
     .maybeSingle();
-  if (employeeError) return json({ error: employeeError.message }, 500);
-  if (!employee) return json({ error: "Employee was not found." }, 404);
-  if (!employee.role_id) return json({ error: "Assign a role before sending login setup email." }, 400);
+  if (employeeError) {
+    return json({
+      ok: false,
+      code: "EMPLOYEE_LOOKUP_FAILED",
+      message: "Unable to load employee details.",
+    }, 500);
+  }
+  if (!employee) {
+    return json({
+      ok: false,
+      code: "EMPLOYEE_NOT_FOUND",
+      message: "Employee was not found.",
+    }, 404);
+  }
+  if (!employee.role_id) {
+    return json({
+      ok: false,
+      code: "ROLE_REQUIRED",
+      message: "Assign a role before sending login setup email.",
+    }, 400);
+  }
 
   const email = normalizeEmail(employee.email);
   if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return json({ error: "Employee must have a valid email before login setup." }, 400);
+    return json({
+      ok: false,
+      code: "VALID_EMAIL_REQUIRED",
+      message: "Employee must have a valid email before login setup.",
+    }, 400);
   }
 
   const redirectTo = siteUrl ? `${siteUrl.replace(/\/$/, "")}/` : undefined;
@@ -111,15 +167,24 @@ async function handleRequest(request: Request) {
   let setupUrl: string | null = null;
 
   if (manualLinkRequested) {
-    const manual = await generateManualSetupLink(adminClient, {
-      email,
-      employee,
-      existingUser,
-      redirectTo,
-    });
-    setupUrl = manual.setupUrl;
-    authUser = manual.authUser;
-    mode = "manual_link";
+    try {
+      const manual = await generateManualSetupLink(adminClient, {
+        email,
+        employee,
+        existingUser,
+        redirectTo,
+      });
+      setupUrl = manual.setupUrl;
+      authUser = manual.authUser;
+      mode = "manual_link";
+    } catch (manualLinkError) {
+      console.error("Unable to generate manual login setup link", manualLinkError);
+      return json({
+        ok: false,
+        code: "MANUAL_LINK_FAILED",
+        message: "Unable to generate a login setup link. Please try again or contact admin.",
+      }, 500);
+    }
   } else {
     try {
       if (!existingUser) {
@@ -169,19 +234,18 @@ async function handleRequest(request: Request) {
     .eq("id", employee.id);
   const warning = updateError ? "Email sent but employee status update failed." : undefined;
 
-  await adminClient.from("audit_logs").insert({
+  const { error: auditError } = await adminClient.from("audit_logs").insert({
     action: "employee_login_setup_sent",
     module: "people",
     description: `Login setup ${mode === "manual_link" ? "manual setup link" : "email"} sent to ${email}.`,
     metadata: { target: employee.full_name, employee_id: employee.id, email, mode },
-  }).catch(() => {});
+  });
 
   return json({
     ok: true,
     mode,
     message: mode === "manual_link" ? "Login setup link generated." : "Login setup email sent.",
-    warning,
-    updateError: updateError?.message,
+    warning: warning ?? (auditError ? "Login setup completed, but audit activity could not be recorded." : undefined),
     setupUrl,
     email,
     employeeId: employee.id,
