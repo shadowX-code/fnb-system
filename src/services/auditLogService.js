@@ -2,6 +2,7 @@ import { supabase } from "../lib/supabase";
 import { throwSupabaseError } from "./supabaseError";
 
 function mapAudit(row) {
+  const outletValue = row.metadata?.outlet_id || row.metadata?.outlet || row.outlet || "-";
   return {
     id: row.id,
     actor: row.user_name || row.actor || "System",
@@ -9,7 +10,8 @@ function mapAudit(row) {
     action: row.action,
     module: row.module,
     target: row.metadata?.target || row.target || row.description || "-",
-    outlet: row.metadata?.outlet || row.outlet || "-",
+    outlet: outletValue,
+    outletId: row.metadata?.outlet_id || (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(outletValue)) ? outletValue : null),
     before: row.metadata?.before ?? row.before ?? null,
     after: row.metadata?.after ?? row.after ?? null,
     timestamp: row.created_at || row.timestamp,
@@ -39,7 +41,7 @@ export const auditLogService = {
       user_id: userData?.user?.id ?? null,
       user_name: userData?.user?.user_metadata?.full_name || userData?.user?.email || "System",
       description: description || target || action,
-      metadata: { ...metadata, target, outlet, before, after },
+      metadata: { ...metadata, target, outlet, outlet_id: metadata.outlet_id || (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(outlet)) ? outlet : undefined), before, after },
     };
     const { data, error } = await supabase
       .from("audit_logs")

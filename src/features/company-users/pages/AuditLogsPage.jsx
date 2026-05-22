@@ -367,12 +367,14 @@ function cleanDisplayValue(value) {
   return toTitleCase(String(value).replace(/\bRM\b/gi, "RM"));
 }
 
-function displayOutlet(value) {
-  const text = String(value || "").trim();
+const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+function displayOutlet(row, outletNameById = {}) {
+  const outletId = row?.outletId || (uuidPattern.test(String(row?.outlet || "")) ? row.outlet : null);
+  if (outletId) return outletNameById[outletId] || "Unknown Outlet";
+
+  const text = String(row?.outlet || "").trim();
   if (!text || text === "-" || text.toLowerCase() === "null") return "System-wide";
-  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(text)) {
-    return "System-wide";
-  }
   return text;
 }
 
@@ -450,6 +452,7 @@ function AuditDetailDrawer({ row, onClose }) {
   if (!row) return null;
   const severity = getSeverity(row);
   const typeMeta = auditTypeMeta[row.module] ?? { label: getReadableModule(row.module), tone: "neutral" };
+  const outletNameById = row.outletNameById ?? {};
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30 backdrop-blur-[1px]" role="dialog" aria-modal="true">
       <div className="flex h-full w-full max-w-2xl flex-col border-l border-border bg-surface shadow-2xl">
@@ -475,7 +478,7 @@ function AuditDetailDrawer({ row, onClose }) {
               ["Performed By", getUserDisplay(row).name],
               ["Role", row.actorRole || "—"],
               ["Record", row.target],
-              ["Outlet", displayOutlet(row.outlet)],
+              ["Outlet", displayOutlet(row, outletNameById)],
               ["Time", formatDrawerTimestamp(row.timestamp)],
               ["Device", row.device && row.device !== "-" ? row.device : "Device detail not captured yet"],
               ["Network", row.ip && row.ip !== "-" ? row.ip : "Network detail not captured yet"],
@@ -551,9 +554,10 @@ function QuickFilterPill({ active, children, onClick }) {
   );
 }
 
-function AuditEventRow({ row, onOpen }) {
+function AuditEventRow({ row, outletNameById, onOpen }) {
   const severity = getSeverity(row);
   const typeMeta = auditTypeMeta[row.module] ?? { label: getReadableModule(row.module), tone: "neutral" };
+  const outletName = displayOutlet(row, outletNameById);
   return (
     <button
       className="group relative w-full rounded-2xl border border-border bg-surface px-4 py-4 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:bg-primary/[0.03] hover:shadow-md"
@@ -583,7 +587,7 @@ function AuditEventRow({ row, onOpen }) {
         </div>
 
         <div className="min-w-0">
-          <div className="truncate text-sm font-semibold text-text-primary">{displayOutlet(row.outlet)}</div>
+          <div className="truncate text-sm font-semibold text-text-primary">{outletName}</div>
           <div className="mt-1"><Badge tone={typeMeta.tone}>{typeMeta.label}</Badge></div>
         </div>
 
@@ -596,7 +600,7 @@ function AuditEventRow({ row, onOpen }) {
   );
 }
 
-export default function AuditLogsPage({ auth, ui }) {
+export default function AuditLogsPage({ auth, ui, store }) {
   const [query, setQuery] = useState("");
   const [quickFilter, setQuickFilter] = useState("all");
   const [auditRowsLive, setAuditRowsLive] = useState([]);
@@ -604,6 +608,9 @@ export default function AuditLogsPage({ auth, ui }) {
   const [loadError, setLoadError] = useState("");
   const [selectedAudit, setSelectedAudit] = useState(null);
   const canExport = auth?.hasPermission?.("audit_logs.export") ?? true;
+  const outletNameById = useMemo(() => (
+    Object.fromEntries((store?.outlets ?? []).map((outlet) => [outlet.id, outlet.name]))
+  ), [store?.outlets]);
 
   useEffect(() => {
     let ignore = false;
@@ -644,14 +651,14 @@ export default function AuditLogsPage({ auth, ui }) {
         getReadableAction(row.action),
         getReadableModule(row.module),
         row.target,
-        displayOutlet(row.outlet),
+        displayOutlet(row, outletNameById),
         row.metadata,
         row.timestamp,
         row.ip,
         row.device,
       ].some((value) => String(value || "").toLowerCase().includes(search));
     });
-  }, [auditRowsLive, query, quickFilter]);
+  }, [auditRowsLive, outletNameById, query, quickFilter]);
 
   const kpis = useMemo(() => ({
     security: rows.filter((row) => getEventGroup(row) === "security").length,
@@ -729,7 +736,12 @@ export default function AuditLogsPage({ auth, ui }) {
               <span className="text-right">Time</span>
             </div>
             {rows.map((row) => (
-              <AuditEventRow key={row.id} row={row} onOpen={setSelectedAudit} />
+              <AuditEventRow
+                key={row.id}
+                row={row}
+                outletNameById={outletNameById}
+                onOpen={(auditRow) => setSelectedAudit({ ...auditRow, outletNameById })}
+              />
             ))}
           </div>
         ) : (

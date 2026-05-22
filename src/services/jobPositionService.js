@@ -63,7 +63,34 @@ export const jobPositionService = {
     return mapPosition(data);
   },
 
-  async deleteJobPosition(id) {
+  async deleteJobPosition(positionOrId) {
+    const id = typeof positionOrId === "object" ? positionOrId.id : positionOrId;
+    const name = typeof positionOrId === "object" ? positionOrId.name : "";
+
+    let positionName = name;
+    if (!positionName) {
+      const { data, error } = await supabase
+        .from("job_positions")
+        .select("name")
+        .eq("id", id)
+        .single();
+      throwSupabaseError("job_positions.delete_lookup", error);
+      positionName = data?.name ?? "";
+    }
+
+    if (positionName) {
+      const { count, error: employeeCountError } = await supabase
+        .from("employees")
+        .select("id", { count: "exact", head: true })
+        .eq("position", positionName)
+        .neq("employment_status", "resigned");
+
+      throwSupabaseError("job_positions.delete_employee_count", employeeCountError);
+      if (Number(count || 0) > 0) {
+        throw new Error("This position is assigned to employees. Reassign employees before deleting.");
+      }
+    }
+
     const { error } = await supabase.from("job_positions").delete().eq("id", id);
     throwSupabaseError("job_positions.delete", error);
   },
