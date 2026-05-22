@@ -48,12 +48,20 @@ function DetailSection({ title, children }) {
 }
 
 function getPositionAudit(position, isNew = false) {
-  const updatedAt = position?.updated_at || new Date().toISOString();
+  if (isNew || !position?.id) {
+    return {
+      createdBy: "—",
+      createdDate: "—",
+      updatedBy: "—",
+      updatedDate: "—",
+    };
+  }
+  const updatedAt = position?.updated_at || "";
   return {
-    createdBy: "HR Admin",
-    createdDate: position?.created_at || updatedAt,
-    updatedBy: isNew ? "Not saved" : "HR Admin",
-    updatedDate: isNew ? "Not saved" : updatedAt,
+    createdBy: position?.created_by_name || "—",
+    createdDate: position?.created_at || "—",
+    updatedBy: position?.updated_by_name || "—",
+    updatedDate: updatedAt || "—",
   };
 }
 
@@ -204,12 +212,18 @@ function JobPositionDetailModal({
         </DetailSection>
 
         <DetailSection title="Audit Info">
-          <div className="grid gap-4 md:grid-cols-2">
-            <ReadOnlyField label="Created By">{audit.createdBy}</ReadOnlyField>
-            <ReadOnlyField label="Created Date">{formatLastUpdated(audit.createdDate)}</ReadOnlyField>
-            <ReadOnlyField label="Last Updated By">{audit.updatedBy}</ReadOnlyField>
-            <ReadOnlyField label="Last Updated Date">{audit.updatedDate === "Not saved" ? "Not saved" : formatLastUpdated(audit.updatedDate)}</ReadOnlyField>
-          </div>
+          {isAdd ? (
+            <div className="rounded-2xl border border-dashed border-border bg-surface px-4 py-3 text-sm font-semibold text-text-secondary">
+              Audit info available after first save.
+            </div>
+          ) : (
+            <div className="grid gap-4 md:grid-cols-2">
+              <ReadOnlyField label="Created By">{audit.createdBy}</ReadOnlyField>
+              <ReadOnlyField label="Created Date">{audit.createdDate === "—" ? "—" : formatLastUpdated(audit.createdDate)}</ReadOnlyField>
+              <ReadOnlyField label="Last Updated By">{audit.updatedBy}</ReadOnlyField>
+              <ReadOnlyField label="Last Updated Date">{audit.updatedDate === "—" ? "—" : formatLastUpdated(audit.updatedDate)}</ReadOnlyField>
+            </div>
+          )}
         </DetailSection>
       </div>
 
@@ -342,7 +356,10 @@ export default function JobPositionsPage({ ui, auth }) {
         const exists = current.some((item) => item.id === saved.id);
         return exists ? current.map((item) => (item.id === saved.id ? saved : item)) : [saved, ...current];
       });
-      setDetailState((current) => (current?.mode === "add" ? null : { mode: "view", position: saved }));
+      setDetailState((current) => {
+        if (!current) return null;
+        return current.mode === "add" ? null : { mode: "view", position: saved };
+      });
       ui.notify({ title: detailState?.mode === "add" ? "Position added" : "Position updated", message: saved.name });
     } catch (saveError) {
       console.error("Unable to save job position", saveError);
@@ -381,6 +398,7 @@ export default function JobPositionsPage({ ui, auth }) {
       notifyPermissionDenied(ui, "edit job positions");
       return;
     }
+    setDetailState(null);
     await savePosition({ ...position, status, updated_at: new Date().toISOString() });
   }
 
@@ -391,6 +409,7 @@ export default function JobPositionsPage({ ui, auth }) {
     }
     const hasAssignedEmployees = Number(position.active_users || 0) > 0;
     if (hasAssignedEmployees) {
+      setDetailState(null);
       ui.notify({
         title: "Unable to delete position",
         message: "This position is assigned to employees. Reassign employees before deleting.",
@@ -399,6 +418,7 @@ export default function JobPositionsPage({ ui, auth }) {
       return;
     }
     try {
+      setDetailState(null);
       await jobPositionService.deleteJobPosition(position);
       setPositions((current) => current.filter((item) => item.id !== position.id));
       ui.notify({ title: "Position deleted", message: position.name });
@@ -443,8 +463,15 @@ export default function JobPositionsPage({ ui, auth }) {
       render: (row) => {
         const hasAssignedEmployees = Number(row.active_users || 0) > 0;
         return (
-        <div className="flex justify-end gap-1.5" onClick={(event) => event.stopPropagation()}>
-          {canEditPosition ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setDetailState({ mode: "edit", position: row })}>
+        <div className="flex justify-end gap-1.5" data-row-action="true" onClick={(event) => event.stopPropagation()}>
+          {canEditPosition ? <button
+            className="btn-secondary h-8 px-2.5 text-xs"
+            type="button"
+            onClick={(event) => {
+              event.stopPropagation();
+              setDetailState({ mode: "edit", position: row });
+            }}
+          >
             <Edit3 size={13} /> Edit
           </button> : null}
           {canEditPosition ? <button
@@ -454,7 +481,9 @@ export default function JobPositionsPage({ ui, auth }) {
                 : "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100"
             }`}
             type="button"
-            onClick={() => {
+            onClick={(event) => {
+              event.stopPropagation();
+              setDetailState(null);
               if (row.status === "active" && hasAssignedEmployees) {
                 ui.notify({
                   title: "Position assigned to active employees",
@@ -472,7 +501,11 @@ export default function JobPositionsPage({ ui, auth }) {
             type="button"
             title={hasAssignedEmployees ? "This position is assigned to employees. Reassign employees before deleting." : "Delete position"}
             disabled={hasAssignedEmployees}
-            onClick={() => deletePosition(row)}
+            onClick={(event) => {
+              event.stopPropagation();
+              setDetailState(null);
+              deletePosition(row);
+            }}
           >
             <span className="inline-flex items-center gap-1.5"><Trash2 size={13} /> Delete</span>
           </button> : null}

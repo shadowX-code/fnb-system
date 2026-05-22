@@ -44,13 +44,23 @@ Deno.serve(async (request) => {
 });
 
 async function handleRequest(request: Request) {
-  const supabaseUrl = Deno.env.get("SUPABASE_URL");
+  const supabaseUrl = Deno.env.get("PROJECT_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-  const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const serviceRoleKey = Deno.env.get("PROJECT_SERVICE_ROLE_KEY");
   const siteUrl = Deno.env.get("FEEDX_SITE_URL") || Deno.env.get("SITE_URL") || Deno.env.get("PUBLIC_SITE_URL");
 
   if (!supabaseUrl || !anonKey || !serviceRoleKey) {
-    return json({ error: "Supabase Edge Function environment is not configured." }, 500);
+    const missing = [
+      !supabaseUrl ? "PROJECT_URL" : null,
+      !anonKey ? "SUPABASE_ANON_KEY" : null,
+      !serviceRoleKey ? "PROJECT_SERVICE_ROLE_KEY" : null,
+    ].filter(Boolean);
+
+    return json({
+      ok: false,
+      code: "ENV_MISSING",
+      message: `Login setup is not configured. Missing: ${missing.join(", ")}.`,
+    }, 500);
   }
 
   const authorization = request.headers.get("Authorization") ?? "";
