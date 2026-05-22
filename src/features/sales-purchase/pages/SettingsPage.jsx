@@ -434,7 +434,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
       await outletTaxConfigService.saveOutletTaxConfig(values);
       await refreshTaxConfigs();
       setTaxValues(null);
-      ui.notify({ title: "Tax configuration saved", message: "Saved to Supabase" });
+      ui.notify({ title: "Tax configuration saved", message: "Saved successfully." });
     } catch (error) {
       console.error("Unable to save tax configuration", error);
       ui.notify({ title: "Unable to save tax configuration", message: error.message, tone: "error" });
@@ -454,7 +454,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
       await outletTaxConfigService.endOutletTaxConfig(endConfig.id, endUntil);
       await refreshTaxConfigs();
       setEndConfig(null);
-      ui.notify({ title: "Tax configuration ended", message: "Saved to Supabase" });
+      ui.notify({ title: "Tax configuration ended", message: "Saved successfully." });
     } catch (error) {
       console.error("Unable to end tax configuration", error);
       ui.notify({ title: "Unable to end tax configuration", message: error.message, tone: "error" });
@@ -489,7 +489,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
         }));
       }
       setModal(null);
-      ui.notify({ title: "Settings saved", message: "Saved to Supabase" });
+      ui.notify({ title: "Settings saved", message: "Saved successfully." });
     } catch (error) {
       console.error("Unable to save settings", error);
       ui.notify({ title: "Unable to save settings", message: error.message, tone: "error" });
@@ -521,7 +521,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
     try {
       const saved = await purchaseCategoryService.updatePurchaseCategorySortOrder(optimistic);
       setStore((current) => ({ ...current, purchaseCategories: saved }));
-      ui.notify({ title: "Purchase category order updated", message: "Saved to Supabase" });
+      ui.notify({ title: "Purchase category order updated", message: "Saved successfully." });
     } catch (error) {
       console.error("Unable to reorder purchase categories", error);
       setStore((current) => ({ ...current, purchaseCategories: currentOrder }));
@@ -543,7 +543,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
           .sort((a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name)),
       }));
       setCategoryConfirm(null);
-      ui.notify({ title: nextActive ? "Purchase category reactivated" : "Purchase category deactivated", message: "Saved to Supabase" });
+      ui.notify({ title: nextActive ? "Purchase category reactivated" : "Purchase category deactivated", message: "Saved successfully." });
     } catch (error) {
       console.error("Unable to update purchase category status", error);
       ui.notify({ title: "Unable to update purchase category", message: error.message, tone: "error" });
@@ -562,7 +562,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
         purchaseCategories: current.purchaseCategories.filter((category) => category.id !== row.id),
       }));
       setCategoryConfirm(null);
-      ui.notify({ title: "Purchase category deleted", message: "Saved to Supabase" });
+      ui.notify({ title: "Purchase category deleted", message: "Saved successfully." });
     } catch (error) {
       console.error("Unable to delete purchase category", error);
       ui.notify({ title: "Unable to delete purchase category", message: error.message, tone: "error" });
@@ -665,7 +665,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
       ) : null}
       <Card
         title={isChannels ? "Sales Channels" : isCategories ? "Purchase Categories" : "SST Configuration History"}
-        description={isTax ? "Effective-date based tax history prevents future changes from rewriting historical months." : isCategories ? "Drag rows to set category order. Supplier counts and delete protection use live Supabase data." : "Structured master data powers future dashboards and imports."}
+        description={isTax ? "Effective-date based tax history prevents future changes from rewriting historical months." : isCategories ? "Drag rows to set category order. Supplier counts and delete protection use current purchase data." : "Structured master data powers future dashboards and imports."}
         action={isTax ? (
           <SelectField
             value={taxOutletFilter === "all" ? "" : taxOutletFilter}

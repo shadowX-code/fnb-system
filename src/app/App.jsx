@@ -154,22 +154,22 @@ function RbacDiagnosticsPanel({ auth, loads }) {
   const failedLoads = loads.filter((load) => load.status === "error");
   return (
     <details className="card mb-4 border-amber-200 bg-amber-50 p-4 text-xs text-amber-950">
-      <summary className="cursor-pointer text-sm font-bold text-amber-900">RBAC Diagnostics</summary>
+      <summary className="cursor-pointer text-sm font-bold text-amber-900">Access Diagnostics</summary>
       <div className="mt-3 grid gap-3 lg:grid-cols-2">
         <div className="rounded-xl border border-amber-200 bg-white/70 p-3">
           <div className="font-bold uppercase tracking-wide text-amber-700">Current User</div>
           <div className="mt-2 space-y-1">
-            <div>auth.uid: {auth.user?.id ?? "—"}</div>
-            <div>email: {auth.user?.email ?? "—"}</div>
-            <div>employee id: {auth.profile?.id ?? "—"}</div>
-            <div>role: {auth.profile?.role_name ?? "—"}</div>
-            <div>access_state: {auth.profile?.access_state ?? "—"}</div>
-            <div>auth source: {auth.source}</div>
-            <div>permission count: {auth.permissions.length}</div>
+            <div>User ID: {auth.user?.id ?? "—"}</div>
+            <div>Email: {auth.user?.email ?? "—"}</div>
+            <div>Employee profile: {auth.profile?.id ?? "—"}</div>
+            <div>Role: {auth.profile?.role_name ?? "—"}</div>
+            <div>Access state: {auth.profile?.access_state ?? "—"}</div>
+            <div>Login type: {auth.source === "database" ? "Secure login" : "Limited access"}</div>
+            <div>Permission count: {auth.permissions.length}</div>
           </div>
           {auth.source !== "database" ? (
             <div className="mt-3 rounded-lg border border-red-200 bg-red-50 p-2 font-semibold text-red-700">
-              Data access requires a real Supabase Auth session with database-backed employee RBAC.
+              Data access requires a secure employee login with assigned role permissions.
             </div>
           ) : null}
         </div>
@@ -185,14 +185,14 @@ function RbacDiagnosticsPanel({ auth, loads }) {
         </div>
       </div>
       <div className="mt-3 rounded-xl border border-amber-200 bg-white/70 p-3">
-        <div className="font-bold uppercase tracking-wide text-amber-700">Bootstrap Module Loads</div>
+          <div className="font-bold uppercase tracking-wide text-amber-700">Startup Data Loads</div>
         <div className="mt-2 overflow-x-auto">
           <table className="w-full text-left">
             <thead>
               <tr className="border-b border-amber-100 text-[11px] uppercase text-amber-700">
                 <th className="py-1 pr-3">Module</th>
-                <th className="py-1 pr-3">Table</th>
-                <th className="py-1 pr-3">Op</th>
+                <th className="py-1 pr-3">Data Source</th>
+                <th className="py-1 pr-3">Action</th>
                 <th className="py-1 pr-3">Required Permission</th>
                 <th className="py-1 pr-3">Status</th>
                 <th className="py-1 pr-3">Error</th>

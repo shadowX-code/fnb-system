@@ -1064,7 +1064,7 @@ export default function PurchaseComparisonPage({ store, setStore, ui }) {
             <div className="rounded-2xl border border-dashed border-border bg-slate-50 px-4 py-10 text-center">
               <div className="text-sm font-bold text-text-primary">No purchase comparison data available for this outlet/month yet.</div>
               <p className="mt-2 text-sm text-text-secondary">
-                Purchase comparison uses saved Supabase purchase records and calculated Net Sales. This outlet currently has no matching transaction data for {filters.year}.
+                Purchase comparison uses saved purchase records and calculated Net Sales. This outlet currently has no matching transaction data for {filters.year}.
               </p>
             </div>
           ) : (

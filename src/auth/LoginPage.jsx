@@ -57,7 +57,7 @@ export default function LoginPage() {
               <div className="text-xs font-bold uppercase tracking-[0.14em] text-primary">Smart Operations Workspace</div>
               <h1 className="mt-4 text-3xl font-bold tracking-tight text-text-primary">Login to manage AI-enabled F&amp;B intelligence workflows.</h1>
               <p className="mt-4 text-sm leading-6 text-text-secondary">
-                Access is controlled through Supabase Auth and employee role-based permissions.
+                Access is controlled through secure employee login and role-based permissions.
               </p>
             </div>
           </section>

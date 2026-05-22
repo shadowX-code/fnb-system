@@ -294,7 +294,7 @@ function withTimeout(promise, label, timeoutMs = 15000) {
   return Promise.race([
     promise,
     new Promise((_, reject) => {
-      window.setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s. Please try again or check Supabase connectivity.`)), timeoutMs);
+      window.setTimeout(() => reject(new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s. Please try again or check your connection.`)), timeoutMs);
     }),
   ]);
 }
@@ -613,7 +613,7 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
     try {
       const deduped = collapseDuplicateRows(importType, records);
       records = deduped.records;
-      setValidationState({ loading: true, message: "Detecting existing Supabase records...", error: "" });
+      setValidationState({ loading: true, message: "Checking existing records...", error: "" });
       console.info("[Import:preview] conflict detection start", { importType, records: records.length, issues: issues.length, skippedRows: skippedRows.length, duplicateWarnings: deduped.duplicateWarnings.length });
       const conflicts = importType === "Sales"
         ? await importService.detectSalesConflicts(records)
@@ -820,7 +820,7 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
       setUnknownSuppliers([]);
       setCategoryResolutions({});
       setUnknownCategories([]);
-      ui.notify({ title: "Import saved to Supabase", message: `${result.createdCount} created · ${result.updatedCount} updated.` });
+      ui.notify({ title: "Import completed", message: `${result.createdCount} created · ${result.updatedCount} updated.` });
     } catch (error) {
       console.error("Unable to import records", error);
       ui.notify({ title: "Import failed", message: error.message, tone: "error" });
@@ -874,7 +874,7 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
       <PageHeader
         section="Operations"
         title="Data Import"
-        description="Upload, validate, preview and upsert sales or purchase data into Supabase."
+        description="Upload, validate, preview and import sales or purchase data."
         actions={<button className="btn-secondary" type="button" onClick={downloadTemplate}><Download size={16} /> Download Template</button>}
       />
       {!canRunImport ? (
@@ -884,7 +884,7 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
       ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
-        <Card title="Import Engine" description="No silent overwrite. Existing records are detected by unique business key and updated only after preview.">
+        <Card title="Import Engine" description="No silent overwrite. Existing records are detected as duplicates and updated only after preview.">
           <div className="space-y-4 p-4">
             <div className="flex flex-wrap items-center gap-2">
               {["Sales", "Purchases"].map((type) => (
@@ -941,7 +941,7 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
                 <div className="flex justify-end gap-2">
                   <button className="btn-secondary" type="button" onClick={() => setStep("upload")}>Cancel</button>
                   <button className="btn-primary" type="button" disabled={validationState.loading || !canRunImport} onClick={validateImport}>
-                    {validationState.loading ? "Validating..." : "Validate Against Supabase"}
+                    {validationState.loading ? "Validating..." : "Validate Data"}
                   </button>
                 </div>
               </div>
@@ -1088,7 +1088,7 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
                 ) : null}
                 {preview.warnings.length ? (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                    <div className="flex items-center gap-2 font-bold"><AlertTriangle size={15} /> Records that will update existing Supabase rows</div>
+                    <div className="flex items-center gap-2 font-bold"><AlertTriangle size={15} /> Records that will update existing data</div>
                     <ul className="mt-2 space-y-1 text-xs">{preview.warnings.slice(0, 6).map((item) => <li key={`${item.row}-${item.message}`}>Row {item.row}: {item.message}</li>)}</ul>
                   </div>
                 ) : null}
@@ -1123,7 +1123,7 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
           </div>
         </Card>
 
-        <Card title="Recent Supabase Imports" className="xl:col-span-2">
+        <Card title="Recent Imports" className="xl:col-span-2">
           <DataTable columns={batchColumns} rows={recentImports} getRowKey={(row) => row.id} />
         </Card>
       </div>
@@ -1132,7 +1132,7 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
         <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/40 px-4">
           <div className="w-full max-w-lg rounded-3xl border border-border bg-surface p-5 shadow-2xl">
             <div className="text-lg font-bold text-text-primary">
-              Confirm import to Supabase
+              Confirm import
             </div>
             <p className="mt-2 text-sm text-text-secondary">
               You are about to update {preview.updateCount} existing rows and create {preview.createCount} new rows.
@@ -1172,7 +1172,7 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
             </div>
             {importSummary.migrationWarning ? (
               <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 p-3 text-xs font-semibold text-amber-800">
-                {importSummary.migrationWarning}
+                Import history is not fully available yet. The import itself has completed.
               </div>
             ) : null}
             <div className="mt-4 flex justify-end">

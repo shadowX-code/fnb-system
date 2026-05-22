@@ -91,7 +91,7 @@ export default function OutletManagementPage({ store, setStore, ui }) {
                 const saved = await outletService.deactivateOutlet(row);
                 setOutlets((current) => current.map((outlet) => (outlet.id === saved.id ? saved : outlet)));
                 setStore((current) => ({ ...current, outlets: current.outlets.filter((outlet) => outlet.id !== saved.id) }));
-                ui.notify({ title: "Saved to Supabase", message: `${row.name} deactivated.` });
+                ui.notify({ title: "Outlet updated", message: `${row.name} deactivated.` });
               } catch (error) {
                 console.error("Unable to deactivate outlet", error);
                 ui.notify({ title: "Unable to deactivate outlet", message: error.message || "Please try again.", tone: "error" });
@@ -143,7 +143,7 @@ export default function OutletManagementPage({ store, setStore, ui }) {
                   : current.outlets.filter((outlet) => outlet.id !== saved.id),
               }));
               setModal(null);
-              ui.notify({ title: "Saved to Supabase", message: saved.name });
+              ui.notify({ title: "Outlet saved", message: saved.name });
             } catch (error) {
               console.error("Unable to save outlet", error);
               ui.notify({ title: "Unable to save outlet", message: error.message || "Please try again.", tone: "error" });

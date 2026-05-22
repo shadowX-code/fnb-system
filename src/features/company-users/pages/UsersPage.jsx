@@ -103,8 +103,8 @@ function getAccessState(employee) {
 function getAccessStateCopy(employee) {
   const state = getAccessState(employee);
   if (state === EMPLOYEE_ACCESS_STATE.NO_ACCESS) return "System login is not enabled for this employee.";
-  if (state === EMPLOYEE_ACCESS_STATE.NOT_SENT) return "Create the Supabase Auth account before this employee can sign in.";
-  if (state === EMPLOYEE_ACCESS_STATE.INVITED) return "Supabase account setup is pending.";
+  if (state === EMPLOYEE_ACCESS_STATE.NOT_SENT) return "Send a login setup link before this employee can sign in.";
+  if (state === EMPLOYEE_ACCESS_STATE.INVITED) return "Account setup is pending.";
   if (state === EMPLOYEE_ACCESS_STATE.ACTIVE) return "Employee can sign in. Role permissions and outlet scope apply.";
   return "System access is disabled. Historical records remain available.";
 }
@@ -449,7 +449,7 @@ function UserFormModal({
         email_verified: values.enable_system_login ? (values.email_verified ?? false) : false,
         send_login_setup: sendLoginSetup,
         audit_summary: values.enable_system_login
-          ? "Employee profile saved with system login enabled. Supabase Auth account must exist before login."
+          ? "Employee profile saved with system login enabled. Send a login setup link before the employee signs in."
           : "Employee profile saved without system login.",
       });
     }, 450);
@@ -470,7 +470,7 @@ function UserFormModal({
     }
     const confirmed = await ui.confirm({
       title: "Send login setup email?",
-      message: "A secure Supabase email will let the employee set their own password. Admins cannot view or create passwords.",
+      message: "A secure email will let the employee set their own password. Admins cannot view or create passwords.",
       confirmLabel: "Send Login Setup",
     });
     if (!confirmed) return;
@@ -908,7 +908,7 @@ export default function UsersPage({ ui, store, auth }) {
         is_active: true,
         email_verified: false,
         verification_sent_at: new Date().toISOString(),
-        audit_summary: result.warning || "Supabase login setup email sent.",
+        audit_summary: result.warning || "Login setup email sent.",
       };
       setUsers((list) => list.map((item) => (item.id === user.id ? updatedUser : item)));
       setSelectedUser((selected) => (selected?.id === user.id ? updatedUser : selected));
@@ -932,12 +932,12 @@ export default function UsersPage({ ui, store, auth }) {
       if (error.code === "SMTP_NOT_CONFIGURED" && error.canGenerateManualLink && auth?.hasPermission?.("roles.edit") && mode !== "manual_link") {
         const ok = await ui.confirm({
           title: "Email sending is not configured",
-          message: "Supabase Auth SMTP is not configured. Generate a secure setup link to copy manually?",
+          message: "Email delivery is not configured. Generate a secure setup link to copy manually?",
           confirmLabel: "Generate Setup Link",
         });
         if (ok) return sendLoginSetupForUser(user, { mode: "manual_link" });
       }
-      ui.notify({ title: "Unable to send login setup", message: error.message || "Please configure Supabase Auth SMTP.", tone: "error" });
+      ui.notify({ title: "Unable to send login setup", message: error.message || "Please configure email delivery.", tone: "error" });
       throw error;
     }
   }
@@ -1229,7 +1229,7 @@ export default function UsersPage({ ui, store, auth }) {
         <div className="flex items-start gap-2">
           <ShieldCheck className="mt-0.5 shrink-0 text-blue-700" size={16} />
           <p>
-            <strong>Security note:</strong> FeedX now uses real Supabase Auth sessions only. Admins can send password setup links, but cannot create, view, or recover passwords.
+            <strong>Security note:</strong> FeedX uses secure employee login. Admins can send password setup links, but cannot create, view, or recover passwords.
           </p>
         </div>
       </div>
@@ -1294,7 +1294,7 @@ export default function UsersPage({ ui, store, auth }) {
       {setupLink ? (
         <Modal
           title="Login Setup Link Generated"
-          description="Email sending is not configured, so this secure Supabase setup link was generated manually."
+          description="Email sending is not configured, so this secure setup link was generated manually."
           onClose={() => setSetupLink(null)}
           footer={<button className="btn-primary" type="button" onClick={() => setSetupLink(null)}>Done</button>}
         >

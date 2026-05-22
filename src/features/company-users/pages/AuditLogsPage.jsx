@@ -1,9 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, CheckCircle2, Download, FileDown, FilePenLine, KeyRound, LockKeyhole, Search, ShieldCheck, UserCog, X } from "lucide-react";
+import {
+  AlertTriangle,
+  CheckCircle2,
+  Clock3,
+  Download,
+  FileDown,
+  FilePenLine,
+  History,
+  KeyRound,
+  LockKeyhole,
+  Search,
+  ShieldAlert,
+  ShieldCheck,
+  UserCog,
+  X,
+} from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
-import DataTable from "../../../components/tables/DataTable.jsx";
 import { getAuditActionLabel, getAuditModuleLabel } from "../../../../config/auditLog.ts";
 import { auditLogService } from "../../../services/auditLogService.js";
 
@@ -190,18 +204,9 @@ const auditRows = [
   },
 ];
 
-const moduleTone = {
-  authentication: "info",
-  "access-control": "warning",
-  people: "success",
-  sales: "info",
-  purchases: "warning",
-  operations: "neutral",
-};
-
 const auditTypeMeta = {
-  authentication: { label: "Security", tone: "info" },
-  "access-control": { label: "Access", tone: "warning" },
+  authentication: { label: "Security", tone: "danger" },
+  "access-control": { label: "Access", tone: "info" },
   people: { label: "People", tone: "success" },
   sales: { label: "Sales", tone: "info" },
   purchases: { label: "Purchase", tone: "warning" },
@@ -233,14 +238,104 @@ const actionIconMap = {
   export_download: FileDown,
 };
 
-function formatJson(value) {
-  if (!value) return "Not applicable";
-  return JSON.stringify(value, null, 2);
+const quickFilters = [
+  { id: "all", label: "All" },
+  { id: "security", label: "Security" },
+  { id: "access", label: "Access" },
+  { id: "data", label: "Data Changes" },
+  { id: "imports", label: "Imports" },
+  { id: "today", label: "Today" },
+  { id: "week", label: "This Week" },
+];
+
+const kpiMeta = {
+  security: {
+    label: "Security Events",
+    helper: "Login, setup and password activity",
+    accent: "border-l-rose-400",
+    iconClass: "border-rose-500/15 bg-rose-500/10 text-rose-600",
+    Icon: ShieldAlert,
+  },
+  access: {
+    label: "Access Changes",
+    helper: "Roles, permissions and outlet access",
+    accent: "border-l-blue-400",
+    iconClass: "border-blue-500/15 bg-blue-500/10 text-blue-600",
+    Icon: ShieldCheck,
+  },
+  data: {
+    label: "Data Changes",
+    helper: "Employee, sales and purchase updates",
+    accent: "border-l-emerald-400",
+    iconClass: "border-emerald-500/15 bg-emerald-500/10 text-emerald-600",
+    Icon: FilePenLine,
+  },
+  controls: {
+    label: "Control Events",
+    helper: "Imports, exports and month controls",
+    accent: "border-l-violet-400",
+    iconClass: "border-violet-500/15 bg-violet-500/10 text-violet-600",
+    Icon: LockKeyhole,
+  },
+};
+
+function toTitleCase(value) {
+  return String(value || "")
+    .replace(/[_-]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function getReadableAction(action) {
+  const configured = getAuditActionLabel(action);
+  return configured && configured !== action ? configured : toTitleCase(action || "Audit Event");
+}
+
+function getReadableModule(module) {
+  const configured = getAuditModuleLabel(module);
+  return configured && configured !== module ? configured : toTitleCase(module || "General");
+}
+
+function parseAuditDate(value) {
+  if (!value) return null;
+  const normalized = String(value).includes("T") ? String(value) : String(value).replace(" ", "T");
+  const date = new Date(normalized);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function isSameDay(date, other) {
+  return date?.getFullYear() === other.getFullYear()
+    && date.getMonth() === other.getMonth()
+    && date.getDate() === other.getDate();
+}
+
+function isThisWeek(date) {
+  if (!date) return false;
+  const now = new Date();
+  const diff = now.getTime() - date.getTime();
+  return diff >= 0 && diff <= 7 * 24 * 60 * 60 * 1000;
 }
 
 function formatTimestamp(value) {
-  const date = new Date(String(value).replace(" ", "T"));
-  if (Number.isNaN(date.getTime())) return value;
+  const date = parseAuditDate(value);
+  if (!date) return "—";
+  const now = new Date();
+  const yesterday = new Date(now);
+  yesterday.setDate(now.getDate() - 1);
+  const time = new Intl.DateTimeFormat("en-MY", { hour: "numeric", minute: "2-digit" }).format(date);
+  if (isSameDay(date, now)) return `Today, ${time}`;
+  if (isSameDay(date, yesterday)) return `Yesterday, ${time}`;
+  return new Intl.DateTimeFormat("en-MY", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  }).format(date);
+}
+
+function formatDrawerTimestamp(value) {
+  const date = parseAuditDate(value);
+  if (!date) return "—";
   return new Intl.DateTimeFormat("en-MY", {
     day: "2-digit",
     month: "short",
@@ -259,45 +354,113 @@ function getInitials(name) {
     .join("") || "U";
 }
 
-function ActionCell({ row }) {
+function cleanDisplayValue(value) {
+  if (value === null || value === undefined || value === "") return "—";
+  if (Array.isArray(value)) return value.map(cleanDisplayValue).join(", ");
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "number") return new Intl.NumberFormat("en-MY").format(value);
+  if (typeof value === "object") {
+    return Object.entries(value)
+      .map(([key, nestedValue]) => `${toTitleCase(key)}: ${cleanDisplayValue(nestedValue)}`)
+      .join("; ");
+  }
+  return toTitleCase(String(value).replace(/\bRM\b/gi, "RM"));
+}
+
+function displayOutlet(value) {
+  const text = String(value || "").trim();
+  if (!text || text === "-" || text.toLowerCase() === "null") return "System-wide";
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(text)) {
+    return "System-wide";
+  }
+  return text;
+}
+
+function getEventGroup(row) {
+  if (row.module === "authentication") return "security";
+  if (row.module === "access-control" || /role|permission|access/i.test(row.action)) return "access";
+  if (/import/i.test(row.action)) return "imports";
+  if (["people", "sales", "purchases"].includes(row.module)) return "data";
+  return "controls";
+}
+
+function getSeverity(row) {
+  const action = String(row.action || "").toLowerCase();
+  if (/deleted|disabled|failed/.test(action)) return { label: "Critical", tone: "danger" };
+  if (/permission|role|access|password|login/.test(action)) return { label: row.module === "authentication" ? "Security" : "Warning", tone: row.module === "authentication" ? "danger" : "warning" };
+  if (/import|export|approved|updated|created/.test(action)) return { label: "Normal", tone: "success" };
+  return { label: "Normal", tone: "neutral" };
+}
+
+function getUserDisplay(row) {
+  const actor = String(row.actor || "System");
+  const isEmail = actor.includes("@");
+  const name = isEmail ? toTitleCase(actor.split("@")[0].replace(/[._-]/g, " ")) : actor;
+  const email = isEmail ? actor : "";
+  return { name, email };
+}
+
+function ActionIcon({ row }) {
   const Icon = actionIconMap[row.action] ?? FilePenLine;
   return (
-    <div className="flex items-center gap-3">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-xl bg-primary/10 text-primary">
+    <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-2xl border border-primary/10 bg-primary/10 text-primary shadow-sm">
         <Icon size={16} />
       </span>
+  );
+}
+
+function UserCell({ row }) {
+  const user = getUserDisplay(row);
+  return (
+    <div className="flex min-w-0 items-center gap-3">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-border bg-surface text-xs font-bold text-text-secondary shadow-sm">
+        {getInitials(user.name)}
+      </span>
       <div className="min-w-0">
-        <div className="truncate font-bold text-text-primary">{getAuditActionLabel(row.action)}</div>
-        <div className="mt-0.5 text-xs text-text-secondary">{getAuditModuleLabel(row.module)}</div>
+        <div className="truncate text-sm font-bold text-text-primary">{user.name}</div>
+        {user.email ? <div className="truncate text-xs text-text-secondary">{user.email}</div> : null}
+        {row.actorRole ? <div className="mt-1"><Badge tone="neutral">{row.actorRole}</Badge></div> : null}
       </div>
     </div>
   );
 }
 
-function UserCell({ row }) {
+function DetailValueList({ value, emptyText }) {
+  if (!value || (typeof value === "object" && !Array.isArray(value) && !Object.keys(value).length)) {
+    return <div className="rounded-xl border border-border bg-surface/70 p-3 text-sm text-text-secondary">{emptyText}</div>;
+  }
+
+  if (typeof value !== "object" || Array.isArray(value)) {
+    return <div className="rounded-xl border border-border bg-surface/70 p-3 text-sm font-semibold text-text-primary">{cleanDisplayValue(value)}</div>;
+  }
+
   return (
-    <div className="flex items-center gap-3">
-      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-text-secondary">
-        {getInitials(row.actor)}
-      </span>
-      <div className="min-w-0">
-        <div className="truncate text-sm font-bold text-text-primary">{row.actor}</div>
-        {row.actorRole ? <Badge tone="neutral">{row.actorRole}</Badge> : null}
-      </div>
+    <div className="space-y-2">
+      {Object.entries(value).map(([key, item]) => (
+        <div key={key} className="flex items-start justify-between gap-4 rounded-xl border border-border bg-surface/70 px-3 py-2">
+          <span className="text-xs font-bold uppercase tracking-wide text-text-muted">{toTitleCase(key)}</span>
+          <span className="max-w-[65%] text-right text-sm font-semibold text-text-primary">{cleanDisplayValue(item)}</span>
+        </div>
+      ))}
     </div>
   );
 }
 
 function AuditDetailDrawer({ row, onClose }) {
   if (!row) return null;
+  const severity = getSeverity(row);
+  const typeMeta = auditTypeMeta[row.module] ?? { label: getReadableModule(row.module), tone: "neutral" };
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30 backdrop-blur-[1px]" role="dialog" aria-modal="true">
       <div className="flex h-full w-full max-w-2xl flex-col border-l border-border bg-surface shadow-2xl">
         <header className="shrink-0 border-b border-border px-5 py-4">
           <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="text-xs font-bold uppercase tracking-wide text-primary">{getAuditModuleLabel(row.module)}</div>
-              <h2 className="mt-1 text-xl font-semibold text-text-primary">{getAuditActionLabel(row.action)}</h2>
+            <div className="min-w-0">
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone={typeMeta.tone}>{typeMeta.label}</Badge>
+                <Badge tone={severity.tone}>{severity.label}</Badge>
+              </div>
+              <h2 className="mt-3 text-xl font-semibold text-text-primary">{getReadableAction(row.action)}</h2>
               <p className="mt-1 text-sm text-text-secondary">{row.metadata}</p>
             </div>
             <button className="icon-btn" type="button" onClick={onClose} aria-label="Close audit detail">
@@ -309,15 +472,15 @@ function AuditDetailDrawer({ row, onClose }) {
         <div className="min-h-0 flex-1 overflow-y-auto p-5">
           <section className="grid gap-3 sm:grid-cols-2">
             {[
-              ["User", row.actor],
-              ["User Role", row.actorRole],
-              ["Target", row.target],
-              ["Outlet", row.outlet],
-              ["Timestamp", formatTimestamp(row.timestamp)],
-              ["IP", row.ip],
-              ["Device", row.device],
+              ["Performed By", getUserDisplay(row).name],
+              ["Role", row.actorRole || "—"],
+              ["Record", row.target],
+              ["Outlet", displayOutlet(row.outlet)],
+              ["Time", formatDrawerTimestamp(row.timestamp)],
+              ["Device", row.device && row.device !== "-" ? row.device : "Device detail not captured yet"],
+              ["Network", row.ip && row.ip !== "-" ? row.ip : "Network detail not captured yet"],
             ].map(([label, value]) => (
-              <div key={label} className="rounded-2xl border border-border bg-slate-50/70 p-3">
+              <div key={label} className="rounded-2xl border border-border bg-background/70 p-3">
                 <div className="text-[11px] font-bold uppercase tracking-wide text-text-muted">{label}</div>
                 <div className="mt-1 text-sm font-semibold text-text-primary">{value || "-"}</div>
               </div>
@@ -325,18 +488,22 @@ function AuditDetailDrawer({ row, onClose }) {
           </section>
 
           <section className="mt-4 rounded-2xl border border-border bg-surface p-4">
-            <div className="text-sm font-bold text-text-primary">Metadata</div>
+            <div className="text-sm font-bold text-text-primary">Event Details</div>
             <p className="mt-2 text-sm leading-6 text-text-secondary">{row.metadata}</p>
           </section>
 
           <section className="mt-4 grid gap-4 lg:grid-cols-2">
             <div className="rounded-2xl border border-border bg-surface p-4">
               <div className="text-sm font-bold text-text-primary">Before</div>
-              <pre className="mt-3 max-h-[320px] overflow-auto rounded-xl bg-slate-950 p-3 text-xs leading-5 text-slate-100">{formatJson(row.before)}</pre>
+              <div className="mt-3">
+                <DetailValueList value={row.before} emptyText="No earlier values captured." />
+              </div>
             </div>
             <div className="rounded-2xl border border-border bg-surface p-4">
               <div className="text-sm font-bold text-text-primary">After</div>
-              <pre className="mt-3 max-h-[320px] overflow-auto rounded-xl bg-slate-950 p-3 text-xs leading-5 text-slate-100">{formatJson(row.after)}</pre>
+              <div className="mt-3">
+                <DetailValueList value={row.after} emptyText="No new values captured." />
+              </div>
             </div>
           </section>
         </div>
@@ -349,8 +516,89 @@ function AuditDetailDrawer({ row, onClose }) {
   );
 }
 
+function AuditKpiCard({ type, value }) {
+  const meta = kpiMeta[type];
+  const Icon = meta.Icon;
+  return (
+    <Card className={`border-l-4 ${meta.accent} p-4 transition duration-200 hover:-translate-y-0.5 hover:shadow-md`}>
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="text-[11px] font-bold uppercase tracking-wide text-text-muted">{meta.label}</div>
+          <div className="mt-2 text-3xl font-semibold tracking-tight text-text-primary">{value}</div>
+          <div className="mt-1 text-xs font-medium text-text-secondary">{meta.helper}</div>
+        </div>
+        <span className={`flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border ${meta.iconClass}`}>
+          <Icon size={18} />
+        </span>
+      </div>
+    </Card>
+  );
+}
+
+function QuickFilterPill({ active, children, onClick }) {
+  return (
+    <button
+      className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+        active
+          ? "border-primary/30 bg-primary/10 text-primary shadow-sm"
+          : "border-border bg-surface text-text-secondary hover:border-primary/30 hover:text-primary"
+      }`}
+      type="button"
+      onClick={onClick}
+    >
+      {children}
+    </button>
+  );
+}
+
+function AuditEventRow({ row, onOpen }) {
+  const severity = getSeverity(row);
+  const typeMeta = auditTypeMeta[row.module] ?? { label: getReadableModule(row.module), tone: "neutral" };
+  return (
+    <button
+      className="group relative w-full rounded-2xl border border-border bg-surface px-4 py-4 text-left shadow-sm transition duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:bg-primary/[0.03] hover:shadow-md"
+      type="button"
+      onClick={() => onOpen(row)}
+    >
+      <div className="absolute bottom-0 left-[2.15rem] top-12 hidden w-px bg-border/70 last:hidden sm:block" aria-hidden="true" />
+      <div className="grid gap-4 lg:grid-cols-[minmax(300px,1.35fr)_minmax(220px,1fr)_170px_170px_130px] lg:items-center">
+        <div className="flex min-w-0 items-start gap-3">
+          <ActionIcon row={row} />
+          <div className="min-w-0">
+            <div className="flex flex-wrap items-center gap-2">
+              <span className="truncate text-sm font-bold text-text-primary">{getReadableAction(row.action)}</span>
+              <Badge tone={severity.tone}>{severity.label}</Badge>
+            </div>
+            <div className="mt-1 text-xs font-medium text-text-secondary">{getReadableModule(row.module)}</div>
+          </div>
+        </div>
+
+        <div className="min-w-0">
+          <div className="truncate text-sm font-bold text-primary group-hover:underline">{row.target || "Business record"}</div>
+          <div className="mt-1 line-clamp-1 text-xs text-text-secondary">{row.metadata || "No additional note captured."}</div>
+        </div>
+
+        <div className="min-w-0">
+          <UserCell row={row} />
+        </div>
+
+        <div className="min-w-0">
+          <div className="truncate text-sm font-semibold text-text-primary">{displayOutlet(row.outlet)}</div>
+          <div className="mt-1"><Badge tone={typeMeta.tone}>{typeMeta.label}</Badge></div>
+        </div>
+
+        <div className="flex items-center gap-2 text-sm font-semibold text-text-secondary lg:justify-end">
+          <Clock3 size={14} className="text-text-muted" />
+          <span>{formatTimestamp(row.timestamp)}</span>
+        </div>
+      </div>
+    </button>
+  );
+}
+
 export default function AuditLogsPage({ auth, ui }) {
   const [query, setQuery] = useState("");
+  const [quickFilter, setQuickFilter] = useState("all");
   const [auditRowsLive, setAuditRowsLive] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState("");
@@ -380,61 +628,37 @@ export default function AuditLogsPage({ auth, ui }) {
 
   const rows = useMemo(() => {
     const search = query.trim().toLowerCase();
-    if (!search) return auditRowsLive;
-    return auditRowsLive.filter((row) =>
-      [
+    return auditRowsLive.filter((row) => {
+      const date = parseAuditDate(row.timestamp);
+      const matchesQuickFilter = quickFilter === "all"
+        || (quickFilter === "security" && getEventGroup(row) === "security")
+        || (quickFilter === "access" && getEventGroup(row) === "access")
+        || (quickFilter === "data" && getEventGroup(row) === "data")
+        || (quickFilter === "imports" && getEventGroup(row) === "imports")
+        || (quickFilter === "today" && date && isSameDay(date, new Date()))
+        || (quickFilter === "week" && isThisWeek(date));
+      if (!matchesQuickFilter) return false;
+      if (!search) return true;
+      return [
         row.actor,
-        getAuditActionLabel(row.action),
-        getAuditModuleLabel(row.module),
+        getReadableAction(row.action),
+        getReadableModule(row.module),
         row.target,
-        row.outlet,
+        displayOutlet(row.outlet),
         row.metadata,
         row.timestamp,
         row.ip,
         row.device,
-      ].some((value) => String(value || "").toLowerCase().includes(search)),
-    );
-  }, [auditRowsLive, query]);
+      ].some((value) => String(value || "").toLowerCase().includes(search));
+    });
+  }, [auditRowsLive, query, quickFilter]);
 
-  const columns = [
-    {
-      key: "action",
-      header: "Action",
-      sticky: true,
-      width: "230px",
-      render: (row) => <ActionCell row={row} />,
-    },
-    {
-      key: "record",
-      header: "Record",
-      width: "250px",
-      render: (row) => (
-        <button
-          className="max-w-[240px] text-left"
-          type="button"
-          onClick={(event) => {
-            event.stopPropagation();
-            setSelectedAudit(row);
-          }}
-        >
-          <div className="truncate text-sm font-bold text-primary hover:underline">{row.target}</div>
-          <div className="mt-1 line-clamp-1 text-xs text-text-secondary">{row.metadata}</div>
-        </button>
-      ),
-    },
-    { key: "module", header: "Module", render: (row) => <Badge tone={moduleTone[row.module] ?? "neutral"}>{getAuditModuleLabel(row.module)}</Badge> },
-    { key: "user", header: "User", width: "210px", render: (row) => <UserCell row={row} /> },
-    { key: "outlet", header: "Outlet" },
-    { key: "timestamp", header: "Timestamp", render: (row) => <span className="text-sm text-text-secondary">{formatTimestamp(row.timestamp)}</span> },
-    {
-      key: "type",
-      header: "Type",
-      render: (row) => {
-        const meta = auditTypeMeta[row.module] ?? { label: row.module, tone: "neutral" };
-        return <Badge tone={meta.tone}>{meta.label}</Badge>;
-      },
-    },
-  ];
+  const kpis = useMemo(() => ({
+    security: rows.filter((row) => getEventGroup(row) === "security").length,
+    access: rows.filter((row) => getEventGroup(row) === "access").length,
+    data: rows.filter((row) => getEventGroup(row) === "data").length,
+    controls: rows.filter((row) => ["controls", "imports"].includes(getEventGroup(row))).length,
+  }), [rows]);
 
   return (
     <div className="space-y-4">
@@ -454,8 +678,15 @@ export default function AuditLogsPage({ auth, ui }) {
         )}
       />
 
-      <Card className="p-3">
-        <div className="flex flex-wrap items-center gap-3">
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+        <AuditKpiCard type="security" value={kpis.security} />
+        <AuditKpiCard type="access" value={kpis.access} />
+        <AuditKpiCard type="data" value={kpis.data} />
+        <AuditKpiCard type="controls" value={kpis.controls} />
+      </div>
+
+      <Card className="p-4">
+        <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
           <div className="relative min-w-[280px] max-w-md flex-1">
             <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
             <input
@@ -465,50 +696,50 @@ export default function AuditLogsPage({ auth, ui }) {
               placeholder="Search user, action, module, record, outlet..."
             />
           </div>
-          <div className="rounded-xl border border-border bg-slate-50 px-3 py-2 text-xs font-semibold text-text-secondary">
-            Passive navigation, searches, dropdown clicks, and modal opens are intentionally not logged.
+          <div className="flex flex-wrap items-center gap-2">
+            {quickFilters.map((filter) => (
+              <QuickFilterPill
+                key={filter.id}
+                active={quickFilter === filter.id}
+                onClick={() => setQuickFilter(filter.id)}
+              >
+                {filter.label}
+              </QuickFilterPill>
+            ))}
           </div>
         </div>
       </Card>
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <Card className="p-3">
-          <div className="text-[11px] font-bold uppercase tracking-wide text-text-muted">Security Events</div>
-          <div className="mt-1 text-2xl font-semibold text-text-primary">{rows.filter((row) => row.module === "authentication").length}</div>
-          <div className="mt-1 text-xs text-text-secondary">Login, reset, invite and verification</div>
-        </Card>
-        <Card className="p-3">
-          <div className="text-[11px] font-bold uppercase tracking-wide text-text-muted">Access Changes</div>
-          <div className="mt-1 text-2xl font-semibold text-text-primary">{rows.filter((row) => row.module === "access-control").length}</div>
-          <div className="mt-1 text-xs text-text-secondary">Roles, permissions and outlet access</div>
-        </Card>
-        <Card className="p-3">
-          <div className="text-[11px] font-bold uppercase tracking-wide text-text-muted">Data Changes</div>
-          <div className="mt-1 text-2xl font-semibold text-text-primary">{rows.filter((row) => ["people", "sales", "purchases"].includes(row.module)).length}</div>
-          <div className="mt-1 text-xs text-text-secondary">Employee, sales, purchase and master data</div>
-        </Card>
-        <Card className="p-3">
-          <div className="text-[11px] font-bold uppercase tracking-wide text-text-muted">Control Events</div>
-          <div className="mt-1 text-2xl font-semibold text-text-primary">{rows.filter((row) => row.module === "operations").length}</div>
-          <div className="mt-1 text-xs text-text-secondary">Import, export and data health actions</div>
-        </Card>
-      </div>
-
-      <Card title="Audit Trail" description="Click a row to inspect metadata, device details, and before/after changes.">
+      <Card
+        title="Activity Timeline"
+        description="Review important security, access, data and control events."
+        action={<span className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1.5 text-xs font-bold text-text-secondary"><History size={14} /> {rows.length} events</span>}
+      >
         {loading ? (
-          <div className="p-8 text-center text-sm font-semibold text-text-secondary">Loading audit logs...</div>
+          <div className="p-10 text-center text-sm font-semibold text-text-secondary">Loading audit activity...</div>
         ) : loadError ? (
-          <div className="p-8 text-center text-sm font-semibold text-rose-700">{loadError}</div>
+          <div className="p-10 text-center text-sm font-semibold text-rose-700">{loadError}</div>
         ) : rows.length ? (
-          <DataTable
-            columns={columns}
-            rows={rows}
-            getRowKey={(row) => row.id}
-            onRowClick={(row) => setSelectedAudit(row)}
-            tableClassName="min-w-[1180px]"
-          />
+          <div className="space-y-3 p-4">
+            <div className="hidden grid-cols-[minmax(300px,1.35fr)_minmax(220px,1fr)_170px_170px_130px] gap-4 px-4 text-[11px] font-bold uppercase tracking-wide text-text-muted lg:grid">
+              <span>Action</span>
+              <span>Record</span>
+              <span>User</span>
+              <span>Outlet</span>
+              <span className="text-right">Time</span>
+            </div>
+            {rows.map((row) => (
+              <AuditEventRow key={row.id} row={row} onOpen={setSelectedAudit} />
+            ))}
+          </div>
         ) : (
-          <div className="p-8 text-center text-sm font-semibold text-text-secondary">No audit logs found.</div>
+          <div className="p-10 text-center">
+            <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-2xl border border-border bg-background text-text-muted">
+              <ShieldCheck size={20} />
+            </div>
+            <div className="mt-3 text-sm font-bold text-text-primary">No audit activity found for selected filters.</div>
+            <div className="mt-1 text-xs text-text-secondary">Try clearing the search or choosing a different quick filter.</div>
+          </div>
         )}
       </Card>
 

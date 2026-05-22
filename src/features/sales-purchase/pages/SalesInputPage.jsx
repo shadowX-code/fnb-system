@@ -275,7 +275,7 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
       setSavedRowsCount(visibleRows.length);
       setLastSavedAt(new Date());
       window.setTimeout(() => setSavedRecently(false), 4000);
-      ui.notify({ title: "Saved to Supabase", message: `${visibleRows.length} sales rows saved.` });
+      ui.notify({ title: "Sales saved", message: `${visibleRows.length} sales rows saved.` });
     } catch (error) {
       console.error("Unable to save sales records", error);
       setIsSaving(false);
@@ -565,7 +565,7 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
         { id: undefined, channel_id: channel.id, channelName: channel.name, type: "channel", amount: "", remark: "", custom: true },
       ]);
       markDraft();
-      ui.notify({ title: "Sales channel created", message: "Saved to Supabase" });
+      ui.notify({ title: "Sales channel created", message: "Saved successfully." });
     } catch (error) {
       console.error("Unable to create custom sales channel", error);
       ui.notify({ title: "Unable to create sales channel", message: error.message, tone: "error" });
@@ -610,7 +610,7 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
           ...current,
           { id: undefined, channel_id: channel.id, channelName: channel.name, type: "adjustment", amount: "", remark: "", custom: true },
         ]);
-        ui.notify({ title: "Deduction channel created", message: "Saved to Supabase" });
+        ui.notify({ title: "Deduction channel created", message: "Saved successfully." });
       } catch (error) {
         console.error("Unable to create deduction channel", error);
         ui.notify({ title: "Unable to create deduction channel", message: error.message, tone: "error" });

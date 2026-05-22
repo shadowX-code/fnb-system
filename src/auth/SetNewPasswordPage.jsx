@@ -64,7 +64,7 @@ export default function SetNewPasswordPage() {
               <div className="text-xs font-bold uppercase tracking-[0.14em] text-primary">Secure Account Setup</div>
               <h1 className="mt-4 text-3xl font-bold tracking-tight text-text-primary">Set up your password before entering the workspace.</h1>
               <p className="mt-4 text-sm leading-6 text-text-secondary">
-                This link verifies your account through Supabase Auth. Choose a new password to continue into FeedX.
+                This secure link verifies your account. Choose a new password to continue into FeedX.
               </p>
             </div>
           </section>

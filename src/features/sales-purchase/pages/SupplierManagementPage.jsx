@@ -134,7 +134,7 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
         ...current,
         suppliers: current.suppliers.map((supplier) => (supplier.id === saved.id ? saved : supplier)),
       }));
-      ui.notify({ title: nextActive ? "Supplier reactivated" : "Supplier deactivated", message: "Saved to Supabase" });
+      ui.notify({ title: nextActive ? "Supplier reactivated" : "Supplier deactivated", message: "Saved successfully." });
     } catch (error) {
       console.error("Unable to update supplier status", error);
       ui.notify({ title: "Unable to update supplier", message: error.message, tone: "error" });
@@ -153,7 +153,7 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
         ...current,
         suppliers: current.suppliers.filter((supplier) => supplier.id !== row.id),
       }));
-      ui.notify({ title: "Supplier deleted", message: "Saved to Supabase" });
+      ui.notify({ title: "Supplier deleted", message: "Saved successfully." });
     } catch (error) {
       console.error("Unable to delete supplier", error);
       ui.notify({ title: "Unable to delete supplier", message: error.message, tone: "error" });
@@ -345,7 +345,7 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
                 ].sort((a, b) => a.name.localeCompare(b.name)),
               }));
               setModal(null);
-              ui.notify({ title: "Supplier saved", message: "Saved to Supabase" });
+              ui.notify({ title: "Supplier saved", message: "Saved successfully." });
             } catch (error) {
               console.error("Unable to save supplier", error);
               ui.notify({ title: "Unable to save supplier", message: error.message, tone: "error" });

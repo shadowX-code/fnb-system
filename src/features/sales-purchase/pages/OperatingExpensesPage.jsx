@@ -159,7 +159,7 @@ export default function OperatingExpensesPage({ store, setStore, ui, auth }) {
           saved: true,
         },
       }));
-      ui.notify({ title: "OpEx saved", message: `${monthLabel(month)} ${year} saved to Supabase.` });
+      ui.notify({ title: "OpEx saved", message: `${monthLabel(month)} ${year} saved.` });
     } catch (saveError) {
       console.error("Unable to save operating expense", saveError);
       setError(saveError.message || "Unable to save operating expense.");

@@ -674,7 +674,7 @@ export default function PurchaseInputPage({ store, setStore, ui, auth }) {
       setRows(savedRecords.map((record) => ({ ...record, draft: false })));
       setSaveState("saved");
       setLastSavedAt(new Date());
-      ui.notify({ title: "Saved to Supabase", message: `${savedRecords.length} supplier rows updated.` });
+      ui.notify({ title: "Purchase saved", message: `${savedRecords.length} supplier rows updated.` });
     } catch (error) {
       console.error("Unable to save purchase records", error);
       setSaveState("error");
@@ -710,7 +710,7 @@ export default function PurchaseInputPage({ store, setStore, ui, auth }) {
         category_id: supplier.default_category_id,
         draft: true,
       });
-      ui.notify({ title: "Supplier created", message: "Saved to Supabase" });
+      ui.notify({ title: "Supplier created", message: "Saved successfully." });
     } catch (error) {
       console.error("Unable to create supplier", error);
       ui.notify({ title: "Unable to create supplier", message: error.message, tone: "error" });
