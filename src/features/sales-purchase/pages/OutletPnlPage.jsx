@@ -347,7 +347,7 @@ export default function OutletPnlPage({ store, ui, auth }) {
     <div className="space-y-4">
       <PageHeader
         section="Overview"
-        title="Outlet P&L Overview"
+        title="Outlet P&L"
         description="Management P&L by outlet using saved sales, purchases and monthly operating expenses."
       />
 
@@ -449,7 +449,7 @@ export default function OutletPnlPage({ store, ui, auth }) {
         <Card title="Monthly P&L Breakdown" description="Hover-ready month cards for management review.">
           <div className="grid gap-3 p-4 sm:grid-cols-2 xl:grid-cols-3">
             {visibleMonthly.map((item) => (
-              <button key={item.month} className="rounded-2xl border border-border bg-surface p-3 text-left transition hover:-translate-y-0.5 hover:border-primary/30 hover:shadow-card" type="button" onClick={() => ui.notify({ title: `${item.label} detail`, message: "Month detail modal will be connected later." })}>
+              <div key={item.month} className="rounded-2xl border border-border bg-surface p-3 text-left transition hover:border-primary/20 hover:shadow-sm">
                 <div className="flex items-center justify-between">
                   <div className="text-sm font-bold text-text-primary">{item.label}</div>
                   <span className={`inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-bold ${monthMarginBadgeClass(item)}`}>
@@ -463,7 +463,7 @@ export default function OutletPnlPage({ store, ui, auth }) {
                   <PnlStatementRow label="OpEx" amount={`-${toCurrency(item.opex)}`} ratio={pnlRatio(item.opex, item.revenue)} />
                   <div className="mt-1.5 flex justify-between border-t border-border pt-2.5"><span className="text-xs font-bold text-text-primary">Net Profit</span><strong className={`text-base font-bold ${item.netProfit < 0 ? "text-rose-500" : "text-text-primary"}`}>{signedCurrency(item.netProfit)}</strong></div>
                 </div>
-              </button>
+              </div>
             ))}
             {!visibleMonthly.length ? (
               <div className="col-span-full rounded-2xl border border-border bg-slate-50 p-6 text-sm font-semibold text-text-secondary">

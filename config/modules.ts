@@ -53,9 +53,18 @@ export const moduleSectionOrder = ["Overview", "Sales", "Purchases", "Operations
 
 export const moduleRegistry: AppModule[] = [
   {
+    id: "outlet-pnl",
+    section: "Overview",
+    label: "Outlet P&L",
+    route: "/overview/outlet-pnl",
+    icon: "outlet-pnl",
+    sidebar: true,
+    permissions: { view: true, export: true },
+  },
+  {
     id: "dashboard",
     section: "Overview",
-    label: "Dashboard",
+    label: "S&P Dashboard",
     route: "/overview/dashboard",
     icon: "dashboard",
     sidebar: true,
@@ -195,15 +204,6 @@ export const moduleRegistry: AppModule[] = [
     icon: "alerts",
     sidebar: true,
     permissions: { view: true, manage: true },
-  },
-  {
-    id: "outlet-pnl",
-    section: "Overview",
-    label: "Outlet P&L",
-    route: "/overview/outlet-pnl",
-    icon: "outlet-pnl",
-    sidebar: true,
-    permissions: { view: true, export: true },
   },
   {
     id: "data-import",
