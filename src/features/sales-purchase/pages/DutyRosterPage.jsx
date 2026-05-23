@@ -114,9 +114,26 @@ function templateTone(template) {
   return tones[color] ?? tones.green;
 }
 
+function formatShiftTime(value) {
+  if (!value) return "";
+  const [hourRaw, minuteRaw = "0"] = String(value).split(":");
+  const hour = Number(hourRaw);
+  const minute = Number(minuteRaw);
+  if (Number.isNaN(hour) || Number.isNaN(minute)) return "";
+  const suffix = hour >= 12 ? "pm" : "am";
+  const displayHour = hour % 12 || 12;
+  return minute ? `${displayHour}:${String(minute).padStart(2, "0")}${suffix}` : `${displayHour}${suffix}`;
+}
+
+function formatShiftTimeRange(startTime, endTime) {
+  const start = formatShiftTime(startTime);
+  const end = formatShiftTime(endTime);
+  if (!start || !end) return "";
+  return `${start} - ${end}`;
+}
+
 function shiftTimeLabel(template) {
-  if (!template?.start_time || !template?.end_time) return template?.code || "No time";
-  return `${String(template.start_time).slice(0, 5)} - ${String(template.end_time).slice(0, 5)}`;
+  return formatShiftTimeRange(template?.start_time, template?.end_time) || template?.code || "No time";
 }
 
 function rosterKey(employeeId, date) {
@@ -152,7 +169,7 @@ function ShiftBlock({ roster }) {
       <div className="flex items-start justify-between gap-2">
         <div>
           <div className="text-[11px] font-black">
-            {isNonWorking ? template.code : `${String(roster.start_time).slice(0, 5)} - ${String(roster.end_time).slice(0, 5)}`}
+            {isNonWorking ? template.code : formatShiftTimeRange(roster.start_time, roster.end_time)}
           </div>
           <div className="mt-1 text-xs font-semibold opacity-80">{template.name}</div>
         </div>
