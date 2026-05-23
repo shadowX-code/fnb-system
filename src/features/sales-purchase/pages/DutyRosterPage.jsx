@@ -1,11 +1,10 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { CalendarX, ChevronLeft, ChevronRight, ClipboardCopy, Clock, Download, HeartPulse, LockKeyhole, Plane, Plus, Send, UnlockKeyhole, Users } from "lucide-react";
+import { CalendarX, ChevronLeft, ChevronRight, ClipboardCopy, Clock, Download, HeartPulse, LockKeyhole, Plane, Plus, Send, Trash2, UnlockKeyhole, Users, X } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
-import Modal from "../../../components/feedback/Modal.jsx";
 import { employeeService } from "../../../services/employeeService.js";
 import { shiftTemplateService } from "../../../services/shiftTemplateService.js";
 import { dutyRosterService } from "../../../services/dutyRosterService.js";
@@ -63,7 +62,7 @@ function hoursLabel(minutes) {
 function classifyDepartment(department) {
   const value = String(department || "").toLowerCase();
   if (value.includes("kitchen")) return "Kitchen Team";
-  if (value.includes("service") || value.includes("frontline") || value.includes("floor")) return "Floor Team";
+  if (value.includes("service") || value.includes("frontline") || value.includes("floor")) return "Floor / Frontline Team";
   return department ? `${department} Team` : "Other Team";
 }
 
@@ -106,7 +105,7 @@ function isWorkingRoster(roster) {
   return roster && !nonWorkingCodes.has(code);
 }
 
-function ShiftBlock({ roster, canDeleteShift, locked, onDelete }) {
+function ShiftBlock({ roster }) {
   if (!roster?.template) {
     return (
       <div className="flex min-h-[44px] items-center justify-center rounded-xl border border-dashed border-border bg-surface/60 text-xs font-bold text-text-muted transition group-hover:border-primary/50 group-hover:bg-primary/5 group-hover:text-primary">
@@ -121,71 +120,106 @@ function ShiftBlock({ roster, canDeleteShift, locked, onDelete }) {
     <div className={`group rounded-xl border px-2.5 py-2 text-left shadow-sm ${templateTone(template)}`}>
       <div className="flex items-start justify-between gap-2">
         <div>
-          <div className="text-xs font-bold">{template.name}</div>
-          <div className="mt-1 text-[11px] font-semibold opacity-80">
+          <div className="text-[11px] font-black">
             {isNonWorking ? template.code : `${String(roster.start_time).slice(0, 5)} - ${String(roster.end_time).slice(0, 5)}`}
           </div>
+          <div className="mt-1 text-xs font-semibold opacity-80">{template.name}</div>
         </div>
-        {canDeleteShift && !locked ? (
-          <button
-            className="rounded-lg px-1.5 text-xs font-bold opacity-0 transition hover:bg-white/60 group-hover:opacity-100"
-            type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              onDelete();
-            }}
-            aria-label="Delete shift"
-          >
-            x
-          </button>
-        ) : null}
       </div>
     </div>
   );
 }
 
-function AddShiftModal({ employee, date, templates, selectedTemplateId, onSelectTemplate, onClose, onSave, saving }) {
-  const [templateId, setTemplateId] = useState(selectedTemplateId || templates[0]?.id || "");
-  const template = templates.find((item) => item.id === templateId);
+function ShiftDrawer({ mode, employee, date, roster, templates, selectedTemplateId, onSelectTemplate, onClose, onSave, onDelete, saving, canDeleteShift }) {
+  const [templateId, setTemplateId] = useState(roster?.shift_template_id || selectedTemplateId || "");
+  const [remark, setRemark] = useState(roster?.remark || "");
+  const selected = templates.find((item) => item.id === templateId);
+  const team = classifyDepartment(employee.department);
+  const dateObject = new Date(`${date}T00:00:00`);
+
+  function chooseTemplate(template) {
+    setTemplateId(template.id);
+    onSelectTemplate?.(template.id);
+    if (mode === "add") onSave(template, remark);
+  }
 
   return (
-    <Modal
-      title="Add Shift"
-      description={`${employee.nickname || employee.full_name} · ${formatDay(new Date(`${date}T00:00:00`))}`}
-      onClose={onClose}
-      footer={(
-        <div className="flex justify-end gap-2">
-          <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="button" disabled={!template || saving} onClick={() => onSave(template)}>
-            {saving ? "Saving..." : "Save Shift"}
-          </button>
-        </div>
-      )}
-    >
-      <div className="space-y-4">
-        <div>
-          <div className="text-xs font-bold uppercase tracking-wide text-text-muted">Shift Template</div>
-          <div className="mt-3 grid gap-2 sm:grid-cols-2">
-            {templates.map((item) => (
-              <button
-                key={item.id}
-                className={`rounded-2xl border p-3 text-left transition ${
-                  templateId === item.id ? "border-primary bg-primary/10 ring-2 ring-primary/15" : `${templateTone(item)} hover:shadow-sm`
-                }`}
-                type="button"
-                onClick={() => {
-                  setTemplateId(item.id);
-                  onSelectTemplate?.(item.id);
-                }}
-              >
-                <div className="text-sm font-bold">{item.name}</div>
-                <div className="mt-1 text-xs font-semibold opacity-75">{shiftTimeLabel(item)}</div>
-              </button>
-            ))}
+    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30 backdrop-blur-[2px]" role="dialog" aria-modal="true">
+      <button className="flex-1 cursor-default" type="button" aria-label="Close shift drawer backdrop" onClick={onClose} />
+      <aside className="flex h-full w-full max-w-[440px] flex-col border-l border-border bg-surface shadow-2xl">
+        <header className="shrink-0 border-b border-border p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.16em] text-primary">{mode === "edit" ? "Edit Shift" : "Add Shift"}</div>
+              <h2 className="mt-1 text-xl font-semibold text-text-primary">{employee.nickname || employee.full_name}</h2>
+              <p className="mt-1 text-sm text-text-secondary">{team} · {dayLabels[(dateObject.getDay() + 6) % 7]} {formatDay(dateObject)}</p>
+            </div>
+            <button className="icon-btn" type="button" onClick={onClose} aria-label="Close shift drawer">
+              <X size={18} />
+            </button>
           </div>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto p-5">
+          <section className="rounded-3xl border border-border bg-background p-4">
+            <div className="text-xs font-black uppercase tracking-[0.16em] text-text-muted">Shift Selection</div>
+            <div className="mt-3 grid gap-2">
+              {templates.map((item) => (
+                <button
+                  key={item.id}
+                  className={`flex items-center justify-between rounded-2xl border p-3 text-left transition ${
+                    templateId === item.id ? "border-primary bg-primary/10 ring-2 ring-primary/15" : `${templateTone(item)} hover:-translate-y-0.5 hover:shadow-sm`
+                  }`}
+                  type="button"
+                  disabled={saving}
+                  onClick={() => chooseTemplate(item)}
+                >
+                  <span>
+                    <span className="block text-sm font-bold">{item.name}</span>
+                    <span className="mt-1 block text-xs font-semibold opacity-75">{shiftTimeLabel(item)}</span>
+                  </span>
+                  {templateId === item.id ? <CheckIcon /> : null}
+                </button>
+              ))}
+            </div>
+            {mode === "add" ? <p className="mt-3 text-xs font-semibold text-text-secondary">Selecting a template saves this shift immediately.</p> : null}
+          </section>
+
+          {mode === "edit" ? (
+            <section className="mt-4 rounded-3xl border border-border bg-background p-4">
+              <label className="text-xs font-black uppercase tracking-[0.16em] text-text-muted" htmlFor="shift-remark">Remark</label>
+              <textarea
+                id="shift-remark"
+                className="control mt-2 min-h-24 w-full resize-none"
+                value={remark}
+                onChange={(event) => setRemark(event.target.value)}
+                placeholder="Optional shift note"
+              />
+            </section>
+          ) : null}
         </div>
-      </div>
-    </Modal>
+
+        <footer className="shrink-0 border-t border-border bg-background p-4">
+          {mode === "edit" ? (
+            <div className="flex items-center justify-between gap-2">
+              <button className="btn-secondary text-rose-700 hover:bg-rose-50" type="button" disabled={!canDeleteShift || saving} onClick={() => onDelete(roster)}>
+                <Trash2 size={16} /> Delete
+              </button>
+              <div className="flex gap-2">
+                <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
+                <button className="btn-primary" type="button" disabled={!selected || saving} onClick={() => onSave(selected, remark)}>
+                  {saving ? "Saving..." : "Save Shift"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex justify-end gap-2">
+              <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
+            </div>
+          )}
+        </footer>
+      </aside>
+    </div>
   );
 }
 
@@ -200,7 +234,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
   const [rosters, setRosters] = useState([]);
   const [period, setPeriod] = useState(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
-  const [shiftModal, setShiftModal] = useState(null);
+  const [shiftDrawer, setShiftDrawer] = useState(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -302,7 +336,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
     };
   }, [rosters]);
 
-  async function assignShift(employee, date, templateOverride = selectedTemplate) {
+  async function saveShift(employee, date, templateOverride = selectedTemplate, remark = "") {
     if (locked) {
       ui.notify({ title: "Roster is locked", message: "Unlock this roster before editing.", tone: "warning" });
       return;
@@ -316,11 +350,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
       notifyPermissionDenied(ui, "add duty roster shifts");
       return;
     }
-    if (!templateOverride) {
-      const existing = rosterByEmployeeDate.get(rosterKey(employee.id, date));
-      if (!existing) setShiftModal({ employee, date });
-      return;
-    }
+    if (!templateOverride) return;
     setSaving(true);
     try {
       const saved = await dutyRosterService.saveDutyRoster({
@@ -329,12 +359,13 @@ export default function DutyRosterPage({ store, ui, auth }) {
         rosterDate: date,
         template: templateOverride,
         status: period?.status === "published" ? "published" : "draft",
+        remark,
       });
       setRosters((current) => {
         const exists = current.some((item) => item.id === saved.id);
         return exists ? current.map((item) => (item.id === saved.id ? saved : item)) : [...current, saved];
       });
-      setShiftModal(null);
+      setShiftDrawer(null);
       ui.notify({ title: "Shift saved", message: `${employee.nickname || employee.full_name} · ${templateOverride.name}` });
     } catch (saveError) {
       console.error("Unable to save duty roster shift", saveError);
@@ -342,6 +373,20 @@ export default function DutyRosterPage({ store, ui, auth }) {
     } finally {
       setSaving(false);
     }
+  }
+
+  function handleCellClick(employee, date) {
+    if (readOnly) return;
+    const existing = rosterByEmployeeDate.get(rosterKey(employee.id, date));
+    if (existing) {
+      setShiftDrawer({ mode: "edit", employee, date, roster: existing });
+      return;
+    }
+    if (selectedTemplate) {
+      saveShift(employee, date, selectedTemplate);
+      return;
+    }
+    setShiftDrawer({ mode: "add", employee, date, roster: null });
   }
 
   async function deleteShift(roster) {
@@ -353,6 +398,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
     try {
       await dutyRosterService.deleteDutyRoster(roster.id, { outletId, rosterDate: roster.roster_date, employee_id: roster.employee_id });
       setRosters((current) => current.filter((item) => item.id !== roster.id));
+      setShiftDrawer(null);
       ui.notify({ title: "Shift removed" });
     } catch (deleteError) {
       console.error("Unable to delete duty roster shift", deleteError);
@@ -526,12 +572,12 @@ export default function DutyRosterPage({ store, ui, auth }) {
                                     role="button"
                                     tabIndex={readOnly ? -1 : 0}
                                     aria-disabled={readOnly}
-                                    onClick={() => assignShift(employee, dateValue)}
+                                    onClick={() => handleCellClick(employee, dateValue)}
                                     onKeyDown={(event) => {
-                                      if (!readOnly && (event.key === "Enter" || event.key === " ")) assignShift(employee, dateValue);
+                                      if (!readOnly && (event.key === "Enter" || event.key === " ")) handleCellClick(employee, dateValue);
                                     }}
                                   >
-                                    <ShiftBlock roster={roster} locked={locked} canDeleteShift={canDeleteShift} onDelete={() => deleteShift(roster)} />
+                                    <ShiftBlock roster={roster} />
                                   </div>
                                 </td>
                               );
@@ -565,16 +611,16 @@ export default function DutyRosterPage({ store, ui, auth }) {
                                   role="button"
                                   tabIndex={readOnly ? -1 : 0}
                                   aria-disabled={readOnly}
-                                  onClick={() => assignShift(employee, dateValue)}
+                                  onClick={() => handleCellClick(employee, dateValue)}
                                   onKeyDown={(event) => {
-                                    if (!readOnly && (event.key === "Enter" || event.key === " ")) assignShift(employee, dateValue);
+                                    if (!readOnly && (event.key === "Enter" || event.key === " ")) handleCellClick(employee, dateValue);
                                   }}
                                 >
                                   <div>
                                     <div className="text-sm font-bold text-text-primary">{employee.nickname || employee.full_name}</div>
                                     <div className="text-xs text-text-secondary">{employee.position || "Employee"}</div>
                                   </div>
-                                  <ShiftBlock roster={roster} locked={locked} canDeleteShift={canDeleteShift} onDelete={() => deleteShift(roster)} />
+                                  <ShiftBlock roster={roster} />
                                 </div>
                               );
                             })}
@@ -614,8 +660,9 @@ export default function DutyRosterPage({ store, ui, auth }) {
           <Card title="Quick Shift Templates" description="Select a template, then click a roster cell.">
             <div className="space-y-2 p-4">
               {selectedTemplate ? (
-                <div className="rounded-2xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs font-semibold text-primary">
-                  Assignment mode: {selectedTemplate.name}. Click cells to assign instantly.
+                <div className="flex items-start justify-between gap-3 rounded-2xl border border-primary/20 bg-primary/5 px-3 py-2 text-xs font-semibold text-primary">
+                  <span>Selected: {selectedTemplate.name}. Click a roster cell to assign.</span>
+                  <button className="font-black underline-offset-2 hover:underline" type="button" onClick={() => setSelectedTemplateId("")}>Clear</button>
                 </div>
               ) : (
                 <div className="rounded-2xl border border-border bg-background px-3 py-2 text-xs font-semibold text-text-secondary">
@@ -690,16 +737,20 @@ export default function DutyRosterPage({ store, ui, auth }) {
         ))}
       </div>
 
-      {shiftModal ? (
-        <AddShiftModal
-          employee={shiftModal.employee}
-          date={shiftModal.date}
+      {shiftDrawer ? (
+        <ShiftDrawer
+          mode={shiftDrawer.mode}
+          employee={shiftDrawer.employee}
+          date={shiftDrawer.date}
+          roster={shiftDrawer.roster}
           templates={templates}
           selectedTemplateId={selectedTemplateId}
           onSelectTemplate={setSelectedTemplateId}
           saving={saving}
-          onClose={() => setShiftModal(null)}
-          onSave={(template) => assignShift(shiftModal.employee, shiftModal.date, template)}
+          canDeleteShift={canDeleteShift}
+          onClose={() => setShiftDrawer(null)}
+          onSave={(template, remark) => saveShift(shiftDrawer.employee, shiftDrawer.date, template, remark)}
+          onDelete={deleteShift}
         />
       ) : null}
 

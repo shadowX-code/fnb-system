@@ -2,6 +2,15 @@ import { supabase } from "../lib/supabase";
 import { throwSupabaseError } from "./supabaseError";
 
 const selectFields = "id,name,code,start_time,end_time,break_minutes,shift_type,color,is_active,created_at,updated_at";
+const templateOrder = new Map([
+  ["MORNING", 1],
+  ["MID", 2],
+  ["CLOSING", 3],
+  ["FULL", 4],
+  ["OFF", 5],
+  ["AL", 6],
+  ["MC", 7],
+]);
 
 function mapTemplate(row) {
   return {
@@ -28,6 +37,8 @@ export const shiftTemplateService = {
       .order("name", { ascending: true });
 
     throwSupabaseError("shift_templates.list", error);
-    return (data ?? []).map(mapTemplate);
+    return (data ?? [])
+      .map(mapTemplate)
+      .sort((a, b) => (templateOrder.get(a.code) ?? 99) - (templateOrder.get(b.code) ?? 99) || a.name.localeCompare(b.name));
   },
 };
