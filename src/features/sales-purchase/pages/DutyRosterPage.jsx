@@ -646,102 +646,90 @@ function RosterSettingsDrawer({ outletId, outlets, positions, mappings, template
           <section className="rounded-3xl border border-border bg-background p-4">
             <div className="text-sm font-bold text-text-primary">Shift Template Settings</div>
             <p className="mt-1 text-xs font-semibold text-text-secondary">Templates are outlet-specific. Drag active templates to control quick-assign order.</p>
-            <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
-              <div className="space-y-3">
-                <div className="rounded-2xl border border-border bg-surface p-3">
-                  <div className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-text-muted">Shift Template List</div>
-                  <div className="space-y-2">
-                    {activeTemplates.map((template) => (
-                      <button
-                        key={template.id}
-                        className={`flex w-full cursor-grab items-center justify-between gap-3 rounded-2xl border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${templateAccent(template)} ${templateDraft.id === template.id ? "ring-2 ring-primary/20" : ""}`}
-                        type="button"
-                        draggable
-                        onClick={() => selectTemplate(template)}
-                        onDragStart={() => setDraggedTemplateId(template.id)}
-                        onDragOver={(event) => event.preventDefault()}
-                        onDrop={() => dropTemplate(template.id)}
-                      >
-                        <span>
-                          <span className="block text-sm font-black text-text-primary">{template.name}</span>
-                          <span className="mt-0.5 block text-xs font-semibold text-text-secondary">{shiftTimeLabel(template)}</span>
-                        </span>
-                        <span className="text-xs font-black text-text-muted">⋮⋮</span>
-                      </button>
-                    ))}
-                    {!activeTemplates.length ? <div className="rounded-2xl border border-dashed border-border p-4 text-sm font-semibold text-text-muted">No active templates.</div> : null}
-                  </div>
+            <div className="mt-4 rounded-2xl border border-border bg-surface p-3">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-xs font-black uppercase tracking-[0.16em] text-text-muted">{templateDraft.id ? "Edit Template" : "Add Template"}</div>
+                  <p className="mt-1 text-xs font-semibold text-text-secondary">Use dropdown time selectors. Break duration is unpaid.</p>
                 </div>
-
-                {archivedTemplates.length ? (
-                  <div className="rounded-2xl border border-border bg-surface p-3">
-                    <div className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-text-muted">Archived Templates</div>
-                    <div className="space-y-2">
-                      {archivedTemplates.map((template) => (
-                        <button key={template.id} className="w-full rounded-2xl border border-border bg-background p-3 text-left opacity-75" type="button" onClick={() => selectTemplate(template)}>
-                          <div className="text-sm font-bold text-text-primary">{template.name}</div>
-                          <div className="text-xs font-semibold text-text-secondary">{shiftTimeLabel(template)}</div>
-                        </button>
-                      ))}
-                    </div>
-                  </div>
-                ) : null}
+                {templateDraft.id ? <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={resetTemplate}>New</button> : null}
               </div>
-
-              <div className="rounded-2xl border border-border bg-surface p-4">
-                <div className="text-xs font-black uppercase tracking-[0.16em] text-text-muted">Shift Template Editor</div>
-                <div className={`mt-3 rounded-2xl border p-3 ${templateAccent(templateDraft)}`}>
-                  <div className="text-sm font-black text-text-primary">{templateDraft.name || "New Shift Template"}</div>
-                  <div className="mt-1 text-xs font-semibold text-text-secondary">{shiftTimeLabel(templateDraft)}</div>
-                  <div className="mt-2 text-xs font-bold text-text-secondary">{Number(templateDraft.break_minutes || 0)} mins break</div>
-                </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  <FieldLabel label="Template Name">
-                    <input className="control" value={templateDraft.name} onChange={(event) => setTemplateDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Morning" />
-                  </FieldLabel>
-                  <FieldLabel label="Code">
-                    <input className="control" value={templateDraft.code} onChange={(event) => setTemplateDraft((current) => ({ ...current, code: event.target.value }))} placeholder="MORNING" />
-                  </FieldLabel>
-                  <FieldLabel label="Start Time">
-                    <SelectField value={templateDraft.start_time || ""} options={timeOptions} onChange={(start_time) => setTemplateDraft((current) => ({ ...current, start_time }))} placeholder="Select time" searchable />
-                  </FieldLabel>
-                  <FieldLabel label="End Time">
-                    <SelectField value={templateDraft.end_time || ""} options={timeOptions} onChange={(end_time) => setTemplateDraft((current) => ({ ...current, end_time }))} placeholder="Select time" searchable />
-                  </FieldLabel>
-                  <FieldLabel label="Break Duration">
-                    <SelectField value={String(templateDraft.break_minutes ?? 0)} options={breakOptions} onChange={(break_minutes) => setTemplateDraft((current) => ({ ...current, break_minutes: Number(break_minutes) }))} />
-                  </FieldLabel>
-                  <FieldLabel label="Template Color">
-                    <SelectField
-                      value={templateDraft.color}
-                      options={["green", "amber", "red", "blue", "purple", "gray"].map((color) => ({ value: color, label: color[0].toUpperCase() + color.slice(1) }))}
-                      onChange={(color) => setTemplateDraft((current) => ({ ...current, color }))}
-                    />
-                  </FieldLabel>
-                </div>
-                <div className="mt-4 flex flex-wrap justify-end gap-2">
-                  <button className="btn-secondary" type="button" onClick={resetTemplate}>New Template</button>
-                  {templateDraft.id && templateDraft.is_active !== false ? (
-                    <button className="btn-secondary text-amber-700 hover:bg-amber-50" type="button" onClick={() => onDeactivateTemplate(templateDraft.id)}>Archive</button>
-                  ) : null}
-                  <button
-                    className="btn-primary"
-                    type="button"
-                    disabled={!templateDraft.name.trim() || saving}
-                    onClick={async () => {
-                      await onSaveTemplate({
-                        ...templateDraft,
-                        outlet_id: outletId,
-                        sort_order: templateDraft.sort_order || activeTemplates.length + 1,
-                      });
-                      resetTemplate();
-                    }}
-                  >
-                    Save Template
-                  </button>
-                </div>
+              <div className="grid gap-2 sm:grid-cols-2">
+                <input className="control" value={templateDraft.name} onChange={(event) => setTemplateDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Name" />
+                <input className="control" value={templateDraft.code} onChange={(event) => setTemplateDraft((current) => ({ ...current, code: event.target.value }))} placeholder="Code" />
+                <SelectField value={templateDraft.start_time || ""} options={timeOptions} onChange={(start_time) => setTemplateDraft((current) => ({ ...current, start_time }))} placeholder="Start Time" searchable />
+                <SelectField value={templateDraft.end_time || ""} options={timeOptions} onChange={(end_time) => setTemplateDraft((current) => ({ ...current, end_time }))} placeholder="End Time" searchable />
+                <SelectField value={String(templateDraft.break_minutes ?? 0)} options={breakOptions} onChange={(break_minutes) => setTemplateDraft((current) => ({ ...current, break_minutes: Number(break_minutes) }))} placeholder="Break Duration" />
+                <SelectField
+                  value={templateDraft.color}
+                  options={["green", "amber", "red", "blue", "purple", "gray"].map((color) => ({ value: color, label: color[0].toUpperCase() + color.slice(1) }))}
+                  onChange={(color) => setTemplateDraft((current) => ({ ...current, color }))}
+                  placeholder="Color"
+                />
+              </div>
+              <div className={`mt-3 rounded-2xl border px-3 py-2 ${templateAccent(templateDraft)}`}>
+                <div className="text-xs font-black uppercase tracking-[0.16em] text-text-muted">Live Preview</div>
+                <div className="mt-1 text-sm font-black text-text-primary">{templateDraft.name || "New Shift Template"}</div>
+                <div className="mt-0.5 text-xs font-semibold text-text-secondary">{shiftTimeLabel(templateDraft)} · {Number(templateDraft.break_minutes || 0)} mins break</div>
+              </div>
+              <div className="mt-3 flex flex-wrap justify-end gap-2">
+                {templateDraft.id && templateDraft.is_active !== false ? (
+                  <button className="btn-secondary text-amber-700 hover:bg-amber-50" type="button" onClick={() => onDeactivateTemplate(templateDraft.id)}>Archive</button>
+                ) : null}
+                <button
+                  className="btn-primary"
+                  type="button"
+                  disabled={!templateDraft.name.trim() || saving}
+                  onClick={async () => {
+                    await onSaveTemplate({
+                      ...templateDraft,
+                      outlet_id: outletId,
+                      sort_order: templateDraft.sort_order || activeTemplates.length + 1,
+                    });
+                    resetTemplate();
+                  }}
+                >
+                  Save Template
+                </button>
               </div>
             </div>
+
+            <div className="mt-4 space-y-2">
+              {activeTemplates.map((template) => (
+                <div
+                  key={template.id}
+                  className={`flex cursor-grab items-center justify-between gap-3 rounded-2xl border p-3 transition hover:-translate-y-0.5 hover:shadow-sm ${templateAccent(template)}`}
+                  draggable
+                  onDragStart={() => setDraggedTemplateId(template.id)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={() => dropTemplate(template.id)}
+                >
+                  <div>
+                    <div className="text-sm font-bold text-text-primary">{template.name}</div>
+                    <div className="text-xs font-semibold text-text-secondary">{shiftTimeLabel(template)} · {template.break_minutes} mins break</div>
+                  </div>
+                  <div className="flex gap-2">
+                    <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={() => editTemplate(template)}>Edit</button>
+                    <button className="btn-secondary h-9 px-3 text-xs text-amber-700 hover:bg-amber-50" type="button" onClick={() => onDeactivateTemplate(template.id)}>Archive</button>
+                  </div>
+                </div>
+              ))}
+              {!activeTemplates.length ? <div className="rounded-2xl border border-dashed border-border p-4 text-sm font-semibold text-text-muted">No active templates.</div> : null}
+            </div>
+
+            {archivedTemplates.length ? (
+              <div className="mt-4 rounded-2xl border border-border bg-surface p-3">
+                <div className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-text-muted">Archived Templates</div>
+                <div className="space-y-2">
+                  {archivedTemplates.map((template) => (
+                    <div key={template.id} className="rounded-2xl border border-border bg-background p-3 opacity-75">
+                      <div className="text-sm font-bold text-text-primary">{template.name}</div>
+                      <div className="text-xs font-semibold text-text-secondary">{shiftTimeLabel(template)}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ) : null}
           </section>
         </div>
       </aside>
