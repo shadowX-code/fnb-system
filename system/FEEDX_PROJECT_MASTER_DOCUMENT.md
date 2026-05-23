@@ -1984,8 +1984,10 @@ Upload file
 Select outlet and week
 → Load active employees
 → Group employees by department
-→ Select shift template
-→ Click roster cell to assign shift
+→ Empty cells show + Add Shift on hover
+→ Click empty cell to open Add Shift modal
+→ Or select a Quick Shift Template to enter assignment mode
+→ Click roster cell to instantly assign selected template
 → Save shift to duty_rosters
 → Review Kitchen/Floor coverage by day
 → Publish roster when ready
