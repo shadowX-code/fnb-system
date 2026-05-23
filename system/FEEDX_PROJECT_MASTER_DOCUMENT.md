@@ -845,6 +845,7 @@ Shift template fields:
 - break_minutes
 - shift_type
 - color
+- sort_order
 - is_active
 - created_at
 - updated_at
@@ -2032,6 +2033,14 @@ Roster settings:
   - Unassigned Positions appear under Other in roster.
 - Save Position Groups writes all position mappings in one action.
 - Shift templates are outlet-specific.
+- Shift Template Settings use a two-column layout:
+  - Left: draggable active template list and archived templates.
+  - Right: template editor with live preview.
+- Time selection uses modern dropdowns with 30-minute increments.
+- Break Duration is selected as clear minute labels such as 60 mins unpaid.
+- sort_order controls quick template display order.
+- Templates are archived with is_active = false instead of hard deleted.
+- Archived templates are hidden from quick assign but remain available for historical roster display.
 - Quick Shift Templates load from the selected outlet.
 - Month view uses compact shift codes for dense scheduling.
 

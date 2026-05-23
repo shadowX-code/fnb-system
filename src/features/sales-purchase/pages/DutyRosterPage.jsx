@@ -385,6 +385,19 @@ function viewDayLabel(date, index) {
   return `${dayLabels[(date.getDay() + 6) % 7]} ${formatDay(date)}`;
 }
 
+const timeOptions = Array.from({ length: 32 }, (_, index) => {
+  const totalMinutes = 8 * 60 + index * 30;
+  const hour = Math.floor(totalMinutes / 60) % 24;
+  const minute = totalMinutes % 60;
+  const value = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+  return { value, label: formatShiftTime(value) };
+});
+
+const breakOptions = [0, 15, 30, 45, 60, 75, 90, 120].map((minutes) => ({
+  value: String(minutes),
+  label: minutes ? `${minutes} mins unpaid` : "No break",
+}));
+
 function PositionGroupCard({ group, title, description, tone, positions, selectedIds, otherSelectedIds, onToggle, onClear, expanded, onToggleExpanded }) {
   const [query, setQuery] = useState("");
   const visiblePositions = positions.filter((position) => position.name.toLowerCase().includes(query.trim().toLowerCase()));
@@ -464,7 +477,7 @@ function PositionGroupCard({ group, title, description, tone, positions, selecte
   );
 }
 
-function RosterSettingsDrawer({ outletId, outlets, positions, mappings, templates, onClose, onSaveMappings, onSaveTemplate, onDeactivateTemplate, saving }) {
+function RosterSettingsDrawer({ outletId, outlets, positions, mappings, templates, onClose, onSaveMappings, onSaveTemplate, onDeactivateTemplate, onReorderTemplates, saving }) {
   const [templateDraft, setTemplateDraft] = useState({
     name: "",
     code: "",
@@ -474,12 +487,15 @@ function RosterSettingsDrawer({ outletId, outlets, positions, mappings, template
     shift_type: "working",
     color: "green",
   });
+  const [draggedTemplateId, setDraggedTemplateId] = useState("");
   const [expandedGroup, setExpandedGroup] = useState("floor");
   const [floorIds, setFloorIds] = useState(() => new Set(mappings.filter((item) => item.group_name === "floor").map((item) => item.position_id)));
   const [kitchenIds, setKitchenIds] = useState(() => new Set(mappings.filter((item) => item.group_name === "kitchen").map((item) => item.position_id)));
   const outletName = outlets.find((outlet) => outlet.id === outletId)?.name ?? "Selected outlet";
   const assignedIds = new Set([...floorIds, ...kitchenIds]);
   const unassignedPositions = positions.filter((position) => !assignedIds.has(position.id));
+  const activeTemplates = templates.filter((template) => template.is_active);
+  const archivedTemplates = templates.filter((template) => !template.is_active);
 
   useEffect(() => {
     setFloorIds(new Set(mappings.filter((item) => item.group_name === "floor").map((item) => item.position_id)));
@@ -519,6 +535,28 @@ function RosterSettingsDrawer({ outletId, outlets, positions, mappings, template
       ...template,
       break_minutes: template.break_minutes ?? 0,
     });
+  }
+
+  function selectTemplate(template) {
+    editTemplate(template);
+  }
+
+  function templateAccent(template) {
+    if (template.shift_type === "off" || template.code === "OFF") return "border-slate-200 bg-slate-50";
+    if (template.shift_type === "leave" || template.shift_type === "medical" || template.code === "AL" || template.code === "MC") return "border-violet-200 bg-violet-50";
+    return "border-emerald-200 bg-emerald-50";
+  }
+
+  function dropTemplate(targetId) {
+    if (!draggedTemplateId || draggedTemplateId === targetId) return;
+    const fromIndex = activeTemplates.findIndex((template) => template.id === draggedTemplateId);
+    const toIndex = activeTemplates.findIndex((template) => template.id === targetId);
+    if (fromIndex < 0 || toIndex < 0) return;
+    const next = [...activeTemplates];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    setDraggedTemplateId("");
+    onReorderTemplates(next);
   }
 
   function resetTemplate() {
@@ -607,47 +645,102 @@ function RosterSettingsDrawer({ outletId, outlets, positions, mappings, template
 
           <section className="rounded-3xl border border-border bg-background p-4">
             <div className="text-sm font-bold text-text-primary">Shift Template Settings</div>
-            <p className="mt-1 text-xs font-semibold text-text-secondary">Templates are outlet-specific and power the quick assignment panel.</p>
-            <div className="mt-4 grid gap-2 sm:grid-cols-2">
-              <input className="control" value={templateDraft.name} onChange={(event) => setTemplateDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Name" />
-              <input className="control" value={templateDraft.code} onChange={(event) => setTemplateDraft((current) => ({ ...current, code: event.target.value }))} placeholder="Code" />
-              <input className="control" type="time" value={templateDraft.start_time || ""} onChange={(event) => setTemplateDraft((current) => ({ ...current, start_time: event.target.value }))} />
-              <input className="control" type="time" value={templateDraft.end_time || ""} onChange={(event) => setTemplateDraft((current) => ({ ...current, end_time: event.target.value }))} />
-              <input className="control" type="number" min="0" value={templateDraft.break_minutes} onChange={(event) => setTemplateDraft((current) => ({ ...current, break_minutes: event.target.value }))} placeholder="Break minutes" />
-              <SelectField
-                value={templateDraft.color}
-                options={["green", "amber", "red", "blue", "purple", "gray"].map((color) => ({ value: color, label: color[0].toUpperCase() + color.slice(1) }))}
-                onChange={(color) => setTemplateDraft((current) => ({ ...current, color }))}
-              />
-            </div>
-            <div className="mt-3 flex justify-end gap-2">
-              <button className="btn-secondary" type="button" onClick={resetTemplate}>Clear</button>
-              <button
-                className="btn-primary"
-                type="button"
-                disabled={!templateDraft.name.trim() || saving}
-                onClick={async () => {
-                  await onSaveTemplate({ ...templateDraft, outlet_id: outletId });
-                  resetTemplate();
-                }}
-              >
-                Save Template
-              </button>
-            </div>
-
-            <div className="mt-4 space-y-2">
-              {templates.map((template) => (
-                <div key={template.id} className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-surface p-3">
-                  <div>
-                    <div className="text-sm font-bold text-text-primary">{template.name}</div>
-                    <div className="text-xs font-semibold text-text-secondary">{shiftTimeLabel(template)}</div>
-                  </div>
-                  <div className="flex gap-2">
-                    <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={() => editTemplate(template)}>Edit</button>
-                    <button className="btn-secondary h-9 px-3 text-xs text-rose-700 hover:bg-rose-50" type="button" onClick={() => onDeactivateTemplate(template.id)}>Deactivate</button>
+            <p className="mt-1 text-xs font-semibold text-text-secondary">Templates are outlet-specific. Drag active templates to control quick-assign order.</p>
+            <div className="mt-4 grid gap-4 lg:grid-cols-[minmax(0,0.9fr)_minmax(0,1.1fr)]">
+              <div className="space-y-3">
+                <div className="rounded-2xl border border-border bg-surface p-3">
+                  <div className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-text-muted">Shift Template List</div>
+                  <div className="space-y-2">
+                    {activeTemplates.map((template) => (
+                      <button
+                        key={template.id}
+                        className={`flex w-full cursor-grab items-center justify-between gap-3 rounded-2xl border p-3 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${templateAccent(template)} ${templateDraft.id === template.id ? "ring-2 ring-primary/20" : ""}`}
+                        type="button"
+                        draggable
+                        onClick={() => selectTemplate(template)}
+                        onDragStart={() => setDraggedTemplateId(template.id)}
+                        onDragOver={(event) => event.preventDefault()}
+                        onDrop={() => dropTemplate(template.id)}
+                      >
+                        <span>
+                          <span className="block text-sm font-black text-text-primary">{template.name}</span>
+                          <span className="mt-0.5 block text-xs font-semibold text-text-secondary">{shiftTimeLabel(template)}</span>
+                        </span>
+                        <span className="text-xs font-black text-text-muted">⋮⋮</span>
+                      </button>
+                    ))}
+                    {!activeTemplates.length ? <div className="rounded-2xl border border-dashed border-border p-4 text-sm font-semibold text-text-muted">No active templates.</div> : null}
                   </div>
                 </div>
-              ))}
+
+                {archivedTemplates.length ? (
+                  <div className="rounded-2xl border border-border bg-surface p-3">
+                    <div className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-text-muted">Archived Templates</div>
+                    <div className="space-y-2">
+                      {archivedTemplates.map((template) => (
+                        <button key={template.id} className="w-full rounded-2xl border border-border bg-background p-3 text-left opacity-75" type="button" onClick={() => selectTemplate(template)}>
+                          <div className="text-sm font-bold text-text-primary">{template.name}</div>
+                          <div className="text-xs font-semibold text-text-secondary">{shiftTimeLabel(template)}</div>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+
+              <div className="rounded-2xl border border-border bg-surface p-4">
+                <div className="text-xs font-black uppercase tracking-[0.16em] text-text-muted">Shift Template Editor</div>
+                <div className={`mt-3 rounded-2xl border p-3 ${templateAccent(templateDraft)}`}>
+                  <div className="text-sm font-black text-text-primary">{templateDraft.name || "New Shift Template"}</div>
+                  <div className="mt-1 text-xs font-semibold text-text-secondary">{shiftTimeLabel(templateDraft)}</div>
+                  <div className="mt-2 text-xs font-bold text-text-secondary">{Number(templateDraft.break_minutes || 0)} mins break</div>
+                </div>
+                <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                  <FieldLabel label="Template Name">
+                    <input className="control" value={templateDraft.name} onChange={(event) => setTemplateDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Morning" />
+                  </FieldLabel>
+                  <FieldLabel label="Code">
+                    <input className="control" value={templateDraft.code} onChange={(event) => setTemplateDraft((current) => ({ ...current, code: event.target.value }))} placeholder="MORNING" />
+                  </FieldLabel>
+                  <FieldLabel label="Start Time">
+                    <SelectField value={templateDraft.start_time || ""} options={timeOptions} onChange={(start_time) => setTemplateDraft((current) => ({ ...current, start_time }))} placeholder="Select time" searchable />
+                  </FieldLabel>
+                  <FieldLabel label="End Time">
+                    <SelectField value={templateDraft.end_time || ""} options={timeOptions} onChange={(end_time) => setTemplateDraft((current) => ({ ...current, end_time }))} placeholder="Select time" searchable />
+                  </FieldLabel>
+                  <FieldLabel label="Break Duration">
+                    <SelectField value={String(templateDraft.break_minutes ?? 0)} options={breakOptions} onChange={(break_minutes) => setTemplateDraft((current) => ({ ...current, break_minutes: Number(break_minutes) }))} />
+                  </FieldLabel>
+                  <FieldLabel label="Template Color">
+                    <SelectField
+                      value={templateDraft.color}
+                      options={["green", "amber", "red", "blue", "purple", "gray"].map((color) => ({ value: color, label: color[0].toUpperCase() + color.slice(1) }))}
+                      onChange={(color) => setTemplateDraft((current) => ({ ...current, color }))}
+                    />
+                  </FieldLabel>
+                </div>
+                <div className="mt-4 flex flex-wrap justify-end gap-2">
+                  <button className="btn-secondary" type="button" onClick={resetTemplate}>New Template</button>
+                  {templateDraft.id && templateDraft.is_active !== false ? (
+                    <button className="btn-secondary text-amber-700 hover:bg-amber-50" type="button" onClick={() => onDeactivateTemplate(templateDraft.id)}>Archive</button>
+                  ) : null}
+                  <button
+                    className="btn-primary"
+                    type="button"
+                    disabled={!templateDraft.name.trim() || saving}
+                    onClick={async () => {
+                      await onSaveTemplate({
+                        ...templateDraft,
+                        outlet_id: outletId,
+                        sort_order: templateDraft.sort_order || activeTemplates.length + 1,
+                      });
+                      resetTemplate();
+                    }}
+                  >
+                    Save Template
+                  </button>
+                </div>
+              </div>
             </div>
           </section>
         </div>
@@ -836,6 +929,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
   const [jobPositions, setJobPositions] = useState([]);
   const [positionMappings, setPositionMappings] = useState([]);
   const [templates, setTemplates] = useState([]);
+  const [allTemplates, setAllTemplates] = useState([]);
   const [rosters, setRosters] = useState([]);
   const [period, setPeriod] = useState(null);
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
@@ -902,11 +996,12 @@ export default function DutyRosterPage({ store, ui, auth }) {
       setLoading(true);
       setError("");
       try {
-        const [employeeRows, positionRows, mappingRows, templateRows, rosterRows, nextPeriod] = await Promise.all([
+        const [employeeRows, positionRows, mappingRows, templateRows, allTemplateRows, rosterRows, nextPeriod] = await Promise.all([
           employeeService.listEmployees(),
           jobPositionService.listJobPositions(),
           rosterPositionGroupService.listMappings(),
           shiftTemplateService.listShiftTemplates(outletId),
+          shiftTemplateService.listAllShiftTemplates(outletId),
           dutyRosterService.listDutyRosters(outletId, visibleStart, visibleEnd),
           rosterPeriodService.getOrCreateRosterPeriod(outletId, weekDateValues[0], weekEnd),
         ]);
@@ -919,6 +1014,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
         setJobPositions(positionRows);
         setPositionMappings(mappingRows);
         setTemplates(templateRows);
+        setAllTemplates(allTemplateRows);
         setRosters(rosterRows);
         setPeriod(nextPeriod);
         setSelectedTemplateId((current) => (templateRows.some((template) => template.id === current) ? current : ""));
@@ -1122,9 +1218,14 @@ export default function DutyRosterPage({ store, ui, auth }) {
     setSaving(true);
     try {
       const saved = await shiftTemplateService.saveShiftTemplate(template);
-      setTemplates((current) => {
+      setAllTemplates((current) => {
         const exists = current.some((item) => item.id === saved.id);
         return exists ? current.map((item) => (item.id === saved.id ? saved : item)) : [...current, saved];
+      });
+      setTemplates((current) => {
+        const exists = current.some((item) => item.id === saved.id);
+        const next = exists ? current.map((item) => (item.id === saved.id ? saved : item)) : [...current, saved];
+        return next.filter((item) => item.is_active).sort((a, b) => (a.sort_order ?? 99) - (b.sort_order ?? 99) || a.name.localeCompare(b.name));
       });
       ui.notify({ title: "Shift template saved" });
     } catch (templateError) {
@@ -1141,12 +1242,32 @@ export default function DutyRosterPage({ store, ui, auth }) {
       return;
     }
     try {
-      await shiftTemplateService.deactivateShiftTemplate(id);
+      const archived = await shiftTemplateService.deactivateShiftTemplate(id);
+      setAllTemplates((current) => current.map((item) => (item.id === id ? archived : item)));
       setTemplates((current) => current.filter((item) => item.id !== id));
-      ui.notify({ title: "Shift template deactivated" });
+      ui.notify({ title: "Shift template archived" });
     } catch (templateError) {
       console.error("Unable to deactivate shift template", templateError);
-      ui.notify({ title: "Unable to deactivate template", message: templateError.message || "Please try again.", tone: "error" });
+      ui.notify({ title: "Unable to archive template", message: templateError.message || "Please try again.", tone: "error" });
+    }
+  }
+
+  async function reorderShiftTemplates(nextTemplates) {
+    if (!canManageRoster) {
+      notifyPermissionDenied(ui, "manage duty roster settings");
+      return;
+    }
+    try {
+      const reordered = await shiftTemplateService.reorderShiftTemplates(nextTemplates);
+      setTemplates(reordered.filter((item) => item.is_active));
+      setAllTemplates((current) => {
+        const byId = new Map(current.map((item) => [item.id, item]));
+        reordered.forEach((item) => byId.set(item.id, item));
+        return [...byId.values()].sort((a, b) => (a.sort_order ?? 99) - (b.sort_order ?? 99) || a.name.localeCompare(b.name));
+      });
+    } catch (reorderError) {
+      console.error("Unable to reorder shift templates", reorderError);
+      ui.notify({ title: "Unable to reorder templates", message: reorderError.message || "Please try again.", tone: "error" });
     }
   }
 
@@ -1591,12 +1712,13 @@ export default function DutyRosterPage({ store, ui, auth }) {
           outlets={activeOutlets}
           positions={jobPositions}
           mappings={positionMappings}
-          templates={templates}
+          templates={allTemplates}
           saving={saving}
           onClose={() => setSettingsOpen(false)}
           onSaveMappings={savePositionMappings}
           onSaveTemplate={saveShiftTemplate}
           onDeactivateTemplate={deactivateShiftTemplate}
+          onReorderTemplates={reorderShiftTemplates}
         />
       ) : null}
 
