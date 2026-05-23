@@ -1983,17 +1983,27 @@ Upload file
 ```text
 Select outlet and week
 → Load active employees
-→ Group employees by department
+→ Map employee job positions to Floor/Kitchen/Other groups
+→ Group employees in roster employee column
 → Empty cells show + Add Shift on hover
-→ Click empty cell to open Add Shift modal
+→ Click empty cell to open Add Shift drawer
 → Or select a Quick Shift Template to enter assignment mode
 → Click roster cell to instantly assign selected template
 → Save shift to duty_rosters
-→ Review Kitchen/Floor coverage by day
+→ Use Bulk Assign to apply one shift to multiple dates
+→ Review Floor/Kitchen coverage by day in the side panel
 → Publish roster when ready
 → Lock roster when finalized
 → Audit critical roster actions
 ```
+
+Roster settings:
+
+- Position Group Mapping lets admins assign each job position to Floor, Kitchen, or Other.
+- If no position mapping exists, employee department is used as fallback.
+- Shift templates are outlet-specific.
+- Quick Shift Templates load from the selected outlet.
+- Month view uses compact shift codes for dense scheduling.
 
 ---
 
