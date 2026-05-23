@@ -215,6 +215,15 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, manage: true },
   },
   {
+    id: "outlet_duty_roster",
+    section: "Overview",
+    label: "Outlet Duty Roster",
+    route: "/outlet-duty-roster",
+    icon: "duty-roster",
+    sidebar: true,
+    permissions: { view: true, export: true },
+  },
+  {
     id: "data-import",
     section: "Operations",
     label: "Data Import",

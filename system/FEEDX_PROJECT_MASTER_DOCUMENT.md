@@ -80,6 +80,7 @@ OVERVIEW
 - Sales Comparison
 - Purchase Comparison
 - Alerts & Insights
+- Outlet Duty Roster
 
 SALES
 - Sales Input
@@ -811,27 +812,20 @@ Future:
 
 Purpose:
 
-Manage lightweight outlet employee scheduling with two workspaces:
-
-- Schedule View: weekly/monthly employee-by-date editing grid.
-- Outlet Duty Roster: monthly outlet-level coverage overview for management review.
+Manage lightweight outlet employee scheduling in the Operations workspace.
 
 This is not a full HR, payroll, attendance, shift swap, or staff request system yet.
 
-Outlet Duty Roster overview:
+Operations Duty Roster is the scheduling and editing workspace:
 
-- Full month calendar grid using existing duty roster data.
-- Date cards show total working staff, Floor count, Kitchen count, and AL/MC indicators.
-- Working staff excludes OFF, AL, and MC.
-- Staff coverage indicator:
-  - 9+ staff = healthy
-  - 7-8 staff = moderate
-  - 5-6 staff = low
-  - 0-4 staff = critical
-- Clicking a date opens a right-side daily duty drawer.
-- Daily drawer shows summary counts and staff on duty grouped by Floor, Kitchen, and Other.
-- Open Schedule View action switches back to the editable roster focused on the selected week/date.
-- Outlet, month, group, position, and employee filters affect overview calendar counts and drawer rows.
+- Weekly and monthly employee-by-date roster grid.
+- Click empty cells to add shifts.
+- Click existing shift blocks to edit or delete.
+- Quick shift assignment mode.
+- Bulk assign for one employee across multiple dates.
+- Publish, lock, unlock and copy week workflows.
+
+Outlet Duty Roster is a separate Overview module for read-focused monthly management review.
 
 Data tables:
 
@@ -918,18 +912,18 @@ Roster grid:
 
 - Rows are employees.
 - Columns are Monday to Sunday.
-- Employees are grouped by department.
-- Department group labels are visible in roster view.
-- Day headers show department coverage:
-  - Kitchen
+- Employees are grouped by roster position group.
+- Group labels are visible in roster view:
   - Floor
+  - Kitchen
+  - Other
 
 Employee grouping:
 
-- Use employee department first.
-- Kitchen department goes under Kitchen Team.
-- Service, Frontline, or Floor goes under Floor Team.
-- Missing department goes under Other Team.
+- Admin maps job positions to Floor or Kitchen in Duty Roster Settings.
+- A position can only belong to one roster group.
+- Positions not mapped to Floor or Kitchen appear under Other.
+- If an employee has no matched position, department fallback may be used only as a last resort.
 
 Shift colors:
 
@@ -1608,6 +1602,11 @@ Alerts & Insights:
 - alerts.view
 - alerts.manage
 
+Outlet Duty Roster:
+
+- outlet_duty_roster.view
+- outlet_duty_roster.export
+
 ### Sales
 
 Sales Input:
@@ -2018,7 +2017,7 @@ Select outlet and week
 ### 12.7 Outlet Duty Roster Overview
 
 ```text
-Select Outlet Duty Roster tab
+Open Overview > Outlet Duty Roster
 → Select outlet and month
 → Load duty_rosters for the full month
 → Apply group, position, and employee filters
@@ -2031,8 +2030,11 @@ Select Outlet Duty Roster tab
 
 Roster settings:
 
-- Position Group Mapping lets admins assign each job position to Floor, Kitchen, or Other.
-- If no position mapping exists, employee department is used as fallback.
+- Position Group Mapping uses group-first cards:
+  - Floor Team multi-select positions.
+  - Kitchen Team multi-select positions.
+  - Unassigned Positions appear under Other in roster.
+- Save Position Groups writes all position mappings in one action.
 - Shift templates are outlet-specific.
 - Quick Shift Templates load from the selected outlet.
 - Month view uses compact shift codes for dense scheduling.

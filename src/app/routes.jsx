@@ -8,6 +8,7 @@ import PurchaseComparisonPage from "../features/sales-purchase/pages/PurchaseCom
 import SalesInputPage from "../features/sales-purchase/pages/SalesInputPage.jsx";
 import SalesComparisonPage from "../features/sales-purchase/pages/SalesComparisonPage.jsx";
 import OutletPnlPage from "../features/sales-purchase/pages/OutletPnlPage.jsx";
+import OutletDutyRosterPage from "../features/sales-purchase/pages/OutletDutyRosterPage.jsx";
 import OperatingExpensesPage from "../features/sales-purchase/pages/OperatingExpensesPage.jsx";
 import DutyRosterPage from "../features/sales-purchase/pages/DutyRosterPage.jsx";
 import SettingsPage from "../features/sales-purchase/pages/SettingsPage.jsx";
@@ -99,6 +100,10 @@ const routeDetails = {
   "outlet-pnl": {
     description: "Yearly management P&L performance by outlet.",
     component: OutletPnlPage,
+  },
+  outlet_duty_roster: {
+    description: "Monthly outlet duty coverage overview.",
+    component: OutletDutyRosterPage,
   },
   "operating-expenses": {
     description: "Monthly operating expense input for management P&L.",

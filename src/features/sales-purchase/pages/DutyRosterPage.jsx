@@ -169,17 +169,6 @@ function isWorkingRoster(roster) {
   return roster && !nonWorkingCodes.has(code);
 }
 
-function isSameDateValue(date, value) {
-  return toDateInputValue(date) === value;
-}
-
-function coverageTone(count) {
-  if (count >= 9) return "bg-emerald-500";
-  if (count >= 7) return "bg-amber-400";
-  if (count >= 5) return "bg-orange-400";
-  return "bg-rose-500";
-}
-
 function ShiftBlock({ roster }) {
   if (!roster?.template) {
     return (
@@ -391,7 +380,86 @@ function viewDayLabel(date, index) {
   return `${dayLabels[(date.getDay() + 6) % 7]} ${formatDay(date)}`;
 }
 
-function RosterSettingsDrawer({ outletId, outlets, positions, mappings, templates, onClose, onSaveMapping, onSaveTemplate, onDeactivateTemplate, saving }) {
+function PositionGroupCard({ group, title, description, tone, positions, selectedIds, otherSelectedIds, onToggle, onClear, expanded, onToggleExpanded }) {
+  const [query, setQuery] = useState("");
+  const visiblePositions = positions.filter((position) => position.name.toLowerCase().includes(query.trim().toLowerCase()));
+  const selectedCount = selectedIds.size;
+
+  function selectAllVisible() {
+    visiblePositions.forEach((position) => {
+      if (!selectedIds.has(position.id)) onToggle(group, position.id);
+    });
+  }
+
+  return (
+    <div className={`rounded-3xl border bg-surface p-4 ${tone === "floor" ? "border-emerald-200" : "border-amber-200"}`}>
+      <button className="flex w-full items-start justify-between gap-3 text-left" type="button" onClick={onToggleExpanded}>
+        <div>
+          <div className="text-sm font-black text-text-primary">{title} · {selectedCount} positions</div>
+          <p className="mt-1 text-xs font-semibold text-text-secondary">{description}</p>
+        </div>
+        <span className={`rounded-full px-3 py-1 text-xs font-black ${tone === "floor" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+          {expanded ? "Hide" : "Manage"}
+        </span>
+      </button>
+
+      <div className="mt-3 flex flex-wrap gap-2">
+        {[...selectedIds].map((positionId) => {
+          const position = positions.find((item) => item.id === positionId);
+          if (!position) return null;
+          return (
+            <button
+              key={positionId}
+              className={`rounded-full border px-3 py-1.5 text-xs font-bold ${tone === "floor" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-amber-200 bg-amber-50 text-amber-700"}`}
+              type="button"
+              onClick={() => onToggle(group, positionId)}
+            >
+              {position.name} ×
+            </button>
+          );
+        })}
+        {!selectedCount ? <span className="text-xs font-semibold text-text-muted">No positions assigned.</span> : null}
+      </div>
+
+      {expanded ? (
+        <div className="mt-4 rounded-2xl border border-border bg-background p-3">
+          <input className="control h-9 w-full" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search position..." />
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button className="rounded-xl border border-border px-3 py-1.5 text-xs font-bold text-text-secondary hover:bg-surface" type="button" onClick={selectAllVisible}>Select all visible</button>
+            <button className="rounded-xl border border-border px-3 py-1.5 text-xs font-bold text-text-secondary hover:bg-surface" type="button" onClick={onClear}>Clear group</button>
+          </div>
+          <div className="mt-3 flex max-h-56 flex-wrap gap-2 overflow-y-auto pr-1">
+            {visiblePositions.map((position) => {
+              const selected = selectedIds.has(position.id);
+              const assignedElsewhere = otherSelectedIds.has(position.id);
+              return (
+                <button
+                  key={position.id}
+                  className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                    selected
+                      ? tone === "floor"
+                        ? "border-emerald-300 bg-emerald-100 text-emerald-800"
+                        : "border-amber-300 bg-amber-100 text-amber-800"
+                      : assignedElsewhere
+                        ? "border-border bg-slate-50 text-text-muted line-through"
+                        : "border-border bg-surface text-text-secondary hover:border-primary/40 hover:text-text-primary"
+                  }`}
+                  type="button"
+                  onClick={() => onToggle(group, position.id)}
+                >
+                  {position.name}
+                </button>
+              );
+            })}
+            {!visiblePositions.length ? <div className="text-xs font-semibold text-text-muted">No positions found.</div> : null}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function RosterSettingsDrawer({ outletId, outlets, positions, mappings, templates, onClose, onSaveMappings, onSaveTemplate, onDeactivateTemplate, saving }) {
   const [templateDraft, setTemplateDraft] = useState({
     name: "",
     code: "",
@@ -401,8 +469,45 @@ function RosterSettingsDrawer({ outletId, outlets, positions, mappings, template
     shift_type: "working",
     color: "green",
   });
-  const mappingByPosition = new Map(mappings.map((item) => [item.position_id, item.group_name]));
+  const [expandedGroup, setExpandedGroup] = useState("floor");
+  const [floorIds, setFloorIds] = useState(() => new Set(mappings.filter((item) => item.group_name === "floor").map((item) => item.position_id)));
+  const [kitchenIds, setKitchenIds] = useState(() => new Set(mappings.filter((item) => item.group_name === "kitchen").map((item) => item.position_id)));
   const outletName = outlets.find((outlet) => outlet.id === outletId)?.name ?? "Selected outlet";
+  const assignedIds = new Set([...floorIds, ...kitchenIds]);
+  const unassignedPositions = positions.filter((position) => !assignedIds.has(position.id));
+
+  useEffect(() => {
+    setFloorIds(new Set(mappings.filter((item) => item.group_name === "floor").map((item) => item.position_id)));
+    setKitchenIds(new Set(mappings.filter((item) => item.group_name === "kitchen").map((item) => item.position_id)));
+  }, [mappings]);
+
+  function togglePosition(group, positionId) {
+    if (group === "floor") {
+      setFloorIds((current) => {
+        const next = new Set(current);
+        if (next.has(positionId)) next.delete(positionId);
+        else next.add(positionId);
+        return next;
+      });
+      setKitchenIds((current) => {
+        const next = new Set(current);
+        next.delete(positionId);
+        return next;
+      });
+    } else {
+      setKitchenIds((current) => {
+        const next = new Set(current);
+        if (next.has(positionId)) next.delete(positionId);
+        else next.add(positionId);
+        return next;
+      });
+      setFloorIds((current) => {
+        const next = new Set(current);
+        next.delete(positionId);
+        return next;
+      });
+    }
+  }
 
   function editTemplate(template) {
     setTemplateDraft({
@@ -441,25 +546,57 @@ function RosterSettingsDrawer({ outletId, outlets, positions, mappings, template
         <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
           <section className="rounded-3xl border border-border bg-background p-4">
             <div className="text-sm font-bold text-text-primary">Position Group Mapping</div>
-            <p className="mt-1 text-xs font-semibold text-text-secondary">Choose where each HR job position appears on the roster.</p>
-            <div className="mt-4 space-y-2">
-              {positions.map((position) => (
-                <div key={position.id} className="grid grid-cols-[minmax(0,1fr)_150px] items-center gap-3 rounded-2xl border border-border bg-surface p-3">
-                  <div>
-                    <div className="text-sm font-bold text-text-primary">{position.name}</div>
-                    <div className="mt-0.5 text-xs text-text-secondary">{position.department || "Unassigned department"}</div>
-                  </div>
-                  <SelectField
-                    value={mappingByPosition.get(position.id) ?? "other"}
-                    options={[
-                      { value: "floor", label: "Floor" },
-                      { value: "kitchen", label: "Kitchen" },
-                      { value: "other", label: "Other" },
-                    ]}
-                    onChange={(group_name) => onSaveMapping({ position_id: position.id, group_name })}
-                  />
+            <p className="mt-1 text-xs font-semibold text-text-secondary">Assign job positions to roster teams. Unassigned positions appear under Other.</p>
+            <div className="mt-4 space-y-3">
+              <PositionGroupCard
+                group="floor"
+                title="Floor Team"
+                description="Positions that appear under Floor in roster."
+                tone="floor"
+                positions={positions}
+                selectedIds={floorIds}
+                otherSelectedIds={kitchenIds}
+                onToggle={togglePosition}
+                onClear={() => setFloorIds(new Set())}
+                expanded={expandedGroup === "floor"}
+                onToggleExpanded={() => setExpandedGroup((current) => (current === "floor" ? "" : "floor"))}
+              />
+              <PositionGroupCard
+                group="kitchen"
+                title="Kitchen Team"
+                description="Positions that appear under Kitchen in roster."
+                tone="kitchen"
+                positions={positions}
+                selectedIds={kitchenIds}
+                otherSelectedIds={floorIds}
+                onToggle={togglePosition}
+                onClear={() => setKitchenIds(new Set())}
+                expanded={expandedGroup === "kitchen"}
+                onToggleExpanded={() => setExpandedGroup((current) => (current === "kitchen" ? "" : "kitchen"))}
+              />
+              <div className="rounded-2xl border border-dashed border-border bg-surface p-3">
+                <div className="text-xs font-black uppercase tracking-[0.16em] text-text-muted">Unassigned Positions</div>
+                <div className="mt-3 flex flex-wrap gap-2">
+                  {unassignedPositions.map((position) => (
+                    <span key={position.id} className="rounded-full border border-border bg-background px-3 py-1.5 text-xs font-bold text-text-secondary">{position.name}</span>
+                  ))}
+                  {!unassignedPositions.length ? <span className="text-xs font-semibold text-text-muted">All positions are assigned to Floor or Kitchen.</span> : null}
                 </div>
-              ))}
+              </div>
+              <div className="flex justify-end">
+                <button
+                  className="btn-primary"
+                  type="button"
+                  disabled={saving}
+                  onClick={() => onSaveMappings({
+                    floorPositionIds: [...floorIds],
+                    kitchenPositionIds: [...kitchenIds],
+                    allPositionIds: positions.map((position) => position.id),
+                  })}
+                >
+                  Save Position Groups
+                </button>
+              </div>
             </div>
           </section>
 
@@ -639,106 +776,10 @@ function RosterDateSelector({ mode, weekStart, weekDates, visibleDates, onSelect
   );
 }
 
-function DailyDutyDrawer({ date, stats, employeesById, onClose, onOpenSchedule }) {
-  const dateObject = new Date(`${date}T00:00:00`);
-  const grouped = { floor: [], kitchen: [], other: [] };
-  const offRows = [];
-  const leaveRows = [];
-
-  (stats?.rosters ?? []).forEach((roster) => {
-    const employee = employeesById.get(roster.employee_id);
-    if (!employee) return;
-    const row = { roster, employee };
-    if (roster.template?.code === "OFF") offRows.push(row);
-    else if (roster.template?.code === "AL" || roster.template?.code === "MC") leaveRows.push(row);
-    else grouped[employee.rosterGroup || "other"].push(row);
-  });
-
-  function StaffLine({ row }) {
-    const shift = row.roster.template?.code && nonWorkingCodes.has(row.roster.template.code)
-      ? row.roster.template.code
-      : formatShiftTimeRange(row.roster.start_time, row.roster.end_time);
-    return (
-      <div className="rounded-2xl border border-border bg-background p-3">
-        <div className="text-sm font-bold text-text-primary">{row.employee.nickname || row.employee.full_name}</div>
-        <div className="mt-1 text-xs font-semibold text-text-secondary">{row.employee.position || "Employee"} · {shift}</div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30 backdrop-blur-[2px]" role="dialog" aria-modal="true">
-      <button className="flex-1 cursor-default" type="button" aria-label="Close daily duty drawer backdrop" onClick={onClose} />
-      <aside className="flex h-full w-full max-w-[460px] flex-col border-l border-border bg-surface shadow-2xl">
-        <header className="shrink-0 border-b border-border p-5">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="text-xs font-black uppercase tracking-[0.16em] text-primary">Outlet Duty Roster</div>
-              <h2 className="mt-1 text-xl font-semibold text-text-primary">
-                {new Intl.DateTimeFormat("en-MY", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }).format(dateObject)}
-              </h2>
-            </div>
-            <button className="icon-btn" type="button" onClick={onClose} aria-label="Close daily duty drawer"><X size={18} /></button>
-          </div>
-        </header>
-
-        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
-          <section className="rounded-3xl border border-border bg-background p-4">
-            <div className="text-sm font-bold text-text-primary">Daily Summary</div>
-            <div className="mt-3 grid grid-cols-3 gap-2">
-              {[
-                ["Total Staff", stats.working],
-                ["Floor", stats.floor],
-                ["Kitchen", stats.kitchen],
-                ["OFF", stats.off],
-                ["AL", stats.al],
-                ["MC", stats.mc],
-              ].map(([label, value]) => (
-                <div key={label} className="rounded-2xl border border-border bg-surface p-3">
-                  <div className="text-[11px] font-black uppercase tracking-wide text-text-muted">{label}</div>
-                  <div className="mt-1 text-xl font-semibold text-text-primary">{value}</div>
-                </div>
-              ))}
-            </div>
-          </section>
-
-          {["floor", "kitchen", "other"].map((group) => (
-            <section key={group}>
-              <div className="mb-2 rounded-xl bg-primary/10 px-3 py-1.5 text-xs font-black uppercase tracking-[0.16em] text-primary">{groupLabels[group]}</div>
-              <div className="space-y-2">
-                {grouped[group].length ? grouped[group].map((row) => <StaffLine key={row.roster.id} row={row} />) : (
-                  <div className="rounded-2xl border border-dashed border-border p-4 text-sm font-semibold text-text-muted">No working staff.</div>
-                )}
-              </div>
-            </section>
-          ))}
-
-          {leaveRows.length || offRows.length ? (
-            <section>
-              <div className="mb-2 rounded-xl bg-violet-50 px-3 py-1.5 text-xs font-black uppercase tracking-[0.16em] text-violet-700">OFF / AL / MC</div>
-              <div className="space-y-2">
-                {[...offRows, ...leaveRows].map((row) => <StaffLine key={row.roster.id} row={row} />)}
-              </div>
-            </section>
-          ) : null}
-        </div>
-
-        <footer className="shrink-0 border-t border-border bg-background p-4">
-          <div className="flex justify-end gap-2">
-            <button className="btn-secondary" type="button" onClick={onClose}>Close</button>
-            <button className="btn-primary" type="button" onClick={() => onOpenSchedule(dateObject)}>Open Schedule View</button>
-          </div>
-        </footer>
-      </aside>
-    </div>
-  );
-}
-
 export default function DutyRosterPage({ store, ui, auth }) {
   const activeOutlets = store.outlets.filter((outlet) => outlet.status === "active" || outlet.is_active);
   const [outletId, setOutletId] = useState(activeOutlets[0]?.id ?? "");
   const [weekStart, setWeekStart] = useState(() => toDateInputValue(startOfWeek(new Date())));
-  const [activeView, setActiveView] = useState("schedule");
   const [viewMode, setViewMode] = useState("week");
   const [employees, setEmployees] = useState([]);
   const [jobPositions, setJobPositions] = useState([]);
@@ -749,7 +790,6 @@ export default function DutyRosterPage({ store, ui, auth }) {
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [shiftDrawer, setShiftDrawer] = useState(null);
   const [bulkDrawer, setBulkDrawer] = useState(null);
-  const [dailyDrawerDate, setDailyDrawerDate] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [groupFilter, setGroupFilter] = useState("all");
@@ -765,7 +805,6 @@ export default function DutyRosterPage({ store, ui, auth }) {
   const canManageRoster = canManage(auth, "duty_roster");
   const canWriteShift = canAddShift || canEditShift;
   const selectedTemplate = templates.find((template) => template.id === selectedTemplateId) ?? null;
-  const effectiveDateMode = activeView === "overview" ? "month" : viewMode;
 
   const weekDates = useMemo(() => {
     const start = startOfWeek(`${weekStart}T00:00:00`);
@@ -774,10 +813,10 @@ export default function DutyRosterPage({ store, ui, auth }) {
   const weekDateValues = weekDates.map(toDateInputValue);
   const weekEnd = weekDateValues[6];
   const visibleDates = useMemo(() => (
-    effectiveDateMode === "month"
+    viewMode === "month"
       ? datesBetween(startOfMonth(`${weekStart}T00:00:00`), endOfMonth(`${weekStart}T00:00:00`))
       : weekDates
-  ), [effectiveDateMode, weekDates, weekStart]);
+  ), [viewMode, weekDates, weekStart]);
   const visibleDateValues = visibleDates.map(toDateInputValue);
   const visibleStart = visibleDateValues[0];
   const visibleEnd = visibleDateValues[visibleDateValues.length - 1];
@@ -787,6 +826,23 @@ export default function DutyRosterPage({ store, ui, auth }) {
   useEffect(() => {
     if (!outletId && activeOutlets[0]?.id) setOutletId(activeOutlets[0].id);
   }, [activeOutlets, outletId]);
+
+  useEffect(() => {
+    const rawFocus = localStorage.getItem("feedx:dutyRosterFocus");
+    if (!rawFocus) return;
+    try {
+      const focus = JSON.parse(rawFocus);
+      if (focus.outletId) setOutletId(focus.outletId);
+      if (focus.date) {
+        setViewMode("week");
+        setWeekStart(toDateInputValue(startOfWeek(`${focus.date}T00:00:00`)));
+      }
+    } catch (focusError) {
+      console.warn("Unable to apply duty roster focus", focusError);
+    } finally {
+      localStorage.removeItem("feedx:dutyRosterFocus");
+    }
+  }, []);
 
   useEffect(() => {
     let ignore = false;
@@ -827,7 +883,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
     return () => {
       ignore = true;
     };
-  }, [activeView, outletId, viewMode, weekStart]);
+  }, [outletId, viewMode, weekStart]);
 
   const rosterByEmployeeDate = useMemo(() => new Map(rosters.map((roster) => [rosterKey(roster.employee_id, roster.roster_date), roster])), [rosters]);
   const positionByName = useMemo(() => {
@@ -842,7 +898,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
     return {
       ...employee,
       position_id: position?.id ?? "",
-      rosterGroup: mappedGroup || fallbackGroupFromDepartment(employee.department),
+      rosterGroup: position ? mappedGroup || "other" : fallbackGroupFromDepartment(employee.department),
     };
   }), [employees, mappingByPositionId, positionByName]);
   const employeePositions = useMemo(() => [...new Set(employeesWithGroups.map((employee) => employee.position).filter(Boolean))].sort(), [employeesWithGroups]);
@@ -866,48 +922,6 @@ export default function DutyRosterPage({ store, ui, auth }) {
       .sort(([a], [b]) => order.indexOf(a) - order.indexOf(b))
       .map(([group, items]) => ({ group, label: groupLabels[group] ?? "OTHER", employees: items }));
   }, [employeeSearch, employeesWithGroups, groupFilter, positionFilter]);
-
-  const filteredEmployeeIds = useMemo(() => new Set(groupedEmployees.flatMap((group) => group.employees.map((employee) => employee.id))), [groupedEmployees]);
-  const employeesById = useMemo(() => new Map(employeesWithGroups.map((employee) => [employee.id, employee])), [employeesWithGroups]);
-
-  const overviewStatsByDate = useMemo(() => {
-    const result = new Map();
-    visibleDateValues.forEach((date) => {
-      result.set(date, {
-        working: 0,
-        floor: 0,
-        kitchen: 0,
-        other: 0,
-        off: 0,
-        al: 0,
-        mc: 0,
-        rosters: [],
-      });
-    });
-    rosters.forEach((roster) => {
-      if (!filteredEmployeeIds.has(roster.employee_id)) return;
-      const stats = result.get(roster.roster_date);
-      if (!stats) return;
-      const employee = employeesById.get(roster.employee_id);
-      stats.rosters.push(roster);
-      const code = roster.template?.code;
-      if (code === "OFF") stats.off += 1;
-      else if (code === "AL") stats.al += 1;
-      else if (code === "MC") stats.mc += 1;
-      else if (isWorkingRoster(roster)) {
-        stats.working += 1;
-        const group = employee?.rosterGroup || "other";
-        if (group === "kitchen") stats.kitchen += 1;
-        else if (group === "floor") stats.floor += 1;
-        else stats.other += 1;
-      }
-    });
-    return result;
-  }, [employeesById, filteredEmployeeIds, rosters, visibleDateValues.join("|")]);
-  const overviewCalendarDays = useMemo(() => monthCalendarDays(visibleDates[0] ?? new Date()), [visibleStart]);
-  const selectedDailyStats = dailyDrawerDate
-    ? overviewStatsByDate.get(dailyDrawerDate) ?? { working: 0, floor: 0, kitchen: 0, other: 0, off: 0, al: 0, mc: 0, rosters: [] }
-    : null;
 
   const coverageByDate = useMemo(() => {
     const result = new Map();
@@ -1031,21 +1045,21 @@ export default function DutyRosterPage({ store, ui, auth }) {
     }
   }
 
-  async function savePositionMapping(mapping) {
+  async function savePositionMappings(mappingPayload) {
     if (!canManageRoster) {
       notifyPermissionDenied(ui, "manage duty roster settings");
       return;
     }
+    setSaving(true);
     try {
-      const saved = await rosterPositionGroupService.saveMapping(mapping);
-      setPositionMappings((current) => {
-        const exists = current.some((item) => item.position_id === saved.position_id);
-        return exists ? current.map((item) => (item.position_id === saved.position_id ? saved : item)) : [...current, saved];
-      });
-      ui.notify({ title: "Group mapping saved" });
+      const saved = await rosterPositionGroupService.saveMappings(mappingPayload);
+      setPositionMappings(saved);
+      ui.notify({ title: "Position groups saved" });
     } catch (mappingError) {
       console.error("Unable to save roster group mapping", mappingError);
       ui.notify({ title: "Unable to save group mapping", message: mappingError.message || "Please try again.", tone: "error" });
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -1142,21 +1156,14 @@ export default function DutyRosterPage({ store, ui, auth }) {
   const statusTone = period?.status === "locked" ? "danger" : period?.status === "published" ? "success" : "warning";
 
   function selectRosterDate(date) {
-    const next = effectiveDateMode === "month" ? startOfMonth(date) : startOfWeek(date);
+    const next = viewMode === "month" ? startOfMonth(date) : startOfWeek(date);
     setWeekStart(toDateInputValue(next));
   }
 
   function navigateRoster(direction) {
     const current = new Date(`${weekStart}T00:00:00`);
-    const next = effectiveDateMode === "month" ? addMonths(current, direction) : addDays(current, direction * 7);
-    setWeekStart(toDateInputValue(effectiveDateMode === "month" ? startOfMonth(next) : startOfWeek(next)));
-  }
-
-  function openScheduleForDate(date) {
-    setActiveView("schedule");
-    setViewMode("week");
-    setWeekStart(toDateInputValue(startOfWeek(date)));
-    setDailyDrawerDate("");
+    const next = viewMode === "month" ? addMonths(current, direction) : addDays(current, direction * 7);
+    setWeekStart(toDateInputValue(viewMode === "month" ? startOfMonth(next) : startOfWeek(next)));
   }
 
   return (
@@ -1164,7 +1171,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
       <PageHeader
         section="Operations"
         title="Duty Roster"
-        description="Manage and overview outlet scheduling."
+        description="Manage weekly outlet scheduling."
         actions={(
           <div className="flex flex-wrap items-center gap-2">
             <button className="btn-secondary" type="button" disabled={!canExportRoster} onClick={() => ui.notify({ title: "Export prepared", message: "Duty roster export will be connected to the export service." })}>
@@ -1174,9 +1181,9 @@ export default function DutyRosterPage({ store, ui, auth }) {
               <button
                 className="btn-primary"
                 type="button"
-                disabled={activeView !== "schedule" || viewMode !== "week" || !period || period.status === "published" || period.status === "locked"}
+                disabled={viewMode !== "week" || !period || period.status === "published" || period.status === "locked"}
                 onClick={() => setStatus("published")}
-                title={activeView !== "schedule" ? "Open Schedule View to publish a roster week." : undefined}
+                title={viewMode !== "week" ? "Switch to Week view to publish a roster week." : undefined}
               >
                 <Send size={16} /> Publish Roster
               </button>
@@ -1190,28 +1197,6 @@ export default function DutyRosterPage({ store, ui, auth }) {
         )}
       />
 
-      <div className="inline-flex rounded-2xl border border-border bg-surface p-1 shadow-sm">
-        {[
-          ["schedule", "Schedule View"],
-          ["overview", "Outlet Duty Roster"],
-        ].map(([value, label]) => (
-          <button
-            key={value}
-            className={`rounded-xl px-4 py-2 text-sm font-bold transition ${activeView === value ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-background hover:text-text-primary"}`}
-            type="button"
-            onClick={() => {
-              setActiveView(value);
-              setDailyDrawerDate("");
-              if (value === "overview") {
-                setWeekStart((current) => toDateInputValue(startOfMonth(`${current}T00:00:00`)));
-              }
-            }}
-          >
-            {label}
-          </button>
-        ))}
-      </div>
-
       <Card className="p-4">
         <div className="grid gap-3 lg:grid-cols-[1.15fr_1.15fr_0.9fr_1fr_auto_auto] lg:items-end">
           <FieldLabel label="Outlet">
@@ -1221,9 +1206,9 @@ export default function DutyRosterPage({ store, ui, auth }) {
               onChange={setOutletId}
             />
           </FieldLabel>
-          <FieldLabel label={effectiveDateMode === "month" ? "Month" : "Date Range"}>
+          <FieldLabel label={viewMode === "month" ? "Month" : "Date Range"}>
             <RosterDateSelector
-              mode={effectiveDateMode}
+              mode={viewMode}
               weekStart={weekStart}
               weekDates={weekDates}
               visibleDates={visibleDates}
@@ -1247,7 +1232,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
           <FieldLabel label="Employee">
             <input className="control h-10 w-full" value={employeeSearch} onChange={(event) => setEmployeeSearch(event.target.value)} placeholder="Search name..." />
           </FieldLabel>
-          {activeView === "schedule" ? <div className="flex rounded-2xl border border-border bg-background p-1">
+          <div className="flex rounded-2xl border border-border bg-background p-1">
             {["week", "month"].map((mode) => (
               <button
                 key={mode}
@@ -1262,8 +1247,8 @@ export default function DutyRosterPage({ store, ui, auth }) {
                 {mode}
               </button>
             ))}
-          </div> : <div />}
-          {activeView === "schedule" && viewMode === "week" ? <button className="btn-secondary h-10" type="button" disabled={!canWriteShift || locked} onClick={copyWeek}>
+          </div>
+          {viewMode === "week" ? <button className="btn-secondary h-10" type="button" disabled={!canWriteShift || locked} onClick={copyWeek}>
             <ClipboardCopy size={16} /> Copy Week
           </button> : <div />}
         </div>
@@ -1279,124 +1264,8 @@ export default function DutyRosterPage({ store, ui, auth }) {
       </Card>
 
       {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{error}</div> : null}
-      {activeView === "schedule" && !canWriteShift ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">Read-only access. You need Duty Roster create or edit permission to change shifts.</div> : null}
+      {!canWriteShift ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">Read-only access. You need Duty Roster create or edit permission to change shifts.</div> : null}
 
-      {activeView === "overview" ? (
-        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
-          <Card
-            title={`Outlet Duty Roster · ${formatMonthYear(visibleDates[0])}`}
-            description="Monthly outlet coverage overview by day."
-          >
-            {loading ? (
-              <div className="p-8 text-center text-sm font-semibold text-text-secondary">Loading outlet duty roster...</div>
-            ) : (
-              <div className="p-4">
-                <div className="grid grid-cols-7 gap-2 border-b border-border pb-3">
-                  {dayLabels.map((day) => (
-                    <div key={day} className="text-center text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{day}</div>
-                  ))}
-                </div>
-                <div className="mt-3 grid grid-cols-7 gap-2">
-                  {overviewCalendarDays.map((date) => {
-                    const dateValue = toDateInputValue(date);
-                    const stats = overviewStatsByDate.get(dateValue) ?? { working: 0, floor: 0, kitchen: 0, other: 0, off: 0, al: 0, mc: 0, rosters: [] };
-                    const inMonth = date.getMonth() === visibleDates[0].getMonth();
-                    const isToday = isSameDateValue(date, toDateInputValue(new Date()));
-                    const isSelected = dailyDrawerDate === dateValue;
-                    const isWeekend = date.getDay() === 0 || date.getDay() === 6;
-                    const hasRoster = stats.rosters.length > 0;
-                    return (
-                      <button
-                        key={dateValue}
-                        className={`min-h-[128px] rounded-3xl border p-3 text-left transition ${
-                          inMonth ? "hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm" : "cursor-default"
-                        } ${
-                          isSelected ? "border-primary/40 bg-primary/10" : isToday ? "border-primary/60 bg-surface" : "border-border bg-surface"
-                        } ${isWeekend && !isSelected ? "bg-background" : ""} ${!inMonth ? "opacity-35" : ""}`}
-                        type="button"
-                        disabled={!inMonth}
-                        onClick={() => setDailyDrawerDate(dateValue)}
-                      >
-                        <div className="flex items-start justify-between gap-2">
-                          <div className="text-lg font-semibold text-text-primary">{date.getDate()}</div>
-                          <span className={`mt-1 h-2.5 w-2.5 rounded-full ${coverageTone(stats.working)}`} aria-label="Coverage level" />
-                        </div>
-                        <div className="mt-4 text-sm font-bold text-text-primary">
-                          {hasRoster ? `${stats.working} staff` : "No roster"}
-                        </div>
-                        <div className="mt-1 text-xs font-semibold text-text-secondary">
-                          Floor {stats.floor} · Kitchen {stats.kitchen}
-                        </div>
-                        {stats.al || stats.mc ? (
-                          <div className="mt-3 flex flex-wrap gap-1.5">
-                            {stats.al ? <span className="rounded-full bg-violet-100 px-2 py-1 text-[10px] font-black text-violet-700">AL {stats.al}</span> : null}
-                            {stats.mc ? <span className="rounded-full bg-violet-100 px-2 py-1 text-[10px] font-black text-violet-700">MC {stats.mc}</span> : null}
-                          </div>
-                        ) : null}
-                      </button>
-                    );
-                  })}
-                </div>
-                <div className="mt-5 flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-background px-4 py-3 text-xs font-semibold text-text-secondary">
-                  {[
-                    ["9+ staff", "bg-emerald-500"],
-                    ["7-8 staff", "bg-amber-400"],
-                    ["5-6 staff", "bg-orange-400"],
-                    ["0-4 staff", "bg-rose-500"],
-                  ].map(([label, tone]) => (
-                    <span key={label} className="inline-flex items-center gap-2">
-                      <span className={`h-2.5 w-2.5 rounded-full ${tone}`} />
-                      {label}
-                    </span>
-                  ))}
-                  <span className="inline-flex items-center gap-2"><span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-black text-violet-700">AL</span> Annual leave</span>
-                  <span className="inline-flex items-center gap-2"><span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-black text-violet-700">MC</span> Medical leave</span>
-                </div>
-              </div>
-            )}
-          </Card>
-
-          <div className="space-y-4">
-            <Card title="Monthly Coverage" description="Filtered by current outlet, group, position and employee search.">
-              <div className="space-y-3 p-4">
-                {["floor", "kitchen", "other"].map((group) => {
-                  const total = visibleDateValues.reduce((sum, date) => sum + (overviewStatsByDate.get(date)?.[group] ?? 0), 0);
-                  return (
-                    <div key={group} className="rounded-2xl border border-border bg-background p-3">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-bold text-text-primary">{groupLabels[group]}</span>
-                        <span className="text-sm font-black text-primary">{total}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-                <div className="rounded-2xl border border-border bg-background p-3">
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-bold text-text-primary">AL / MC</span>
-                    <span className="text-sm font-black text-primary">
-                      {visibleDateValues.reduce((sum, date) => {
-                        const stats = overviewStatsByDate.get(date);
-                        return sum + (stats?.al ?? 0) + (stats?.mc ?? 0);
-                      }, 0)}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </Card>
-
-            <Card title="Roster Status" description="Monthly overview uses the selected week status for publish and lock controls.">
-              <div className="p-4">
-                <div className="flex items-center gap-2">
-                  <Badge tone={statusTone}>{period?.status === "locked" ? "Locked" : period?.status === "published" ? "Published" : "Draft"}</Badge>
-                  <Badge tone="neutral">{formatMonthYear(visibleDates[0])}</Badge>
-                </div>
-                <p className="mt-3 text-sm font-semibold text-text-secondary">Click a date to inspect daily coverage. Use Open Schedule View to edit the selected week.</p>
-              </div>
-            </Card>
-          </div>
-        </div>
-      ) : (
-        <>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <Card
           title={viewMode === "month" ? `Full Month View · ${formatMonthYear(visibleDates[0])}` : `Weekly Roster · ${formatWeekRange(weekDates)}`}
@@ -1637,18 +1506,6 @@ export default function DutyRosterPage({ store, ui, auth }) {
           </Card>
         ))}
       </div>
-        </>
-      )}
-
-      {dailyDrawerDate && selectedDailyStats ? (
-        <DailyDutyDrawer
-          date={dailyDrawerDate}
-          stats={selectedDailyStats}
-          employeesById={employeesById}
-          onClose={() => setDailyDrawerDate("")}
-          onOpenSchedule={openScheduleForDate}
-        />
-      ) : null}
 
       {shiftDrawer ? (
         <ShiftDrawer
@@ -1688,7 +1545,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
           templates={templates}
           saving={saving}
           onClose={() => setSettingsOpen(false)}
-          onSaveMapping={savePositionMapping}
+          onSaveMappings={savePositionMappings}
           onSaveTemplate={saveShiftTemplate}
           onDeactivateTemplate={deactivateShiftTemplate}
         />
