@@ -169,6 +169,17 @@ function isWorkingRoster(roster) {
   return roster && !nonWorkingCodes.has(code);
 }
 
+function isSameDateValue(date, value) {
+  return toDateInputValue(date) === value;
+}
+
+function coverageTone(count) {
+  if (count >= 9) return "bg-emerald-500";
+  if (count >= 7) return "bg-amber-400";
+  if (count >= 5) return "bg-orange-400";
+  return "bg-rose-500";
+}
+
 function ShiftBlock({ roster }) {
   if (!roster?.template) {
     return (
@@ -628,10 +639,106 @@ function RosterDateSelector({ mode, weekStart, weekDates, visibleDates, onSelect
   );
 }
 
+function DailyDutyDrawer({ date, stats, employeesById, onClose, onOpenSchedule }) {
+  const dateObject = new Date(`${date}T00:00:00`);
+  const grouped = { floor: [], kitchen: [], other: [] };
+  const offRows = [];
+  const leaveRows = [];
+
+  (stats?.rosters ?? []).forEach((roster) => {
+    const employee = employeesById.get(roster.employee_id);
+    if (!employee) return;
+    const row = { roster, employee };
+    if (roster.template?.code === "OFF") offRows.push(row);
+    else if (roster.template?.code === "AL" || roster.template?.code === "MC") leaveRows.push(row);
+    else grouped[employee.rosterGroup || "other"].push(row);
+  });
+
+  function StaffLine({ row }) {
+    const shift = row.roster.template?.code && nonWorkingCodes.has(row.roster.template.code)
+      ? row.roster.template.code
+      : formatShiftTimeRange(row.roster.start_time, row.roster.end_time);
+    return (
+      <div className="rounded-2xl border border-border bg-background p-3">
+        <div className="text-sm font-bold text-text-primary">{row.employee.nickname || row.employee.full_name}</div>
+        <div className="mt-1 text-xs font-semibold text-text-secondary">{row.employee.position || "Employee"} · {shift}</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30 backdrop-blur-[2px]" role="dialog" aria-modal="true">
+      <button className="flex-1 cursor-default" type="button" aria-label="Close daily duty drawer backdrop" onClick={onClose} />
+      <aside className="flex h-full w-full max-w-[460px] flex-col border-l border-border bg-surface shadow-2xl">
+        <header className="shrink-0 border-b border-border p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.16em] text-primary">Outlet Duty Roster</div>
+              <h2 className="mt-1 text-xl font-semibold text-text-primary">
+                {new Intl.DateTimeFormat("en-MY", { weekday: "long", day: "2-digit", month: "long", year: "numeric" }).format(dateObject)}
+              </h2>
+            </div>
+            <button className="icon-btn" type="button" onClick={onClose} aria-label="Close daily duty drawer"><X size={18} /></button>
+          </div>
+        </header>
+
+        <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-5">
+          <section className="rounded-3xl border border-border bg-background p-4">
+            <div className="text-sm font-bold text-text-primary">Daily Summary</div>
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              {[
+                ["Total Staff", stats.working],
+                ["Floor", stats.floor],
+                ["Kitchen", stats.kitchen],
+                ["OFF", stats.off],
+                ["AL", stats.al],
+                ["MC", stats.mc],
+              ].map(([label, value]) => (
+                <div key={label} className="rounded-2xl border border-border bg-surface p-3">
+                  <div className="text-[11px] font-black uppercase tracking-wide text-text-muted">{label}</div>
+                  <div className="mt-1 text-xl font-semibold text-text-primary">{value}</div>
+                </div>
+              ))}
+            </div>
+          </section>
+
+          {["floor", "kitchen", "other"].map((group) => (
+            <section key={group}>
+              <div className="mb-2 rounded-xl bg-primary/10 px-3 py-1.5 text-xs font-black uppercase tracking-[0.16em] text-primary">{groupLabels[group]}</div>
+              <div className="space-y-2">
+                {grouped[group].length ? grouped[group].map((row) => <StaffLine key={row.roster.id} row={row} />) : (
+                  <div className="rounded-2xl border border-dashed border-border p-4 text-sm font-semibold text-text-muted">No working staff.</div>
+                )}
+              </div>
+            </section>
+          ))}
+
+          {leaveRows.length || offRows.length ? (
+            <section>
+              <div className="mb-2 rounded-xl bg-violet-50 px-3 py-1.5 text-xs font-black uppercase tracking-[0.16em] text-violet-700">OFF / AL / MC</div>
+              <div className="space-y-2">
+                {[...offRows, ...leaveRows].map((row) => <StaffLine key={row.roster.id} row={row} />)}
+              </div>
+            </section>
+          ) : null}
+        </div>
+
+        <footer className="shrink-0 border-t border-border bg-background p-4">
+          <div className="flex justify-end gap-2">
+            <button className="btn-secondary" type="button" onClick={onClose}>Close</button>
+            <button className="btn-primary" type="button" onClick={() => onOpenSchedule(dateObject)}>Open Schedule View</button>
+          </div>
+        </footer>
+      </aside>
+    </div>
+  );
+}
+
 export default function DutyRosterPage({ store, ui, auth }) {
   const activeOutlets = store.outlets.filter((outlet) => outlet.status === "active" || outlet.is_active);
   const [outletId, setOutletId] = useState(activeOutlets[0]?.id ?? "");
   const [weekStart, setWeekStart] = useState(() => toDateInputValue(startOfWeek(new Date())));
+  const [activeView, setActiveView] = useState("schedule");
   const [viewMode, setViewMode] = useState("week");
   const [employees, setEmployees] = useState([]);
   const [jobPositions, setJobPositions] = useState([]);
@@ -642,6 +749,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
   const [selectedTemplateId, setSelectedTemplateId] = useState("");
   const [shiftDrawer, setShiftDrawer] = useState(null);
   const [bulkDrawer, setBulkDrawer] = useState(null);
+  const [dailyDrawerDate, setDailyDrawerDate] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [groupFilter, setGroupFilter] = useState("all");
@@ -657,6 +765,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
   const canManageRoster = canManage(auth, "duty_roster");
   const canWriteShift = canAddShift || canEditShift;
   const selectedTemplate = templates.find((template) => template.id === selectedTemplateId) ?? null;
+  const effectiveDateMode = activeView === "overview" ? "month" : viewMode;
 
   const weekDates = useMemo(() => {
     const start = startOfWeek(`${weekStart}T00:00:00`);
@@ -665,10 +774,10 @@ export default function DutyRosterPage({ store, ui, auth }) {
   const weekDateValues = weekDates.map(toDateInputValue);
   const weekEnd = weekDateValues[6];
   const visibleDates = useMemo(() => (
-    viewMode === "month"
+    effectiveDateMode === "month"
       ? datesBetween(startOfMonth(`${weekStart}T00:00:00`), endOfMonth(`${weekStart}T00:00:00`))
       : weekDates
-  ), [viewMode, weekDates, weekStart]);
+  ), [effectiveDateMode, weekDates, weekStart]);
   const visibleDateValues = visibleDates.map(toDateInputValue);
   const visibleStart = visibleDateValues[0];
   const visibleEnd = visibleDateValues[visibleDateValues.length - 1];
@@ -718,7 +827,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
     return () => {
       ignore = true;
     };
-  }, [outletId, viewMode, weekStart]);
+  }, [activeView, outletId, viewMode, weekStart]);
 
   const rosterByEmployeeDate = useMemo(() => new Map(rosters.map((roster) => [rosterKey(roster.employee_id, roster.roster_date), roster])), [rosters]);
   const positionByName = useMemo(() => {
@@ -757,6 +866,48 @@ export default function DutyRosterPage({ store, ui, auth }) {
       .sort(([a], [b]) => order.indexOf(a) - order.indexOf(b))
       .map(([group, items]) => ({ group, label: groupLabels[group] ?? "OTHER", employees: items }));
   }, [employeeSearch, employeesWithGroups, groupFilter, positionFilter]);
+
+  const filteredEmployeeIds = useMemo(() => new Set(groupedEmployees.flatMap((group) => group.employees.map((employee) => employee.id))), [groupedEmployees]);
+  const employeesById = useMemo(() => new Map(employeesWithGroups.map((employee) => [employee.id, employee])), [employeesWithGroups]);
+
+  const overviewStatsByDate = useMemo(() => {
+    const result = new Map();
+    visibleDateValues.forEach((date) => {
+      result.set(date, {
+        working: 0,
+        floor: 0,
+        kitchen: 0,
+        other: 0,
+        off: 0,
+        al: 0,
+        mc: 0,
+        rosters: [],
+      });
+    });
+    rosters.forEach((roster) => {
+      if (!filteredEmployeeIds.has(roster.employee_id)) return;
+      const stats = result.get(roster.roster_date);
+      if (!stats) return;
+      const employee = employeesById.get(roster.employee_id);
+      stats.rosters.push(roster);
+      const code = roster.template?.code;
+      if (code === "OFF") stats.off += 1;
+      else if (code === "AL") stats.al += 1;
+      else if (code === "MC") stats.mc += 1;
+      else if (isWorkingRoster(roster)) {
+        stats.working += 1;
+        const group = employee?.rosterGroup || "other";
+        if (group === "kitchen") stats.kitchen += 1;
+        else if (group === "floor") stats.floor += 1;
+        else stats.other += 1;
+      }
+    });
+    return result;
+  }, [employeesById, filteredEmployeeIds, rosters, visibleDateValues.join("|")]);
+  const overviewCalendarDays = useMemo(() => monthCalendarDays(visibleDates[0] ?? new Date()), [visibleStart]);
+  const selectedDailyStats = dailyDrawerDate
+    ? overviewStatsByDate.get(dailyDrawerDate) ?? { working: 0, floor: 0, kitchen: 0, other: 0, off: 0, al: 0, mc: 0, rosters: [] }
+    : null;
 
   const coverageByDate = useMemo(() => {
     const result = new Map();
@@ -991,14 +1142,21 @@ export default function DutyRosterPage({ store, ui, auth }) {
   const statusTone = period?.status === "locked" ? "danger" : period?.status === "published" ? "success" : "warning";
 
   function selectRosterDate(date) {
-    const next = viewMode === "month" ? startOfMonth(date) : startOfWeek(date);
+    const next = effectiveDateMode === "month" ? startOfMonth(date) : startOfWeek(date);
     setWeekStart(toDateInputValue(next));
   }
 
   function navigateRoster(direction) {
     const current = new Date(`${weekStart}T00:00:00`);
-    const next = viewMode === "month" ? addMonths(current, direction) : addDays(current, direction * 7);
-    setWeekStart(toDateInputValue(viewMode === "month" ? startOfMonth(next) : startOfWeek(next)));
+    const next = effectiveDateMode === "month" ? addMonths(current, direction) : addDays(current, direction * 7);
+    setWeekStart(toDateInputValue(effectiveDateMode === "month" ? startOfMonth(next) : startOfWeek(next)));
+  }
+
+  function openScheduleForDate(date) {
+    setActiveView("schedule");
+    setViewMode("week");
+    setWeekStart(toDateInputValue(startOfWeek(date)));
+    setDailyDrawerDate("");
   }
 
   return (
@@ -1006,14 +1164,20 @@ export default function DutyRosterPage({ store, ui, auth }) {
       <PageHeader
         section="Operations"
         title="Duty Roster"
-        description="Manage weekly outlet scheduling."
+        description="Manage and overview outlet scheduling."
         actions={(
           <div className="flex flex-wrap items-center gap-2">
             <button className="btn-secondary" type="button" disabled={!canExportRoster} onClick={() => ui.notify({ title: "Export prepared", message: "Duty roster export will be connected to the export service." })}>
               <Download size={16} /> Export
             </button>
-            {canManageRoster && viewMode === "week" ? (
-              <button className="btn-primary" type="button" disabled={!period || period.status === "published" || period.status === "locked"} onClick={() => setStatus("published")}>
+            {canManageRoster ? (
+              <button
+                className="btn-primary"
+                type="button"
+                disabled={activeView !== "schedule" || viewMode !== "week" || !period || period.status === "published" || period.status === "locked"}
+                onClick={() => setStatus("published")}
+                title={activeView !== "schedule" ? "Open Schedule View to publish a roster week." : undefined}
+              >
                 <Send size={16} /> Publish Roster
               </button>
             ) : null}
@@ -1026,6 +1190,28 @@ export default function DutyRosterPage({ store, ui, auth }) {
         )}
       />
 
+      <div className="inline-flex rounded-2xl border border-border bg-surface p-1 shadow-sm">
+        {[
+          ["schedule", "Schedule View"],
+          ["overview", "Outlet Duty Roster"],
+        ].map(([value, label]) => (
+          <button
+            key={value}
+            className={`rounded-xl px-4 py-2 text-sm font-bold transition ${activeView === value ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-background hover:text-text-primary"}`}
+            type="button"
+            onClick={() => {
+              setActiveView(value);
+              setDailyDrawerDate("");
+              if (value === "overview") {
+                setWeekStart((current) => toDateInputValue(startOfMonth(`${current}T00:00:00`)));
+              }
+            }}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+
       <Card className="p-4">
         <div className="grid gap-3 lg:grid-cols-[1.15fr_1.15fr_0.9fr_1fr_auto_auto] lg:items-end">
           <FieldLabel label="Outlet">
@@ -1035,9 +1221,9 @@ export default function DutyRosterPage({ store, ui, auth }) {
               onChange={setOutletId}
             />
           </FieldLabel>
-          <FieldLabel label={viewMode === "month" ? "Month" : "Date Range"}>
+          <FieldLabel label={effectiveDateMode === "month" ? "Month" : "Date Range"}>
             <RosterDateSelector
-              mode={viewMode}
+              mode={effectiveDateMode}
               weekStart={weekStart}
               weekDates={weekDates}
               visibleDates={visibleDates}
@@ -1061,7 +1247,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
           <FieldLabel label="Employee">
             <input className="control h-10 w-full" value={employeeSearch} onChange={(event) => setEmployeeSearch(event.target.value)} placeholder="Search name..." />
           </FieldLabel>
-          <div className="flex rounded-2xl border border-border bg-background p-1">
+          {activeView === "schedule" ? <div className="flex rounded-2xl border border-border bg-background p-1">
             {["week", "month"].map((mode) => (
               <button
                 key={mode}
@@ -1076,8 +1262,8 @@ export default function DutyRosterPage({ store, ui, auth }) {
                 {mode}
               </button>
             ))}
-          </div>
-          {viewMode === "week" ? <button className="btn-secondary h-10" type="button" disabled={!canWriteShift || locked} onClick={copyWeek}>
+          </div> : <div />}
+          {activeView === "schedule" && viewMode === "week" ? <button className="btn-secondary h-10" type="button" disabled={!canWriteShift || locked} onClick={copyWeek}>
             <ClipboardCopy size={16} /> Copy Week
           </button> : <div />}
         </div>
@@ -1093,8 +1279,124 @@ export default function DutyRosterPage({ store, ui, auth }) {
       </Card>
 
       {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{error}</div> : null}
-      {!canWriteShift ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">Read-only access. You need Duty Roster create or edit permission to change shifts.</div> : null}
+      {activeView === "schedule" && !canWriteShift ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">Read-only access. You need Duty Roster create or edit permission to change shifts.</div> : null}
 
+      {activeView === "overview" ? (
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_360px]">
+          <Card
+            title={`Outlet Duty Roster · ${formatMonthYear(visibleDates[0])}`}
+            description="Monthly outlet coverage overview by day."
+          >
+            {loading ? (
+              <div className="p-8 text-center text-sm font-semibold text-text-secondary">Loading outlet duty roster...</div>
+            ) : (
+              <div className="p-4">
+                <div className="grid grid-cols-7 gap-2 border-b border-border pb-3">
+                  {dayLabels.map((day) => (
+                    <div key={day} className="text-center text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{day}</div>
+                  ))}
+                </div>
+                <div className="mt-3 grid grid-cols-7 gap-2">
+                  {overviewCalendarDays.map((date) => {
+                    const dateValue = toDateInputValue(date);
+                    const stats = overviewStatsByDate.get(dateValue) ?? { working: 0, floor: 0, kitchen: 0, other: 0, off: 0, al: 0, mc: 0, rosters: [] };
+                    const inMonth = date.getMonth() === visibleDates[0].getMonth();
+                    const isToday = isSameDateValue(date, toDateInputValue(new Date()));
+                    const isSelected = dailyDrawerDate === dateValue;
+                    const isWeekend = date.getDay() === 0 || date.getDay() === 6;
+                    const hasRoster = stats.rosters.length > 0;
+                    return (
+                      <button
+                        key={dateValue}
+                        className={`min-h-[128px] rounded-3xl border p-3 text-left transition ${
+                          inMonth ? "hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm" : "cursor-default"
+                        } ${
+                          isSelected ? "border-primary/40 bg-primary/10" : isToday ? "border-primary/60 bg-surface" : "border-border bg-surface"
+                        } ${isWeekend && !isSelected ? "bg-background" : ""} ${!inMonth ? "opacity-35" : ""}`}
+                        type="button"
+                        disabled={!inMonth}
+                        onClick={() => setDailyDrawerDate(dateValue)}
+                      >
+                        <div className="flex items-start justify-between gap-2">
+                          <div className="text-lg font-semibold text-text-primary">{date.getDate()}</div>
+                          <span className={`mt-1 h-2.5 w-2.5 rounded-full ${coverageTone(stats.working)}`} aria-label="Coverage level" />
+                        </div>
+                        <div className="mt-4 text-sm font-bold text-text-primary">
+                          {hasRoster ? `${stats.working} staff` : "No roster"}
+                        </div>
+                        <div className="mt-1 text-xs font-semibold text-text-secondary">
+                          Floor {stats.floor} · Kitchen {stats.kitchen}
+                        </div>
+                        {stats.al || stats.mc ? (
+                          <div className="mt-3 flex flex-wrap gap-1.5">
+                            {stats.al ? <span className="rounded-full bg-violet-100 px-2 py-1 text-[10px] font-black text-violet-700">AL {stats.al}</span> : null}
+                            {stats.mc ? <span className="rounded-full bg-violet-100 px-2 py-1 text-[10px] font-black text-violet-700">MC {stats.mc}</span> : null}
+                          </div>
+                        ) : null}
+                      </button>
+                    );
+                  })}
+                </div>
+                <div className="mt-5 flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-background px-4 py-3 text-xs font-semibold text-text-secondary">
+                  {[
+                    ["9+ staff", "bg-emerald-500"],
+                    ["7-8 staff", "bg-amber-400"],
+                    ["5-6 staff", "bg-orange-400"],
+                    ["0-4 staff", "bg-rose-500"],
+                  ].map(([label, tone]) => (
+                    <span key={label} className="inline-flex items-center gap-2">
+                      <span className={`h-2.5 w-2.5 rounded-full ${tone}`} />
+                      {label}
+                    </span>
+                  ))}
+                  <span className="inline-flex items-center gap-2"><span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-black text-violet-700">AL</span> Annual leave</span>
+                  <span className="inline-flex items-center gap-2"><span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-black text-violet-700">MC</span> Medical leave</span>
+                </div>
+              </div>
+            )}
+          </Card>
+
+          <div className="space-y-4">
+            <Card title="Monthly Coverage" description="Filtered by current outlet, group, position and employee search.">
+              <div className="space-y-3 p-4">
+                {["floor", "kitchen", "other"].map((group) => {
+                  const total = visibleDateValues.reduce((sum, date) => sum + (overviewStatsByDate.get(date)?.[group] ?? 0), 0);
+                  return (
+                    <div key={group} className="rounded-2xl border border-border bg-background p-3">
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-bold text-text-primary">{groupLabels[group]}</span>
+                        <span className="text-sm font-black text-primary">{total}</span>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div className="rounded-2xl border border-border bg-background p-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-bold text-text-primary">AL / MC</span>
+                    <span className="text-sm font-black text-primary">
+                      {visibleDateValues.reduce((sum, date) => {
+                        const stats = overviewStatsByDate.get(date);
+                        return sum + (stats?.al ?? 0) + (stats?.mc ?? 0);
+                      }, 0)}
+                    </span>
+                  </div>
+                </div>
+              </div>
+            </Card>
+
+            <Card title="Roster Status" description="Monthly overview uses the selected week status for publish and lock controls.">
+              <div className="p-4">
+                <div className="flex items-center gap-2">
+                  <Badge tone={statusTone}>{period?.status === "locked" ? "Locked" : period?.status === "published" ? "Published" : "Draft"}</Badge>
+                  <Badge tone="neutral">{formatMonthYear(visibleDates[0])}</Badge>
+                </div>
+                <p className="mt-3 text-sm font-semibold text-text-secondary">Click a date to inspect daily coverage. Use Open Schedule View to edit the selected week.</p>
+              </div>
+            </Card>
+          </div>
+        </div>
+      ) : (
+        <>
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <Card
           title={viewMode === "month" ? `Full Month View · ${formatMonthYear(visibleDates[0])}` : `Weekly Roster · ${formatWeekRange(weekDates)}`}
@@ -1335,6 +1637,18 @@ export default function DutyRosterPage({ store, ui, auth }) {
           </Card>
         ))}
       </div>
+        </>
+      )}
+
+      {dailyDrawerDate && selectedDailyStats ? (
+        <DailyDutyDrawer
+          date={dailyDrawerDate}
+          stats={selectedDailyStats}
+          employeesById={employeesById}
+          onClose={() => setDailyDrawerDate("")}
+          onOpenSchedule={openScheduleForDate}
+        />
+      ) : null}
 
       {shiftDrawer ? (
         <ShiftDrawer

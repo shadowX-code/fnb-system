@@ -811,9 +811,27 @@ Future:
 
 Purpose:
 
-Manage lightweight weekly outlet employee scheduling.
+Manage lightweight outlet employee scheduling with two workspaces:
+
+- Schedule View: weekly/monthly employee-by-date editing grid.
+- Outlet Duty Roster: monthly outlet-level coverage overview for management review.
 
 This is not a full HR, payroll, attendance, shift swap, or staff request system yet.
+
+Outlet Duty Roster overview:
+
+- Full month calendar grid using existing duty roster data.
+- Date cards show total working staff, Floor count, Kitchen count, and AL/MC indicators.
+- Working staff excludes OFF, AL, and MC.
+- Staff coverage indicator:
+  - 9+ staff = healthy
+  - 7-8 staff = moderate
+  - 5-6 staff = low
+  - 0-4 staff = critical
+- Clicking a date opens a right-side daily duty drawer.
+- Daily drawer shows summary counts and staff on duty grouped by Floor, Kitchen, and Other.
+- Open Schedule View action switches back to the editable roster focused on the selected week/date.
+- Outlet, month, group, position, and employee filters affect overview calendar counts and drawer rows.
 
 Data tables:
 
@@ -1995,6 +2013,20 @@ Select outlet and week
 → Publish roster when ready
 → Lock roster when finalized
 → Audit critical roster actions
+```
+
+### 12.7 Outlet Duty Roster Overview
+
+```text
+Select Outlet Duty Roster tab
+→ Select outlet and month
+→ Load duty_rosters for the full month
+→ Apply group, position, and employee filters
+→ Render monthly calendar coverage cards
+→ Click date card
+→ Open daily duty drawer
+→ Review Floor/Kitchen/Other staff on duty
+→ Use Open Schedule View to focus the selected roster week for editing
 ```
 
 Roster settings:
