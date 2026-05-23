@@ -9,6 +9,7 @@ import SalesInputPage from "../features/sales-purchase/pages/SalesInputPage.jsx"
 import SalesComparisonPage from "../features/sales-purchase/pages/SalesComparisonPage.jsx";
 import OutletPnlPage from "../features/sales-purchase/pages/OutletPnlPage.jsx";
 import OperatingExpensesPage from "../features/sales-purchase/pages/OperatingExpensesPage.jsx";
+import DutyRosterPage from "../features/sales-purchase/pages/DutyRosterPage.jsx";
 import SettingsPage from "../features/sales-purchase/pages/SettingsPage.jsx";
 import SupplierManagementPage from "../features/sales-purchase/pages/SupplierManagementPage.jsx";
 import UsersPage from "../features/company-users/pages/UsersPage.jsx";
@@ -102,6 +103,10 @@ const routeDetails = {
   "operating-expenses": {
     description: "Monthly operating expense input for management P&L.",
     component: OperatingExpensesPage,
+  },
+  "duty-roster": {
+    description: "Weekly outlet employee scheduling by department.",
+    component: DutyRosterPage,
   },
   "data-import": {
     description: "Future-ready Excel and CSV import flow with mock progress feedback.",

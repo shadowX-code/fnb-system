@@ -110,7 +110,7 @@ function filterSectionsByPermission(sections, routes, auth) {
 }
 
 const BOOTSTRAP_LOADS = [
-  { key: "outlets", label: "Outlets", table: "outlets", operation: "SELECT", permission: "outlets.view OR dashboard.view OR outlet_pnl.view OR operating_expenses.view" },
+  { key: "outlets", label: "Outlets", table: "outlets", operation: "SELECT", permission: "outlets.view OR dashboard.view OR outlet_pnl.view OR operating_expenses.view OR duty_roster.view" },
   { key: "suppliers", label: "Suppliers", table: "suppliers", operation: "SELECT", permission: "suppliers.view OR purchase_input.view OR purchase_comparison.view OR data_import.view" },
   { key: "purchaseCategories", label: "Purchase Categories", table: "purchase_categories", operation: "SELECT", permission: "purchase_categories.view OR purchase_input.view OR purchase_comparison.view OR data_import.view" },
   { key: "salesChannels", label: "Sales Channels", table: "sales_channels", operation: "SELECT", permission: "sales_channels.view OR sales_input.view OR sales_comparison.view OR data_import.view OR outlet_pnl.view" },
@@ -139,6 +139,12 @@ function RbacDiagnosticsPanel({ auth, loads }) {
     "operating_expenses.create",
     "operating_expenses.edit",
     "operating_expenses.delete",
+    "duty_roster.view",
+    "duty_roster.create",
+    "duty_roster.edit",
+    "duty_roster.delete",
+    "duty_roster.manage",
+    "duty_roster.export",
     "suppliers.view",
     "purchase_categories.view",
     "sales_channels.view",

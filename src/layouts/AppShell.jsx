@@ -20,6 +20,7 @@ const iconMap = {
   alerts: BarChart3,
   "outlet-pnl": BarChart3,
   "operating-expenses": Wallet,
+  "duty-roster": CalendarDays,
   "data-import": Download,
   "data-health": BarChart3,
   "audit-logs": KeyRound,

@@ -188,6 +188,15 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, create: true, edit: true, delete: true },
   },
   {
+    id: "duty-roster",
+    section: "Operations",
+    label: "Duty Roster",
+    route: "/operations/duty-roster",
+    icon: "duty-roster",
+    sidebar: true,
+    permissions: { view: true, create: true, edit: true, delete: true, manage: true, export: true },
+  },
+  {
     id: "outlets",
     section: "Operations",
     label: "Outlets",
