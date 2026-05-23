@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Check, ChevronDown, Search, X } from "lucide-react";
 
 export default function SelectField({
@@ -17,7 +18,9 @@ export default function SelectField({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const [menuRect, setMenuRect] = useState(null);
   const containerRef = useRef(null);
+  const menuRef = useRef(null);
   const selectedOption = options.find((option) => String(option.value) === String(value));
   const filteredOptions = useMemo(() => {
     const search = query.trim().toLowerCase();
@@ -28,8 +31,20 @@ export default function SelectField({
   useEffect(() => {
     if (!isOpen) return undefined;
 
+    function updateMenuRect() {
+      const rect = containerRef.current?.getBoundingClientRect();
+      if (!rect) return;
+      setMenuRect({
+        top: rect.bottom + 8,
+        left: rect.left,
+        width: Math.max(rect.width, 224),
+      });
+    }
+
+    updateMenuRect();
+
     function handlePointerDown(event) {
-      if (!containerRef.current?.contains(event.target)) setIsOpen(false);
+      if (!containerRef.current?.contains(event.target) && !menuRef.current?.contains(event.target)) setIsOpen(false);
     }
 
     function handleKeyDown(event) {
@@ -38,9 +53,13 @@ export default function SelectField({
 
     document.addEventListener("pointerdown", handlePointerDown);
     document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", updateMenuRect);
+    window.addEventListener("scroll", updateMenuRect, true);
     return () => {
       document.removeEventListener("pointerdown", handlePointerDown);
       document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", updateMenuRect);
+      window.removeEventListener("scroll", updateMenuRect, true);
     };
   }, [isOpen]);
 
@@ -72,8 +91,12 @@ export default function SelectField({
       {error ? <div className="mt-1 text-[11px] font-medium text-rose-600">{error}</div> : null}
       {!error && helper ? <div className="mt-1 text-[11px] text-text-muted">{helper}</div> : null}
 
-      {isOpen ? (
-        <div className="fixed inset-x-0 bottom-0 z-50 max-h-[78vh] rounded-t-3xl border border-border bg-white p-3 shadow-2xl animate-in slide-in-from-bottom-2 duration-150 sm:absolute sm:inset-auto sm:left-0 sm:top-[calc(100%+8px)] sm:w-full sm:min-w-56 sm:rounded-2xl sm:p-2 sm:shadow-xl sm:animate-in sm:fade-in-0 sm:zoom-in-95">
+      {isOpen && menuRect ? createPortal((
+        <div
+          ref={menuRef}
+          className="fixed inset-x-0 bottom-0 z-[220] max-h-[78vh] rounded-t-3xl border border-border bg-white p-3 shadow-2xl animate-in slide-in-from-bottom-2 duration-150 sm:inset-auto sm:bottom-auto sm:rounded-2xl sm:p-2 sm:shadow-xl sm:animate-in sm:fade-in-0 sm:zoom-in-95"
+          style={{ top: menuRect.top, left: menuRect.left, width: menuRect.width }}
+        >
           <div className="mb-2 flex items-center justify-between px-1 sm:hidden">
             <div className="text-sm font-bold text-text-primary">{label || placeholder}</div>
             <button className="icon-btn" type="button" onClick={() => setIsOpen(false)} aria-label="Close select">
@@ -118,7 +141,7 @@ export default function SelectField({
             )}
           </div>
         </div>
-      ) : null}
+      ), document.body) : null}
     </div>
   );
 }

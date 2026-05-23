@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { CalendarX, ChevronLeft, ChevronRight, ClipboardCopy, Clock, Download, HeartPulse, LockKeyhole, Plane, Plus, Send, Trash2, UnlockKeyhole, Users, X } from "lucide-react";
+import { CalendarDays, CalendarX, ChevronLeft, ChevronRight, ClipboardCopy, Clock, Download, HeartPulse, LockKeyhole, Plane, Plus, Send, Trash2, UnlockKeyhole, Users, X } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
@@ -40,6 +40,12 @@ function addDays(value, days) {
   return date;
 }
 
+function addMonths(value, months) {
+  const date = new Date(value);
+  date.setMonth(date.getMonth() + months);
+  return date;
+}
+
 function startOfMonth(value = new Date()) {
   const date = new Date(value);
   date.setHours(0, 0, 0, 0);
@@ -74,6 +80,16 @@ function formatColumnDate(date) {
 
 function formatWeekRange(dates) {
   return `${formatDay(dates[0])} - ${formatDay(dates[6])} ${dates[6].getFullYear()}`;
+}
+
+function formatMonthYear(date) {
+  return new Intl.DateTimeFormat("en-MY", { month: "long", year: "numeric" }).format(date);
+}
+
+function monthCalendarDays(monthDate) {
+  const first = startOfMonth(monthDate);
+  const gridStart = startOfWeek(first);
+  return Array.from({ length: 42 }, (_, index) => addDays(gridStart, index));
 }
 
 function minutesBetween(start, end, breakMinutes = 0) {
@@ -487,6 +503,131 @@ function RosterSettingsDrawer({ outletId, outlets, positions, mappings, template
   );
 }
 
+function RosterDateSelector({ mode, weekStart, weekDates, visibleDates, onSelectDate, onPrevious, onNext }) {
+  const [open, setOpen] = useState(false);
+  const [draftDate, setDraftDate] = useState(() => new Date(`${weekStart}T00:00:00`));
+  const [viewMonth, setViewMonth] = useState(() => startOfMonth(`${weekStart}T00:00:00`));
+  const rangeLabel = mode === "month" ? formatMonthYear(visibleDates[0]) : formatWeekRange(weekDates);
+  const draftWeek = Array.from({ length: 7 }, (_, index) => addDays(startOfWeek(draftDate), index));
+
+  useEffect(() => {
+    const nextDate = new Date(`${weekStart}T00:00:00`);
+    setDraftDate(nextDate);
+    setViewMonth(startOfMonth(nextDate));
+  }, [weekStart, mode]);
+
+  function applyDate(date = draftDate) {
+    onSelectDate(date);
+    setOpen(false);
+  }
+
+  function shortcutToday() {
+    const today = new Date();
+    setDraftDate(today);
+    setViewMonth(startOfMonth(today));
+    if (mode === "month") applyDate(today);
+  }
+
+  function shortcutThisWeek() {
+    const today = new Date();
+    setDraftDate(today);
+    setViewMonth(startOfMonth(today));
+    if (mode === "week") applyDate(today);
+  }
+
+  function shortcutThisMonth() {
+    const today = new Date();
+    setDraftDate(startOfMonth(today));
+    setViewMonth(startOfMonth(today));
+    if (mode === "month") applyDate(today);
+  }
+
+  return (
+    <div className="relative">
+      <div className="flex items-center gap-2">
+        <button className="icon-btn" type="button" onClick={onPrevious} aria-label={mode === "month" ? "Previous month" : "Previous week"}><ChevronLeft size={16} /></button>
+        <button
+          className="flex h-10 min-w-[230px] items-center justify-between gap-3 rounded-xl border border-border bg-white px-3 text-left text-sm font-bold text-text-primary shadow-sm transition hover:border-primary/40 hover:bg-primary/5"
+          type="button"
+          onClick={() => setOpen((current) => !current)}
+        >
+          <span className="flex items-center gap-2"><CalendarDays size={16} className="text-primary" /> {rangeLabel}</span>
+          <ChevronRight size={14} className={`text-text-muted transition ${open ? "rotate-90" : ""}`} />
+        </button>
+        <button className="icon-btn" type="button" onClick={onNext} aria-label={mode === "month" ? "Next month" : "Next week"}><ChevronRight size={16} /></button>
+      </div>
+
+      {open ? (
+        <div className="absolute left-0 top-[calc(100%+10px)] z-[210] w-[360px] rounded-3xl border border-border bg-white p-4 shadow-2xl">
+          <div className="flex items-center justify-between">
+            <button className="icon-btn" type="button" onClick={() => setViewMonth((current) => addMonths(current, -1))}><ChevronLeft size={15} /></button>
+            <div className="text-sm font-black text-text-primary">{formatMonthYear(viewMonth)}</div>
+            <button className="icon-btn" type="button" onClick={() => setViewMonth((current) => addMonths(current, 1))}><ChevronRight size={15} /></button>
+          </div>
+
+          <div className="mt-4 grid grid-cols-7 gap-1 text-center text-[11px] font-black uppercase tracking-wide text-text-muted">
+            {dayLabels.map((day) => <div key={day}>{day}</div>)}
+          </div>
+          <div className="mt-2 grid grid-cols-7 gap-1">
+            {monthCalendarDays(viewMonth).map((date) => {
+              const value = toDateInputValue(date);
+              const inMonth = date.getMonth() === viewMonth.getMonth();
+              const selected = mode === "month"
+                ? value === toDateInputValue(startOfMonth(draftDate))
+                : value === toDateInputValue(startOfWeek(draftDate));
+              const inDraftWeek = mode === "week" && draftWeek.some((item) => toDateInputValue(item) === value);
+              return (
+                <button
+                  key={value}
+                  className={`h-9 rounded-xl text-sm font-bold transition ${
+                    selected
+                      ? "bg-primary text-white shadow-sm"
+                      : inDraftWeek
+                        ? "bg-primary/10 text-primary"
+                        : inMonth
+                          ? "text-text-primary hover:bg-primary/5"
+                          : "text-text-muted/50 hover:bg-slate-50"
+                  }`}
+                  type="button"
+                  onClick={() => {
+                    const next = mode === "month" ? startOfMonth(date) : startOfWeek(date);
+                    setDraftDate(next);
+                    if (mode === "month") applyDate(next);
+                  }}
+                >
+                  {date.getDate()}
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="mt-4 rounded-2xl border border-border bg-background p-3 text-xs font-semibold text-text-secondary">
+            {mode === "month" ? (
+              <span>Selected month: <strong className="text-text-primary">{formatMonthYear(draftDate)}</strong></span>
+            ) : (
+              <div className="space-y-1">
+                <div>From: <strong className="text-text-primary">{formatDay(draftWeek[0])} {draftWeek[0].getFullYear()}</strong></div>
+                <div>To: <strong className="text-text-primary">{formatDay(draftWeek[6])} {draftWeek[6].getFullYear()}</strong></div>
+              </div>
+            )}
+          </div>
+
+          <div className="mt-3 flex flex-wrap gap-2">
+            <button className="rounded-xl border border-border px-3 py-2 text-xs font-bold text-text-secondary hover:bg-slate-50" type="button" onClick={shortcutToday}>Today</button>
+            <button className="rounded-xl border border-border px-3 py-2 text-xs font-bold text-text-secondary hover:bg-slate-50" type="button" onClick={shortcutThisWeek}>This Week</button>
+            <button className="rounded-xl border border-border px-3 py-2 text-xs font-bold text-text-secondary hover:bg-slate-50" type="button" onClick={shortcutThisMonth}>This Month</button>
+          </div>
+
+          <div className="mt-4 flex justify-end gap-2">
+            <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={() => setOpen(false)}>Cancel</button>
+            <button className="btn-primary h-9 px-3 text-xs" type="button" onClick={() => applyDate()}>Apply</button>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
 export default function DutyRosterPage({ store, ui, auth }) {
   const activeOutlets = store.outlets.filter((outlet) => outlet.status === "active" || outlet.is_active);
   const [outletId, setOutletId] = useState(activeOutlets[0]?.id ?? "");
@@ -849,6 +990,17 @@ export default function DutyRosterPage({ store, ui, auth }) {
 
   const statusTone = period?.status === "locked" ? "danger" : period?.status === "published" ? "success" : "warning";
 
+  function selectRosterDate(date) {
+    const next = viewMode === "month" ? startOfMonth(date) : startOfWeek(date);
+    setWeekStart(toDateInputValue(next));
+  }
+
+  function navigateRoster(direction) {
+    const current = new Date(`${weekStart}T00:00:00`);
+    const next = viewMode === "month" ? addMonths(current, direction) : addDays(current, direction * 7);
+    setWeekStart(toDateInputValue(viewMode === "month" ? startOfMonth(next) : startOfWeek(next)));
+  }
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -860,7 +1012,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
             <button className="btn-secondary" type="button" disabled={!canExportRoster} onClick={() => ui.notify({ title: "Export prepared", message: "Duty roster export will be connected to the export service." })}>
               <Download size={16} /> Export
             </button>
-            {canManageRoster ? (
+            {canManageRoster && viewMode === "week" ? (
               <button className="btn-primary" type="button" disabled={!period || period.status === "published" || period.status === "locked"} onClick={() => setStatus("published")}>
                 <Send size={16} /> Publish Roster
               </button>
@@ -883,12 +1035,16 @@ export default function DutyRosterPage({ store, ui, auth }) {
               onChange={setOutletId}
             />
           </FieldLabel>
-          <FieldLabel label="Week">
-            <div className="flex items-center gap-2">
-              <button className="icon-btn" type="button" onClick={() => setWeekStart(toDateInputValue(addDays(`${weekStart}T00:00:00`, -7)))}><ChevronLeft size={16} /></button>
-              <input className="control h-10" type="date" value={weekStart} onChange={(event) => setWeekStart(toDateInputValue(startOfWeek(`${event.target.value}T00:00:00`)))} />
-              <button className="icon-btn" type="button" onClick={() => setWeekStart(toDateInputValue(addDays(`${weekStart}T00:00:00`, 7)))}><ChevronRight size={16} /></button>
-            </div>
+          <FieldLabel label={viewMode === "month" ? "Month" : "Date Range"}>
+            <RosterDateSelector
+              mode={viewMode}
+              weekStart={weekStart}
+              weekDates={weekDates}
+              visibleDates={visibleDates}
+              onSelectDate={selectRosterDate}
+              onPrevious={() => navigateRoster(-1)}
+              onNext={() => navigateRoster(1)}
+            />
           </FieldLabel>
           <FieldLabel label="Group">
             <SelectField
@@ -907,14 +1063,23 @@ export default function DutyRosterPage({ store, ui, auth }) {
           </FieldLabel>
           <div className="flex rounded-2xl border border-border bg-background p-1">
             {["week", "month"].map((mode) => (
-              <button key={mode} className={`rounded-xl px-3 py-2 text-xs font-bold capitalize ${viewMode === mode ? "bg-primary text-white" : "text-text-secondary hover:text-text-primary"}`} type="button" onClick={() => setViewMode(mode)}>
+              <button
+                key={mode}
+                className={`rounded-xl px-3 py-2 text-xs font-bold capitalize ${viewMode === mode ? "bg-primary text-white" : "text-text-secondary hover:text-text-primary"}`}
+                type="button"
+                onClick={() => {
+                  setViewMode(mode);
+                  const current = new Date(`${weekStart}T00:00:00`);
+                  setWeekStart(toDateInputValue(mode === "month" ? startOfMonth(current) : startOfWeek(current)));
+                }}
+              >
                 {mode}
               </button>
             ))}
           </div>
-          <button className="btn-secondary h-10" type="button" disabled={!canWriteShift || locked} onClick={copyWeek}>
+          {viewMode === "week" ? <button className="btn-secondary h-10" type="button" disabled={!canWriteShift || locked} onClick={copyWeek}>
             <ClipboardCopy size={16} /> Copy Week
-          </button>
+          </button> : <div />}
         </div>
         <div className="mt-3 max-w-sm">
           <FieldLabel label="Position">
@@ -932,7 +1097,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <Card
-          title={viewMode === "month" ? "Monthly Roster View" : `Weekly Roster · ${formatWeekRange(weekDates)}`}
+          title={viewMode === "month" ? `Full Month View · ${formatMonthYear(visibleDates[0])}` : `Weekly Roster · ${formatWeekRange(weekDates)}`}
           description="Employee x date cells are shift slots. Click any cell to add or edit a shift."
         >
           {loading ? (
@@ -947,9 +1112,18 @@ export default function DutyRosterPage({ store, ui, auth }) {
                       {visibleDates.map((date) => {
                         const dateValue = toDateInputValue(date);
                         return (
-                          <th key={dateValue} className={`${viewMode === "month" ? "min-w-[76px]" : "min-w-[128px]"} px-3 py-3 text-left`}>
-                            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{dayLabels[(date.getDay() + 6) % 7]}</div>
-                            <div className="mt-0.5 text-sm font-bold text-text-primary">{viewMode === "month" ? date.getDate() : formatColumnDate(date)}</div>
+                          <th key={dateValue} className={`${viewMode === "month" ? "min-w-[72px]" : "min-w-[128px]"} px-3 py-3 text-left`}>
+                            {viewMode === "month" ? (
+                              <>
+                                <div className="text-sm font-black text-text-primary">{date.getDate()}</div>
+                                <div className="mt-0.5 text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{dayLabels[(date.getDay() + 6) % 7]}</div>
+                              </>
+                            ) : (
+                              <>
+                                <div className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{dayLabels[(date.getDay() + 6) % 7]}</div>
+                                <div className="mt-0.5 text-sm font-bold text-text-primary">{formatColumnDate(date)}</div>
+                              </>
+                            )}
                           </th>
                         );
                       })}
@@ -990,10 +1164,16 @@ export default function DutyRosterPage({ store, ui, auth }) {
                                       if (!readOnly && (event.key === "Enter" || event.key === " ")) handleCellClick(employee, dateValue);
                                     }}
                                   >
-                                    {viewMode === "month" && roster?.template ? (
-                                      <div className={`flex min-h-[42px] items-center justify-center rounded-xl border px-1 text-[11px] font-black shadow-sm ${templateTone(roster.template)}`} title={`${roster.template.name} · ${shiftTimeLabel(roster.template)}`}>
-                                        {roster.template.code === "CLOSING" ? "C" : roster.template.code === "MORNING" ? "M" : roster.template.code === "FULL" ? "F" : roster.template.code}
-                                      </div>
+                                    {viewMode === "month" ? (
+                                      roster?.template ? (
+                                        <div className={`flex min-h-[38px] items-center justify-center rounded-xl border px-1 text-[11px] font-black shadow-sm ${templateTone(roster.template)}`} title={`${roster.template.name} · ${shiftTimeLabel(roster.template)}`}>
+                                          {roster.template.code === "CLOSING" ? "C" : roster.template.code === "MORNING" ? "M" : roster.template.code === "FULL" ? "F" : roster.template.code}
+                                        </div>
+                                      ) : (
+                                        <div className="flex min-h-[38px] items-center justify-center rounded-xl text-primary opacity-0 transition group-hover:bg-primary/5 group-hover:opacity-100">
+                                          <Plus size={13} />
+                                        </div>
+                                      )
                                     ) : (
                                       <ShiftBlock roster={roster} />
                                     )}
