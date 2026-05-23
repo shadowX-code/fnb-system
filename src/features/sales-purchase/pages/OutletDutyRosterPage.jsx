@@ -128,7 +128,15 @@ function MonthPicker({ value, onChange }) {
     function updateRect() {
       const next = buttonRef.current?.getBoundingClientRect();
       if (!next) return;
-      setRect({ top: next.bottom + 8, left: next.left, width: Math.max(next.width, 320) });
+      const width = Math.max(next.width, 320);
+      const gap = 8;
+      const estimatedHeight = 245;
+      const spaceBelow = window.innerHeight - next.bottom;
+      const top = spaceBelow >= estimatedHeight + gap
+        ? next.bottom + gap
+        : Math.max(12, next.top - estimatedHeight - gap);
+      const left = Math.min(Math.max(12, next.left), window.innerWidth - width - 12);
+      setRect({ top, left, width });
     }
     function onPointerDown(event) {
       if (!buttonRef.current?.contains(event.target) && !panelRef.current?.contains(event.target)) setOpen(false);
@@ -174,7 +182,7 @@ function MonthPicker({ value, onChange }) {
       {open && rect ? createPortal((
         <div
           ref={panelRef}
-          className="fixed z-[240] rounded-3xl border border-border bg-surface p-4 shadow-2xl"
+          className="fixed z-[9999] rounded-3xl border border-border bg-surface p-4 shadow-2xl"
           style={{ top: rect.top, left: rect.left, width: rect.width }}
         >
           <div className="flex items-center justify-between">

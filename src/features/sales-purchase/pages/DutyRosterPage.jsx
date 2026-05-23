@@ -1,4 +1,5 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { CalendarDays, CalendarX, ChevronLeft, ChevronRight, Clock, Download, HeartPulse, LockKeyhole, Plane, Plus, Send, Trash2, UnlockKeyhole, Users, X } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
@@ -659,6 +660,9 @@ function RosterDateSelector({ mode, weekStart, weekDates, visibleDates, onSelect
   const [open, setOpen] = useState(false);
   const [draftDate, setDraftDate] = useState(() => new Date(`${weekStart}T00:00:00`));
   const [viewMonth, setViewMonth] = useState(() => startOfMonth(`${weekStart}T00:00:00`));
+  const [popoverRect, setPopoverRect] = useState(null);
+  const buttonRef = useRef(null);
+  const popoverRef = useRef(null);
   const rangeLabel = mode === "month" ? formatMonthYear(visibleDates[0]) : formatWeekRange(weekDates);
   const draftWeek = Array.from({ length: 7 }, (_, index) => addDays(startOfWeek(draftDate), index));
 
@@ -667,6 +671,44 @@ function RosterDateSelector({ mode, weekStart, weekDates, visibleDates, onSelect
     setDraftDate(nextDate);
     setViewMonth(startOfMonth(nextDate));
   }, [weekStart, mode]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+
+    function updatePopoverRect() {
+      const trigger = buttonRef.current?.getBoundingClientRect();
+      if (!trigger) return;
+      const width = 360;
+      const gap = 10;
+      const estimatedHeight = 430;
+      const spaceBelow = window.innerHeight - trigger.bottom;
+      const top = spaceBelow >= estimatedHeight + gap
+        ? trigger.bottom + gap
+        : Math.max(12, trigger.top - estimatedHeight - gap);
+      const left = Math.min(Math.max(12, trigger.left), window.innerWidth - width - 12);
+      setPopoverRect({ top, left, width });
+    }
+
+    function handlePointerDown(event) {
+      if (!buttonRef.current?.contains(event.target) && !popoverRef.current?.contains(event.target)) setOpen(false);
+    }
+
+    function handleKeyDown(event) {
+      if (event.key === "Escape") setOpen(false);
+    }
+
+    updatePopoverRect();
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    window.addEventListener("resize", updatePopoverRect);
+    window.addEventListener("scroll", updatePopoverRect, true);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+      window.removeEventListener("resize", updatePopoverRect);
+      window.removeEventListener("scroll", updatePopoverRect, true);
+    };
+  }, [open]);
 
   function applyDate(date = draftDate) {
     onSelectDate(date);
@@ -695,10 +737,11 @@ function RosterDateSelector({ mode, weekStart, weekDates, visibleDates, onSelect
   }
 
   return (
-    <div className="relative">
+    <div>
       <div className="flex items-center gap-2">
         <button className="icon-btn" type="button" onClick={onPrevious} aria-label={mode === "month" ? "Previous month" : "Previous week"}><ChevronLeft size={16} /></button>
         <button
+          ref={buttonRef}
           className="flex h-10 min-w-[230px] items-center justify-between gap-3 rounded-xl border border-border bg-white px-3 text-left text-sm font-bold text-text-primary shadow-sm transition hover:border-primary/40 hover:bg-primary/5"
           type="button"
           onClick={() => setOpen((current) => !current)}
@@ -709,8 +752,12 @@ function RosterDateSelector({ mode, weekStart, weekDates, visibleDates, onSelect
         <button className="icon-btn" type="button" onClick={onNext} aria-label={mode === "month" ? "Next month" : "Next week"}><ChevronRight size={16} /></button>
       </div>
 
-      {open ? (
-        <div className="absolute left-0 top-[calc(100%+10px)] z-[210] w-[360px] rounded-3xl border border-border bg-white p-4 shadow-2xl">
+      {open && popoverRect ? createPortal((
+        <div
+          ref={popoverRef}
+          className="fixed z-[9999] rounded-3xl border border-border bg-white p-4 shadow-2xl"
+          style={{ top: popoverRect.top, left: popoverRect.left, width: popoverRect.width }}
+        >
           <div className="flex items-center justify-between">
             <button className="icon-btn" type="button" onClick={() => setViewMonth((current) => addMonths(current, -1))}><ChevronLeft size={15} /></button>
             <div className="text-sm font-black text-text-primary">{formatMonthYear(viewMonth)}</div>
@@ -775,7 +822,7 @@ function RosterDateSelector({ mode, weekStart, weekDates, visibleDates, onSelect
             <button className="btn-primary h-9 px-3 text-xs" type="button" onClick={() => applyDate()}>Apply</button>
           </div>
         </div>
-      ) : null}
+      ), document.body) : null}
     </div>
   );
 }
