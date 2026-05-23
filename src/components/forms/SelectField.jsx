@@ -94,7 +94,7 @@ export default function SelectField({
       {isOpen && menuRect ? createPortal((
         <div
           ref={menuRef}
-          className="fixed inset-x-0 bottom-0 z-[220] max-h-[78vh] rounded-t-3xl border border-border bg-white p-3 shadow-2xl animate-in slide-in-from-bottom-2 duration-150 sm:inset-auto sm:bottom-auto sm:rounded-2xl sm:p-2 sm:shadow-xl sm:animate-in sm:fade-in-0 sm:zoom-in-95"
+          className="fixed inset-x-0 bottom-0 z-[9999] max-h-[78vh] rounded-t-3xl border border-border bg-white p-3 shadow-2xl animate-in slide-in-from-bottom-2 duration-150 sm:inset-auto sm:bottom-auto sm:rounded-2xl sm:p-2 sm:shadow-xl sm:animate-in sm:fade-in-0 sm:zoom-in-95"
           style={{ top: menuRect.top, left: menuRect.left, width: menuRect.width }}
         >
           <div className="mb-2 flex items-center justify-between px-1 sm:hidden">

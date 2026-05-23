@@ -2033,11 +2033,16 @@ Roster settings:
   - Unassigned Positions appear under Other in roster.
 - Save Position Groups writes all position mappings in one action.
 - Shift templates are outlet-specific.
-- Shift Template Settings use a two-column layout:
-  - Left: draggable active template list and archived templates.
-  - Right: template editor with live preview.
-- Time selection uses modern dropdowns with 30-minute increments.
-- Break Duration is selected as clear minute labels such as 60 mins unpaid.
+- Shift Template Settings use compact stacked FeedX cards:
+  - Add/Edit Template form.
+  - Draggable active template cards.
+  - Collapsed Archived Templates section.
+- Time selection supports manual typing and dropdown suggestions.
+- Manual typed time must use HH:MMam or HH:MMpm, with optional space before am/pm.
+- Accepted examples: 10:00am, 10:30am, 02:00pm, 05:30pm.
+- Rejected examples: 10am, 2pm, 14:00, 17:30, 10.30am.
+- Time is stored internally as 24-hour HH:MM and displayed as friendly operational text such as 10am - 6pm.
+- Break Duration is labeled clearly with minute options such as 60 mins unpaid.
 - sort_order controls quick template display order.
 - Templates are archived with is_active = false instead of hard deleted.
 - Archived templates are hidden from quick assign but remain available for historical roster display.

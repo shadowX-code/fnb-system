@@ -13,6 +13,7 @@ import { rosterPeriodService } from "../../../services/rosterPeriodService.js";
 import { jobPositionService } from "../../../services/jobPositionService.js";
 import { rosterPositionGroupService } from "../../../services/rosterPositionGroupService.js";
 import { canCreate, canDelete, canEdit, canExport, canManage, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { SHIFT_TIME_INPUT_ERROR, buildShiftTimeOptions, formatShiftTimeInput, formatShiftTimeRange, normalizeShiftTimeInput } from "../utils/shiftTime.js";
 
 const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const nonWorkingCodes = new Set(["OFF", "AL", "MC"]);
@@ -133,24 +134,6 @@ function templateTone(template) {
     gray: "border-slate-200 bg-slate-50 text-slate-600",
   };
   return tones[color] ?? tones.green;
-}
-
-function formatShiftTime(value) {
-  if (!value) return "";
-  const [hourRaw, minuteRaw = "0"] = String(value).split(":");
-  const hour = Number(hourRaw);
-  const minute = Number(minuteRaw);
-  if (Number.isNaN(hour) || Number.isNaN(minute)) return "";
-  const suffix = hour >= 12 ? "pm" : "am";
-  const displayHour = hour % 12 || 12;
-  return minute ? `${displayHour}:${String(minute).padStart(2, "0")}${suffix}` : `${displayHour}${suffix}`;
-}
-
-function formatShiftTimeRange(startTime, endTime) {
-  const start = formatShiftTime(startTime);
-  const end = formatShiftTime(endTime);
-  if (!start || !end) return "";
-  return `${start} - ${end}`;
 }
 
 function shiftTimeLabel(template) {
@@ -385,18 +368,173 @@ function viewDayLabel(date, index) {
   return `${dayLabels[(date.getDay() + 6) % 7]} ${formatDay(date)}`;
 }
 
-const timeOptions = Array.from({ length: 32 }, (_, index) => {
-  const totalMinutes = 8 * 60 + index * 30;
-  const hour = Math.floor(totalMinutes / 60) % 24;
-  const minute = totalMinutes % 60;
-  const value = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-  return { value, label: formatShiftTime(value) };
-});
+const timeOptions = buildShiftTimeOptions();
 
-const breakOptions = [0, 15, 30, 45, 60, 75, 90, 120].map((minutes) => ({
+const breakOptions = [0, 30, 45, 60, 90, 120].map((minutes) => ({
   value: String(minutes),
-  label: minutes ? `${minutes} mins unpaid` : "No break",
+  label: minutes ? `${minutes} mins unpaid` : "0 mins",
 }));
+
+function TimeComboField({ label, value, onChange, error, onError }) {
+  const [open, setOpen] = useState(false);
+  const [draft, setDraft] = useState(() => formatShiftTimeInput(value));
+  const wrapperRef = useRef(null);
+
+  useEffect(() => {
+    setDraft(formatShiftTimeInput(value));
+  }, [value]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    function handlePointerDown(event) {
+      if (!wrapperRef.current?.contains(event.target)) setOpen(false);
+    }
+    function handleKeyDown(event) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  function commit(nextValue = draft) {
+    if (!String(nextValue || "").trim()) {
+      onChange("");
+      setDraft("");
+      onError?.("");
+      return true;
+    }
+    const result = normalizeShiftTimeInput(nextValue);
+    if (!result.valid) {
+      onError?.(result.error);
+      return false;
+    }
+    onChange(result.value);
+    setDraft(result.display);
+    onError?.("");
+    return true;
+  }
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <label className="mb-1.5 block text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">{label}</label>
+      <input
+        className={`control h-10 pr-9 ${error ? "border-rose-300 bg-rose-50/60 text-rose-900" : ""}`}
+        value={draft}
+        onChange={(event) => {
+          setDraft(event.target.value);
+          onChange("");
+          onError?.("");
+        }}
+        onFocus={(event) => {
+          event.target.select();
+          setOpen(true);
+        }}
+        onBlur={() => commit()}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            if (commit()) setOpen(false);
+          }
+        }}
+        placeholder="10:00am"
+      />
+      <button className="absolute right-2 top-[27px] rounded-lg p-1 text-text-muted hover:bg-primary/10 hover:text-primary" type="button" onClick={() => setOpen((current) => !current)} aria-label={`Open ${label} suggestions`}>
+        <ChevronRight size={14} className={`transition ${open ? "rotate-90" : ""}`} />
+      </button>
+      {error ? <div className="mt-1 text-[11px] font-semibold text-rose-600">{error}</div> : null}
+      {open ? (
+        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-[9999] max-h-56 overflow-y-auto rounded-2xl border border-border bg-white p-1.5 shadow-2xl">
+          {timeOptions.map((option) => (
+            <button
+              key={option.value}
+              className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-bold transition hover:bg-primary/5 hover:text-primary ${option.value === value ? "bg-primary/10 text-primary" : "text-text-primary"}`}
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                onChange(option.value);
+                setDraft(option.label);
+                onError?.("");
+                setOpen(false);
+              }}
+            >
+              <span>{option.label}</span>
+              <span className="text-xs font-semibold text-text-muted">{option.displayLabel}</span>
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function BreakDurationField({ value, onChange }) {
+  const [open, setOpen] = useState(false);
+  const wrapperRef = useRef(null);
+  const currentValue = Number(value || 0);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    function handlePointerDown(event) {
+      if (!wrapperRef.current?.contains(event.target)) setOpen(false);
+    }
+    function handleKeyDown(event) {
+      if (event.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("pointerdown", handlePointerDown);
+    document.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("pointerdown", handlePointerDown);
+      document.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div ref={wrapperRef} className="relative">
+      <label className="mb-1.5 block text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">Break Duration</label>
+      <div className="relative">
+        <input
+          className="control h-10 pr-24"
+          type="number"
+          min="0"
+          step="5"
+          value={currentValue}
+          onChange={(event) => onChange(Math.max(0, Number(event.target.value || 0)))}
+          onFocus={(event) => {
+            event.target.select();
+            setOpen(true);
+          }}
+        />
+        <button className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-text-muted hover:bg-primary/10 hover:text-primary" type="button" onClick={() => setOpen((current) => !current)}>
+          mins unpaid
+          <ChevronRight size={13} className={`transition ${open ? "rotate-90" : ""}`} />
+        </button>
+      </div>
+      <div className="mt-1 text-[11px] text-text-muted">Use 0 for no break.</div>
+      {open ? (
+        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-[9999] rounded-2xl border border-border bg-white p-1.5 shadow-2xl">
+          {breakOptions.map((option) => (
+            <button
+              key={option.value}
+              className={`flex w-full rounded-xl px-3 py-2 text-left text-sm font-bold transition hover:bg-primary/5 hover:text-primary ${String(currentValue) === option.value ? "bg-primary/10 text-primary" : "text-text-primary"}`}
+              type="button"
+              onMouseDown={(event) => event.preventDefault()}
+              onClick={() => {
+                onChange(Number(option.value));
+                setOpen(false);
+              }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 function PositionGroupCard({ group, title, description, tone, positions, selectedIds, otherSelectedIds, onToggle, onClear, expanded, onToggleExpanded }) {
   const [query, setQuery] = useState("");
@@ -489,6 +627,8 @@ function RosterSettingsDrawer({ outletId, outlets, positions, mappings, template
   });
   const [draggedTemplateId, setDraggedTemplateId] = useState("");
   const [expandedGroup, setExpandedGroup] = useState("floor");
+  const [templateErrors, setTemplateErrors] = useState({});
+  const [showArchivedTemplates, setShowArchivedTemplates] = useState(false);
   const [floorIds, setFloorIds] = useState(() => new Set(mappings.filter((item) => item.group_name === "floor").map((item) => item.position_id)));
   const [kitchenIds, setKitchenIds] = useState(() => new Set(mappings.filter((item) => item.group_name === "kitchen").map((item) => item.position_id)));
   const outletName = outlets.find((outlet) => outlet.id === outletId)?.name ?? "Selected outlet";
@@ -535,6 +675,7 @@ function RosterSettingsDrawer({ outletId, outlets, positions, mappings, template
       ...template,
       break_minutes: template.break_minutes ?? 0,
     });
+    setTemplateErrors({});
   }
 
   function selectTemplate(template) {
@@ -569,6 +710,40 @@ function RosterSettingsDrawer({ outletId, outlets, positions, mappings, template
       shift_type: "working",
       color: "green",
     });
+    setTemplateErrors({});
+  }
+
+  function isNonWorkingDraft(draft) {
+    const code = String(draft.code || draft.name || "").trim().toUpperCase().replace(/\s+/g, "_");
+    return nonWorkingCodes.has(code) || draft.shift_type === "off" || draft.shift_type === "leave" || draft.shift_type === "medical";
+  }
+
+  function validateTemplateDraft() {
+    const nextErrors = {};
+    const name = templateDraft.name.trim();
+    const code = String(templateDraft.code || name).trim().toUpperCase().replace(/\s+/g, "_");
+    const nonWorking = isNonWorkingDraft({ ...templateDraft, code });
+
+    if (!name) nextErrors.name = "Template name is required.";
+    if (!nonWorking) {
+      if (!templateDraft.start_time) nextErrors.start_time = SHIFT_TIME_INPUT_ERROR;
+      if (!templateDraft.end_time) nextErrors.end_time = SHIFT_TIME_INPUT_ERROR;
+    }
+
+    setTemplateErrors(nextErrors);
+    if (Object.keys(nextErrors).length) return null;
+
+    return {
+      ...templateDraft,
+      name,
+      code,
+      start_time: nonWorking ? "" : templateDraft.start_time,
+      end_time: nonWorking ? "" : templateDraft.end_time,
+      break_minutes: nonWorking ? 0 : Number(templateDraft.break_minutes || 0),
+      shift_type: nonWorking ? (code === "OFF" ? "off" : code === "MC" ? "medical" : "leave") : "working",
+      outlet_id: outletId,
+      sort_order: templateDraft.sort_order || activeTemplates.length + 1,
+    };
   }
 
   return (
@@ -650,17 +825,44 @@ function RosterSettingsDrawer({ outletId, outlets, positions, mappings, template
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
                   <div className="text-xs font-black uppercase tracking-[0.16em] text-text-muted">{templateDraft.id ? "Edit Template" : "Add Template"}</div>
-                  <p className="mt-1 text-xs font-semibold text-text-secondary">Use dropdown time selectors. Break duration is unpaid.</p>
+                  <p className="mt-1 text-xs font-semibold text-text-secondary">Type time as 10:00am or choose from suggestions. Break duration is unpaid.</p>
                 </div>
                 {templateDraft.id ? <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={resetTemplate}>New</button> : null}
               </div>
               <div className="grid gap-2 sm:grid-cols-2">
-                <input className="control" value={templateDraft.name} onChange={(event) => setTemplateDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Name" />
+                <div>
+                  <input
+                    className={`control ${templateErrors.name ? "border-rose-300 bg-rose-50/60" : ""}`}
+                    value={templateDraft.name}
+                    onChange={(event) => {
+                      setTemplateDraft((current) => ({ ...current, name: event.target.value }));
+                      setTemplateErrors((current) => ({ ...current, name: "" }));
+                    }}
+                    placeholder="Name"
+                  />
+                  {templateErrors.name ? <div className="mt-1 text-[11px] font-semibold text-rose-600">{templateErrors.name}</div> : null}
+                </div>
                 <input className="control" value={templateDraft.code} onChange={(event) => setTemplateDraft((current) => ({ ...current, code: event.target.value }))} placeholder="Code" />
-                <SelectField value={templateDraft.start_time || ""} options={timeOptions} onChange={(start_time) => setTemplateDraft((current) => ({ ...current, start_time }))} placeholder="Start Time" searchable />
-                <SelectField value={templateDraft.end_time || ""} options={timeOptions} onChange={(end_time) => setTemplateDraft((current) => ({ ...current, end_time }))} placeholder="End Time" searchable />
-                <SelectField value={String(templateDraft.break_minutes ?? 0)} options={breakOptions} onChange={(break_minutes) => setTemplateDraft((current) => ({ ...current, break_minutes: Number(break_minutes) }))} placeholder="Break Duration" />
+                <TimeComboField
+                  label="Start Time"
+                  value={templateDraft.start_time || ""}
+                  error={templateErrors.start_time}
+                  onError={(start_time) => setTemplateErrors((current) => ({ ...current, start_time }))}
+                  onChange={(start_time) => setTemplateDraft((current) => ({ ...current, start_time }))}
+                />
+                <TimeComboField
+                  label="End Time"
+                  value={templateDraft.end_time || ""}
+                  error={templateErrors.end_time}
+                  onError={(end_time) => setTemplateErrors((current) => ({ ...current, end_time }))}
+                  onChange={(end_time) => setTemplateDraft((current) => ({ ...current, end_time }))}
+                />
+                <BreakDurationField
+                  value={templateDraft.break_minutes ?? 0}
+                  onChange={(break_minutes) => setTemplateDraft((current) => ({ ...current, break_minutes }))}
+                />
                 <SelectField
+                  label="Template Color"
                   value={templateDraft.color}
                   options={["green", "amber", "red", "blue", "purple", "gray"].map((color) => ({ value: color, label: color[0].toUpperCase() + color.slice(1) }))}
                   onChange={(color) => setTemplateDraft((current) => ({ ...current, color }))}
@@ -679,17 +881,15 @@ function RosterSettingsDrawer({ outletId, outlets, positions, mappings, template
                 <button
                   className="btn-primary"
                   type="button"
-                  disabled={!templateDraft.name.trim() || saving}
+                  disabled={saving}
                   onClick={async () => {
-                    await onSaveTemplate({
-                      ...templateDraft,
-                      outlet_id: outletId,
-                      sort_order: templateDraft.sort_order || activeTemplates.length + 1,
-                    });
+                    const payload = validateTemplateDraft();
+                    if (!payload) return;
+                    await onSaveTemplate(payload);
                     resetTemplate();
                   }}
                 >
-                  Save Template
+                  {saving ? "Saving..." : "Save Template"}
                 </button>
               </div>
             </div>
@@ -714,20 +914,29 @@ function RosterSettingsDrawer({ outletId, outlets, positions, mappings, template
                   </div>
                 </div>
               ))}
-              {!activeTemplates.length ? <div className="rounded-2xl border border-dashed border-border p-4 text-sm font-semibold text-text-muted">No active templates.</div> : null}
+              {!activeTemplates.length ? (
+                <div className="rounded-2xl border border-dashed border-border bg-surface p-4 text-sm font-semibold text-text-muted">
+                  No active templates yet. Add Morning, Mid, Closing, Full, OFF, AL, or MC to start scheduling.
+                </div>
+              ) : null}
             </div>
 
             {archivedTemplates.length ? (
               <div className="mt-4 rounded-2xl border border-border bg-surface p-3">
-                <div className="mb-2 text-xs font-black uppercase tracking-[0.16em] text-text-muted">Archived Templates</div>
-                <div className="space-y-2">
-                  {archivedTemplates.map((template) => (
-                    <div key={template.id} className="rounded-2xl border border-border bg-background p-3 opacity-75">
-                      <div className="text-sm font-bold text-text-primary">{template.name}</div>
-                      <div className="text-xs font-semibold text-text-secondary">{shiftTimeLabel(template)}</div>
-                    </div>
-                  ))}
-                </div>
+                <button className="flex w-full items-center justify-between gap-3 text-left" type="button" onClick={() => setShowArchivedTemplates((current) => !current)}>
+                  <div className="text-xs font-black uppercase tracking-[0.16em] text-text-muted">Archived Templates · {archivedTemplates.length}</div>
+                  <span className="text-xs font-bold text-text-secondary">{showArchivedTemplates ? "Hide" : "Show"}</span>
+                </button>
+                {showArchivedTemplates ? (
+                  <div className="mt-3 space-y-2">
+                    {archivedTemplates.map((template) => (
+                      <div key={template.id} className="rounded-2xl border border-border bg-background p-3 opacity-75">
+                        <div className="text-sm font-bold text-text-primary">{template.name}</div>
+                        <div className="text-xs font-semibold text-text-secondary">{shiftTimeLabel(template)}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : null}
               </div>
             ) : null}
           </section>
@@ -1009,7 +1218,14 @@ export default function DutyRosterPage({ store, ui, auth }) {
       } catch (loadError) {
         console.error("Unable to load duty roster", loadError);
         const setupMissing = loadError?.cause?.code === "42P01" || /shift_templates|duty_rosters|roster_periods/i.test(loadError?.message || "");
-        if (!ignore) setError(setupMissing ? "Duty Roster is not ready yet. Please ask admin to apply the latest setup for roster tables and shift templates." : loadError.message || "Unable to load duty roster.");
+        const orderingMissing = /sort_order|template ordering/i.test(loadError?.message || "") || /sort_order/i.test(loadError?.cause?.message || "");
+        if (!ignore) {
+          setError(orderingMissing
+            ? "Duty Roster setup needs the latest shift template ordering update. Please apply the latest setup and refresh."
+            : setupMissing
+              ? "Duty Roster is not ready yet. Please ask admin to apply the latest setup for roster tables and shift templates."
+              : loadError.message || "Unable to load duty roster.");
+        }
       } finally {
         if (!ignore) setLoading(false);
       }
@@ -1198,27 +1414,32 @@ export default function DutyRosterPage({ store, ui, auth }) {
     }
   }
 
+  async function refreshShiftTemplates() {
+    const [activeRows, allRows] = await Promise.all([
+      shiftTemplateService.listShiftTemplates(outletId),
+      shiftTemplateService.listAllShiftTemplates(outletId),
+    ]);
+    setTemplates(activeRows);
+    setAllTemplates(allRows);
+    setSelectedTemplateId((current) => (activeRows.some((template) => template.id === current) ? current : ""));
+    return { activeRows, allRows };
+  }
+
   async function saveShiftTemplate(template) {
     if (!canManageRoster) {
       notifyPermissionDenied(ui, "manage duty roster settings");
-      return;
+      throw new Error("You do not have permission to manage duty roster settings.");
     }
     setSaving(true);
     try {
       const saved = await shiftTemplateService.saveShiftTemplate(template);
-      setAllTemplates((current) => {
-        const exists = current.some((item) => item.id === saved.id);
-        return exists ? current.map((item) => (item.id === saved.id ? saved : item)) : [...current, saved];
-      });
-      setTemplates((current) => {
-        const exists = current.some((item) => item.id === saved.id);
-        const next = exists ? current.map((item) => (item.id === saved.id ? saved : item)) : [...current, saved];
-        return next.filter((item) => item.is_active).sort((a, b) => (a.sort_order ?? 99) - (b.sort_order ?? 99) || a.name.localeCompare(b.name));
-      });
+      await refreshShiftTemplates();
       ui.notify({ title: "Shift template saved" });
+      return saved;
     } catch (templateError) {
       console.error("Unable to save shift template", templateError);
       ui.notify({ title: "Unable to save template", message: templateError.message || "Please try again.", tone: "error" });
+      throw templateError;
     } finally {
       setSaving(false);
     }
@@ -1230,9 +1451,8 @@ export default function DutyRosterPage({ store, ui, auth }) {
       return;
     }
     try {
-      const archived = await shiftTemplateService.deactivateShiftTemplate(id);
-      setAllTemplates((current) => current.map((item) => (item.id === id ? archived : item)));
-      setTemplates((current) => current.filter((item) => item.id !== id));
+      await shiftTemplateService.deactivateShiftTemplate(id);
+      await refreshShiftTemplates();
       ui.notify({ title: "Shift template archived" });
     } catch (templateError) {
       console.error("Unable to deactivate shift template", templateError);
@@ -1246,13 +1466,8 @@ export default function DutyRosterPage({ store, ui, auth }) {
       return;
     }
     try {
-      const reordered = await shiftTemplateService.reorderShiftTemplates(nextTemplates);
-      setTemplates(reordered.filter((item) => item.is_active));
-      setAllTemplates((current) => {
-        const byId = new Map(current.map((item) => [item.id, item]));
-        reordered.forEach((item) => byId.set(item.id, item));
-        return [...byId.values()].sort((a, b) => (a.sort_order ?? 99) - (b.sort_order ?? 99) || a.name.localeCompare(b.name));
-      });
+      await shiftTemplateService.reorderShiftTemplates(nextTemplates);
+      await refreshShiftTemplates();
     } catch (reorderError) {
       console.error("Unable to reorder shift templates", reorderError);
       ui.notify({ title: "Unable to reorder templates", message: reorderError.message || "Please try again.", tone: "error" });

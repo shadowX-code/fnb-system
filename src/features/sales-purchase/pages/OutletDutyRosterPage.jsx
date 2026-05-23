@@ -10,6 +10,7 @@ import { dutyRosterService } from "../../../services/dutyRosterService.js";
 import { jobPositionService } from "../../../services/jobPositionService.js";
 import { rosterPositionGroupService } from "../../../services/rosterPositionGroupService.js";
 import { canExport } from "../../../utils/accessControl.js";
+import { formatShiftTimeRange } from "../utils/shiftTime.js";
 
 const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 const monthLabels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
@@ -77,24 +78,6 @@ function monthCalendarDays(monthDate) {
 
 function formatMonthYear(date) {
   return new Intl.DateTimeFormat("en-MY", { month: "long", year: "numeric" }).format(date);
-}
-
-function formatShiftTime(value) {
-  if (!value) return "";
-  const [hourText, minuteText = "0"] = String(value).split(":");
-  const hour = Number(hourText);
-  const minute = Number(minuteText);
-  if (Number.isNaN(hour) || Number.isNaN(minute)) return "";
-  const period = hour >= 12 ? "pm" : "am";
-  const hour12 = hour % 12 || 12;
-  return `${hour12}${minute ? `:${String(minute).padStart(2, "0")}` : ""}${period}`;
-}
-
-function formatShiftTimeRange(startTime, endTime) {
-  const start = formatShiftTime(startTime);
-  const end = formatShiftTime(endTime);
-  if (!start && !end) return "";
-  return `${start} - ${end}`.trim();
 }
 
 function fallbackGroupFromDepartment(department) {

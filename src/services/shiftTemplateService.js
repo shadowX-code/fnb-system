@@ -1,7 +1,8 @@
 import { supabase } from "../lib/supabase";
 import { throwSupabaseError } from "./supabaseError";
 
-const selectFields = "id,outlet_id,name,code,start_time,end_time,break_minutes,shift_type,color,sort_order,is_active,created_at,updated_at";
+const baseSelectFields = "id,outlet_id,name,code,start_time,end_time,break_minutes,shift_type,color,is_active,created_at,updated_at";
+const selectFields = `${baseSelectFields},sort_order`;
 const templateOrder = new Map([
   ["MORNING", 1],
   ["MID", 2],
@@ -30,52 +31,64 @@ function mapTemplate(row) {
   };
 }
 
+function sortTemplates(rows) {
+  return (rows ?? [])
+    .map(mapTemplate)
+    .sort((a, b) => (a.sort_order ?? templateOrder.get(a.code) ?? 99) - (b.sort_order ?? templateOrder.get(b.code) ?? 99) || a.name.localeCompare(b.name));
+}
+
+function missingSortOrder(error) {
+  return error?.code === "42703" || error?.code === "PGRST204" || /sort_order/i.test(error?.message || "");
+}
+
+function orderingSetupError(error) {
+  const next = new Error("Shift template ordering is not ready yet. Please apply the latest roster setup and refresh.");
+  next.cause = error;
+  return next;
+}
+
+async function runTemplateList({ outletId = "", activeOnly = false, includeSort = true }) {
+  let query = supabase
+    .from("shift_templates")
+    .select(includeSort ? selectFields : baseSelectFields);
+
+  if (activeOnly) query = query.eq("is_active", true);
+  if (outletId) query = query.eq("outlet_id", outletId);
+  if (includeSort) query = query.order("sort_order", { ascending: true });
+  query = query.order("name", { ascending: true });
+
+  return query;
+}
+
 export const shiftTemplateService = {
   async listShiftTemplates(outletId = "") {
-    const query = supabase
-      .from("shift_templates")
-      .select(selectFields)
-      .eq("is_active", true)
-      .order("sort_order", { ascending: true })
-      .order("name", { ascending: true });
-
-    const { data, error } = outletId
-      ? await query.eq("outlet_id", outletId)
-      : await query;
+    let { data, error } = await runTemplateList({ outletId, activeOnly: true });
+    if (missingSortOrder(error)) {
+      console.warn("shift_templates.sort_order is not available yet; loading templates without custom order.", error);
+      ({ data, error } = await runTemplateList({ outletId, activeOnly: true, includeSort: false }));
+    }
 
     throwSupabaseError("shift_templates.list", error);
     let rows = data ?? [];
 
     if (outletId && rows.length === 0) {
-      const fallback = await supabase
-        .from("shift_templates")
-        .select(selectFields)
-        .is("outlet_id", null)
-        .eq("is_active", true)
-        .order("sort_order", { ascending: true })
-        .order("name", { ascending: true });
+      let fallback = await runTemplateList({ activeOnly: true });
+      if (missingSortOrder(fallback.error)) fallback = await runTemplateList({ activeOnly: true, includeSort: false });
       throwSupabaseError("shift_templates.fallback_list", fallback.error);
       rows = fallback.data ?? [];
     }
 
-    return rows
-      .map(mapTemplate)
-      .sort((a, b) => (a.sort_order ?? templateOrder.get(a.code) ?? 99) - (b.sort_order ?? templateOrder.get(b.code) ?? 99) || a.name.localeCompare(b.name));
+    return sortTemplates(rows);
   },
 
   async listAllShiftTemplates(outletId = "") {
-    let query = supabase
-      .from("shift_templates")
-      .select(selectFields)
-      .order("sort_order", { ascending: true })
-      .order("name", { ascending: true });
-
-    query = outletId ? query.eq("outlet_id", outletId) : query;
-    const { data, error } = await query;
+    let { data, error } = await runTemplateList({ outletId });
+    if (missingSortOrder(error)) {
+      console.warn("shift_templates.sort_order is not available yet; loading all templates without custom order.", error);
+      ({ data, error } = await runTemplateList({ outletId, includeSort: false }));
+    }
     throwSupabaseError("shift_templates.list_all", error);
-    return (data ?? [])
-      .map(mapTemplate)
-      .sort((a, b) => (a.sort_order ?? templateOrder.get(a.code) ?? 99) - (b.sort_order ?? templateOrder.get(b.code) ?? 99) || a.name.localeCompare(b.name));
+    return sortTemplates(data);
   },
 
   async saveShiftTemplate(template) {
@@ -97,18 +110,20 @@ export const shiftTemplateService = {
       ? supabase.from("shift_templates").update(payload).eq("id", template.id)
       : supabase.from("shift_templates").insert(payload);
 
-    const { data, error } = await query.select(selectFields).single();
+    let { data, error } = await query.select(selectFields).single();
+    if (missingSortOrder(error)) throw orderingSetupError(error);
     throwSupabaseError("shift_templates.save", error);
     return mapTemplate(data);
   },
 
   async deactivateShiftTemplate(id) {
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("shift_templates")
       .update({ is_active: false, updated_at: new Date().toISOString() })
       .eq("id", id)
       .select(selectFields)
       .single();
+    if (missingSortOrder(error)) throw orderingSetupError(error);
     throwSupabaseError("shift_templates.deactivate", error);
     return mapTemplate(data);
   },
@@ -125,6 +140,7 @@ export const shiftTemplateService = {
         .from("shift_templates")
         .update({ sort_order: update.sort_order, updated_at: update.updated_at })
         .eq("id", update.id);
+      if (missingSortOrder(error)) throw orderingSetupError(error);
       throwSupabaseError("shift_templates.reorder", error);
     }));
 
