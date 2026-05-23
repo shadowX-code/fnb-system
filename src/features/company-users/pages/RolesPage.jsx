@@ -14,6 +14,7 @@ import { roleService } from "../../../services/roleService.js";
 import { formatDateTime } from "../../../lib/dateTime.js";
 import { normalizeRoleOutletAccess } from "../utils/roleAccess.js";
 import { canCreate, canDelete, canEdit, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { isProtectedRoleName } from "../../../auth/rbac.js";
 
 const roleMeta = {
   owner: { assignedUsers: 1, outletAccess: "all", selectedOutletIds: [], updatedAt: "2026-05-10", updatedBy: "System" },
@@ -85,10 +86,6 @@ const roleAssignedUserSamples = [
 
 function getRoleEditorModuleCodes(module) {
   return Object.values(module.actions).flatMap((action) => action.codes);
-}
-
-function isProtectedRoleName(roleName) {
-  return ["owner", "admin"].includes(roleName);
 }
 
 function permissionModules(roleName) {
@@ -475,7 +472,7 @@ function RoleDetailModal({ role, onClose, onEditRole, outlets, canEditRole }) {
   const [assignedUsersOpen, setAssignedUsersOpen] = useState(false);
   const [assignedUserSearch, setAssignedUserSearch] = useState("");
   const permissions = new Set(role.permissions ?? []);
-  const isProtectedRole = ["owner", "admin"].includes(role.name);
+  const isProtectedRole = isProtectedRoleName(role.name);
   const assignedUsers = getAssignedUsersForRole(role);
   const filteredAssignedUsers = assignedUsers.filter((user) => {
     const query = assignedUserSearch.trim().toLowerCase();

@@ -15,14 +15,6 @@ on conflict (code) do update
 set module = excluded.module,
     description = excluded.description;
 
-insert into public.role_permissions (role_id, permission_id)
-select r.id, p.id
-from public.roles r
-cross join public.permissions p
-where r.name in ('owner', 'admin')
-  and p.code like 'duty_roster.%'
-on conflict do nothing;
-
 do $$
 begin
   if to_regclass('public.outlets') is not null then

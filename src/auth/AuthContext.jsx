@@ -1,5 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { authService } from "./authService.js";
+import { isProtectedRoleProfile } from "./rbac.js";
 
 const AuthContext = createContext(null);
 
@@ -174,6 +175,7 @@ export function AuthProvider({ children }) {
   }
 
   const permissionSet = useMemo(() => new Set(permissions), [permissions]);
+  const protectedRole = useMemo(() => isProtectedRoleProfile(profile), [profile]);
 
   const value = useMemo(
     () => ({
@@ -192,10 +194,11 @@ export function AuthProvider({ children }) {
       resetPassword: authService.resetPassword,
       completePasswordSetup,
       cancelPasswordSetup,
-      hasPermission: (permissionCode) => permissionSet.has(permissionCode),
-      hasAnyPermission: (permissionCodes = []) => permissionCodes.some((code) => permissionSet.has(code)),
+      isProtectedRole: protectedRole,
+      hasPermission: (permissionCode) => protectedRole || permissionSet.has(permissionCode),
+      hasAnyPermission: (permissionCodes = []) => protectedRole || permissionCodes.some((code) => permissionSet.has(code)),
     }),
-    [contextLoading, error, loading, passwordRecovery, permissionSet, permissions, profile, session, source, user],
+    [contextLoading, error, loading, passwordRecovery, permissionSet, permissions, profile, protectedRole, session, source, user],
   );
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

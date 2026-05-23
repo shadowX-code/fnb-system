@@ -206,6 +206,14 @@ Role defines:
 
 Only `owner` and `admin` are protected system roles.
 
+Protected role access rule:
+
+- `owner` and `admin` always have full system access automatically.
+- They bypass permission matrix checks for current and future modules.
+- They do not depend on `role_permissions` rows for access.
+- Role Management must display all registry permissions as enabled for protected roles.
+- Protected roles cannot be deleted or edited directly.
+
 ### 4.5 SST Tax Configuration
 
 SST is outlet-level and effective-date based.
@@ -1432,6 +1440,7 @@ Rules:
 
 - owner/admin cannot be deleted.
 - owner/admin permissions are protected.
+- owner/admin automatically pass all permission checks, including future module permissions.
 - All other roles are editable, deletable, and configurable.
 
 Role Catalog columns:
@@ -1718,7 +1727,8 @@ Rules:
 
 - No profile means no access.
 - RBAC load failure fails closed.
-- No automatic full permissions fallback.
+- No automatic full permissions fallback for normal roles.
+- Protected roles (`owner`, `admin`) bypass permission checks and always return true.
 - Sidebar visibility follows view permission.
 - Add button follows create permission.
 - Edit/save follows edit permission.

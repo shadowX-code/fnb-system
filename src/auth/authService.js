@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { EMPLOYEE_ACCESS_STATE, normalizeEmployeeAccessState } from "../constants/employeeAccessStates";
+import { isProtectedRoleName } from "./rbac.js";
 
 function normalizeContextProfile(profile, source) {
   const enableSystemLogin = Boolean(profile.enable_system_login ?? profile.email ?? profile.role_id);
@@ -144,17 +145,26 @@ export const authService = {
     }
 
     const permissions = (rows ?? []).map((row) => row.permission?.code).filter(Boolean);
+    const roleName = profile.role?.name ?? "unassigned";
+
+    if (isProtectedRoleName(roleName)) {
+      return {
+        profile: { ...profile, role_name: roleName },
+        permissions,
+        source: "database",
+      };
+    }
 
     if (!permissions.length) {
       return {
-        profile: { ...profile, role_name: profile.role?.name ?? "unassigned" },
+        profile: { ...profile, role_name: roleName },
         permissions: [],
         source: "role-without-permissions",
       };
     }
 
     return {
-      profile: { ...profile, role_name: profile.role?.name ?? "unassigned" },
+      profile: { ...profile, role_name: roleName },
       permissions,
       source: "database",
     };
