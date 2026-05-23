@@ -2048,6 +2048,22 @@ Roster settings:
 - Archived templates are hidden from quick assign but remain available for historical roster display.
 - Quick Shift Templates load from the selected outlet.
 - Month view uses compact shift codes for dense scheduling.
+- Duty Roster page layout:
+  - Filters.
+  - KPI Summary Cards.
+  - Roster Grid.
+- Right-side Department Coverage card is removed from the scheduling workspace.
+- Share Roster follows duty_roster.export permission.
+- Share Roster generates a clean light-theme roster image with:
+  - Outlet name.
+  - Week date range.
+  - Roster status.
+  - Employee groups by Floor/Kitchen/Other.
+  - Friendly shift time format.
+  - Generated date/time footer.
+- Share image actions:
+  - Download Image.
+  - Copy Image.
 
 ---
 

@@ -1,6 +1,6 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { CalendarDays, CalendarX, ChevronLeft, ChevronRight, Clock, Download, HeartPulse, LockKeyhole, Plane, Plus, Send, Trash2, UnlockKeyhole, Users, X } from "lucide-react";
+import { CalendarDays, CalendarX, ChevronLeft, ChevronRight, Clipboard, Clock, Download, HeartPulse, LockKeyhole, Plane, Plus, Send, Share2, Trash2, UnlockKeyhole, Users, X } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
@@ -112,15 +112,20 @@ function hoursLabel(minutes) {
   return `${(minutes / 60).toFixed(minutes % 60 ? 1 : 0)}h`;
 }
 
+function escapeXml(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function fallbackGroupFromDepartment(department) {
   const value = String(department || "").toLowerCase();
   if (value.includes("kitchen")) return "kitchen";
   if (value.includes("service") || value.includes("frontline") || value.includes("floor")) return "floor";
   return "other";
-}
-
-function coverageBucket(groupName) {
-  return groupName === "kitchen" ? "Kitchen" : "Floor";
 }
 
 function templateTone(template) {
@@ -532,6 +537,159 @@ function BreakDurationField({ value, onChange }) {
           ))}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+function buildRosterShareSvg({ outletName, rangeLabel, status, groups, weekDates, rosterByEmployeeDate, generatedAt }) {
+  const width = 1600;
+  const leftWidth = 260;
+  const columnWidth = 178;
+  const headerHeight = 168;
+  const dateHeaderHeight = 70;
+  const groupHeight = 42;
+  const rowHeight = 74;
+  const footerHeight = 58;
+  const rows = [];
+
+  groups.forEach((group) => {
+    rows.push({ type: "group", label: group.label });
+    group.employees.forEach((employee) => rows.push({ type: "employee", employee }));
+  });
+
+  const tableHeight = dateHeaderHeight + rows.reduce((sum, row) => sum + (row.type === "group" ? groupHeight : rowHeight), 0);
+  const height = Math.max(760, headerHeight + tableHeight + footerHeight + 36);
+  const weekValues = weekDates.map(toDateInputValue);
+  let y = headerHeight;
+
+  const rowMarkup = rows.map((row) => {
+    if (row.type === "group") {
+      const markup = `
+        <rect x="48" y="${y}" width="${width - 96}" height="${groupHeight}" rx="14" fill="#ecfdf5"/>
+        <text x="68" y="${y + 27}" font-size="18" font-weight="800" fill="#047857" letter-spacing="3">${escapeXml(row.label)}</text>
+      `;
+      y += groupHeight;
+      return markup;
+    }
+
+    const employee = row.employee;
+    const rowY = y;
+    y += rowHeight;
+    const cells = weekValues.map((dateValue, index) => {
+      const cellX = 48 + leftWidth + index * columnWidth;
+      const roster = rosterByEmployeeDate.get(rosterKey(employee.id, dateValue));
+      const template = roster?.template;
+      const isOff = template && nonWorkingCodes.has(template.code);
+      const label = template ? (isOff ? template.code : formatShiftTimeRange(roster.start_time, roster.end_time)) : "-";
+      const subLabel = template ? template.name : "No shift";
+      const fill = !template ? "#f8fafc" : isOff ? "#f1f5f9" : "#ecfdf5";
+      const stroke = !template ? "#e2e8f0" : isOff ? "#cbd5e1" : "#bbf7d0";
+      const text = !template ? "#94a3b8" : isOff ? "#64748b" : "#065f46";
+      return `
+        <rect x="${cellX + 10}" y="${rowY + 12}" width="${columnWidth - 20}" height="50" rx="14" fill="${fill}" stroke="${stroke}"/>
+        <text x="${cellX + columnWidth / 2}" y="${rowY + 33}" text-anchor="middle" font-size="15" font-weight="800" fill="${text}">${escapeXml(label)}</text>
+        <text x="${cellX + columnWidth / 2}" y="${rowY + 51}" text-anchor="middle" font-size="12" font-weight="700" fill="${text}" opacity="0.72">${escapeXml(subLabel)}</text>
+      `;
+    }).join("");
+
+    return `
+      <rect x="48" y="${rowY}" width="${width - 96}" height="${rowHeight}" fill="#ffffff"/>
+      <line x1="48" y1="${rowY + rowHeight}" x2="${width - 48}" y2="${rowY + rowHeight}" stroke="#e5e7eb"/>
+      <text x="68" y="${rowY + 31}" font-size="18" font-weight="800" fill="#111827">${escapeXml(employee.nickname || employee.full_name)}</text>
+      <text x="68" y="${rowY + 53}" font-size="13" font-weight="600" fill="#6b7280">${escapeXml(employee.position || "Employee")}</text>
+      ${cells}
+    `;
+  }).join("");
+
+  const dateHeaders = weekDates.map((date, index) => {
+    const x = 48 + leftWidth + index * columnWidth;
+    return `
+      <text x="${x + columnWidth / 2}" y="${headerHeight + 27}" text-anchor="middle" font-size="15" font-weight="900" fill="#6b7280" letter-spacing="2">${dayLabels[(date.getDay() + 6) % 7].toUpperCase()}</text>
+      <text x="${x + columnWidth / 2}" y="${headerHeight + 52}" text-anchor="middle" font-size="18" font-weight="800" fill="#111827">${escapeXml(formatColumnDate(date))}</text>
+    `;
+  }).join("");
+
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+      <rect width="${width}" height="${height}" fill="#f7f8fa"/>
+      <rect x="28" y="28" width="${width - 56}" height="${height - 56}" rx="28" fill="#ffffff" stroke="#e5e7eb"/>
+      <circle cx="76" cy="78" r="20" fill="#dcfce7"/>
+      <text x="76" y="85" text-anchor="middle" font-size="22" font-weight="900" fill="#16a34a">F</text>
+      <text x="112" y="72" font-size="30" font-weight="900" fill="#111827">${escapeXml(outletName)}</text>
+      <text x="112" y="103" font-size="18" font-weight="700" fill="#6b7280">Duty Roster · ${escapeXml(rangeLabel)}</text>
+      <rect x="${width - 222}" y="58" width="154" height="42" rx="21" fill="#ecfdf5" stroke="#bbf7d0"/>
+      <text x="${width - 145}" y="84" text-anchor="middle" font-size="15" font-weight="900" fill="#047857">${escapeXml(status)}</text>
+
+      <rect x="48" y="${headerHeight}" width="${width - 96}" height="${dateHeaderHeight}" rx="18" fill="#f8fafc" stroke="#e5e7eb"/>
+      <text x="68" y="${headerHeight + 43}" font-size="15" font-weight="900" fill="#6b7280" letter-spacing="2">EMPLOYEE</text>
+      ${dateHeaders}
+      ${rowMarkup}
+
+      <text x="48" y="${height - 42}" font-size="13" font-weight="700" fill="#6b7280">Generated ${escapeXml(generatedAt)} · FeedX Duty Roster</text>
+      <text x="${width - 48}" y="${height - 42}" text-anchor="end" font-size="13" font-weight="700" fill="#6b7280">Share preview</text>
+    </svg>
+  `;
+}
+
+function svgToPng(svgMarkup, width = 1600) {
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    const blob = new Blob([svgMarkup], { type: "image/svg+xml;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    image.onload = () => {
+      const canvas = document.createElement("canvas");
+      const scale = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
+      const height = image.height || 900;
+      canvas.width = width * scale;
+      canvas.height = height * scale;
+      const context = canvas.getContext("2d");
+      context.fillStyle = "#f7f8fa";
+      context.fillRect(0, 0, canvas.width, canvas.height);
+      context.drawImage(image, 0, 0, canvas.width, canvas.height);
+      canvas.toBlob((pngBlob) => {
+        URL.revokeObjectURL(url);
+        if (!pngBlob) {
+          reject(new Error("Unable to generate roster image."));
+          return;
+        }
+        resolve({ blob: pngBlob, dataUrl: canvas.toDataURL("image/png") });
+      }, "image/png");
+    };
+    image.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Unable to prepare roster image."));
+    };
+    image.src = url;
+  });
+}
+
+function ShareRosterModal({ image, loading, error, onDownload, onCopy, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-[2px]" role="dialog" aria-modal="true">
+      <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-border bg-surface shadow-2xl">
+        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-border p-5">
+          <div>
+            <div className="text-xs font-black uppercase tracking-[0.16em] text-primary">Share Roster</div>
+            <h2 className="mt-1 text-xl font-semibold text-text-primary">Roster Image Preview</h2>
+            <p className="mt-1 text-sm text-text-secondary">Clean staff-facing roster image without filters or admin controls.</p>
+          </div>
+          <button className="icon-btn" type="button" onClick={onClose} aria-label="Close share roster"><X size={18} /></button>
+        </header>
+        <div className="min-h-0 flex-1 overflow-auto bg-background p-4">
+          {loading ? <div className="rounded-3xl border border-border bg-surface p-10 text-center text-sm font-semibold text-text-secondary">Generating roster image...</div> : null}
+          {error ? <div className="rounded-3xl border border-rose-200 bg-rose-50 p-5 text-sm font-semibold text-rose-700">{error}</div> : null}
+          {image?.dataUrl ? (
+            <div className="rounded-3xl border border-border bg-white p-3 shadow-sm">
+              <img className="h-auto w-full rounded-2xl" src={image.dataUrl} alt="Duty roster share preview" />
+            </div>
+          ) : null}
+        </div>
+        <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-border bg-surface p-4">
+          <button className="btn-secondary" type="button" onClick={onClose}>Close</button>
+          <button className="btn-secondary" type="button" disabled={!image?.blob || loading} onClick={onCopy}><Clipboard size={16} /> Copy Image</button>
+          <button className="btn-primary" type="button" disabled={!image?.blob || loading} onClick={onDownload}><Download size={16} /> Download Image</button>
+        </footer>
+      </div>
     </div>
   );
 }
@@ -1133,6 +1291,10 @@ export default function DutyRosterPage({ store, ui, auth }) {
   const [shiftDrawer, setShiftDrawer] = useState(null);
   const [bulkDrawer, setBulkDrawer] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareImage, setShareImage] = useState(null);
+  const [shareLoading, setShareLoading] = useState(false);
+  const [shareError, setShareError] = useState("");
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [groupFilter, setGroupFilter] = useState("all");
   const [positionFilter, setPositionFilter] = useState("all");
@@ -1147,6 +1309,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
   const canManageRoster = canManage(auth, "duty_roster");
   const canWriteShift = canAddShift || canEditShift;
   const selectedTemplate = templates.find((template) => template.id === selectedTemplateId) ?? null;
+  const outletName = activeOutlets.find((outlet) => outlet.id === outletId)?.name ?? "Selected outlet";
 
   const weekDates = useMemo(() => {
     const start = startOfWeek(`${weekStart}T00:00:00`);
@@ -1273,20 +1436,6 @@ export default function DutyRosterPage({ store, ui, auth }) {
       .sort(([a], [b]) => order.indexOf(a) - order.indexOf(b))
       .map(([group, items]) => ({ group, label: groupLabels[group] ?? "OTHER", employees: items }));
   }, [employeeSearch, employeesWithGroups, groupFilter, positionFilter]);
-
-  const coverageByDate = useMemo(() => {
-    const result = new Map();
-    visibleDateValues.forEach((date) => result.set(date, { Kitchen: 0, Floor: 0 }));
-    rosters.forEach((roster) => {
-      if (!isWorkingRoster(roster)) return;
-      const employee = employeesWithGroups.find((item) => item.id === roster.employee_id);
-      const bucket = coverageBucket(employee?.rosterGroup);
-      const current = result.get(roster.roster_date) ?? { Kitchen: 0, Floor: 0 };
-      current[bucket] += 1;
-      result.set(roster.roster_date, current);
-    });
-    return result;
-  }, [employeesWithGroups, rosters, visibleDateValues.join("|")]);
 
   const summary = useMemo(() => {
     const workingRosters = rosters.filter(isWorkingRoster);
@@ -1541,6 +1690,62 @@ export default function DutyRosterPage({ store, ui, auth }) {
     setWeekStart(toDateInputValue(viewMode === "month" ? startOfMonth(next) : startOfWeek(next)));
   }
 
+  async function prepareShareRoster() {
+    if (!canExportRoster) {
+      notifyPermissionDenied(ui, "share duty roster");
+      return;
+    }
+    setShareOpen(true);
+    setShareLoading(true);
+    setShareError("");
+    setShareImage(null);
+    try {
+      const generatedAt = new Intl.DateTimeFormat("en-MY", {
+        day: "2-digit",
+        month: "short",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      }).format(new Date());
+      const svg = buildRosterShareSvg({
+        outletName,
+        rangeLabel: formatWeekRange(weekDates),
+        status: period?.status === "locked" ? "Locked" : period?.status === "published" ? "Published" : "Draft",
+        groups: groupedEmployees,
+        weekDates,
+        rosterByEmployeeDate,
+        generatedAt,
+      });
+      const image = await svgToPng(svg);
+      setShareImage(image);
+    } catch (shareError) {
+      console.error("Unable to generate roster image", shareError);
+      setShareError(shareError.message || "Unable to generate roster image.");
+    } finally {
+      setShareLoading(false);
+    }
+  }
+
+  function downloadShareRoster() {
+    if (!shareImage?.dataUrl) return;
+    const link = document.createElement("a");
+    link.href = shareImage.dataUrl;
+    link.download = `duty-roster-${outletName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${weekDateValues[0]}.png`;
+    link.click();
+  }
+
+  async function copyShareRoster() {
+    if (!shareImage?.blob) return;
+    try {
+      if (!navigator.clipboard || !window.ClipboardItem) throw new Error("Image copy is not supported in this browser.");
+      await navigator.clipboard.write([new ClipboardItem({ "image/png": shareImage.blob })]);
+      ui.notify({ title: "Roster image copied" });
+    } catch (copyError) {
+      console.error("Unable to copy roster image", copyError);
+      ui.notify({ title: "Unable to copy image", message: copyError.message || "Please download the image instead.", tone: "error" });
+    }
+  }
+
   return (
     <div className="space-y-4">
       <PageHeader
@@ -1552,6 +1757,11 @@ export default function DutyRosterPage({ store, ui, auth }) {
             <button className="btn-secondary" type="button" disabled={!canExportRoster} onClick={() => ui.notify({ title: "Export prepared", message: "Duty roster export will be connected to the export service." })}>
               <Download size={16} /> Export
             </button>
+            {canExportRoster ? (
+              <button className="btn-secondary" type="button" onClick={prepareShareRoster}>
+                <Share2 size={16} /> Share Roster
+              </button>
+            ) : null}
             {canManageRoster ? (
               <button
                 className="btn-primary"
@@ -1638,6 +1848,26 @@ export default function DutyRosterPage({ store, ui, auth }) {
 
       {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{error}</div> : null}
       {!canWriteShift ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">Read-only access. You need Duty Roster create or edit permission to change shifts.</div> : null}
+
+      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        {[
+          ["Total Staff Scheduled", summary.staff, Users],
+          ["Total Working Hours", hoursLabel(summary.hours), Clock],
+          ["Off Days", summary.off, CalendarX],
+          ["Annual Leave", summary.al, Plane],
+          ["MC", summary.mc, HeartPulse],
+        ].map(([label, value, Icon]) => (
+          <Card key={label} className="p-4">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <div className="text-[11px] font-bold uppercase tracking-wide text-text-muted">{label}</div>
+                <div className="mt-2 text-2xl font-semibold text-text-primary">{value}</div>
+              </div>
+              <div className="rounded-2xl bg-primary/10 p-2 text-primary"><Icon size={17} /></div>
+            </div>
+          </Card>
+        ))}
+      </div>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_320px]">
         <Card
@@ -1834,50 +2064,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
             </div>
           </Card>
 
-          <Card title="Department Coverage" description="Weekly manpower by team.">
-            <div className="space-y-3 p-4">
-              {["Kitchen", "Floor"].map((bucket) => {
-                const total = visibleDateValues.reduce((sum, date) => sum + (coverageByDate.get(date)?.[bucket] ?? 0), 0);
-                return (
-                  <div key={bucket} className="rounded-2xl border border-border bg-background p-3">
-                    <div className="flex items-center justify-between">
-                      <span className="text-sm font-bold text-text-primary">{bucket}</span>
-                      <span className="text-xs font-bold text-text-muted">{total} weekly slots</span>
-                    </div>
-                    <div className="mt-3 space-y-1.5">
-                      {visibleDateValues.map((date, index) => (
-                        <div key={date} className="flex items-center justify-between rounded-xl bg-surface px-2 py-1.5 text-xs">
-                          <span className="font-bold text-text-secondary">{viewMode === "month" ? `${visibleDates[index].getDate()} ${dayLabels[(visibleDates[index].getDay() + 6) % 7]}` : dayLabels[index]}</span>
-                          <span className="font-black text-primary">{coverageByDate.get(date)?.[bucket] ?? 0}</span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </Card>
         </div>
-      </div>
-
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        {[
-          ["Total Staff Scheduled", summary.staff, Users],
-          ["Total Working Hours", hoursLabel(summary.hours), Clock],
-          ["Off Days", summary.off, CalendarX],
-          ["Annual Leave", summary.al, Plane],
-          ["MC", summary.mc, HeartPulse],
-        ].map(([label, value, Icon]) => (
-          <Card key={label} className="p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-[11px] font-bold uppercase tracking-wide text-text-muted">{label}</div>
-                <div className="mt-2 text-2xl font-semibold text-text-primary">{value}</div>
-              </div>
-              <div className="rounded-2xl bg-primary/10 p-2 text-primary"><Icon size={17} /></div>
-            </div>
-          </Card>
-        ))}
       </div>
 
       {shiftDrawer ? (
@@ -1906,6 +2093,17 @@ export default function DutyRosterPage({ store, ui, auth }) {
           saving={saving}
           onClose={() => setBulkDrawer(null)}
           onSave={bulkAssign}
+        />
+      ) : null}
+
+      {shareOpen ? (
+        <ShareRosterModal
+          image={shareImage}
+          loading={shareLoading}
+          error={shareError}
+          onDownload={downloadShareRoster}
+          onCopy={copyShareRoster}
+          onClose={() => setShareOpen(false)}
         />
       ) : null}
 
