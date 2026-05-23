@@ -1,5 +1,5 @@
 import { Fragment, useEffect, useMemo, useState } from "react";
-import { CalendarDays, CalendarX, ChevronLeft, ChevronRight, ClipboardCopy, Clock, Download, HeartPulse, LockKeyhole, Plane, Plus, Send, Trash2, UnlockKeyhole, Users, X } from "lucide-react";
+import { CalendarDays, CalendarX, ChevronLeft, ChevronRight, Clock, Download, HeartPulse, LockKeyhole, Plane, Plus, Send, Trash2, UnlockKeyhole, Users, X } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
@@ -22,7 +22,11 @@ const groupLabels = {
 };
 
 function toDateInputValue(date) {
-  return date.toISOString().slice(0, 10);
+  const value = new Date(date);
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function startOfWeek(value = new Date()) {
@@ -1248,9 +1252,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
               </button>
             ))}
           </div>
-          {viewMode === "week" ? <button className="btn-secondary h-10" type="button" disabled={!canWriteShift || locked} onClick={copyWeek}>
-            <ClipboardCopy size={16} /> Copy Week
-          </button> : <div />}
+          <div />
         </div>
         <div className="mt-3 max-w-sm">
           <FieldLabel label="Position">

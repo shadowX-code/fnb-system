@@ -823,7 +823,7 @@ Operations Duty Roster is the scheduling and editing workspace:
 - Click existing shift blocks to edit or delete.
 - Quick shift assignment mode.
 - Bulk assign for one employee across multiple dates.
-- Publish, lock, unlock and copy week workflows.
+- Publish, lock and unlock workflows.
 
 Outlet Duty Roster is a separate Overview module for read-focused monthly management review.
 
@@ -901,7 +901,6 @@ Main UI:
 - Week selector with previous/next controls
 - Department filter
 - Week/Month view toggle
-- Copy Week
 - Export
 - Publish Roster
 - Lock/Unlock status action
@@ -965,8 +964,6 @@ Behavior:
 - Published is visible as published roster.
 - Locked is read-only.
 - Publish/lock/unlock requires manage permission.
-- Copy Week copies shifts from a selected source week to the current selected week.
-- Copy Week can overwrite existing current-week shifts.
 - Saved roster data must persist after refresh.
 
 Audit actions:
@@ -974,7 +971,6 @@ Audit actions:
 - Create shift
 - Edit shift
 - Delete shift
-- Copy week roster
 - Publish roster
 - Lock roster
 - Unlock roster

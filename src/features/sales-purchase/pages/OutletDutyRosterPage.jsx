@@ -17,7 +17,11 @@ const nonWorkingCodes = new Set(["OFF", "AL", "MC"]);
 const groupLabels = { floor: "FLOOR", kitchen: "KITCHEN", other: "OTHER" };
 
 function toDateInputValue(date) {
-  return date.toISOString().slice(0, 10);
+  const value = new Date(date);
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
 }
 
 function startOfWeek(value = new Date()) {
@@ -117,6 +121,7 @@ function MonthPicker({ value, onChange }) {
   const buttonRef = useRef(null);
   const panelRef = useRef(null);
   const current = startOfMonth(`${value}T00:00:00`);
+  const today = startOfMonth(new Date());
 
   useEffect(() => {
     if (!open) return undefined;
@@ -145,16 +150,14 @@ function MonthPicker({ value, onChange }) {
   }, [open]);
 
   function chooseMonth(monthIndex) {
-    const next = new Date(current);
-    next.setMonth(monthIndex);
-    onChange(toDateInputValue(startOfMonth(next)));
+    const next = new Date(current.getFullYear(), monthIndex, 1);
+    onChange(toDateInputValue(next));
     setOpen(false);
   }
 
   function changeYear(offset) {
-    const next = new Date(current);
-    next.setFullYear(next.getFullYear() + offset);
-    onChange(toDateInputValue(startOfMonth(next)));
+    const next = new Date(current.getFullYear() + offset, current.getMonth(), 1);
+    onChange(toDateInputValue(next));
   }
 
   return (
@@ -182,10 +185,17 @@ function MonthPicker({ value, onChange }) {
           <div className="mt-4 grid grid-cols-3 gap-2">
             {monthLabels.map((label, index) => {
               const selected = index === current.getMonth();
+              const currentMonth = index === today.getMonth() && current.getFullYear() === today.getFullYear();
               return (
                 <button
                   key={label}
-                  className={`rounded-2xl px-3 py-2 text-sm font-bold transition ${selected ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-primary/10 hover:text-primary"}`}
+                  className={`rounded-2xl border px-3 py-2 text-sm font-bold transition ${
+                    selected
+                      ? "border-primary bg-primary text-white shadow-sm"
+                      : currentMonth
+                        ? "border-primary/30 bg-primary/5 text-primary hover:bg-primary/10"
+                        : "border-transparent text-text-secondary hover:bg-primary/10 hover:text-primary"
+                  }`}
                   type="button"
                   onClick={() => chooseMonth(index)}
                 >
