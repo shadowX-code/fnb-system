@@ -561,7 +561,7 @@ function buildRosterShareHorizontalSvg({ outletName, rangeLabel, status, groups,
   const tableHeight = dateHeaderHeight + rows.reduce((sum, row) => sum + (row.type === "group" ? groupHeight : rowHeight), 0);
   const height = headerHeight + tableHeight + footerHeight + margin;
   const weekValues = weekDates.map(toDateInputValue);
-  let y = headerHeight;
+  let y = headerHeight + dateHeaderHeight;
 
   const rowMarkup = rows.map((row) => {
     if (row.type === "group") {
