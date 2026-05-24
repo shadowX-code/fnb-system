@@ -11,6 +11,7 @@ import OutletPnlPage from "../features/sales-purchase/pages/OutletPnlPage.jsx";
 import OutletDutyRosterPage from "../features/sales-purchase/pages/OutletDutyRosterPage.jsx";
 import OperatingExpensesPage from "../features/sales-purchase/pages/OperatingExpensesPage.jsx";
 import DutyRosterPage from "../features/sales-purchase/pages/DutyRosterPage.jsx";
+import AssetTrackingPage from "../features/sales-purchase/pages/AssetTrackingPage.jsx";
 import SettingsPage from "../features/sales-purchase/pages/SettingsPage.jsx";
 import SupplierManagementPage from "../features/sales-purchase/pages/SupplierManagementPage.jsx";
 import UsersPage from "../features/company-users/pages/UsersPage.jsx";
@@ -112,6 +113,10 @@ const routeDetails = {
   "duty-roster": {
     description: "Weekly outlet employee scheduling by department.",
     component: DutyRosterPage,
+  },
+  asset_tracking: {
+    description: "Track outlet assets, quantities, inspections and movement logs.",
+    component: AssetTrackingPage,
   },
   "data-import": {
     description: "Future-ready Excel and CSV import flow with mock progress feedback.",

@@ -994,7 +994,160 @@ Permissions:
 
 ---
 
-## 5.13 Outlets
+## 5.13 Asset Tracking
+
+Purpose:
+
+Track outlet assets, quantities, categories, inspections, and movement logs.
+
+Core rules:
+
+- Each outlet has its own asset list.
+- Every asset belongs to a category.
+- Every quantity change must create a movement log.
+- Quantity reduction cannot make quantity below 0.
+- Reduce requires a reason.
+- If reduce reason is Other, remark is required.
+- Asset categories cannot be hard deleted when linked to assets; archive/deactivate instead.
+- Inspection compares expected system quantity with actual counted quantity.
+- Inspection can run for all categories or selected categories.
+
+Permissions:
+
+- asset_tracking.view
+- asset_tracking.create
+- asset_tracking.edit
+- asset_tracking.delete
+- asset_tracking.manage
+- asset_tracking.export
+
+RBAC:
+
+- Sidebar follows asset_tracking.view.
+- Add asset/category follows asset_tracking.create.
+- Edit follows asset_tracking.edit.
+- Archive/delete follows asset_tracking.delete.
+- Adjust quantity and inspection follows asset_tracking.manage.
+- Export follows asset_tracking.export.
+
+Data tables:
+
+```text
+asset_categories
+asset_items
+asset_movement_logs
+asset_inspections
+asset_inspection_items
+```
+
+Asset category fields:
+
+- id
+- name
+- description
+- sort_order
+- is_active
+- created_at
+- updated_at
+
+Asset item fields:
+
+- id
+- outlet_id
+- category_id
+- name
+- description
+- unit
+- current_quantity
+- minimum_quantity
+- status
+- remark
+- created_by
+- updated_by
+- created_at
+- updated_at
+
+Asset statuses:
+
+- active
+- damaged
+- missing
+- disposed
+- inactive
+
+Movement log fields:
+
+- id
+- asset_id
+- outlet_id
+- movement_type
+- quantity_change
+- quantity_before
+- quantity_after
+- reason
+- remark
+- movement_date
+- created_by
+- created_at
+
+Movement types:
+
+- add
+- reduce
+- correction
+- transfer_in
+- transfer_out
+
+Inspection fields:
+
+- id
+- outlet_id
+- inspection_date
+- checked_by
+- category_scope
+- status
+- remark
+- created_at
+- updated_at
+
+Inspection item fields:
+
+- id
+- inspection_id
+- asset_id
+- expected_quantity
+- counted_quantity
+- difference
+- condition_status
+- remark
+- created_at
+
+Inspection flow:
+
+1. Select outlet.
+2. Select inspection date and checked-by name.
+3. Choose All Categories or Selected Categories.
+4. Count assets in the selected scope.
+5. Select condition: Good, Damaged, Missing, Need Repair.
+6. Review variance.
+7. Submit inspection.
+8. Differences create correction movement logs and update asset quantity after confirmation.
+
+MVP exclusions:
+
+- Depreciation
+- Purchase value
+- Warranty tracking
+- QR code
+- Barcode scan
+- Maintenance workflow
+- Supplier link
+- Asset photo upload
+- Transfer approval workflow
+
+---
+
+## 5.14 Outlets
 
 Purpose:
 
@@ -1671,6 +1824,15 @@ Duty Roster:
 - duty_roster.delete
 - duty_roster.export
 - duty_roster.manage
+
+Asset Tracking:
+
+- asset_tracking.view
+- asset_tracking.create
+- asset_tracking.edit
+- asset_tracking.delete
+- asset_tracking.manage
+- asset_tracking.export
 
 Outlets:
 

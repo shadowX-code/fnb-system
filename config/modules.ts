@@ -197,6 +197,15 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, create: true, edit: true, delete: true, manage: true, export: true },
   },
   {
+    id: "asset_tracking",
+    section: "Operations",
+    label: "Asset Tracking",
+    route: "/operations/asset-tracking",
+    icon: "asset-tracking",
+    sidebar: true,
+    permissions: { view: true, create: true, edit: true, delete: true, manage: true, export: true },
+  },
+  {
     id: "outlets",
     section: "Operations",
     label: "Outlets",
