@@ -17,22 +17,28 @@ import { productAnalyticsService } from "../../../services/productAnalyticsServi
 const productColumnAliases = {
   category: ["Category", "Cat", "Item Category", "Product Category", "Menu Category"],
   productName: ["Product Name", "Item Name", "Item", "Product", "Menu Item", "Name"],
+  code: ["Code", "Item Code", "Product Code", "SKU Code"],
   variant: ["Variant", "Option", "Variation", "SKU", "Size", "Modifier", "Variant Name"],
   quantity: ["Quantity", "Qty", "Sold Qty", "Total Qty", "Qty Sold", "Count"],
   grossSales: ["Gross Sales", "Gross", "Sales", "Total Sales", "Gross Amount"],
   discount: ["Discount", "Discount Amount", "Disc"],
+  billDiscount: ["Bill Discount", "Bill Disc"],
+  itemDiscount: ["Item Discount", "Item Disc"],
   sst: ["SST", "Tax", "Tax Amount", "Service Tax"],
-  serviceCharge: ["Service Charge", "Svc Charge", "Service"],
+  serviceCharge: ["Service Charge", "Svc Charge", "Service", "SC"],
   nettSales: ["Nett Sales", "Net Sales", "Nett", "Net", "Amount", "Total Amount", "Sales Amount"],
 };
 
 const productColumnLabels = {
   category: "Category",
   productName: "Product Name",
+  code: "Code",
   variant: "Variant",
   quantity: "Quantity",
   grossSales: "Gross Sales",
   discount: "Discount",
+  billDiscount: "Bill Discount",
+  itemDiscount: "Item Discount",
   sst: "SST",
   serviceCharge: "Service Charge",
   nettSales: "Nett Sales",
@@ -204,6 +210,34 @@ function buildMissingFieldError(missingFields) {
   return `We could not detect these required fields:\n${missingFields.map((field) => `- ${productColumnLabels[field]}`).join("\n")}\n\nPlease check your POS export format.`;
 }
 
+function extractFeedMeMetadata(rawRows) {
+  const metadata = {};
+  rawRows.slice(0, 20).forEach((row) => {
+    const cells = row.map((cell) => String(cell ?? "").trim()).filter(Boolean);
+    const joined = cells.join(" ");
+    const key = canonical(cells[0] ?? "");
+    const value = cells.slice(1).join(" ").replace(/^[:\s]+/, "");
+    if (!cells.length) return;
+    if (key.includes("merchant")) metadata.merchant = value || joined.replace(/merchant/i, "").replace(/^[:\s]+/, "");
+    if (key.includes("date")) metadata.report_date_range = value || joined.replace(/date/i, "").replace(/^[:\s]+/, "");
+    if (key.includes("generated")) metadata.generated_at = value || joined.replace(/generated(?: by| at)?/i, "").replace(/^[:\s]+/, "");
+    if (key.includes("time")) metadata.time_range = value || joined.replace(/time/i, "").replace(/^[:\s]+/, "");
+    if (!metadata.report_title && /product|sales|report/i.test(joined)) metadata.report_title = joined;
+  });
+  return metadata;
+}
+
+function isSummaryRow(row, detected, read) {
+  const productName = String(read(row, "productName") ?? "").trim();
+  const category = String(read(row, "category") ?? "").trim();
+  const rowText = row.map((cell) => String(cell ?? "").trim()).filter(Boolean).join(" ").toLowerCase();
+  if (!productName) return true;
+  if (/^(total|grand total|subtotal|summary)$/i.test(productName)) return true;
+  if (/^(total|grand total|subtotal|summary)$/i.test(category)) return true;
+  if (detected.rowIndex >= 0 && rowText.includes("total") && !canonical(productName).replace(/total/g, "")) return true;
+  return false;
+}
+
 function mapParsedRows(rawRows) {
   const detected = detectColumnMapping(rawRows);
   const missingFields = requiredProductFields.filter((field) => !detected.mapping[field]);
@@ -214,18 +248,22 @@ function mapParsedRows(rawRows) {
     return column ? row[column.index] : "";
   };
   const items = dataRows.map((row, index) => {
+    if (isSummaryRow(row, detected, read)) return null;
     const quantity = parseAmount(read(row, "quantity"));
     const nettSales = parseAmount(read(row, "nettSales"));
-    const discount = parseAmount(read(row, "discount"));
+    const baseDiscount = detected.mapping.discount ? parseAmount(read(row, "discount")) : 0;
+    const billDiscount = detected.mapping.billDiscount ? parseAmount(read(row, "billDiscount")) : 0;
+    const itemDiscount = detected.mapping.itemDiscount ? parseAmount(read(row, "itemDiscount")) : 0;
+    const discount = [baseDiscount, billDiscount, itemDiscount].some((value) => value === null) ? null : baseDiscount + billDiscount + itemDiscount;
     const sst = parseAmount(read(row, "sst"));
     const serviceCharge = parseAmount(read(row, "serviceCharge"));
     const explicitGrossSales = detected.mapping.grossSales ? parseAmount(read(row, "grossSales")) : null;
     const grossSales = explicitGrossSales ?? (nettSales !== null && discount !== null ? nettSales + discount : 0);
+    const productName = String(read(row, "productName") ?? "").trim();
+    if (!productName) return null;
     if ([quantity, grossSales, discount, sst, serviceCharge, nettSales].some((value) => value === null)) {
       throw new Error(`Row ${detected.rowIndex + index + 2}: invalid number found.`);
     }
-    const productName = String(read(row, "productName") ?? "").trim();
-    if (!productName) throw new Error(`Row ${detected.rowIndex + index + 2}: product name is required.`);
     return {
       category_name: String(read(row, "category") ?? "Uncategorized").trim() || "Uncategorized",
       product_name: productName,
@@ -238,9 +276,13 @@ function mapParsedRows(rawRows) {
       nett_sales: nettSales,
       source_row: detected.rowIndex + index + 2,
     };
-  });
+  }).filter(Boolean);
   return {
     items,
+    metadata: {
+      ...extractFeedMeMetadata(rawRows),
+      header_row: detected.rowIndex + 1,
+    },
     mapping: Object.fromEntries(
       Object.entries(productColumnLabels).map(([field, label]) => [
         field,
@@ -403,7 +445,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [rankBy, setRankBy] = useState("sales");
   const [lowFilter, setLowFilter] = useState(5);
-  const [uploadForm, setUploadForm] = useState({ outletId: "", month: new Date().getMonth() + 1, year: new Date().getFullYear(), file: null, parsedItems: [], columnMapping: null, parseError: "" });
+  const [uploadForm, setUploadForm] = useState({ outletId: "", month: new Date().getMonth() + 1, year: new Date().getFullYear(), file: null, parsedItems: [], columnMapping: null, reportMetadata: {}, parseError: "" });
   const canUpload = hasPermission(auth, "product_analytics.upload");
   const canExportReport = canExport(auth, "product_analytics");
   const canManageReports = canManage(auth, "product_analytics");
@@ -508,11 +550,12 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
         file,
         parsedItems: parsedReport.items,
         columnMapping: parsedReport.mapping,
+        reportMetadata: parsedReport.metadata,
         parseError: "",
       }));
     } catch (error) {
       console.error("Unable to parse product report", error);
-      setUploadForm((currentForm) => ({ ...currentForm, file, parsedItems: [], columnMapping: null, parseError: error.message }));
+      setUploadForm((currentForm) => ({ ...currentForm, file, parsedItems: [], columnMapping: null, reportMetadata: {}, parseError: error.message }));
     }
   }
 
@@ -544,7 +587,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
         fileName: uploadForm.file.name,
         items: uploadForm.parsedItems,
         existingReportId: existing?.id ?? null,
-        metadata: { column_mapping: uploadForm.columnMapping, row_count: uploadForm.parsedItems.length },
+        metadata: { ...uploadForm.reportMetadata, column_mapping: uploadForm.columnMapping, row_count: uploadForm.parsedItems.length },
       });
       const nextReports = await productAnalyticsService.listReports({ outletIds: activeOutlets.map((outlet) => outlet.id) });
       setReports(nextReports);
@@ -552,7 +595,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
       setMonth(report.report_month);
       setYear(report.report_year);
       setUploadModal(false);
-      setUploadForm({ outletId: "", month: new Date().getMonth() + 1, year: new Date().getFullYear(), file: null, parsedItems: [], columnMapping: null, parseError: "" });
+      setUploadForm({ outletId: "", month: new Date().getMonth() + 1, year: new Date().getFullYear(), file: null, parsedItems: [], columnMapping: null, reportMetadata: {}, parseError: "" });
       ui.notify({ title: "Product report uploaded", message: "Product analytics updated." });
     } catch (error) {
       console.error("Unable to upload product report", error);
@@ -753,6 +796,17 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
               </div>
             </div>
           ) : null}
+          {uploadForm.columnMapping && Object.keys(uploadForm.reportMetadata ?? {}).length ? (
+            <div className="mt-4 rounded-2xl border border-border bg-slate-50 p-4">
+              <div className="text-sm font-bold text-text-primary">Report details detected</div>
+              <div className="mt-3 grid gap-2 text-xs font-semibold text-text-secondary md:grid-cols-2">
+                {uploadForm.reportMetadata.merchant ? <div>Merchant: <span className="text-text-primary">{uploadForm.reportMetadata.merchant}</span></div> : null}
+                {uploadForm.reportMetadata.report_date_range ? <div>Date: <span className="text-text-primary">{uploadForm.reportMetadata.report_date_range}</span></div> : null}
+                {uploadForm.reportMetadata.time_range ? <div>Time: <span className="text-text-primary">{uploadForm.reportMetadata.time_range}</span></div> : null}
+                {uploadForm.reportMetadata.generated_at ? <div>Generated: <span className="text-text-primary">{uploadForm.reportMetadata.generated_at}</span></div> : null}
+              </div>
+            </div>
+          ) : null}
         </Modal>
       ) : null}
 
@@ -769,7 +823,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
                 <div className="flex justify-end gap-2">
                   <button className="btn-secondary h-8 text-xs" type="button" onClick={() => { setOutletId(row.outlet_id); setMonth(row.report_month); setYear(row.report_year); setHistoryOpen(false); }}>View</button>
                   {canManageReports ? <button className="btn-secondary h-8 text-xs" type="button" onClick={() => {
-                    setUploadForm({ outletId: row.outlet_id, month: row.report_month, year: row.report_year, file: null, parsedItems: [], columnMapping: null, parseError: "" });
+                    setUploadForm({ outletId: row.outlet_id, month: row.report_month, year: row.report_year, file: null, parsedItems: [], columnMapping: null, reportMetadata: {}, parseError: "" });
                     setHistoryOpen(false);
                     setUploadModal(true);
                   }}>Replace</button> : null}

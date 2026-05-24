@@ -459,6 +459,10 @@ Upload rules:
 - Variant, Gross Sales, Discount, SST, and Service Charge are optional.
 - Gross Sales defaults to Nett Sales + Discount when possible, otherwise 0.
 - Parser scans the first 20 rows to detect the actual table header for POS exports with title rows.
+- FeedMe Product Sales format is supported. The parser detects headers such as Category, Name, Variant, Code, Qty, Gross, Bill discount, Item discount, SST, SC, and Nett.
+- FeedMe metadata rows are preserved in report metadata when present: merchant, report date range, time range, and generated time.
+- FeedMe discount import combines Bill discount and Item discount into total Discount.
+- Total summary rows and category subtotal rows without a product name are skipped.
 - Upload modal shows a detected column mapping preview before import.
 - Parser errors are shown inside the upload modal and must not crash the page.
 - Duplicate report detection uses outlet, month, and year.
