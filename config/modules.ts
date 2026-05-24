@@ -7,6 +7,7 @@ export type ModuleAction =
   | "approve"
   | "export"
   | "import"
+  | "upload"
   | "manage"
   | "enable_login"
   | "reset_password";
@@ -32,6 +33,7 @@ export const permissionActionOrder: ModuleAction[] = [
   "approve",
   "manage",
   "import",
+  "upload",
   "export",
 ];
 
@@ -46,6 +48,7 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   approve: "Approve",
   manage: "Manage",
   import: "Import",
+  upload: "Upload",
   export: "Export",
 };
 
@@ -69,6 +72,15 @@ export const moduleRegistry: AppModule[] = [
     icon: "dashboard",
     sidebar: true,
     permissions: { view: true },
+  },
+  {
+    id: "product_analytics",
+    section: "Overview",
+    label: "Product Analytics",
+    route: "/product-analytics",
+    icon: "product-analytics",
+    sidebar: true,
+    permissions: { view: true, upload: true, export: true, manage: true },
   },
   {
     id: "sales-input",

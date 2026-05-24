@@ -77,6 +77,7 @@ Final sidebar structure:
 OVERVIEW
 - Outlet P&L
 - S&P Dashboard
+- Product Analytics
 - Sales Comparison
 - Purchase Comparison
 - Alerts & Insights
@@ -384,7 +385,106 @@ KPI layout:
 
 ---
 
-## 5.3 Sales Input
+## 5.3 Product Analytics
+
+Purpose:
+
+Upload monthly POS product sales reports and generate product performance analytics for management.
+
+Route:
+
+```text
+Overview > Product Analytics
+```
+
+Module registry:
+
+```text
+id: product_analytics
+section: Overview
+route: /product-analytics
+```
+
+Permissions:
+
+- product_analytics.view
+- product_analytics.upload
+- product_analytics.export
+- product_analytics.manage
+
+Data tables:
+
+```text
+product_sales_reports
+product_sales_items
+```
+
+Product sales report fields:
+
+- id
+- outlet_id
+- report_month
+- report_year
+- file_name
+- uploaded_by
+- uploaded_at
+- status
+- total_net_sales
+- total_quantity
+- total_discount
+- raw_metadata
+
+Product sales item fields:
+
+- id
+- report_id
+- outlet_id
+- category_name
+- product_name
+- variant_name
+- quantity
+- gross_sales
+- discount
+- sst
+- service_charge
+- nett_sales
+- created_at
+
+Upload rules:
+
+- Upload requires outlet, month, year, and report file.
+- CSV and standard XLSX reports must include Category, Product Name, Variant, Quantity, Gross Sales, Discount, SST, Service Charge, and Nett Sales.
+- Duplicate report detection uses outlet, month, and year.
+- Replacing a report removes the previous report items and imports the new report.
+- Upload history is retained through product sales report records.
+
+Dashboard sections:
+
+- KPI cards: Total Net Sales, Total Quantity Sold, Average Spend / Item, Best Selling Product, Lowest Performer, Discount Given, Top Category, Menu Items Sold.
+- Top 10 Best Selling Products with Net Sales / Quantity toggle.
+- Category Contribution donut.
+- Product Performance Matrix.
+- Dead Menu / Low Performers.
+- Monthly Trend for top products when historical uploads exist.
+- Rule-based insights.
+
+RBAC and outlet scope:
+
+- View page requires product_analytics.view.
+- Upload Report requires product_analytics.upload.
+- Export requires product_analytics.export.
+- Upload History delete/manage actions require product_analytics.manage.
+- Owner/admin can view all outlets.
+- Custom roles only see reports for outlets assigned through role outlet scope.
+
+Current status:
+
+- CSV upload is implemented.
+- Standard XLSX worksheet upload is implemented through the browser parser path.
+
+---
+
+## 5.4 Sales Input
 
 Purpose:
 
@@ -1744,6 +1844,13 @@ Outlet P&L:
 Dashboard:
 
 - dashboard.view
+
+Product Analytics:
+
+- product_analytics.view
+- product_analytics.upload
+- product_analytics.export
+- product_analytics.manage
 
 Sales Comparison:
 
