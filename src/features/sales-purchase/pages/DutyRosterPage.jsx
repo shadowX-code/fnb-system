@@ -541,7 +541,7 @@ function BreakDurationField({ value, onChange }) {
   );
 }
 
-function buildRosterShareSvg({ outletName, rangeLabel, status, groups, weekDates, rosterByEmployeeDate, generatedAt }) {
+function buildRosterShareHorizontalSvg({ outletName, rangeLabel, status, groups, weekDates, rosterByEmployeeDate, generatedAt }) {
   const width = 1600;
   const leftWidth = 260;
   const columnWidth = 178;
@@ -631,15 +631,126 @@ function buildRosterShareSvg({ outletName, rangeLabel, status, groups, weekDates
   `;
 }
 
-function svgToPng(svgMarkup, width = 1600) {
+function shiftShareTone(template) {
+  const code = template?.code;
+  if (!template) return { fill: "#f8fafc", stroke: "#e2e8f0", text: "#94a3b8" };
+  if (code === "OFF") return { fill: "#f1f5f9", stroke: "#cbd5e1", text: "#64748b" };
+  if (code === "AL" || code === "MC") return { fill: "#f5f3ff", stroke: "#ddd6fe", text: "#6d28d9" };
+  if (code === "MID") return { fill: "#fffbeb", stroke: "#fde68a", text: "#92400e" };
+  if (code === "CLOSING") return { fill: "#fff1f2", stroke: "#fecdd3", text: "#be123c" };
+  if (code === "FULL") return { fill: "#eff6ff", stroke: "#bfdbfe", text: "#1d4ed8" };
+  return { fill: "#ecfdf5", stroke: "#bbf7d0", text: "#065f46" };
+}
+
+function buildRosterShareVerticalSvg({ outletName, rangeLabel, status, groups, weekDates, rosterByEmployeeDate, generatedAt }) {
+  const width = 900;
+  const margin = 34;
+  const headerHeight = 170;
+  const legendHeight = 66;
+  const groupHeaderHeight = 44;
+  const employeeCardBase = 92;
+  const dayRowHeight = 36;
+  const footerHeight = 62;
+  const weekValues = weekDates.map(toDateInputValue);
+  const employees = groups.flatMap((group) => [
+    { type: "group", label: group.label },
+    ...group.employees.map((employee) => ({ type: "employee", employee })),
+  ]);
+  const bodyHeight = employees.reduce((sum, row) => {
+    if (row.type === "group") return sum + groupHeaderHeight;
+    return sum + employeeCardBase + weekValues.length * dayRowHeight;
+  }, 0);
+  const height = Math.max(1280, headerHeight + legendHeight + bodyHeight + footerHeight + margin);
+  let y = headerHeight;
+
+  const legend = [
+    ["Morning", "#ecfdf5", "#065f46"],
+    ["Mid", "#fffbeb", "#92400e"],
+    ["Closing", "#fff1f2", "#be123c"],
+    ["Full", "#eff6ff", "#1d4ed8"],
+    ["Leave", "#f5f3ff", "#6d28d9"],
+    ["OFF", "#f1f5f9", "#64748b"],
+  ].map(([label, fill, text], index) => {
+    const x = margin + index * 135;
+    return `
+      <rect x="${x}" y="${headerHeight - 4}" width="120" height="34" rx="17" fill="${fill}" stroke="#e5e7eb"/>
+      <text x="${x + 60}" y="${headerHeight + 18}" text-anchor="middle" font-size="13" font-weight="800" fill="${text}">${escapeXml(label)}</text>
+    `;
+  }).join("");
+
+  y += legendHeight;
+
+  const body = employees.map((row) => {
+    if (row.type === "group") {
+      const markup = `
+        <rect x="${margin}" y="${y}" width="${width - margin * 2}" height="36" rx="14" fill="#ecfdf5"/>
+        <text x="${margin + 18}" y="${y + 24}" font-size="17" font-weight="900" fill="#047857" letter-spacing="3">${escapeXml(row.label)}</text>
+      `;
+      y += groupHeaderHeight;
+      return markup;
+    }
+
+    const employee = row.employee;
+    const cardY = y;
+    const cardHeight = employeeCardBase + weekValues.length * dayRowHeight;
+    y += cardHeight + 10;
+    const initials = String(employee.nickname || employee.full_name || "?").trim().slice(0, 2).toUpperCase();
+    const dayRows = weekValues.map((dateValue, index) => {
+      const rowY = cardY + 74 + index * dayRowHeight;
+      const date = weekDates[index];
+      const roster = rosterByEmployeeDate.get(rosterKey(employee.id, dateValue));
+      const template = roster?.template;
+      const code = template?.code;
+      const isNonWorking = template && nonWorkingCodes.has(code);
+      const tone = shiftShareTone(template);
+      const shiftLabel = template ? (isNonWorking ? code : formatShiftTimeRange(roster.start_time, roster.end_time)) : "-";
+      const subLabel = template && !isNonWorking ? template.name : template?.name || "No shift";
+      return `
+        <text x="${margin + 84}" y="${rowY + 22}" font-size="14" font-weight="800" fill="#6b7280">${escapeXml(`${dayLabels[(date.getDay() + 6) % 7]} ${formatDay(date)}`)}</text>
+        <rect x="${margin + 246}" y="${rowY + 4}" width="${width - margin * 2 - 260}" height="28" rx="14" fill="${tone.fill}" stroke="${tone.stroke}"/>
+        <text x="${margin + 266}" y="${rowY + 23}" font-size="14" font-weight="900" fill="${tone.text}">${escapeXml(shiftLabel)}</text>
+        <text x="${width - margin - 24}" y="${rowY + 23}" text-anchor="end" font-size="12" font-weight="700" fill="${tone.text}" opacity="0.7">${escapeXml(subLabel)}</text>
+      `;
+    }).join("");
+
+    return `
+      <rect x="${margin}" y="${cardY}" width="${width - margin * 2}" height="${cardHeight}" rx="24" fill="#ffffff" stroke="#e5e7eb"/>
+      <circle cx="${margin + 38}" cy="${cardY + 38}" r="24" fill="#dcfce7"/>
+      <text x="${margin + 38}" y="${cardY + 45}" text-anchor="middle" font-size="17" font-weight="900" fill="#047857">${escapeXml(initials)}</text>
+      <text x="${margin + 78}" y="${cardY + 34}" font-size="20" font-weight="900" fill="#111827">${escapeXml(employee.nickname || employee.full_name)}</text>
+      <text x="${margin + 78}" y="${cardY + 57}" font-size="14" font-weight="700" fill="#6b7280">${escapeXml(employee.position || "Employee")}</text>
+      ${dayRows}
+    `;
+  }).join("");
+
+  return `
+    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+      <rect width="${width}" height="${height}" fill="#f7f8fa"/>
+      <rect x="18" y="18" width="${width - 36}" height="${height - 36}" rx="34" fill="#ffffff" stroke="#e5e7eb"/>
+      <circle cx="${margin + 28}" cy="72" r="22" fill="#dcfce7"/>
+      <text x="${margin + 28}" y="80" text-anchor="middle" font-size="23" font-weight="900" fill="#16a34a">F</text>
+      <text x="${margin + 66}" y="66" font-size="28" font-weight="900" fill="#111827">${escapeXml(outletName)}</text>
+      <text x="${margin + 66}" y="98" font-size="18" font-weight="800" fill="#6b7280">Duty Roster · ${escapeXml(rangeLabel)}</text>
+      <rect x="${width - margin - 132}" y="54" width="110" height="38" rx="19" fill="#ecfdf5" stroke="#bbf7d0"/>
+      <text x="${width - margin - 77}" y="78" text-anchor="middle" font-size="14" font-weight="900" fill="#047857">${escapeXml(status)}</text>
+      ${legend}
+      ${body}
+      <text x="${margin}" y="${height - 44}" font-size="13" font-weight="700" fill="#6b7280">Generated ${escapeXml(generatedAt)} · FeedX Duty Roster</text>
+      <text x="${width - margin}" y="${height - 44}" text-anchor="end" font-size="13" font-weight="700" fill="#6b7280">Mobile share layout</text>
+    </svg>
+  `;
+}
+
+function svgToPng(svgMarkup) {
   return new Promise((resolve, reject) => {
     const image = new Image();
     const blob = new Blob([svgMarkup], { type: "image/svg+xml;charset=utf-8" });
     const url = URL.createObjectURL(blob);
     image.onload = () => {
       const canvas = document.createElement("canvas");
-      const scale = Math.min(2, Math.max(1, window.devicePixelRatio || 1));
-      const height = image.height || 900;
+      const scale = Math.min(3, Math.max(2, window.devicePixelRatio || 2));
+      const width = image.naturalWidth || image.width || 1600;
+      const height = image.naturalHeight || image.height || 900;
       canvas.width = width * scale;
       canvas.height = height * scale;
       const context = canvas.getContext("2d");
@@ -663,7 +774,7 @@ function svgToPng(svgMarkup, width = 1600) {
   });
 }
 
-function ShareRosterModal({ image, loading, error, onDownload, onCopy, onClose }) {
+function ShareRosterModal({ image, layout, onLayoutChange, loading, error, onDownload, onCopy, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-[2px]" role="dialog" aria-modal="true">
       <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-border bg-surface shadow-2xl">
@@ -675,6 +786,27 @@ function ShareRosterModal({ image, loading, error, onDownload, onCopy, onClose }
           </div>
           <button className="icon-btn" type="button" onClick={onClose} aria-label="Close share roster"><X size={18} /></button>
         </header>
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-surface px-5 py-3">
+          <div>
+            <div className="text-xs font-black uppercase tracking-[0.14em] text-text-muted">Share Layout</div>
+            <p className="mt-0.5 text-xs font-semibold text-text-secondary">Choose the staff-facing image format.</p>
+          </div>
+          <div className="flex rounded-2xl border border-border bg-background p-1">
+            {[
+              { value: "horizontal", label: "Horizontal" },
+              { value: "vertical", label: "Vertical" },
+            ].map((option) => (
+              <button
+                key={option.value}
+                className={`rounded-xl px-4 py-2 text-xs font-black transition ${layout === option.value ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:text-text-primary"}`}
+                type="button"
+                onClick={() => onLayoutChange(option.value)}
+              >
+                {option.label}
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="min-h-0 flex-1 overflow-auto bg-background p-4">
           {loading ? <div className="rounded-3xl border border-border bg-surface p-10 text-center text-sm font-semibold text-text-secondary">Generating roster image...</div> : null}
           {error ? <div className="rounded-3xl border border-rose-200 bg-rose-50 p-5 text-sm font-semibold text-rose-700">{error}</div> : null}
@@ -1292,6 +1424,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
   const [bulkDrawer, setBulkDrawer] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
+  const [shareLayout, setShareLayout] = useState("horizontal");
   const [shareImage, setShareImage] = useState(null);
   const [shareLoading, setShareLoading] = useState(false);
   const [shareError, setShareError] = useState("");
@@ -1690,12 +1823,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
     setWeekStart(toDateInputValue(viewMode === "month" ? startOfMonth(next) : startOfWeek(next)));
   }
 
-  async function prepareShareRoster() {
-    if (!canExportRoster) {
-      notifyPermissionDenied(ui, "share duty roster");
-      return;
-    }
-    setShareOpen(true);
+  async function generateShareRosterImage(nextLayout = shareLayout) {
     setShareLoading(true);
     setShareError("");
     setShareImage(null);
@@ -1707,7 +1835,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
         hour: "numeric",
         minute: "2-digit",
       }).format(new Date());
-      const svg = buildRosterShareSvg({
+      const sharePayload = {
         outletName,
         rangeLabel: formatWeekRange(weekDates),
         status: period?.status === "locked" ? "Locked" : period?.status === "published" ? "Published" : "Draft",
@@ -1715,7 +1843,10 @@ export default function DutyRosterPage({ store, ui, auth }) {
         weekDates,
         rosterByEmployeeDate,
         generatedAt,
-      });
+      };
+      const svg = nextLayout === "vertical"
+        ? buildRosterShareVerticalSvg(sharePayload)
+        : buildRosterShareHorizontalSvg(sharePayload);
       const image = await svgToPng(svg);
       setShareImage(image);
     } catch (shareError) {
@@ -1726,11 +1857,34 @@ export default function DutyRosterPage({ store, ui, auth }) {
     }
   }
 
+  async function prepareShareRoster() {
+    if (!canExportRoster) {
+      notifyPermissionDenied(ui, "share duty roster");
+      return;
+    }
+    setShareLayout("horizontal");
+    setShareOpen(true);
+    await generateShareRosterImage("horizontal");
+  }
+
+  async function changeShareLayout(nextLayout) {
+    setShareLayout(nextLayout);
+    await generateShareRosterImage(nextLayout);
+  }
+
+  function shareFileRange() {
+    const start = weekDates[0];
+    const end = weekDates[6];
+    const month = new Intl.DateTimeFormat("en-MY", { month: "short" }).format(start).toLowerCase();
+    const endMonth = new Intl.DateTimeFormat("en-MY", { month: "short" }).format(end).toLowerCase();
+    return `${start.getDate()}${month}-${end.getDate()}${endMonth}-${end.getFullYear()}`;
+  }
+
   function downloadShareRoster() {
     if (!shareImage?.dataUrl) return;
     const link = document.createElement("a");
     link.href = shareImage.dataUrl;
-    link.download = `duty-roster-${outletName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${weekDateValues[0]}.png`;
+    link.download = `duty-roster-${outletName.toLowerCase().replace(/[^a-z0-9]+/g, "-")}-${shareFileRange()}-${shareLayout}.png`;
     link.click();
   }
 
@@ -2099,6 +2253,8 @@ export default function DutyRosterPage({ store, ui, auth }) {
       {shareOpen ? (
         <ShareRosterModal
           image={shareImage}
+          layout={shareLayout}
+          onLayoutChange={changeShareLayout}
           loading={shareLoading}
           error={shareError}
           onDownload={downloadShareRoster}

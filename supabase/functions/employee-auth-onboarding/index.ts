@@ -215,7 +215,7 @@ async function handleRequest(request: Request) {
         ok: false,
         code: "AUTH_EMAIL_FAILED",
         message,
-        canGenerateManualLink: false,
+        canGenerateManualLink: true,
       }, 500);
     }
   }
@@ -244,9 +244,10 @@ async function handleRequest(request: Request) {
   return json({
     ok: true,
     mode,
-    message: mode === "manual_link" ? "Login setup link generated." : "Login setup email sent.",
+    message: mode === "manual_link" ? "Manual setup link generated." : "Login setup email sent.",
     warning: warning ?? (auditError ? "Login setup completed, but audit activity could not be recorded." : undefined),
     setupUrl,
+    setupLink: setupUrl,
     email,
     employeeId: employee.id,
     employee_id: employee.id,

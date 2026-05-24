@@ -774,6 +774,11 @@ function UserFormModal({
                   <KeyRound size={14} /> Send Login Setup Email
                 </button>
               ) : null}
+              {[EMPLOYEE_ACCESS_STATE.NOT_SENT, EMPLOYEE_ACCESS_STATE.INVITED].includes(getAccessState(values)) ? (
+                <button className="btn-secondary h-9 px-3 text-xs" type="button" disabled={!canResetPassword} onClick={() => onSendLoginSetup(values, { mode: "manual_link" })}>
+                  <KeyRound size={14} /> Generate Setup Link
+                </button>
+              ) : null}
             </div>
           ) : null}
           </>
@@ -805,6 +810,8 @@ export default function UsersPage({ ui, store, auth }) {
   const [profileMode, setProfileMode] = useState("view");
   const [formState, setFormState] = useState(null);
   const [actionMenuUserId, setActionMenuUserId] = useState(null);
+  const [setupLink, setSetupLink] = useState(null);
+  const [setupFallback, setSetupFallback] = useState(null);
   const canCreateEmployee = canCreate(auth, "employees");
   const canEditEmployee = canEdit(auth, "employees");
   const canDeactivateEmployee = hasPermission(auth, "employees.deactivate");
@@ -887,8 +894,6 @@ export default function UsersPage({ ui, store, auth }) {
     setActionMenuUserId(null);
   }
 
-  const [setupLink, setSetupLink] = useState(null);
-
   async function sendLoginSetupForUser(user, { mode = "email" } = {}) {
     if (!canResetPassword) {
       notifyPermissionDenied(ui, "send password setup links");
@@ -919,7 +924,10 @@ export default function UsersPage({ ui, store, auth }) {
       } catch (refreshError) {
         console.warn("Login setup succeeded, but employee refresh failed", refreshError);
       }
-      if (result.setupUrl) setSetupLink({ email: result.email, link: result.setupUrl });
+      if (result.setupUrl) {
+        setSetupLink({ email: result.email, link: result.setupUrl });
+        setSetupFallback(null);
+      }
       ui.notify({
         title: result.setupUrl ? "Setup link generated." : "Login setup email sent.",
         message: result.warning || result.message || result.email || user.email,
@@ -929,17 +937,34 @@ export default function UsersPage({ ui, store, auth }) {
       return result;
     } catch (error) {
       console.error("Unable to send login setup", error);
-      if (error.code === "SMTP_NOT_CONFIGURED" && error.canGenerateManualLink && auth?.hasPermission?.("roles.edit") && mode !== "manual_link") {
-        const ok = await ui.confirm({
-          title: "Email sending is not configured",
-          message: "Email delivery is not configured. Generate a secure setup link to copy manually?",
-          confirmLabel: "Generate Setup Link",
+      if (error.canGenerateManualLink && mode !== "manual_link") {
+        setSetupFallback({
+          user,
+          code: error.code,
+          title: error.code === "SMTP_NOT_CONFIGURED" ? "Email sending is not configured." : "Login setup email was not sent.",
+          message: error.message || "Generate a secure setup link to copy manually.",
         });
-        if (ok) return sendLoginSetupForUser(user, { mode: "manual_link" });
+        ui.notify({
+          title: error.code === "SMTP_NOT_CONFIGURED" ? "Email sending is not configured." : "Login setup email was not sent.",
+          message: "Generate a secure setup link to copy manually.",
+          tone: "warning",
+        });
+        closeActionMenu();
+        return null;
       }
       ui.notify({ title: "Unable to send login setup", message: error.message || "Please configure email delivery.", tone: "error" });
       throw error;
     }
+  }
+
+  function openManualSetupFallback(user, message = "Generate a secure setup link to copy manually.") {
+    setSetupFallback({
+      user,
+      code: "MANUAL_LINK_AVAILABLE",
+      title: "Generate Setup Link",
+      message,
+    });
+    closeActionMenu();
   }
 
   async function disableUserAccess(user) {
@@ -1040,6 +1065,9 @@ export default function UsersPage({ ui, store, auth }) {
         <>
           {canResetPassword ? <button className={buttonClass} type="button" onClick={() => sendLoginSetupForUser(row)}>
             <KeyRound size={14} /> Send Login Setup
+          </button> : null}
+          {canResetPassword ? <button className={buttonClass} type="button" onClick={() => openManualSetupFallback(row)}>
+            <KeyRound size={14} /> Generate Setup Link
           </button> : null}
           {canDeactivateEmployee ? <button className={dangerClass} type="button" onClick={() => disableUserAccess(row)}>
             <Power size={14} /> Disable Access
@@ -1317,6 +1345,32 @@ export default function UsersPage({ ui, store, auth }) {
                 Copy Link
               </button>
             </div>
+          </div>
+        </Modal>
+      ) : null}
+      {setupFallback ? (
+        <Modal
+          title={setupFallback.title}
+          description={setupFallback.message}
+          onClose={() => setSetupFallback(null)}
+          footer={(
+            <>
+              <button className="btn-secondary" type="button" onClick={() => setSetupFallback(null)}>Cancel</button>
+              <button
+                className="btn-primary"
+                type="button"
+                onClick={() => sendLoginSetupForUser(setupFallback.user, { mode: "manual_link" })}
+              >
+                Generate Setup Link
+              </button>
+            </>
+          )}
+        >
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            <div className="font-bold">Email sending is unavailable for this login setup.</div>
+            <p className="mt-1 font-medium">
+              Generate a secure setup link for {setupFallback.user?.email || "this employee"} and share it manually. Admins cannot create, view, or recover passwords.
+            </p>
           </div>
         </Modal>
       ) : null}

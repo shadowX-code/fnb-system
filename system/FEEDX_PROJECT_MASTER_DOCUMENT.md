@@ -1822,6 +1822,25 @@ SMTP not configured:
 }
 ```
 
+Manual setup link:
+
+```json
+{
+  "ok": true,
+  "mode": "manual_link",
+  "setupLink": "...",
+  "message": "Manual setup link generated.",
+  "accessState": "invited"
+}
+```
+
+Frontend fallback behavior:
+
+- Email setup success shows "Login setup email sent." only when the Edge Function returns ok true for email mode.
+- Email setup failure with canGenerateManualLink shows a warning modal with Generate Setup Link.
+- Employees already in Invitation Pending can still resend setup email or generate a manual setup link.
+- Manual setup links are copyable and do not expose passwords.
+
 Password recovery:
 
 - Detect recovery callback tokens.
@@ -2054,11 +2073,21 @@ Roster settings:
   - Roster Grid.
 - Right-side Department Coverage card is removed from the scheduling workspace.
 - Share Roster follows duty_roster.export permission.
-- Share Roster generates a clean light-theme roster image with:
+- Share Roster generates clean light-theme roster images with selectable layouts:
+  - Horizontal for desktop viewing, printing, and wide WhatsApp images.
+  - Vertical for mobile WhatsApp sharing.
+- Horizontal share image uses:
   - Outlet name.
   - Week date range.
   - Roster status.
   - Employee groups by Floor/Kitchen/Other.
+  - 7-day table with employee rows.
+- Vertical share image uses:
+  - Portrait layout.
+  - Legend row.
+  - Group sections.
+  - Employee cards with daily shift pills.
+- Both layouts include:
   - Friendly shift time format.
   - Generated date/time footer.
 - Share image actions:

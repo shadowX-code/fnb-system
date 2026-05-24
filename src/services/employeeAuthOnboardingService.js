@@ -39,7 +39,7 @@ export const employeeAuthOnboardingService = {
       const setupError = new Error(payload?.message || payload?.error || formatFunctionError(error));
       setupError.code = payload?.code;
       setupError.canGenerateManualLink = Boolean(payload?.canGenerateManualLink);
-      setupError.setupUrl = payload?.setupUrl;
+      setupError.setupUrl = payload?.setupLink || payload?.setupUrl;
       throw setupError;
     }
 
@@ -52,10 +52,14 @@ export const employeeAuthOnboardingService = {
       const setupError = new Error(data.message || data.error || "Unable to send login setup email.");
       setupError.code = data.code;
       setupError.canGenerateManualLink = Boolean(data.canGenerateManualLink);
-      setupError.setupUrl = data.setupUrl;
+      setupError.setupUrl = data.setupLink || data.setupUrl;
       throw setupError;
     }
 
-    return data;
+    return {
+      ...data,
+      setupUrl: data?.setupLink || data?.setupUrl,
+      setupLink: data?.setupLink || data?.setupUrl,
+    };
   },
 };
