@@ -547,7 +547,7 @@ function buildRosterShareHorizontalSvg({ outletName, rangeLabel, status, groups,
   const leftWidth = 280;
   const columnWidth = 174;
   const headerHeight = 128;
-  const dateHeaderHeight = 58;
+  const dateHeaderHeight = 64;
   const groupHeight = 34;
   const rowHeight = 62;
   const footerHeight = 42;
@@ -568,7 +568,7 @@ function buildRosterShareHorizontalSvg({ outletName, rangeLabel, status, groups,
       const markup = `
         <rect x="${margin}" y="${y}" width="${width - margin * 2}" height="${groupHeight}" rx="12" fill="#f4fbf6"/>
         <line x1="${margin + 16}" y1="${y + groupHeight / 2}" x2="${margin + 52}" y2="${y + groupHeight / 2}" stroke="#22c55e" stroke-width="3" stroke-linecap="round"/>
-        <text x="${margin + 66}" y="${y + 23}" font-size="17" font-weight="850" fill="#047857" letter-spacing="2.5">${escapeXml(row.label)}</text>
+        <text x="${margin + 66}" y="${y + 23}" font-size="17" font-weight="600" fill="#047857" letter-spacing="2.5">${escapeXml(row.label)}</text>
       `;
       y += groupHeight;
       return markup;
@@ -587,16 +587,16 @@ function buildRosterShareHorizontalSvg({ outletName, rangeLabel, status, groups,
       const tone = shiftShareTone(template);
       return `
         <rect x="${cellX + 9}" y="${rowY + 9}" width="${columnWidth - 18}" height="44" rx="16" fill="${tone.fill}" stroke="${tone.stroke}" filter="url(#softShadow)"/>
-        <text x="${cellX + columnWidth / 2}" y="${rowY + 28}" text-anchor="middle" font-size="16" font-weight="850" fill="${tone.text}">${escapeXml(label)}</text>
-        <text x="${cellX + columnWidth / 2}" y="${rowY + 45}" text-anchor="middle" font-size="11" font-weight="750" fill="${tone.text}" opacity="0.68">${escapeXml(subLabel)}</text>
+        <text x="${cellX + columnWidth / 2}" y="${rowY + 28}" text-anchor="middle" font-size="16" font-weight="600" fill="${tone.text}">${escapeXml(label)}</text>
+        <text x="${cellX + columnWidth / 2}" y="${rowY + 45}" text-anchor="middle" font-size="11" font-weight="500" fill="${tone.text}" opacity="0.68">${escapeXml(subLabel)}</text>
       `;
     }).join("");
 
     return `
       <rect x="${margin}" y="${rowY}" width="${width - margin * 2}" height="${rowHeight}" fill="#ffffff"/>
       <line x1="${margin + 8}" y1="${rowY + rowHeight}" x2="${width - margin - 8}" y2="${rowY + rowHeight}" stroke="#e5e7eb"/>
-      <text x="${margin + 22}" y="${rowY + 28}" font-size="20" font-weight="850" fill="#111827">${escapeXml(employee.nickname || employee.full_name)}</text>
-      <text x="${margin + 22}" y="${rowY + 49}" font-size="13" font-weight="650" fill="#6b7280">${escapeXml(employee.position || "Employee")}</text>
+      <text x="${margin + 22}" y="${rowY + 28}" font-size="20" font-weight="700" fill="#111827">${escapeXml(employee.nickname || employee.full_name)}</text>
+      <text x="${margin + 22}" y="${rowY + 49}" font-size="13" font-weight="500" fill="#6b7280">${escapeXml(employee.position || "Employee")}</text>
       ${cells}
     `;
   }).join("");
@@ -604,13 +604,14 @@ function buildRosterShareHorizontalSvg({ outletName, rangeLabel, status, groups,
   const dateHeaders = weekDates.map((date, index) => {
     const x = margin + leftWidth + index * columnWidth;
     return `
-      <text x="${x + columnWidth / 2}" y="${headerHeight + 22}" text-anchor="middle" font-size="16" font-weight="900" fill="#64748b" letter-spacing="2">${dayLabels[(date.getDay() + 6) % 7].toUpperCase()}</text>
-      <text x="${x + columnWidth / 2}" y="${headerHeight + 47}" text-anchor="middle" font-size="20" font-weight="850" fill="#111827">${escapeXml(formatColumnDate(date))}</text>
+      <rect x="${x + 14}" y="${headerHeight + 9}" width="${columnWidth - 28}" height="46" rx="14" fill="#ffffff" stroke="#e5e7eb"/>
+      <text x="${x + columnWidth / 2}" y="${headerHeight + 28}" text-anchor="middle" font-size="13" font-weight="600" fill="#64748b" letter-spacing="2.2">${dayLabels[(date.getDay() + 6) % 7].toUpperCase()}</text>
+      <text x="${x + columnWidth / 2}" y="${headerHeight + 49}" text-anchor="middle" font-size="18" font-weight="700" fill="#111827">${escapeXml(formatColumnDate(date))}</text>
     `;
   }).join("");
 
   return `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" style="font-family: Inter, Plus Jakarta Sans, Geist, Arial, sans-serif;">
       <defs>
         <filter id="softShadow" x="-10%" y="-30%" width="120%" height="160%">
           <feDropShadow dx="0" dy="4" stdDeviation="6" flood-color="#101828" flood-opacity="0.04"/>
@@ -620,19 +621,20 @@ function buildRosterShareHorizontalSvg({ outletName, rangeLabel, status, groups,
       <rect x="${margin / 2}" y="${margin / 2}" width="${width - margin}" height="${height - margin}" rx="24" fill="#ffffff" stroke="#e5e7eb"/>
       <rect x="${margin / 2}" y="${margin / 2}" width="${width - margin}" height="106" rx="24" fill="#f8faf8"/>
       <circle cx="${margin + 30}" cy="66" r="23" fill="#dcfce7"/>
-      <text x="${margin + 30}" y="74" text-anchor="middle" font-size="24" font-weight="900" fill="#16a34a">F</text>
-      <text x="${margin + 72}" y="56" font-size="32" font-weight="900" fill="#111827">${escapeXml(outletName)}</text>
-      <text x="${margin + 72}" y="88" font-size="18" font-weight="750" fill="#6b7280">Duty Roster · ${escapeXml(rangeLabel)}</text>
-      <text x="${width - margin - 220}" y="54" font-size="12" font-weight="800" fill="#94a3b8">Generated ${escapeXml(generatedAt)}</text>
+      <text x="${margin + 30}" y="74" text-anchor="middle" font-size="24" font-weight="700" fill="#16a34a">F</text>
+      <text x="${margin + 72}" y="56" font-size="32" font-weight="700" fill="#111827">${escapeXml(outletName)}</text>
+      <text x="${margin + 72}" y="84" font-size="15" font-weight="600" fill="#475569">Duty Roster</text>
+      <text x="${margin + 184}" y="84" font-size="15" font-weight="500" fill="#6b7280">${escapeXml(rangeLabel)}</text>
+      <text x="${width - margin - 222}" y="53" font-size="12" font-weight="500" fill="#94a3b8">Generated ${escapeXml(generatedAt)}</text>
       <rect x="${width - margin - 150}" y="65" width="126" height="34" rx="17" fill="#ecfdf5" stroke="#bbf7d0"/>
-      <text x="${width - margin - 87}" y="87" text-anchor="middle" font-size="13" font-weight="900" fill="#047857">${escapeXml(status)}</text>
+      <text x="${width - margin - 87}" y="87" text-anchor="middle" font-size="13" font-weight="600" fill="#047857">${escapeXml(status)}</text>
 
       <rect x="${margin}" y="${headerHeight}" width="${width - margin * 2}" height="${dateHeaderHeight}" rx="16" fill="#f8fafc" stroke="#e5e7eb"/>
-      <text x="${margin + 22}" y="${headerHeight + 38}" font-size="15" font-weight="900" fill="#64748b" letter-spacing="2">EMPLOYEE</text>
+      <text x="${margin + 22}" y="${headerHeight + 40}" font-size="14" font-weight="600" fill="#64748b" letter-spacing="2">EMPLOYEE</text>
       ${dateHeaders}
       ${rowMarkup}
 
-      <text x="${margin}" y="${height - 28}" font-size="12" font-weight="700" fill="#94a3b8">FeedX Duty Roster</text>
+      <text x="${margin}" y="${height - 28}" font-size="12" font-weight="500" fill="#94a3b8">Generated ${escapeXml(generatedAt)}</text>
     </svg>
   `;
 }
@@ -680,7 +682,7 @@ function buildRosterShareVerticalSvg({ outletName, rangeLabel, status, groups, w
     const x = margin + index * 126;
     return `
       <rect x="${x}" y="${headerHeight - 4}" width="112" height="26" rx="13" fill="${fill}" stroke="#e5e7eb"/>
-      <text x="${x + 56}" y="${headerHeight + 13}" text-anchor="middle" font-size="11" font-weight="800" fill="${text}">${escapeXml(label)}</text>
+      <text x="${x + 56}" y="${headerHeight + 13}" text-anchor="middle" font-size="11" font-weight="600" fill="${text}">${escapeXml(label)}</text>
     `;
   }).join("");
 
@@ -690,7 +692,7 @@ function buildRosterShareVerticalSvg({ outletName, rangeLabel, status, groups, w
     if (row.type === "group") {
       const markup = `
         <line x1="${margin}" y1="${y + 14}" x2="${margin + 50}" y2="${y + 14}" stroke="#22c55e" stroke-width="3" stroke-linecap="round"/>
-        <text x="${margin + 64}" y="${y + 19}" font-size="15" font-weight="900" fill="#047857" letter-spacing="2.4">${escapeXml(row.label)}</text>
+        <text x="${margin + 64}" y="${y + 19}" font-size="15" font-weight="600" fill="#047857" letter-spacing="2.4">${escapeXml(row.label)}</text>
       `;
       y += groupHeaderHeight;
       return markup;
@@ -712,25 +714,25 @@ function buildRosterShareVerticalSvg({ outletName, rangeLabel, status, groups, w
       const shiftLabel = template ? (isNonWorking ? code : formatShiftTimeRange(roster.start_time, roster.end_time)) : "-";
       const subLabel = template && !isNonWorking ? template.name : template?.name || "No shift";
       return `
-        <text x="${margin + 72}" y="${rowY + 18}" font-size="13" font-weight="850" fill="#64748b">${escapeXml(`${date.getDate()} ${dayLabels[(date.getDay() + 6) % 7]}`)}</text>
+        <text x="${margin + 72}" y="${rowY + 18}" font-size="13" font-weight="600" fill="#64748b">${escapeXml(`${date.getDate()} ${dayLabels[(date.getDay() + 6) % 7]}`)}</text>
         <rect x="${margin + 176}" y="${rowY + 2}" width="${width - margin * 2 - 188}" height="22" rx="11" fill="${tone.fill}" stroke="${tone.stroke}"/>
-        <text x="${margin + 192}" y="${rowY + 17}" font-size="13" font-weight="900" fill="${tone.text}">${escapeXml(shiftLabel)}</text>
-        <text x="${width - margin - 18}" y="${rowY + 17}" text-anchor="end" font-size="10" font-weight="750" fill="${tone.text}" opacity="0.68">${escapeXml(subLabel)}</text>
+        <text x="${margin + 192}" y="${rowY + 17}" font-size="13" font-weight="600" fill="${tone.text}">${escapeXml(shiftLabel)}</text>
+        <text x="${width - margin - 18}" y="${rowY + 17}" text-anchor="end" font-size="10" font-weight="500" fill="${tone.text}" opacity="0.68">${escapeXml(subLabel)}</text>
       `;
     }).join("");
 
     return `
       <rect x="${margin}" y="${cardY}" width="${width - margin * 2}" height="${cardHeight}" rx="16" fill="#ffffff" stroke="#e5e7eb" filter="url(#posterShadow)"/>
       <circle cx="${margin + 34}" cy="${cardY + 32}" r="20" fill="#dcfce7"/>
-      <text x="${margin + 34}" y="${cardY + 39}" text-anchor="middle" font-size="14" font-weight="900" fill="#047857">${escapeXml(initials)}</text>
-      <text x="${margin + 66}" y="${cardY + 28}" font-size="18" font-weight="880" fill="#111827">${escapeXml(employee.nickname || employee.full_name)}</text>
-      <text x="${margin + 66}" y="${cardY + 49}" font-size="12" font-weight="700" fill="#6b7280">${escapeXml(employee.position || "Employee")}</text>
+      <text x="${margin + 34}" y="${cardY + 39}" text-anchor="middle" font-size="14" font-weight="700" fill="#047857">${escapeXml(initials)}</text>
+      <text x="${margin + 66}" y="${cardY + 28}" font-size="18" font-weight="700" fill="#111827">${escapeXml(employee.nickname || employee.full_name)}</text>
+      <text x="${margin + 66}" y="${cardY + 49}" font-size="12" font-weight="500" fill="#6b7280">${escapeXml(employee.position || "Employee")}</text>
       ${dayRows}
     `;
   }).join("");
 
   return `
-    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
+    <svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}" style="font-family: Inter, Plus Jakarta Sans, Geist, Arial, sans-serif;">
       <defs>
         <filter id="posterShadow" x="-10%" y="-20%" width="120%" height="150%">
           <feDropShadow dx="0" dy="4" stdDeviation="7" flood-color="#101828" flood-opacity="0.04"/>
@@ -740,15 +742,16 @@ function buildRosterShareVerticalSvg({ outletName, rangeLabel, status, groups, w
       <rect x="14" y="14" width="${width - 28}" height="${height - 28}" rx="24" fill="#ffffff" stroke="#e5e7eb"/>
       <rect x="14" y="14" width="${width - 28}" height="104" rx="24" fill="#f8faf8"/>
       <circle cx="${margin + 24}" cy="60" r="20" fill="#dcfce7"/>
-      <text x="${margin + 24}" y="68" text-anchor="middle" font-size="21" font-weight="900" fill="#16a34a">F</text>
-      <text x="${margin + 58}" y="55" font-size="26" font-weight="900" fill="#111827">${escapeXml(outletName)}</text>
-      <text x="${margin + 58}" y="83" font-size="16" font-weight="760" fill="#6b7280">Duty Roster · ${escapeXml(rangeLabel)}</text>
+      <text x="${margin + 24}" y="68" text-anchor="middle" font-size="21" font-weight="700" fill="#16a34a">F</text>
+      <text x="${margin + 58}" y="55" font-size="26" font-weight="700" fill="#111827">${escapeXml(outletName)}</text>
+      <text x="${margin + 58}" y="80" font-size="14" font-weight="600" fill="#475569">Duty Roster</text>
+      <text x="${margin + 146}" y="80" font-size="14" font-weight="500" fill="#6b7280">${escapeXml(rangeLabel)}</text>
       <rect x="${width - margin - 120}" y="44" width="96" height="32" rx="16" fill="#ecfdf5" stroke="#bbf7d0"/>
-      <text x="${width - margin - 72}" y="65" text-anchor="middle" font-size="12" font-weight="900" fill="#047857">${escapeXml(status)}</text>
-      <text x="${width - margin - 120}" y="96" font-size="10" font-weight="700" fill="#94a3b8">Generated ${escapeXml(generatedAt)}</text>
+      <text x="${width - margin - 72}" y="65" text-anchor="middle" font-size="12" font-weight="600" fill="#047857">${escapeXml(status)}</text>
+      <text x="${width - margin - 120}" y="96" font-size="10" font-weight="500" fill="#94a3b8">Generated ${escapeXml(generatedAt)}</text>
       ${legend}
       ${body}
-      <text x="${margin}" y="${height - 30}" font-size="12" font-weight="700" fill="#94a3b8">FeedX Duty Roster</text>
+      <text x="${margin}" y="${height - 30}" font-size="12" font-weight="500" fill="#94a3b8">Generated ${escapeXml(generatedAt)}</text>
     </svg>
   `;
 }
@@ -789,16 +792,16 @@ function svgToPng(svgMarkup) {
 function ShareRosterModal({ image, layout, onLayoutChange, loading, error, onDownload, onCopy, onClose }) {
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-[2px]" role="dialog" aria-modal="true">
-      <div className="flex max-h-[90vh] w-full max-w-5xl flex-col overflow-hidden rounded-3xl border border-border bg-surface shadow-2xl">
-        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-border p-5">
+      <div className="flex max-h-[92vh] w-full max-w-[1400px] flex-col overflow-hidden rounded-3xl border border-border bg-surface shadow-2xl">
+        <header className="flex shrink-0 items-start justify-between gap-4 border-b border-border px-5 py-4">
           <div>
             <div className="text-xs font-black uppercase tracking-[0.16em] text-primary">Share Roster</div>
-            <h2 className="mt-1 text-xl font-semibold text-text-primary">Roster Image Preview</h2>
-            <p className="mt-1 text-sm text-text-secondary">Clean staff-facing roster image without filters or admin controls.</p>
+            <h2 className="mt-1 text-lg font-semibold text-text-primary">Roster Image Preview</h2>
+            <p className="mt-0.5 text-sm text-text-secondary">Clean staff-facing roster image without filters or admin controls.</p>
           </div>
           <button className="icon-btn" type="button" onClick={onClose} aria-label="Close share roster"><X size={18} /></button>
         </header>
-        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-surface px-5 py-3">
+        <div className="flex shrink-0 flex-wrap items-center justify-between gap-3 border-b border-border bg-surface px-5 py-2.5">
           <div>
             <div className="text-xs font-black uppercase tracking-[0.14em] text-text-muted">Share Layout</div>
             <p className="mt-0.5 text-xs font-semibold text-text-secondary">Choose the staff-facing image format.</p>
@@ -819,16 +822,16 @@ function ShareRosterModal({ image, layout, onLayoutChange, loading, error, onDow
             ))}
           </div>
         </div>
-        <div className="min-h-0 flex-1 overflow-auto bg-background p-3 sm:p-4">
+        <div className="min-h-0 flex-1 overflow-auto bg-[#f3f5f4] p-2.5 sm:p-3">
           {loading ? <div className="rounded-3xl border border-border bg-surface p-10 text-center text-sm font-semibold text-text-secondary">Generating roster image...</div> : null}
           {error ? <div className="rounded-3xl border border-rose-200 bg-rose-50 p-5 text-sm font-semibold text-rose-700">{error}</div> : null}
           {image?.dataUrl ? (
-            <div className={`mx-auto rounded-2xl border border-border bg-white shadow-sm ${layout === "vertical" ? "max-w-[420px] p-1.5" : "p-2"}`}>
-              <img className={`${layout === "vertical" ? "max-h-[68vh] w-auto max-w-full object-contain" : "h-auto w-full"} rounded-xl`} src={image.dataUrl} alt="Duty roster share preview" />
+            <div className={`mx-auto bg-white shadow-sm ${layout === "vertical" ? "max-w-[460px] rounded-2xl p-1" : "rounded-xl p-1"}`}>
+              <img className={`${layout === "vertical" ? "max-h-[70vh] w-auto max-w-full object-contain" : "h-auto w-full"} rounded-lg`} src={image.dataUrl} alt="Duty roster share preview" />
             </div>
           ) : null}
         </div>
-        <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-border bg-surface p-4">
+        <footer className="flex shrink-0 flex-wrap justify-end gap-2 border-t border-border bg-surface px-4 py-3">
           <button className="btn-secondary" type="button" onClick={onClose}>Close</button>
           <button className="btn-secondary" type="button" disabled={!image?.blob || loading} onClick={onCopy}><Clipboard size={16} /> Copy Image</button>
           <button className="btn-primary" type="button" disabled={!image?.blob || loading} onClick={onDownload}><Download size={16} /> Download Image</button>
