@@ -1180,6 +1180,7 @@ Asset item fields:
 - category_id
 - name
 - description
+- image_url
 - unit
 - current_quantity
 - minimum_quantity
@@ -1193,10 +1194,26 @@ Asset item fields:
 Asset statuses:
 
 - active
+- healthy
+- needs_review
 - damaged
 - missing
+- under_maintenance
+- low_quantity
 - disposed
 - inactive
+
+Asset UI rules:
+
+- Asset photos are shown as thumbnails inside the Asset Name column and larger previews inside the Asset Profile drawer.
+- If no photo exists, show a category-based visual placeholder instead of an empty or broken image.
+- Quantity display includes a health state:
+  - Healthy
+  - Low
+  - Critical
+  - Out
+- Asset list actions use a primary View action plus an overflow menu for Adjust Quantity, Start Inspection, Edit Asset, and Archive.
+- Date displays use relative business wording such as Today, Yesterday, 2d ago, and 1 week ago, with exact date available on hover.
 
 Movement log fields:
 

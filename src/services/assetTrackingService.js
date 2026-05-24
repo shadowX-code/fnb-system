@@ -3,7 +3,7 @@ import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
 
 const categoryFields = "id,name,description,sort_order,is_active,created_at,updated_at";
-const assetFields = "id,outlet_id,category_id,name,description,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name)";
+const assetFields = "id,outlet_id,category_id,name,description,image_url,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name)";
 const movementFields = "id,asset_id,outlet_id,movement_type,quantity_change,quantity_before,quantity_after,reason,remark,movement_date,created_by,created_at";
 const inspectionFields = "id,outlet_id,inspection_date,checked_by,category_scope,status,remark,created_at,updated_at";
 const inspectionItemFields = "id,inspection_id,asset_id,expected_quantity,counted_quantity,difference,condition_status,remark,created_at,asset:asset_items(id,name,category:asset_categories(id,name))";
@@ -28,6 +28,7 @@ function mapAsset(row) {
     category_name: row.category?.name ?? "",
     name: row.name,
     description: row.description ?? "",
+    image_url: row.image_url ?? "",
     unit: row.unit ?? "unit",
     current_quantity: Number(row.current_quantity ?? 0),
     minimum_quantity: Number(row.minimum_quantity ?? 0),
@@ -150,6 +151,7 @@ export const assetTrackingService = {
       category_id: asset.category_id,
       name: asset.name,
       description: asset.description ?? "",
+      image_url: asset.image_url ?? "",
       unit: asset.unit || "unit",
       current_quantity: Number(asset.current_quantity ?? 0),
       minimum_quantity: Number(asset.minimum_quantity ?? 0),
