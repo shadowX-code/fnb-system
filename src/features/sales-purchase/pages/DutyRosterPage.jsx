@@ -1639,18 +1639,33 @@ export default function DutyRosterPage({ store, ui, auth }) {
     }
     setSaving(true);
     try {
+      const shouldResetPublishedWeek = period?.status === "published";
       const saved = await dutyRosterService.saveDutyRoster({
         outletId,
         employeeId: employee.id,
         rosterDate: date,
         template: templateOverride,
-        status: period?.status === "published" ? "published" : "draft",
+        status: "draft",
         remark,
       });
-      setRosters((current) => {
-        const exists = current.some((item) => item.id === saved.id);
-        return exists ? current.map((item) => (item.id === saved.id ? saved : item)) : [...current, saved];
-      });
+      if (shouldResetPublishedWeek) {
+        const [nextPeriod, nextRows] = await Promise.all([
+          rosterPeriodService.setRosterPeriodStatus(period, "draft"),
+          dutyRosterService.setWeekRosterStatus({
+            outletId,
+            startDate: weekDateValues[0],
+            endDate: weekEnd,
+            status: "draft",
+          }),
+        ]);
+        setPeriod(nextPeriod);
+        setRosters(nextRows);
+      } else {
+        setRosters((current) => {
+          const exists = current.some((item) => item.id === saved.id);
+          return exists ? current.map((item) => (item.id === saved.id ? saved : item)) : [...current, saved];
+        });
+      }
       setShiftDrawer(null);
       ui.notify({ title: "Shift saved", message: `${employee.nickname || employee.full_name} · ${templateOverride.name}` });
     } catch (saveError) {
@@ -1683,7 +1698,21 @@ export default function DutyRosterPage({ store, ui, auth }) {
     if (locked) return;
     try {
       await dutyRosterService.deleteDutyRoster(roster.id, { outletId, rosterDate: roster.roster_date, employee_id: roster.employee_id });
-      setRosters((current) => current.filter((item) => item.id !== roster.id));
+      if (period?.status === "published") {
+        const [nextPeriod, nextRows] = await Promise.all([
+          rosterPeriodService.setRosterPeriodStatus(period, "draft"),
+          dutyRosterService.setWeekRosterStatus({
+            outletId,
+            startDate: weekDateValues[0],
+            endDate: weekEnd,
+            status: "draft",
+          }),
+        ]);
+        setPeriod(nextPeriod);
+        setRosters(nextRows.filter((item) => item.id !== roster.id));
+      } else {
+        setRosters((current) => current.filter((item) => item.id !== roster.id));
+      }
       setShiftDrawer(null);
       ui.notify({ title: "Shift removed" });
     } catch (deleteError) {
@@ -1696,19 +1725,34 @@ export default function DutyRosterPage({ store, ui, auth }) {
     if (!dates.length || !template) return;
     setSaving(true);
     try {
+      const shouldResetPublishedWeek = period?.status === "published";
       const savedRows = await Promise.all(dates.map((date) => dutyRosterService.saveDutyRoster({
         outletId,
         employeeId: employee.id,
         rosterDate: date,
         template,
-        status: period?.status === "published" ? "published" : "draft",
+        status: "draft",
         remark,
       })));
-      setRosters((current) => {
-        const byId = new Map(current.map((item) => [item.id, item]));
-        savedRows.forEach((row) => byId.set(row.id, row));
-        return [...byId.values()];
-      });
+      if (shouldResetPublishedWeek) {
+        const [nextPeriod, nextRows] = await Promise.all([
+          rosterPeriodService.setRosterPeriodStatus(period, "draft"),
+          dutyRosterService.setWeekRosterStatus({
+            outletId,
+            startDate: weekDateValues[0],
+            endDate: weekEnd,
+            status: "draft",
+          }),
+        ]);
+        setPeriod(nextPeriod);
+        setRosters(nextRows);
+      } else {
+        setRosters((current) => {
+          const byId = new Map(current.map((item) => [item.id, item]));
+          savedRows.forEach((row) => byId.set(row.id, row));
+          return [...byId.values()];
+        });
+      }
       setBulkDrawer(null);
       ui.notify({ title: "Bulk assignment saved", message: `${dates.length} dates assigned to ${template.name}.` });
     } catch (bulkError) {

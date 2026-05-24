@@ -104,6 +104,14 @@ function formatStatusLabel(status) {
   return "Draft";
 }
 
+function rosterDayStatus(stats) {
+  const rows = stats?.rosters ?? [];
+  if (!rows.length) return "";
+  if (rows.every((row) => row.status === "locked")) return "locked";
+  if (rows.every((row) => row.status === "published")) return "published";
+  return "draft";
+}
+
 function MonthPicker({ value, onChange }) {
   const [open, setOpen] = useState(false);
   const [rect, setRect] = useState(null);
@@ -546,6 +554,7 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
                 const isWeekend = date.getDay() === 0 || date.getDay() === 6;
                 const hasRoster = stats.rosters.length > 0;
                 const period = periodByDate.get(dateValue);
+                const dayStatus = rosterDayStatus(stats) || (stats.rosters.length ? period?.status : "");
                 const leaveText = [
                   stats.off ? `OFF ${stats.off}` : "",
                   stats.al ? `AL ${stats.al}` : "",
@@ -567,7 +576,7 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
                       <div className="text-lg font-semibold text-text-primary">{date.getDate()}</div>
                       <div className="flex flex-col items-end gap-1">
                         {isToday ? <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-primary">Today</span> : null}
-                        {period ? <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${statusBadgeClass(period.status)}`}>{formatStatusLabel(period.status)}</span> : null}
+                        {dayStatus ? <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${statusBadgeClass(dayStatus)}`}>{formatStatusLabel(dayStatus)}</span> : null}
                       </div>
                     </div>
                     <div className="mt-4 text-sm font-bold text-text-primary">{hasRoster ? `${stats.working} Staff Scheduled` : "Not Scheduled Yet"}</div>

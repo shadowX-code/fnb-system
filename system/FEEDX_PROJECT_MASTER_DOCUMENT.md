@@ -965,6 +965,9 @@ Behavior:
 - Published is visible as published roster.
 - Locked is read-only.
 - Publish/lock/unlock requires manage permission.
+- Publishing a roster updates both the weekly roster period and all affected duty_rosters rows.
+- Editing or deleting shifts in a published week returns that week and its affected duty_rosters rows to Draft until republished.
+- Monthly overview status badges derive from actual duty_rosters row status first, not stale local UI state.
 - Saved roster data must persist after refresh.
 
 Audit actions:
@@ -2217,7 +2220,8 @@ Rules:
 - Outlet Duty Roster is factual only until outlet-specific manpower targets exist.
 - Empty dates show Not Scheduled Yet.
 - Scheduled dates show actual working staff counts and Floor/Kitchen/Other breakdown.
-- Calendar date cards may show Draft, Published, or Locked roster period status when a period exists.
+- Calendar date cards show Draft, Published, or Locked only when shifts exist.
+- Daily status derives from duty_rosters rows: all published = Published, all locked = Locked, otherwise Draft.
 - Today is marked with a small Today badge and subtle green styling.
 - The legend only explains AL, MC, Today and roster status badges.
 - If no roster exists for a selected date, the drawer shows one clean empty state: No staff scheduled for this date.
