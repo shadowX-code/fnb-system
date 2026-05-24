@@ -651,14 +651,14 @@ function shiftShareTone(template) {
 }
 
 function buildRosterShareVerticalSvg({ outletName, rangeLabel, status, groups, weekDates, rosterByEmployeeDate, generatedAt }) {
-  const width = 860;
-  const margin = 28;
-  const headerHeight = 132;
-  const legendHeight = 42;
+  const width = 1080;
+  const margin = 34;
+  const headerHeight = 148;
+  const legendHeight = 38;
   const groupHeaderHeight = 30;
-  const employeeCardBase = 62;
-  const dayRowHeight = 26;
-  const footerHeight = 46;
+  const employeeCardBase = 70;
+  const dayRowHeight = 32;
+  const footerHeight = 44;
   const weekValues = weekDates.map(toDateInputValue);
   const employees = groups.flatMap((group) => [
     { type: "group", label: group.label },
@@ -679,10 +679,10 @@ function buildRosterShareVerticalSvg({ outletName, rangeLabel, status, groups, w
     ["Leave", "#f5f3ff", "#6d28d9"],
     ["OFF", "#f1f5f9", "#64748b"],
   ].map(([label, fill, text], index) => {
-    const x = margin + index * 126;
+    const x = margin + index * 122;
     return `
-      <rect x="${x}" y="${headerHeight - 4}" width="112" height="26" rx="13" fill="${fill}" stroke="#e5e7eb"/>
-      <text x="${x + 56}" y="${headerHeight + 13}" text-anchor="middle" font-size="11" font-weight="600" fill="${text}">${escapeXml(label)}</text>
+      <circle cx="${x + 8}" cy="${headerHeight + 8}" r="5" fill="${fill}" stroke="${text}" stroke-width="1.4"/>
+      <text x="${x + 20}" y="${headerHeight + 12}" font-size="12" font-weight="600" fill="${text}">${escapeXml(label)}</text>
     `;
   }).join("");
 
@@ -691,8 +691,8 @@ function buildRosterShareVerticalSvg({ outletName, rangeLabel, status, groups, w
   const body = employees.map((row) => {
     if (row.type === "group") {
       const markup = `
-        <line x1="${margin}" y1="${y + 14}" x2="${margin + 50}" y2="${y + 14}" stroke="#22c55e" stroke-width="3" stroke-linecap="round"/>
-        <text x="${margin + 64}" y="${y + 19}" font-size="15" font-weight="600" fill="#047857" letter-spacing="2.4">${escapeXml(row.label)}</text>
+        <line x1="${margin}" y1="${y + 14}" x2="${margin + 56}" y2="${y + 14}" stroke="#22c55e" stroke-width="3" stroke-linecap="round"/>
+        <text x="${margin + 70}" y="${y + 19}" font-size="16" font-weight="600" fill="#047857" letter-spacing="2.2">${escapeXml(row.label)}</text>
       `;
       y += groupHeaderHeight;
       return markup;
@@ -701,10 +701,10 @@ function buildRosterShareVerticalSvg({ outletName, rangeLabel, status, groups, w
     const employee = row.employee;
     const cardY = y;
     const cardHeight = employeeCardBase + weekValues.length * dayRowHeight;
-    y += cardHeight + 8;
+    y += cardHeight + 12;
     const initials = String(employee.nickname || employee.full_name || "?").trim().slice(0, 2).toUpperCase();
     const dayRows = weekValues.map((dateValue, index) => {
-      const rowY = cardY + 54 + index * dayRowHeight;
+      const rowY = cardY + 62 + index * dayRowHeight;
       const date = weekDates[index];
       const roster = rosterByEmployeeDate.get(rosterKey(employee.id, dateValue));
       const template = roster?.template;
@@ -712,21 +712,22 @@ function buildRosterShareVerticalSvg({ outletName, rangeLabel, status, groups, w
       const isNonWorking = template && nonWorkingCodes.has(code);
       const tone = shiftShareTone(template);
       const shiftLabel = template ? (isNonWorking ? code : formatShiftTimeRange(roster.start_time, roster.end_time)) : "-";
-      const subLabel = template && !isNonWorking ? template.name : template?.name || "No shift";
+      const subLabel = template && !isNonWorking ? template.name : template?.name || "";
+      const dateLabel = `${dayLabels[(date.getDay() + 6) % 7].toUpperCase()} ${date.getDate()} ${new Intl.DateTimeFormat("en-MY", { month: "short" }).format(date)}`;
       return `
-        <text x="${margin + 72}" y="${rowY + 18}" font-size="13" font-weight="600" fill="#64748b">${escapeXml(`${date.getDate()} ${dayLabels[(date.getDay() + 6) % 7]}`)}</text>
-        <rect x="${margin + 176}" y="${rowY + 2}" width="${width - margin * 2 - 188}" height="22" rx="11" fill="${tone.fill}" stroke="${tone.stroke}"/>
-        <text x="${margin + 192}" y="${rowY + 17}" font-size="13" font-weight="600" fill="${tone.text}">${escapeXml(shiftLabel)}</text>
-        <text x="${width - margin - 18}" y="${rowY + 17}" text-anchor="end" font-size="10" font-weight="500" fill="${tone.text}" opacity="0.68">${escapeXml(subLabel)}</text>
+        <text x="${margin + 80}" y="${rowY + 21}" font-size="15" font-weight="600" fill="#475569">${escapeXml(dateLabel)}</text>
+        <rect x="${margin + 258}" y="${rowY + 3}" width="${width - margin * 2 - 272}" height="26" rx="13" fill="${tone.fill}" stroke="${tone.stroke}"/>
+        <text x="${margin + 276}" y="${rowY + 21}" font-size="15" font-weight="600" fill="${tone.text}">${escapeXml(shiftLabel)}</text>
+        <text x="${width - margin - 22}" y="${rowY + 21}" text-anchor="end" font-size="12" font-weight="500" fill="${tone.text}" opacity="0.68">${escapeXml(subLabel)}</text>
       `;
     }).join("");
 
     return `
       <rect x="${margin}" y="${cardY}" width="${width - margin * 2}" height="${cardHeight}" rx="16" fill="#ffffff" stroke="#e5e7eb" filter="url(#posterShadow)"/>
-      <circle cx="${margin + 34}" cy="${cardY + 32}" r="20" fill="#dcfce7"/>
-      <text x="${margin + 34}" y="${cardY + 39}" text-anchor="middle" font-size="14" font-weight="700" fill="#047857">${escapeXml(initials)}</text>
-      <text x="${margin + 66}" y="${cardY + 28}" font-size="18" font-weight="700" fill="#111827">${escapeXml(employee.nickname || employee.full_name)}</text>
-      <text x="${margin + 66}" y="${cardY + 49}" font-size="12" font-weight="500" fill="#6b7280">${escapeXml(employee.position || "Employee")}</text>
+      <circle cx="${margin + 38}" cy="${cardY + 36}" r="22" fill="#dcfce7"/>
+      <text x="${margin + 38}" y="${cardY + 44}" text-anchor="middle" font-size="15" font-weight="700" fill="#047857">${escapeXml(initials)}</text>
+      <text x="${margin + 76}" y="${cardY + 31}" font-size="22" font-weight="700" fill="#111827">${escapeXml(employee.nickname || employee.full_name)}</text>
+      <text x="${margin + 76}" y="${cardY + 55}" font-size="14" font-weight="500" fill="#6b7280">${escapeXml(employee.position || "Employee")}</text>
       ${dayRows}
     `;
   }).join("");
@@ -739,19 +740,19 @@ function buildRosterShareVerticalSvg({ outletName, rangeLabel, status, groups, w
         </filter>
       </defs>
       <rect width="${width}" height="${height}" fill="#f7f8fa"/>
-      <rect x="14" y="14" width="${width - 28}" height="${height - 28}" rx="24" fill="#ffffff" stroke="#e5e7eb"/>
-      <rect x="14" y="14" width="${width - 28}" height="104" rx="24" fill="#f8faf8"/>
-      <circle cx="${margin + 24}" cy="60" r="20" fill="#dcfce7"/>
-      <text x="${margin + 24}" y="68" text-anchor="middle" font-size="21" font-weight="700" fill="#16a34a">F</text>
-      <text x="${margin + 58}" y="55" font-size="26" font-weight="700" fill="#111827">${escapeXml(outletName)}</text>
-      <text x="${margin + 58}" y="80" font-size="14" font-weight="600" fill="#475569">Duty Roster</text>
-      <text x="${margin + 146}" y="80" font-size="14" font-weight="500" fill="#6b7280">${escapeXml(rangeLabel)}</text>
-      <rect x="${width - margin - 120}" y="44" width="96" height="32" rx="16" fill="#ecfdf5" stroke="#bbf7d0"/>
-      <text x="${width - margin - 72}" y="65" text-anchor="middle" font-size="12" font-weight="600" fill="#047857">${escapeXml(status)}</text>
-      <text x="${width - margin - 120}" y="96" font-size="10" font-weight="500" fill="#94a3b8">Generated ${escapeXml(generatedAt)}</text>
+      <rect x="16" y="16" width="${width - 32}" height="${height - 32}" rx="26" fill="#ffffff" stroke="#e5e7eb"/>
+      <rect x="16" y="16" width="${width - 32}" height="118" rx="26" fill="#f8faf8"/>
+      <circle cx="${margin + 30}" cy="66" r="23" fill="#dcfce7"/>
+      <text x="${margin + 30}" y="74" text-anchor="middle" font-size="23" font-weight="700" fill="#16a34a">F</text>
+      <text x="${margin + 72}" y="59" font-size="32" font-weight="700" fill="#111827">${escapeXml(outletName)}</text>
+      <text x="${margin + 72}" y="91" font-size="17" font-weight="600" fill="#475569">Duty Roster</text>
+      <text x="${margin + 178}" y="91" font-size="17" font-weight="500" fill="#6b7280">${escapeXml(rangeLabel)}</text>
+      <rect x="${width - margin - 138}" y="48" width="112" height="34" rx="17" fill="#ecfdf5" stroke="#bbf7d0"/>
+      <text x="${width - margin - 82}" y="70" text-anchor="middle" font-size="13" font-weight="600" fill="#047857">${escapeXml(status)}</text>
+      <text x="${width - margin - 190}" y="102" font-size="11" font-weight="500" fill="#94a3b8">Generated ${escapeXml(generatedAt)}</text>
       ${legend}
       ${body}
-      <text x="${margin}" y="${height - 30}" font-size="12" font-weight="500" fill="#94a3b8">Generated ${escapeXml(generatedAt)}</text>
+      <text x="${margin}" y="${height - 30}" font-size="12" font-weight="500" fill="#94a3b8">Generated by FeedX · ${escapeXml(generatedAt)}</text>
     </svg>
   `;
 }
@@ -826,8 +827,8 @@ function ShareRosterModal({ image, layout, onLayoutChange, loading, error, onDow
           {loading ? <div className="rounded-3xl border border-border bg-surface p-10 text-center text-sm font-semibold text-text-secondary">Generating roster image...</div> : null}
           {error ? <div className="rounded-3xl border border-rose-200 bg-rose-50 p-5 text-sm font-semibold text-rose-700">{error}</div> : null}
           {image?.dataUrl ? (
-            <div className={`mx-auto bg-white shadow-sm ${layout === "vertical" ? "max-w-[460px] rounded-2xl p-1" : "rounded-xl p-1"}`}>
-              <img className={`${layout === "vertical" ? "max-h-[70vh] w-auto max-w-full object-contain" : "h-auto w-full"} rounded-lg`} src={image.dataUrl} alt="Duty roster share preview" />
+            <div className={`mx-auto bg-white shadow-sm ${layout === "vertical" ? "max-w-[560px] rounded-2xl p-1" : "rounded-xl p-1"}`}>
+              <img className={`${layout === "vertical" ? "max-h-[72vh] w-auto max-w-full object-contain" : "h-auto w-full"} rounded-lg`} src={image.dataUrl} alt="Duty roster share preview" />
             </div>
           ) : null}
         </div>
