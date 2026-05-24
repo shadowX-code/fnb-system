@@ -138,6 +138,7 @@ export function AuthProvider({ children }) {
       auth_uid: user.id,
       profile_id: profile?.id ?? null,
       role_name: profile?.role_name ?? null,
+      role_outlet_ids: profile?.role_outlet_ids ?? [],
       access_state: profile?.access_state ?? null,
       source,
       permission_count: permissions.length,

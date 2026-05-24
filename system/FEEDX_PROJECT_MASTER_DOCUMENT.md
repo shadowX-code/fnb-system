@@ -1913,6 +1913,11 @@ Rules:
 - RBAC load failure fails closed.
 - No automatic full permissions fallback for normal roles.
 - Protected roles (`owner`, `admin`) bypass permission checks and always return true.
+- Protected roles can access all outlets automatically.
+- Non-protected roles can only access outlets assigned through `role_outlets`.
+- Outlet selectors must use the centralized accessible-outlet helper, not the full outlet list.
+- Outlet-scoped pages and services must filter data by accessible outlet IDs.
+- If the selected outlet is no longer accessible, the UI resets to the first accessible outlet or shows a no-access state.
 - Sidebar visibility follows view permission.
 - Add button follows create permission.
 - Edit/save follows edit permission.
@@ -1920,7 +1925,23 @@ Rules:
 - Import follows import permission.
 - Export follows export permission.
 - Before every write, client checks permission.
-- RLS remains final backend protection.
+- RLS remains final backend protection and must enforce both module permission and outlet scope.
+
+Outlet scope applies to:
+
+- Asset Tracking
+- Duty Roster
+- Outlet Duty Roster
+- Sales Input
+- Sales Comparison
+- Purchase Input
+- Purchase Comparison
+- Outlet P&L
+- Operating Expenses
+- Tax Settings
+- Data Import
+- Data Health
+- Alerts & Insights
 
 Dependency rules:
 

@@ -181,13 +181,14 @@ export const assetTrackingService = {
     return mapAsset(data);
   },
 
-  async listMovementLogs(assetId = "") {
+  async listMovementLogs(assetId = "", outletId = "") {
     let query = supabase
       .from("asset_movement_logs")
       .select(movementFields)
       .order("movement_date", { ascending: false })
       .order("created_at", { ascending: false });
     if (assetId) query = query.eq("asset_id", assetId);
+    if (outletId && outletId !== "all") query = query.eq("outlet_id", outletId);
     const { data, error } = await query;
     throwSupabaseError("asset_movement_logs.list", error);
     return (data ?? []).map(mapMovement);
@@ -239,11 +240,13 @@ export const assetTrackingService = {
     return { asset: mapAsset(updatedAsset), movement: mapMovement(movement) };
   },
 
-  async listInspections(assetId = "") {
-    const { data: inspections, error } = await supabase
+  async listInspections(assetId = "", outletId = "") {
+    let inspectionQuery = supabase
       .from("asset_inspections")
       .select(inspectionFields)
       .order("inspection_date", { ascending: false });
+    if (outletId && outletId !== "all") inspectionQuery = inspectionQuery.eq("outlet_id", outletId);
+    const { data: inspections, error } = await inspectionQuery;
     throwSupabaseError("asset_inspections.list", error);
 
     const { data: items, error: itemError } = await supabase

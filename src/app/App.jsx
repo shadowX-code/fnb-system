@@ -15,6 +15,7 @@ import { operatingExpenseService } from "../services/operatingExpenseService.js"
 import { useAuth } from "../auth/AuthContext.jsx";
 import LoginPage from "../auth/LoginPage.jsx";
 import SetNewPasswordPage from "../auth/SetNewPasswordPage.jsx";
+import { filterOutletScopedRows, getAccessibleOutlets } from "../utils/accessControl.js";
 
 function normalizeSuppliers(suppliers, categories) {
   return suppliers.map((supplier) => {
@@ -171,6 +172,7 @@ function RbacDiagnosticsPanel({ auth, loads }) {
             <div>Email: {auth.user?.email ?? "—"}</div>
             <div>Employee profile: {auth.profile?.id ?? "—"}</div>
             <div>Role: {auth.profile?.role_name ?? "—"}</div>
+            <div>Outlet access: {auth.isProtectedRole ? "All outlets" : `${auth.profile?.role_outlet_ids?.length ?? 0} assigned outlet(s)`}</div>
             <div>Access state: {auth.profile?.access_state ?? "—"}</div>
             <div>Login type: {auth.source === "database" ? "Secure login" : "Limited access"}</div>
             <div>Permission count: {auth.permissions.length}</div>
@@ -359,16 +361,17 @@ export default function App() {
       }
 
       if (!ignore) {
+        const scopedOutlets = getAccessibleOutlets(auth, outlets);
         setStore((current) => ({
           ...current,
-          ...(outletResult.status === "fulfilled" ? { outlets } : {}),
-          ...(taxConfigResult.status === "fulfilled" ? { outletTaxConfigs } : {}),
+          ...(outletResult.status === "fulfilled" ? { outlets: scopedOutlets } : {}),
+          ...(taxConfigResult.status === "fulfilled" ? { outletTaxConfigs: filterOutletScopedRows(auth, outletTaxConfigs) } : {}),
           ...(categoryResult.status === "fulfilled" ? { purchaseCategories } : {}),
           ...(supplierResult.status === "fulfilled" ? { suppliers: normalizeSuppliers(suppliers, purchaseCategories.length ? purchaseCategories : current.purchaseCategories) } : {}),
           ...(salesChannelResult.status === "fulfilled" ? { salesChannels } : {}),
-          ...(salesRecordResult.status === "fulfilled" ? { salesRecords } : {}),
-          ...(purchaseRecordResult.status === "fulfilled" ? { purchaseRecords } : {}),
-          ...(operatingExpenseResult.status === "fulfilled" ? { operatingExpenses } : {}),
+          ...(salesRecordResult.status === "fulfilled" ? { salesRecords: filterOutletScopedRows(auth, salesRecords) } : {}),
+          ...(purchaseRecordResult.status === "fulfilled" ? { purchaseRecords: filterOutletScopedRows(auth, purchaseRecords) } : {}),
+          ...(operatingExpenseResult.status === "fulfilled" ? { operatingExpenses: filterOutletScopedRows(auth, operatingExpenses) } : {}),
         }));
         setMasterDataStatus({ loading: false, errors, loads });
       }

@@ -366,7 +366,7 @@ function InspectionHistory({ inspections }) {
 }
 
 export default function AssetTrackingPage({ store, ui, auth }) {
-  const activeOutlets = store.outlets.filter((outlet) => outlet.status === "active" || outlet.is_active);
+  const activeOutlets = useMemo(() => store.outlets.filter((outlet) => outlet.status === "active" || outlet.is_active), [store.outlets]);
   const [outletId, setOutletId] = useState(activeOutlets[0]?.id ?? "");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -390,6 +390,20 @@ export default function AssetTrackingPage({ store, ui, auth }) {
   const canManageAsset = canManage(auth, "asset_tracking");
   const canExportAsset = canExport(auth, "asset_tracking");
 
+  useEffect(() => {
+    if (!activeOutlets.length) {
+      setOutletId("");
+      setAssets([]);
+      setMovements([]);
+      setInspections([]);
+      setLoading(false);
+      return;
+    }
+    if (!activeOutlets.some((outlet) => outlet.id === outletId)) {
+      setOutletId(activeOutlets[0].id);
+    }
+  }, [activeOutlets, outletId]);
+
   async function loadData() {
     setLoading(true);
     setError("");
@@ -397,13 +411,13 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       const [categoryRows, assetRows, movementRows, inspectionRows] = await Promise.all([
         assetTrackingService.listCategories(),
         assetTrackingService.listAssets(outletId),
-        assetTrackingService.listMovementLogs(),
-        assetTrackingService.listInspections(),
+        assetTrackingService.listMovementLogs("", outletId),
+        assetTrackingService.listInspections("", outletId),
       ]);
       setCategories(categoryRows);
       setAssets(assetRows);
       setMovements(movementRows);
-      setInspections(inspectionRows.filter((inspection) => inspection.outlet_id === outletId));
+      setInspections(inspectionRows);
     } catch (loadError) {
       console.error("Unable to load asset tracking", loadError);
       setError(loadError.message || "Unable to load asset tracking.");
@@ -571,7 +585,15 @@ export default function AssetTrackingPage({ store, ui, auth }) {
 
       {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{error}</div> : null}
 
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+      {!activeOutlets.length ? (
+        <Card className="p-8 text-center">
+          <div className="text-sm font-bold uppercase tracking-[0.16em] text-text-muted">No Outlet Access</div>
+          <div className="mt-2 text-lg font-semibold text-text-primary">No outlets are assigned to your role.</div>
+          <p className="mt-2 text-sm text-text-secondary">Please contact admin to review your outlet access.</p>
+        </Card>
+      ) : null}
+
+      {activeOutlets.length ? <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         {[
           ["Total Asset Items", summary.totalItems],
           ["Total Quantity", summary.totalQuantity],
@@ -579,9 +601,9 @@ export default function AssetTrackingPage({ store, ui, auth }) {
           ["Items Needing Review", summary.review],
           ["Last Checked Date", formatDate(summary.lastChecked)],
         ].map(([label, value]) => <Card key={label} className="p-4"><div className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{label}</div><div className="mt-2 text-2xl font-semibold text-text-primary">{value}</div></Card>)}
-      </div>
+      </div> : null}
 
-      <Card title="Asset List" description="Outlet-specific asset quantities and movement status.">
+      {activeOutlets.length ? <Card title="Asset List" description="Outlet-specific asset quantities and movement status.">
         {loading ? <div className="p-8 text-center text-sm font-semibold text-text-secondary">Loading assets...</div> : (
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1120px] text-left text-sm">
@@ -621,7 +643,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
             {!filteredAssets.length ? <div className="p-8 text-center text-sm font-semibold text-text-secondary">No assets found for the selected filters.</div> : null}
           </div>
         )}
-      </Card>
+      </Card> : null}
 
       {assetModal ? <AssetFormModal asset={assetModal} outlets={activeOutlets} categories={categories} onClose={() => setAssetModal(null)} onSubmit={saveAsset} saving={saving} /> : null}
       {categoryModalOpen ? <CategoryModal categories={categories} onClose={() => setCategoryModalOpen(false)} onSave={saveCategory} onArchive={archiveCategory} saving={saving} canWrite={canAdd} canArchive={canDeleteAsset} /> : null}

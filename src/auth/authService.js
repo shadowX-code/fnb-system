@@ -65,6 +65,21 @@ async function loadLegacyUserProfile(user) {
   return data ? normalizeContextProfile(data, "user_profiles") : null;
 }
 
+async function loadRoleOutletIds(roleId) {
+  if (!roleId) return [];
+  const { data, error } = await supabase
+    .from("role_outlets")
+    .select("outlet_id")
+    .eq("role_id", roleId);
+
+  if (error) {
+    console.error("Unable to load role outlet access", error);
+    throw new Error("Unable to load outlet access.");
+  }
+
+  return (data ?? []).map((row) => row.outlet_id).filter(Boolean);
+}
+
 export const authService = {
   async getSession() {
     const { data, error } = await supabase.auth.getSession();
@@ -146,10 +161,17 @@ export const authService = {
 
     const permissions = (rows ?? []).map((row) => row.permission?.code).filter(Boolean);
     const roleName = profile.role?.name ?? "unassigned";
+    const roleOutletIds = isProtectedRoleName(roleName) ? [] : await loadRoleOutletIds(profile.role_id);
+    const profileWithScope = {
+      ...profile,
+      role_name: roleName,
+      role_outlet_ids: roleOutletIds,
+      role: profile.role ? { ...profile.role, outlet_ids: roleOutletIds } : profile.role,
+    };
 
     if (isProtectedRoleName(roleName)) {
       return {
-        profile: { ...profile, role_name: roleName },
+        profile: profileWithScope,
         permissions,
         source: "database",
       };
@@ -157,14 +179,14 @@ export const authService = {
 
     if (!permissions.length) {
       return {
-        profile: { ...profile, role_name: roleName },
+        profile: profileWithScope,
         permissions: [],
         source: "role-without-permissions",
       };
     }
 
     return {
-      profile: { ...profile, role_name: roleName },
+      profile: profileWithScope,
       permissions,
       source: "database",
     };
