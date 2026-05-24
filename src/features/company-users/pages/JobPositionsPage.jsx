@@ -390,6 +390,35 @@ export default function JobPositionsPage({ store, ui, auth }) {
     setPositionModal((current) => (current.open ? { ...current, mode } : current));
   }
 
+  function stopRowAction(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.nativeEvent?.stopImmediatePropagation?.();
+  }
+
+  function handleEditPosition(event, position) {
+    stopRowAction(event);
+    openPositionModal("edit", position);
+  }
+
+  function handleTogglePositionStatus(event, position) {
+    stopRowAction(event);
+    const hasAssignedEmployees = Number(position.active_users || 0) > 0;
+    if (position.status === "active" && hasAssignedEmployees) {
+      ui.notify({
+        title: "Position assigned to active employees",
+        message: "Existing employees will keep this position, but it will be hidden from new employee forms.",
+        tone: "warning",
+      });
+    }
+    setPositionStatus(position, position.status === "active" ? "inactive" : "active");
+  }
+
+  function handleDeletePosition(event, position) {
+    stopRowAction(event);
+    deletePosition(position);
+  }
+
   async function savePosition(position) {
     const isNew = !position.id;
     if ((isNew && !canCreatePosition) || (!isNew && !canEditPosition)) {
@@ -515,14 +544,18 @@ export default function JobPositionsPage({ store, ui, auth }) {
       render: (row) => {
         const hasAssignedEmployees = Number(row.active_users || 0) > 0;
         return (
-        <div className="flex justify-end gap-1.5" data-row-action="true" onClick={(event) => event.stopPropagation()}>
+        <div
+          className="flex justify-end gap-1.5"
+          data-row-action="true"
+          onPointerDown={(event) => event.stopPropagation()}
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={(event) => event.stopPropagation()}
+        >
           {canEditPosition ? <button
             className="btn-secondary h-8 px-2.5 text-xs"
             type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              openPositionModal("edit", row);
-            }}
+            data-row-action="true"
+            onClick={(event) => handleEditPosition(event, row)}
           >
             <Edit3 size={13} /> Edit
           </button> : null}
@@ -533,18 +566,8 @@ export default function JobPositionsPage({ store, ui, auth }) {
                 : "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200 hover:bg-emerald-100"
             }`}
             type="button"
-            onClick={(event) => {
-              event.stopPropagation();
-              closePositionModal();
-              if (row.status === "active" && hasAssignedEmployees) {
-                ui.notify({
-                  title: "Position assigned to active employees",
-                  message: "Existing employees will keep this position, but it will be hidden from new employee forms.",
-                  tone: "warning",
-                });
-              }
-              setPositionStatus(row, row.status === "active" ? "inactive" : "active");
-            }}
+            data-row-action="true"
+            onClick={(event) => handleTogglePositionStatus(event, row)}
           >
             <span className="inline-flex items-center gap-1.5"><Power size={13} /> {row.status === "active" ? "Disable" : "Enable"}</span>
           </button> : null}
@@ -553,11 +576,8 @@ export default function JobPositionsPage({ store, ui, auth }) {
             type="button"
             title={hasAssignedEmployees ? "This position is assigned to employees. Reassign employees before deleting." : "Delete position"}
             disabled={hasAssignedEmployees}
-            onClick={(event) => {
-              event.stopPropagation();
-              closePositionModal();
-              deletePosition(row);
-            }}
+            data-row-action="true"
+            onClick={(event) => handleDeletePosition(event, row)}
           >
             <span className="inline-flex items-center gap-1.5"><Trash2 size={13} /> Delete</span>
           </button> : null}
