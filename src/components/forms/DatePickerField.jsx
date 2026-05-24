@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
-import SelectField from "./SelectField.jsx";
 
 function pad(value) {
   return String(value).padStart(2, "0");
@@ -147,20 +146,24 @@ export default function DatePickerField({ label, required = false, value, onChan
               <ChevronLeft size={14} />
             </button>
             <div className="flex items-center gap-2">
-              <SelectField
+              <select
                 value={visibleMonth}
-                className="w-32"
-                buttonClassName="h-8 px-2 text-xs"
-                options={Array.from({ length: 12 }, (_, index) => ({ value: index, label: new Date(2026, index, 1).toLocaleString([], { month: "short" }) }))}
-                onChange={(nextValue) => updateCalendarView(visibleYear, Number(nextValue))}
-              />
-              <SelectField
+                className="h-8 w-32 rounded-xl border border-border bg-white px-2 text-xs font-bold text-text-primary outline-none transition focus:border-primary/50 focus:ring-2 focus:ring-primary/15"
+                onChange={(event) => updateCalendarView(visibleYear, Number(event.target.value))}
+              >
+                {Array.from({ length: 12 }, (_, index) => (
+                  <option key={index} value={index}>{new Date(2026, index, 1).toLocaleString([], { month: "short" })}</option>
+                ))}
+              </select>
+              <select
                 value={visibleYear}
-                className="w-24"
-                buttonClassName="h-8 px-2 text-xs"
-                options={Array.from({ length: 70 }, (_, index) => 1970 + index).map((year) => ({ value: year, label: year }))}
-                onChange={(nextValue) => updateCalendarView(Number(nextValue), visibleMonth)}
-              />
+                className="h-8 w-24 rounded-xl border border-border bg-white px-2 text-xs font-bold text-text-primary outline-none transition focus:border-primary/50 focus:ring-2 focus:ring-primary/15"
+                onChange={(event) => updateCalendarView(Number(event.target.value), visibleMonth)}
+              >
+                {Array.from({ length: 100 }, (_, index) => new Date().getFullYear() - 80 + index).map((year) => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
             </div>
             <button className="icon-btn h-8 w-8" type="button" onClick={() => moveMonth(1)}>
               <ChevronRight size={14} />

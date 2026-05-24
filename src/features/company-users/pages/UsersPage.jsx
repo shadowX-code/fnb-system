@@ -94,6 +94,10 @@ function hasSystemLogin(employee) {
   return Boolean(employee.enable_system_login ?? employee.email ?? employee.role ?? employee.email_verified ?? employee.last_login_at);
 }
 
+function isMalaysiaNationality(value) {
+  return ["malaysia", "malaysian"].includes(String(value || "").trim().toLowerCase());
+}
+
 function getAccessState(employee) {
   if (!hasSystemLogin(employee)) return EMPLOYEE_ACCESS_STATE.NO_ACCESS;
   const state = employee.access_state ?? employee.account_status;
@@ -164,7 +168,7 @@ function formatMalaysiaContact(value) {
 }
 
 function getRequiredUserFields(values) {
-  const isMalaysia = values.nationality === "Malaysia";
+  const isMalaysia = isMalaysiaNationality(values.nationality);
   const required = {
     full_name: "Full Name is required.",
     nickname: "Nickname is required.",
@@ -186,7 +190,7 @@ function getRequiredUserFields(values) {
 
 function validateUserForm(values) {
   const errors = {};
-  const isMalaysia = values.nationality === "Malaysia";
+  const isMalaysia = isMalaysiaNationality(values.nationality);
   const requiredFields = getRequiredUserFields(values);
 
   Object.entries(requiredFields).forEach(([key, message]) => {
@@ -364,7 +368,7 @@ function UserFormModal({
   const [emailStatus, setEmailStatus] = useState("not_checked");
   const isViewMode = mode === "view";
   const isResigned = values.employment_status === "resigned";
-  const isMalaysia = values.nationality === "Malaysia";
+  const isMalaysia = isMalaysiaNationality(values.nationality);
   const activeJobPositions = jobPositions.filter((position) => position.status === "active");
   const selectedPosition = findJobPosition(jobPositions, values.position);
   const hasBankInfo = Boolean(values.bank_name || values.bank_account_number || values.bank_account_name);
@@ -427,16 +431,16 @@ function UserFormModal({
         : key === "nationality" && value === "Malaysia"
           ? formatMalaysiaIc(current.ic_no)
           : current.ic_no;
-      const nextDetectedBirthday = nextNationality === "Malaysia" ? extractMalaysiaIcBirthday(nextIc) : null;
+      const nextDetectedBirthday = isMalaysiaNationality(nextNationality) ? extractMalaysiaIcBirthday(nextIc) : null;
       return {
         ...current,
         [key]:
-          key === "ic_no" && current.nationality === "Malaysia"
+          key === "ic_no" && isMalaysiaNationality(current.nationality)
             ? nextIc
-            : key === "contact" && current.nationality === "Malaysia"
+            : key === "contact" && isMalaysiaNationality(current.nationality)
               ? formatMalaysiaContact(value)
               : value,
-        ...(key === "nationality" && value === "Malaysia" ? { ic_no: nextIc, contact: formatMalaysiaContact(current.contact) } : {}),
+        ...(key === "nationality" && isMalaysiaNationality(value) ? { ic_no: nextIc, contact: formatMalaysiaContact(current.contact) } : {}),
         ...((key === "ic_no" || key === "nationality") && nextDetectedBirthday && !current.birthday ? { birthday: nextDetectedBirthday } : {}),
         ...(key === "full_name" && !current.bank_account_name ? { bank_account_name: value } : {}),
         ...(key === "employment_status" && value !== "resigned" ? { resigned_date: "" } : {}),
