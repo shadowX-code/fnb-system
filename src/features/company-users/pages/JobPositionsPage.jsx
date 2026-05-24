@@ -86,6 +86,7 @@ function getPositionAudit(position, isNew = false) {
 
 function JobPositionModal({
   mode = "view",
+  openSource = null,
   initialPosition,
   departments,
   linkedEmployees = [],
@@ -130,7 +131,7 @@ function JobPositionModal({
   }
 
   function handleCancel() {
-    if (isCreate) {
+    if (isCreate || openSource === "direct_edit") {
       onClose();
       return;
     }
@@ -304,6 +305,7 @@ export default function JobPositionsPage({ store, ui, auth }) {
   const [positionModal, setPositionModal] = useState({
     open: false,
     mode: null,
+    openSource: null,
     position: null,
   });
   const canCreatePosition = canCreate(auth, "job_positions");
@@ -374,14 +376,16 @@ export default function JobPositionsPage({ store, ui, auth }) {
     setPositionModal({
       open: false,
       mode: null,
+      openSource: null,
       position: null,
     });
   }
 
-  function openPositionModal(mode, position) {
+  function openPositionModal(mode, position, openSource = null) {
     setPositionModal({
       open: true,
       mode,
+      openSource: openSource ?? (mode === "view" ? "row_detail" : mode === "create" ? "create" : "direct_edit"),
       position,
     });
   }
@@ -398,7 +402,7 @@ export default function JobPositionsPage({ store, ui, auth }) {
 
   function handleEditPosition(event, position) {
     stopRowAction(event);
-    openPositionModal("edit", position);
+    openPositionModal("edit", position, "direct_edit");
   }
 
   function handleTogglePositionStatus(event, position) {
@@ -437,9 +441,9 @@ export default function JobPositionsPage({ store, ui, auth }) {
       });
       setPositionModal((current) => {
         if (!current.open) return current;
-        return current.mode === "create"
-          ? { open: false, mode: null, position: null }
-          : { open: true, mode: "view", position: positionWithCount };
+        return current.mode === "create" || current.openSource === "direct_edit"
+          ? { open: false, mode: null, openSource: null, position: null }
+          : { open: true, mode: "view", openSource: current.openSource, position: positionWithCount };
       });
       ui.notify({ title: positionModal.mode === "create" ? "Position added" : "Position updated", message: saved.name });
     } catch (saveError) {
@@ -593,7 +597,7 @@ export default function JobPositionsPage({ store, ui, auth }) {
         title="Job Positions"
         description="Manage HR job titles used in employee profiles. Position is separate from Role permissions."
         actions={
-          canCreatePosition ? <button className="btn-primary" type="button" onClick={() => openPositionModal("create", createEmptyPosition())}>
+          canCreatePosition ? <button className="btn-primary" type="button" onClick={() => openPositionModal("create", createEmptyPosition(), "create")}>
             <Plus size={16} /> Add Position
           </button> : <Badge tone="neutral">Read-only access</Badge>
         }
@@ -659,7 +663,7 @@ export default function JobPositionsPage({ store, ui, auth }) {
             density="compact"
             tableClassName="min-w-[1040px]"
             getRowClassName={(row) => (row.status === "inactive" ? "opacity-70" : "")}
-            onRowClick={(row) => openPositionModal("view", row)}
+            onRowClick={(row) => openPositionModal("view", row, "row_detail")}
           />
         ) : (
           <div className="p-8 text-center">
@@ -671,6 +675,7 @@ export default function JobPositionsPage({ store, ui, auth }) {
       {positionModal.open ? (
         <JobPositionModal
           mode={positionModal.mode}
+          openSource={positionModal.openSource}
           initialPosition={positionModal.position}
           departments={departments}
           linkedEmployees={linkedEmployeesByPosition.get(positionModal.position?.name) ?? []}
