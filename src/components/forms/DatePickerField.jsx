@@ -1,6 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
 
+const monthNames = Array.from({ length: 12 }, (_, index) => new Date(2026, index, 1).toLocaleString("en-MY", { month: "short" }));
+const fullMonthNames = Array.from({ length: 12 }, (_, index) => new Date(2026, index, 1).toLocaleString("en-MY", { month: "long" }));
+
 function pad(value) {
   return String(value).padStart(2, "0");
 }
@@ -9,13 +12,33 @@ function toDisplayDate(value) {
   if (!value) return "";
   const [year, month, day] = String(value).split("-");
   if (!year || !month || !day) return "";
-  return `${day}/${month}/${year}`;
+  const parsed = new Date(Number(year), Number(month) - 1, Number(day));
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toLocaleDateString("en-MY", {
+    day: "numeric",
+    month: "short",
+    year: "numeric",
+  });
 }
 
 function toInputDate(displayValue) {
-  const match = String(displayValue || "").trim().match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
-  if (!match) return "";
-  const [, day, month, year] = match;
+  const value = String(displayValue || "").trim();
+  const numericMatch = value.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  const textMatch = value.match(/^(\d{1,2})\s+([A-Za-z]{3,9})\s+(\d{4})$/);
+  let day;
+  let month;
+  let year;
+  if (numericMatch) {
+    [, day, month, year] = numericMatch;
+  } else if (textMatch) {
+    const monthIndex = fullMonthNames.findIndex((name) => name.toLowerCase().startsWith(textMatch[2].toLowerCase()));
+    if (monthIndex < 0) return "";
+    day = textMatch[1];
+    month = String(monthIndex + 1);
+    year = textMatch[3];
+  } else {
+    return "";
+  }
   const parsed = new Date(Number(year), Number(month) - 1, Number(day));
   if (
     parsed.getFullYear() !== Number(year) ||
@@ -24,7 +47,7 @@ function toInputDate(displayValue) {
   ) {
     return "";
   }
-  return `${year}-${month}-${day}`;
+  return `${year}-${pad(month)}-${pad(day)}`;
 }
 
 function getMonthDays(year, monthIndex) {
@@ -45,13 +68,19 @@ function clampDay(year, monthIndex, day) {
   return Math.min(day, new Date(year, monthIndex + 1, 0).getDate());
 }
 
-export default function DatePickerField({ label, required = false, value, onChange, onBlur, error, helper }) {
+function getDecadeStart(year) {
+  return Math.floor(year / 12) * 12;
+}
+
+export default function DatePickerField({ label, required = false, value, onChange, onBlur, error, helper, yearFirst = false }) {
   const [open, setOpen] = useState(false);
   const [displayValue, setDisplayValue] = useState(toDisplayDate(value));
+  const [viewMode, setViewMode] = useState(yearFirst ? "year" : "day");
   const wrapperRef = useRef(null);
   const selectedDate = value ? new Date(`${value}T00:00:00`) : new Date();
   const [visibleYear, setVisibleYear] = useState(selectedDate.getFullYear());
   const [visibleMonth, setVisibleMonth] = useState(selectedDate.getMonth());
+  const [decadeStart, setDecadeStart] = useState(getDecadeStart(selectedDate.getFullYear()));
   const monthDays = useMemo(() => getMonthDays(visibleYear, visibleMonth), [visibleMonth, visibleYear]);
 
   useEffect(() => {
@@ -60,6 +89,7 @@ export default function DatePickerField({ label, required = false, value, onChan
       const nextDate = new Date(`${value}T00:00:00`);
       setVisibleYear(nextDate.getFullYear());
       setVisibleMonth(nextDate.getMonth());
+      setDecadeStart(getDecadeStart(nextDate.getFullYear()));
     }
   }, [value]);
 
@@ -79,16 +109,14 @@ export default function DatePickerField({ label, required = false, value, onChan
   }, []);
 
   function handleManualInput(nextValue) {
-    const cleaned = nextValue.replace(/[^\d/]/g, "").slice(0, 10);
+    const cleaned = nextValue.replace(/[^A-Za-z0-9/\s]/g, "").slice(0, 14);
     setDisplayValue(cleaned);
     if (!cleaned) {
       onChange("");
       return;
     }
-    if (cleaned.length === 10) {
-      const parsed = toInputDate(cleaned);
-      if (parsed) onChange(parsed);
-    }
+    const parsed = toInputDate(cleaned);
+    if (parsed) onChange(parsed);
   }
 
   function moveMonth(delta) {
@@ -105,6 +133,7 @@ export default function DatePickerField({ label, required = false, value, onChan
   function updateCalendarView(nextYear, nextMonth) {
     setVisibleYear(nextYear);
     setVisibleMonth(nextMonth);
+    setDecadeStart(getDecadeStart(nextYear));
     if (!value) return;
     const currentDate = new Date(`${value}T00:00:00`);
     const nextDay = clampDay(nextYear, nextMonth, currentDate.getDate());
@@ -116,6 +145,28 @@ export default function DatePickerField({ label, required = false, value, onChan
     selectDate(`${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`);
   }
 
+  function openPicker() {
+    setOpen(true);
+    if (yearFirst) setViewMode("year");
+  }
+
+  function selectYear(year) {
+    setVisibleYear(year);
+    setDecadeStart(getDecadeStart(year));
+    setViewMode("month");
+  }
+
+  function selectMonth(monthIndex) {
+    setVisibleMonth(monthIndex);
+    setViewMode("day");
+  }
+
+  const headerTitle = viewMode === "year"
+    ? `${decadeStart} - ${decadeStart + 11}`
+    : viewMode === "month"
+      ? visibleYear
+      : `${fullMonthNames[visibleMonth]} ${visibleYear}`;
+
   return (
     <label className="relative flex flex-col gap-1" ref={wrapperRef}>
       <span className="text-xs font-semibold text-text-secondary">
@@ -125,14 +176,22 @@ export default function DatePickerField({ label, required = false, value, onChan
         <CalendarDays className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={16} />
         <input
           className={`control w-full pl-9 pr-10 ${error ? "border-rose-200 focus:border-rose-300 focus:ring-rose-50" : ""}`}
-          inputMode="numeric"
-          placeholder="DD/MM/YYYY"
+          inputMode="text"
+          placeholder="6 May 1992"
           value={displayValue}
           onChange={(event) => handleManualInput(event.target.value)}
-          onFocus={() => setOpen(true)}
+          onFocus={openPicker}
           onBlur={onBlur}
         />
-        <button className="absolute inset-y-1 right-1 flex w-8 items-center justify-center rounded-lg text-text-muted transition hover:bg-slate-50 hover:text-primary" type="button" onClick={() => setOpen((current) => !current)} aria-label="Open calendar">
+        <button
+          className="absolute inset-y-1 right-1 flex w-8 items-center justify-center rounded-lg text-text-muted transition hover:bg-slate-50 hover:text-primary"
+          type="button"
+          onClick={() => {
+            setOpen((current) => !current);
+            if (yearFirst) setViewMode("year");
+          }}
+          aria-label="Open calendar"
+        >
           <CalendarDays size={15} />
         </button>
       </div>
@@ -140,56 +199,105 @@ export default function DatePickerField({ label, required = false, value, onChan
       {!error && helper ? <span className="text-[11px] text-text-muted">{helper}</span> : null}
 
       {open ? (
-        <div className="absolute left-0 top-[68px] z-50 w-[310px] rounded-2xl border border-border bg-white p-3 shadow-xl animate-in fade-in-0 zoom-in-95 duration-150">
-          <div className="mb-3 flex items-center justify-between gap-2">
-            <button className="icon-btn h-8 w-8" type="button" onClick={() => moveMonth(-1)}>
+        <div className="absolute left-0 top-[68px] z-50 w-[min(340px,calc(100vw-32px))] rounded-3xl border border-slate-200 bg-white p-3 shadow-[0_24px_60px_rgba(15,23,42,0.16)] animate-in fade-in-0 zoom-in-95 duration-150">
+          <div className="mb-3 flex items-center justify-between gap-2 rounded-2xl bg-slate-50 p-1.5">
+            <button
+              className="icon-btn h-8 w-8"
+              type="button"
+              onClick={() => {
+                if (viewMode === "year") setDecadeStart((current) => current - 12);
+                else if (viewMode === "month") setVisibleYear((current) => current - 1);
+                else moveMonth(-1);
+              }}
+            >
               <ChevronLeft size={14} />
             </button>
-            <div className="flex items-center gap-2">
-              <select
-                value={visibleMonth}
-                className="h-8 w-32 rounded-xl border border-border bg-white px-2 text-xs font-bold text-text-primary outline-none transition focus:border-primary/50 focus:ring-2 focus:ring-primary/15"
-                onChange={(event) => updateCalendarView(visibleYear, Number(event.target.value))}
-              >
-                {Array.from({ length: 12 }, (_, index) => (
-                  <option key={index} value={index}>{new Date(2026, index, 1).toLocaleString([], { month: "short" })}</option>
-                ))}
-              </select>
-              <select
-                value={visibleYear}
-                className="h-8 w-24 rounded-xl border border-border bg-white px-2 text-xs font-bold text-text-primary outline-none transition focus:border-primary/50 focus:ring-2 focus:ring-primary/15"
-                onChange={(event) => updateCalendarView(Number(event.target.value), visibleMonth)}
-              >
-                {Array.from({ length: 100 }, (_, index) => new Date().getFullYear() - 80 + index).map((year) => (
-                  <option key={year} value={year}>{year}</option>
-                ))}
-              </select>
+            <div className="flex items-center gap-1">
+              <button className={`rounded-xl px-3 py-1.5 text-xs font-black transition ${viewMode === "year" ? "bg-white text-primary shadow-sm" : "text-text-primary hover:bg-white/70"}`} type="button" onClick={() => setViewMode("year")}>
+                {headerTitle}
+              </button>
+              {viewMode === "day" ? (
+                <button className="rounded-xl px-2 py-1.5 text-xs font-bold text-text-muted transition hover:bg-white hover:text-primary" type="button" onClick={() => setViewMode("month")}>
+                  Change
+                </button>
+              ) : null}
             </div>
-            <button className="icon-btn h-8 w-8" type="button" onClick={() => moveMonth(1)}>
+            <button
+              className="icon-btn h-8 w-8"
+              type="button"
+              onClick={() => {
+                if (viewMode === "year") setDecadeStart((current) => current + 12);
+                else if (viewMode === "month") setVisibleYear((current) => current + 1);
+                else moveMonth(1);
+              }}
+            >
               <ChevronRight size={14} />
             </button>
           </div>
-          <div className="grid grid-cols-7 gap-1 text-center text-[11px] font-bold uppercase tracking-wide text-text-muted">
-            {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => <div key={`${day}-${index}`}>{day}</div>)}
-          </div>
-          <div className="mt-1 grid grid-cols-7 gap-1">
-            {monthDays.map((item) => item.blank ? (
-              <div key={item.key} />
-            ) : (
-              <button
-                key={item.key}
-                className={`h-9 rounded-xl text-sm font-semibold transition ${
-                  item.value === value
-                    ? "bg-primary text-white"
-                    : "text-text-secondary hover:bg-primary/10 hover:text-primary"
-                }`}
-                type="button"
-                onClick={() => selectDate(item.value)}
-              >
-                {item.day}
-              </button>
-            ))}
-          </div>
+
+          {viewMode === "year" ? (
+            <div className="grid grid-cols-3 gap-2">
+              {Array.from({ length: 12 }, (_, index) => decadeStart + index).map((year) => (
+                <button
+                  key={year}
+                  className={`h-10 rounded-2xl text-sm font-black transition ${
+                    year === visibleYear
+                      ? "bg-primary text-white shadow-sm"
+                      : "bg-slate-50 text-text-secondary hover:bg-primary/10 hover:text-primary"
+                  }`}
+                  type="button"
+                  onClick={() => selectYear(year)}
+                >
+                  {year}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {viewMode === "month" ? (
+            <div className="grid grid-cols-3 gap-2">
+              {monthNames.map((month, index) => (
+                <button
+                  key={month}
+                  className={`h-10 rounded-2xl text-sm font-black transition ${
+                    index === visibleMonth
+                      ? "bg-primary text-white shadow-sm"
+                      : "bg-slate-50 text-text-secondary hover:bg-primary/10 hover:text-primary"
+                  }`}
+                  type="button"
+                  onClick={() => selectMonth(index)}
+                >
+                  {month}
+                </button>
+              ))}
+            </div>
+          ) : null}
+
+          {viewMode === "day" ? (
+            <>
+              <div className="grid grid-cols-7 gap-1 text-center text-[10px] font-black uppercase tracking-wide text-text-muted">
+                {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => <div key={`${day}-${index}`}>{day}</div>)}
+              </div>
+              <div className="mt-1 grid grid-cols-7 gap-1">
+                {monthDays.map((item) => item.blank ? (
+                  <div key={item.key} />
+                ) : (
+                  <button
+                    key={item.key}
+                    className={`h-8 rounded-xl text-sm font-bold transition ${
+                      item.value === value
+                        ? "bg-primary text-white shadow-sm"
+                        : "text-text-secondary hover:bg-primary/10 hover:text-primary"
+                    }`}
+                    type="button"
+                    onClick={() => selectDate(item.value)}
+                  >
+                    {item.day}
+                  </button>
+                ))}
+              </div>
+            </>
+          ) : null}
           <div className="mt-3 flex justify-between border-t border-border pt-3">
             <button className="btn-secondary h-8 px-3 text-xs" type="button" onClick={() => { onChange(""); setOpen(false); }}>Clear</button>
             <button className="btn-primary h-8 px-3 text-xs" type="button" onClick={selectToday}>Today</button>

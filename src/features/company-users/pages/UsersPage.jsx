@@ -374,7 +374,15 @@ function UserFormModal({
   const hasBankInfo = Boolean(values.bank_name || values.bank_account_number || values.bank_account_name);
   const detectedIcBirthday = isMalaysia ? extractMalaysiaIcBirthday(values.ic_no) : null;
   const birthdayHelper = detectedIcBirthday
-    ? `Birthday detected from IC: ${formatBirthdayHelper(detectedIcBirthday)}`
+    ? (
+      <span className="flex items-start gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-emerald-700">
+        <span className="mt-0.5 font-black">✓</span>
+        <span>
+          <span className="block font-bold">Birthday detected from Malaysian IC</span>
+          <span className="block text-emerald-800">{formatBirthdayHelper(detectedIcBirthday)}</span>
+        </span>
+      </span>
+    )
     : isMalaysia && values.ic_no
       ? "Use Malaysian IC format, e.g. 920416-08-5573"
       : undefined;
@@ -600,7 +608,7 @@ function UserFormModal({
               />
             </FormField>
             <div>
-              <DatePickerField label="Birthday" value={values.birthday} onChange={(value) => updateValue("birthday", value)} onBlur={() => markTouched("birthday")} error={visibleError("birthday")} helper={birthdayHelper} required />
+              <DatePickerField label="Birthday" value={values.birthday} onChange={(value) => updateValue("birthday", value)} onBlur={() => markTouched("birthday")} error={visibleError("birthday")} helper={birthdayHelper} required yearFirst />
               {detectedIcBirthday && values.birthday && values.birthday !== detectedIcBirthday ? (
                 <button className="mt-1 text-[11px] font-bold text-primary hover:text-primary-dark" type="button" onClick={() => updateValue("birthday", detectedIcBirthday)}>
                   Use IC birthday

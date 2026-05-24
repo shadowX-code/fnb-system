@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ArrowUpDown, BarChart3, Clock, Download, FileSpreadsheet, History, Info, PieChart, Sparkles, Upload } from "lucide-react";
 import Badge from "../../../components/ui/Badge.jsx";
 import Card from "../../../components/ui/Card.jsx";
@@ -540,43 +541,40 @@ function spreadMatrixPoints(points) {
   });
 }
 
-function ProductTooltip({ point, total }) {
+function ProductTooltip({ point, total, position }) {
   if (!point) return null;
   const product = point.product;
-  const avgPrice = product.quantity ? product.nett_sales / product.quantity : 0;
   const contribution = productContribution(product, total);
-  return (
+  const viewportWidth = typeof window === "undefined" ? 1200 : window.innerWidth;
+  const viewportHeight = typeof window === "undefined" ? 800 : window.innerHeight;
+  const left = Math.max(132, Math.min((position?.x ?? viewportWidth / 2) + 16, viewportWidth - 132));
+  const top = Math.max(80, Math.min((position?.y ?? viewportHeight / 2) - 18, viewportHeight - 150));
+  const tooltip = (
     <div
-      className="pointer-events-none absolute z-20 w-72 -translate-x-1/2 rounded-2xl border border-slate-200/80 bg-white/95 p-4 text-xs shadow-2xl backdrop-blur"
-      style={{ left: `${point.x}%`, top: `${Math.max(8, point.y - 8)}%` }}
+      className="pointer-events-none fixed z-[9999] w-64 rounded-2xl border border-slate-200/80 bg-white/95 p-3 text-xs shadow-[0_20px_48px_rgba(15,23,42,0.16)] backdrop-blur"
+      style={{ left, top, transform: "translate(-50%, -100%)" }}
     >
       <div className="text-sm font-black leading-tight text-text-primary">{product.product}</div>
-      <div className="mt-1 flex items-center justify-between gap-2">
-        <span className="text-text-muted">{product.category}</span>
-        <span className={`rounded-full px-2 py-0.5 font-bold ${point.quadrant.bg} ${point.quadrant.text}`}>{point.quadrant.label}</span>
-      </div>
-      <div className="mt-3 space-y-2">
+      <div className="mt-3 space-y-1.5">
         {[
           ["Net sales", toCurrency(product.nett_sales)],
-          ["Quantity sold", product.quantity.toLocaleString()],
-          ["Avg selling price", toCurrency(avgPrice)],
-          ["Revenue contribution", toPercent(contribution)],
+          ["Qty sold", product.quantity.toLocaleString()],
+          ["Contribution", toPercent(contribution)],
         ].map(([label, value]) => (
-          <div key={label} className="flex items-center justify-between gap-4 rounded-xl bg-slate-50 px-3 py-2">
-            <span className="font-semibold text-text-muted">{label}</span>
+          <div key={label} className="flex items-center justify-between gap-4">
+            <span className="font-bold text-text-muted">{label}</span>
             <span className="font-black text-text-primary">{value}</span>
           </div>
         ))}
       </div>
-      <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50/70 px-3 py-2 font-bold text-emerald-700">
-        {contribution >= 8 ? "Above-average revenue contributor" : "Monitor contribution trend"}
-      </div>
     </div>
   );
+  return typeof document === "undefined" ? null : createPortal(tooltip, document.body);
 }
 
 function PerformanceMatrix({ products, total, categoryFilter, onCategoryFilter, focusedProductKey, onProductFocus }) {
   const [hoveredPoint, setHoveredPoint] = useState(null);
+  const [tooltipPosition, setTooltipPosition] = useState(null);
   const categories = ["all", ...new Set(products.map((product) => product.category).filter(Boolean))];
   const visibleProducts = categoryFilter === "all" ? products : products.filter((product) => product.category === categoryFilter);
   const maxQty = Math.max(...visibleProducts.map((item) => item.quantity), 1);
@@ -605,7 +603,7 @@ function PerformanceMatrix({ products, total, categoryFilter, onCategoryFilter, 
             </button>
           ))}
         </div>
-        <div className="text-xs font-semibold text-text-secondary">Bubble size = net sales volume. Tap a product to update insights.</div>
+        <div className="text-xs font-semibold text-text-secondary">Hover bubbles to inspect products</div>
       </div>
       <div className="relative h-[390px] overflow-hidden touch-manipulation rounded-2xl border border-slate-200 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] sm:h-80">
         <div className="absolute inset-0 grid grid-cols-2 grid-rows-2">
@@ -617,10 +615,10 @@ function PerformanceMatrix({ products, total, categoryFilter, onCategoryFilter, 
         <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(148,163,184,0.12)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.12)_1px,transparent_1px)] bg-[size:48px_48px]" />
         <div className="absolute left-1/2 top-0 h-full w-px border-l border-dashed border-slate-300/70" />
         <div className="absolute left-0 top-1/2 h-px w-full border-t border-dashed border-slate-300/70" />
-        <div className="absolute left-4 top-4 text-[11px] font-black uppercase tracking-wide text-blue-700/55">Growth Potential</div>
-        <div className="absolute right-4 top-4 text-right text-[11px] font-black uppercase tracking-wide text-emerald-700/55">Star Performer</div>
-        <div className="absolute bottom-4 left-4 text-[11px] font-black uppercase tracking-wide text-rose-700/55">Low Performer</div>
-        <div className="absolute bottom-4 right-4 max-w-[130px] text-right text-[11px] font-black uppercase tracking-wide text-orange-700/55">High Volume Low Margin</div>
+        <div className="absolute left-5 top-5 text-[10px] font-black uppercase tracking-[0.14em] text-blue-700/40">Growth Potential</div>
+        <div className="absolute right-5 top-5 text-right text-[10px] font-black uppercase tracking-[0.14em] text-emerald-700/40">Star Performer</div>
+        <div className="absolute bottom-5 left-5 text-[10px] font-black uppercase tracking-[0.14em] text-rose-700/40">Low Performer</div>
+        <div className="absolute bottom-5 right-5 text-right text-[10px] font-black uppercase tracking-[0.14em] text-orange-700/40">Slow Selling</div>
         {matrixPoints.map((point) => {
           const product = point.product;
           const isFocused = focusedProductKey === product.key;
@@ -630,22 +628,32 @@ function PerformanceMatrix({ products, total, categoryFilter, onCategoryFilter, 
               type="button"
               aria-label={`Inspect ${product.product}`}
               onClick={() => onProductFocus(product)}
-              onMouseEnter={() => {
+              onMouseEnter={(event) => {
                 setHoveredPoint(point);
+                setTooltipPosition({ x: event.clientX, y: event.clientY });
                 onProductFocus(product);
               }}
-              onMouseLeave={() => setHoveredPoint(null)}
-              onFocus={() => {
+              onMouseMove={(event) => setTooltipPosition({ x: event.clientX, y: event.clientY })}
+              onMouseLeave={() => {
+                setHoveredPoint(null);
+                setTooltipPosition(null);
+              }}
+              onFocus={(event) => {
                 setHoveredPoint(point);
+                const rect = event.currentTarget.getBoundingClientRect();
+                setTooltipPosition({ x: rect.left + rect.width / 2, y: rect.top });
                 onProductFocus(product);
               }}
-              onBlur={() => setHoveredPoint(null)}
-              className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full ${point.quadrant.color} shadow-[0_6px_22px_rgba(15,23,42,0.16)] ring-white transition duration-200 ease-out hover:scale-125 hover:shadow-[0_10px_32px_rgba(16,185,129,0.28)] focus:outline-none focus:ring-4 ${isFocused ? "scale-125 opacity-100 ring-4" : "opacity-85 ring-2"}`}
+              onBlur={() => {
+                setHoveredPoint(null);
+                setTooltipPosition(null);
+              }}
+              className={`absolute -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full ${point.quadrant.color} shadow-[0_6px_22px_rgba(15,23,42,0.16)] ring-white transition duration-300 ease-out hover:scale-125 hover:shadow-[0_12px_34px_rgba(16,185,129,0.28)] focus:outline-none focus:ring-4 ${isFocused ? "scale-125 opacity-100 ring-4 shadow-[0_14px_38px_rgba(16,185,129,0.25)]" : "opacity-85 ring-2"}`}
               style={{ left: `${point.x}%`, top: `${point.y}%`, width: point.size, height: point.size }}
             />
           );
         })}
-        <ProductTooltip point={hoveredPoint} total={total} />
+        <ProductTooltip point={hoveredPoint} total={total} position={tooltipPosition} />
       </div>
       <div className="mt-2 flex justify-between text-[11px] font-bold uppercase text-text-muted">
         <span>Slow Selling</span>
