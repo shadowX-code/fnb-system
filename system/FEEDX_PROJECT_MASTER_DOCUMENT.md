@@ -1953,6 +1953,7 @@ Supplier outlet assignment:
 - Non-protected roles can only assign suppliers to outlets in their role outlet scope.
 - Supplier Directory outlet filters include `All Outlets` at the top. For protected roles this means all active outlets; for custom roles this means only outlets accessible through the role outlet scope.
 - When Supplier Directory is filtered to `All Outlets`, it shows suppliers linked to any accessible outlet and outlet usage counts only include accessible outlets.
+- Supplier Directory must wait for auth, role outlet scope, and accessible outlet state before showing empty results. If suppliers are not present after outlet scope becomes ready, the page triggers its own supplier fetch instead of relying on browser focus.
 - Purchase Input supplier dropdowns only show active suppliers assigned to the selected outlet.
 - Supplier Directory outlet usage counts come from assigned outlets, not only historical purchase records.
 - Removing a supplier from an outlet is blocked when that supplier has purchase records in that outlet.

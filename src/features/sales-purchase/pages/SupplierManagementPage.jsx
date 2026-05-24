@@ -47,12 +47,18 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
   const [usageSupplier, setUsageSupplier] = useState(null);
   const [outletFilter, setOutletFilter] = useState("all");
   const [usageMap, setUsageMap] = useState({});
+  const [supplierLoadState, setSupplierLoadState] = useState(store.suppliers.length ? "ready" : "initializing");
+  const [loadedOutletScope, setLoadedOutletScope] = useState("");
   const canCreateSupplier = canCreate(auth, "suppliers");
   const canEditSupplier = canEdit(auth, "suppliers");
   const canDeleteSupplier = canDelete(auth, "suppliers");
   const canDeactivateSupplier = hasPermission(auth, "suppliers.deactivate") || canEditSupplier;
   const activeOutlets = useMemo(() => store.outlets.filter((outlet) => outlet.status === "active"), [store.outlets]);
   const accessibleOutletIds = useMemo(() => new Set(activeOutlets.map((outlet) => outlet.id)), [activeOutlets]);
+  const outletScopeKey = useMemo(() => activeOutlets.map((outlet) => outlet.id).sort().join("|"), [activeOutlets]);
+  const assignedOutletCount = auth.profile?.role_outlet_ids?.length ?? 0;
+  const outletAccessReady = auth.isProtectedRole || activeOutlets.length > 0 || assignedOutletCount === 0;
+  const supplierPageReady = supplierLoadState === "ready";
 
   function getSupplierOutletIds(supplier) {
     return (supplier.outletIds ?? usageMap[supplier.id]?.outletIds ?? []).filter((outletId) => accessibleOutletIds.has(outletId));
@@ -70,6 +76,57 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
       }),
     [accessibleOutletIds, category, outletFilter, query, status, store.suppliers, usageMap],
   );
+  useEffect(() => {
+    if (store.suppliers.length) setSupplierLoadState("ready");
+  }, [store.suppliers.length]);
+
+  useEffect(() => {
+    if (!auth.session || auth.loading || auth.contextLoading || !outletAccessReady) return undefined;
+    if (!outletScopeKey && assignedOutletCount > 0) return undefined;
+    if (loadedOutletScope === outletScopeKey) {
+      if (supplierLoadState !== "ready") setSupplierLoadState("ready");
+      return undefined;
+    }
+    if (store.suppliers.length) {
+      setLoadedOutletScope(outletScopeKey);
+      setSupplierLoadState("ready");
+      return undefined;
+    }
+
+    let cancelled = false;
+    setSupplierLoadState("initializing");
+    supplierService.listSuppliers()
+      .then((suppliers) => {
+        if (cancelled) return;
+        setStore((current) => ({ ...current, suppliers }));
+        setLoadedOutletScope(outletScopeKey);
+        setSupplierLoadState("ready");
+      })
+      .catch((error) => {
+        if (cancelled) return;
+        console.error("Unable to load suppliers", error);
+        setSupplierLoadState("ready");
+        ui.notify({ title: "Unable to load suppliers", message: error.message, tone: "error" });
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    assignedOutletCount,
+    auth.contextLoading,
+    auth.isProtectedRole,
+    auth.loading,
+    auth.session,
+    loadedOutletScope,
+    outletAccessReady,
+    outletScopeKey,
+    setStore,
+    store.suppliers.length,
+    supplierLoadState,
+    ui,
+  ]);
+
   useEffect(() => {
     if (!store.suppliers.length) return undefined;
     let cancelled = false;
@@ -336,7 +393,9 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
           getRowKey={(row) => row.id}
           onRowClick={(row) => setDetailSupplier(row)}
         />
-        {!rows.length ? (
+        {!supplierPageReady ? (
+          <div className="border-t border-border p-6 text-sm font-semibold text-text-secondary">Loading suppliers...</div>
+        ) : !rows.length ? (
           <div className="border-t border-border p-6 text-sm text-text-secondary">
             <div className="font-bold text-text-primary">{outletFilter === "all" ? "No suppliers found." : "No suppliers found for this outlet."}</div>
             <p className="mt-1">{outletFilter === "all" ? "Adjust filters or add a supplier." : "Suppliers will appear here after purchase records are added."}</p>
