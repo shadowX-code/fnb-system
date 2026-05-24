@@ -453,7 +453,14 @@ Product sales item fields:
 Upload rules:
 
 - Upload requires outlet, month, year, and report file.
-- CSV and standard XLSX reports must include Category, Product Name, Variant, Quantity, Gross Sales, Discount, SST, Service Charge, and Nett Sales.
+- CSV and standard XLSX reports use flexible column detection.
+- Product Name, Quantity, and Nett Sales are hard-required.
+- Category is optional and defaults to `Uncategorized`.
+- Variant, Gross Sales, Discount, SST, and Service Charge are optional.
+- Gross Sales defaults to Nett Sales + Discount when possible, otherwise 0.
+- Parser scans the first 20 rows to detect the actual table header for POS exports with title rows.
+- Upload modal shows a detected column mapping preview before import.
+- Parser errors are shown inside the upload modal and must not crash the page.
 - Duplicate report detection uses outlet, month, and year.
 - Replacing a report removes the previous report items and imports the new report.
 - Upload history is retained through product sales report records.

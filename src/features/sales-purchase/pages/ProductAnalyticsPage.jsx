@@ -14,20 +14,41 @@ import { monthLabel, percentageChange, toCurrency, toPercent } from "../utils/an
 import { canExport, canManage, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { productAnalyticsService } from "../../../services/productAnalyticsService.js";
 
-const requiredColumns = [
-  "Category",
-  "Product Name",
-  "Variant",
-  "Quantity",
-  "Gross Sales",
-  "Discount",
-  "SST",
-  "Service Charge",
-  "Nett Sales",
-];
+const productColumnAliases = {
+  category: ["Category", "Cat", "Item Category", "Product Category", "Menu Category"],
+  productName: ["Product Name", "Item Name", "Item", "Product", "Menu Item", "Name"],
+  variant: ["Variant", "Option", "Variation", "SKU", "Size", "Modifier", "Variant Name"],
+  quantity: ["Quantity", "Qty", "Sold Qty", "Total Qty", "Qty Sold", "Count"],
+  grossSales: ["Gross Sales", "Gross", "Sales", "Total Sales", "Gross Amount"],
+  discount: ["Discount", "Discount Amount", "Disc"],
+  sst: ["SST", "Tax", "Tax Amount", "Service Tax"],
+  serviceCharge: ["Service Charge", "Svc Charge", "Service"],
+  nettSales: ["Nett Sales", "Net Sales", "Nett", "Net", "Amount", "Total Amount", "Sales Amount"],
+};
+
+const productColumnLabels = {
+  category: "Category",
+  productName: "Product Name",
+  variant: "Variant",
+  quantity: "Quantity",
+  grossSales: "Gross Sales",
+  discount: "Discount",
+  sst: "SST",
+  serviceCharge: "Service Charge",
+  nettSales: "Nett Sales",
+};
+
+const requiredProductFields = ["productName", "quantity", "nettSales"];
 
 function canonical(value) {
   return String(value ?? "").trim().toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "");
+}
+
+function normalizedHeader(value) {
+  return String(value ?? "")
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
 function parseAmount(value) {
@@ -66,8 +87,7 @@ function parseCsv(text) {
   }
   row.push(cell);
   if (row.some((item) => String(item).trim())) rows.push(row);
-  const headers = (rows.shift() ?? []).map((header) => String(header).trim());
-  return rows.map((values, index) => Object.fromEntries(headers.map((header, headerIndex) => [header, values[headerIndex] ?? ""]))).map((item, index) => ({ ...item, __row: index + 2 }));
+  return rows;
 }
 
 function readUInt16(view, offset) {
@@ -153,40 +173,85 @@ async function parseXlsx(file) {
     });
     return values;
   }).filter((row) => row.some((cell) => String(cell ?? "").trim()));
-  const headers = (rows.shift() ?? []).map((header) => String(header ?? "").trim());
-  return rows.map((values, index) => Object.fromEntries(headers.map((header, headerIndex) => [header, values[headerIndex] ?? ""]))).map((item, index) => ({ ...item, __row: index + 2 }));
+  return rows;
 }
 
-function mapParsedRows(rows) {
-  const headerMap = Object.fromEntries(Object.keys(rows[0] ?? {}).map((header) => [canonical(header), header]));
-  const missing = requiredColumns.filter((column) => !headerMap[canonical(column)]);
-  if (missing.length) throw new Error(`Missing required columns: ${missing.join(", ")}`);
-  return rows.map((row) => {
-    const read = (column) => row[headerMap[canonical(column)]];
-    const quantity = parseAmount(read("Quantity"));
-    const grossSales = parseAmount(read("Gross Sales"));
-    const discount = parseAmount(read("Discount"));
-    const sst = parseAmount(read("SST"));
-    const serviceCharge = parseAmount(read("Service Charge"));
-    const nettSales = parseAmount(read("Nett Sales"));
-    if ([quantity, grossSales, discount, sst, serviceCharge, nettSales].some((value) => value === null)) {
-      throw new Error(`Row ${row.__row}: invalid number found.`);
-    }
-    const productName = String(read("Product Name") ?? "").trim();
-    if (!productName) throw new Error(`Row ${row.__row}: product name is required.`);
+function detectColumnMapping(rawRows) {
+  const aliasLookup = Object.fromEntries(
+    Object.entries(productColumnAliases).flatMap(([field, aliases]) => aliases.map((alias) => [canonical(alias), field])),
+  );
+  const candidates = rawRows.slice(0, 20).map((row, rowIndex) => {
+    const mapping = {};
+    row.forEach((header, columnIndexValue) => {
+      const field = aliasLookup[canonical(normalizedHeader(header))];
+      if (field && mapping[field] === undefined) {
+        mapping[field] = { index: columnIndexValue, header: normalizedHeader(header) };
+      }
+    });
     return {
-      category_name: String(read("Category") ?? "Uncategorized").trim() || "Uncategorized",
-      product_name: productName,
-      variant_name: String(read("Variant") ?? "").trim(),
-      quantity,
-      gross_sales: grossSales,
-      discount,
-      sst,
-      service_charge: serviceCharge,
-      nett_sales: nettSales,
-      source_row: row.__row,
+      rowIndex,
+      mapping,
+      requiredMatches: requiredProductFields.filter((field) => mapping[field]).length,
+      totalMatches: Object.keys(mapping).length,
     };
   });
+  return candidates
+    .filter((candidate) => candidate.totalMatches)
+    .sort((a, b) => b.requiredMatches - a.requiredMatches || b.totalMatches - a.totalMatches)[0] ?? { rowIndex: -1, mapping: {}, requiredMatches: 0, totalMatches: 0 };
+}
+
+function buildMissingFieldError(missingFields) {
+  return `We could not detect these required fields:\n${missingFields.map((field) => `- ${productColumnLabels[field]}`).join("\n")}\n\nPlease check your POS export format.`;
+}
+
+function mapParsedRows(rawRows) {
+  const detected = detectColumnMapping(rawRows);
+  const missingFields = requiredProductFields.filter((field) => !detected.mapping[field]);
+  if (missingFields.length) throw new Error(buildMissingFieldError(missingFields));
+  const dataRows = rawRows.slice(detected.rowIndex + 1).filter((row) => row.some((cell) => String(cell ?? "").trim()));
+  const read = (row, field) => {
+    const column = detected.mapping[field];
+    return column ? row[column.index] : "";
+  };
+  const items = dataRows.map((row, index) => {
+    const quantity = parseAmount(read(row, "quantity"));
+    const nettSales = parseAmount(read(row, "nettSales"));
+    const discount = parseAmount(read(row, "discount"));
+    const sst = parseAmount(read(row, "sst"));
+    const serviceCharge = parseAmount(read(row, "serviceCharge"));
+    const explicitGrossSales = detected.mapping.grossSales ? parseAmount(read(row, "grossSales")) : null;
+    const grossSales = explicitGrossSales ?? (nettSales !== null && discount !== null ? nettSales + discount : 0);
+    if ([quantity, grossSales, discount, sst, serviceCharge, nettSales].some((value) => value === null)) {
+      throw new Error(`Row ${detected.rowIndex + index + 2}: invalid number found.`);
+    }
+    const productName = String(read(row, "productName") ?? "").trim();
+    if (!productName) throw new Error(`Row ${detected.rowIndex + index + 2}: product name is required.`);
+    return {
+      category_name: String(read(row, "category") ?? "Uncategorized").trim() || "Uncategorized",
+      product_name: productName,
+      variant_name: String(read(row, "variant") ?? "").trim(),
+      quantity,
+      gross_sales: grossSales,
+      discount: discount ?? 0,
+      sst: sst ?? 0,
+      service_charge: serviceCharge ?? 0,
+      nett_sales: nettSales,
+      source_row: detected.rowIndex + index + 2,
+    };
+  });
+  return {
+    items,
+    mapping: Object.fromEntries(
+      Object.entries(productColumnLabels).map(([field, label]) => [
+        field,
+        {
+          label,
+          detected: detected.mapping[field]?.header ?? "",
+          required: requiredProductFields.includes(field),
+        },
+      ]),
+    ),
+  };
 }
 
 function downloadCsv(filename, rows) {
@@ -338,7 +403,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [rankBy, setRankBy] = useState("sales");
   const [lowFilter, setLowFilter] = useState(5);
-  const [uploadForm, setUploadForm] = useState({ outletId: "", month: new Date().getMonth() + 1, year: new Date().getFullYear(), file: null, parsedItems: [] });
+  const [uploadForm, setUploadForm] = useState({ outletId: "", month: new Date().getMonth() + 1, year: new Date().getFullYear(), file: null, parsedItems: [], columnMapping: null, parseError: "" });
   const canUpload = hasPermission(auth, "product_analytics.upload");
   const canExportReport = canExport(auth, "product_analytics");
   const canManageReports = canManage(auth, "product_analytics");
@@ -437,10 +502,17 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
       if (!["csv", "xlsx"].includes(extension)) throw new Error("Please upload a CSV or XLSX file.");
       const rows = extension === "xlsx" ? await parseXlsx(file) : parseCsv(await file.text());
       if (!rows.length) throw new Error("The report has no product rows.");
-      setUploadForm((currentForm) => ({ ...currentForm, file, parsedItems: mapParsedRows(rows) }));
+      const parsedReport = mapParsedRows(rows);
+      setUploadForm((currentForm) => ({
+        ...currentForm,
+        file,
+        parsedItems: parsedReport.items,
+        columnMapping: parsedReport.mapping,
+        parseError: "",
+      }));
     } catch (error) {
       console.error("Unable to parse product report", error);
-      ui.notify({ title: "Unable to parse report", message: error.message, tone: "error" });
+      setUploadForm((currentForm) => ({ ...currentForm, file, parsedItems: [], columnMapping: null, parseError: error.message }));
     }
   }
 
@@ -472,7 +544,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
         fileName: uploadForm.file.name,
         items: uploadForm.parsedItems,
         existingReportId: existing?.id ?? null,
-        metadata: { source_columns: requiredColumns, row_count: uploadForm.parsedItems.length },
+        metadata: { column_mapping: uploadForm.columnMapping, row_count: uploadForm.parsedItems.length },
       });
       const nextReports = await productAnalyticsService.listReports({ outletIds: activeOutlets.map((outlet) => outlet.id) });
       setReports(nextReports);
@@ -480,7 +552,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
       setMonth(report.report_month);
       setYear(report.report_year);
       setUploadModal(false);
-      setUploadForm({ outletId: "", month: new Date().getMonth() + 1, year: new Date().getFullYear(), file: null, parsedItems: [] });
+      setUploadForm({ outletId: "", month: new Date().getMonth() + 1, year: new Date().getFullYear(), file: null, parsedItems: [], columnMapping: null, parseError: "" });
       ui.notify({ title: "Product report uploaded", message: "Product analytics updated." });
     } catch (error) {
       console.error("Unable to upload product report", error);
@@ -645,7 +717,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
       {uploadModal ? (
         <Modal
           title="Upload Product Sales Report"
-          description="Upload monthly POS product sales report in CSV format."
+          description="Upload monthly POS product sales report in CSV or XLSX format."
           size="lg"
           onClose={() => setUploadModal(false)}
           footer={<><button className="btn-secondary" type="button" onClick={() => setUploadModal(false)}>Cancel</button><button className="btn-primary" type="button" onClick={submitUpload}>Upload Report</button></>}
@@ -659,8 +731,28 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
             <input ref={inputRef} hidden type="file" accept=".csv,.xlsx" onChange={(event) => handleFile(event.target.files?.[0])} />
             <button className="btn-secondary mx-auto" type="button" onClick={() => inputRef.current?.click()}><FileSpreadsheet size={16} /> Select Report File</button>
             <div className="mt-3 text-sm font-semibold text-text-primary">{uploadForm.file?.name ?? "No file selected"}</div>
-            <div className="mt-1 text-xs text-text-secondary">{uploadForm.parsedItems.length ? `${uploadForm.parsedItems.length} product rows ready to import.` : "Required columns: Category, Product Name, Variant, Quantity, Gross Sales, Discount, SST, Service Charge, Nett Sales."}</div>
+            <div className="mt-1 text-xs text-text-secondary">{uploadForm.parsedItems.length ? `${uploadForm.parsedItems.length} product rows ready to import.` : "Required fields: Product Name, Quantity and Nett Sales. Category and other amount fields are detected when available."}</div>
           </div>
+          {uploadForm.parseError ? (
+            <div className="mt-4 whitespace-pre-line rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700">
+              {uploadForm.parseError}
+            </div>
+          ) : null}
+          {uploadForm.columnMapping ? (
+            <div className="mt-4 rounded-2xl border border-border bg-white p-4">
+              <div className="text-sm font-bold text-text-primary">Detected mapping</div>
+              <div className="mt-3 grid gap-2 md:grid-cols-2">
+                {Object.entries(uploadForm.columnMapping).map(([field, mapping]) => (
+                  <div key={field} className="flex items-center justify-between gap-3 rounded-xl bg-slate-50 px-3 py-2 text-xs">
+                    <span className="font-bold text-text-secondary">{mapping.label}</span>
+                    <span className={mapping.detected ? "font-semibold text-text-primary" : "font-semibold text-text-muted"}>
+                      {mapping.detected ? `“${mapping.detected}”` : mapping.required ? "Not detected" : "Optional"}
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ) : null}
         </Modal>
       ) : null}
 
@@ -677,7 +769,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
                 <div className="flex justify-end gap-2">
                   <button className="btn-secondary h-8 text-xs" type="button" onClick={() => { setOutletId(row.outlet_id); setMonth(row.report_month); setYear(row.report_year); setHistoryOpen(false); }}>View</button>
                   {canManageReports ? <button className="btn-secondary h-8 text-xs" type="button" onClick={() => {
-                    setUploadForm({ outletId: row.outlet_id, month: row.report_month, year: row.report_year, file: null, parsedItems: [] });
+                    setUploadForm({ outletId: row.outlet_id, month: row.report_month, year: row.report_year, file: null, parsedItems: [], columnMapping: null, parseError: "" });
                     setHistoryOpen(false);
                     setUploadModal(true);
                   }}>Replace</button> : null}
