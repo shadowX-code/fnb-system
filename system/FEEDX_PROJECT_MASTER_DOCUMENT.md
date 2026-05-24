@@ -1952,6 +1952,8 @@ Supplier outlet assignment:
 - Purchase Input supplier dropdowns only show active suppliers assigned to the selected outlet.
 - Supplier Directory outlet usage counts come from assigned outlets, not only historical purchase records.
 - Removing a supplier from an outlet is blocked when that supplier has purchase records in that outlet.
+- Supplier Directory must render supplier rows before slower usage metrics finish loading.
+- Supplier usage metrics are loaded through batched assignment and purchase-record aggregation queries, with no per-row metric requests.
 
 Dependency rules:
 

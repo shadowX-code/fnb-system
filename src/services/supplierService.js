@@ -2,7 +2,7 @@ import { supabase } from "../lib/supabase";
 import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
 
-const supplierSelect = "id,name,category,default_category_id,phone,remark,is_active,status,created_at,updated_at,supplier_outlets(outlet_id)";
+const supplierSelect = "id,name,category,default_category_id,phone,remark,is_active,status,created_at,updated_at";
 const fallbackSupplierSelect = "id,name,category,default_category_id,is_active,status,created_at,updated_at";
 
 export function formatSupplierName(name) {
@@ -17,7 +17,7 @@ function isMissingOptionalSupplierField(error) {
   return error?.code === "42703" && /suppliers\.(phone|remark)|column .*suppliers\.(phone|remark)|column .*phone|column .*remark/i.test(error.message ?? "");
 }
 
-function mapSupplier(supplier) {
+function mapSupplier(supplier, outletIds = []) {
   const isActive = supplier.is_active ?? supplier.status !== "inactive";
   return {
     id: supplier.id,
@@ -26,8 +26,8 @@ function mapSupplier(supplier) {
     default_category_id: supplier.default_category_id ?? supplier.category_id ?? "",
     phone: supplier.phone ?? "",
     remark: supplier.remark ?? "",
-    outletIds: (supplier.supplier_outlets ?? []).map((row) => row.outlet_id).filter(Boolean),
-    assignedOutletIds: (supplier.supplier_outlets ?? []).map((row) => row.outlet_id).filter(Boolean),
+    outletIds,
+    assignedOutletIds: outletIds,
     is_active: Boolean(isActive),
     status: isActive ? "active" : "inactive",
     created_at: supplier.created_at,
@@ -36,7 +36,28 @@ function mapSupplier(supplier) {
 }
 
 export const supplierService = {
+  async loadSupplierOutletMap(supplierIds = []) {
+    if (!supplierIds.length) return {};
+    const startedAt = performance.now();
+    const { data, error } = await supabase
+      .from("supplier_outlets")
+      .select("supplier_id,outlet_id")
+      .in("supplier_id", supplierIds);
+    throwSupabaseError("supplier_outlets.map", error);
+    const map = Object.fromEntries(supplierIds.map((supplierId) => [supplierId, []]));
+    (data ?? []).forEach((row) => {
+      if (map[row.supplier_id] && row.outlet_id && !map[row.supplier_id].includes(row.outlet_id)) {
+        map[row.supplier_id].push(row.outlet_id);
+      }
+    });
+    if (import.meta.env.DEV) {
+      console.info("[Supplier Directory] outlet assignment query", { ms: Math.round(performance.now() - startedAt), rows: data?.length ?? 0 });
+    }
+    return map;
+  },
+
   async listSuppliers() {
+    const startedAt = performance.now();
     const result = await supabase
       .from("suppliers")
       .select(supplierSelect)
@@ -49,16 +70,24 @@ export const supplierService = {
         .select(fallbackSupplierSelect)
         .order("name", { ascending: true });
       throwSupabaseError("suppliers.list_fallback", error);
-      return (data ?? []).map(mapSupplier);
+      const supplierRows = data ?? [];
+      const outletMap = await this.loadSupplierOutletMap(supplierRows.map((supplier) => supplier.id));
+      return supplierRows.map((supplier) => mapSupplier(supplier, outletMap[supplier.id] ?? []));
     }
 
     const { data, error } = result;
     throwSupabaseError("suppliers.list", error);
 
-    return (data ?? []).map(mapSupplier);
+    const supplierRows = data ?? [];
+    const outletMap = await this.loadSupplierOutletMap(supplierRows.map((supplier) => supplier.id));
+    if (import.meta.env.DEV) {
+      console.info("[Supplier Directory] supplier query", { ms: Math.round(performance.now() - startedAt), rows: supplierRows.length });
+    }
+    return supplierRows.map((supplier) => mapSupplier(supplier, outletMap[supplier.id] ?? []));
   },
 
   async listActiveSuppliers() {
+    const startedAt = performance.now();
     const result = await supabase
       .from("suppliers")
       .select(supplierSelect)
@@ -73,13 +102,20 @@ export const supplierService = {
         .eq("is_active", true)
         .order("name", { ascending: true });
       throwSupabaseError("suppliers.list_active_fallback", error);
-      return (data ?? []).map(mapSupplier);
+      const supplierRows = data ?? [];
+      const outletMap = await this.loadSupplierOutletMap(supplierRows.map((supplier) => supplier.id));
+      return supplierRows.map((supplier) => mapSupplier(supplier, outletMap[supplier.id] ?? []));
     }
 
     const { data, error } = result;
     throwSupabaseError("suppliers.list_active", error);
 
-    return (data ?? []).map(mapSupplier);
+    const supplierRows = data ?? [];
+    const outletMap = await this.loadSupplierOutletMap(supplierRows.map((supplier) => supplier.id));
+    if (import.meta.env.DEV) {
+      console.info("[Supplier Directory] active supplier query", { ms: Math.round(performance.now() - startedAt), rows: supplierRows.length });
+    }
+    return supplierRows.map((supplier) => mapSupplier(supplier, outletMap[supplier.id] ?? []));
   },
 
   async saveSupplier(supplier) {
@@ -189,15 +225,9 @@ export const supplierService = {
     });
   },
 
-  async getSupplierUsageMap(supplierIds = []) {
+  async getSupplierUsageMap(supplierIds = [], { outletIds = [], metricOutletIds = outletIds, month, year } = {}) {
     if (!supplierIds.length) return {};
-
-    const { data, error } = await supabase
-      .from("purchase_records")
-      .select("supplier_id,outlet_id,year,month,updated_at,created_at")
-      .in("supplier_id", supplierIds);
-
-    throwSupabaseError("suppliers.usage", error);
+    const startedAt = performance.now();
 
     const usageMap = Object.fromEntries(
       supplierIds.map((supplierId) => [
@@ -206,6 +236,7 @@ export const supplierService = {
           outletIds: [],
           purchaseRecordCount: 0,
           latestPurchase: null,
+          selectedMonthTotal: 0,
         },
       ]),
     );
@@ -216,12 +247,25 @@ export const supplierService = {
       .in("supplier_id", supplierIds);
     throwSupabaseError("suppliers.outlet_assignments", assignmentError);
 
+    const accessibleOutletSet = new Set(outletIds.map(String));
+
     (assignmentRows ?? []).forEach((row) => {
+      if (accessibleOutletSet.size && !accessibleOutletSet.has(String(row.outlet_id))) return;
       const usage = usageMap[row.supplier_id];
       if (usage && row.outlet_id && !usage.outletIds.includes(row.outlet_id)) {
         usage.outletIds.push(row.outlet_id);
       }
     });
+
+    let recordQuery = supabase
+      .from("purchase_records")
+      .select("supplier_id,outlet_id,year,month,amount,updated_at,created_at")
+      .in("supplier_id", supplierIds);
+    if (metricOutletIds.length) recordQuery = recordQuery.in("outlet_id", metricOutletIds);
+    const { data, error } = await recordQuery;
+
+    throwSupabaseError("suppliers.usage", error);
+
 
     (data ?? []).forEach((record) => {
       if (!record.supplier_id) return;
@@ -231,6 +275,9 @@ export const supplierService = {
         latestPurchase: null,
       };
       usage.purchaseRecordCount += 1;
+      if (Number(record.month) === Number(month) && Number(record.year) === Number(year)) {
+        usage.selectedMonthTotal += Number(record.amount || 0);
+      }
       const currentPeriodValue = Number(record.year || 0) * 100 + Number(record.month || 0);
       const latestPeriodValue = usage.latestPurchase
         ? Number(usage.latestPurchase.year || 0) * 100 + Number(usage.latestPurchase.month || 0)
@@ -245,6 +292,9 @@ export const supplierService = {
       usageMap[record.supplier_id] = usage;
     });
 
+    if (import.meta.env.DEV) {
+      console.info("[Supplier Directory] aggregation query", { ms: Math.round(performance.now() - startedAt), suppliers: supplierIds.length, records: data?.length ?? 0 });
+    }
     return usageMap;
   },
 

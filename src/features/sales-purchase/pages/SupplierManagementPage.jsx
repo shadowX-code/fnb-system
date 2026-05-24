@@ -9,7 +9,7 @@ import { FieldLabel, MonthSelector, YearSelector } from "../../../components/for
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import EntityModal from "../components/EntityModal.jsx";
 import usePeriodFilters from "../hooks/usePeriodFilters.js";
-import { getCategoryName, sumAmount, toCurrency } from "../utils/analytics.js";
+import { getCategoryName, toCurrency } from "../utils/analytics.js";
 import { formatSupplierName, supplierService } from "../../../services/supplierService.js";
 import Modal from "../../../components/feedback/Modal.jsx";
 import { canCreate, canDelete, canEdit, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
@@ -47,6 +47,7 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
   const [usageSupplier, setUsageSupplier] = useState(null);
   const [outletFilter, setOutletFilter] = useState("all");
   const [usageMap, setUsageMap] = useState({});
+  const [usageLoading, setUsageLoading] = useState(false);
   const canCreateSupplier = canCreate(auth, "suppliers");
   const canEditSupplier = canEdit(auth, "suppliers");
   const canDeleteSupplier = canDelete(auth, "suppliers");
@@ -66,17 +67,32 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
   useEffect(() => {
     if (!store.suppliers.length) return undefined;
     let cancelled = false;
-    supplierService.getSupplierUsageMap(store.suppliers.map((supplier) => supplier.id))
+    const startedAt = performance.now();
+    setUsageLoading(true);
+    supplierService.getSupplierUsageMap(store.suppliers.map((supplier) => supplier.id), {
+      outletIds: store.outlets.map((outlet) => outlet.id),
+      metricOutletIds: outletFilter === "all" ? store.outlets.map((outlet) => outlet.id) : [outletFilter],
+      month: filters.month,
+      year: filters.year,
+    })
       .then((nextUsageMap) => {
-        if (!cancelled) setUsageMap(nextUsageMap);
+        if (!cancelled) {
+          setUsageMap(nextUsageMap);
+          if (import.meta.env.DEV) {
+            console.info("[Supplier Directory] metrics ready", { ms: Math.round(performance.now() - startedAt) });
+          }
+        }
       })
       .catch((error) => {
         console.error("Unable to load supplier usage", error);
+      })
+      .finally(() => {
+        if (!cancelled) setUsageLoading(false);
       });
     return () => {
       cancelled = true;
     };
-  }, [store.suppliers]);
+  }, [filters.month, filters.year, outletFilter, store.outlets, store.suppliers]);
 
   function getSupplierUsage(supplier) {
     return usageMap[supplier.id] ?? {
@@ -161,12 +177,8 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
   }
 
   function getSelectedMonthTotal(row) {
-    return toCurrency(sumAmount(store.purchaseRecords.filter((record) => {
-      const matchesSupplier = record.supplier_id === row.id;
-      const matchesPeriod = record.month === filters.month && record.year === filters.year;
-      const matchesOutlet = outletFilter === "all" ? true : record.outlet_id === outletFilter;
-      return matchesSupplier && matchesPeriod && matchesOutlet;
-    })));
+    if (usageLoading && !usageMap[row.id]) return "Loading...";
+    return toCurrency(getSupplierUsage(row).selectedMonthTotal ?? 0);
   }
 
   const fields = [
@@ -314,6 +326,11 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
         </FieldLabel>
       </FilterBar>
       <Card title="Supplier Directory" description="Suppliers used across all outlets and purchase records.">
+        {usageLoading ? (
+          <div className="border-b border-border bg-slate-50 px-4 py-2 text-xs font-semibold text-text-secondary">
+            Loading supplier usage...
+          </div>
+        ) : null}
         <DataTable
           columns={columns}
           rows={rows}
