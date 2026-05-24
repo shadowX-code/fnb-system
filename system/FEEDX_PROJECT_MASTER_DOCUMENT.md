@@ -1364,6 +1364,10 @@ Modal behavior:
 - Cancel returns to view mode.
 - X closes entire modal.
 - No stacked modal layers.
+- Linked Employees display directly inside Job Position Detail.
+- Linked Employees shows count plus compact employee rows with name, employment status, workplace, department and contact.
+- If more than 5 employees are linked, the section expands inline with Show all.
+- Job Position Detail must not open a separate linked employee modal or drawer.
 
 Audit info:
 
@@ -2051,7 +2055,8 @@ Roster settings:
   - Kitchen Team multi-select positions.
   - Unassigned Positions appear under Other in roster.
 - Save Position Groups writes all position mappings in one action.
-- Shift templates are outlet-specific.
+- Shift templates are outlet-specific and must never fall back to templates from another outlet.
+- If the selected outlet has no active templates, Duty Roster shows an empty state until templates are created in Settings.
 - Shift Template Settings use compact stacked FeedX cards:
   - Add/Edit Template form.
   - Draggable active template cards.

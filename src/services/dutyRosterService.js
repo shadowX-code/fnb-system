@@ -4,11 +4,11 @@ import { throwSupabaseError } from "./supabaseError";
 
 const selectFields = `
   id,outlet_id,employee_id,roster_date,shift_template_id,start_time,end_time,break_minutes,status,remark,created_by,updated_by,created_at,updated_at,
-  shift_template:shift_templates(id,name,code,start_time,end_time,break_minutes,shift_type,color)
+  shift_template:shift_templates(id,outlet_id,name,code,start_time,end_time,break_minutes,shift_type,color)
 `;
 
 function mapRoster(row) {
-  const template = row.shift_template ?? null;
+  const template = row.shift_template?.outlet_id === row.outlet_id ? row.shift_template : null;
   return {
     id: row.id,
     outlet_id: row.outlet_id,
@@ -47,6 +47,10 @@ export const dutyRosterService = {
   },
 
   async saveDutyRoster({ outletId, employeeId, rosterDate, template, status = "draft", remark = "" }) {
+    if (template?.outlet_id !== outletId) {
+      throw new Error("This shift template is not available for the selected outlet.");
+    }
+
     const { data: userData } = await supabase.auth.getUser();
     const payload = {
       outlet_id: outletId,

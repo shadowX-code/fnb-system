@@ -10,6 +10,7 @@ import SelectField from "../../../components/forms/SelectField.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import { departmentService } from "../../../services/departmentService.js";
+import { employeeService } from "../../../services/employeeService.js";
 import { jobPositionService } from "../../../services/jobPositionService.js";
 import { canCreate, canDelete, canEdit, notifyPermissionDenied } from "../../../utils/accessControl.js";
 
@@ -47,6 +48,24 @@ function DetailSection({ title, children }) {
   );
 }
 
+function formatEmploymentStatus(status) {
+  const labels = {
+    full_time: "Full Time",
+    part_time: "Part Time",
+    resigned: "Resigned",
+  };
+  return labels[status] ?? "Active";
+}
+
+function formatEmployeeName(employee) {
+  if (employee.nickname && employee.full_name) return `${employee.full_name} (${employee.nickname})`;
+  return employee.full_name || employee.nickname || "Unnamed employee";
+}
+
+function activeEmployeeCountForPosition(employees, positionName) {
+  return employees.filter((employee) => employee.position === positionName && employee.employment_status !== "resigned").length;
+}
+
 function getPositionAudit(position, isNew = false) {
   if (isNew || !position?.id) {
     return {
@@ -69,7 +88,8 @@ function JobPositionDetailModal({
   mode = "view",
   initialPosition,
   departments,
-  linkedUsers,
+  linkedEmployees = [],
+  outlets = [],
   onClose,
   onModeChange,
   onSubmit,
@@ -77,16 +97,18 @@ function JobPositionDetailModal({
   canEditPosition = false,
 }) {
   const [values, setValues] = useState(() => ({ ...createEmptyPosition(), ...initialPosition }));
-  const [linkedEmployeesOpen, setLinkedEmployeesOpen] = useState(false);
+  const [showAllLinkedEmployees, setShowAllLinkedEmployees] = useState(false);
   const isView = mode === "view";
-  const isAdd = mode === "add";
+  const isCreate = mode === "create";
   const activeDepartments = departments.filter((department) => department.status === "active");
   const selectedDepartment = departments.find((department) => department.name === values.department);
-  const audit = getPositionAudit(values, isAdd);
+  const audit = getPositionAudit(values, isCreate);
+  const visibleLinkedEmployees = showAllLinkedEmployees ? linkedEmployees : linkedEmployees.slice(0, 5);
 
   useEffect(() => {
     setValues({ ...createEmptyPosition(), ...initialPosition });
-  }, [initialPosition?.id, initialPosition?.updated_at]);
+    setShowAllLinkedEmployees(false);
+  }, [initialPosition?.id, initialPosition?.updated_at, mode]);
 
   function updateValue(key, value) {
     setValues((current) => ({ ...current, [key]: value }));
@@ -108,7 +130,7 @@ function JobPositionDetailModal({
   }
 
   function handleCancel() {
-    if (isAdd) {
+    if (isCreate) {
       onClose();
       return;
     }
@@ -116,9 +138,9 @@ function JobPositionDetailModal({
     onModeChange("view");
   }
 
-  const linkedEmployeeCount = linkedUsers.length || Number(values.active_users || 0);
-  const title = isAdd ? "Add Job Position" : "Job Position Detail";
-  const description = isAdd
+  const linkedEmployeeCount = linkedEmployees.length || Number(values.active_users || 0);
+  const title = isCreate ? "Add Job Position" : "Job Position Detail";
+  const description = isCreate
     ? "Create a HR job title used in employee profiles. Roles are managed separately for system permissions."
     : `${values.name || "Position"} · ${values.department || "Unassigned"}`;
 
@@ -198,21 +220,45 @@ function JobPositionDetailModal({
         </DetailSection>
 
         <DetailSection title="Linked Employees">
-          <div className="flex flex-wrap items-center justify-between gap-3">
+          <div className="space-y-3">
             <div>
-              <button className="text-2xl font-semibold text-primary underline-offset-2 hover:underline" type="button" onClick={() => setLinkedEmployeesOpen(true)}>
-                {linkedEmployeeCount}
-              </button>
-              <div className="mt-1 text-xs text-text-secondary">Employees currently or historically linked to this position.</div>
+              <div className="text-lg font-semibold text-text-primary">{linkedEmployeeCount} {linkedEmployeeCount === 1 ? "employee" : "employees"} linked to this position</div>
+              <div className="mt-1 text-xs text-text-secondary">Employees currently or historically using this HR title.</div>
             </div>
-            <button className="btn-secondary h-9 text-xs" type="button" onClick={() => setLinkedEmployeesOpen(true)}>
-              View Employees
-            </button>
+
+            {linkedEmployees.length ? (
+              <div className="divide-y divide-border overflow-hidden rounded-2xl border border-border bg-surface">
+                {visibleLinkedEmployees.map((employee) => {
+                  const workplace = outlets.find((outlet) => outlet.id === employee.workplace)?.name || employee.workplace || "No workplace";
+                  return (
+                    <div key={employee.id} className="grid gap-2 px-4 py-3 md:grid-cols-[1.5fr_1fr] md:items-center">
+                      <div>
+                        <div className="text-sm font-bold text-text-primary">{formatEmployeeName(employee)}</div>
+                        <div className="mt-1 text-xs font-semibold text-text-secondary">
+                          {formatEmploymentStatus(employee.employment_status)} · {workplace} · {employee.department || "No department"}
+                        </div>
+                      </div>
+                      <div className="text-xs font-semibold text-text-muted md:text-right">{employee.email || employee.contact || "No contact"}</div>
+                    </div>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-dashed border-border bg-surface px-4 py-5 text-sm font-semibold text-text-secondary">
+                No employees are currently linked to this position.
+              </div>
+            )}
+
+            {linkedEmployees.length > 5 ? (
+              <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={() => setShowAllLinkedEmployees((current) => !current)}>
+                {showAllLinkedEmployees ? "Show first 5" : `Show all ${linkedEmployees.length}`}
+              </button>
+            ) : null}
           </div>
         </DetailSection>
 
         <DetailSection title="Audit Info">
-          {isAdd ? (
+          {isCreate ? (
             <div className="rounded-2xl border border-dashed border-border bg-surface px-4 py-3 text-sm font-semibold text-text-secondary">
               Audit info available after first save.
             </div>
@@ -226,37 +272,6 @@ function JobPositionDetailModal({
           )}
         </DetailSection>
       </div>
-
-      {linkedEmployeesOpen ? (
-        <div className="fixed inset-0 z-[60] flex justify-end bg-slate-950/30 backdrop-blur-[1px]" role="dialog" aria-modal="true">
-          <div className="flex h-full w-full max-w-xl flex-col border-l border-border bg-white shadow-2xl">
-            <header className="shrink-0 border-b border-border px-5 py-4">
-              <div className="text-xs font-bold uppercase tracking-wide text-primary">Linked Employees</div>
-              <h3 className="mt-1 text-lg font-semibold text-text-primary">{values.name || "Job Position"}</h3>
-              <p className="mt-1 text-sm text-text-secondary">Employees using this position.</p>
-            </header>
-            <div className="min-h-0 flex-1 overflow-y-auto p-4">
-              {linkedUsers.length ? (
-                <div className="space-y-2">
-                  {linkedUsers.map((userName) => (
-                    <div key={userName} className="rounded-2xl border border-border bg-slate-50 px-4 py-3">
-                      <div className="text-sm font-bold text-text-primary">{userName}</div>
-                      <div className="mt-1 text-xs text-text-secondary">Employee profile linked to {values.name}</div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm font-semibold text-text-secondary">
-                  No linked employees.
-                </div>
-              )}
-            </div>
-            <footer className="shrink-0 border-t border-border px-5 py-3 text-right">
-              <button className="btn-secondary" type="button" onClick={() => setLinkedEmployeesOpen(false)}>Close</button>
-            </footer>
-          </div>
-        </div>
-      ) : null}
     </Modal>
   );
 }
@@ -277,9 +292,10 @@ function StatCard({ label, value, helper, tone = "neutral" }) {
   );
 }
 
-export default function JobPositionsPage({ ui, auth }) {
+export default function JobPositionsPage({ store, ui, auth }) {
   const [positions, setPositions] = useState([]);
   const [departments, setDepartments] = useState([]);
+  const [employees, setEmployees] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [query, setQuery] = useState("");
@@ -296,13 +312,15 @@ export default function JobPositionsPage({ ui, auth }) {
       setLoading(true);
       setError("");
       try {
-        const [nextPositions, nextDepartments] = await Promise.all([
+        const [nextPositions, nextDepartments, nextEmployees] = await Promise.all([
           jobPositionService.listJobPositions(),
           departmentService.listDepartments(),
+          employeeService.listEmployees(),
         ]);
         if (!ignore) {
           setPositions(nextPositions);
           setDepartments(nextDepartments);
+          setEmployees(nextEmployees);
         }
       } catch (loadError) {
         console.error("Unable to load job positions", loadError);
@@ -317,13 +335,17 @@ export default function JobPositionsPage({ ui, auth }) {
     };
   }, []);
 
-  const linkedUsersByPosition = useMemo(() => ({
-    Owner: ["Marcus Lee"],
-    "Outlet Manager": ["Amanda Tan"],
-    Purchaser: ["Jason Lim"],
-    Cashier: ["Nur Aina"],
-    "Legacy Helper": ["Lee Wen"],
-  }), []);
+  const outlets = store?.outlets ?? [];
+
+  const linkedEmployeesByPosition = useMemo(() => {
+    const map = new Map();
+    employees.forEach((employee) => {
+      if (!employee.position) return;
+      if (!map.has(employee.position)) map.set(employee.position, []);
+      map.get(employee.position).push(employee);
+    });
+    return map;
+  }, [employees]);
 
   const filteredPositions = useMemo(() => {
     const search = query.trim().toLowerCase();
@@ -352,15 +374,19 @@ export default function JobPositionsPage({ ui, auth }) {
     }
     try {
       const saved = await jobPositionService.saveJobPosition(position);
+      const positionWithCount = {
+        ...saved,
+        active_users: activeEmployeeCountForPosition(employees, saved.name),
+      };
       setPositions((current) => {
-        const exists = current.some((item) => item.id === saved.id);
-        return exists ? current.map((item) => (item.id === saved.id ? saved : item)) : [saved, ...current];
+        const exists = current.some((item) => item.id === positionWithCount.id);
+        return exists ? current.map((item) => (item.id === positionWithCount.id ? positionWithCount : item)) : [positionWithCount, ...current];
       });
       setDetailState((current) => {
         if (!current) return null;
-        return current.mode === "add" ? null : { mode: "view", position: saved };
+        return current.mode === "create" ? null : { mode: "view", position: positionWithCount };
       });
-      ui.notify({ title: detailState?.mode === "add" ? "Position added" : "Position updated", message: saved.name });
+      ui.notify({ title: detailState?.mode === "create" ? "Position added" : "Position updated", message: saved.name });
     } catch (saveError) {
       console.error("Unable to save job position", saveError);
       ui.notify({ title: "Unable to save position", message: saveError.message || "Please try again.", tone: "error" });
@@ -521,7 +547,7 @@ export default function JobPositionsPage({ ui, auth }) {
         title="Job Positions"
         description="Manage HR job titles used in employee profiles. Position is separate from Role permissions."
         actions={
-          canCreatePosition ? <button className="btn-primary" type="button" onClick={() => setDetailState({ mode: "add", position: createEmptyPosition() })}>
+          canCreatePosition ? <button className="btn-primary" type="button" onClick={() => setDetailState({ mode: "create", position: createEmptyPosition() })}>
             <Plus size={16} /> Add Position
           </button> : <Badge tone="neutral">Read-only access</Badge>
         }
@@ -601,9 +627,10 @@ export default function JobPositionsPage({ ui, auth }) {
           mode={detailState.mode}
           initialPosition={detailState.position}
           departments={departments}
-          linkedUsers={linkedUsersByPosition[detailState.position.name] ?? []}
+          linkedEmployees={linkedEmployeesByPosition.get(detailState.position.name) ?? []}
+          outlets={outlets}
           onQuickCreateDepartment={quickCreateDepartment}
-          canEditPosition={detailState.mode === "add" ? canCreatePosition : canEditPosition}
+          canEditPosition={detailState.mode === "create" ? canCreatePosition : canEditPosition}
           onModeChange={(mode) => setDetailState((current) => (current ? { ...current, mode } : current))}
           onClose={() => setDetailState(null)}
           onSubmit={savePosition}

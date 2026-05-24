@@ -62,6 +62,7 @@ async function runTemplateList({ outletId = "", activeOnly = false, includeSort 
 
 export const shiftTemplateService = {
   async listShiftTemplates(outletId = "") {
+    if (!outletId) return [];
     let { data, error } = await runTemplateList({ outletId, activeOnly: true });
     if (missingSortOrder(error)) {
       console.warn("shift_templates.sort_order is not available yet; loading templates without custom order.", error);
@@ -69,19 +70,11 @@ export const shiftTemplateService = {
     }
 
     throwSupabaseError("shift_templates.list", error);
-    let rows = data ?? [];
-
-    if (outletId && rows.length === 0) {
-      let fallback = await runTemplateList({ activeOnly: true });
-      if (missingSortOrder(fallback.error)) fallback = await runTemplateList({ activeOnly: true, includeSort: false });
-      throwSupabaseError("shift_templates.fallback_list", fallback.error);
-      rows = fallback.data ?? [];
-    }
-
-    return sortTemplates(rows);
+    return sortTemplates(data);
   },
 
   async listAllShiftTemplates(outletId = "") {
+    if (!outletId) return [];
     let { data, error } = await runTemplateList({ outletId });
     if (missingSortOrder(error)) {
       console.warn("shift_templates.sort_order is not available yet; loading all templates without custom order.", error);
@@ -92,6 +85,10 @@ export const shiftTemplateService = {
   },
 
   async saveShiftTemplate(template) {
+    if (!template.outlet_id) {
+      throw new Error("Select an outlet before saving shift templates.");
+    }
+
     const payload = {
       outlet_id: template.outlet_id,
       name: template.name,

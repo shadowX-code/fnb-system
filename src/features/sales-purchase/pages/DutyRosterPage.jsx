@@ -238,6 +238,11 @@ function ShiftDrawer({ mode, employee, date, roster, templates, selectedTemplate
                   {templateId === item.id ? <CheckIcon /> : null}
                 </button>
               ))}
+              {!templates.length ? (
+                <div className="rounded-2xl border border-dashed border-border bg-surface p-4 text-sm font-semibold text-text-muted">
+                  No shift templates configured for this outlet yet. Go to Settings to create Morning, Mid, Closing, Full, or OFF.
+                </div>
+              ) : null}
             </div>
             {mode === "add" ? <p className="mt-3 text-xs font-semibold text-text-secondary">Selecting a template saves this shift immediately.</p> : null}
           </section>
@@ -347,6 +352,11 @@ function BulkAssignDrawer({ employee, dates, templates, selectedTemplateId, onCl
                   {templateId === item.id ? <CheckIcon /> : null}
                 </button>
               ))}
+              {!templates.length ? (
+                <div className="rounded-2xl border border-dashed border-border bg-surface p-4 text-sm font-semibold text-text-muted">
+                  No shift templates configured for this outlet yet. Create templates in Settings before bulk assigning.
+                </div>
+              ) : null}
             </div>
           </section>
 
@@ -1426,6 +1436,7 @@ function RosterDateSelector({ mode, weekStart, weekDates, visibleDates, onSelect
 export default function DutyRosterPage({ store, ui, auth }) {
   const activeOutlets = store.outlets.filter((outlet) => outlet.status === "active" || outlet.is_active);
   const [outletId, setOutletId] = useState(activeOutlets[0]?.id ?? "");
+  const outletIdRef = useRef(outletId);
   const [weekStart, setWeekStart] = useState(() => toDateInputValue(startOfWeek(new Date())));
   const [viewMode, setViewMode] = useState("week");
   const [employees, setEmployees] = useState([]);
@@ -1480,6 +1491,15 @@ export default function DutyRosterPage({ store, ui, auth }) {
   useEffect(() => {
     if (!outletId && activeOutlets[0]?.id) setOutletId(activeOutlets[0].id);
   }, [activeOutlets, outletId]);
+
+  useEffect(() => {
+    outletIdRef.current = outletId;
+    setTemplates([]);
+    setAllTemplates([]);
+    setSelectedTemplateId("");
+    setShiftDrawer(null);
+    setBulkDrawer(null);
+  }, [outletId]);
 
   useEffect(() => {
     const rawFocus = localStorage.getItem("feedx:dutyRosterFocus");
@@ -1612,6 +1632,11 @@ export default function DutyRosterPage({ store, ui, auth }) {
       return;
     }
     if (!templateOverride) return;
+    if (templateOverride.outlet_id !== outletId) {
+      ui.notify({ title: "Template unavailable for this outlet", message: "Create or select a shift template for the current outlet.", tone: "error" });
+      setSelectedTemplateId("");
+      return;
+    }
     setSaving(true);
     try {
       const saved = await dutyRosterService.saveDutyRoster({
@@ -1713,10 +1738,18 @@ export default function DutyRosterPage({ store, ui, auth }) {
   }
 
   async function refreshShiftTemplates() {
+    const currentOutletId = outletId;
+    if (!currentOutletId) {
+      setTemplates([]);
+      setAllTemplates([]);
+      setSelectedTemplateId("");
+      return { activeRows: [], allRows: [] };
+    }
     const [activeRows, allRows] = await Promise.all([
-      shiftTemplateService.listShiftTemplates(outletId),
-      shiftTemplateService.listAllShiftTemplates(outletId),
+      shiftTemplateService.listShiftTemplates(currentOutletId),
+      shiftTemplateService.listAllShiftTemplates(currentOutletId),
     ]);
+    if (currentOutletId !== outletIdRef.current) return { activeRows: [], allRows: [] };
     setTemplates(activeRows);
     setAllTemplates(allRows);
     setSelectedTemplateId((current) => (activeRows.some((template) => template.id === current) ? current : ""));
@@ -2213,8 +2246,11 @@ export default function DutyRosterPage({ store, ui, auth }) {
                 </div>
               )}
               {!templates.length ? (
-                <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-3 text-sm font-semibold text-amber-800">
-                  Shift templates are not ready yet. Apply the latest roster setup to load Morning, Mid, Closing, Full, OFF, AL, and MC.
+                <div className="rounded-2xl border border-dashed border-border bg-surface px-3 py-3 text-sm font-semibold text-text-muted">
+                  <span className="block text-text">No shift templates configured yet.</span>
+                  <span className="mt-1 block text-xs leading-5 text-text-secondary">
+                    Go to Settings to create Morning, Mid, Closing, Full, or OFF templates for this outlet.
+                  </span>
                 </div>
               ) : null}
               {templates.map((template) => (
