@@ -42,6 +42,10 @@ function getMonthDays(year, monthIndex) {
   ];
 }
 
+function clampDay(year, monthIndex, day) {
+  return Math.min(day, new Date(year, monthIndex + 1, 0).getDate());
+}
+
 export default function DatePickerField({ label, required = false, value, onChange, onBlur, error, helper }) {
   const [open, setOpen] = useState(false);
   const [displayValue, setDisplayValue] = useState(toDisplayDate(value));
@@ -99,6 +103,15 @@ export default function DatePickerField({ label, required = false, value, onChan
     setOpen(false);
   }
 
+  function updateCalendarView(nextYear, nextMonth) {
+    setVisibleYear(nextYear);
+    setVisibleMonth(nextMonth);
+    if (!value) return;
+    const currentDate = new Date(`${value}T00:00:00`);
+    const nextDay = clampDay(nextYear, nextMonth, currentDate.getDate());
+    onChange(`${nextYear}-${pad(nextMonth + 1)}-${pad(nextDay)}`);
+  }
+
   function selectToday() {
     const today = new Date();
     selectDate(`${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`);
@@ -139,14 +152,14 @@ export default function DatePickerField({ label, required = false, value, onChan
                 className="w-32"
                 buttonClassName="h-8 px-2 text-xs"
                 options={Array.from({ length: 12 }, (_, index) => ({ value: index, label: new Date(2026, index, 1).toLocaleString([], { month: "short" }) }))}
-                onChange={(nextValue) => setVisibleMonth(Number(nextValue))}
+                onChange={(nextValue) => updateCalendarView(visibleYear, Number(nextValue))}
               />
               <SelectField
                 value={visibleYear}
                 className="w-24"
                 buttonClassName="h-8 px-2 text-xs"
                 options={Array.from({ length: 70 }, (_, index) => 1970 + index).map((year) => ({ value: year, label: year }))}
-                onChange={(nextValue) => setVisibleYear(Number(nextValue))}
+                onChange={(nextValue) => updateCalendarView(Number(nextValue), visibleMonth)}
               />
             </div>
             <button className="icon-btn h-8 w-8" type="button" onClick={() => moveMonth(1)}>

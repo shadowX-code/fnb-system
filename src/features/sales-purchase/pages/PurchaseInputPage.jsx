@@ -122,7 +122,7 @@ function PurchaseEntryTable({
             const isUp = row.analysis.changePercent >= 0;
             return (
               <Fragment key={row.localKey}>
-                <tr className={`transition hover:bg-slate-50/80 ${rowTone}`}>
+                <tr data-purchase-row-key={row.localKey} className={`transition hover:bg-slate-50/80 ${rowTone}`}>
                   <td className="sticky left-0 z-10 max-w-[320px] overflow-visible bg-inherit px-3 py-2.5 align-top">
                     <SupplierCombobox
                       suppliers={supplierOptions}
@@ -275,6 +275,30 @@ function PurchaseEntryTable({
           </tr>
         </tfoot>
       </table>
+    </div>
+  );
+}
+
+function AddPurchaseRowsControl({ disabled, onAddRows }) {
+  return (
+    <div className="flex items-center gap-1">
+      <button className="btn-primary h-10 rounded-r-none px-3 text-sm" type="button" disabled={disabled} onClick={() => onAddRows(1)}>
+        <Plus size={16} /> Add Row
+      </button>
+      <SelectField
+        value=""
+        placeholder="More"
+        disabled={disabled}
+        className="w-28"
+        buttonClassName="h-10 rounded-l-none border-l-0 px-2 text-xs"
+        options={[
+          { value: 1, label: "Add 1 row" },
+          { value: 3, label: "Add 3 rows" },
+          { value: 5, label: "Add 5 rows" },
+          { value: 10, label: "Add 10 rows" },
+        ]}
+        onChange={(value) => onAddRows(Number(value))}
+      />
     </div>
   );
 }
@@ -544,15 +568,24 @@ export default function PurchaseInputPage({ store, setStore, ui, auth }) {
     setSaveState("draft");
   }
 
-  function addSupplierRow() {
+  useEffect(() => {
+    if (!focusSupplierKey) return;
+    const frame = window.requestAnimationFrame(() => {
+      const row = document.querySelector(`[data-purchase-row-key="${focusSupplierKey}"]`);
+      row?.scrollIntoView({ behavior: "smooth", block: "center" });
+    });
+    return () => window.cancelAnimationFrame(frame);
+  }, [focusSupplierKey, visibleRows.length]);
+
+  function addSupplierRows(count = 1) {
     if (!canWritePurchase) {
       notifyPermissionDenied(ui, "add purchase rows");
       return;
     }
-    const tempId = `draft-${crypto.randomUUID()}`;
-    setRows((current) => [
-      ...current,
-      {
+    const rowCount = Math.max(1, Number(count) || 1);
+    const newRows = Array.from({ length: rowCount }, () => {
+      const tempId = `draft-${crypto.randomUUID()}`;
+      return {
         temp_id: tempId,
         id: undefined,
         supplier_id: "",
@@ -560,10 +593,17 @@ export default function PurchaseInputPage({ store, setStore, ui, auth }) {
         remark: "",
         amount: "",
         draft: true,
-      },
-    ]);
-    setFocusSupplierKey(tempId);
-    setExpandedRows((current) => new Set([...current, tempId]));
+      };
+    });
+    const firstTempId = newRows[0]?.temp_id;
+    setSupplierSearch("");
+    setCategoryFilter("all");
+    setStatusFilter("all");
+    setShowAbnormalOnly(false);
+    setRows((current) => [...current, ...newRows]);
+    setFocusSupplierKey(firstTempId);
+    setExpandedRows((current) => new Set([...current, firstTempId]));
+    setSaveState("draft");
   }
 
   function toggleDetails(localKey) {
@@ -830,6 +870,7 @@ export default function PurchaseInputPage({ store, setStore, ui, auth }) {
           description="Fast supplier and amount entry. Notes and history stay collapsed until needed."
           action={
             <div className="flex flex-wrap items-center gap-2">
+              {canWritePurchase ? <AddPurchaseRowsControl disabled={isLocked} onAddRows={addSupplierRows} /> : null}
               <label className="inline-flex h-10 items-center gap-2 rounded-control border border-border bg-white px-3 text-sm font-semibold text-text-primary">
                 <input type="checkbox" checked={showAbnormalOnly} onChange={(event) => setShowAbnormalOnly(event.target.checked)} />
                 Abnormal only
@@ -880,15 +921,18 @@ export default function PurchaseInputPage({ store, setStore, ui, auth }) {
               <div className="p-8 text-center">
                 <div className="text-sm font-bold text-text-primary">No supplier rows yet</div>
                 <p className="mt-1 text-sm text-text-secondary">Duplicate previous month or add a supplier row to start entering purchases.</p>
+                {canWritePurchase ? (
+                  <div className="mt-4 flex flex-wrap justify-center gap-2">
+                    <button className="btn-primary" type="button" disabled={isLocked} onClick={() => addSupplierRows(1)}>
+                      <Plus size={16} /> Add Row
+                    </button>
+                    <button className="btn-secondary" type="button" disabled={isLocked} onClick={() => addSupplierRows(5)}>
+                      Add 5 Rows
+                    </button>
+                  </div>
+                ) : null}
               </div>
             )}
-            <div className="border-t border-border bg-slate-50/70 p-4">
-              {canWritePurchase ? (
-                <button className="btn-secondary" type="button" disabled={isLocked} onClick={addSupplierRow}>
-                  <Plus size={16} /> Add Supplier Row
-                </button>
-              ) : <Badge tone="neutral">Read-only access</Badge>}
-            </div>
           </div>
         </Card>
 

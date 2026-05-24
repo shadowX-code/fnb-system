@@ -131,6 +131,28 @@ function formatMalaysiaIc(value) {
   return `${digits.slice(0, 6)}-${digits.slice(6, 8)}-${digits.slice(8)}`;
 }
 
+function extractMalaysiaIcBirthday(value) {
+  const digits = String(value || "").replace(/\D/g, "");
+  if (digits.length < 6) return null;
+  const yy = Number(digits.slice(0, 2));
+  const month = Number(digits.slice(2, 4));
+  const day = Number(digits.slice(4, 6));
+  if (!Number.isInteger(yy) || !month || !day) return null;
+  const year = yy <= 9 ? 2000 + yy : 1900 + yy;
+  const date = new Date(year, month - 1, day);
+  if (date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+  return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
+function formatBirthdayHelper(value) {
+  if (!value) return "";
+  return new Date(`${value}T00:00:00`).toLocaleDateString("en-MY", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+  });
+}
+
 function formatMalaysiaContact(value) {
   const digits = String(value || "").replace(/\D/g, "").slice(0, 13);
   if (!digits) return "";
@@ -346,6 +368,12 @@ function UserFormModal({
   const activeJobPositions = jobPositions.filter((position) => position.status === "active");
   const selectedPosition = findJobPosition(jobPositions, values.position);
   const hasBankInfo = Boolean(values.bank_name || values.bank_account_number || values.bank_account_name);
+  const detectedIcBirthday = isMalaysia ? extractMalaysiaIcBirthday(values.ic_no) : null;
+  const birthdayHelper = detectedIcBirthday
+    ? `Birthday detected from IC: ${formatBirthdayHelper(detectedIcBirthday)}`
+    : isMalaysia && values.ic_no
+      ? "Use Malaysian IC format, e.g. 920416-08-5573"
+      : undefined;
 
   useEffect(() => {
     if (isViewMode) return undefined;
@@ -392,20 +420,30 @@ function UserFormModal({
       delete next[key];
       return next;
     });
-    setValues((current) => ({
-      ...current,
-      [key]:
-        key === "ic_no" && current.nationality === "Malaysia"
-          ? formatMalaysiaIc(value)
-          : key === "contact" && current.nationality === "Malaysia"
-            ? formatMalaysiaContact(value)
-            : value,
-      ...(key === "nationality" && value === "Malaysia" ? { ic_no: formatMalaysiaIc(current.ic_no), contact: formatMalaysiaContact(current.contact) } : {}),
-      ...(key === "full_name" && !current.bank_account_name ? { bank_account_name: value } : {}),
-      ...(key === "employment_status" && value !== "resigned" ? { resigned_date: "" } : {}),
-      ...(key === "enable_system_login" && !value ? { email: "", role: "", access_state: EMPLOYEE_ACCESS_STATE.NO_ACCESS, is_active: false, email_verified: false } : {}),
-      ...(key === "enable_system_login" && value ? { access_state: hasSystemLogin(current) ? getAccessState(current) : EMPLOYEE_ACCESS_STATE.NOT_SENT, is_active: getAccessState(current) === EMPLOYEE_ACCESS_STATE.ACTIVE } : {}),
-    }));
+    setValues((current) => {
+      const nextNationality = key === "nationality" ? value : current.nationality;
+      const nextIc = key === "ic_no"
+        ? (nextNationality === "Malaysia" ? formatMalaysiaIc(value) : value)
+        : key === "nationality" && value === "Malaysia"
+          ? formatMalaysiaIc(current.ic_no)
+          : current.ic_no;
+      const nextDetectedBirthday = nextNationality === "Malaysia" ? extractMalaysiaIcBirthday(nextIc) : null;
+      return {
+        ...current,
+        [key]:
+          key === "ic_no" && current.nationality === "Malaysia"
+            ? nextIc
+            : key === "contact" && current.nationality === "Malaysia"
+              ? formatMalaysiaContact(value)
+              : value,
+        ...(key === "nationality" && value === "Malaysia" ? { ic_no: nextIc, contact: formatMalaysiaContact(current.contact) } : {}),
+        ...((key === "ic_no" || key === "nationality") && nextDetectedBirthday && !current.birthday ? { birthday: nextDetectedBirthday } : {}),
+        ...(key === "full_name" && !current.bank_account_name ? { bank_account_name: value } : {}),
+        ...(key === "employment_status" && value !== "resigned" ? { resigned_date: "" } : {}),
+        ...(key === "enable_system_login" && !value ? { email: "", role: "", access_state: EMPLOYEE_ACCESS_STATE.NO_ACCESS, is_active: false, email_verified: false } : {}),
+        ...(key === "enable_system_login" && value ? { access_state: hasSystemLogin(current) ? getAccessState(current) : EMPLOYEE_ACCESS_STATE.NOT_SENT, is_active: getAccessState(current) === EMPLOYEE_ACCESS_STATE.ACTIVE } : {}),
+      };
+    });
     setTouchedFields((current) => (current[key] ? current : { ...current, [key]: true }));
   }
 
@@ -548,7 +586,7 @@ function UserFormModal({
                 onChange={(nextValue) => updateValue("nationality", nextValue)}
               />
             </FormField>
-            <FormField label={isMalaysia ? "IC No." : "Passport / ID No."} required error={visibleError("ic_no")}>
+            <FormField label={isMalaysia ? "IC No." : "Passport / ID No."} required error={visibleError("ic_no")} helper={isMalaysia ? "Use Malaysian IC format, e.g. 920416-08-5573" : undefined}>
               <input
                 className={inputClass(visibleError("ic_no"))}
                 value={values.ic_no}
@@ -557,7 +595,14 @@ function UserFormModal({
                 placeholder={isMalaysia ? "123456-08-1234" : "Passport or foreign ID number"}
               />
             </FormField>
-            <DatePickerField label="Birthday" value={values.birthday} onChange={(value) => updateValue("birthday", value)} onBlur={() => markTouched("birthday")} error={visibleError("birthday")} required />
+            <div>
+              <DatePickerField label="Birthday" value={values.birthday} onChange={(value) => updateValue("birthday", value)} onBlur={() => markTouched("birthday")} error={visibleError("birthday")} helper={birthdayHelper} required />
+              {detectedIcBirthday && values.birthday && values.birthday !== detectedIcBirthday ? (
+                <button className="mt-1 text-[11px] font-bold text-primary hover:text-primary-dark" type="button" onClick={() => updateValue("birthday", detectedIcBirthday)}>
+                  Use IC birthday
+                </button>
+              ) : null}
+            </div>
             <FormField label="Contact" required error={visibleError("contact")} helper={isMalaysia ? "Use Malaysia format, e.g. 60-123456789" : undefined}>
               <input
                 className={inputClass(visibleError("contact"))}
