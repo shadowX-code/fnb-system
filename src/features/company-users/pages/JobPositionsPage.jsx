@@ -84,7 +84,7 @@ function getPositionAudit(position, isNew = false) {
   };
 }
 
-function JobPositionDetailModal({
+function JobPositionModal({
   mode = "view",
   initialPosition,
   departments,
@@ -161,7 +161,7 @@ function JobPositionDetailModal({
         ) : (
           <>
             <button className="btn-secondary" type="button" onClick={handleCancel}>Cancel</button>
-            <button className="btn-primary" type="button" disabled={!canEditPosition} onClick={handleSubmit}>Save Position</button>
+            <button className="btn-primary" type="button" disabled={!canEditPosition} onClick={handleSubmit}>{isCreate ? "Create Position" : "Save Position"}</button>
           </>
         )
       }
@@ -301,7 +301,11 @@ export default function JobPositionsPage({ store, ui, auth }) {
   const [query, setQuery] = useState("");
   const [departmentFilter, setDepartmentFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
-  const [detailState, setDetailState] = useState(null);
+  const [positionModal, setPositionModal] = useState({
+    open: false,
+    mode: null,
+    position: null,
+  });
   const canCreatePosition = canCreate(auth, "job_positions");
   const canEditPosition = canEdit(auth, "job_positions");
   const canDeletePosition = canDelete(auth, "job_positions");
@@ -366,6 +370,26 @@ export default function JobPositionsPage({ store, ui, auth }) {
     assigned: positions.reduce((sum, position) => sum + Number(position.active_users || 0), 0),
   };
 
+  function closePositionModal() {
+    setPositionModal({
+      open: false,
+      mode: null,
+      position: null,
+    });
+  }
+
+  function openPositionModal(mode, position) {
+    setPositionModal({
+      open: true,
+      mode,
+      position,
+    });
+  }
+
+  function updatePositionModalMode(mode) {
+    setPositionModal((current) => (current.open ? { ...current, mode } : current));
+  }
+
   async function savePosition(position) {
     const isNew = !position.id;
     if ((isNew && !canCreatePosition) || (!isNew && !canEditPosition)) {
@@ -382,11 +406,13 @@ export default function JobPositionsPage({ store, ui, auth }) {
         const exists = current.some((item) => item.id === positionWithCount.id);
         return exists ? current.map((item) => (item.id === positionWithCount.id ? positionWithCount : item)) : [positionWithCount, ...current];
       });
-      setDetailState((current) => {
-        if (!current) return null;
-        return current.mode === "create" ? null : { mode: "view", position: positionWithCount };
+      setPositionModal((current) => {
+        if (!current.open) return current;
+        return current.mode === "create"
+          ? { open: false, mode: null, position: null }
+          : { open: true, mode: "view", position: positionWithCount };
       });
-      ui.notify({ title: detailState?.mode === "create" ? "Position added" : "Position updated", message: saved.name });
+      ui.notify({ title: positionModal.mode === "create" ? "Position added" : "Position updated", message: saved.name });
     } catch (saveError) {
       console.error("Unable to save job position", saveError);
       ui.notify({ title: "Unable to save position", message: saveError.message || "Please try again.", tone: "error" });
@@ -424,7 +450,7 @@ export default function JobPositionsPage({ store, ui, auth }) {
       notifyPermissionDenied(ui, "edit job positions");
       return;
     }
-    setDetailState(null);
+    closePositionModal();
     await savePosition({ ...position, status, updated_at: new Date().toISOString() });
   }
 
@@ -435,7 +461,7 @@ export default function JobPositionsPage({ store, ui, auth }) {
     }
     const hasAssignedEmployees = Number(position.active_users || 0) > 0;
     if (hasAssignedEmployees) {
-      setDetailState(null);
+      closePositionModal();
       ui.notify({
         title: "Unable to delete position",
         message: "This position is assigned to employees. Reassign employees before deleting.",
@@ -444,7 +470,7 @@ export default function JobPositionsPage({ store, ui, auth }) {
       return;
     }
     try {
-      setDetailState(null);
+      closePositionModal();
       await jobPositionService.deleteJobPosition(position);
       setPositions((current) => current.filter((item) => item.id !== position.id));
       ui.notify({ title: "Position deleted", message: position.name });
@@ -495,7 +521,7 @@ export default function JobPositionsPage({ store, ui, auth }) {
             type="button"
             onClick={(event) => {
               event.stopPropagation();
-              setDetailState({ mode: "edit", position: row });
+              openPositionModal("edit", row);
             }}
           >
             <Edit3 size={13} /> Edit
@@ -509,7 +535,7 @@ export default function JobPositionsPage({ store, ui, auth }) {
             type="button"
             onClick={(event) => {
               event.stopPropagation();
-              setDetailState(null);
+              closePositionModal();
               if (row.status === "active" && hasAssignedEmployees) {
                 ui.notify({
                   title: "Position assigned to active employees",
@@ -529,7 +555,7 @@ export default function JobPositionsPage({ store, ui, auth }) {
             disabled={hasAssignedEmployees}
             onClick={(event) => {
               event.stopPropagation();
-              setDetailState(null);
+              closePositionModal();
               deletePosition(row);
             }}
           >
@@ -547,7 +573,7 @@ export default function JobPositionsPage({ store, ui, auth }) {
         title="Job Positions"
         description="Manage HR job titles used in employee profiles. Position is separate from Role permissions."
         actions={
-          canCreatePosition ? <button className="btn-primary" type="button" onClick={() => setDetailState({ mode: "create", position: createEmptyPosition() })}>
+          canCreatePosition ? <button className="btn-primary" type="button" onClick={() => openPositionModal("create", createEmptyPosition())}>
             <Plus size={16} /> Add Position
           </button> : <Badge tone="neutral">Read-only access</Badge>
         }
@@ -613,7 +639,7 @@ export default function JobPositionsPage({ store, ui, auth }) {
             density="compact"
             tableClassName="min-w-[1040px]"
             getRowClassName={(row) => (row.status === "inactive" ? "opacity-70" : "")}
-            onRowClick={(row) => setDetailState({ mode: "view", position: row })}
+            onRowClick={(row) => openPositionModal("view", row)}
           />
         ) : (
           <div className="p-8 text-center">
@@ -622,17 +648,17 @@ export default function JobPositionsPage({ store, ui, auth }) {
         )}
       </Card>
 
-      {detailState ? (
-        <JobPositionDetailModal
-          mode={detailState.mode}
-          initialPosition={detailState.position}
+      {positionModal.open ? (
+        <JobPositionModal
+          mode={positionModal.mode}
+          initialPosition={positionModal.position}
           departments={departments}
-          linkedEmployees={linkedEmployeesByPosition.get(detailState.position.name) ?? []}
+          linkedEmployees={linkedEmployeesByPosition.get(positionModal.position?.name) ?? []}
           outlets={outlets}
           onQuickCreateDepartment={quickCreateDepartment}
-          canEditPosition={detailState.mode === "create" ? canCreatePosition : canEditPosition}
-          onModeChange={(mode) => setDetailState((current) => (current ? { ...current, mode } : current))}
-          onClose={() => setDetailState(null)}
+          canEditPosition={positionModal.mode === "create" ? canCreatePosition : canEditPosition}
+          onModeChange={updatePositionModalMode}
+          onClose={closePositionModal}
           onSubmit={savePosition}
         />
       ) : null}

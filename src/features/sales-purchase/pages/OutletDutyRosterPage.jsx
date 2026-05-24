@@ -8,6 +8,7 @@ import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import { employeeService } from "../../../services/employeeService.js";
 import { dutyRosterService } from "../../../services/dutyRosterService.js";
 import { jobPositionService } from "../../../services/jobPositionService.js";
+import { rosterPeriodService } from "../../../services/rosterPeriodService.js";
 import { rosterPositionGroupService } from "../../../services/rosterPositionGroupService.js";
 import { canExport } from "../../../utils/accessControl.js";
 import { formatShiftTimeRange } from "../utils/shiftTime.js";
@@ -91,11 +92,16 @@ function isWorkingRoster(roster) {
   return roster && !nonWorkingCodes.has(roster.template?.code);
 }
 
-function coverageTone(count) {
-  if (count >= 9) return "bg-emerald-500";
-  if (count >= 7) return "bg-amber-400";
-  if (count >= 5) return "bg-orange-400";
-  return "bg-rose-500";
+function statusBadgeClass(status) {
+  if (status === "locked") return "border-slate-200 bg-slate-100 text-slate-700";
+  if (status === "published") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+  return "border-amber-200 bg-amber-50 text-amber-700";
+}
+
+function formatStatusLabel(status) {
+  if (status === "locked") return "Locked";
+  if (status === "published") return "Published";
+  return "Draft";
 }
 
 function MonthPicker({ value, onChange }) {
@@ -216,14 +222,19 @@ function DailyDutyDrawer({ date, stats, employeesById, onClose, onOpenSchedule }
     else grouped[employee.rosterGroup || "other"].push(row);
   });
 
+  const hasRoster = Boolean(stats?.rosters?.length);
+  const hasWorkingStaff = ["floor", "kitchen", "other"].some((group) => grouped[group].length > 0);
+
   function StaffLine({ row }) {
     const shift = row.roster.template?.code && nonWorkingCodes.has(row.roster.template.code)
       ? row.roster.template.code
       : formatShiftTimeRange(row.roster.start_time, row.roster.end_time);
+    const shiftType = row.roster.template?.name || row.roster.template?.code || "Shift";
     return (
       <div className="rounded-2xl border border-border bg-background p-3">
         <div className="text-sm font-bold text-text-primary">{row.employee.nickname || row.employee.full_name}</div>
-        <div className="mt-1 text-xs font-semibold text-text-secondary">{row.employee.position || "Employee"} · {shift}</div>
+        <div className="mt-1 text-xs font-semibold text-text-secondary">{row.employee.position || "Employee"}</div>
+        <div className="mt-2 text-xs font-bold text-text-primary">{shift} · {shiftType}</div>
       </div>
     );
   }
@@ -264,16 +275,20 @@ function DailyDutyDrawer({ date, stats, employeesById, onClose, onOpenSchedule }
             </div>
           </section>
 
-          {["floor", "kitchen", "other"].map((group) => (
-            <section key={group}>
-              <div className="mb-2 rounded-xl bg-primary/10 px-3 py-1.5 text-xs font-black uppercase tracking-[0.16em] text-primary">{groupLabels[group]}</div>
-              <div className="space-y-2">
-                {grouped[group].length ? grouped[group].map((row) => <StaffLine key={row.roster.id} row={row} />) : (
-                  <div className="rounded-2xl border border-dashed border-border p-4 text-sm font-semibold text-text-muted">No working staff.</div>
-                )}
-              </div>
-            </section>
-          ))}
+          {!hasRoster ? (
+            <div className="rounded-3xl border border-dashed border-border bg-background p-6 text-center text-sm font-semibold text-text-secondary">
+              No staff scheduled for this date.
+            </div>
+          ) : hasWorkingStaff ? (
+            ["floor", "kitchen", "other"].map((group) => grouped[group].length ? (
+              <section key={group}>
+                <div className="mb-2 rounded-xl bg-primary/10 px-3 py-1.5 text-xs font-black uppercase tracking-[0.16em] text-primary">{groupLabels[group]}</div>
+                <div className="space-y-2">
+                  {grouped[group].map((row) => <StaffLine key={row.roster.id} row={row} />)}
+                </div>
+              </section>
+            ) : null)
+          ) : null}
 
           {leaveRows.length || offRows.length ? (
             <section>
@@ -304,6 +319,7 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
   const [jobPositions, setJobPositions] = useState([]);
   const [positionMappings, setPositionMappings] = useState([]);
   const [rosters, setRosters] = useState([]);
+  const [periods, setPeriods] = useState([]);
   const [employeeSearch, setEmployeeSearch] = useState("");
   const [groupFilter, setGroupFilter] = useState("all");
   const [positionFilter, setPositionFilter] = useState("all");
@@ -327,11 +343,12 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
       setLoading(true);
       setError("");
       try {
-        const [employeeRows, positionRows, mappingRows, rosterRows] = await Promise.all([
+        const [employeeRows, positionRows, mappingRows, rosterRows, periodRows] = await Promise.all([
           employeeService.listEmployees(),
           jobPositionService.listJobPositions(),
           rosterPositionGroupService.listMappings(),
           dutyRosterService.listDutyRosters(outletId, monthDateValues[0], monthDateValues[monthDateValues.length - 1]),
+          rosterPeriodService.listRosterPeriods(outletId, monthDateValues[0], monthDateValues[monthDateValues.length - 1]),
         ]);
         if (ignore) return;
         const outlet = activeOutlets.find((item) => item.id === outletId);
@@ -343,6 +360,7 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
         setJobPositions(positionRows);
         setPositionMappings(mappingRows);
         setRosters(rosterRows);
+        setPeriods(periodRows);
       } catch (loadError) {
         console.error("Unable to load outlet duty roster", loadError);
         if (!ignore) setError(loadError.message || "Unable to load outlet duty roster.");
@@ -383,6 +401,15 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
   const filteredEmployeeIds = useMemo(() => new Set(filteredEmployees.map((employee) => employee.id)), [filteredEmployees]);
   const employeesById = useMemo(() => new Map(employeesWithGroups.map((employee) => [employee.id, employee])), [employeesWithGroups]);
 
+  const periodByDate = useMemo(() => {
+    const map = new Map();
+    monthDateValues.forEach((date) => {
+      const period = periods.find((item) => item.week_start_date <= date && item.week_end_date >= date);
+      if (period) map.set(date, period);
+    });
+    return map;
+  }, [monthDateValues.join("|"), periods]);
+
   const statsByDate = useMemo(() => {
     const result = new Map();
     monthDateValues.forEach((date) => {
@@ -412,6 +439,18 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
   const selectedDailyStats = dailyDrawerDate
     ? statsByDate.get(dailyDrawerDate) ?? { working: 0, floor: 0, kitchen: 0, other: 0, off: 0, al: 0, mc: 0, rosters: [] }
     : null;
+
+  const monthSummary = useMemo(() => {
+    const inMonthDates = monthDateValues;
+    return inMonthDates.reduce((summary, date) => {
+      const stats = statsByDate.get(date);
+      if (!stats?.rosters?.length) summary.unscheduledDays += 1;
+      summary.totalScheduledShifts += stats?.rosters?.length ?? 0;
+      summary.workingStaff += stats?.working ?? 0;
+      summary.leaveDays += (stats?.al ?? 0) + (stats?.mc ?? 0);
+      return summary;
+    }, { totalScheduledShifts: 0, workingStaff: 0, leaveDays: 0, unscheduledDays: 0 });
+  }, [monthDateValues, statsByDate]);
 
   function navigateMonth(direction) {
     setMonthStart(toDateInputValue(startOfMonth(addMonths(`${monthStart}T00:00:00`, direction))));
@@ -474,7 +513,22 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
 
       {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{error}</div> : null}
 
-      <Card title={`Outlet Duty Roster · ${formatMonthYear(monthDates[0])}`} description="Click a date to review daily staff coverage.">
+      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
+        {[
+          ["Total Scheduled Shifts", monthSummary.totalScheduledShifts, "All saved roster entries"],
+          ["Working Staff This Month", monthSummary.workingStaff, "Working shift assignments"],
+          ["AL / MC Days", monthSummary.leaveDays, "Leave and medical entries"],
+          ["Unscheduled Days", monthSummary.unscheduledDays, "No roster entries saved"],
+        ].map(([label, value, helper]) => (
+          <Card key={label} className="p-4">
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{label}</div>
+            <div className="mt-2 text-2xl font-semibold text-text-primary">{value}</div>
+            <div className="mt-1 text-xs font-semibold text-text-secondary">{helper}</div>
+          </Card>
+        ))}
+      </div>
+
+      <Card title={`Outlet Duty Roster · ${formatMonthYear(monthDates[0])}`} description="Click a date to review the daily roster.">
         {loading ? (
           <div className="p-8 text-center text-sm font-semibold text-text-secondary">Loading outlet duty roster...</div>
         ) : (
@@ -491,13 +545,19 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
                 const isSelected = dailyDrawerDate === dateValue;
                 const isWeekend = date.getDay() === 0 || date.getDay() === 6;
                 const hasRoster = stats.rosters.length > 0;
+                const period = periodByDate.get(dateValue);
+                const leaveText = [
+                  stats.off ? `OFF ${stats.off}` : "",
+                  stats.al ? `AL ${stats.al}` : "",
+                  stats.mc ? `MC ${stats.mc}` : "",
+                ].filter(Boolean).join(" / ");
                 return (
                   <button
                     key={dateValue}
-                    className={`min-h-[128px] rounded-3xl border p-3 text-left transition ${
+                    className={`group min-h-[128px] rounded-3xl border p-3 text-left transition ${
                       inMonth ? "hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm" : "cursor-default"
                     } ${
-                      isSelected ? "border-primary/40 bg-primary/10" : isToday ? "border-primary/60 bg-surface" : "border-border bg-surface"
+                      isSelected ? "border-primary/50 bg-primary/10" : isToday ? "border-primary/60 bg-primary/5" : "border-border bg-surface"
                     } ${isWeekend && !isSelected ? "bg-background" : ""} ${!inMonth ? "hidden opacity-35 sm:block" : ""}`}
                     type="button"
                     disabled={!inMonth}
@@ -505,31 +565,38 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
                   >
                     <div className="flex items-start justify-between gap-2">
                       <div className="text-lg font-semibold text-text-primary">{date.getDate()}</div>
-                      <span className={`mt-1 h-2.5 w-2.5 rounded-full ${coverageTone(stats.working)}`} aria-label="Coverage level" />
+                      <div className="flex flex-col items-end gap-1">
+                        {isToday ? <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-primary">Today</span> : null}
+                        {period ? <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${statusBadgeClass(period.status)}`}>{formatStatusLabel(period.status)}</span> : null}
+                      </div>
                     </div>
-                    <div className="mt-4 text-sm font-bold text-text-primary">{hasRoster ? `${stats.working} staff` : "No roster"}</div>
-                    <div className="mt-1 text-xs font-semibold text-text-secondary">Floor {stats.floor} · Kitchen {stats.kitchen}</div>
+                    <div className="mt-4 text-sm font-bold text-text-primary">{hasRoster ? `${stats.working} Staff Scheduled` : "Not Scheduled Yet"}</div>
+                    {hasRoster && stats.working > 0 ? (
+                      <div className="mt-1 text-xs font-semibold text-text-secondary">
+                        Floor {stats.floor} · Kitchen {stats.kitchen}{stats.other ? ` · Other ${stats.other}` : ""}
+                      </div>
+                    ) : null}
+                    {hasRoster && stats.working === 0 && leaveText ? (
+                      <div className="mt-1 text-xs font-semibold text-text-secondary">{leaveText}</div>
+                    ) : null}
                     {stats.al || stats.mc ? (
                       <div className="mt-3 flex flex-wrap gap-1.5">
                         {stats.al ? <span className="rounded-full bg-violet-100 px-2 py-1 text-[10px] font-black text-violet-700">AL {stats.al}</span> : null}
                         {stats.mc ? <span className="rounded-full bg-violet-100 px-2 py-1 text-[10px] font-black text-violet-700">MC {stats.mc}</span> : null}
                       </div>
                     ) : null}
+                    {inMonth ? <div className="mt-4 text-[11px] font-black uppercase tracking-wide text-primary opacity-0 transition group-hover:opacity-100">View daily roster →</div> : null}
                   </button>
                 );
               })}
             </div>
             <div className="mt-5 flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-background px-4 py-3 text-xs font-semibold text-text-secondary">
-              {[
-                ["9+ staff", "bg-emerald-500"],
-                ["7-8 staff", "bg-amber-400"],
-                ["5-6 staff", "bg-orange-400"],
-                ["0-4 staff", "bg-rose-500"],
-              ].map(([label, tone]) => (
-                <span key={label} className="inline-flex items-center gap-2"><span className={`h-2.5 w-2.5 rounded-full ${tone}`} />{label}</span>
-              ))}
               <span className="inline-flex items-center gap-2"><span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-black text-violet-700">AL</span> Annual leave</span>
               <span className="inline-flex items-center gap-2"><span className="rounded-full bg-violet-100 px-2 py-0.5 text-[10px] font-black text-violet-700">MC</span> Medical leave</span>
+              <span className="inline-flex items-center gap-2"><span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-black text-primary">Today</span> Current date</span>
+              <span className="inline-flex items-center gap-2"><span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${statusBadgeClass("draft")}`}>Draft</span> Draft roster</span>
+              <span className="inline-flex items-center gap-2"><span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${statusBadgeClass("published")}`}>Published</span> Published roster</span>
+              <span className="inline-flex items-center gap-2"><span className={`rounded-full border px-2 py-0.5 text-[10px] font-black ${statusBadgeClass("locked")}`}>Locked</span> Locked roster</span>
             </div>
           </div>
         )}

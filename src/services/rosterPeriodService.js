@@ -20,6 +20,19 @@ function mapPeriod(row) {
 }
 
 export const rosterPeriodService = {
+  async listRosterPeriods(outletId, startDate, endDate) {
+    const { data, error } = await supabase
+      .from("roster_periods")
+      .select(selectFields)
+      .eq("outlet_id", outletId)
+      .lte("week_start_date", endDate)
+      .gte("week_end_date", startDate)
+      .order("week_start_date", { ascending: true });
+
+    throwSupabaseError("roster_periods.list", error);
+    return (data ?? []).map(mapPeriod);
+  },
+
   async getOrCreateRosterPeriod(outletId, weekStartDate, weekEndDate) {
     const { data: existing, error: existingError } = await supabase
       .from("roster_periods")

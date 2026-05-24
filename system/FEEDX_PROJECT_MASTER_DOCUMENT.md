@@ -1359,6 +1359,7 @@ This position is assigned to employees. Reassign employees before deleting.
 Modal behavior:
 
 - One shared modal.
+- Modal state uses one object only: open, mode and position.
 - View mode: Close + Edit Position.
 - Edit mode: Cancel + Save Position.
 - Cancel returns to view mode.
@@ -2041,12 +2042,23 @@ Open Overview > Outlet Duty Roster
 → Select outlet and month
 → Load duty_rosters for the full month
 → Apply group, position, and employee filters
-→ Render monthly calendar coverage cards
+→ Render monthly calendar roster summary cards
 → Click date card
 → Open daily duty drawer
 → Review Floor/Kitchen/Other staff on duty
 → Use Open Schedule View to focus the selected roster week for editing
 ```
+
+Rules:
+
+- Do not show hardcoded staffing health labels such as Fully Staffed, Understaffed, Critical shortage, or 9+ staff thresholds.
+- Outlet Duty Roster is factual only until outlet-specific manpower targets exist.
+- Empty dates show Not Scheduled Yet.
+- Scheduled dates show actual working staff counts and Floor/Kitchen/Other breakdown.
+- Calendar date cards may show Draft, Published, or Locked roster period status when a period exists.
+- Today is marked with a small Today badge and subtle green styling.
+- The legend only explains AL, MC, Today and roster status badges.
+- If no roster exists for a selected date, the drawer shows one clean empty state: No staff scheduled for this date.
 
 Roster settings:
 
