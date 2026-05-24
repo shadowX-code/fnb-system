@@ -487,6 +487,7 @@ function matrixInsightsForProduct(product, total, avgQty, avgSales) {
       finding: `${product.product} sits in ${quadrant.label}.`,
       why: `${toPercent(contribution)} of current net sales with ${product.quantity.toLocaleString()} units sold.`,
       action: quadrant.action,
+      metric: `${toPercent(contribution)} contribution · ${product.quantity.toLocaleString()} sold`,
     },
     {
       type: "Opportunity",
@@ -494,6 +495,7 @@ function matrixInsightsForProduct(product, total, avgQty, avgSales) {
       finding: `Average selling price is ${toCurrency(avgPrice)}.`,
       why: "Price and volume together explain whether this item is driving sales efficiently.",
       action: avgPrice < 8 ? "Test add-ons, bundles, or a small price review." : "Keep monitoring price acceptance and bundle potential.",
+      metric: `${toCurrency(avgPrice)} per item`,
     },
     discountRate >= 15 ? {
       type: "Warning",
@@ -501,12 +503,14 @@ function matrixInsightsForProduct(product, total, avgQty, avgSales) {
       finding: `Discount rate is ${toPercent(discountRate)}.`,
       why: "High discount dependency can hide weak menu economics.",
       action: "Review promotion mechanics and compare full-price demand.",
+      metric: `${toPercent(discountRate)} discount rate`,
     } : {
       type: "Recommendation",
       tone: "success",
       finding: "Discount pressure appears controlled.",
       why: "Lower discount reliance gives cleaner product performance signals.",
       action: "Use this item as a benchmark when reviewing discounted products.",
+      metric: `${toPercent(discountRate)} discount rate`,
     },
     {
       type: "Trend",
@@ -514,6 +518,7 @@ function matrixInsightsForProduct(product, total, avgQty, avgSales) {
       finding: "Track this item across future monthly uploads.",
       why: "A single month shows current position; trend confirms whether the move is durable.",
       action: "Upload next month’s POS report and compare ranking movement.",
+      metric: "Trend needs more months",
     },
   ];
 }
@@ -539,20 +544,33 @@ function ProductTooltip({ point, total }) {
   if (!point) return null;
   const product = point.product;
   const avgPrice = product.quantity ? product.nett_sales / product.quantity : 0;
+  const contribution = productContribution(product, total);
   return (
     <div
-      className="pointer-events-none absolute z-20 w-64 -translate-x-1/2 rounded-2xl border border-border bg-white p-3 text-xs shadow-xl"
+      className="pointer-events-none absolute z-20 w-72 -translate-x-1/2 rounded-2xl border border-slate-200/80 bg-white/95 p-4 text-xs shadow-2xl backdrop-blur"
       style={{ left: `${point.x}%`, top: `${Math.max(8, point.y - 8)}%` }}
     >
-      <div className="font-bold text-text-primary">{product.product}</div>
-      <div className="mt-0.5 text-text-muted">{product.category}</div>
-      <div className="mt-2 grid grid-cols-2 gap-2">
-        <div><span className="text-text-muted">Net sales</span><div className="font-bold text-text-primary">{toCurrency(product.nett_sales)}</div></div>
-        <div><span className="text-text-muted">Qty sold</span><div className="font-bold text-text-primary">{product.quantity.toLocaleString()}</div></div>
-        <div><span className="text-text-muted">Avg price</span><div className="font-bold text-text-primary">{toCurrency(avgPrice)}</div></div>
-        <div><span className="text-text-muted">Contribution</span><div className="font-bold text-text-primary">{toPercent(productContribution(product, total))}</div></div>
+      <div className="text-sm font-black leading-tight text-text-primary">{product.product}</div>
+      <div className="mt-1 flex items-center justify-between gap-2">
+        <span className="text-text-muted">{product.category}</span>
+        <span className={`rounded-full px-2 py-0.5 font-bold ${point.quadrant.bg} ${point.quadrant.text}`}>{point.quadrant.label}</span>
       </div>
-      <div className={`mt-2 inline-flex rounded-full px-2 py-1 font-bold ${point.quadrant.bg} ${point.quadrant.text}`}>{point.quadrant.label}</div>
+      <div className="mt-3 space-y-2">
+        {[
+          ["Net sales", toCurrency(product.nett_sales)],
+          ["Quantity sold", product.quantity.toLocaleString()],
+          ["Avg selling price", toCurrency(avgPrice)],
+          ["Revenue contribution", toPercent(contribution)],
+        ].map(([label, value]) => (
+          <div key={label} className="flex items-center justify-between gap-4 rounded-xl bg-slate-50 px-3 py-2">
+            <span className="font-semibold text-text-muted">{label}</span>
+            <span className="font-black text-text-primary">{value}</span>
+          </div>
+        ))}
+      </div>
+      <div className="mt-3 rounded-xl border border-emerald-100 bg-emerald-50/70 px-3 py-2 font-bold text-emerald-700">
+        {contribution >= 8 ? "Above-average revenue contributor" : "Monitor contribution trend"}
+      </div>
     </div>
   );
 }
@@ -566,8 +584,8 @@ function PerformanceMatrix({ products, total, categoryFilter, onCategoryFilter, 
   const avgQty = products.reduce((sum, item) => sum + item.quantity, 0) / (products.length || 1);
   const avgSales = products.reduce((sum, item) => sum + item.nett_sales, 0) / (products.length || 1);
   const matrixPoints = spreadMatrixPoints(visibleProducts.slice(0, 100).map((product) => {
-    const x = Math.max(6, Math.min(94, (product.nett_sales / maxSales) * 90 + 5));
-    const y = Math.max(6, Math.min(94, 100 - ((product.quantity / maxQty) * 90 + 5)));
+    const x = Math.max(6, Math.min(94, (product.quantity / maxQty) * 90 + 5));
+    const y = Math.max(6, Math.min(94, 100 - ((product.nett_sales / maxSales) * 90 + 5)));
     const quadrant = quadrantFor(product, avgQty, avgSales);
     const size = Math.max(12, Math.min(34, 12 + (product.nett_sales / maxSales) * 22));
     return { product, x, y, quadrant, size };
@@ -589,13 +607,20 @@ function PerformanceMatrix({ products, total, categoryFilter, onCategoryFilter, 
         </div>
         <div className="text-xs font-semibold text-text-secondary">Bubble size = net sales volume. Tap a product to update insights.</div>
       </div>
-      <div className="relative h-[380px] touch-manipulation rounded-2xl border border-border bg-gradient-to-br from-slate-50 to-white sm:h-80">
-        <div className="absolute left-1/2 top-0 h-full w-px border-l border-dashed border-border" />
-        <div className="absolute left-0 top-1/2 h-px w-full border-t border-dashed border-border" />
-        <div className="absolute left-4 top-4 rounded-full bg-blue-50 px-2 py-1 text-[11px] font-bold text-blue-700">Growth Potential</div>
-        <div className="absolute right-4 top-4 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700">Star Performer</div>
-        <div className="absolute bottom-4 left-4 rounded-full bg-rose-50 px-2 py-1 text-[11px] font-bold text-rose-700">Low Performer</div>
-        <div className="absolute bottom-4 right-4 rounded-full bg-orange-50 px-2 py-1 text-[11px] font-bold text-orange-700">High Volume Low Margin</div>
+      <div className="relative h-[390px] overflow-hidden touch-manipulation rounded-2xl border border-slate-200 bg-white shadow-[inset_0_1px_0_rgba(255,255,255,0.7)] sm:h-80">
+        <div className="absolute inset-0 grid grid-cols-2 grid-rows-2">
+          <div className="bg-gradient-to-br from-blue-50/70 to-white" />
+          <div className="bg-gradient-to-bl from-emerald-50/80 to-white" />
+          <div className="bg-gradient-to-tr from-rose-50/60 to-white" />
+          <div className="bg-gradient-to-tl from-orange-50/65 to-white" />
+        </div>
+        <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(148,163,184,0.12)_1px,transparent_1px),linear-gradient(to_bottom,rgba(148,163,184,0.12)_1px,transparent_1px)] bg-[size:48px_48px]" />
+        <div className="absolute left-1/2 top-0 h-full w-px border-l border-dashed border-slate-300/70" />
+        <div className="absolute left-0 top-1/2 h-px w-full border-t border-dashed border-slate-300/70" />
+        <div className="absolute left-4 top-4 text-[11px] font-black uppercase tracking-wide text-blue-700/55">Growth Potential</div>
+        <div className="absolute right-4 top-4 text-right text-[11px] font-black uppercase tracking-wide text-emerald-700/55">Star Performer</div>
+        <div className="absolute bottom-4 left-4 text-[11px] font-black uppercase tracking-wide text-rose-700/55">Low Performer</div>
+        <div className="absolute bottom-4 right-4 max-w-[130px] text-right text-[11px] font-black uppercase tracking-wide text-orange-700/55">High Volume Low Margin</div>
         {matrixPoints.map((point) => {
           const product = point.product;
           const isFocused = focusedProductKey === product.key;
@@ -605,11 +630,17 @@ function PerformanceMatrix({ products, total, categoryFilter, onCategoryFilter, 
               type="button"
               aria-label={`Inspect ${product.product}`}
               onClick={() => onProductFocus(product)}
-              onMouseEnter={() => setHoveredPoint(point)}
+              onMouseEnter={() => {
+                setHoveredPoint(point);
+                onProductFocus(product);
+              }}
               onMouseLeave={() => setHoveredPoint(null)}
-              onFocus={() => setHoveredPoint(point)}
+              onFocus={() => {
+                setHoveredPoint(point);
+                onProductFocus(product);
+              }}
               onBlur={() => setHoveredPoint(null)}
-              className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full ${point.quadrant.color} shadow-sm ring-white transition hover:scale-110 focus:outline-none focus:ring-4 ${isFocused ? "scale-110 opacity-100 ring-4" : "opacity-85 ring-2"}`}
+              className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full ${point.quadrant.color} shadow-[0_6px_22px_rgba(15,23,42,0.16)] ring-white transition duration-200 ease-out hover:scale-125 hover:shadow-[0_10px_32px_rgba(16,185,129,0.28)] focus:outline-none focus:ring-4 ${isFocused ? "scale-125 opacity-100 ring-4" : "opacity-85 ring-2"}`}
               style={{ left: `${point.x}%`, top: `${point.y}%`, width: point.size, height: point.size }}
             />
           );
@@ -617,10 +648,14 @@ function PerformanceMatrix({ products, total, categoryFilter, onCategoryFilter, 
         <ProductTooltip point={hoveredPoint} total={total} />
       </div>
       <div className="mt-2 flex justify-between text-[11px] font-bold uppercase text-text-muted">
-        <span>Low Revenue Contribution</span>
-        <span>High Revenue Contribution</span>
+        <span>Slow Selling</span>
+        <span>Fast Selling</span>
       </div>
-      <div className="-mt-1 text-center text-[11px] font-bold uppercase text-text-muted">Higher Sales Velocity ↑</div>
+      <div className="-mt-1 flex justify-center gap-2 text-[11px] font-bold uppercase text-text-muted">
+        <span>Low Revenue</span>
+        <span>→</span>
+        <span>High Revenue</span>
+      </div>
     </div>
   );
 }
@@ -801,11 +836,11 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
   const insights = focusedMatrixProduct
     ? matrixInsightsForProduct(focusedMatrixProduct, current.totals.nett_sales, matrixAvgQty, matrixAvgSales)
     : [
-      best ? { tone: "success", type: "Insight", finding: `${best.product} is the best seller.`, why: `${best.quantity} items sold with ${toCurrency(best.nett_sales)} net sales.`, action: "Keep it visible and protect preparation consistency." } : null,
-      topCategory ? { tone: "info", type: "Opportunity", finding: `${topCategory.name} leads category contribution.`, why: `${toPercent(current.totals.nett_sales ? (topCategory.nett_sales / current.totals.nett_sales) * 100 : 0)} of net sales comes from this category.`, action: "Use this category for bundles, placement, or menu highlights." } : null,
-      comparePeriod && current.totals.nett_sales ? { tone: salesChange >= 0 ? "success" : "warning", type: "Trend", finding: `Net sales ${salesChange >= 0 ? "increased" : "decreased"} ${toPercent(Math.abs(salesChange))}.`, why: `Compared with ${monthLabel(comparePeriod.month)} ${comparePeriod.year}. Quantity changed ${toPercent(qtyChange)}.`, action: salesChange >= 0 ? "Identify which products drove the lift and repeat the play." : "Review top decliners and discount dependency." } : null,
-      current.totals.discount > current.totals.nett_sales * 0.12 ? { tone: "warning", type: "Warning", finding: "Discount level is elevated.", why: `${toCurrency(current.totals.discount)} discount given this period.`, action: "Review promotion dependency and compare full-price demand." } : null,
-      lowPerformers.length ? { tone: "danger", type: "Recommendation", finding: `${lowPerformers.length} low-performing menu items detected.`, why: `These items sold below the ${lowThreshold} quantity threshold.`, action: "Review menu visibility, naming, promotion, or removal." } : null,
+      best ? { tone: "success", type: "Insight", finding: `${best.product} is leading sales.`, why: `${best.quantity} items sold with ${toCurrency(best.nett_sales)} net sales.`, action: "Keep it visible and protect preparation consistency.", metric: `${best.quantity} sold` } : null,
+      topCategory ? { tone: "info", type: "Opportunity", finding: `${topCategory.name} is the strongest category.`, why: `${toPercent(current.totals.nett_sales ? (topCategory.nett_sales / current.totals.nett_sales) * 100 : 0)} of net sales comes from this category.`, action: "Use it for bundles, placement, or menu highlights.", metric: toCurrency(topCategory.nett_sales) } : null,
+      comparePeriod && current.totals.nett_sales ? { tone: salesChange >= 0 ? "success" : "warning", type: "Trend", finding: `Net sales ${salesChange >= 0 ? "increased" : "decreased"} ${toPercent(Math.abs(salesChange))}.`, why: `Compared with ${monthLabel(comparePeriod.month)} ${comparePeriod.year}.`, action: salesChange >= 0 ? "Repeat the products that drove the lift." : "Review top decliners and discount dependency.", metric: `${toPercent(qtyChange)} qty movement` } : null,
+      current.totals.discount > current.totals.nett_sales * 0.12 ? { tone: "warning", type: "Warning", finding: "Discount level is elevated.", why: `${toCurrency(current.totals.discount)} discount given this period.`, action: "Compare full-price demand before repeating the promo.", metric: toCurrency(current.totals.discount) } : null,
+      lowPerformers.length ? { tone: "danger", type: "Recommendation", finding: `${lowPerformers.length} low performers need review.`, why: `These items sold below the ${lowThreshold} quantity threshold.`, action: "Review visibility, naming, promotion, or removal.", metric: `${lowPerformers.length} items` } : null,
     ].filter(Boolean);
   const suggestedActions = insights.slice(0, 4).map((insight) => insight.action).filter(Boolean);
 
@@ -1015,20 +1050,38 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
           action={focusedMatrixProduct ? <button className="btn-secondary h-9 text-xs" type="button" onClick={() => setFocusedMatrixProductKey("")}>Clear selection</button> : null}
         >
           <div className="space-y-3 p-4">
+            {focusedMatrixProduct ? (
+              <div className="rounded-2xl border border-primary/15 bg-gradient-to-br from-primary/10 to-white p-4">
+                <div className="text-[11px] font-black uppercase tracking-wide text-primary">Selected Product</div>
+                <div className="mt-1 text-lg font-black text-text-primary">{focusedMatrixProduct.product}</div>
+                <div className="mt-2 grid grid-cols-3 gap-2 text-xs">
+                  <div className="rounded-xl bg-white/80 p-2"><div className="text-text-muted">Net sales</div><div className="font-black text-text-primary">{toCurrency(focusedMatrixProduct.nett_sales)}</div></div>
+                  <div className="rounded-xl bg-white/80 p-2"><div className="text-text-muted">Qty</div><div className="font-black text-text-primary">{focusedMatrixProduct.quantity.toLocaleString()}</div></div>
+                  <div className="rounded-xl bg-white/80 p-2"><div className="text-text-muted">Contribution</div><div className="font-black text-text-primary">{toPercent(productContribution(focusedMatrixProduct, current.totals.nett_sales))}</div></div>
+                </div>
+              </div>
+            ) : null}
             {insights.length ? insights.map((insight) => (
-              <div key={`${insight.type}-${insight.finding}`} className="rounded-2xl border border-border bg-slate-50 p-3 transition hover:border-primary/20 hover:bg-primary/5">
-                <Badge tone={insight.tone}>{insight.type}</Badge>
-                <div className="mt-2 text-sm font-bold text-text-primary">{insight.finding}</div>
-                <div className="mt-2 rounded-xl bg-white px-3 py-2 text-xs text-text-secondary"><span className="font-bold text-text-primary">Why it matters: </span>{insight.why}</div>
-                <div className="mt-2 rounded-xl border border-primary/15 bg-primary/5 px-3 py-2 text-xs font-semibold text-primary"><span className="font-bold">Suggested action: </span>{insight.action}</div>
+              <div key={`${insight.type}-${insight.finding}`} className="rounded-2xl border border-border bg-white p-3 shadow-sm transition hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-card">
+                <div className="flex items-center justify-between gap-3">
+                  <Badge tone={insight.tone}>{insight.type}</Badge>
+                  {insight.metric ? <span className="text-xs font-black text-text-muted">{insight.metric}</span> : null}
+                </div>
+                <div className="mt-2 text-sm font-black text-text-primary">{insight.finding}</div>
+                <div className="mt-1 text-xs font-medium text-text-secondary">{insight.why}</div>
+                <div className="mt-2 text-xs font-bold text-primary">{insight.action}</div>
               </div>
             )) : <div className="p-4 text-sm text-text-secondary">Upload product data to generate insights.</div>}
             {suggestedActions.length ? (
-              <div className="rounded-2xl border border-border bg-white p-3">
+              <div className="rounded-2xl border border-border bg-slate-50 p-3">
                 <div className="text-xs font-bold uppercase tracking-wide text-text-muted">Suggested Actions</div>
-                <ul className="mt-2 space-y-1.5 text-xs font-semibold text-text-secondary">
-                  {suggestedActions.map((action) => <li key={action}>- {action}</li>)}
-                </ul>
+                <div className="mt-2 grid gap-2">
+                  {suggestedActions.map((action) => (
+                    <button key={action} type="button" className="rounded-xl border border-border bg-white px-3 py-2 text-left text-xs font-bold text-text-secondary transition hover:border-primary/25 hover:bg-primary/5 hover:text-primary">
+                      {action}
+                    </button>
+                  ))}
+                </div>
               </div>
             ) : null}
           </div>
@@ -1175,12 +1228,12 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
         >
           <div className="space-y-3 text-sm text-text-secondary">
             <div className="rounded-2xl border border-border bg-slate-50 p-4">
-              <div className="font-bold text-text-primary">X-axis: Revenue Contribution</div>
-              <p className="mt-1">Further right means stronger net sales contribution for the selected report.</p>
+              <div className="font-bold text-text-primary">X-axis: Selling Speed</div>
+              <p className="mt-1">Left means slow selling; right means fast selling based on quantity sold.</p>
             </div>
             <div className="rounded-2xl border border-border bg-slate-50 p-4">
-              <div className="font-bold text-text-primary">Y-axis: Sales Velocity</div>
-              <p className="mt-1">Higher means more units sold. Bubble size grows with net sales volume.</p>
+              <div className="font-bold text-text-primary">Y-axis: Revenue</div>
+              <p className="mt-1">Lower means lower net sales; higher means higher net sales. Bubble size also grows with net sales volume.</p>
             </div>
             <div className="grid gap-2 sm:grid-cols-2">
               <div className="rounded-2xl bg-emerald-50 p-3 text-emerald-800"><strong>Star Performer</strong><br />Protect quality and promote.</div>
