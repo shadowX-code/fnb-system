@@ -17,6 +17,26 @@ import LoginPage from "../auth/LoginPage.jsx";
 import SetNewPasswordPage from "../auth/SetNewPasswordPage.jsx";
 import { filterOutletScopedRows, getAccessibleOutlets } from "../utils/accessControl.js";
 
+const outletCacheKey = "feedx.cachedOutlets";
+
+function loadCachedOutlets() {
+  try {
+    const cached = JSON.parse(localStorage.getItem(outletCacheKey) || "[]");
+    if (Array.isArray(cached) && cached.length) return cached;
+  } catch {
+    // Ignore corrupted cache and fall back to bundled outlet labels.
+  }
+  return operationsService.getBootstrapData().outlets ?? [];
+}
+
+function cacheOutlets(outlets) {
+  try {
+    if (outlets?.length) localStorage.setItem(outletCacheKey, JSON.stringify(outlets));
+  } catch {
+    // Outlet cache is a UX optimization only.
+  }
+}
+
 function normalizeSuppliers(suppliers, categories) {
   return suppliers.map((supplier) => {
     const category = categories.find(
@@ -244,7 +264,21 @@ export default function App() {
   const [activeRouteId, setActiveRouteId] = useState(
     salesPurchaseRoutes.some((route) => route.id === initialRoute) ? initialRoute : "dashboard",
   );
-  const [store, setStore] = useState(() => ({ ...operationsService.getBootstrapData(), outlets: [], suppliers: [], purchaseCategories: [], salesChannels: [], operatingExpenses: [] }));
+  const [store, setStore] = useState(() => {
+    const cachedOutlets = loadCachedOutlets();
+    return {
+      ...operationsService.getBootstrapData(),
+      allOutlets: cachedOutlets,
+      outlets: cachedOutlets,
+      suppliers: [],
+      purchaseCategories: [],
+      salesChannels: [],
+      outletTaxConfigs: [],
+      salesRecords: [],
+      purchaseRecords: [],
+      operatingExpenses: [],
+    };
+  });
   const [masterDataStatus, setMasterDataStatus] = useState({ loading: true, errors: [], loads: BOOTSTRAP_LOADS.map((load) => ({ ...load, status: "pending" })) });
   const [toasts, setToasts] = useState([]);
   const [confirmRequest, setConfirmRequest] = useState(null);
@@ -255,6 +289,15 @@ export default function App() {
     [accessibleRoutes, activeRouteId],
   );
   const ActivePage = activeRoute.component;
+  const effectiveStore = useMemo(() => {
+    const allOutlets = store.allOutlets?.length ? store.allOutlets : store.outlets;
+    const accessibleOutlets = getAccessibleOutlets(auth, allOutlets);
+    return {
+      ...store,
+      allOutlets,
+      outlets: accessibleOutlets,
+    };
+  }, [auth, store]);
 
   useEffect(() => {
     if (!auth.session || auth.passwordRecovery) return undefined;
@@ -370,9 +413,10 @@ export default function App() {
 
       if (!ignore) {
         const scopedOutlets = getAccessibleOutlets(auth, outlets);
+        cacheOutlets(outlets);
         setStore((current) => ({
           ...current,
-          ...(outletResult.status === "fulfilled" ? { outlets: scopedOutlets } : {}),
+          ...(outletResult.status === "fulfilled" ? { allOutlets: outlets, outlets: scopedOutlets } : {}),
           ...(taxConfigResult.status === "fulfilled" ? { outletTaxConfigs: filterOutletScopedRows(auth, outletTaxConfigs) } : {}),
           ...(categoryResult.status === "fulfilled" ? { purchaseCategories } : {}),
           ...(supplierResult.status === "fulfilled"
@@ -469,34 +513,21 @@ export default function App() {
         activeRouteId={activeRouteId}
         sections={accessibleSections}
         onNavigate={navigate}
-        store={store}
+        store={effectiveStore}
         auth={auth}
         onLogout={auth.signOut}
         onNotify={notify}
       >
-        {masterDataStatus.loading ? (
-          <div className="card space-y-2 p-6 text-sm font-semibold text-text-secondary">
-            <div>Loading FeedX outlets...</div>
-            <div>Loading FeedX suppliers...</div>
-            <div>Loading FeedX categories...</div>
-            <div>Loading FeedX sales channels...</div>
-            <div>Loading FeedX tax settings...</div>
-            <div>Loading FeedX operating expenses...</div>
+        {masterDataStatus.errors.length ? (
+          <div className="card mb-4 border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">
+            <div>Some data could not be loaded. Available modules will continue using the data that loaded successfully.</div>
+            <div className="mt-2 space-y-1 text-xs">
+              {masterDataStatus.errors.map((error) => <div key={error}>{error}</div>)}
+            </div>
           </div>
-        ) : (
-          <>
-            {masterDataStatus.errors.length ? (
-              <div className="card mb-4 border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">
-                <div>Some data could not be loaded. Available modules will continue using the data that loaded successfully.</div>
-                <div className="mt-2 space-y-1 text-xs">
-                  {masterDataStatus.errors.map((error) => <div key={error}>{error}</div>)}
-                </div>
-              </div>
-            ) : null}
-            <RbacDiagnosticsPanel auth={auth} loads={masterDataStatus.loads} />
-            <ActivePage store={store} setStore={setStore} ui={ui} auth={auth} {...(activeRoute.props ?? {})} />
-          </>
-        )}
+        ) : null}
+        <RbacDiagnosticsPanel auth={auth} loads={masterDataStatus.loads} />
+        <ActivePage store={effectiveStore} setStore={setStore} ui={ui} auth={auth} {...(activeRoute.props ?? {})} />
       </AppShell>
       <ToastViewport
         toasts={toasts}

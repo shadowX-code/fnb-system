@@ -15,8 +15,8 @@ export function OutletSelector({ outlets, value, onChange }) {
     <SelectField
       label="Outlet"
       value={value}
-      disabled={!outlets.length}
-      placeholder={outlets.length ? "Select outlet" : "Loading outlets..."}
+      disabled={!outlets.length && !value}
+      placeholder="All Outlets"
       className="min-w-52"
       searchable
       options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))}

@@ -1916,6 +1916,8 @@ Rules:
 - Protected roles can access all outlets automatically.
 - Non-protected roles can only access outlets assigned through `role_outlets`.
 - Outlet selectors must use the centralized accessible-outlet helper, not the full outlet list.
+- Outlet data is cached once during app bootstrap and accessible outlets are derived locally from the cached outlet list plus the current role outlet scope.
+- Outlet dropdowns must render immediately from cached/bootstrap outlet state and must not replace the selected value with blocking loading text while background filtering refreshes.
 - Outlet-scoped pages and services must filter data by accessible outlet IDs.
 - If the selected outlet is no longer accessible, the UI resets to the first accessible outlet or shows a no-access state.
 - Sidebar visibility follows view permission.
