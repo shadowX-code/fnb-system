@@ -2,8 +2,16 @@ import { supabase } from "../lib/supabase";
 import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
 
-const supplierSelect = "id,name,category,default_category_id,phone,remark,is_active,status,created_at,updated_at";
+const supplierSelect = "id,name,category,default_category_id,phone,remark,is_active,status,created_at,updated_at,supplier_outlets(outlet_id)";
 const fallbackSupplierSelect = "id,name,category,default_category_id,is_active,status,created_at,updated_at";
+
+export function formatSupplierName(name) {
+  return String(name ?? "")
+    .trim()
+    .replace(/\s+/g, " ")
+    .toLowerCase()
+    .replace(/\b[a-z]/g, (char) => char.toUpperCase());
+}
 
 function isMissingOptionalSupplierField(error) {
   return error?.code === "42703" && /suppliers\.(phone|remark)|column .*suppliers\.(phone|remark)|column .*phone|column .*remark/i.test(error.message ?? "");
@@ -18,6 +26,8 @@ function mapSupplier(supplier) {
     default_category_id: supplier.default_category_id ?? supplier.category_id ?? "",
     phone: supplier.phone ?? "",
     remark: supplier.remark ?? "",
+    outletIds: (supplier.supplier_outlets ?? []).map((row) => row.outlet_id).filter(Boolean),
+    assignedOutletIds: (supplier.supplier_outlets ?? []).map((row) => row.outlet_id).filter(Boolean),
     is_active: Boolean(isActive),
     status: isActive ? "active" : "inactive",
     created_at: supplier.created_at,
@@ -73,8 +83,10 @@ export const supplierService = {
   },
 
   async saveSupplier(supplier) {
+    const outletIds = [...new Set((supplier.outletIds ?? supplier.assignedOutletIds ?? []).filter(Boolean))];
+    if (!outletIds.length) throw new Error("Select at least one outlet for this supplier.");
     const payload = {
-      name: supplier.name?.trim(),
+      name: formatSupplierName(supplier.name),
       category: supplier.category || null,
       default_category_id: supplier.default_category_id || null,
       phone: supplier.phone?.trim() || null,
@@ -111,7 +123,49 @@ export const supplierService = {
       after: data,
     }).catch(() => {});
 
-    return mapSupplier(data);
+    const mapped = mapSupplier(data);
+    await this.saveSupplierOutlets(mapped.id, outletIds);
+    return { ...mapped, outletIds, assignedOutletIds: outletIds };
+  },
+
+  async saveSupplierOutlets(supplierId, outletIds = []) {
+    const nextOutletIds = [...new Set(outletIds.filter(Boolean))];
+    const { data: existingRows, error: existingError } = await supabase
+      .from("supplier_outlets")
+      .select("outlet_id")
+      .eq("supplier_id", supplierId);
+    throwSupabaseError("supplier_outlets.existing", existingError);
+
+    const existingOutletIds = (existingRows ?? []).map((row) => row.outlet_id);
+    const removedOutletIds = existingOutletIds.filter((outletId) => !nextOutletIds.includes(outletId));
+    if (removedOutletIds.length) {
+      const { data: linkedRecords, error: linkedError } = await supabase
+        .from("purchase_records")
+        .select("id,outlet_id")
+        .eq("supplier_id", supplierId)
+        .in("outlet_id", removedOutletIds)
+        .limit(1);
+      throwSupabaseError("supplier_outlets.removal_check", linkedError);
+      if ((linkedRecords ?? []).length) {
+        throw new Error("This supplier has purchase records in one of the selected outlets. Keep the outlet assigned and deactivate the supplier if needed.");
+      }
+      const { error: deleteError } = await supabase
+        .from("supplier_outlets")
+        .delete()
+        .eq("supplier_id", supplierId)
+        .in("outlet_id", removedOutletIds);
+      throwSupabaseError("supplier_outlets.delete", deleteError);
+    }
+
+    const addedOutletIds = nextOutletIds.filter((outletId) => !existingOutletIds.includes(outletId));
+    if (addedOutletIds.length) {
+      const { error: insertError } = await supabase
+        .from("supplier_outlets")
+        .insert(addedOutletIds.map((outletId) => ({ supplier_id: supplierId, outlet_id: outletId })));
+      throwSupabaseError("supplier_outlets.insert", insertError);
+    }
+
+    return nextOutletIds;
   },
 
   async deactivateSupplier(supplier) {
@@ -156,6 +210,19 @@ export const supplierService = {
       ]),
     );
 
+    const { data: assignmentRows, error: assignmentError } = await supabase
+      .from("supplier_outlets")
+      .select("supplier_id,outlet_id")
+      .in("supplier_id", supplierIds);
+    throwSupabaseError("suppliers.outlet_assignments", assignmentError);
+
+    (assignmentRows ?? []).forEach((row) => {
+      const usage = usageMap[row.supplier_id];
+      if (usage && row.outlet_id && !usage.outletIds.includes(row.outlet_id)) {
+        usage.outletIds.push(row.outlet_id);
+      }
+    });
+
     (data ?? []).forEach((record) => {
       if (!record.supplier_id) return;
       const usage = usageMap[record.supplier_id] ?? {
@@ -164,10 +231,6 @@ export const supplierService = {
         latestPurchase: null,
       };
       usage.purchaseRecordCount += 1;
-      if (record.outlet_id && !usage.outletIds.includes(record.outlet_id)) {
-        usage.outletIds.push(record.outlet_id);
-      }
-
       const currentPeriodValue = Number(record.year || 0) * 100 + Number(record.month || 0);
       const latestPeriodValue = usage.latestPurchase
         ? Number(usage.latestPurchase.year || 0) * 100 + Number(usage.latestPurchase.month || 0)

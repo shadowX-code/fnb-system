@@ -699,6 +699,7 @@ export default function PurchaseInputPage({ store, setStore, ui, auth }) {
         name,
         default_category_id: categoryId,
         category: categoryName,
+        outletIds: [filters.outletId],
         status: "active",
       });
       setStore((current) => ({
@@ -717,7 +718,10 @@ export default function PurchaseInputPage({ store, setStore, ui, auth }) {
     }
   }
 
-  const supplierOptions = store.suppliers.filter((supplier) => supplier.status === "active");
+  const supplierOptions = store.suppliers.filter((supplier) => (
+    supplier.status === "active" &&
+    (supplier.outletIds ?? supplier.assignedOutletIds ?? []).includes(filters.outletId)
+  ));
 
   return (
     <div className="space-y-4">

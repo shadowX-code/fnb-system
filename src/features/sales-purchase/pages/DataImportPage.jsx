@@ -335,6 +335,7 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
     if (!resolution) return true;
     if (resolution.action === "map") return !resolution.supplier_id;
     if (resolution.action === "create") return !resolution.category_id;
+    if (resolution.action === "link") return !item.existingSupplierId || !(item.outletIds ?? []).length;
     return false;
   });
   const unresolvedUnknownCategories = unknownCategories.filter((item) => {
@@ -504,12 +505,25 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
         const current = unknowns.get(supplierName) ?? { name: supplierName, rows: [] };
         const categoryIds = [...new Set([...(current.categoryIds ?? []), category?.id].filter(Boolean))];
         const categoryNames = [...new Set([...(current.categoryNames ?? []), category?.name].filter(Boolean))];
+        const outletIds = [...new Set([...(current.outletIds ?? []), outlet?.id].filter(Boolean))];
         unknowns.set(supplierName, {
           ...current,
           rows: [...current.rows, row.__row],
           categoryIds,
           categoryNames,
+          outletIds,
           default_category_id: categoryIds[0] ?? "",
+        });
+      }
+      if (supplier && outlet && !(supplier.outletIds ?? supplier.assignedOutletIds ?? []).includes(outlet.id) && !resolution) {
+        const current = unknowns.get(supplierName) ?? { name: supplierName, rows: [] };
+        unknowns.set(supplierName, {
+          ...current,
+          existingSupplierId: supplier.id,
+          rows: [...current.rows, row.__row],
+          outletIds: [...new Set([...(current.outletIds ?? []), outlet.id])],
+          categoryNames: [...new Set([...(current.categoryNames ?? []), category?.name].filter(Boolean))],
+          default_category_id: supplier.default_category_id || category?.id || "",
         });
       }
       if (!categoryName) rowIssues.push("Missing category");
@@ -543,6 +557,18 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
       );
       if (!finalSupplier) {
         issues.push({ row: row.__row, severity: "error", message: "Supplier resolution failed", rawSupplier: supplierName, rawCategory: categoryName, rawRow: row });
+        return;
+      }
+      const linkResolutionAllowed = resolution?.action === "link" && resolution.existingSupplierId === finalSupplier.id;
+      if (!(finalSupplier.outletIds ?? finalSupplier.assignedOutletIds ?? []).includes(outlet.id) && !String(finalSupplier.id).startsWith("__new__:") && !linkResolutionAllowed) {
+        issues.push({
+          row: row.__row,
+          severity: "error",
+          message: `Supplier "${finalSupplier.name}" is not assigned to ${outlet.name}. Link this supplier to the outlet or map to another supplier.`,
+          rawSupplier: supplierName,
+          rawCategory: categoryName,
+          rawRow: row,
+        });
         return;
       }
       records.push({
@@ -670,6 +696,22 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
     }
     setValidationState({ loading: true, message: "Resolving suppliers and generating preview...", error: "" });
     try {
+      for (const item of unknownSuppliers) {
+        const resolution = supplierResolutions[item.name];
+        if (resolution?.action !== "link") continue;
+        const supplierId = item.existingSupplierId || resolution.existingSupplierId;
+        const supplier = store.suppliers.find((entry) => entry.id === supplierId);
+        if (!supplier) throw new Error(`Supplier "${item.name}" could not be linked.`);
+        await supplierService.saveSupplierOutlets(supplierId, [...new Set([...(supplier.outletIds ?? []), ...(item.outletIds ?? [])])]);
+        setStore((current) => ({
+          ...current,
+          suppliers: current.suppliers.map((entry) => (
+            entry.id === supplierId
+              ? { ...entry, outletIds: [...new Set([...(entry.outletIds ?? []), ...(item.outletIds ?? [])])], assignedOutletIds: [...new Set([...(entry.assignedOutletIds ?? entry.outletIds ?? []), ...(item.outletIds ?? [])])] }
+              : entry
+          )),
+        }));
+      }
       const rebuilt = buildPurchaseRecords({}, {}, { allowPendingCreate: true, allowPendingCategoryCreate: true });
       console.info("[Import:unknownSuppliers] rebuilt records", { records: rebuilt.records.length, issues: rebuilt.issues.length, skippedRows: rebuilt.skippedRows.length });
       await withTimeout(buildPreview(rebuilt.records, rebuilt.issues, rebuilt.skippedRows), "Supplier resolution preview");
@@ -758,6 +800,7 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
             name,
             default_category_id: category.id,
             category: category?.name || "",
+            outletIds: resolution.outletIds || unknownSuppliers.find((item) => item.name === name)?.outletIds || [],
             status: "active",
           });
           createdSupplierMap[name] = supplier;
@@ -1019,7 +1062,12 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
                 </div>
                 {unknownSuppliers.map((item) => {
                   const hasMultipleCategories = (item.categoryIds?.length ?? 0) > 1;
-                  const resolution = supplierResolutions[item.name] || { action: "create", supplier_id: "", category_id: item.default_category_id || "" };
+                  const resolution = supplierResolutions[item.name] || {
+                    action: item.existingSupplierId ? "link" : "create",
+                    supplier_id: "",
+                    existingSupplierId: item.existingSupplierId || "",
+                    category_id: item.default_category_id || "",
+                  };
                   return (
                     <div key={item.name} className="rounded-2xl border border-border p-3">
                       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -1030,8 +1078,23 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
                             <div className="mt-1 text-xs text-text-secondary">Imported categories: {item.categoryNames.join(", ")}</div>
                           ) : null}
                         </div>
-                        <SelectField className="w-48" value={resolution.action} options={[{ value: "map", label: "Map existing" }, ...(canCreateImportSupplier ? [{ value: "create", label: "Create supplier" }] : []), { value: "skip", label: "Skip row" }]} onChange={(action) => setSupplierResolutions((current) => ({ ...current, [item.name]: { action, supplier_id: "", category_id: item.default_category_id || "" } }))} />
+                        <SelectField
+                          className="w-56"
+                          value={resolution.action}
+                          options={[
+                            ...(item.existingSupplierId ? [{ value: "link", label: "Link supplier to outlet" }] : []),
+                            { value: "map", label: "Map existing" },
+                            ...(canCreateImportSupplier ? [{ value: "create", label: "Create supplier" }] : []),
+                            { value: "skip", label: "Skip row" },
+                          ]}
+                          onChange={(action) => setSupplierResolutions((current) => ({ ...current, [item.name]: { action, supplier_id: "", existingSupplierId: item.existingSupplierId || "", category_id: item.default_category_id || "" } }))}
+                        />
                       </div>
+                      {resolution.action === "link" ? (
+                        <div className="mt-3 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs font-semibold text-emerald-800">
+                          This will assign the existing supplier to the outlet used by the import row.
+                        </div>
+                      ) : null}
                       {hasMultipleCategories && resolution.action === "create" ? (
                         <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">
                           Supplier appears under multiple categories. Choose the main supplier category. Purchase rows will still use their imported category.

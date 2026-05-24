@@ -10,7 +10,7 @@ import PageHeader from "../../../components/layout/PageHeader.jsx";
 import EntityModal from "../components/EntityModal.jsx";
 import usePeriodFilters from "../hooks/usePeriodFilters.js";
 import { getCategoryName, sumAmount, toCurrency } from "../utils/analytics.js";
-import { supplierService } from "../../../services/supplierService.js";
+import { formatSupplierName, supplierService } from "../../../services/supplierService.js";
 import Modal from "../../../components/feedback/Modal.jsx";
 import { canCreate, canDelete, canEdit, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 
@@ -57,7 +57,7 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
         const matchesQuery = supplier.name.toLowerCase().includes(query.toLowerCase());
         const matchesCategory = category === "all" || supplier.default_category_id === category;
         const matchesStatus = status === "all" || supplier.status === status;
-        const outletIds = usageMap[supplier.id]?.outletIds ?? [];
+        const outletIds = supplier.outletIds ?? usageMap[supplier.id]?.outletIds ?? [];
         const matchesOutlet = outletFilter === "all" || outletIds.includes(outletFilter);
         return matchesQuery && matchesCategory && matchesStatus && matchesOutlet;
       }),
@@ -80,14 +80,14 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
 
   function getSupplierUsage(supplier) {
     return usageMap[supplier.id] ?? {
-      outletIds: [],
+        outletIds: supplier.outletIds ?? [],
       purchaseRecordCount: 0,
       latestPurchase: null,
     };
   }
 
   function formatOutletUsage(supplier) {
-    const outletIds = getSupplierUsage(supplier).outletIds;
+    const outletIds = supplier.outletIds ?? getSupplierUsage(supplier).outletIds;
     const count = outletIds.length;
     if (!count) return <span className="text-text-muted">0 outlets</span>;
     return (
@@ -105,7 +105,7 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
   }
 
   function getOutletNames(supplier) {
-    return getSupplierUsage(supplier).outletIds
+    return (supplier.outletIds ?? getSupplierUsage(supplier).outletIds)
       .map((outletId) => store.outlets.find((outlet) => outlet.id === outletId)?.name)
       .filter(Boolean);
   }
@@ -170,12 +170,19 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
   }
 
   const fields = [
-    { name: "name", label: "Supplier Name", placeholder: "Supplier name" },
+    { name: "name", label: "Supplier Name", placeholder: "Supplier name", formatOnBlur: formatSupplierName },
     {
       name: "default_category_id",
       label: "Category",
       type: "select",
       options: store.purchaseCategories.map((item) => ({ value: item.id, label: item.name })),
+    },
+    {
+      name: "outletIds",
+      label: "Used By Outlets",
+      type: "multiselect",
+      options: store.outlets.filter((outlet) => outlet.status === "active").map((outlet) => ({ value: outlet.id, label: outlet.name })),
+      helper: "Select every outlet that can use this supplier.",
     },
     { name: "phone", label: "Phone", placeholder: "Supplier phone" },
     { name: "remark", label: "Remark", placeholder: "Optional supplier note" },
@@ -325,7 +332,7 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
           title={modal.mode === "add" ? "Add Supplier" : "Edit Supplier"}
           description="Maintain supplier details used by purchase entry, imports and reporting."
           fields={fields}
-          initialValues={modal.row ?? { name: "", default_category_id: fallbackCategoryId, phone: "", remark: "", status: "active" }}
+          initialValues={modal.row ?? { name: "", default_category_id: fallbackCategoryId, outletIds: [], phone: "", remark: "", status: "active" }}
           onClose={() => setModal(null)}
           onSubmit={async (values) => {
             const isNew = modal.mode === "add";
@@ -334,9 +341,10 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
               return;
             }
             if (!values.name?.trim()) return ui.notify({ title: "Supplier name required", tone: "error" });
+            if (!values.outletIds?.length) return ui.notify({ title: "Outlet access required", message: "Select at least one outlet for this supplier.", tone: "error" });
             try {
               const categoryName = store.purchaseCategories.find((categoryItem) => categoryItem.id === values.default_category_id)?.name ?? "";
-              const saved = await supplierService.saveSupplier({ ...(modal.row ?? {}), ...values, category: categoryName });
+              const saved = await supplierService.saveSupplier({ ...(modal.row ?? {}), ...values, name: formatSupplierName(values.name), category: categoryName });
               setStore((current) => ({
                 ...current,
                 suppliers: [

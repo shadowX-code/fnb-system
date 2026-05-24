@@ -1943,6 +1943,16 @@ Outlet scope applies to:
 - Data Health
 - Alerts & Insights
 
+Supplier outlet assignment:
+
+- Suppliers are no longer globally usable by every outlet.
+- Each supplier must be assigned to one or more accessible outlets through `supplier_outlets`.
+- Supplier forms use the wording `Used By Outlets` / `Assigned Outlets`.
+- Non-protected roles can only assign suppliers to outlets in their role outlet scope.
+- Purchase Input supplier dropdowns only show active suppliers assigned to the selected outlet.
+- Supplier Directory outlet usage counts come from assigned outlets, not only historical purchase records.
+- Removing a supplier from an outlet is blocked when that supplier has purchase records in that outlet.
+
 Dependency rules:
 
 - create requires view

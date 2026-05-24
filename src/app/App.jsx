@@ -35,6 +35,8 @@ function normalizeSuppliers(suppliers, categories) {
       is_active: Boolean(isActive),
       status: isActive ? "active" : "inactive",
       default_category_id: supplier.default_category_id || category?.id || categories[0]?.id || "",
+      outletIds: supplier.outletIds ?? supplier.assignedOutletIds ?? [],
+      assignedOutletIds: supplier.assignedOutletIds ?? supplier.outletIds ?? [],
       created_at: supplier.created_at ?? "",
       updated_at: supplier.updated_at ?? "",
     };
@@ -76,6 +78,12 @@ function normalizeSalesChannels(channels) {
     created_at: channel.created_at,
     updated_at: channel.updated_at,
   }));
+}
+
+function filterSuppliersByOutlets(auth, suppliers, outlets) {
+  if (auth.isProtectedRole) return suppliers;
+  const outletIds = new Set(outlets.map((outlet) => outlet.id));
+  return suppliers.filter((supplier) => (supplier.outletIds ?? supplier.assignedOutletIds ?? []).some((outletId) => outletIds.has(outletId)));
 }
 
 function remapSalesRecordsToChannels(records, previousChannels, nextChannels) {
@@ -367,7 +375,9 @@ export default function App() {
           ...(outletResult.status === "fulfilled" ? { outlets: scopedOutlets } : {}),
           ...(taxConfigResult.status === "fulfilled" ? { outletTaxConfigs: filterOutletScopedRows(auth, outletTaxConfigs) } : {}),
           ...(categoryResult.status === "fulfilled" ? { purchaseCategories } : {}),
-          ...(supplierResult.status === "fulfilled" ? { suppliers: normalizeSuppliers(suppliers, purchaseCategories.length ? purchaseCategories : current.purchaseCategories) } : {}),
+          ...(supplierResult.status === "fulfilled"
+            ? { suppliers: filterSuppliersByOutlets(auth, normalizeSuppliers(suppliers, purchaseCategories.length ? purchaseCategories : current.purchaseCategories), scopedOutlets) }
+            : {}),
           ...(salesChannelResult.status === "fulfilled" ? { salesChannels } : {}),
           ...(salesRecordResult.status === "fulfilled" ? { salesRecords: filterOutletScopedRows(auth, salesRecords) } : {}),
           ...(purchaseRecordResult.status === "fulfilled" ? { purchaseRecords: filterOutletScopedRows(auth, purchaseRecords) } : {}),
