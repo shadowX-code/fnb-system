@@ -1951,6 +1951,8 @@ Supplier outlet assignment:
 - Each supplier must be assigned to one or more accessible outlets through `supplier_outlets`.
 - Supplier forms use the wording `Used By Outlets` / `Assigned Outlets`.
 - Non-protected roles can only assign suppliers to outlets in their role outlet scope.
+- Supplier Directory outlet filters include `All Outlets` at the top. For protected roles this means all active outlets; for custom roles this means only outlets accessible through the role outlet scope.
+- When Supplier Directory is filtered to `All Outlets`, it shows suppliers linked to any accessible outlet and outlet usage counts only include accessible outlets.
 - Purchase Input supplier dropdowns only show active suppliers assigned to the selected outlet.
 - Supplier Directory outlet usage counts come from assigned outlets, not only historical purchase records.
 - Removing a supplier from an outlet is blocked when that supplier has purchase records in that outlet.

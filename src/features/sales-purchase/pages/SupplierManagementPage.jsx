@@ -51,17 +51,24 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
   const canEditSupplier = canEdit(auth, "suppliers");
   const canDeleteSupplier = canDelete(auth, "suppliers");
   const canDeactivateSupplier = hasPermission(auth, "suppliers.deactivate") || canEditSupplier;
+  const activeOutlets = useMemo(() => store.outlets.filter((outlet) => outlet.status === "active"), [store.outlets]);
+  const accessibleOutletIds = useMemo(() => new Set(activeOutlets.map((outlet) => outlet.id)), [activeOutlets]);
+
+  function getSupplierOutletIds(supplier) {
+    return (supplier.outletIds ?? usageMap[supplier.id]?.outletIds ?? []).filter((outletId) => accessibleOutletIds.has(outletId));
+  }
+
   const rows = useMemo(
     () =>
       store.suppliers.filter((supplier) => {
         const matchesQuery = supplier.name.toLowerCase().includes(query.toLowerCase());
         const matchesCategory = category === "all" || supplier.default_category_id === category;
         const matchesStatus = status === "all" || supplier.status === status;
-        const outletIds = supplier.outletIds ?? usageMap[supplier.id]?.outletIds ?? [];
-        const matchesOutlet = outletFilter === "all" || outletIds.includes(outletFilter);
+        const outletIds = getSupplierOutletIds(supplier);
+        const matchesOutlet = outletFilter === "all" ? outletIds.length > 0 : outletIds.includes(outletFilter);
         return matchesQuery && matchesCategory && matchesStatus && matchesOutlet;
       }),
-    [category, outletFilter, query, status, store.suppliers, usageMap],
+    [accessibleOutletIds, category, outletFilter, query, status, store.suppliers, usageMap],
   );
   useEffect(() => {
     if (!store.suppliers.length) return undefined;
@@ -78,6 +85,12 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
     };
   }, [store.suppliers]);
 
+  useEffect(() => {
+    if (outletFilter !== "all" && !accessibleOutletIds.has(outletFilter)) {
+      setOutletFilter("all");
+    }
+  }, [accessibleOutletIds, outletFilter]);
+
   function getSupplierUsage(supplier) {
     return usageMap[supplier.id] ?? {
       outletIds: supplier.outletIds ?? [],
@@ -87,7 +100,7 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
   }
 
   function formatOutletUsage(supplier) {
-    const outletIds = supplier.outletIds ?? getSupplierUsage(supplier).outletIds;
+    const outletIds = getSupplierOutletIds(supplier);
     const count = outletIds.length;
     if (!count) return <span className="text-text-muted">0 outlets</span>;
     return (
@@ -105,7 +118,7 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
   }
 
   function getOutletNames(supplier) {
-    return (supplier.outletIds ?? getSupplierUsage(supplier).outletIds)
+    return getSupplierOutletIds(supplier)
       .map((outletId) => store.outlets.find((outlet) => outlet.id === outletId)?.name)
       .filter(Boolean);
   }
@@ -181,7 +194,7 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
       name: "outletIds",
       label: "Used By Outlets",
       type: "multiselect",
-      options: store.outlets.filter((outlet) => outlet.status === "active").map((outlet) => ({ value: outlet.id, label: outlet.name })),
+      options: activeOutlets.map((outlet) => ({ value: outlet.id, label: outlet.name })),
       helper: "Select every outlet that can use this supplier.",
     },
     { name: "phone", label: "Phone", placeholder: "Supplier phone" },
@@ -277,11 +290,14 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
       <FilterBar compact>
         <SelectField
           label="Outlet"
-          value={outletFilter === "all" ? "" : outletFilter}
+          value={outletFilter}
           placeholder="All Outlets"
           className="min-w-56"
           searchable
-          options={store.outlets.filter((outlet) => outlet.status === "active").map((outlet) => ({ value: outlet.id, label: outlet.name }))}
+          options={[
+            { value: "all", label: "All Outlets" },
+            ...activeOutlets.map((outlet) => ({ value: outlet.id, label: outlet.name })),
+          ]}
           onChange={(nextValue) => setOutletFilter(nextValue || "all")}
         />
         <MonthSelector value={filters.month} onChange={filters.setMonth} />
