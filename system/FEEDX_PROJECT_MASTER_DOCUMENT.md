@@ -461,6 +461,8 @@ Upload rules:
 - Parser scans the first 20 rows to detect the actual table header for POS exports with title rows.
 - FeedMe Product Sales format is supported. The parser detects headers such as Category, Name, Variant, Code, Qty, Gross, Bill discount, Item discount, SST, SC, and Nett.
 - FeedMe metadata rows are preserved in report metadata when present: merchant, report date range, time range, and generated time.
+- FeedMe reports may have metadata rows before the product table; the parser scans the first 20 rows to find the actual header row.
+- Product Code is detected from Code when provided and retained in parser mapping metadata for future reporting use.
 - FeedMe discount import combines Bill discount and Item discount into total Discount.
 - Total summary rows and category subtotal rows without a product name are skipped.
 - Upload modal shows a detected column mapping preview before import.
@@ -468,16 +470,20 @@ Upload rules:
 - Duplicate report detection uses outlet, month, and year.
 - Replacing a report removes the previous report items and imports the new report.
 - Upload history is retained through product sales report records.
+- Upload History is outlet-scoped. All Outlets shows reports from accessible outlets only; a selected outlet shows that outlet's reports.
+- Upload success shows a business summary with products imported, net sales analyzed, data quality, and skipped-row count when applicable.
 
 Dashboard sections:
 
 - KPI cards: Total Net Sales, Total Quantity Sold, Average Spend / Item, Best Selling Product, Lowest Performer, Discount Given, Top Category, Menu Items Sold.
-- Top 10 Best Selling Products with Net Sales / Quantity toggle.
-- Category Contribution donut.
-- Product Performance Matrix.
-- Dead Menu / Low Performers.
-- Monthly Trend for top products when historical uploads exist.
-- Rule-based insights.
+- Empty state shows text guidance only; the Upload Report action remains in the page header.
+- Top 10 Best Selling Products with Net Sales / Quantity toggle and View All Products table.
+- Full Product Performance Table includes search, category filter, sorting, pagination, contribution, average selling price, and status tags.
+- Category Contribution uses a modern ranked contribution card with category bars and a compact mix visual.
+- Product Performance Matrix uses Revenue Contribution and Sales Velocity, average guide lines, quadrant colors, category chips, and suggested action tooltips.
+- Dead Menu / Low Performers includes quantity and uploaded-month filters plus suggested action guidance.
+- Monthly Trend uses uploaded report data only. If only one month exists, the page asks users to upload more monthly reports.
+- Rule-based insights use the labels Insight, Opportunity, Warning, and Recommendation.
 
 RBAC and outlet scope:
 

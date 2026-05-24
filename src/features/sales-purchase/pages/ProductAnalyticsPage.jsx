@@ -311,6 +311,29 @@ function productKey(item) {
   return `${item.product_name}${item.variant_name ? ` · ${item.variant_name}` : ""}`;
 }
 
+function productContribution(product, total) {
+  return total ? (product.nett_sales / total) * 100 : 0;
+}
+
+function productStatus(product, total) {
+  const contribution = productContribution(product, total);
+  const discountRate = product.gross_sales ? (product.discount / product.gross_sales) * 100 : 0;
+  if (contribution >= 12 || product.rank <= 3) return { label: "Best Seller", tone: "success" };
+  if (product.quantity <= 0) return { label: "No Movement", tone: "neutral" };
+  if (discountRate >= 20) return { label: "High Discount", tone: "warning" };
+  if (product.quantity < 5 || contribution < 1) return { label: "Low Performer", tone: "danger" };
+  return { label: "New", tone: "info" };
+}
+
+function lowPerformerAction(product) {
+  const discountRate = product.gross_sales ? (product.discount / product.gross_sales) * 100 : 0;
+  if (product.quantity <= 0) return "Archive candidate.";
+  if (product.quantity < 3) return "Consider removing or seasonal only.";
+  if (discountRate >= 20 && product.nett_sales < product.gross_sales * 0.8) return "Review pricing/promo.";
+  if (product.quantity < 5) return "Review menu visibility.";
+  return "Monitor and test promotion.";
+}
+
 function aggregateItems(items) {
   const byProduct = new Map();
   const byCategory = new Map();
@@ -322,11 +345,13 @@ function aggregateItems(items) {
       variant: item.variant_name,
       category: item.category_name,
       quantity: 0,
+      gross_sales: 0,
       nett_sales: 0,
       discount: 0,
       last_sold: item.created_at,
     };
     product.quantity += item.quantity;
+    product.gross_sales += item.gross_sales;
     product.nett_sales += item.nett_sales;
     product.discount += item.discount;
     product.last_sold = item.created_at || product.last_sold;
@@ -372,59 +397,96 @@ function CategoryDonut({ categories, total }) {
     }).join(", ")
     : "#E5E7EB 0% 100%";
   return (
-    <div className="grid gap-4 p-4 md:grid-cols-[220px_minmax(0,1fr)]">
-      <div className="mx-auto grid h-48 w-48 place-items-center rounded-full" style={{ background: `conic-gradient(${gradient})` }}>
-        <div className="grid h-28 w-28 place-items-center rounded-full bg-white text-center shadow-sm">
+    <div className="grid gap-5 p-4 md:grid-cols-[180px_minmax(0,1fr)]">
+      <div className="mx-auto grid h-40 w-40 place-items-center rounded-full shadow-sm" style={{ background: `conic-gradient(${gradient})` }}>
+        <div className="grid h-24 w-24 place-items-center rounded-full bg-white text-center shadow-sm">
           <div>
-            <div className="text-xs font-bold text-text-muted">Net Sales</div>
-            <div className="text-lg font-bold text-text-primary">{toCurrency(total)}</div>
+            <div className="text-[11px] font-bold text-text-muted">Mix</div>
+            <div className="text-base font-bold text-text-primary">{categories.length}</div>
+            <div className="text-[10px] font-semibold text-text-muted">categories</div>
           </div>
         </div>
       </div>
-      <div className="space-y-2">
-        {categories.slice(0, 6).map((category, index) => (
-          <div key={category.name} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-slate-50 px-3 py-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colors[index % colors.length] }} />
-              <span className="truncate text-sm font-semibold text-text-primary">{category.name}</span>
+      <div className="space-y-3">
+        {categories.slice(0, 8).map((category, index) => {
+          const share = total ? (category.nett_sales / total) * 100 : 0;
+          return (
+            <div key={category.name}>
+              <div className="mb-1 flex items-center justify-between gap-3 text-xs">
+                <div className="flex min-w-0 items-center gap-2">
+                  <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: colors[index % colors.length] }} />
+                  <span className="truncate font-bold text-text-primary">{category.name}</span>
+                </div>
+                <div className="shrink-0 text-right font-semibold text-text-secondary">
+                  {toPercent(share)} · {toCurrency(category.nett_sales)}
+                </div>
+              </div>
+              <div className="h-2 rounded-full bg-slate-100">
+                <div className="h-2 rounded-full" style={{ width: `${Math.min(100, share)}%`, backgroundColor: colors[index % colors.length] }} />
+              </div>
             </div>
-            <div className="text-right text-xs font-bold text-text-secondary">
-              <div>{toPercent(total ? (category.nett_sales / total) * 100 : 0)}</div>
-              <div>{toCurrency(category.nett_sales)}</div>
-            </div>
-          </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function PerformanceMatrix({ products }) {
-  const maxQty = Math.max(...products.map((item) => item.quantity), 1);
-  const maxSales = Math.max(...products.map((item) => item.nett_sales), 1);
+function quadrantFor(product, avgQty, avgSales) {
+  const highQty = product.quantity >= avgQty;
+  const highSales = product.nett_sales >= avgSales;
+  if (highQty && highSales) return { label: "Star", color: "bg-emerald-500", action: "Protect and promote this item." };
+  if (!highQty && highSales) return { label: "Puzzle", color: "bg-blue-500", action: "High revenue but lower volume. Improve visibility or bundle it." };
+  if (highQty && !highSales) return { label: "Plowhorse", color: "bg-orange-500", action: "High volume but lower revenue. Consider upsell or price review." };
+  return { label: "Dog", color: "bg-rose-500", action: "Low sales and low revenue. Review, rename, promote, or remove." };
+}
+
+function PerformanceMatrix({ products, total, categoryFilter, onCategoryFilter }) {
+  const categories = ["all", ...new Set(products.map((product) => product.category).filter(Boolean))];
+  const visibleProducts = categoryFilter === "all" ? products : products.filter((product) => product.category === categoryFilter);
+  const maxQty = Math.max(...visibleProducts.map((item) => item.quantity), 1);
+  const maxSales = Math.max(...visibleProducts.map((item) => item.nett_sales), 1);
   const avgQty = products.reduce((sum, item) => sum + item.quantity, 0) / (products.length || 1);
   const avgSales = products.reduce((sum, item) => sum + item.nett_sales, 0) / (products.length || 1);
   return (
-    <div className="p-4">
+    <div className="space-y-3 p-4">
+      <div className="flex flex-wrap gap-2">
+        {categories.map((category) => (
+          <button
+            key={category}
+            className={`rounded-full border px-3 py-1 text-xs font-bold transition ${categoryFilter === category ? "border-primary bg-primary/10 text-primary" : "border-border bg-white text-text-secondary hover:bg-slate-50"}`}
+            type="button"
+            onClick={() => onCategoryFilter(category)}
+          >
+            {category === "all" ? "All" : category}
+          </button>
+        ))}
+      </div>
       <div className="relative h-80 rounded-2xl border border-border bg-gradient-to-br from-slate-50 to-white">
-        <div className="absolute left-1/2 top-0 h-full w-px bg-border" />
-        <div className="absolute left-0 top-1/2 h-px w-full bg-border" />
-        <div className="absolute left-4 top-4 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700">Puzzle</div>
-        <div className="absolute right-4 top-4 rounded-full bg-primary/10 px-2 py-1 text-[11px] font-bold text-primary">Star</div>
-        <div className="absolute bottom-4 left-4 rounded-full bg-slate-100 px-2 py-1 text-[11px] font-bold text-slate-500">Dog</div>
+        <div className="absolute left-1/2 top-0 h-full w-px border-l border-dashed border-border" />
+        <div className="absolute left-0 top-1/2 h-px w-full border-t border-dashed border-border" />
+        <div className="absolute left-4 top-4 rounded-full bg-blue-50 px-2 py-1 text-[11px] font-bold text-blue-700">Puzzle</div>
+        <div className="absolute right-4 top-4 rounded-full bg-emerald-50 px-2 py-1 text-[11px] font-bold text-emerald-700">Star</div>
+        <div className="absolute bottom-4 left-4 rounded-full bg-rose-50 px-2 py-1 text-[11px] font-bold text-rose-700">Dog</div>
         <div className="absolute bottom-4 right-4 rounded-full bg-amber-50 px-2 py-1 text-[11px] font-bold text-amber-700">Plowhorse</div>
-        {products.slice(0, 60).map((product) => {
+        {visibleProducts.slice(0, 80).map((product) => {
           const x = Math.max(6, Math.min(94, (product.quantity / maxQty) * 90 + 5));
           const y = Math.max(6, Math.min(94, 100 - ((product.nett_sales / maxSales) * 90 + 5)));
-          const highQty = product.quantity >= avgQty;
-          const highSales = product.nett_sales >= avgSales;
-          const color = highQty && highSales ? "bg-primary" : highSales ? "bg-blue-500" : highQty ? "bg-amber-500" : "bg-slate-400";
-          return <span key={product.key} title={`${product.key}: ${toCurrency(product.nett_sales)} · ${product.quantity} qty`} className={`absolute h-3 w-3 -translate-x-1/2 -translate-y-1/2 rounded-full ${color} shadow-sm`} style={{ left: `${x}%`, top: `${y}%` }} />;
+          const quadrant = quadrantFor(product, avgQty, avgSales);
+          const size = Math.max(10, Math.min(28, 10 + (product.nett_sales / maxSales) * 18));
+          return (
+            <span
+              key={product.key}
+              title={`${product.key}\nCategory: ${product.category}\nVariant: ${product.variant || "Default"}\nQty sold: ${product.quantity}\nNet sales: ${toCurrency(product.nett_sales)}\nContribution: ${toPercent(productContribution(product, total))}\nQuadrant: ${quadrant.label}\nSuggested action: ${quadrant.action}`}
+              className={`absolute -translate-x-1/2 -translate-y-1/2 rounded-full ${quadrant.color} opacity-90 shadow-sm ring-2 ring-white`}
+              style={{ left: `${x}%`, top: `${y}%`, width: size, height: size }}
+            />
+          );
         })}
       </div>
       <div className="mt-2 flex justify-between text-[11px] font-bold uppercase text-text-muted">
-        <span>Quantity Sold</span>
-        <span>Net Sales</span>
+        <span>Revenue Contribution</span>
+        <span>Sales Velocity</span>
       </div>
     </div>
   );
@@ -443,8 +505,15 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
   const [loading, setLoading] = useState(true);
   const [uploadModal, setUploadModal] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [fullTableOpen, setFullTableOpen] = useState(false);
+  const [productSearch, setProductSearch] = useState("");
+  const [productCategory, setProductCategory] = useState("all");
+  const [productSort, setProductSort] = useState("net_sales");
+  const [productPage, setProductPage] = useState(1);
+  const [matrixCategory, setMatrixCategory] = useState("all");
   const [rankBy, setRankBy] = useState("sales");
-  const [lowFilter, setLowFilter] = useState(5);
+  const [lowFilter, setLowFilter] = useState("lt5");
+  const [uploadBanner, setUploadBanner] = useState(null);
   const [uploadForm, setUploadForm] = useState({ outletId: "", month: new Date().getMonth() + 1, year: new Date().getFullYear(), file: null, parsedItems: [], columnMapping: null, reportMetadata: {}, parseError: "" });
   const canUpload = hasPermission(auth, "product_analytics.upload");
   const canExportReport = canExport(auth, "product_analytics");
@@ -510,11 +579,38 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
   const compareItems = items.filter((item) => compareReportIds.has(item.report_id));
   const current = aggregateItems(currentItems);
   const comparison = aggregateItems(compareItems);
-  const topProducts = [...current.products].sort((a, b) => rankBy === "sales" ? b.nett_sales - a.nett_sales : b.quantity - a.quantity).slice(0, 10);
+  const rankedProducts = [...current.products]
+    .sort((a, b) => b.nett_sales - a.nett_sales)
+    .map((product, index) => ({ ...product, rank: index + 1 }));
+  const topProducts = [...rankedProducts].sort((a, b) => rankBy === "sales" ? b.nett_sales - a.nett_sales : b.quantity - a.quantity).slice(0, 10);
   const best = [...current.products].sort((a, b) => b.quantity - a.quantity)[0];
   const lowest = [...current.products].filter((item) => item.quantity > 0).sort((a, b) => a.nett_sales - b.nett_sales)[0];
   const topCategory = current.categories[0];
-  const lowPerformers = current.products.filter((item) => item.quantity < Number(lowFilter)).sort((a, b) => a.quantity - b.quantity || a.nett_sales - b.nett_sales).slice(0, 12);
+  const reportMonthsWithData = [...new Set(yearReports.map((report) => `${report.report_year}-${String(report.report_month).padStart(2, "0")}`))];
+  const hasTrendHistory = reportMonthsWithData.length >= 2;
+  const recentWindowSize = lowFilter === "last2" ? 2 : lowFilter === "last3" ? 3 : 0;
+  const lowThreshold = lowFilter === "lt3" ? 3 : lowFilter === "lt10" ? 10 : 5;
+  const recentMonthKeys = recentWindowSize
+    ? [...new Set([...yearReports]
+      .sort((a, b) => (b.report_year - a.report_year) || (b.report_month - a.report_month))
+      .map((report) => `${report.report_year}-${report.report_month}`))]
+      .slice(0, recentWindowSize)
+    : [];
+  const recentReportIds = new Set(yearReports
+    .filter((report) => recentMonthKeys.includes(`${report.report_year}-${report.report_month}`))
+    .map((report) => report.id));
+  const recentProductQuantity = yearItems
+    .filter((item) => recentReportIds.has(item.report_id))
+    .reduce((map, item) => {
+      const key = productKey(item);
+      map.set(key, (map.get(key) ?? 0) + item.quantity);
+      return map;
+    }, new Map());
+  const lowPerformers = rankedProducts
+    .map((item) => recentWindowSize ? { ...item, recent_quantity: recentProductQuantity.get(item.key) ?? 0 } : item)
+    .filter((item) => (recentWindowSize ? item.recent_quantity : item.quantity) < lowThreshold)
+    .sort((a, b) => (recentWindowSize ? a.recent_quantity - b.recent_quantity : a.quantity - b.quantity) || a.nett_sales - b.nett_sales)
+    .slice(0, 12);
   const avgSpend = current.totals.quantity ? current.totals.nett_sales / current.totals.quantity : 0;
   const salesChange = percentageChange(current.totals.nett_sales, comparison.totals.nett_sales);
   const qtyChange = percentageChange(current.totals.quantity, comparison.totals.quantity);
@@ -529,12 +625,31 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
     });
     return row;
   });
+  const productCategories = ["all", ...new Set(rankedProducts.map((product) => product.category).filter(Boolean))];
+  const filteredProducts = rankedProducts
+    .filter((product) => productCategory === "all" || product.category === productCategory)
+    .filter((product) => product.key.toLowerCase().includes(productSearch.trim().toLowerCase()));
+  const sortedProducts = [...filteredProducts].sort((a, b) => {
+    if (productSort === "quantity") return b.quantity - a.quantity;
+    if (productSort === "lowest_sales") return a.nett_sales - b.nett_sales;
+    if (productSort === "highest_discount") return b.discount - a.discount;
+    if (productSort === "product_name") return a.product.localeCompare(b.product);
+    return b.nett_sales - a.nett_sales;
+  });
+  const pageSize = 12;
+  const totalProductPages = Math.max(1, Math.ceil(sortedProducts.length / pageSize));
+  const pagedProducts = sortedProducts.slice((productPage - 1) * pageSize, productPage * pageSize);
+  const historyReports = reports.filter((report) => outletId === "all" || report.outlet_id === outletId);
+
+  useEffect(() => {
+    if (productPage > totalProductPages) setProductPage(totalProductPages);
+  }, [productPage, totalProductPages]);
   const insights = [
-    best ? { tone: "success", title: `${best.product} is the best seller.`, body: `${best.quantity} items sold with ${toCurrency(best.nett_sales)} net sales.` } : null,
-    topCategory ? { tone: "info", title: `${topCategory.name} leads category contribution.`, body: `${toPercent(current.totals.nett_sales ? (topCategory.nett_sales / current.totals.nett_sales) * 100 : 0)} of net sales.` } : null,
-    comparePeriod && current.totals.nett_sales ? { tone: salesChange >= 0 ? "success" : "warning", title: `Net sales ${salesChange >= 0 ? "increased" : "decreased"} ${toPercent(Math.abs(salesChange))}.`, body: `Compared with ${monthLabel(comparePeriod.month)} ${comparePeriod.year}. Quantity changed ${toPercent(qtyChange)}.` } : null,
-    current.totals.discount > current.totals.nett_sales * 0.12 ? { tone: "warning", title: "Discount level is elevated.", body: `${toCurrency(current.totals.discount)} discount given this period.` } : null,
-    lowPerformers.length ? { tone: "danger", title: `${lowPerformers.length} low-performing menu items detected.`, body: `Review items below ${lowFilter} quantity sold this month.` } : null,
+    best ? { tone: "success", type: "Insight", title: `${best.product} is the best seller.`, body: `${best.quantity} items sold with ${toCurrency(best.nett_sales)} net sales.` } : null,
+    topCategory ? { tone: "info", type: "Opportunity", title: `${topCategory.name} leads category contribution.`, body: `${toPercent(current.totals.nett_sales ? (topCategory.nett_sales / current.totals.nett_sales) * 100 : 0)} of net sales. Use this category for bundles or highlights.` } : null,
+    comparePeriod && current.totals.nett_sales ? { tone: salesChange >= 0 ? "success" : "warning", type: salesChange >= 0 ? "Insight" : "Warning", title: `Net sales ${salesChange >= 0 ? "increased" : "decreased"} ${toPercent(Math.abs(salesChange))}.`, body: `Compared with ${monthLabel(comparePeriod.month)} ${comparePeriod.year}. Quantity changed ${toPercent(qtyChange)}.` } : null,
+    current.totals.discount > current.totals.nett_sales * 0.12 ? { tone: "warning", type: "Warning", title: "Discount level is elevated.", body: `${toCurrency(current.totals.discount)} discount given this period. Review promotion dependency.` } : null,
+    lowPerformers.length ? { tone: "danger", type: "Recommendation", title: `${lowPerformers.length} low-performing menu items detected.`, body: `Review items below ${lowThreshold} quantity sold this month.` } : null,
   ].filter(Boolean);
 
   async function handleFile(file) {
@@ -595,6 +710,11 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
       setMonth(report.report_month);
       setYear(report.report_year);
       setUploadModal(false);
+      setUploadBanner({
+        rows: uploadForm.parsedItems.length,
+        netSales: uploadForm.parsedItems.reduce((sum, item) => sum + item.nett_sales, 0),
+        skipped: Number(uploadForm.reportMetadata?.skipped_rows ?? 0),
+      });
       setUploadForm({ outletId: "", month: new Date().getMonth() + 1, year: new Date().getFullYear(), file: null, parsedItems: [], columnMapping: null, reportMetadata: {}, parseError: "" });
       ui.notify({ title: "Product report uploaded", message: "Product analytics updated." });
     } catch (error) {
@@ -659,12 +779,19 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
         />
       </FilterBar>
 
+      {uploadBanner ? (
+        <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm text-emerald-800">
+          <div className="font-bold">{uploadBanner.rows} products imported successfully.</div>
+          <div className="mt-1 font-semibold">{toCurrency(uploadBanner.netSales)} net sales analyzed. Data quality: Healthy.</div>
+          {uploadBanner.skipped ? <div className="mt-1 font-semibold text-amber-700">{uploadBanner.skipped} rows skipped. Review upload details.</div> : null}
+        </div>
+      ) : null}
+
       {!loading && !currentItems.length ? (
         <div className="card border-dashed p-8 text-center">
           <div className="mx-auto grid h-12 w-12 place-items-center rounded-2xl bg-primary/10 text-primary"><FileSpreadsheet size={22} /></div>
-          <h2 className="mt-3 text-lg font-bold text-text-primary">Upload a POS product sales report to generate product analytics.</h2>
-          <p className="mt-1 text-sm text-text-secondary">Choose an outlet, month and CSV report to unlock product performance insights.</p>
-          {canUpload ? <button className="btn-primary mx-auto mt-4" type="button" onClick={() => setUploadModal(true)}><Upload size={16} /> Upload Report</button> : null}
+          <h2 className="mt-3 text-lg font-bold text-text-primary">No product sales report uploaded yet.</h2>
+          <p className="mt-1 text-sm text-text-secondary">Use the Upload Report button above to import POS sales data.</p>
         </div>
       ) : null}
 
@@ -683,7 +810,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
         <Card
           title="Top 10 Best Selling Products"
           description="Ranked by product sales performance."
-          action={<SelectField value={rankBy} options={[{ value: "sales", label: "By Net Sales" }, { value: "quantity", label: "By Quantity" }]} onChange={setRankBy} className="w-40" />}
+          action={<div className="flex items-center gap-2"><button className="btn-secondary h-9 text-xs" type="button" onClick={() => setFullTableOpen(true)}>View all products →</button><SelectField value={rankBy} options={[{ value: "sales", label: "By Net Sales" }, { value: "quantity", label: "By Quantity" }]} onChange={setRankBy} className="w-40" /></div>}
         >
           <DataTable
             density="compact"
@@ -706,13 +833,13 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
 
       <div className="grid gap-5 xl:grid-cols-2">
         <Card title="Product Performance Matrix" description="Quantity sold against net sales performance.">
-          <PerformanceMatrix products={current.products} />
+          <PerformanceMatrix products={rankedProducts} total={current.totals.nett_sales} categoryFilter={matrixCategory} onCategoryFilter={setMatrixCategory} />
         </Card>
         <Card title="AI-style Insights" description="Rule-based product performance highlights.">
           <div className="space-y-3 p-4">
             {insights.length ? insights.map((insight) => (
               <div key={insight.title} className="rounded-2xl border border-border bg-slate-50 p-3 transition hover:border-primary/20 hover:bg-primary/5">
-                <Badge tone={insight.tone}>{insight.tone === "danger" ? "Warning" : "Insight"}</Badge>
+                <Badge tone={insight.tone}>{insight.type}</Badge>
                 <div className="mt-2 text-sm font-bold text-text-primary">{insight.title}</div>
                 <div className="mt-1 text-xs text-text-secondary">{insight.body}</div>
               </div>
@@ -725,7 +852,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
         <Card
           title="Dead Menu / Low Performers"
           description="Menu items that may need review."
-          action={<SelectField value={lowFilter} options={[{ value: 5, label: "Qty < 5" }, { value: 10, label: "Qty < 10" }]} onChange={(value) => setLowFilter(Number(value))} className="w-32" />}
+          action={<SelectField value={lowFilter} options={[{ value: "lt3", label: "Qty < 3" }, { value: "lt5", label: "Qty < 5" }, { value: "lt10", label: "Qty < 10" }, { value: "last2", label: "Last 2 uploaded months" }, { value: "last3", label: "Last 3 uploaded months" }]} onChange={setLowFilter} className="w-48" />}
         >
           <DataTable
             density="compact"
@@ -735,6 +862,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
               { key: "quantity", header: "Qty", align: "right" },
               { key: "nett_sales", header: "Net Sales", align: "right", render: (row) => toCurrency(row.nett_sales) },
               { key: "last_sold", header: "Last Sold", render: () => `${monthLabel(month)} ${year}` },
+              { key: "action", header: "Suggested Action", render: (row) => <span className="text-xs font-semibold text-text-secondary">{lowPerformerAction(row)}</span> },
             ]}
             rows={lowPerformers}
             getRowKey={(row) => row.key}
@@ -742,20 +870,103 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
         </Card>
         <Card title="Monthly Trend" description="Top product net sales trend across uploaded months.">
           <div className="p-4">
-            <TrendChart
-              labels={trendData.map((row) => row.label)}
-              series={trendProducts.map((product, index) => ({
-                name: product,
-                data: trendData.map((row) => row[product] ?? 0),
-                stroke: ["#10B981", "#3B82F6", "#F59E0B", "#F43F5E", "#8B5CF6"][index],
-                area: index === 0,
-                format: toCurrency,
-              }))}
-              tickFormat={toCurrency}
-            />
+            {hasTrendHistory ? (
+              <TrendChart
+                labels={trendData.map((row) => row.label)}
+                series={trendProducts.map((product, index) => ({
+                  name: product,
+                  data: trendData.map((row) => row[product] ?? 0),
+                  stroke: ["#10B981", "#3B82F6", "#F59E0B", "#F43F5E", "#8B5CF6"][index],
+                  area: index === 0,
+                  format: toCurrency,
+                }))}
+                tickFormat={toCurrency}
+              />
+            ) : (
+              <div className="rounded-2xl border border-dashed border-border bg-slate-50 p-8 text-center text-sm font-semibold text-text-secondary">
+                Upload more monthly reports to view trend.
+              </div>
+            )}
           </div>
         </Card>
       </div>
+
+      {fullTableOpen ? (
+        <Modal
+          title="Product Performance Table"
+          description="Full product list with contribution, pricing and performance tags."
+          size="2xl"
+          onClose={() => setFullTableOpen(false)}
+          footer={<button className="btn-primary" type="button" onClick={() => setFullTableOpen(false)}>Done</button>}
+        >
+          <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px]">
+            <FieldLabel label="Search product">
+              <input
+                className="input"
+                value={productSearch}
+                onChange={(event) => {
+                  setProductSearch(event.target.value);
+                  setProductPage(1);
+                }}
+                placeholder="Search product or variant"
+              />
+            </FieldLabel>
+            <SelectField
+              label="Category"
+              value={productCategory}
+              options={productCategories.map((category) => ({ value: category, label: category === "all" ? "All Categories" : category }))}
+              onChange={(value) => {
+                setProductCategory(value);
+                setProductPage(1);
+              }}
+            />
+            <SelectField
+              label="Sort by"
+              value={productSort}
+              options={[
+                { value: "net_sales", label: "Net Sales" },
+                { value: "quantity", label: "Quantity" },
+                { value: "lowest_sales", label: "Lowest Sales" },
+                { value: "highest_discount", label: "Highest Discount" },
+                { value: "product_name", label: "Product Name" },
+              ]}
+              onChange={(value) => {
+                setProductSort(value);
+                setProductPage(1);
+              }}
+            />
+          </div>
+          <DataTable
+            density="compact"
+            columns={[
+              { key: "rank", header: "Rank", render: (row) => `#${row.rank}` },
+              { key: "product", header: "Product", render: (row) => <div><div className="font-bold text-text-primary">{row.product}</div><div className="text-xs text-text-muted">{row.variant || "Default"}</div></div> },
+              { key: "variant", header: "Variant", render: (row) => row.variant || "Default" },
+              { key: "category", header: "Category" },
+              { key: "quantity", header: "Qty", align: "right", render: (row) => row.quantity.toLocaleString() },
+              { key: "gross_sales", header: "Gross Sales", align: "right", render: (row) => toCurrency(row.gross_sales) },
+              { key: "discount", header: "Discount", align: "right", render: (row) => toCurrency(row.discount) },
+              { key: "nett_sales", header: "Nett Sales", align: "right", render: (row) => toCurrency(row.nett_sales) },
+              { key: "contribution", header: "% Contribution", align: "right", render: (row) => toPercent(productContribution(row, current.totals.nett_sales)) },
+              { key: "avg_selling_price", header: "Avg Selling Price", align: "right", render: (row) => toCurrency(row.quantity ? row.nett_sales / row.quantity : 0) },
+              { key: "status", header: "Status Tag", render: (row) => {
+                const status = productStatus(row, current.totals.nett_sales);
+                return <Badge tone={status.tone}>{status.label}</Badge>;
+              } },
+            ]}
+            rows={pagedProducts}
+            getRowKey={(row) => row.key}
+          />
+          <div className="mt-4 flex flex-col gap-3 text-sm text-text-secondary sm:flex-row sm:items-center sm:justify-between">
+            <span>{sortedProducts.length.toLocaleString()} products found</span>
+            <div className="flex items-center justify-end gap-2">
+              <button className="btn-secondary h-9 text-xs" type="button" disabled={productPage <= 1} onClick={() => setProductPage((page) => Math.max(1, page - 1))}>Previous</button>
+              <span className="min-w-24 text-center text-xs font-bold text-text-primary">Page {productPage} of {totalProductPages}</span>
+              <button className="btn-secondary h-9 text-xs" type="button" disabled={productPage >= totalProductPages} onClick={() => setProductPage((page) => Math.min(totalProductPages, page + 1))}>Next</button>
+            </div>
+          </div>
+        </Modal>
+      ) : null}
 
       {uploadModal ? (
         <Modal
@@ -815,9 +1026,13 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
           <DataTable
             columns={[
               { key: "outlet", header: "Outlet", render: (row) => activeOutlets.find((outlet) => outlet.id === row.outlet_id)?.name ?? "Unknown Outlet" },
-              { key: "month", header: "Month", render: (row) => `${monthLabel(row.report_month)} ${row.report_year}` },
+              { key: "month", header: "Month", render: (row) => monthLabel(row.report_month) },
+              { key: "year", header: "Year", render: (row) => row.report_year },
               { key: "file_name", header: "File Name" },
+              { key: "uploaded_by", header: "Uploaded By", render: (row) => row.uploaded_by || "—" },
               { key: "uploaded_at", header: "Uploaded At", render: (row) => row.uploaded_at ? new Date(row.uploaded_at).toLocaleString("en-MY", { dateStyle: "medium", timeStyle: "short" }) : "—" },
+              { key: "rows", header: "Rows Imported", align: "right", render: (row) => Number(row.raw_metadata?.row_count ?? 0).toLocaleString() },
+              { key: "total", header: "Total Net Sales", align: "right", render: (row) => toCurrency(row.total_net_sales) },
               { key: "status", header: "Status", render: (row) => <Badge tone="success">{row.status}</Badge> },
               { key: "actions", header: "Actions", align: "right", render: (row) => (
                 <div className="flex justify-end gap-2">
@@ -831,7 +1046,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
                 </div>
               ) },
             ]}
-            rows={reports}
+            rows={historyReports}
             getRowKey={(row) => row.id}
           />
         </Modal>
