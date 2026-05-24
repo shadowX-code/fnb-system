@@ -307,8 +307,16 @@ function downloadCsv(filename, rows) {
   URL.revokeObjectURL(url);
 }
 
+function normalizeProductName(value) {
+  return String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
 function productKey(item) {
-  return `${item.product_name}${item.variant_name ? ` · ${item.variant_name}` : ""}`;
+  return `${normalizeProductName(item.category_name)}::${normalizeProductName(item.product_name)}`;
+}
+
+function variantKey(item) {
+  return `${productKey(item)}::${normalizeProductName(item.variant_name || "Default")}`;
 }
 
 function productContribution(product, total) {
@@ -334,27 +342,49 @@ function lowPerformerAction(product) {
   return "Monitor and test promotion.";
 }
 
-function aggregateItems(items) {
+function aggregateItems(items, options = {}) {
+  const { includeVariants = false } = options;
   const byProduct = new Map();
   const byCategory = new Map();
   items.forEach((item) => {
-    const key = productKey(item);
+    const key = includeVariants ? variantKey(item) : productKey(item);
+    const variantName = String(item.variant_name ?? "").trim();
     const product = byProduct.get(key) ?? {
       key,
       product: item.product_name,
-      variant: item.variant_name,
+      variant: includeVariants ? variantName : "",
       category: item.category_name,
       quantity: 0,
       gross_sales: 0,
       nett_sales: 0,
       discount: 0,
       last_sold: item.created_at,
+      variant_count: 0,
+      variants: new Map(),
     };
     product.quantity += item.quantity;
     product.gross_sales += item.gross_sales;
     product.nett_sales += item.nett_sales;
     product.discount += item.discount;
     product.last_sold = item.created_at || product.last_sold;
+    const variantDisplay = variantName || "Default";
+    const variant = product.variants.get(variantDisplay) ?? {
+      variant: variantDisplay,
+      quantity: 0,
+      gross_sales: 0,
+      discount: 0,
+      sst: 0,
+      service_charge: 0,
+      nett_sales: 0,
+    };
+    variant.quantity += item.quantity;
+    variant.gross_sales += item.gross_sales;
+    variant.discount += item.discount;
+    variant.sst += item.sst;
+    variant.service_charge += item.service_charge;
+    variant.nett_sales += item.nett_sales;
+    product.variants.set(variantDisplay, variant);
+    product.variant_count = product.variants.size;
     byProduct.set(key, product);
 
     const category = byCategory.get(item.category_name) ?? { name: item.category_name, quantity: 0, nett_sales: 0 };
@@ -362,7 +392,10 @@ function aggregateItems(items) {
     category.nett_sales += item.nett_sales;
     byCategory.set(item.category_name, category);
   });
-  const products = [...byProduct.values()];
+  const products = [...byProduct.values()].map((product) => ({
+    ...product,
+    variants: [...product.variants.values()].sort((a, b) => b.nett_sales - a.nett_sales),
+  }));
   const categories = [...byCategory.values()].sort((a, b) => b.nett_sales - a.nett_sales);
   const totals = products.reduce((sum, item) => ({
     quantity: sum.quantity + item.quantity,
@@ -510,6 +543,8 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
   const [productCategory, setProductCategory] = useState("all");
   const [productSort, setProductSort] = useState("net_sales");
   const [productPage, setProductPage] = useState(1);
+  const [productViewMode, setProductViewMode] = useState("summary");
+  const [selectedProduct, setSelectedProduct] = useState(null);
   const [matrixCategory, setMatrixCategory] = useState("all");
   const [rankBy, setRankBy] = useState("sales");
   const [lowFilter, setLowFilter] = useState("lt5");
@@ -578,10 +613,15 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
   const currentItems = items.filter((item) => currentReportIds.has(item.report_id));
   const compareItems = items.filter((item) => compareReportIds.has(item.report_id));
   const current = aggregateItems(currentItems);
+  const currentVariantDetail = aggregateItems(currentItems, { includeVariants: true });
   const comparison = aggregateItems(compareItems);
   const rankedProducts = [...current.products]
     .sort((a, b) => b.nett_sales - a.nett_sales)
     .map((product, index) => ({ ...product, rank: index + 1 }));
+  const rankedVariantProducts = [...currentVariantDetail.products]
+    .sort((a, b) => b.nett_sales - a.nett_sales)
+    .map((product, index) => ({ ...product, rank: index + 1 }));
+  const tableProducts = productViewMode === "variant" ? rankedVariantProducts : rankedProducts;
   const topProducts = [...rankedProducts].sort((a, b) => rankBy === "sales" ? b.nett_sales - a.nett_sales : b.quantity - a.quantity).slice(0, 10);
   const best = [...current.products].sort((a, b) => b.quantity - a.quantity)[0];
   const lowest = [...current.products].filter((item) => item.quantity > 0).sort((a, b) => a.nett_sales - b.nett_sales)[0];
@@ -614,21 +654,25 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
   const avgSpend = current.totals.quantity ? current.totals.nett_sales / current.totals.quantity : 0;
   const salesChange = percentageChange(current.totals.nett_sales, comparison.totals.nett_sales);
   const qtyChange = percentageChange(current.totals.quantity, comparison.totals.quantity);
-  const trendProducts = topProducts.slice(0, 5).map((product) => product.key);
+  const trendProducts = topProducts.slice(0, 5).map((product) => ({ key: product.key, name: product.product }));
   const trendData = months.map((item) => {
     const periodReports = yearReports.filter((report) => report.report_month === item.value);
     const periodReportIds = new Set(periodReports.map((report) => report.id));
     const periodItems = yearItems.filter((row) => periodReportIds.has(row.report_id));
     const row = { label: item.label };
     trendProducts.forEach((product) => {
-      row[product] = periodItems.filter((sale) => productKey(sale) === product).reduce((sum, sale) => sum + sale.nett_sales, 0);
+      row[product.key] = periodItems.filter((sale) => productKey(sale) === product.key).reduce((sum, sale) => sum + sale.nett_sales, 0);
     });
     return row;
   });
-  const productCategories = ["all", ...new Set(rankedProducts.map((product) => product.category).filter(Boolean))];
-  const filteredProducts = rankedProducts
+  const productCategories = ["all", ...new Set(tableProducts.map((product) => product.category).filter(Boolean))];
+  const filteredProducts = tableProducts
     .filter((product) => productCategory === "all" || product.category === productCategory)
-    .filter((product) => product.key.toLowerCase().includes(productSearch.trim().toLowerCase()));
+    .filter((product) => {
+      const search = productSearch.trim().toLowerCase();
+      if (!search) return true;
+      return [product.product, product.variant, product.category, product.key].some((value) => String(value ?? "").toLowerCase().includes(search));
+    });
   const sortedProducts = [...filteredProducts].sort((a, b) => {
     if (productSort === "quantity") return b.quantity - a.quantity;
     if (productSort === "lowest_sales") return a.nett_sales - b.nett_sales;
@@ -644,6 +688,11 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
   useEffect(() => {
     if (productPage > totalProductPages) setProductPage(totalProductPages);
   }, [productPage, totalProductPages]);
+
+  useEffect(() => {
+    setProductCategory("all");
+    setProductPage(1);
+  }, [productViewMode]);
   const insights = [
     best ? { tone: "success", type: "Insight", title: `${best.product} is the best seller.`, body: `${best.quantity} items sold with ${toCurrency(best.nett_sales)} net sales.` } : null,
     topCategory ? { tone: "info", type: "Opportunity", title: `${topCategory.name} leads category contribution.`, body: `${toPercent(current.totals.nett_sales ? (topCategory.nett_sales / current.totals.nett_sales) * 100 : 0)} of net sales. Use this category for bundles or highlights.` } : null,
@@ -660,12 +709,17 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
       const rows = extension === "xlsx" ? await parseXlsx(file) : parseCsv(await file.text());
       if (!rows.length) throw new Error("The report has no product rows.");
       const parsedReport = mapParsedRows(rows);
+      const groupedReport = aggregateItems(parsedReport.items);
       setUploadForm((currentForm) => ({
         ...currentForm,
         file,
         parsedItems: parsedReport.items,
         columnMapping: parsedReport.mapping,
-        reportMetadata: parsedReport.metadata,
+        reportMetadata: {
+          ...parsedReport.metadata,
+          grouped_product_count: groupedReport.products.length,
+          variant_row_count: parsedReport.items.filter((item) => String(item.variant_name ?? "").trim()).length,
+        },
         parseError: "",
       }));
     } catch (error) {
@@ -803,7 +857,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
         <KpiCard title="Lowest Performer" value={lowest?.product ?? "—"} helper={lowest ? `${lowest.quantity} sold · ${toCurrency(lowest.nett_sales)}` : "No product data"} icon={Clock} />
         <KpiCard title="Discount Given" value={toCurrency(current.totals.discount)} helper="Total discount in report" icon={Download} />
         <KpiCard title="Top Category" value={topCategory?.name ?? "—"} helper={topCategory ? toCurrency(topCategory.nett_sales) : "No category data"} icon={PieChart} />
-        <KpiCard title="Menu Items Sold" value={current.products.length.toLocaleString()} helper="Unique product and variant rows" icon={FileSpreadsheet} />
+        <KpiCard title="Menu Items Sold" value={current.products.length.toLocaleString()} helper="Unique products after variant grouping" icon={FileSpreadsheet} />
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
@@ -816,7 +870,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
             density="compact"
             columns={[
               { key: "rank", header: "Rank", render: (_, index) => `#${index + 1}` },
-              { key: "product", header: "Product", render: (row) => <div><div className="font-bold text-text-primary">{row.product}</div><div className="text-xs text-text-muted">{row.variant || "Default"}</div></div> },
+              { key: "product", header: "Product", render: (row) => <div><div className="font-bold text-text-primary">{row.product}</div>{row.variant_count > 1 ? <div className="text-xs text-text-muted">{row.variant_count} variants</div> : null}</div> },
               { key: "category", header: "Category" },
               { key: "quantity", header: "Qty", align: "right", render: (row) => row.quantity.toLocaleString() },
               { key: "nett_sales", header: "Net Sales", align: "right", render: (row) => toCurrency(row.nett_sales) },
@@ -824,6 +878,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
             ]}
             rows={topProducts}
             getRowKey={(row) => row.key}
+            onRowClick={(row) => setSelectedProduct(row)}
           />
         </Card>
         <Card title="Category Contribution" description="Net sales contribution by category.">
@@ -874,8 +929,8 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
               <TrendChart
                 labels={trendData.map((row) => row.label)}
                 series={trendProducts.map((product, index) => ({
-                  name: product,
-                  data: trendData.map((row) => row[product] ?? 0),
+                  name: product.name,
+                  data: trendData.map((row) => row[product.key] ?? 0),
                   stroke: ["#10B981", "#3B82F6", "#F59E0B", "#F43F5E", "#8B5CF6"][index],
                   area: index === 0,
                   format: toCurrency,
@@ -899,7 +954,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
           onClose={() => setFullTableOpen(false)}
           footer={<button className="btn-primary" type="button" onClick={() => setFullTableOpen(false)}>Done</button>}
         >
-          <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_220px]">
+          <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_190px_190px_220px]">
             <FieldLabel label="Search product">
               <input
                 className="input"
@@ -911,6 +966,15 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
                 placeholder="Search product or variant"
               />
             </FieldLabel>
+            <SelectField
+              label="View Mode"
+              value={productViewMode}
+              options={[
+                { value: "summary", label: "Product Summary" },
+                { value: "variant", label: "Variant Detail" },
+              ]}
+              onChange={setProductViewMode}
+            />
             <SelectField
               label="Category"
               value={productCategory}
@@ -940,8 +1004,8 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
             density="compact"
             columns={[
               { key: "rank", header: "Rank", render: (row) => `#${row.rank}` },
-              { key: "product", header: "Product", render: (row) => <div><div className="font-bold text-text-primary">{row.product}</div><div className="text-xs text-text-muted">{row.variant || "Default"}</div></div> },
-              { key: "variant", header: "Variant", render: (row) => row.variant || "Default" },
+              { key: "product", header: "Product", render: (row) => <div><div className="font-bold text-text-primary">{row.product}</div>{productViewMode === "summary" && row.variant_count > 1 ? <div className="text-xs text-text-muted">{row.variant_count} variants</div> : null}</div> },
+              { key: "variant", header: "Variant", render: (row) => productViewMode === "variant" ? (row.variant || "Default") : row.variant_count > 1 ? `${row.variant_count} variants` : "Default" },
               { key: "category", header: "Category" },
               { key: "quantity", header: "Qty", align: "right", render: (row) => row.quantity.toLocaleString() },
               { key: "gross_sales", header: "Gross Sales", align: "right", render: (row) => toCurrency(row.gross_sales) },
@@ -956,6 +1020,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
             ]}
             rows={pagedProducts}
             getRowKey={(row) => row.key}
+            onRowClick={(row) => setSelectedProduct(row)}
           />
           <div className="mt-4 flex flex-col gap-3 text-sm text-text-secondary sm:flex-row sm:items-center sm:justify-between">
             <span>{sortedProducts.length.toLocaleString()} products found</span>
@@ -964,6 +1029,46 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
               <span className="min-w-24 text-center text-xs font-bold text-text-primary">Page {productPage} of {totalProductPages}</span>
               <button className="btn-secondary h-9 text-xs" type="button" disabled={productPage >= totalProductPages} onClick={() => setProductPage((page) => Math.min(totalProductPages, page + 1))}>Next</button>
             </div>
+          </div>
+        </Modal>
+      ) : null}
+
+      {selectedProduct ? (
+        <Modal
+          title={selectedProduct.product}
+          description={`${selectedProduct.category} product performance and variant breakdown.`}
+          size="lg"
+          onClose={() => setSelectedProduct(null)}
+          footer={<button className="btn-primary" type="button" onClick={() => setSelectedProduct(null)}>Done</button>}
+        >
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-2xl border border-border bg-slate-50 p-4">
+              <div className="text-xs font-bold uppercase text-text-muted">Total Qty</div>
+              <div className="mt-2 text-2xl font-bold text-text-primary">{selectedProduct.quantity.toLocaleString()}</div>
+            </div>
+            <div className="rounded-2xl border border-border bg-slate-50 p-4">
+              <div className="text-xs font-bold uppercase text-text-muted">Total Nett</div>
+              <div className="mt-2 text-2xl font-bold text-text-primary">{toCurrency(selectedProduct.nett_sales)}</div>
+            </div>
+            <div className="rounded-2xl border border-border bg-slate-50 p-4">
+              <div className="text-xs font-bold uppercase text-text-muted">Variants</div>
+              <div className="mt-2 text-2xl font-bold text-text-primary">{selectedProduct.variant_count || 1}</div>
+            </div>
+          </div>
+          <div className="mt-5">
+            <div className="mb-3 text-sm font-bold text-text-primary">Variant Breakdown</div>
+            <DataTable
+              density="compact"
+              columns={[
+                { key: "variant", header: "Variant", render: (row) => row.variant || "Default" },
+                { key: "quantity", header: "Qty", align: "right", render: (row) => row.quantity.toLocaleString() },
+                { key: "gross_sales", header: "Gross Sales", align: "right", render: (row) => toCurrency(row.gross_sales) },
+                { key: "discount", header: "Discount", align: "right", render: (row) => toCurrency(row.discount) },
+                { key: "nett_sales", header: "Nett Sales", align: "right", render: (row) => toCurrency(row.nett_sales) },
+              ]}
+              rows={selectedProduct.variants?.length ? selectedProduct.variants : [{ variant: selectedProduct.variant || "Default", quantity: selectedProduct.quantity, gross_sales: selectedProduct.gross_sales, discount: selectedProduct.discount, nett_sales: selectedProduct.nett_sales }]}
+              getRowKey={(row) => row.variant}
+            />
           </div>
         </Modal>
       ) : null}
@@ -986,6 +1091,13 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
             <button className="btn-secondary mx-auto" type="button" onClick={() => inputRef.current?.click()}><FileSpreadsheet size={16} /> Select Report File</button>
             <div className="mt-3 text-sm font-semibold text-text-primary">{uploadForm.file?.name ?? "No file selected"}</div>
             <div className="mt-1 text-xs text-text-secondary">{uploadForm.parsedItems.length ? `${uploadForm.parsedItems.length} product rows ready to import.` : "Required fields: Product Name, Quantity and Nett Sales. Category and other amount fields are detected when available."}</div>
+            {uploadForm.parsedItems.length ? (
+              <div className="mt-3 flex flex-wrap justify-center gap-2 text-xs font-semibold text-text-secondary">
+                <span className="rounded-full bg-white px-3 py-1">{uploadForm.parsedItems.length} raw rows detected</span>
+                <span className="rounded-full bg-white px-3 py-1">{Number(uploadForm.reportMetadata.grouped_product_count ?? 0).toLocaleString()} products after grouping</span>
+                <span className="rounded-full bg-white px-3 py-1">{Number(uploadForm.reportMetadata.variant_row_count ?? 0).toLocaleString()} variant rows detected</span>
+              </div>
+            ) : null}
           </div>
           {uploadForm.parseError ? (
             <div className="mt-4 whitespace-pre-line rounded-2xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-700">

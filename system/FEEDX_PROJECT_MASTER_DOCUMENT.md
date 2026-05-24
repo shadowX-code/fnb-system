@@ -477,12 +477,15 @@ Dashboard sections:
 
 - KPI cards: Total Net Sales, Total Quantity Sold, Average Spend / Item, Best Selling Product, Lowest Performer, Discount Given, Top Category, Menu Items Sold.
 - Empty state shows text guidance only; the Upload Report action remains in the page header.
-- Top 10 Best Selling Products with Net Sales / Quantity toggle and View All Products table.
-- Full Product Performance Table includes search, category filter, sorting, pagination, contribution, average selling price, and status tags.
+- Dashboard analytics aggregate by Product Name and Category by default. Variant rows remain stored in raw uploaded data but do not split the main analytics view.
+- Product normalization trims spaces, collapses repeated spaces, and compares product names case-insensitively while preserving the first display name.
+- Top 10 Best Selling Products with Net Sales / Quantity toggle and View All Products table. Product rows show variant count when variants exist.
+- Full Product Performance Table includes search, category filter, sorting, pagination, contribution, average selling price, status tags, and a View Mode toggle for Product Summary or Variant Detail.
+- Product detail modal shows total product summary and a variant breakdown table.
 - Category Contribution uses a modern ranked contribution card with category bars and a compact mix visual.
 - Product Performance Matrix uses Revenue Contribution and Sales Velocity, average guide lines, quadrant colors, category chips, and suggested action tooltips.
-- Dead Menu / Low Performers includes quantity and uploaded-month filters plus suggested action guidance.
-- Monthly Trend uses uploaded report data only. If only one month exists, the page asks users to upload more monthly reports.
+- Dead Menu / Low Performers uses aggregated product quantity by default and includes quantity/uploaded-month filters plus suggested action guidance.
+- Monthly Trend tracks aggregated product names across uploaded months. If only one month exists, the page asks users to upload more monthly reports.
 - Rule-based insights use the labels Insight, Opportunity, Warning, and Recommendation.
 
 RBAC and outlet scope:
