@@ -136,7 +136,7 @@ function CategoryModal({ categories, onClose, onSave, onArchive, saving, canWrit
               <Badge tone={category.is_active ? "success" : "neutral"}>{category.is_active ? "Active" : "Archived"}</Badge>
               <div className="flex justify-end gap-2">
                 {canWrite ? <button className="btn-secondary h-8 text-xs" type="button" onClick={() => setDraft(category)}>Edit</button> : null}
-                {category.is_active && canArchive ? <button className="btn-secondary h-8 text-xs" type="button" onClick={() => onArchive(category)}>Archive</button> : null}
+                {category.is_active && canArchive ? <button className="btn-secondary h-8 text-xs" type="button" onClick={() => onArchive(category)}>Deactivate</button> : null}
               </div>
             </div>
           ))}
@@ -563,7 +563,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       <Card className="p-4">
         <div className="grid gap-3 xl:grid-cols-[1fr_1fr_1fr_1.4fr] xl:items-end">
           <FieldLabel label="Outlet"><SelectField value={outletId} options={activeOutlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={setOutletId} /></FieldLabel>
-          <FieldLabel label="Category"><SelectField value={categoryFilter} options={[{ value: "all", label: "All Categories" }, ...categories.map((category) => ({ value: category.id, label: category.name }))]} onChange={setCategoryFilter} searchable /></FieldLabel>
+          <FieldLabel label="Category"><SelectField value={categoryFilter} options={[{ value: "all", label: "All Categories" }, ...categories.filter((category) => category.is_active).map((category) => ({ value: category.id, label: category.name }))]} onChange={setCategoryFilter} searchable /></FieldLabel>
           <FieldLabel label="Status"><SelectField value={statusFilter} options={[{ value: "all", label: "All Status" }, ...assetStatuses.map((status) => ({ value: status, label: titleCase(status) }))]} onChange={setStatusFilter} /></FieldLabel>
           <FieldLabel label="Search Asset"><div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} /><input className="control h-10 pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search asset name..." /></div></FieldLabel>
         </div>
