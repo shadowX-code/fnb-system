@@ -1305,7 +1305,7 @@ Inspection flow:
 3. Each audit card shows asset thumbnail, asset name, description, category, expected quantity, counted quantity, difference status, condition, evidence upload, and remark.
 4. Difference states are Matched, Extra, and Missing.
 5. Condition dropdown uses the global asset condition values.
-6. Evidence or remark is recommended when quantity differs or condition is not Healthy, but submission is not blocked.
+6. Evidence or remark is recommended when quantity differs or condition is not Good, but submission is not blocked.
 7. Review enterprise summary cards and problematic rows before final submission.
 8. Submit inspection or save draft.
 9. Submitting updates asset quantity, asset condition, and last inspected date.

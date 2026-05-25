@@ -47,6 +47,7 @@ function assetConditionTone(condition) {
 }
 
 function assetConditionLabel(condition) {
+  if (condition === "healthy") return "Good";
   if (condition === "under_maintenance") return "Under Maintenance";
   if (condition === "needs_review") return "Needs Review";
   if (condition === "low_quantity") return "Low Quantity";
@@ -60,13 +61,34 @@ function normalizeAssetCondition(value) {
   return assetConditions.includes(normalized) ? normalized : "healthy";
 }
 
+function assetConditionInsight(condition) {
+  const insights = {
+    healthy: "No active operational issues.",
+    needs_review: "Inspection mismatch detected.",
+    damaged: "Maintenance attention required.",
+    missing: "Asset unavailable during latest inspection.",
+    under_maintenance: "Maintenance work is currently required.",
+    low_quantity: "Quantity is below the preferred operating level.",
+    disposed: "Asset has been removed from active operations.",
+    inactive: "Asset is not currently active.",
+  };
+  return insights[condition || "healthy"] || insights.healthy;
+}
+
+function assetDisplayId(asset) {
+  const source = String(asset?.id || "").replace(/-/g, "");
+  const number = parseInt(source.slice(-6), 16);
+  if (Number.isNaN(number)) return "AST-00000";
+  return `AST-${String((number % 99999) + 1).padStart(5, "0")}`;
+}
+
 function getQuantityHealth(asset) {
   const quantity = Number(asset.current_quantity || 0);
   const minimum = Number(asset.minimum_quantity || 0);
   if (quantity <= 0) return { label: "Out", tone: "danger", dot: "bg-rose-500", text: "text-rose-700", bg: "bg-rose-50", border: "border-rose-100" };
   if (minimum > 0 && quantity <= minimum * 0.5) return { label: "Critical", tone: "danger", dot: "bg-red-500", text: "text-red-700", bg: "bg-red-50", border: "border-red-100" };
   if (minimum > 0 && quantity <= minimum) return { label: "Low", tone: "warning", dot: "bg-amber-500", text: "text-amber-700", bg: "bg-amber-50", border: "border-amber-100" };
-  return { label: "Healthy", tone: "success", dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-100" };
+  return { label: "Good", tone: "success", dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-100" };
 }
 
 function categoryIcon(categoryName) {
@@ -81,15 +103,20 @@ function categoryIcon(categoryName) {
   return "AS";
 }
 
-function AssetThumbnail({ asset, size = "md" }) {
+function AssetThumbnail({ asset, size = "md", interactive = false }) {
   const [failed, setFailed] = useState(false);
   const sizeClass = size === "lg" ? "h-28 w-28 rounded-3xl" : "h-14 w-14 rounded-xl";
   const imageUrl = asset.thumbnail_url || asset.image_url;
   if (imageUrl && !failed) {
-    return <img className={`${sizeClass} shrink-0 bg-slate-100 object-cover shadow-sm`} src={imageUrl} alt={asset.name} onError={() => setFailed(true)} />;
+    return (
+      <span className={`group relative block shrink-0 overflow-hidden ${sizeClass}`}>
+        <img className="h-full w-full bg-slate-100 object-cover shadow-sm" src={imageUrl} alt={asset.name} onError={() => setFailed(true)} />
+        {interactive ? <span className="absolute inset-0 flex items-center justify-center bg-slate-950/45 text-[11px] font-black text-white opacity-0 transition group-hover:opacity-100">View Image</span> : null}
+      </span>
+    );
   }
   return (
-    <div className={`${sizeClass} flex shrink-0 items-center justify-center bg-gradient-to-br from-emerald-50 to-slate-100 text-xs font-black text-primary shadow-sm`}>
+    <div className={`${sizeClass} flex shrink-0 items-center justify-center bg-gradient-to-br from-emerald-50 to-slate-100 text-xs font-black text-primary shadow-sm ${interactive ? "transition group-hover:ring-2 group-hover:ring-primary/20" : ""}`}>
       {categoryIcon(asset.category_name)}
     </div>
   );
@@ -683,7 +710,7 @@ function InspectionModal({ outletId, categories, assets, draftInspection, onClos
                     <div className="grid gap-4 lg:grid-cols-[1.3fr_0.9fr_1fr]">
                       <div className="flex gap-3">
                         <button type="button" onClick={() => setLightbox({ images: [row.asset.thumbnail_url || row.asset.image_url].filter(Boolean), index: 0 })}>
-                          <AssetThumbnail asset={row.asset} />
+                          <AssetThumbnail asset={row.asset} interactive />
                         </button>
                         <div className="min-w-0">
                           <div className="font-black text-text-primary">{row.asset.name}</div>
@@ -788,29 +815,71 @@ function InspectionModal({ outletId, categories, assets, draftInspection, onClos
   );
 }
 
-function AssetDetailDrawer({ asset, movements, inspections, onClose, onAdjust, onInspect, onEdit, onResumeDraft, onDeleteDraft, onArchiveDraft }) {
+function AssetDetailDrawer({ asset, outlet, movements, inspections, onClose, onResumeDraft, onDeleteDraft, onArchiveDraft }) {
   const [tab, setTab] = useState("overview");
   const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewZoom, setPreviewZoom] = useState(false);
+  const latestInspection = inspections.find((inspection) => !isDraftInspection(inspection));
+  const latestInspectionItem = latestInspection?.items?.find((item) => item.asset_id === asset.id);
+  const latestDifference = Number(latestInspectionItem?.difference || 0);
+  const latestEvidenceCount = latestInspectionItem?.evidence_status === "complete" ? 1 : 0;
+  const latestNotesCount = [latestInspectionItem?.remark, latestInspection?.notes, latestInspection?.remark].filter(Boolean).length;
+  const quantityHint = latestDifference < 0
+    ? { text: `↓ ${Math.abs(latestDifference)} from latest inspection`, className: "text-rose-700 bg-rose-50 border-rose-100" }
+    : latestDifference > 0
+      ? { text: `↑ ${latestDifference} extra from latest inspection`, className: "text-blue-700 bg-blue-50 border-blue-100" }
+      : Number(asset.minimum_quantity || 0) > 0 && Number(asset.current_quantity || 0) <= Number(asset.minimum_quantity || 0)
+        ? { text: "Below expected stock", className: "text-amber-700 bg-amber-50 border-amber-100" }
+        : { text: "Stock level stable", className: "text-emerald-700 bg-emerald-50 border-emerald-100" };
+  const operationalSummary = [
+    latestDifference !== 0 ? "Last inspection detected quantity mismatch." : "Latest inspection quantity is aligned.",
+    movements.length ? "Recent quantity movement has been recorded." : "No maintenance activity recorded recently.",
+    asset.condition === "healthy" ? "Asset condition stable for recent operations." : assetConditionInsight(asset.condition),
+  ];
+  const recentActivity = [
+    latestInspection ? {
+      id: `inspection-${latestInspection.id}`,
+      date: latestInspection.inspection_date,
+      title: "Inspection completed",
+      detail: latestDifference ? `Difference ${latestDifference > 0 ? "+" : ""}${latestDifference}` : `Condition recorded as ${assetConditionLabel(latestInspectionItem?.condition_status || asset.condition)}`,
+    } : null,
+    ...movements.slice(0, 3).map((movement) => ({
+      id: `movement-${movement.id}`,
+      date: movement.movement_date,
+      title: `Quantity ${titleCase(movement.movement_type)}`,
+      detail: `${movement.quantity_change > 0 ? "+" : ""}${movement.quantity_change} · ${movement.quantity_before} → ${movement.quantity_after}`,
+    })),
+    asset.image_url ? {
+      id: "asset-photo",
+      date: asset.updated_at,
+      title: "Asset photo updated",
+      detail: "Image available in asset profile",
+    } : null,
+  ].filter(Boolean).sort((first, second) => new Date(second.date || 0) - new Date(first.date || 0)).slice(0, 5);
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30 backdrop-blur-[2px]" role="dialog" aria-modal="true">
       <button className="flex-1 cursor-default" type="button" aria-label="Close asset detail" onClick={onClose} />
-      <aside className="flex h-full w-full max-w-[620px] flex-col border-l border-border bg-surface shadow-2xl">
-        <header className="shrink-0 border-b border-border bg-gradient-to-br from-white to-emerald-50/40 p-5">
+      <aside className="flex h-full w-full max-w-[720px] flex-col border-l border-border bg-surface shadow-2xl">
+        <header className="sticky top-0 z-20 shrink-0 border-b border-border bg-gradient-to-br from-white to-emerald-50/40 p-5 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 gap-4">
-              <button type="button" onClick={() => setPreviewOpen(true)} aria-label={`Preview ${asset.name} image`}>
-                <AssetThumbnail asset={asset} size="lg" />
+              <button className="group shrink-0" type="button" onClick={() => setPreviewOpen(true)} aria-label={`Preview ${asset.name} image`}>
+                <AssetThumbnail asset={asset} size="lg" interactive />
               </button>
               <div className="min-w-0">
                 <div className="text-xs font-black uppercase tracking-[0.16em] text-primary">Asset Profile</div>
-                <h2 className="mt-1 truncate text-2xl font-semibold text-text-primary">{asset.name}</h2>
-                <p className="mt-1 text-sm text-text-secondary">{asset.category_name} · {asset.description || "No description"}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <Badge tone={assetConditionTone(asset.condition)}>{assetConditionLabel(asset.condition)}</Badge>
+                <h2 className="mt-1 truncate text-3xl font-semibold text-text-primary">{asset.name}</h2>
+                <div className="mt-2 space-y-0.5 text-sm font-semibold text-text-secondary">
+                  <div>{asset.category_name}</div>
+                  <div className="font-mono text-xs tracking-wide text-text-muted">{assetDisplayId(asset)}</div>
+                  <div>{outlet?.name || "Outlet not assigned"}</div>
                 </div>
               </div>
             </div>
-            <button className="icon-btn" type="button" onClick={onClose}><X size={18} /></button>
+            <div className="flex shrink-0 items-start gap-2">
+              <Badge tone={assetConditionTone(asset.condition)}>{assetConditionLabel(asset.condition)}</Badge>
+              <button className="icon-btn" type="button" onClick={onClose}><X size={18} /></button>
+            </div>
           </div>
           <div className="mt-4 flex gap-2">
             {["overview", "movement", "inspection", "maintenance"].map((item) => <button key={item} className={`rounded-full px-3 py-1.5 text-xs font-bold ${tab === item ? "bg-primary text-white" : "bg-background text-text-secondary"}`} type="button" onClick={() => setTab(item)}>{item === "movement" ? "Movement Log" : item === "inspection" ? "Inspection History" : item === "maintenance" ? "Maintenance History" : "Overview"}</button>)}
@@ -818,18 +887,73 @@ function AssetDetailDrawer({ asset, movements, inspections, onClose, onAdjust, o
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto p-5">
           {tab === "overview" ? (
-            <div className="space-y-4">
+            <div className="space-y-5">
               <div className="grid gap-3 md:grid-cols-2">
-                {[["Current Quantity", `${asset.current_quantity} ${asset.unit}`], ["Minimum Quantity", `${asset.minimum_quantity} ${asset.unit}`], ["Condition", assetConditionLabel(asset.condition)], ["Last Inspected", formatRelativeDate(inspections[0]?.inspection_date || asset.last_inspection_at)], ["Last Movement", formatRelativeDate(movements[0]?.movement_date)], ["Outlet Asset", asset.outlet_id ? "Outlet-specific" : "—"]].map(([label, value]) => (
+                <div className="rounded-3xl border border-primary/15 bg-primary/5 p-5">
+                  <div className="text-xs font-black uppercase tracking-wide text-primary">Current Quantity</div>
+                  <div className="mt-2 text-4xl font-semibold text-text-primary">{asset.current_quantity} <span className="text-base font-black text-text-muted">{asset.unit}</span></div>
+                  <div className={`mt-3 inline-flex rounded-full border px-3 py-1 text-xs font-black ${quantityHint.className}`}>{quantityHint.text}</div>
+                </div>
+                <div className="rounded-3xl border border-border bg-white p-5 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="text-xs font-black uppercase tracking-wide text-text-muted">Condition</div>
+                      <div className="mt-2 text-2xl font-semibold text-text-primary">{assetConditionLabel(asset.condition)}</div>
+                    </div>
+                    <Badge tone={assetConditionTone(asset.condition)}>{assetConditionLabel(asset.condition)}</Badge>
+                  </div>
+                  <p className="mt-3 rounded-2xl bg-slate-50 px-3 py-2 text-sm font-semibold text-text-secondary">{assetConditionInsight(asset.condition)}</p>
+                </div>
+              </div>
+              <div className="grid gap-3 md:grid-cols-2">
+                {[["Last Inspected", formatRelativeDate(latestInspection?.inspection_date || asset.last_inspection_at)], ["Last Movement", formatRelativeDate(movements[0]?.movement_date)], ["Minimum Quantity", `${asset.minimum_quantity} ${asset.unit}`], ["Outlet Asset Type", asset.outlet_id ? "Outlet-specific" : "—"]].map(([label, value]) => (
                   <div key={label} className="rounded-2xl border border-border bg-background p-4"><div className="text-xs font-black uppercase tracking-wide text-text-muted">{label}</div><div className="mt-1 text-sm font-bold text-text-primary">{value}</div></div>
                 ))}
               </div>
-              {asset.remark ? <div className="rounded-2xl border border-border bg-background p-4 text-sm text-text-secondary"><span className="font-bold text-text-primary">Remark: </span>{asset.remark}</div> : null}
-              <div className="flex flex-wrap gap-2">
-                <button className="btn-primary" type="button" onClick={onAdjust}>Adjust Quantity</button>
-                <button className="btn-secondary" type="button" onClick={onInspect}>Start Inspection</button>
-                <button className="btn-secondary" type="button" onClick={onEdit}>Edit Asset</button>
+              <div className="rounded-3xl border border-border bg-white p-4 shadow-sm">
+                <div className="text-sm font-black text-text-primary">Operational Summary</div>
+                <div className="mt-3 grid gap-2">
+                  {operationalSummary.map((item) => <div key={item} className="rounded-2xl bg-slate-50 px-3 py-2 text-sm font-semibold text-text-secondary">{item}</div>)}
+                </div>
               </div>
+              <div className="rounded-3xl border border-border bg-white p-4 shadow-sm">
+                <div className="mb-3 flex items-center justify-between">
+                  <div>
+                    <div className="text-sm font-black text-text-primary">Latest Inspection</div>
+                    <div className="text-xs text-text-secondary">{latestInspection ? <><DateText value={latestInspection.inspection_date} /> · {latestInspection.checked_by || "Inspector not recorded"}</> : "No completed inspection yet."}</div>
+                  </div>
+                  {latestInspection ? <Badge tone={latestDifference === 0 ? "success" : latestDifference < 0 ? "danger" : "info"}>{latestDifference === 0 ? "Matched" : latestDifference > 0 ? `${latestDifference} Extra` : `${Math.abs(latestDifference)} Missing`}</Badge> : null}
+                </div>
+                {latestInspection ? (
+                  <div className="grid gap-3 md:grid-cols-3">
+                    {[["Expected", latestInspectionItem?.expected_quantity ?? "—"], ["Counted", latestInspectionItem?.counted_quantity ?? "—"], ["Difference", latestDifference === 0 ? "Matched" : latestDifference > 0 ? `+${latestDifference}` : latestDifference], ["Condition", assetConditionLabel(latestInspectionItem?.condition_status || asset.condition)], ["Notes", latestNotesCount], ["Evidence", latestEvidenceCount]].map(([label, value]) => (
+                      <div key={label} className="rounded-2xl bg-slate-50 p-3">
+                        <div className="text-[10px] font-black uppercase tracking-wide text-text-muted">{label}</div>
+                        <div className="mt-1 text-sm font-black text-text-primary">{value}</div>
+                      </div>
+                    ))}
+                  </div>
+                ) : <div className="rounded-2xl border border-dashed border-border p-5 text-center text-sm font-semibold text-text-secondary">No inspection snapshot available.</div>}
+              </div>
+              <div className="rounded-3xl border border-border bg-white p-4 shadow-sm">
+                <div className="text-sm font-black text-text-primary">Recent Activity</div>
+                <div className="mt-3 space-y-2">
+                  {recentActivity.map((item) => (
+                    <div key={item.id} className="flex gap-3 rounded-2xl bg-slate-50 px-3 py-2.5">
+                      <div className="mt-1 h-2 w-2 rounded-full bg-primary" />
+                      <div className="min-w-0 flex-1">
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="text-sm font-black text-text-primary">{item.title}</div>
+                          <div className="text-xs font-semibold text-text-muted"><DateText value={item.date} /></div>
+                        </div>
+                        <div className="mt-0.5 text-xs font-semibold text-text-secondary">{item.detail}</div>
+                      </div>
+                    </div>
+                  ))}
+                  {!recentActivity.length ? <div className="rounded-2xl border border-dashed border-border p-5 text-center text-sm font-semibold text-text-secondary">No recent activity recorded.</div> : null}
+                </div>
+              </div>
+              {asset.remark ? <div className="rounded-2xl border border-border bg-background p-4 text-sm text-text-secondary"><span className="font-bold text-text-primary">Remark: </span>{asset.remark}</div> : null}
             </div>
           ) : null}
           {tab === "movement" ? <Timeline rows={movements} empty="No movement logs yet." /> : null}
@@ -838,14 +962,17 @@ function AssetDetailDrawer({ asset, movements, inspections, onClose, onAdjust, o
         </div>
         {previewOpen ? (
           <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/80 p-4" role="dialog" aria-modal="true">
-            <button className="absolute inset-0" type="button" aria-label="Close image preview" onClick={() => setPreviewOpen(false)} />
+            <button className="absolute inset-0" type="button" aria-label="Close image preview" onClick={() => { setPreviewOpen(false); setPreviewZoom(false); }} />
             <div className="relative max-w-[92vw] rounded-3xl bg-white p-3 shadow-2xl">
               {asset.image_url || asset.thumbnail_url ? (
-                <img className="max-h-[78vh] max-w-[82vw] rounded-2xl object-contain" src={asset.image_url || asset.thumbnail_url} alt={asset.name} />
+                <img className={`${previewZoom ? "max-h-none max-w-none scale-125 cursor-zoom-out" : "max-h-[78vh] max-w-[82vw] cursor-zoom-in"} rounded-2xl object-contain transition`} src={asset.image_url || asset.thumbnail_url} alt={asset.name} onClick={() => setPreviewZoom((current) => !current)} />
               ) : (
                 <div className="flex h-72 w-72 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-50 to-slate-100 text-3xl font-black text-primary">{categoryIcon(asset.category_name)}</div>
               )}
-              <button className="absolute -right-3 -top-3 rounded-full bg-white p-2 text-slate-700 shadow-xl" type="button" onClick={() => setPreviewOpen(false)}><X size={18} /></button>
+              <div className="absolute right-3 top-3 flex gap-2">
+                {asset.image_url || asset.thumbnail_url ? <button className="rounded-full bg-white px-3 py-1.5 text-xs font-black text-slate-700 shadow-xl" type="button" onClick={() => setPreviewZoom((current) => !current)}>{previewZoom ? "Fit" : "Zoom"}</button> : null}
+                <button className="rounded-full bg-white p-2 text-slate-700 shadow-xl" type="button" onClick={() => { setPreviewOpen(false); setPreviewZoom(false); }}><X size={18} /></button>
+              </div>
             </div>
           </div>
         ) : null}
@@ -892,7 +1019,7 @@ function InspectionHistory({ inspections, onResumeDraft, onDeleteDraft, onArchiv
         ) : null}
       </div>
       <div className="mt-2 space-y-1">
-        {!isDraftInspection(inspection) ? inspection.items.map((item) => <div key={item.id} className="text-xs font-semibold text-text-secondary">{item.asset?.name || "Asset"} · Expected {item.expected_quantity}, Counted {item.counted_quantity}, Difference {item.difference} · {titleCase(item.condition_status)}</div>) : null}
+        {!isDraftInspection(inspection) ? inspection.items.map((item) => <div key={item.id} className="text-xs font-semibold text-text-secondary">{item.asset?.name || "Asset"} · Expected {item.expected_quantity}, Counted {item.counted_quantity}, Difference {item.difference} · {assetConditionLabel(item.condition_status)}</div>) : null}
       </div>
     </div>
   ))}</div> : <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm font-semibold text-text-secondary">No inspection history yet.</div>;
@@ -914,6 +1041,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
   const [inspectionOpen, setInspectionOpen] = useState(false);
   const [detailAsset, setDetailAsset] = useState(null);
   const [imagePreviewAsset, setImagePreviewAsset] = useState(null);
+  const [imagePreviewZoom, setImagePreviewZoom] = useState(false);
   const [actionAssetId, setActionAssetId] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1235,7 +1363,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
                       <td className="px-4 py-3">
                         <div className="flex max-w-[330px] items-center gap-3 text-left">
                           <button type="button" onClick={() => setImagePreviewAsset(asset)} aria-label={`Preview ${asset.name} image`}>
-                            <AssetThumbnail asset={asset} />
+                            <AssetThumbnail asset={asset} interactive />
                           </button>
                           <span className="min-w-0">
                             <button className="block truncate text-left font-black text-text-primary transition hover:text-primary" type="button" onClick={() => setDetailAsset(asset)}>{asset.name}</button>
@@ -1287,13 +1415,13 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       {categoryModalOpen ? <CategoryModal categories={categories} assets={assets} onClose={() => setCategoryModalOpen(false)} onSave={saveCategory} onArchive={archiveCategory} saving={saving} canWrite={canAdd || canEditAsset} canArchive={canDeleteAsset} /> : null}
       {adjustAsset ? <AdjustQuantityModal asset={adjustAsset} onClose={() => setAdjustAsset(null)} onSubmit={adjustQuantity} saving={saving} /> : null}
       {inspectionOpen ? <InspectionModal outletId={inspectionOpen?.outlet_id || outletId} categories={categories} assets={assets} draftInspection={inspectionOpen === true ? null : inspectionOpen} onClose={() => setInspectionOpen(false)} onSubmit={submitInspection} saving={saving} /> : null}
-      {detailAsset ? <AssetDetailDrawer asset={detailAsset} movements={assetMovements} inspections={assetInspections} onClose={() => setDetailAsset(null)} onAdjust={() => setAdjustAsset(detailAsset)} onInspect={() => setInspectionOpen(true)} onEdit={() => setAssetModal(detailAsset)} onResumeDraft={(inspection) => setInspectionOpen(inspection)} onDeleteDraft={deleteInspection} onArchiveDraft={(inspection) => updateInspectionStatus(inspection, "archived")} /> : null}
+      {detailAsset ? <AssetDetailDrawer asset={detailAsset} outlet={activeOutlets.find((outlet) => outlet.id === detailAsset.outlet_id)} movements={assetMovements} inspections={assetInspections} onClose={() => setDetailAsset(null)} onResumeDraft={(inspection) => setInspectionOpen(inspection)} onDeleteDraft={deleteInspection} onArchiveDraft={(inspection) => updateInspectionStatus(inspection, "archived")} /> : null}
       {imagePreviewAsset ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/80 p-4" role="dialog" aria-modal="true">
-          <button className="absolute inset-0" type="button" aria-label="Close image preview" onClick={() => setImagePreviewAsset(null)} />
+          <button className="absolute inset-0" type="button" aria-label="Close image preview" onClick={() => { setImagePreviewAsset(null); setImagePreviewZoom(false); }} />
           <div className="relative max-w-[92vw] rounded-3xl bg-white p-3 shadow-2xl">
             {imagePreviewAsset.image_url || imagePreviewAsset.thumbnail_url ? (
-              <img className="max-h-[78vh] max-w-[82vw] rounded-2xl object-contain" src={imagePreviewAsset.image_url || imagePreviewAsset.thumbnail_url} alt={imagePreviewAsset.name} />
+              <img className={`${imagePreviewZoom ? "max-h-none max-w-none scale-125 cursor-zoom-out" : "max-h-[78vh] max-w-[82vw] cursor-zoom-in"} rounded-2xl object-contain transition`} src={imagePreviewAsset.image_url || imagePreviewAsset.thumbnail_url} alt={imagePreviewAsset.name} onClick={() => setImagePreviewZoom((current) => !current)} />
             ) : (
               <div className="flex h-72 w-72 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-50 to-slate-100 text-3xl font-black text-primary">{categoryIcon(imagePreviewAsset.category_name)}</div>
             )}
@@ -1302,7 +1430,10 @@ export default function AssetTrackingPage({ store, ui, auth }) {
                 <div className="text-sm font-black text-text-primary">{imagePreviewAsset.name}</div>
                 <div className="text-xs text-text-secondary">{imagePreviewAsset.category_name}</div>
               </div>
-              <button className="icon-btn" type="button" onClick={() => setImagePreviewAsset(null)}><X size={18} /></button>
+              <div className="flex items-center gap-2">
+                {imagePreviewAsset.image_url || imagePreviewAsset.thumbnail_url ? <button className="btn-secondary h-8 px-3 text-xs" type="button" onClick={() => setImagePreviewZoom((current) => !current)}>{imagePreviewZoom ? "Fit" : "Zoom"}</button> : null}
+                <button className="icon-btn" type="button" onClick={() => { setImagePreviewAsset(null); setImagePreviewZoom(false); }}><X size={18} /></button>
+              </div>
             </div>
           </div>
         </div>
