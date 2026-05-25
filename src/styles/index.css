@@ -167,6 +167,410 @@
   .badge {
     backdrop-filter: saturate(1.1);
   }
+
+  .feedx-login-shell {
+    position: relative;
+    min-height: 100vh;
+    overflow: hidden;
+    background:
+      radial-gradient(circle at 18% 16%, rgba(34, 197, 94, 0.18), transparent 31rem),
+      radial-gradient(circle at 86% 78%, rgba(16, 185, 129, 0.12), transparent 30rem),
+      linear-gradient(135deg, #020704 0%, #06110d 44%, #020403 100%);
+    color: white;
+  }
+
+  .feedx-login-grid {
+    position: relative;
+    z-index: 2;
+    display: grid;
+    min-height: 100vh;
+    grid-template-columns: minmax(0, 1fr) minmax(420px, 510px);
+  }
+
+  .feedx-brand-panel {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 3rem;
+    padding: clamp(2rem, 5vw, 4.75rem);
+  }
+
+  .feedx-brand-panel::before {
+    content: "";
+    position: absolute;
+    inset: 8% 7% auto auto;
+    width: 34rem;
+    height: 34rem;
+    border-radius: 999px;
+    background: radial-gradient(circle, rgba(34, 197, 94, 0.16), transparent 68%);
+    filter: blur(8px);
+    animation: feedxGlowDrift 16s ease-in-out infinite alternate;
+  }
+
+  .feedx-auth-panel {
+    display: flex;
+    min-height: 100vh;
+    flex-direction: column;
+    justify-content: center;
+    border-left: 1px solid rgba(187, 247, 208, 0.1);
+    background: linear-gradient(180deg, rgba(2, 6, 4, 0.68), rgba(2, 8, 5, 0.9));
+    padding: clamp(1.25rem, 4vw, 3rem);
+  }
+
+  .feedx-auth-card {
+    position: relative;
+    overflow: hidden;
+    border: 1px solid rgba(187, 247, 208, 0.16);
+    border-radius: 2rem;
+    background: linear-gradient(145deg, rgba(10, 20, 16, 0.82), rgba(4, 12, 8, 0.68));
+    box-shadow:
+      0 28px 90px rgba(0, 0, 0, 0.42),
+      0 0 0 1px rgba(34, 197, 94, 0.04),
+      0 0 70px rgba(34, 197, 94, 0.12);
+    padding: clamp(1.35rem, 4vw, 2.25rem);
+    backdrop-filter: blur(22px);
+  }
+
+  .feedx-auth-card::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    background:
+      linear-gradient(120deg, rgba(255, 255, 255, 0.08), transparent 28%),
+      radial-gradient(circle at 24% 0%, rgba(34, 197, 94, 0.14), transparent 20rem);
+  }
+
+  .feedx-auth-card > * {
+    position: relative;
+    z-index: 1;
+  }
+
+  .feedx-logo-mark {
+    position: relative;
+    display: grid;
+    height: 3rem;
+    width: 3rem;
+    place-items: center;
+    overflow: hidden;
+    border: 1px solid rgba(187, 247, 208, 0.28);
+    border-radius: 1rem;
+    background:
+      linear-gradient(145deg, rgba(74, 222, 128, 0.95), rgba(16, 185, 129, 0.72)),
+      radial-gradient(circle at 30% 20%, rgba(255, 255, 255, 0.72), transparent 32%);
+    box-shadow:
+      0 14px 36px rgba(34, 197, 94, 0.32),
+      inset 0 1px 0 rgba(255, 255, 255, 0.32);
+  }
+
+  .feedx-logo-mark::before {
+    content: "";
+    position: absolute;
+    inset: 0.55rem 0.45rem;
+    border-radius: 0.55rem;
+    border-top: 2px solid rgba(2, 28, 15, 0.34);
+    border-right: 2px solid rgba(2, 28, 15, 0.28);
+    transform: skewX(-10deg);
+  }
+
+  .feedx-logo-mark span {
+    position: relative;
+    z-index: 1;
+    color: #021b10;
+    font-size: 1.55rem;
+    font-weight: 1000;
+    line-height: 1;
+    letter-spacing: -0.08em;
+  }
+
+  .feedx-login-input-wrap {
+    position: relative;
+  }
+
+  .feedx-login-input {
+    height: 3.15rem;
+    width: 100%;
+    border: 1px solid rgba(187, 247, 208, 0.14);
+    border-radius: 1rem;
+    background: rgba(2, 8, 6, 0.72);
+    color: white;
+    font-size: 0.95rem;
+    font-weight: 600;
+    outline: none;
+    transition: border-color 160ms ease, box-shadow 160ms ease, background 160ms ease;
+  }
+
+  .feedx-login-input::placeholder {
+    color: rgba(148, 163, 184, 0.72);
+  }
+
+  .feedx-login-input:hover {
+    border-color: rgba(187, 247, 208, 0.25);
+    background: rgba(5, 15, 11, 0.86);
+  }
+
+  .feedx-login-input:focus {
+    border-color: rgba(74, 222, 128, 0.72);
+    box-shadow:
+      0 0 0 4px rgba(34, 197, 94, 0.12),
+      0 0 28px rgba(34, 197, 94, 0.14);
+  }
+
+  .feedx-signin-button {
+    position: relative;
+    display: inline-flex;
+    height: 3.2rem;
+    width: 100%;
+    align-items: center;
+    justify-content: center;
+    gap: 0.65rem;
+    overflow: hidden;
+    border-radius: 1rem;
+    background: linear-gradient(135deg, #22c55e, #86efac);
+    color: #021b10;
+    font-size: 0.95rem;
+    font-weight: 900;
+    box-shadow:
+      0 16px 42px rgba(34, 197, 94, 0.3),
+      inset 0 1px 0 rgba(255, 255, 255, 0.35);
+    transition: transform 180ms ease, box-shadow 180ms ease, filter 180ms ease;
+  }
+
+  .feedx-signin-button::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.38), transparent);
+    transform: translateX(-115%);
+    transition: transform 520ms ease;
+  }
+
+  .feedx-signin-button:hover {
+    transform: translateY(-1px);
+    box-shadow:
+      0 20px 54px rgba(34, 197, 94, 0.42),
+      inset 0 1px 0 rgba(255, 255, 255, 0.42);
+    filter: saturate(1.08);
+  }
+
+  .feedx-signin-button:hover::before {
+    transform: translateX(115%);
+  }
+
+  .feedx-signin-button:disabled {
+    cursor: not-allowed;
+    opacity: 0.72;
+    transform: none;
+  }
+
+  .feedx-dashboard-visual {
+    position: relative;
+    max-width: 620px;
+    transform: perspective(1200px) rotateX(6deg) rotateY(-9deg);
+    animation: feedxFloat 7s ease-in-out infinite;
+  }
+
+  .feedx-kpi-mini {
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 1.2rem;
+    background: rgba(255, 255, 255, 0.045);
+    padding: 0.9rem;
+    transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+  }
+
+  .feedx-kpi-mini:hover {
+    transform: translateY(-3px);
+    border-color: rgba(74, 222, 128, 0.24);
+    box-shadow: 0 12px 36px rgba(34, 197, 94, 0.14);
+  }
+
+  .feedx-light-trail {
+    position: absolute;
+    pointer-events: none;
+    border-radius: 999px;
+    opacity: 0.55;
+    filter: blur(0.2px);
+  }
+
+  .feedx-light-trail-a {
+    inset: -1rem auto auto -1.2rem;
+    width: 12rem;
+    height: 2px;
+    background: linear-gradient(90deg, transparent, rgba(134, 239, 172, 0.92), transparent);
+    animation: feedxTrail 6s ease-in-out infinite;
+  }
+
+  .feedx-light-trail-b {
+    right: -1.4rem;
+    bottom: 4rem;
+    width: 2px;
+    height: 11rem;
+    background: linear-gradient(180deg, transparent, rgba(45, 212, 191, 0.72), transparent);
+    animation: feedxTrail 7s ease-in-out infinite reverse;
+  }
+
+  .feedx-map-nodes {
+    margin-top: 1rem;
+    overflow: hidden;
+    border-radius: 1.4rem;
+    border: 1px solid rgba(255, 255, 255, 0.07);
+    background: rgba(255, 255, 255, 0.035);
+  }
+
+  .feedx-map-nodes svg {
+    display: block;
+    width: 100%;
+    height: 92px;
+  }
+
+  .feedx-map-nodes path {
+    fill: none;
+    stroke: rgba(134, 239, 172, 0.24);
+    stroke-width: 2;
+  }
+
+  .feedx-map-nodes circle {
+    fill: #86efac;
+    filter: drop-shadow(0 0 8px rgba(134, 239, 172, 0.72));
+    animation: feedxPulse 2.7s ease-in-out infinite;
+  }
+
+  .feedx-particles {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+  }
+
+  .feedx-particles span {
+    position: absolute;
+    left: var(--x);
+    top: var(--y);
+    width: var(--size);
+    height: var(--size);
+    border-radius: 999px;
+    background: rgba(134, 239, 172, 0.66);
+    box-shadow: 0 0 14px rgba(34, 197, 94, 0.52);
+    animation: feedxParticle 5.5s ease-in-out infinite;
+    animation-delay: var(--delay);
+  }
+
+  .feedx-login-glow {
+    position: absolute;
+    z-index: 0;
+    border-radius: 999px;
+    filter: blur(40px);
+    opacity: 0.65;
+    pointer-events: none;
+    animation: feedxGlowDrift 18s ease-in-out infinite alternate;
+  }
+
+  .feedx-login-glow-a {
+    left: -8rem;
+    top: 6rem;
+    width: 22rem;
+    height: 22rem;
+    background: rgba(34, 197, 94, 0.18);
+  }
+
+  .feedx-login-glow-b {
+    right: 12rem;
+    bottom: -8rem;
+    width: 28rem;
+    height: 28rem;
+    background: rgba(20, 184, 166, 0.12);
+    animation-delay: -5s;
+  }
+}
+
+@keyframes feedxFloat {
+  0%, 100% { transform: perspective(1200px) rotateX(6deg) rotateY(-9deg) translateY(0); }
+  50% { transform: perspective(1200px) rotateX(5deg) rotateY(-7deg) translateY(-12px); }
+}
+
+@keyframes feedxTrail {
+  0%, 100% { transform: translate3d(0, 0, 0); opacity: 0.28; }
+  50% { transform: translate3d(22px, 10px, 0); opacity: 0.8; }
+}
+
+@keyframes feedxParticle {
+  0%, 100% { opacity: 0.12; transform: translateY(0) scale(0.8); }
+  50% { opacity: 0.8; transform: translateY(-16px) scale(1); }
+}
+
+@keyframes feedxPulse {
+  0%, 100% { opacity: 0.65; transform: scale(0.9); }
+  50% { opacity: 1; transform: scale(1.16); }
+}
+
+@keyframes feedxGlowDrift {
+  0% { transform: translate3d(0, 0, 0) scale(1); }
+  100% { transform: translate3d(42px, -24px, 0) scale(1.08); }
+}
+
+@media (max-width: 1023px) {
+  .feedx-login-grid {
+    min-height: 100vh;
+    grid-template-columns: 1fr;
+  }
+
+  .feedx-brand-panel {
+    min-height: auto;
+    justify-content: flex-start;
+    padding: 1.5rem 1.5rem 0;
+  }
+
+  .feedx-brand-panel > :not(:first-child) {
+    display: none;
+  }
+
+  .feedx-auth-panel {
+    min-height: auto;
+    border-left: 0;
+    background: transparent;
+    padding: 1.5rem;
+  }
+
+  .feedx-auth-card {
+    margin-inline: auto;
+    max-width: 30rem;
+  }
+}
+
+@media (max-width: 640px) {
+  .feedx-login-shell {
+    overflow-y: auto;
+  }
+
+  .feedx-brand-panel {
+    padding: 1rem 1rem 0;
+  }
+
+  .feedx-auth-panel {
+    padding: 1rem;
+  }
+
+  .feedx-auth-card {
+    border-radius: 1.5rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feedx-brand-panel::before,
+  .feedx-dashboard-visual,
+  .feedx-light-trail,
+  .feedx-map-nodes circle,
+  .feedx-particles span,
+  .feedx-login-glow,
+  .feedx-signin-button::before {
+    animation: none !important;
+  }
+
+  .feedx-signin-button,
+  .feedx-kpi-mini {
+    transition: none;
+  }
 }
 
 @layer utilities {
