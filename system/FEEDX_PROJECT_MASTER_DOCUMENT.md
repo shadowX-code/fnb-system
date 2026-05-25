@@ -1230,6 +1230,13 @@ Asset UI rules:
 - If no photo exists, show a category-based visual placeholder instead of an empty or broken image.
 - User-facing asset state is shown as Condition, not Status.
 - Quantity display shows the numeric quantity and unit without duplicating condition wording.
+- Asset List groups rows by category by default, with collapsible category headers showing asset count and attention count.
+- Asset List does not show a separate Unit column; unit is displayed inside Current Quantity.
+- Condition badges in Asset List are directly editable with a small popover and immediate save.
+- Row action menus must render in a floating layer above the table so they are not clipped by card overflow.
+- Quick filters include Needs Attention, Low Quantity, Missing, Inspected Today, and No Photo.
+- Last Movement shows the latest movement summary, such as +5 added or Inspection update, with the exact date available on hover.
+- Operational status strip summarizes attention count, low quantity alerts, and latest inspection state.
 - Asset list actions use a primary View action plus an overflow menu for Adjust Quantity, Start Inspection, Edit Asset, and Archive.
 - Date displays use relative business wording such as Today, Yesterday, 2d ago, and 1 week ago, with exact date available on hover.
 - Asset Profile hides the Maintenance tab entirely when the asset category has maintenance disabled.

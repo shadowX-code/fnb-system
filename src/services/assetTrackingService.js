@@ -5,6 +5,7 @@ import { throwSupabaseError } from "./supabaseError";
 const categoryBaseFields = "id,name,description,sort_order,is_active,created_at,updated_at";
 const categoryFields = "id,name,description,sort_order,is_active,maintenance_enabled,created_at,updated_at";
 const assetBaseFields = "id,outlet_id,category_id,name,description,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name)";
+const assetBaseConditionFields = "id,outlet_id,category_id,name,description,condition,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name)";
 const assetFields = "id,outlet_id,category_id,name,description,image_url,thumbnail_url,health_status,last_inspection_at,condition,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name,maintenance_enabled)";
 const movementFields = "id,asset_id,outlet_id,movement_type,quantity_change,quantity_before,quantity_after,reason,remark,movement_date,created_by,created_at";
 const inspectionFields = "id,outlet_id,inspection_date,checked_by,category_scope,status,summary,notes,remark,created_by,current_step,completion_percentage,last_edited_at,last_edited_by,draft_data,auto_saved,created_at,updated_at";
@@ -401,6 +402,30 @@ export const assetTrackingService = {
     }
     throwSupabaseError("asset_items.save", error);
     await logAssetAudit(asset.id ? "asset_edited" : "asset_created", data.outlet_id, data.name, data);
+    return mapAsset(data);
+  },
+
+  async updateAssetCondition(asset, conditionValue) {
+    const userId = await currentUserId();
+    const condition = normalizeConditionValue(conditionValue);
+    let { data, error } = await supabase
+      .from("asset_items")
+      .update({ condition, updated_by: userId, updated_at: new Date().toISOString() })
+      .eq("id", asset.id)
+      .select(assetFields)
+      .single();
+    if (error && isMissingOptionalAssetField(error)) {
+      const fallbackResult = await supabase
+        .from("asset_items")
+        .update({ condition, updated_by: userId, updated_at: new Date().toISOString() })
+        .eq("id", asset.id)
+        .select(assetBaseConditionFields)
+        .single();
+      data = fallbackResult.data;
+      error = fallbackResult.error;
+    }
+    throwSupabaseError("asset_items.condition_update", error);
+    await logAssetAudit("asset_condition_updated", data.outlet_id, data.name, { condition });
     return mapAsset(data);
   },
 

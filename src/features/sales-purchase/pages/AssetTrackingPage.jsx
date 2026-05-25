@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useState } from "react";
+import { createPortal } from "react-dom";
 import { AlertTriangle, ClipboardCheck, Download, Eye, MoreHorizontal, PackageCheck, Plus, Search, Settings2, SlidersHorizontal, UploadCloud, Wrench, X } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
@@ -85,10 +86,57 @@ function assetDisplayId(asset) {
 function getQuantityHealth(asset) {
   const quantity = Number(asset.current_quantity || 0);
   const minimum = Number(asset.minimum_quantity || 0);
-  if (quantity <= 0) return { label: "Out", tone: "danger", dot: "bg-rose-500", text: "text-rose-700", bg: "bg-rose-50", border: "border-rose-100" };
-  if (minimum > 0 && quantity <= minimum * 0.5) return { label: "Critical", tone: "danger", dot: "bg-red-500", text: "text-red-700", bg: "bg-red-50", border: "border-red-100" };
-  if (minimum > 0 && quantity <= minimum) return { label: "Low", tone: "warning", dot: "bg-amber-500", text: "text-amber-700", bg: "bg-amber-50", border: "border-amber-100" };
+  const condition = asset.condition || "healthy";
+  if (condition === "disposed" || condition === "inactive") return { label: "Inactive", tone: "neutral", dot: "bg-slate-400", text: "text-slate-600", bg: "bg-slate-100", border: "border-slate-200" };
+  if (condition === "missing" || quantity <= 0) return { label: "Out", tone: "danger", dot: "bg-rose-500", text: "text-rose-700", bg: "bg-rose-50", border: "border-rose-100" };
+  if (condition === "damaged") return { label: "Damaged", tone: "danger", dot: "bg-red-500", text: "text-red-700", bg: "bg-red-50", border: "border-red-100" };
+  if (condition === "under_maintenance") return { label: "Maintenance", tone: "info", dot: "bg-blue-500", text: "text-blue-700", bg: "bg-blue-50", border: "border-blue-100" };
+  if (condition === "needs_review") return { label: "Review", tone: "warning", dot: "bg-orange-500", text: "text-orange-700", bg: "bg-orange-50", border: "border-orange-100" };
+  if (condition === "low_quantity" || (minimum > 0 && quantity <= minimum)) return { label: "Low", tone: "warning", dot: "bg-amber-500", text: "text-amber-700", bg: "bg-amber-50", border: "border-amber-100" };
   return { label: "Good", tone: "success", dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-100" };
+}
+
+function assetNeedsAttention(asset) {
+  return (asset.condition || "healthy") !== "healthy" ||
+    Number(asset.current_quantity || 0) <= 0 ||
+    (Number(asset.minimum_quantity || 0) > 0 && Number(asset.current_quantity || 0) <= Number(asset.minimum_quantity || 0));
+}
+
+function latestMovementSummary(movement) {
+  if (!movement) return "—";
+  const amount = Math.abs(Number(movement.quantity_change || 0));
+  if (movement.movement_type === "add") return `+${amount} added`;
+  if (movement.movement_type === "reduce") return `-${amount} removed`;
+  if (movement.movement_type === "correction") return "Inspection update";
+  if (movement.movement_type === "transfer_in") return `+${amount} transfer in`;
+  if (movement.movement_type === "transfer_out") return `-${amount} transfer out`;
+  return "Quantity adjusted";
+}
+
+function assetHoverInsight(asset, lastMovement, lastInspection) {
+  if (!asset.image_url && !asset.thumbnail_url) return "Photo missing";
+  if (lastInspection?.summary?.critical_alerts) return "Latest inspection has issues";
+  if (assetNeedsAttention(asset)) return assetConditionInsight(asset.condition);
+  if (lastMovement) return latestMovementSummary(lastMovement);
+  return "No recent operational issue";
+}
+
+function FloatingLayer({ anchor, width = 190, align = "right", onClose, children }) {
+  if (!anchor) return null;
+  const margin = 12;
+  const top = Math.min(anchor.bottom + 8, window.innerHeight - margin);
+  const left = align === "right"
+    ? Math.max(margin, Math.min(anchor.right - width, window.innerWidth - width - margin))
+    : Math.max(margin, Math.min(anchor.left, window.innerWidth - width - margin));
+  return createPortal(
+    <>
+      <button className="fixed inset-0 z-[9980] cursor-default" type="button" aria-label="Close floating menu" onClick={onClose} />
+      <div className="fixed z-[9990]" style={{ top, left, width }}>
+        {children}
+      </div>
+    </>,
+    document.body,
+  );
 }
 
 function categoryIcon(categoryName) {
@@ -1070,7 +1118,11 @@ export default function AssetTrackingPage({ store, ui, auth }) {
   const [detailAsset, setDetailAsset] = useState(null);
   const [imagePreviewAsset, setImagePreviewAsset] = useState(null);
   const [imagePreviewZoom, setImagePreviewZoom] = useState(false);
-  const [actionAssetId, setActionAssetId] = useState("");
+  const [actionMenu, setActionMenu] = useState(null);
+  const [conditionMenu, setConditionMenu] = useState(null);
+  const [conditionUpdatingId, setConditionUpdatingId] = useState("");
+  const [quickFilter, setQuickFilter] = useState("all");
+  const [collapsedGroups, setCollapsedGroups] = useState({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -1125,10 +1177,50 @@ export default function AssetTrackingPage({ store, ui, auth }) {
     .filter((asset) => categoryFilter === "all" || asset.category_id === categoryFilter)
     .filter((asset) => statusFilter === "all" || (asset.condition || "healthy") === statusFilter)
     .filter((asset) => {
+      if (quickFilter === "all") return true;
+      if (quickFilter === "attention") return assetNeedsAttention(asset);
+      if (quickFilter === "low_quantity") return (asset.condition || "healthy") === "low_quantity" || (Number(asset.minimum_quantity || 0) > 0 && Number(asset.current_quantity || 0) <= Number(asset.minimum_quantity || 0));
+      if (quickFilter === "missing") return (asset.condition || "healthy") === "missing" || Number(asset.current_quantity || 0) <= 0;
+      if (quickFilter === "no_photo") return !asset.image_url && !asset.thumbnail_url;
+      if (quickFilter === "inspected_today") {
+        const latest = asset.last_inspection_at || inspections.find((inspection) => inspection.items.some((item) => item.asset_id === asset.id))?.inspection_date;
+        return formatRelativeDate(latest) === "Today";
+      }
+      return true;
+    })
+    .filter((asset) => {
       const search = query.trim().toLowerCase();
       if (!search) return true;
       return [asset.name, asset.category_name, asset.remark].some((value) => String(value || "").toLowerCase().includes(search));
-    }), [assets, categoryFilter, query, statusFilter]);
+    }), [assets, categoryFilter, inspections, query, quickFilter, statusFilter]);
+
+  const groupedAssets = useMemo(() => {
+    const groups = new Map();
+    filteredAssets.forEach((asset) => {
+      const key = asset.category_id || "uncategorized";
+      if (!groups.has(key)) {
+        groups.set(key, {
+          id: key,
+          name: asset.category_name || "Uncategorized",
+          assets: [],
+        });
+      }
+      groups.get(key).assets.push(asset);
+    });
+    return Array.from(groups.values()).sort((first, second) => first.name.localeCompare(second.name));
+  }, [filteredAssets]);
+
+  const movementByAsset = useMemo(() => movements.reduce((map, movement) => {
+    if (!map.has(movement.asset_id)) map.set(movement.asset_id, movement);
+    return map;
+  }, new Map()), [movements]);
+
+  const inspectionByAsset = useMemo(() => inspections.reduce((map, inspection) => {
+    inspection.items.forEach((item) => {
+      if (!map.has(item.asset_id)) map.set(item.asset_id, inspection);
+    });
+    return map;
+  }, new Map()), [inspections]);
 
   const summary = useMemo(() => {
     const lastChecked = inspections[0]?.inspection_date || filteredAssets.find((asset) => asset.last_inspection_at)?.last_inspection_at;
@@ -1140,6 +1232,13 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       lastChecked,
     };
   }, [filteredAssets, inspections]);
+
+  const operationalStrip = useMemo(() => {
+    const attention = filteredAssets.filter(assetNeedsAttention).length;
+    const low = filteredAssets.filter((asset) => (asset.condition || "healthy") === "low_quantity" || (Number(asset.minimum_quantity || 0) > 0 && Number(asset.current_quantity || 0) <= Number(asset.minimum_quantity || 0))).length;
+    const inspectedToday = inspections.some((inspection) => formatRelativeDate(inspection.inspection_date) === "Today");
+    return `${attention} assets need attention · ${low} low quantity alert${low === 1 ? "" : "s"} · Last inspection ${inspectedToday ? "completed today" : formatRelativeDate(summary.lastChecked)}`;
+  }, [filteredAssets, inspections, summary.lastChecked]);
 
   async function saveAsset(asset) {
     if ((asset.id && !canEditAsset) || (!asset.id && !canAdd)) {
@@ -1276,6 +1375,33 @@ export default function AssetTrackingPage({ store, ui, auth }) {
     }
   }
 
+  async function quickUpdateCondition(asset, condition) {
+    if (!canEditAsset) {
+      notifyPermissionDenied(ui, "update asset condition");
+      return;
+    }
+    const nextCondition = normalizeAssetCondition(condition);
+    const previousAssets = assets;
+    const previousDetailAsset = detailAsset;
+    setConditionMenu(null);
+    setConditionUpdatingId(asset.id);
+    setAssets((current) => current.map((item) => item.id === asset.id ? { ...item, condition: nextCondition } : item));
+    if (detailAsset?.id === asset.id) setDetailAsset((current) => ({ ...current, condition: nextCondition }));
+    try {
+      const updatedAsset = await assetTrackingService.updateAssetCondition(asset, nextCondition);
+      setAssets((current) => current.map((item) => item.id === asset.id ? { ...item, ...updatedAsset } : item));
+      if (detailAsset?.id === asset.id) setDetailAsset((current) => ({ ...current, ...updatedAsset }));
+      ui.notify({ title: "Condition updated", message: `${asset.name} is now ${assetConditionLabel(nextCondition)}.` });
+    } catch (conditionError) {
+      console.error("Unable to update asset condition", conditionError);
+      setAssets(previousAssets);
+      setDetailAsset(previousDetailAsset);
+      ui.notify({ title: "Unable to update condition", message: conditionError.message || "Please try again.", tone: "error" });
+    } finally {
+      setConditionUpdatingId("");
+    }
+  }
+
   const assetMovements = detailAsset ? movements.filter((movement) => movement.asset_id === detailAsset.id) : [];
   const assetInspections = detailAsset ? inspections.filter((inspection) => (
     inspection.items.some((item) => item.asset_id === detailAsset.id) ||
@@ -1305,6 +1431,25 @@ export default function AssetTrackingPage({ store, ui, auth }) {
           <FieldLabel label="Category"><SelectField value={categoryFilter} options={[{ value: "all", label: "All Categories" }, ...categories.filter((category) => category.is_active).map((category) => ({ value: category.id, label: category.name }))]} onChange={setCategoryFilter} searchable /></FieldLabel>
           <FieldLabel label="Condition"><SelectField value={statusFilter} options={[{ value: "all", label: "All Conditions" }, ...assetConditions.map((condition) => ({ value: condition, label: assetConditionLabel(condition) }))]} onChange={setStatusFilter} /></FieldLabel>
           <FieldLabel label="Search Asset"><div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} /><input className="control h-10 pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search asset name..." /></div></FieldLabel>
+        </div>
+        <div className="mt-4 flex flex-wrap gap-2">
+          {[
+            ["attention", "Needs Attention"],
+            ["low_quantity", "Low Quantity"],
+            ["missing", "Missing"],
+            ["inspected_today", "Inspected Today"],
+            ["no_photo", "No Photo"],
+          ].map(([value, label]) => (
+            <button
+              key={value}
+              className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${quickFilter === value ? "border-primary bg-primary/10 text-primary" : "border-border bg-white text-text-secondary hover:border-primary/30 hover:text-primary"}`}
+              type="button"
+              onClick={() => setQuickFilter((current) => current === value ? "all" : value)}
+            >
+              {label}
+            </button>
+          ))}
+          {quickFilter !== "all" ? <button className="rounded-full px-3 py-1.5 text-xs font-black text-text-muted hover:text-text-primary" type="button" onClick={() => setQuickFilter("all")}>Clear filter</button> : null}
         </div>
       </Card>
 
@@ -1371,65 +1516,90 @@ export default function AssetTrackingPage({ store, ui, auth }) {
         ].map(([label, value]) => <Card key={label} className="p-4"><div className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{label}</div><div className="mt-2 text-2xl font-semibold text-text-primary">{value}</div></Card>)}
       </div> : null}
 
-      {activeOutlets.length ? <Card title="Asset List" description="Outlet-specific asset quantities and movement status.">
+      {activeOutlets.length ? (
+        <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3 text-sm font-bold text-text-primary">
+          {operationalStrip}
+        </div>
+      ) : null}
+
+      {activeOutlets.length ? <Card title="Asset List" description="Grouped by category with quick operational updates.">
         {loading ? <div className="p-8 text-center text-sm font-semibold text-text-secondary">Loading assets...</div> : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1120px] text-left text-sm">
+            <table className="w-full min-w-[1080px] text-left text-sm">
               <thead className="border-b border-border bg-slate-50 text-xs uppercase tracking-wide text-text-muted">
                 <tr>
-                  {["Asset Name", "Category", "Outlet", "Current Quantity", "Unit", "Condition", "Last Checked", "Last Movement", "Actions"].map((header) => <th key={header} className="px-4 py-3">{header}</th>)}
+                  {["Asset Name", "Outlet", "Current Quantity", "Condition", "Last Checked", "Last Movement", "Actions"].map((header) => <th key={header} className="px-4 py-3">{header}</th>)}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
-                {filteredAssets.map((asset) => {
-                  const outlet = activeOutlets.find((item) => item.id === asset.outlet_id);
-                  const lastMovement = movements.find((movement) => movement.asset_id === asset.id);
-                  const lastInspection = inspections.find((inspection) => inspection.items.some((item) => item.asset_id === asset.id));
-                  const quantityHealth = getQuantityHealth(asset);
+                {groupedAssets.map((group) => {
+                  const isCollapsed = collapsedGroups[group.id] === true;
+                  const attentionCount = group.assets.filter(assetNeedsAttention).length;
                   return (
-                    <tr key={asset.id} className="transition hover:bg-primary/5">
-                      <td className="px-4 py-3">
-                        <div className="flex max-w-[330px] items-center gap-3 text-left">
-                          <button type="button" onClick={() => setImagePreviewAsset(asset)} aria-label={`Preview ${asset.name} image`}>
-                            <AssetThumbnail asset={asset} interactive />
+                    <Fragment key={group.id}>
+                      <tr key={`${group.id}-header`} className="bg-slate-50/80">
+                        <td colSpan={7} className="px-4 py-3">
+                          <button className="flex w-full items-center justify-between gap-3 text-left" type="button" onClick={() => setCollapsedGroups((current) => ({ ...current, [group.id]: !current[group.id] }))}>
+                            <span>
+                              <span className="text-sm font-black text-text-primary">{group.name}</span>
+                              <span className="ml-2 text-xs font-semibold text-text-secondary">{group.assets.length} assets · {attentionCount} needs attention</span>
+                            </span>
+                            <span className="rounded-full border border-border bg-white px-2.5 py-1 text-[11px] font-black text-text-secondary">{isCollapsed ? "Expand" : "Collapse"}</span>
                           </button>
-                          <span className="min-w-0">
-                            <button className="block truncate text-left font-black text-text-primary transition hover:text-primary" type="button" onClick={() => setDetailAsset(asset)}>{asset.name}</button>
-                            <span className="mt-0.5 line-clamp-2 text-xs text-text-secondary">{asset.description || asset.remark || "No description"}</span>
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 font-semibold text-text-secondary">{asset.category_name}</td>
-                      <td className="px-4 py-3 text-text-secondary">{outlet?.name || "—"}</td>
-                      <td className="px-4 py-3">
-                        <div className={`inline-flex min-w-[112px] items-center justify-between gap-3 rounded-2xl border px-3 py-2 ${quantityHealth.border} ${quantityHealth.bg}`}>
-                          <span className="text-lg font-black text-text-primary">{asset.current_quantity}</span>
-                          <span className={`inline-flex items-center gap-1.5 text-[11px] font-black ${quantityHealth.text}`}>
-                            {asset.unit}
-                          </span>
-                        </div>
-                      </td>
-                      <td className="px-4 py-3 text-text-secondary">{asset.unit}</td>
-                      <td className="px-4 py-3"><Badge tone={assetConditionTone(asset.condition)}>{assetConditionLabel(asset.condition)}</Badge></td>
-                      <td className="px-4 py-3 text-text-secondary"><DateText value={lastInspection?.inspection_date || asset.last_inspection_at} /></td>
-                      <td className="px-4 py-3 text-text-secondary"><DateText value={lastMovement?.movement_date} /></td>
-                      <td className="relative px-4 py-3">
-                        <div className="flex items-center gap-1.5">
-                          <button className="btn-secondary h-8 px-2 text-xs" type="button" onClick={() => setDetailAsset(asset)}><Eye size={13} /> View</button>
-                          <button className="icon-btn h-8 w-8" type="button" onClick={() => setActionAssetId((current) => current === asset.id ? "" : asset.id)} aria-label={`More actions for ${asset.name}`}>
-                            <MoreHorizontal size={15} />
-                          </button>
-                        </div>
-                        {actionAssetId === asset.id ? (
-                          <div className="absolute right-4 top-12 z-30 w-44 overflow-hidden rounded-2xl border border-border bg-white p-1.5 shadow-xl">
-                            {canManageAsset ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-primary/5 hover:text-primary" type="button" onClick={() => { setActionAssetId(""); setAdjustAsset(asset); }}><Wrench size={14} /> Adjust Quantity</button> : null}
-                            {canManageAsset ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-primary/5 hover:text-primary" type="button" onClick={() => { setActionAssetId(""); setInspectionOpen(true); }}><ClipboardCheck size={14} /> Start Inspection</button> : null}
-                            {canEditAsset ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-primary/5 hover:text-primary" type="button" onClick={() => { setActionAssetId(""); setAssetModal(asset); }}><PackageCheck size={14} /> Edit Asset</button> : null}
-                            {canDeleteAsset ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-amber-700 hover:bg-amber-50" type="button" onClick={() => { setActionAssetId(""); archiveAsset(asset); }}><AlertTriangle size={14} /> Archive</button> : null}
-                          </div>
-                        ) : null}
-                      </td>
-                    </tr>
+                        </td>
+                      </tr>
+                      {!isCollapsed ? group.assets.map((asset) => {
+                        const outlet = activeOutlets.find((item) => item.id === asset.outlet_id);
+                        const lastMovement = movementByAsset.get(asset.id);
+                        const lastInspection = inspectionByAsset.get(asset.id);
+                        const quantityHealth = getQuantityHealth(asset);
+                        return (
+                          <tr key={asset.id} className="group transition hover:bg-primary/5">
+                            <td className="px-4 py-3">
+                              <div className="flex max-w-[360px] items-center gap-3 text-left">
+                                <button type="button" onClick={() => setImagePreviewAsset(asset)} aria-label={`Preview ${asset.name} image`}>
+                                  <AssetThumbnail asset={asset} interactive />
+                                </button>
+                                <span className="min-w-0">
+                                  <button className="block truncate text-left font-black text-text-primary transition hover:text-primary" type="button" onClick={() => setDetailAsset(asset)}>{asset.name}</button>
+                                  <span className="mt-0.5 line-clamp-2 text-xs text-text-secondary">{asset.description || asset.remark || "No description"}</span>
+                                  <span className="mt-1 hidden text-[11px] font-bold text-primary/80 group-hover:block">{assetHoverInsight(asset, lastMovement, lastInspection)}</span>
+                                </span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3 text-text-secondary">{outlet?.name || "—"}</td>
+                            <td className="px-4 py-3">
+                              <div className={`inline-flex min-w-[124px] items-center justify-between gap-3 rounded-2xl border px-3 py-2 ${quantityHealth.border} ${quantityHealth.bg}`}>
+                                <span className="text-lg font-black text-text-primary">{asset.current_quantity}</span>
+                                <span className={`inline-flex items-center gap-1.5 text-[11px] font-black ${quantityHealth.text}`}>{asset.unit}</span>
+                              </div>
+                            </td>
+                            <td className="px-4 py-3">
+                              <button
+                                className={`transition ${canEditAsset ? "cursor-pointer hover:scale-[1.02]" : "cursor-not-allowed opacity-80"}`}
+                                type="button"
+                                disabled={!canEditAsset || conditionUpdatingId === asset.id}
+                                onClick={(event) => setConditionMenu({ asset, anchor: event.currentTarget.getBoundingClientRect() })}
+                              >
+                                <Badge tone={assetConditionTone(asset.condition)}>{conditionUpdatingId === asset.id ? "Saving..." : assetConditionLabel(asset.condition)}</Badge>
+                              </button>
+                            </td>
+                            <td className="px-4 py-3 text-text-secondary"><DateText value={lastInspection?.inspection_date || asset.last_inspection_at} /></td>
+                            <td className="px-4 py-3 text-text-secondary">
+                              {lastMovement ? <span title={formatFullDate(lastMovement.movement_date)}>{latestMovementSummary(lastMovement)}</span> : "—"}
+                            </td>
+                            <td className="px-4 py-3">
+                              <div className="flex items-center gap-1.5">
+                                <button className="btn-secondary h-8 px-2 text-xs" type="button" onClick={() => setDetailAsset(asset)}><Eye size={13} /> View</button>
+                                <button className="icon-btn h-8 w-8" type="button" onClick={(event) => setActionMenu({ asset, anchor: event.currentTarget.getBoundingClientRect() })} aria-label={`More actions for ${asset.name}`}>
+                                  <MoreHorizontal size={15} />
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+                        );
+                      }) : null}
+                    </Fragment>
                   );
                 })}
               </tbody>
@@ -1444,6 +1614,30 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       {adjustAsset ? <AdjustQuantityModal asset={adjustAsset} onClose={() => setAdjustAsset(null)} onSubmit={adjustQuantity} saving={saving} /> : null}
       {inspectionOpen ? <InspectionModal outletId={inspectionOpen?.outlet_id || outletId} categories={categories} assets={assets} draftInspection={inspectionOpen === true ? null : inspectionOpen} onClose={() => setInspectionOpen(false)} onSubmit={submitInspection} saving={saving} /> : null}
       {detailAsset ? <AssetDetailDrawer asset={detailAsset} outlet={activeOutlets.find((outlet) => outlet.id === detailAsset.outlet_id)} movements={assetMovements} inspections={assetInspections} onClose={() => setDetailAsset(null)} onResumeDraft={(inspection) => setInspectionOpen(inspection)} onDeleteDraft={deleteInspection} onArchiveDraft={(inspection) => updateInspectionStatus(inspection, "archived")} /> : null}
+      {conditionMenu ? <FloatingLayer anchor={conditionMenu.anchor} width={220} align="left" onClose={() => setConditionMenu(null)}>
+        <div className="overflow-hidden rounded-2xl border border-border bg-white p-1.5 shadow-2xl">
+          <div className="px-3 py-2 text-[11px] font-black uppercase tracking-wide text-text-muted">Update Condition</div>
+          {assetConditions.map((condition) => (
+            <button
+              key={condition}
+              className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-black transition hover:bg-primary/5 ${conditionMenu?.asset?.condition === condition ? "text-primary" : "text-text-secondary"}`}
+              type="button"
+              onClick={() => quickUpdateCondition(conditionMenu.asset, condition)}
+            >
+              <span>{assetConditionLabel(condition)}</span>
+              <span className={`h-2.5 w-2.5 rounded-full ${getQuantityHealth({ condition, current_quantity: condition === "missing" ? 0 : 1 }).dot}`} />
+            </button>
+          ))}
+        </div>
+      </FloatingLayer> : null}
+      {actionMenu ? <FloatingLayer anchor={actionMenu.anchor} width={190} align="right" onClose={() => setActionMenu(null)}>
+        <div className="overflow-hidden rounded-2xl border border-border bg-white p-1.5 shadow-2xl">
+          {canManageAsset ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-primary/5 hover:text-primary" type="button" onClick={() => { setActionMenu(null); setAdjustAsset(actionMenu.asset); }}><Wrench size={14} /> Adjust Quantity</button> : null}
+          {canManageAsset ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-primary/5 hover:text-primary" type="button" onClick={() => { setActionMenu(null); setInspectionOpen(true); }}><ClipboardCheck size={14} /> Start Inspection</button> : null}
+          {canEditAsset ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-primary/5 hover:text-primary" type="button" onClick={() => { setActionMenu(null); setAssetModal(actionMenu.asset); }}><PackageCheck size={14} /> Edit Asset</button> : null}
+          {canDeleteAsset ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-amber-700 hover:bg-amber-50" type="button" onClick={() => { const asset = actionMenu.asset; setActionMenu(null); archiveAsset(asset); }}><AlertTriangle size={14} /> Archive</button> : null}
+        </div>
+      </FloatingLayer> : null}
       {imagePreviewAsset ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/80 p-4" role="dialog" aria-modal="true">
           <button className="absolute inset-0" type="button" aria-label="Close image preview" onClick={() => { setImagePreviewAsset(null); setImagePreviewZoom(false); }} />
