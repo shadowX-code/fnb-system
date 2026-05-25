@@ -6,7 +6,7 @@ const categoryFields = "id,name,description,sort_order,is_active,created_at,upda
 const assetBaseFields = "id,outlet_id,category_id,name,description,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name)";
 const assetFields = "id,outlet_id,category_id,name,description,image_url,thumbnail_url,health_status,last_inspection_at,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name)";
 const movementFields = "id,asset_id,outlet_id,movement_type,quantity_change,quantity_before,quantity_after,reason,remark,movement_date,created_by,created_at";
-const inspectionFields = "id,outlet_id,inspection_date,checked_by,category_scope,status,summary,notes,remark,created_by,created_at,updated_at";
+const inspectionFields = "id,outlet_id,inspection_date,checked_by,category_scope,status,summary,notes,remark,created_by,current_step,completion_percentage,last_edited_at,last_edited_by,draft_data,auto_saved,created_at,updated_at";
 const inspectionItemFields = "id,inspection_id,asset_id,expected_quantity,counted_quantity,expected_qty,counted_qty,difference,condition_status,condition_template_id,evidence_required,evidence_status,remark,created_at,asset:asset_items(id,name,category:asset_categories(id,name)),condition:asset_condition_templates(id,name,severity,color,requires_photo,requires_remark)";
 const conditionFields = "id,category_id,name,severity,color,requires_photo,requires_remark,affects_health,triggers_alert,active,sort_order,created_at,updated_at";
 const evidenceFields = "id,inspection_item_id,image_url,caption,created_at";
@@ -83,6 +83,12 @@ function mapInspection(row, items = []) {
     summary: row.summary ?? {},
     notes: row.notes ?? row.remark ?? "",
     status: row.status ?? "completed",
+    current_step: Number(row.current_step ?? 1),
+    completion_percentage: Number(row.completion_percentage ?? row.summary?.completion_percentage ?? 0),
+    last_edited_at: row.last_edited_at ?? row.updated_at,
+    last_edited_by: row.last_edited_by ?? row.created_by ?? null,
+    draft_data: row.draft_data ?? {},
+    auto_saved: row.auto_saved === true,
     remark: row.remark ?? "",
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -112,7 +118,7 @@ function isMissingInspectionV2Field(error) {
   const message = String(error?.message || error?.details || "");
   return error?.code === "42703" ||
     error?.code === "PGRST204" ||
-    /asset_condition_templates|asset_inspection_evidence|condition_template_id|evidence_required|evidence_status|expected_qty|counted_qty|summary|notes/i.test(message);
+    /asset_condition_templates|asset_inspection_evidence|condition_template_id|evidence_required|evidence_status|expected_qty|counted_qty|summary|notes|current_step|completion_percentage|last_edited_at|last_edited_by|draft_data|auto_saved/i.test(message);
 }
 
 async function currentUserId() {
@@ -421,11 +427,9 @@ export const assetTrackingService = {
       .map((inspection) => mapInspection(inspection, filteredItems.filter((item) => item.inspection_id === inspection.id)));
   },
 
-  async submitInspection({ outletId, inspectionDate, checkedBy, categoryScope, remark, notes, rows, summary = {}, status = "completed", applyCorrections = true }) {
+  async submitInspection({ draftId = "", outletId, inspectionDate, checkedBy, categoryScope, remark, notes, rows, summary = {}, status = "completed", currentStep = 4, draftData = {}, autoSaved = false, applyCorrections = true }) {
     const userId = await currentUserId();
-    let { data: inspection, error } = await supabase
-      .from("asset_inspections")
-      .insert({
+    const inspectionPayload = {
         outlet_id: outletId,
         inspection_date: inspectionDate,
         created_by: userId,
@@ -433,28 +437,56 @@ export const assetTrackingService = {
         category_scope: categoryScope,
         status,
         summary,
+        current_step: currentStep,
+        completion_percentage: Number(summary.completion_percentage ?? 0),
+        last_edited_at: new Date().toISOString(),
+        last_edited_by: userId,
+        draft_data: draftData,
+        auto_saved: autoSaved,
         notes: notes ?? remark ?? "",
         remark: remark ?? "",
-      })
-      .select(inspectionFields)
-      .single();
+    };
+    let query = draftId
+      ? supabase.from("asset_inspections").update(inspectionPayload).eq("id", draftId)
+      : supabase.from("asset_inspections").insert(inspectionPayload);
+    let { data: inspection, error } = await query.select(inspectionFields).single();
     if (error && isMissingInspectionV2Field(error)) {
-      const fallbackResult = await supabase
-        .from("asset_inspections")
-        .insert({
+      const fallbackPayload = {
           outlet_id: outletId,
           inspection_date: inspectionDate,
           checked_by: checkedBy,
           category_scope: categoryScope,
           status,
           remark: remark ?? notes ?? "",
-        })
+      };
+      const fallbackQuery = draftId
+        ? supabase.from("asset_inspections").update(fallbackPayload).eq("id", draftId)
+        : supabase.from("asset_inspections").insert(fallbackPayload);
+      const fallbackResult = await fallbackQuery
         .select("id,outlet_id,inspection_date,checked_by,category_scope,status,remark,created_at,updated_at")
         .single();
       inspection = fallbackResult.data;
       error = fallbackResult.error;
     }
     throwSupabaseError("asset_inspections.insert", error);
+
+    if (status === "draft" || status === "in_progress" || status === "pending_review") {
+      await logAssetAudit(autoSaved ? "asset_inspection_auto_saved" : "asset_inspection_draft_saved", outletId, `${inspectionDate} inspection draft`, {
+        items_checked: rows.length,
+        completion_percentage: summary.completion_percentage ?? 0,
+      });
+      return mapInspection(inspection, []);
+    }
+
+    if (draftId) {
+      const { error: deleteEvidenceError } = await supabase
+        .from("asset_inspection_items")
+        .delete()
+        .eq("inspection_id", draftId);
+      if (deleteEvidenceError && !isMissingInspectionV2Field(deleteEvidenceError)) {
+        throwSupabaseError("asset_inspection_items.clear_draft", deleteEvidenceError);
+      }
+    }
 
     const itemPayload = rows.map((row) => ({
       inspection_id: inspection.id,
@@ -552,5 +584,31 @@ export const assetTrackingService = {
     });
 
     return mapInspection(inspection, savedItems ?? []);
+  },
+
+  async updateInspectionStatus(inspectionId, status) {
+    const userId = await currentUserId();
+    const { data, error } = await supabase
+      .from("asset_inspections")
+      .update({
+        status,
+        last_edited_at: new Date().toISOString(),
+        last_edited_by: userId,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("id", inspectionId)
+      .select(inspectionFields)
+      .single();
+    throwSupabaseError("asset_inspections.status", error);
+    await logAssetAudit(`asset_inspection_${status}`, data.outlet_id, `${data.inspection_date} inspection`, data);
+    return mapInspection(data, []);
+  },
+
+  async deleteInspection(inspectionId) {
+    const { error } = await supabase
+      .from("asset_inspections")
+      .delete()
+      .eq("id", inspectionId);
+    throwSupabaseError("asset_inspections.delete", error);
   },
 };

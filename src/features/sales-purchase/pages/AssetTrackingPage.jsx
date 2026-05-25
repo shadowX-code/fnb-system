@@ -92,6 +92,25 @@ function DateText({ value }) {
   return <span title={formatFullDate(value)}>{formatRelativeDate(value)}</span>;
 }
 
+function inspectionProgress(inspection) {
+  const summary = inspection?.summary || {};
+  if (Number.isFinite(Number(inspection?.completion_percentage)) && Number(inspection.completion_percentage) > 0) return Math.round(Number(inspection.completion_percentage));
+  if (Number.isFinite(Number(summary.completion_percentage))) return Math.round(Number(summary.completion_percentage));
+  const total = Number(summary.total_assets || summary.totalAssets || 0);
+  const checked = Number(summary.checked_assets || summary.checkedAssets || summary.matched_assets || 0);
+  return total ? Math.round((checked / total) * 100) : 0;
+}
+
+function draftStatusLabel(status) {
+  if (status === "in_progress") return "In Progress";
+  if (status === "pending_review") return "Pending Review";
+  return titleCase(status || "draft");
+}
+
+function isDraftInspection(inspection) {
+  return ["draft", "in_progress", "pending_review"].includes(inspection.status);
+}
+
 function emptyAsset() {
   return {
     outlet_id: "",
@@ -354,28 +373,34 @@ function readEvidenceFiles(files, onDone) {
   });
 }
 
-function InspectionModal({ outletId, categories, assets, conditionTemplates, onClose, onSubmit, saving }) {
-  const [step, setStep] = useState(1);
-  const [inspectionType, setInspectionType] = useState("routine_audit");
-  const [scopeType, setScopeType] = useState("all");
-  const [selectedCategoryIds, setSelectedCategoryIds] = useState([]);
-  const [checkedBy, setCheckedBy] = useState("");
-  const [inspectionDate, setInspectionDate] = useState(new Date().toISOString().slice(0, 10));
-  const [notes, setNotes] = useState("");
+function InspectionModal({ outletId, categories, assets, conditionTemplates, draftInspection, onClose, onSubmit, saving }) {
+  const draftData = draftInspection?.draft_data || {};
+  const [step, setStep] = useState(draftInspection?.current_step || draftData.currentStep || 1);
+  const [inspectionType, setInspectionType] = useState(draftData.inspectionType || draftInspection?.summary?.inspection_type || "routine_audit");
+  const [scopeType, setScopeType] = useState(draftData.scopeType || draftInspection?.category_scope?.type || "all");
+  const [selectedCategoryIds, setSelectedCategoryIds] = useState(draftData.selectedCategoryIds || draftInspection?.category_scope?.category_ids || []);
+  const [checkedBy, setCheckedBy] = useState(draftData.checkedBy || draftInspection?.checked_by || "");
+  const [inspectionDate, setInspectionDate] = useState(draftData.inspectionDate || draftInspection?.inspection_date || new Date().toISOString().slice(0, 10));
+  const [notes, setNotes] = useState(draftData.notes || draftInspection?.notes || "");
   const [lightbox, setLightbox] = useState(null);
   const scopedAssets = useMemo(() => assets.filter((asset) => asset.outlet_id === outletId && (scopeType === "all" || selectedCategoryIds.includes(asset.category_id))), [assets, outletId, scopeType, selectedCategoryIds]);
   const [rows, setRows] = useState([]);
 
   useEffect(() => {
-    setRows(scopedAssets.map((asset) => ({
+    const draftRows = new Map((draftData.rows || []).map((row) => [row.asset_id, row]));
+    setRows(scopedAssets.map((asset) => {
+      const draftRow = draftRows.get(asset.id);
+      return ({
       asset,
-      counted_quantity: asset.current_quantity,
+      counted_quantity: draftRow?.counted_quantity ?? asset.current_quantity,
       condition_template_id: conditionTemplates.find((condition) => condition.category_id === asset.category_id && condition.name.toLowerCase() === "good")?.id || "",
-      condition_status: "good",
-      evidence: [],
-      remark: "",
-    })));
-  }, [conditionTemplates, scopedAssets]);
+      condition_status: draftRow?.condition_status || "good",
+      evidence: draftRow?.evidence || [],
+      remark: draftRow?.remark || "",
+      ...(draftRow?.condition_template_id ? { condition_template_id: draftRow.condition_template_id } : {}),
+    });
+    }));
+  }, [conditionTemplates, scopedAssets, draftInspection?.id]);
 
   const enrichedRows = rows.map((row) => {
     const condition = conditionTemplates.find((template) => template.id === row.condition_template_id) ||
@@ -394,11 +419,14 @@ function InspectionModal({ outletId, categories, assets, conditionTemplates, onC
   const matchedRows = enrichedRows.filter((row) => row.diff === 0 && row.condition?.severity === "healthy");
   const criticalRows = enrichedRows.filter((row) => row.condition?.severity === "critical" || row.diff < 0);
   const issueRows = enrichedRows.filter((row) => row.diff !== 0 || row.condition?.severity !== "healthy" || !row.evidenceComplete);
+  const checkedRows = enrichedRows.filter((row) => row.counted_quantity !== "" && row.counted_quantity !== null && row.counted_quantity !== undefined);
   const categoryScope = scopeType === "all"
     ? { type: "all", category_ids: [] }
     : { type: "selected", category_ids: selectedCategoryIds };
   const summary = {
     total_assets: rows.length,
+    checked_assets: checkedRows.length,
+    completion_percentage: rows.length ? Math.round((checkedRows.length / rows.length) * 100) : 0,
     matched_assets: matchedRows.length,
     missing_assets: missingRows.length,
     extra_assets: extraRows.length,
@@ -430,7 +458,16 @@ function InspectionModal({ outletId, categories, assets, conditionTemplates, onC
   }
 
   function submit(status = "completed") {
+    const draftRows = enrichedRows.map((row) => ({
+      asset_id: row.asset.id,
+      counted_quantity: row.counted_quantity,
+      condition_template_id: row.condition_template_id,
+      condition_status: row.condition_status,
+      evidence: row.evidence || [],
+      remark: row.remark || "",
+    }));
     onSubmit({
+      draftId: draftInspection?.id || "",
       outletId,
       inspectionDate,
       checkedBy,
@@ -439,6 +476,18 @@ function InspectionModal({ outletId, categories, assets, conditionTemplates, onC
       remark: notes,
       summary,
       status,
+      currentStep: step,
+      draftData: {
+        currentStep: step,
+        inspectionType,
+        scopeType,
+        selectedCategoryIds,
+        checkedBy,
+        inspectionDate,
+        notes,
+        rows: draftRows,
+        savedAt: new Date().toISOString(),
+      },
       rows: enrichedRows.map((row) => ({ ...row, evidence_required: row.needsEvidence })),
     });
   }
@@ -448,7 +497,7 @@ function InspectionModal({ outletId, categories, assets, conditionTemplates, onC
   return (
     <Modal
       title="Asset Inspection Audit"
-      description="Structured outlet asset verification with condition, evidence, and discrepancy tracking."
+      description={draftInspection ? "Resume saved operational audit workflow." : "Structured outlet asset verification with condition, evidence, and discrepancy tracking."}
       onClose={onClose}
       size="2xl"
       footer={(
@@ -631,7 +680,7 @@ function InspectionModal({ outletId, categories, assets, conditionTemplates, onC
   );
 }
 
-function AssetDetailDrawer({ asset, movements, inspections, onClose, onAdjust, onInspect, onEdit }) {
+function AssetDetailDrawer({ asset, movements, inspections, onClose, onAdjust, onInspect, onEdit, onResumeDraft, onDeleteDraft, onArchiveDraft }) {
   const [tab, setTab] = useState("overview");
   const quantityHealth = getQuantityHealth(asset);
   return (
@@ -677,7 +726,7 @@ function AssetDetailDrawer({ asset, movements, inspections, onClose, onAdjust, o
             </div>
           ) : null}
           {tab === "movement" ? <Timeline rows={movements} empty="No movement logs yet." /> : null}
-          {tab === "inspection" ? <InspectionHistory inspections={inspections} /> : null}
+          {tab === "inspection" ? <InspectionHistory inspections={inspections} onResumeDraft={onResumeDraft} onDeleteDraft={onDeleteDraft} onArchiveDraft={onArchiveDraft} /> : null}
           {tab === "maintenance" ? <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm font-semibold text-text-secondary">No maintenance history yet.</div> : null}
         </div>
       </aside>
@@ -695,12 +744,35 @@ function Timeline({ rows, empty }) {
   ))}</div> : <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm font-semibold text-text-secondary">{empty}</div>;
 }
 
-function InspectionHistory({ inspections }) {
+function InspectionHistory({ inspections, onResumeDraft, onDeleteDraft, onArchiveDraft }) {
   return inspections.length ? <div className="space-y-3">{inspections.map((inspection) => (
-    <div key={inspection.id} className="rounded-2xl border border-border bg-background p-3">
-      <div className="flex justify-between gap-3"><div className="text-sm font-bold text-text-primary"><DateText value={inspection.inspection_date} /></div><Badge tone="info">{titleCase(inspection.status)}</Badge></div>
+    <div key={inspection.id} className={`rounded-2xl border p-3 ${isDraftInspection(inspection) ? "border-amber-200 bg-amber-50/50" : "border-border bg-background"}`}>
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+        <button className="min-w-0 text-left" type="button" onClick={() => isDraftInspection(inspection) && onResumeDraft?.(inspection)}>
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="text-sm font-bold text-text-primary"><DateText value={inspection.inspection_date} /></div>
+            <Badge tone={isDraftInspection(inspection) ? "warning" : "info"}>{draftStatusLabel(inspection.status)}</Badge>
+          </div>
+          <div className="mt-2 text-xs font-semibold text-text-secondary">{inspection.summary?.total_assets || inspection.items.length} assets · {inspection.summary?.critical_alerts || 0} critical · saved <DateText value={inspection.last_edited_at || inspection.updated_at} /></div>
+          {isDraftInspection(inspection) ? (
+            <div className="mt-2">
+              <div className="h-2 overflow-hidden rounded-full bg-white">
+                <div className="h-full rounded-full bg-primary" style={{ width: `${inspectionProgress(inspection)}%` }} />
+              </div>
+              <div className="mt-1 text-xs font-bold text-text-muted">{inspectionProgress(inspection)}% completed</div>
+            </div>
+          ) : null}
+        </button>
+        {isDraftInspection(inspection) ? (
+          <div className="flex flex-wrap gap-1.5">
+            <button className="btn-primary h-8 px-2 text-xs" type="button" onClick={() => onResumeDraft?.(inspection)}>Resume</button>
+            <button className="btn-secondary h-8 px-2 text-xs" type="button" onClick={() => onArchiveDraft?.(inspection)}>Archive</button>
+            <button className="btn-secondary h-8 px-2 text-xs text-rose-700" type="button" onClick={() => onDeleteDraft?.(inspection)}>Delete</button>
+          </div>
+        ) : null}
+      </div>
       <div className="mt-2 space-y-1">
-        {inspection.items.map((item) => <div key={item.id} className="text-xs font-semibold text-text-secondary">{item.asset?.name || "Asset"} · Expected {item.expected_quantity}, Counted {item.counted_quantity}, Difference {item.difference} · {titleCase(item.condition_status)}</div>)}
+        {!isDraftInspection(inspection) ? inspection.items.map((item) => <div key={item.id} className="text-xs font-semibold text-text-secondary">{item.asset?.name || "Asset"} · Expected {item.expected_quantity}, Counted {item.counted_quantity}, Difference {item.difference} · {titleCase(item.condition_status)}</div>) : null}
       </div>
     </div>
   ))}</div> : <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm font-semibold text-text-secondary">No inspection history yet.</div>;
@@ -903,6 +975,36 @@ export default function AssetTrackingPage({ store, ui, auth }) {
     }
   }
 
+  async function updateInspectionStatus(inspection, status) {
+    if (!canManageAsset) {
+      notifyPermissionDenied(ui, "manage inspection drafts");
+      return;
+    }
+    try {
+      await assetTrackingService.updateInspectionStatus(inspection.id, status);
+      await loadData();
+      ui.notify({ title: status === "archived" ? "Draft archived" : "Inspection updated" });
+    } catch (statusError) {
+      console.error("Unable to update inspection", statusError);
+      ui.notify({ title: "Unable to update inspection", message: statusError.message || "Please try again.", tone: "error" });
+    }
+  }
+
+  async function deleteInspection(inspection) {
+    if (!canManageAsset) {
+      notifyPermissionDenied(ui, "delete inspection drafts");
+      return;
+    }
+    try {
+      await assetTrackingService.deleteInspection(inspection.id);
+      await loadData();
+      ui.notify({ title: "Draft deleted" });
+    } catch (deleteError) {
+      console.error("Unable to delete inspection", deleteError);
+      ui.notify({ title: "Unable to delete draft", message: deleteError.message || "Please try again.", tone: "error" });
+    }
+  }
+
   async function archiveAsset(asset) {
     if (!canDeleteAsset) {
       notifyPermissionDenied(ui, "archive assets");
@@ -919,7 +1021,11 @@ export default function AssetTrackingPage({ store, ui, auth }) {
   }
 
   const assetMovements = detailAsset ? movements.filter((movement) => movement.asset_id === detailAsset.id) : [];
-  const assetInspections = detailAsset ? inspections.filter((inspection) => inspection.items.some((item) => item.asset_id === detailAsset.id)) : [];
+  const assetInspections = detailAsset ? inspections.filter((inspection) => (
+    inspection.items.some((item) => item.asset_id === detailAsset.id) ||
+    (isDraftInspection(inspection) && (inspection.draft_data?.rows || []).some((row) => row.asset_id === detailAsset.id))
+  )) : [];
+  const draftInspections = inspections.filter(isDraftInspection);
 
   return (
     <div className="space-y-4">
@@ -947,6 +1053,49 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       </Card>
 
       {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{error}</div> : null}
+
+      {draftInspections.length ? (
+        <Card className="border-amber-200 bg-amber-50/60 p-4">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.16em] text-amber-700">Draft Inspections</div>
+              <div className="mt-1 text-lg font-black text-text-primary">{draftInspections.length} pending {draftInspections.length === 1 ? "inspection" : "inspections"} require completion.</div>
+            </div>
+            <div className="grid flex-1 gap-3 lg:max-w-3xl">
+              {draftInspections.slice(0, 3).map((inspection) => {
+                const outlet = activeOutlets.find((item) => item.id === inspection.outlet_id);
+                const progress = inspectionProgress(inspection);
+                const scope = inspection.category_scope?.type === "selected"
+                  ? `${inspection.category_scope.category_ids?.length || 0} selected categories`
+                  : "All Categories";
+                return (
+                  <div key={inspection.id} className="rounded-2xl border border-amber-200 bg-white p-3 shadow-sm">
+                    <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                      <div className="min-w-0">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-black text-text-primary">{outlet?.name || "Outlet"}</span>
+                          <Badge tone="warning">{draftStatusLabel(inspection.status)}</Badge>
+                        </div>
+                        <div className="mt-1 text-xs font-semibold text-text-secondary">{scope} · Saved <DateText value={inspection.last_edited_at || inspection.updated_at} /></div>
+                        <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-100">
+                          <div className="h-full rounded-full bg-primary" style={{ width: `${progress}%` }} />
+                        </div>
+                        <div className="mt-1 text-xs font-bold text-text-muted">{progress}% completed · {inspection.summary?.critical_alerts || 0} critical · {inspection.summary?.pending_evidence || 0} evidence pending</div>
+                      </div>
+                      <div className="flex flex-wrap gap-2">
+                        <button className="btn-primary h-9 px-3 text-xs" type="button" onClick={() => setInspectionOpen(inspection)}>Resume Inspection</button>
+                        <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={() => setInspectionOpen({ ...inspection, id: "", status: "draft" })}>Duplicate</button>
+                        <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={() => updateInspectionStatus(inspection, "archived")}>Archive</button>
+                        <button className="btn-secondary h-9 px-3 text-xs text-rose-700" type="button" onClick={() => deleteInspection(inspection)}>Delete</button>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        </Card>
+      ) : null}
 
       {!activeOutlets.length ? (
         <Card className="p-8 text-center">
@@ -1035,8 +1184,8 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       {assetModal ? <AssetFormModal asset={assetModal} outlets={activeOutlets} categories={categories} onClose={() => setAssetModal(null)} onSubmit={saveAsset} saving={saving} /> : null}
       {categoryModalOpen ? <CategoryModal categories={categories} conditionTemplates={conditionTemplates} onClose={() => setCategoryModalOpen(false)} onSave={saveCategory} onArchive={archiveCategory} onSaveCondition={saveConditionTemplate} saving={saving} canWrite={canAdd || canEditAsset} canArchive={canDeleteAsset} /> : null}
       {adjustAsset ? <AdjustQuantityModal asset={adjustAsset} onClose={() => setAdjustAsset(null)} onSubmit={adjustQuantity} saving={saving} /> : null}
-      {inspectionOpen ? <InspectionModal outletId={outletId} categories={categories} assets={assets} conditionTemplates={conditionTemplates} onClose={() => setInspectionOpen(false)} onSubmit={submitInspection} saving={saving} /> : null}
-      {detailAsset ? <AssetDetailDrawer asset={detailAsset} movements={assetMovements} inspections={assetInspections} onClose={() => setDetailAsset(null)} onAdjust={() => setAdjustAsset(detailAsset)} onInspect={() => setInspectionOpen(true)} onEdit={() => setAssetModal(detailAsset)} /> : null}
+      {inspectionOpen ? <InspectionModal outletId={inspectionOpen?.outlet_id || outletId} categories={categories} assets={assets} conditionTemplates={conditionTemplates} draftInspection={inspectionOpen === true ? null : inspectionOpen} onClose={() => setInspectionOpen(false)} onSubmit={submitInspection} saving={saving} /> : null}
+      {detailAsset ? <AssetDetailDrawer asset={detailAsset} movements={assetMovements} inspections={assetInspections} onClose={() => setDetailAsset(null)} onAdjust={() => setAdjustAsset(detailAsset)} onInspect={() => setInspectionOpen(true)} onEdit={() => setAssetModal(detailAsset)} onResumeDraft={(inspection) => setInspectionOpen(inspection)} onDeleteDraft={deleteInspection} onArchiveDraft={(inspection) => updateInspectionStatus(inspection, "archived")} /> : null}
     </div>
   );
 }

@@ -1253,6 +1253,12 @@ Inspection fields:
 - summary
 - notes
 - remark
+- current_step
+- completion_percentage
+- last_edited_at
+- last_edited_by
+- draft_data
+- auto_saved
 - created_at
 - updated_at
 
@@ -1316,6 +1322,32 @@ Inspection flow:
 7. Review enterprise summary cards and problematic rows before final submission.
 8. Submit inspection or save draft.
 9. Differences create correction movement logs and update asset quantity after confirmation.
+
+Inspection draft and resume rules:
+
+- Draft inspections appear on the Asset Tracking dashboard as actionable alert cards.
+- Draft inspections appear in Asset Profile inspection history with Draft, In Progress, and Pending Review badges.
+- Draft cards show outlet, category scope, saved time, completion percentage, critical alerts, and pending evidence.
+- Draft quick actions:
+  - Resume Inspection
+  - Delete Draft
+  - Duplicate
+  - Archive
+- Resume restores:
+  - current step
+  - selected outlet/date/type/scope
+  - counted quantities
+  - selected conditions
+  - remarks
+  - uploaded evidence previews
+- Draft records store full workflow state in `draft_data`.
+- Draft status values:
+  - draft
+  - in_progress
+  - pending_review
+  - submitted
+  - completed
+  - archived
 
 MVP exclusions:
 
