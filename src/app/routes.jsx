@@ -1,4 +1,5 @@
 import DashboardOverviewPage from "../features/sales-purchase/pages/DashboardOverviewPage.jsx";
+import SPDashboardPage from "../features/sales-purchase/pages/SPDashboardPage.jsx";
 import AlertsInsightsPage from "../features/sales-purchase/pages/AlertsInsightsPage.jsx";
 import DataHealthPage from "../features/sales-purchase/pages/DataHealthPage.jsx";
 import DataImportPage from "../features/sales-purchase/pages/DataImportPage.jsx";
@@ -38,6 +39,11 @@ const routeDetails = {
   dashboard: {
     description: "Monthly HQ management overview for outlet health, alerts, operations and team moments.",
     component: DashboardOverviewPage,
+  },
+  "sp-dashboard": {
+    description: "Detailed sales and purchase operational analytics dashboard.",
+    component: SPDashboardPage,
+    permission: "dashboard.view",
   },
   "sales-input": {
     description: "Manual monthly sales entry by outlet and structured channel.",
@@ -145,7 +151,7 @@ export const salesPurchaseRoutes = moduleRegistry.map((module) => {
     eyebrow: module.section,
     description: details.description ?? `${module.label} workspace.`,
     component: details.component ?? ModulePlaceholderPage,
-    permission: viewPermission(module.id),
+    permission: details.permission ?? viewPermission(module.id),
     props: {
       moduleId: module.id,
       moduleLabel: module.label,

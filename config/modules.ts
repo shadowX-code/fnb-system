@@ -74,6 +74,15 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, export: true },
   },
   {
+    id: "sp-dashboard",
+    section: "Overview",
+    label: "S&P Dashboard",
+    route: "/sp-dashboard",
+    icon: "dashboard",
+    sidebar: true,
+    permissions: { view: true },
+  },
+  {
     id: "product_analytics",
     section: "Overview",
     label: "Product Analytics",

@@ -77,6 +77,7 @@ Final sidebar structure:
 OVERVIEW
 - Overview Dashboard
 - Outlet P&L
+- S&P Dashboard
 - Product Analytics
 - Sales Comparison
 - Purchase Comparison
@@ -372,6 +373,7 @@ Data:
 Core rules:
 
 - Dashboard is month-based only.
+- Overview Dashboard is separate from S&P Dashboard and must not replace the detailed sales/purchase analytics workspace.
 - Do not show daily, hourly, real-time POS, or last-7-days metrics.
 - Outlet scope supports All Outlets and individual accessible outlets.
 - Every outlet-specific alert, product signal, action, and birthday must show outlet identity.
@@ -404,6 +406,39 @@ KPI layout:
 - Primary value
 - Comparison text
 - Optional insight sentence
+
+---
+
+## 5.2A S&P Dashboard
+
+Purpose:
+
+Detailed sales and purchase operational analytics dashboard.
+
+Sidebar label:
+
+```text
+S&P Dashboard
+```
+
+Route:
+
+```text
+/sp-dashboard
+```
+
+Permission:
+
+```text
+dashboard.view
+```
+
+Rules:
+
+- S&P Dashboard must remain separate from Overview Dashboard.
+- It preserves the original detailed sales and purchase analytics logic.
+- It shows sales vs purchase trend, COGS margin trend, top suppliers by purchase, and recent rule-based alerts.
+- Overview Dashboard is the HQ command center; S&P Dashboard is the operational sales and purchase analytics workspace.
 
 ---
 
