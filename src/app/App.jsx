@@ -260,6 +260,10 @@ function RbacDiagnosticsPanel({ auth, loads }) {
 
 export default function App() {
   const auth = useAuth();
+  const authOutletScopeKey = useMemo(
+    () => (auth.profile?.role_outlet_ids ?? auth.profile?.roleOutletIds ?? []).join("|"),
+    [auth.profile?.roleOutletIds, auth.profile?.role_outlet_ids],
+  );
   const initialRoute = window.location.hash?.replace("#", "") || "dashboard";
   const [activeRouteId, setActiveRouteId] = useState(
     salesPurchaseRoutes.some((route) => route.id === initialRoute) ? initialRoute : "dashboard",
@@ -300,7 +304,7 @@ export default function App() {
   }, [auth, store]);
 
   useEffect(() => {
-    if (!auth.session || auth.passwordRecovery) return undefined;
+    if (!auth.session || auth.passwordRecovery || auth.loading || auth.contextLoading) return undefined;
     let ignore = false;
     async function loadMasterData() {
       setMasterDataStatus({ loading: true, errors: [], loads: BOOTSTRAP_LOADS.map((load) => ({ ...load, status: "pending" })) });
@@ -434,7 +438,17 @@ export default function App() {
     return () => {
       ignore = true;
     };
-  }, [auth.passwordRecovery, auth.session]);
+  }, [
+    auth.contextLoading,
+    auth.isProtectedRole,
+    auth.loading,
+    auth.passwordRecovery,
+    auth.permissions.length,
+    auth.profile?.id,
+    auth.profile?.role_name,
+    auth.session,
+    authOutletScopeKey,
+  ]);
 
   useEffect(() => {
     if (!auth.session || auth.loading || auth.contextLoading || !accessibleRoutes.length) return;
@@ -527,7 +541,7 @@ export default function App() {
           </div>
         ) : null}
         <RbacDiagnosticsPanel auth={auth} loads={masterDataStatus.loads} />
-        <ActivePage store={effectiveStore} setStore={setStore} ui={ui} auth={auth} {...(activeRoute.props ?? {})} />
+        <ActivePage store={effectiveStore} setStore={setStore} ui={ui} auth={auth} masterDataStatus={masterDataStatus} {...(activeRoute.props ?? {})} />
       </AppShell>
       <ToastViewport
         toasts={toasts}

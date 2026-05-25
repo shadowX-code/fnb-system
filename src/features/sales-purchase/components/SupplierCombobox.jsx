@@ -26,6 +26,7 @@ export default function SupplierCombobox({
   disabled,
   error,
   autoFocus,
+  loading = false,
   onChange,
   onCreate,
 }) {
@@ -83,7 +84,7 @@ export default function SupplierCombobox({
     [query, suppliers],
   );
   const exactMatch = suppliers.some((supplier) => normalize(supplier.name) === normalize(query));
-  const canCreate = query.trim().length > 1 && !exactMatch;
+  const canCreate = !loading && query.trim().length > 1 && !exactMatch;
 
   function selectSupplier(supplier) {
     onChange(supplier);
@@ -181,7 +182,9 @@ export default function SupplierCombobox({
                   </button>
                 ))}
 
-                {!options.length ? (
+                {loading ? (
+                  <div className="px-3 py-3 text-sm font-semibold text-text-secondary">Loading suppliers...</div>
+                ) : !options.length ? (
                   <div className="px-3 py-3 text-sm text-text-secondary">No matching supplier found.</div>
                 ) : null}
 

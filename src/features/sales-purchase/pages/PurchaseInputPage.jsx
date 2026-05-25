@@ -67,6 +67,7 @@ function PurchaseEntryTable({
   rows,
   store,
   supplierOptions,
+  suppliersLoading,
   isLocked,
   focusSupplierKey,
   expandedRows,
@@ -130,6 +131,7 @@ function PurchaseEntryTable({
                       disabled={isLocked || !canWritePurchase}
                       error={!row.supplier_id}
                       autoFocus={focusSupplierKey === row.localKey}
+                      loading={suppliersLoading}
                       onChange={(supplier) => {
                         updateRow(row.localKey, {
                           supplier_id: supplier?.id ?? "",
@@ -386,7 +388,7 @@ function PurchaseInsightPanel({ cogsMargin, highest, biggestIncrease, missingRow
   );
 }
 
-export default function PurchaseInputPage({ store, setStore, ui, auth }) {
+export default function PurchaseInputPage({ store, setStore, ui, auth, masterDataStatus }) {
   const filters = usePeriodFilters(store);
   const amountInputRefs = useRef(new Map());
   const [saveState, setSaveState] = useState("loading");
@@ -758,10 +760,25 @@ export default function PurchaseInputPage({ store, setStore, ui, auth }) {
     }
   }
 
-  const supplierOptions = store.suppliers.filter((supplier) => (
+  const supplierLoadStatus = masterDataStatus?.loads?.find((load) => load.key === "suppliers")?.status;
+  const suppliersLoading = Boolean(masterDataStatus?.loading && supplierLoadStatus !== "loaded") || supplierLoadStatus === "pending";
+  const supplierOptions = useMemo(() => store.suppliers.filter((supplier) => (
     supplier.status === "active" &&
     (supplier.outletIds ?? supplier.assignedOutletIds ?? []).includes(filters.outletId)
-  ));
+  )), [filters.outletId, store.suppliers]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    console.info("[Purchase Input suppliers]", {
+      route: window.location.hash,
+      selectedOutletId: filters.outletId,
+      outletCount: store.outlets.length,
+      suppliers: store.suppliers.length,
+      supplierOptions: supplierOptions.length,
+      supplierLoadStatus,
+      suppliersLoading,
+    });
+  }, [filters.outletId, store.outlets.length, store.suppliers.length, supplierLoadStatus, supplierOptions.length, suppliersLoading]);
 
   return (
     <div className="space-y-4">
@@ -902,6 +919,7 @@ export default function PurchaseInputPage({ store, setStore, ui, auth }) {
                 rows={visibleRows}
                 store={store}
                 supplierOptions={supplierOptions}
+                suppliersLoading={suppliersLoading}
                 isLocked={isLocked}
                 focusSupplierKey={focusSupplierKey}
                 expandedRows={expandedRows}
