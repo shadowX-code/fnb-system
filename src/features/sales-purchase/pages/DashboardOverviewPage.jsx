@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   Bell,
   Cake,
+  ChevronRight,
   CheckCircle2,
   ClipboardList,
   Factory,
@@ -124,6 +125,19 @@ function OutletBadge({ outlet }) {
   );
 }
 
+function StatusPill({ tone = "neutral", children }) {
+  const toneClass = tone === "danger"
+    ? "border-rose-200 bg-rose-50 text-rose-700"
+    : tone === "warning"
+      ? "border-amber-200 bg-amber-50 text-amber-700"
+      : tone === "success"
+        ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+        : tone === "info"
+          ? "border-blue-200 bg-blue-50 text-blue-700"
+          : "border-border bg-white/80 text-text-secondary";
+  return <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 type-caption font-bold shadow-sm ${toneClass}`}>{children}</span>;
+}
+
 function getTone(status) {
   if (["Critical", "High", "Overdue"].includes(status)) return "danger";
   if (["Watch", "Draft", "Due"].includes(status)) return "warning";
@@ -234,26 +248,51 @@ function SectionHeader({ title, subtitle, action }) {
   );
 }
 
-function MiniTile({ icon: Icon, count, label, tone = "neutral", outlet }) {
+function MiniTile({ icon: Icon, count, label, tone = "neutral", outlet, route, ui }) {
   const toneClass = tone === "danger"
-    ? "border-rose-100 bg-rose-50 text-rose-700"
+    ? "border-rose-100 bg-rose-50 text-rose-700 hover:border-rose-200 hover:shadow-[0_10px_30px_rgba(244,63,94,0.10)]"
     : tone === "warning"
-      ? "border-amber-100 bg-amber-50 text-amber-700"
+      ? "border-amber-100 bg-amber-50 text-amber-700 hover:border-amber-200 hover:shadow-[0_10px_30px_rgba(245,158,11,0.10)]"
       : tone === "success"
-        ? "border-emerald-100 bg-emerald-50 text-emerald-700"
-        : "border-border bg-white text-text-secondary";
+        ? "border-emerald-100 bg-emerald-50 text-emerald-700 hover:border-emerald-200"
+        : "border-border bg-white text-text-secondary hover:border-primary/20";
+  const Component = route ? "button" : "div";
   return (
-    <div className={`rounded-2xl border p-3 ${toneClass}`}>
+    <Component
+      className={`w-full rounded-2xl border p-3 text-left transition duration-150 hover:-translate-y-0.5 ${toneClass} ${route ? "cursor-pointer" : "opacity-80"}`}
+      type={route ? "button" : undefined}
+      onClick={route ? () => ui?.navigate?.(route) : undefined}
+    >
       <div className="flex items-center justify-between gap-2">
-        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/70">
+        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/75 shadow-sm">
           <Icon size={16} />
         </span>
         {outlet ? <OutletBadge outlet={outlet} /> : null}
       </div>
-      <div className="mt-3 text-2xl font-semibold tracking-tight text-text-primary">{count}</div>
-      <div className="mt-0.5 text-xs font-semibold text-text-secondary">{label}</div>
-    </div>
+      <div className="mt-3 flex items-end justify-between gap-2">
+        <div>
+          <div className="text-2xl font-semibold tracking-tight text-text-primary">{count}</div>
+          <div className="mt-0.5 type-caption font-semibold text-text-secondary">{label}</div>
+        </div>
+        {route ? <ChevronRight size={15} className="text-text-muted" /> : null}
+      </div>
+    </Component>
   );
+}
+
+function alertTone(alert) {
+  if (["critical", "high"].includes(alert.priority) || alert.severity === "danger") return "danger";
+  if (["medium", "warning"].includes(alert.priority) || alert.severity === "warning") return "warning";
+  return "info";
+}
+
+function alertCategory(alert) {
+  if (alert.alert_type?.includes("cogs")) return "COGS";
+  if (alert.alert_type?.includes("asset")) return "Assets";
+  if (alert.alert_type?.includes("roster")) return "Roster";
+  if (alert.related_supplier_id || alert.alert_type?.includes("purchase")) return "Purchase";
+  if (alert.alert_type?.includes("product")) return "Product";
+  return "Sales";
 }
 
 export default function DashboardOverviewPage({ store, auth, ui }) {
@@ -494,6 +533,9 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
     counts[row.status] = (counts[row.status] || 0) + 1;
     return counts;
   }, { Good: 0, Watch: 0, Critical: 0 });
+  const operationsHealthScore = outletMonthlyRows.length
+    ? Math.round(outletMonthlyRows.reduce((sum, row) => sum + (row.status === "Good" ? 100 : row.status === "Watch" ? 60 : 25), 0) / outletMonthlyRows.length)
+    : 0;
   const businessStatus = statusCounts.Critical ? "Critical" : statusCounts.Watch ? "Watch" : "Good";
   const businessReasons = selectedOutletId === "all"
     ? [
@@ -506,23 +548,39 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
   const greetingName = auth?.profile?.full_name || auth?.profile?.name || auth?.profile?.email?.split("@")[0] || "there";
   const hasMonthlySales = selectedTotals.sales > 0;
   const hasMonthlyPurchase = selectedTotals.purchase > 0;
+  const aiSummary = [
+    statusCounts.Critical ? `${statusCounts.Critical} critical outlet${statusCounts.Critical === 1 ? "" : "s"} need attention.` : "",
+    allAlerts.length ? `${allAlerts.length} unresolved alert${allAlerts.length === 1 ? "" : "s"} detected.` : "No priority alerts detected.",
+    overdueMaintenance.length ? `${overdueMaintenance.length} maintenance item${overdueMaintenance.length === 1 ? "" : "s"} overdue.` : "",
+    !hasMonthlySales ? "Sales input is missing for this month." : "",
+    !currentReportIds.length ? "Product analytics is not uploaded for this month." : "",
+  ].filter(Boolean).slice(0, 3).join(" ");
 
   return (
-    <div className="mx-auto max-w-[1500px] space-y-5">
-      <section className="rounded-[28px] border border-border bg-white p-5 shadow-card">
+    <div className="relative mx-auto max-w-[1500px] space-y-4 before:pointer-events-none before:absolute before:-left-8 before:-right-8 before:-top-6 before:h-80 before:rounded-full before:bg-[radial-gradient(circle_at_25%_15%,rgba(34,197,94,0.14),transparent_36rem)] before:content-['']">
+      <section className="relative overflow-hidden rounded-[28px] border border-emerald-100/80 bg-white/90 p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_18px_48px_rgba(15,23,42,0.06)] backdrop-blur">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_8%,rgba(34,197,94,0.18),transparent_20rem),linear-gradient(135deg,rgba(236,253,245,0.82),transparent_42%)]" />
+        <div className="pointer-events-none absolute inset-0 opacity-[0.18] [background-image:linear-gradient(rgba(15,23,42,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.08)_1px,transparent_1px)] [background-size:28px_28px]" />
+        <div className="relative">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
-            <div className="text-xs font-bold uppercase tracking-wide text-primary">Overview</div>
-            <h1 className="mt-2 text-2xl font-semibold tracking-tight text-text-primary md:text-3xl">
-              Good morning, {greetingName} 👋
+            <div className="type-caption font-black uppercase tracking-[0.16em] text-primary">HQ Operations Command Center</div>
+            <h1 className="mt-2 type-heading-xl font-semibold tracking-tight text-text-primary">
+              Good morning, {greetingName}
             </h1>
-            <p className="mt-2 text-sm text-text-secondary">Here&apos;s what needs attention across your outlets.</p>
+            <p className="mt-2 type-body-sm text-text-secondary">Here&apos;s what needs attention across your outlets.</p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <StatusPill tone="success">{scopeOutletIds.length} outlet{scopeOutletIds.length === 1 ? "" : "s"} active</StatusPill>
+              <StatusPill tone={allAlerts.length ? "warning" : "success"}>{allAlerts.length} alert{allAlerts.length === 1 ? "" : "s"} need review</StatusPill>
+              <StatusPill tone={overdueMaintenance.length ? "danger" : "success"}>{overdueMaintenance.length} maintenance due</StatusPill>
+              <StatusPill tone="info">Monthly data view</StatusPill>
+            </div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2 lg:min-w-[520px]">
             <label className="block">
-              <span className="text-[11px] font-bold uppercase tracking-wide text-text-muted">Viewing</span>
+              <span className="type-micro font-bold uppercase tracking-wide text-text-muted">Viewing</span>
               <select
-                className="mt-1 h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm font-semibold text-text-primary outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+                className="mt-1 h-10 w-full rounded-2xl border border-border bg-white/80 px-3 text-[13px] font-semibold text-text-primary outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
                 value={selectedOutletId}
                 onChange={(event) => setSelectedOutletId(event.target.value)}
               >
@@ -531,16 +589,16 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
               </select>
             </label>
             <label className="block">
-              <span className="text-[11px] font-bold uppercase tracking-wide text-text-muted">Month</span>
+              <span className="type-micro font-bold uppercase tracking-wide text-text-muted">Month</span>
               <select
-                className="mt-1 h-11 w-full rounded-2xl border border-border bg-background px-3 text-sm font-semibold text-text-primary outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
+                className="mt-1 h-10 w-full rounded-2xl border border-border bg-white/80 px-3 text-[13px] font-semibold text-text-primary outline-none transition focus:border-primary/40 focus:ring-4 focus:ring-primary/10"
                 value={selectedPeriod}
                 onChange={(event) => setSelectedPeriod(event.target.value)}
               >
                 {monthOptions().map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             </label>
-            <div className="rounded-2xl bg-slate-50 px-3 py-2 text-xs font-semibold text-text-secondary sm:col-span-2">
+            <div className="rounded-2xl border border-white/70 bg-white/65 px-3 py-2 type-caption font-semibold text-text-secondary shadow-sm sm:col-span-2">
               Last updated {formatUpdated()} · All amounts are monthly totals.
             </div>
             <div className="hidden items-center justify-end gap-2 lg:flex">
@@ -552,6 +610,7 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
               </span>
             </div>
           </div>
+        </div>
         </div>
       </section>
 
@@ -605,39 +664,59 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
       </div>
 
       <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.75fr)]">
-        <Card title="Outlet Health" description="Monthly performance snapshot by outlet.">
+        <Card
+          title="Outlet Health"
+          description="Monthly performance snapshot by outlet."
+          action={(
+            <div className="min-w-[190px]">
+              <div className="flex items-center justify-between gap-3 type-caption font-black text-text-secondary">
+                <span>Operations Health</span>
+                <span className={operationsHealthScore >= 80 ? "text-emerald-700" : operationsHealthScore >= 55 ? "text-amber-700" : "text-rose-700"}>{operationsHealthScore}%</span>
+              </div>
+              <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100">
+                <div
+                  className={`h-full rounded-full ${operationsHealthScore >= 80 ? "bg-emerald-500" : operationsHealthScore >= 55 ? "bg-amber-500" : "bg-rose-500"}`}
+                  style={{ width: `${operationsHealthScore}%` }}
+                />
+              </div>
+            </div>
+          )}
+        >
           <div className="overflow-x-auto">
-            <table className="min-w-[980px] w-full text-sm">
-              <thead className="bg-slate-50 text-left text-[11px] font-bold uppercase tracking-wide text-text-muted">
+            <table className="min-w-[980px] w-full text-[13px]">
+              <thead className="bg-slate-50 text-left text-[10px] font-bold uppercase tracking-wide text-text-muted">
                 <tr>
                   {["Outlet", "MTD Sales", "COGS %", "vs Last Month", "Alerts", "Staffing", "Assets", "Status"].map((header) => (
-                    <th key={header} className="px-4 py-3">{header}</th>
+                    <th key={header} className="px-4 py-2.5">{header}</th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {outletMonthlyRows.map((row) => (
-                  <tr key={row.outlet.id} className="transition hover:bg-primary/5">
-                    <td className="px-4 py-3">
+                  <tr key={row.outlet.id} className="transition hover:bg-primary/5 hover:shadow-[inset_3px_0_0_rgba(34,197,94,0.5)]">
+                    <td className="px-4 py-2.5">
                       <div className="flex items-center gap-3">
                         <span className="h-3 w-3 rounded-full" style={{ backgroundColor: row.outlet.color }} />
                         <div>
-                          <div className="font-bold text-text-primary">{row.outlet.name}</div>
-                          <div className="text-xs font-semibold text-text-muted">{row.outlet.code}</div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-bold text-text-primary">{row.outlet.name}</span>
+                            <span className="rounded-full border border-border bg-white px-2 py-0.5 type-micro font-black text-text-muted">{row.outlet.code}</span>
+                          </div>
+                          <div className="type-caption font-semibold text-text-muted">{row.reasons[0] || "Monthly data in range"}</div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-4 py-3 font-semibold text-text-primary">{row.netSales ? toCurrency(row.netSales) : "No input"}</td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-2.5 font-semibold text-text-primary">{row.netSales ? toCurrency(row.netSales) : "No input"}</td>
+                    <td className="px-4 py-2.5">
                       <Badge tone={row.cogsStatus === "Critical" ? "danger" : row.cogsStatus === "Watch" ? "warning" : row.cogsStatus === "Good" ? "success" : "neutral"}>
                         {row.cogs === null ? "No Data" : toPercent(row.cogs)}
                       </Badge>
                     </td>
-                    <td className={`px-4 py-3 font-bold ${row.vsLastMonth >= 0 ? "text-emerald-600" : "text-rose-500"}`}>{signedPercent(row.vsLastMonth)}</td>
-                    <td className="px-4 py-3"><Badge tone={row.alerts.length ? "warning" : "success"}>{row.alerts.length}</Badge></td>
-                    <td className="px-4 py-3"><Badge tone={getTone(row.staffing)}>{row.staffing}</Badge></td>
-                    <td className="px-4 py-3"><Badge tone={getTone(row.assets)}>{row.assets}</Badge></td>
-                    <td className="px-4 py-3"><Badge tone={getTone(row.status)}>{row.status}</Badge></td>
+                    <td className={`px-4 py-2.5 font-bold ${row.vsLastMonth >= 0 ? "text-emerald-600" : "text-rose-500"}`}>{signedPercent(row.vsLastMonth)}</td>
+                    <td className="px-4 py-2.5"><Badge tone={row.alerts.length ? "warning" : "success"}>{row.alerts.length}</Badge></td>
+                    <td className="px-4 py-2.5"><Badge tone={getTone(row.staffing)}>{row.staffing}</Badge></td>
+                    <td className="px-4 py-2.5"><Badge tone={getTone(row.assets)}>{row.assets}</Badge></td>
+                    <td className="px-4 py-2.5"><Badge tone={getTone(row.status)}>{row.status}</Badge></td>
                   </tr>
                 ))}
               </tbody>
@@ -656,23 +735,30 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
           action={<button className="text-xs font-bold text-primary" type="button" onClick={() => ui?.navigate?.("alerts")}>View all alerts</button>}
         >
           <div className="space-y-3 p-4">
-            {allAlerts.slice(0, 5).map((alert) => (
-              <button
-                key={alert.id}
-                className="block w-full rounded-2xl border border-border bg-white p-3 text-left transition hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-card"
-                type="button"
-                onClick={() => ui?.navigate?.("alerts")}
-              >
-                <div className="flex items-center justify-between gap-2">
-                  <OutletBadge outlet={alert.outlet} />
-                  <Badge tone={alert.severity === "danger" ? "danger" : alert.severity === "warning" ? "warning" : "neutral"}>
-                    {alert.alert_type?.includes("cogs") ? "COGS" : alert.related_supplier_id ? "Purchase" : "Sales"}
-                  </Badge>
-                </div>
-                <div className="mt-2 font-bold text-text-primary">{alert.title}</div>
-                <div className="mt-1 text-xs font-semibold text-text-secondary">{alert.description}</div>
-              </button>
-            ))}
+            {[...allAlerts].sort((a, b) => (alertTone(a) === "danger" ? -1 : alertTone(a) === "warning" ? 0 : 1) - (alertTone(b) === "danger" ? -1 : alertTone(b) === "warning" ? 0 : 1)).slice(0, 5).map((alert) => {
+              const tone = alertTone(alert);
+              const toneClass = tone === "danger"
+                ? "border-rose-200 bg-rose-50/70 hover:shadow-[0_12px_30px_rgba(244,63,94,0.12)]"
+                : tone === "warning"
+                  ? "border-amber-200 bg-amber-50/70 hover:shadow-[0_12px_30px_rgba(245,158,11,0.12)]"
+                  : "border-blue-200 bg-blue-50/70 hover:shadow-[0_12px_30px_rgba(14,165,233,0.12)]";
+              return (
+                <button
+                  key={alert.id}
+                  className={`block w-full rounded-2xl border p-3 text-left transition hover:-translate-y-0.5 ${toneClass}`}
+                  type="button"
+                  onClick={() => ui?.navigate?.("alerts")}
+                >
+                  <div className="flex flex-wrap items-center gap-2">
+                    <OutletBadge outlet={alert.outlet} />
+                    <Badge tone={tone}>{tone === "danger" ? "Critical" : tone === "warning" ? "Watch" : "Info"}</Badge>
+                    <Badge tone="neutral">{alertCategory(alert)}</Badge>
+                  </div>
+                  <div className="mt-2 font-bold text-text-primary">{alert.title}</div>
+                  <div className="mt-1 type-caption font-semibold text-text-secondary">{alert.description}</div>
+                </button>
+              );
+            })}
             {!allAlerts.length ? (
               <EmptyState title="No priority alerts" message="No monthly business alerts were detected for this scope." />
             ) : null}
@@ -701,13 +787,27 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
               type="area"
               yAxisType={trendMode === "cogs" ? "percent" : "currency"}
               labels={trendData.map((item) => item.label)}
+              renderTooltip={({ label, index }) => {
+                const item = trendData[index];
+                return (
+                  <div className="min-w-44">
+                    <div className="font-black text-text-primary">{item?.fullLabel || label}</div>
+                    <div className="mt-2 space-y-1">
+                      <div className="flex justify-between gap-6 text-text-secondary"><span>Sales</span><strong className="text-text-primary">{toCurrency(item?.sales || 0)}</strong></div>
+                      <div className="flex justify-between gap-6 text-text-secondary"><span>Purchase</span><strong className="text-text-primary">{toCurrency(item?.purchase || 0)}</strong></div>
+                      <div className="flex justify-between gap-6 text-text-secondary"><span>COGS</span><strong className="text-text-primary">{toPercent(item?.cogs || 0)}</strong></div>
+                      <div className="flex justify-between gap-6 text-text-secondary"><span>Gross Profit</span><strong className="text-text-primary">{toCurrency(item?.grossProfit || 0)}</strong></div>
+                    </div>
+                  </div>
+                );
+              }}
               series={trendMode === "sales_purchase" ? [
-                { name: "Sales", data: trendData.map((item) => item.sales), stroke: "#16a34a", fill: "#22c55e", area: true, areaOpacity: 0.2, format: toCurrency },
-                { name: "Purchase", data: trendData.map((item) => item.purchase), stroke: "#0ea5e9", fill: "#0ea5e9", area: false, format: toCurrency },
+                { name: "Sales", data: trendData.map((item) => item.sales), stroke: "#16a34a", fill: "#22c55e", area: true, areaOpacity: 0.16, strokeWidth: 2.4, format: toCurrency },
+                { name: "Purchase", data: trendData.map((item) => item.purchase), stroke: "#0ea5e9", fill: "#0ea5e9", area: false, strokeWidth: 2.2, format: toCurrency },
               ] : trendMode === "cogs" ? [
-                { name: "COGS %", data: trendData.map((item) => item.cogs), stroke: "#f59e0b", fill: "#f59e0b", area: true, areaOpacity: 0.16, format: (value) => toPercent(value) },
+                { name: "COGS %", data: trendData.map((item) => item.cogs), stroke: "#f59e0b", fill: "#f59e0b", area: true, areaOpacity: 0.14, strokeWidth: 2.4, format: (value) => toPercent(value) },
               ] : [
-                { name: "Gross Profit", data: trendData.map((item) => item.grossProfit), stroke: "#16a34a", fill: "#22c55e", area: true, areaOpacity: 0.18, format: toCurrency },
+                { name: "Gross Profit", data: trendData.map((item) => item.grossProfit), stroke: "#16a34a", fill: "#22c55e", area: true, areaOpacity: 0.16, strokeWidth: 2.4, format: toCurrency },
               ]}
             />
           </div>
@@ -715,12 +815,12 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
 
         <Card title="Operational Snapshot" description="Current status across key operations.">
           <div className="grid grid-cols-2 gap-3 p-4">
-            <MiniTile icon={ClipboardList} count={inspectionDrafts.length} label="Draft Audits" tone={inspectionDrafts.length ? "warning" : "success"} />
-            <MiniTile icon={Wrench} count={overdueMaintenance.length} label="Maintenance Due" tone={overdueMaintenance.length ? "danger" : "success"} />
-            <MiniTile icon={PackageSearch} count={lowQuantityAssets.length} label="Low Quantity Assets" tone={lowQuantityAssets.length ? "warning" : "success"} />
-            <MiniTile icon={AlertTriangle} count={missingAssets.length} label="Missing Stock Items" tone={missingAssets.length ? "danger" : "success"} />
-            <MiniTile icon={Bell} count={allAlerts.length} label="Unresolved Alerts" tone={allAlerts.length ? "warning" : "success"} />
-            <MiniTile icon={Users} count={rosterIssueOutlets.length} label="Duty Roster Issues" tone={rosterIssueOutlets.length ? "warning" : "success"} />
+            <MiniTile icon={ClipboardList} count={inspectionDrafts.length} label="Draft Audits" tone={inspectionDrafts.length ? "warning" : "success"} route="asset_tracking" ui={ui} />
+            <MiniTile icon={Wrench} count={overdueMaintenance.length} label="Maintenance Due" tone={overdueMaintenance.length ? "danger" : "success"} route="asset_tracking" ui={ui} />
+            <MiniTile icon={PackageSearch} count={lowQuantityAssets.length} label="Low Quantity Assets" tone={lowQuantityAssets.length ? "warning" : "success"} route="asset_tracking" ui={ui} />
+            <MiniTile icon={AlertTriangle} count={missingAssets.length} label="Missing Stock Items" tone={missingAssets.length ? "danger" : "success"} route="asset_tracking" ui={ui} />
+            <MiniTile icon={Bell} count={allAlerts.length} label="Unresolved Alerts" tone={allAlerts.length ? "warning" : "success"} route="alerts" ui={ui} />
+            <MiniTile icon={Users} count={rosterIssueOutlets.length} label="Duty Roster Issues" tone={rosterIssueOutlets.length ? "warning" : "success"} route="outlet_duty_roster" ui={ui} />
           </div>
         </Card>
 
@@ -729,12 +829,15 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
             {pendingActions.map((item) => (
               <button
                 key={item.label}
-                className="flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-sm transition hover:bg-primary/5"
+                className={`flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-[13px] transition hover:bg-primary/5 ${item.count ? "bg-amber-50/30" : "opacity-70"}`}
                 type="button"
                 onClick={() => ui?.navigate?.(item.route)}
               >
                 <span className="font-semibold text-text-secondary">{item.label}</span>
-                <Badge tone={item.count ? "warning" : "success"}>{item.count}</Badge>
+                <span className="flex items-center gap-2">
+                  <Badge tone={item.count ? "warning" : "success"}>{item.count}</Badge>
+                  <ChevronRight size={14} className="text-text-muted" />
+                </span>
               </button>
             ))}
           </div>
@@ -816,6 +919,7 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
               <EmptyState
                 title="No upcoming birthdays in the next 30 days."
                 message={birthdays.next ? `Next celebration: ${birthdays.next.employee.nickname || birthdays.next.employee.full_name} · ${formatShortDate(toDateInputValue(birthdays.next.birthday.date))}` : "Employee birthday reminders will appear after birthdays are saved."}
+                action={<div className="mt-4 inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Gift size={18} /></div>}
               />
             )}
             <button className="btn-secondary w-full" type="button" onClick={() => ui?.navigate?.("employees")}>View Employees</button>
@@ -856,6 +960,13 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
                   </div>
                 ))}
               </div>
+            </div>
+            <div className="rounded-2xl border border-primary/15 bg-primary/5 p-3">
+              <div className="flex items-center gap-2 type-caption font-black uppercase tracking-wide text-primary">
+                <Sparkles size={14} />
+                AI Summary
+              </div>
+              <p className="mt-2 text-sm font-semibold leading-5 text-text-secondary">{aiSummary || "Monthly operations look stable across the selected outlet scope."}</p>
             </div>
           </div>
         </Card>

@@ -701,13 +701,14 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
                       key={item.id}
                       type="button"
                       onClick={() => handleNavigate(item.id)}
-                      className={`flex h-9 w-full items-center gap-2.5 rounded-xl px-2.5 text-left text-[13px] font-semibold transition ${
+                      className={`relative flex h-9 w-full items-center gap-2.5 rounded-xl px-2.5 text-left text-[13px] font-semibold transition duration-150 ${
                         active
-                          ? "bg-primary/10 text-primary"
+                          ? "bg-gradient-to-r from-primary/14 to-primary/6 text-primary shadow-[inset_0_0_0_1px_rgba(34,197,94,0.10)]"
                           : "text-text-secondary hover:bg-slate-50 hover:text-text-primary"
                       } ${item.indent ? "pl-7" : ""}`}
                     >
-                      <Icon size={16} />
+                      {active ? <span className="absolute left-0 top-1/2 h-5 w-1 -translate-y-1/2 rounded-r-full bg-primary shadow-[0_0_12px_rgba(34,197,94,0.45)]" /> : null}
+                      <Icon size={16} className={active ? "opacity-100" : "opacity-70"} />
                       <span className="truncate">{item.label}</span>
                     </button>
                   );
