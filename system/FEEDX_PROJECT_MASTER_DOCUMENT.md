@@ -1170,6 +1170,7 @@ Asset category fields:
 - description
 - sort_order
 - is_active
+- maintenance_enabled
 - created_at
 - updated_at
 
@@ -1217,6 +1218,9 @@ Asset category rules:
 - Category management does not manage inspection conditions.
 - Category configuration shows category list, name, description, sort order, active or archived status, and linked asset count.
 - Categories cannot be hard deleted when linked to assets; use Archive Category.
+- `maintenance_enabled` controls whether assets in that category expose maintenance workflows.
+- Consumable or replacement categories such as bowls, spoons, trays, and utensils keep only quantity, inspection, condition, and movement logs.
+- Maintainable categories such as coffee machines, refrigerators, POS hardware, aircond, and kitchen electrical equipment can expose maintenance history, repair logs, vendor tracking, and service scheduling.
 
 Asset UI rules:
 
@@ -1228,6 +1232,8 @@ Asset UI rules:
 - Quantity display shows the numeric quantity and unit without duplicating condition wording.
 - Asset list actions use a primary View action plus an overflow menu for Adjust Quantity, Start Inspection, Edit Asset, and Archive.
 - Date displays use relative business wording such as Today, Yesterday, 2d ago, and 1 week ago, with exact date available on hover.
+- Asset Profile hides the Maintenance tab entirely when the asset category has maintenance disabled.
+- Asset Profile shows maintenance scope as Enabled or Not required based on the asset category setting.
 
 Movement log fields:
 
@@ -1346,7 +1352,7 @@ MVP exclusions:
 - Warranty tracking
 - QR code
 - Barcode scan
-- Maintenance workflow
+- Maintenance scheduling automation for categories where maintenance is enabled
 - Supplier link
 - Asset photo upload
 - Transfer approval workflow

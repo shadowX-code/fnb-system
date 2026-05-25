@@ -252,7 +252,7 @@ function AssetFormModal({ asset, outlets, categories, onClose, onSubmit, saving 
 }
 
 function CategoryModal({ categories, assets = [], onClose, onSave, onArchive, saving, canWrite, canArchive }) {
-  const defaultCategoryDraft = { name: "", description: "", sort_order: categories.length + 1, is_active: true };
+  const defaultCategoryDraft = { name: "", description: "", sort_order: categories.length + 1, is_active: true, maintenance_enabled: false };
   const [selectedCategoryId, setSelectedCategoryId] = useState(categories[0]?.id || "new");
   const [activeTab, setActiveTab] = useState("overview");
   const [categoryDraft, setCategoryDraft] = useState(defaultCategoryDraft);
@@ -266,10 +266,10 @@ function CategoryModal({ categories, assets = [], onClose, onSave, onArchive, sa
     { id: "history", label: "History" },
   ];
   const presets = [
-    { name: "Kitchen Equipment", description: "Operational assets used by kitchen teams.", sort_order: categories.length + 1 },
-    { name: "Electronics", description: "POS, electrical, and connected equipment.", sort_order: categories.length + 1 },
-    { name: "Furniture", description: "Dining area furniture and fixtures.", sort_order: categories.length + 1 },
-    { name: "Generic", description: "General outlet assets.", sort_order: categories.length + 1 },
+    { name: "Kitchen Equipment", description: "Maintainable kitchen equipment such as machines and electrical tools.", sort_order: categories.length + 1, maintenance_enabled: true },
+    { name: "Electronics", description: "POS, electrical, and connected equipment.", sort_order: categories.length + 1, maintenance_enabled: true },
+    { name: "Furniture", description: "Dining area furniture and fixtures.", sort_order: categories.length + 1, maintenance_enabled: false },
+    { name: "Generic", description: "General outlet assets.", sort_order: categories.length + 1, maintenance_enabled: false },
   ];
 
   useEffect(() => {
@@ -280,10 +280,11 @@ function CategoryModal({ categories, assets = [], onClose, onSave, onArchive, sa
         description: selectedCategory.description || "",
         sort_order: selectedCategory.sort_order ?? "",
         is_active: selectedCategory.is_active !== false,
+        maintenance_enabled: selectedCategory.maintenance_enabled === true,
       });
       return;
     }
-    setCategoryDraft({ name: "", description: "", sort_order: categories.length + 1, is_active: true });
+    setCategoryDraft(defaultCategoryDraft);
   }, [categories.length, selectedCategory]);
 
   function selectCategory(categoryId) {
@@ -328,7 +329,10 @@ function CategoryModal({ categories, assets = [], onClose, onSave, onArchive, sa
                     <span className="block truncate text-sm font-black text-text-primary">{category.name}</span>
                     <span className="block text-xs font-semibold text-text-secondary">{assetCount} linked assets</span>
                   </span>
-                  <Badge tone={category.is_active ? "success" : "neutral"}>{category.is_active ? "Active" : "Archived"}</Badge>
+                  <span className="flex shrink-0 flex-col items-end gap-1">
+                    <Badge tone={category.is_active ? "success" : "neutral"}>{category.is_active ? "Active" : "Archived"}</Badge>
+                    {category.maintenance_enabled ? <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-700">Maintenance</span> : null}
+                  </span>
                 </button>
               );
             })}
@@ -344,7 +348,7 @@ function CategoryModal({ categories, assets = [], onClose, onSave, onArchive, sa
                   <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-xs font-black text-primary">{categoryIcon(categoryDraft.name || selectedCategory?.name)}</span>
                   <div>
                     <h3 className="text-lg font-black text-text-primary">{selectedCategory ? selectedCategory.name : "New Category"}</h3>
-                    <p className="text-sm text-text-secondary">{selectedCategory?.description || "Configure category details and inspection conditions."}</p>
+                    <p className="text-sm text-text-secondary">{selectedCategory?.description || "Configure category details and maintenance scope."}</p>
                   </div>
                 </div>
               </div>
@@ -389,6 +393,9 @@ function CategoryModal({ categories, assets = [], onClose, onSave, onArchive, sa
                           <button key={preset.name} className="rounded-2xl border border-border bg-white p-3 text-left transition hover:border-primary/30 hover:bg-primary/5" type="button" onClick={() => setCategoryDraft((current) => ({ ...current, ...preset, is_active: true }))}>
                             <span className="block text-sm font-black text-text-primary">{preset.name}</span>
                             <span className="mt-1 block text-xs text-text-secondary">{preset.description}</span>
+                            <span className={`mt-2 inline-flex rounded-full px-2 py-1 text-[10px] font-black ${preset.maintenance_enabled ? "bg-blue-50 text-blue-700" : "bg-slate-100 text-slate-600"}`}>
+                              {preset.maintenance_enabled ? "Maintenance enabled" : "No maintenance workflow"}
+                            </span>
                           </button>
                         ))}
                       </div>
@@ -410,6 +417,15 @@ function CategoryModal({ categories, assets = [], onClose, onSave, onArchive, sa
                         Active category
                       </label>
                     </FieldLabel>
+                    <FieldLabel label="Maintenance Workflow">
+                      <label className="flex min-h-20 items-start gap-3 rounded-xl border border-border bg-white px-3 py-3 text-sm text-text-secondary">
+                        <input className="mt-1" type="checkbox" checked={categoryDraft.maintenance_enabled === true} onChange={(event) => setCategoryDraft((current) => ({ ...current, maintenance_enabled: event.target.checked }))} disabled={!canWrite} />
+                        <span>
+                          <span className="block font-black text-text-primary">Maintenance Enabled</span>
+                          <span className="mt-1 block text-xs font-semibold">Use for machines, electrical equipment, POS hardware, aircond, refrigerators, or assets that need repair logs and service scheduling.</span>
+                        </span>
+                      </label>
+                    </FieldLabel>
                   </div>
                   <div className="mt-4 flex flex-wrap items-center gap-2">
                     <button className="btn-primary" type="button" disabled={!canWrite || saving || !categoryDraft.name.trim()} onClick={saveCategoryDraft}>
@@ -422,8 +438,11 @@ function CategoryModal({ categories, assets = [], onClose, onSave, onArchive, sa
                 <div className="space-y-3">
                   <div className="rounded-3xl border border-border bg-white p-4 shadow-sm">
                     <div className="text-xs font-black uppercase tracking-wide text-text-muted">Category Purpose</div>
-                    <div className="mt-2 text-sm font-black text-text-primary">Classification only</div>
-                    <p className="mt-2 text-xs text-text-secondary">Asset condition is maintained on each asset and updated during inspections.</p>
+                    <div className="mt-2 text-sm font-black text-text-primary">Classification and workflow scope</div>
+                    <p className="mt-2 text-xs text-text-secondary">Simple categories support quantity, inspection, condition, and movement logs. Enable maintenance only for assets that need repair history, vendor tracking, or service scheduling.</p>
+                    <div className="mt-3">
+                      <Badge tone={categoryDraft.maintenance_enabled ? "info" : "neutral"}>{categoryDraft.maintenance_enabled ? "Maintenance workflows enabled" : "Maintenance workflows hidden"}</Badge>
+                    </div>
                   </div>
                   <div className="rounded-3xl border border-amber-100 bg-amber-50 p-4">
                     <div className="text-sm font-black text-amber-800">Safety Rule</div>
@@ -819,6 +838,8 @@ function AssetDetailDrawer({ asset, outlet, movements, inspections, onClose, onR
   const [tab, setTab] = useState("overview");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewZoom, setPreviewZoom] = useState(false);
+  const maintenanceEnabled = asset.maintenance_enabled === true;
+  const detailTabs = ["overview", "movement", "inspection", ...(maintenanceEnabled ? ["maintenance"] : [])];
   const latestInspection = inspections.find((inspection) => !isDraftInspection(inspection));
   const latestInspectionItem = latestInspection?.items?.find((item) => item.asset_id === asset.id);
   const latestDifference = Number(latestInspectionItem?.difference || 0);
@@ -833,7 +854,9 @@ function AssetDetailDrawer({ asset, outlet, movements, inspections, onClose, onR
         : { text: "Stock level stable", className: "text-emerald-700 bg-emerald-50 border-emerald-100" };
   const operationalSummary = [
     latestDifference !== 0 ? "Last inspection detected quantity mismatch." : "Latest inspection quantity is aligned.",
-    movements.length ? "Recent quantity movement has been recorded." : "No maintenance activity recorded recently.",
+    maintenanceEnabled
+      ? movements.length ? "Recent quantity movement has been recorded." : "No maintenance activity recorded recently."
+      : "Maintenance workflow is not required for this asset category.",
     asset.condition === "healthy" ? "Asset condition stable for recent operations." : assetConditionInsight(asset.condition),
   ];
   const recentActivity = [
@@ -856,6 +879,11 @@ function AssetDetailDrawer({ asset, outlet, movements, inspections, onClose, onR
       detail: "Image available in asset profile",
     } : null,
   ].filter(Boolean).sort((first, second) => new Date(second.date || 0) - new Date(first.date || 0)).slice(0, 5);
+
+  useEffect(() => {
+    if (!maintenanceEnabled && tab === "maintenance") setTab("overview");
+  }, [maintenanceEnabled, tab]);
+
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30 backdrop-blur-[2px]" role="dialog" aria-modal="true">
       <button className="flex-1 cursor-default" type="button" aria-label="Close asset detail" onClick={onClose} />
@@ -882,7 +910,7 @@ function AssetDetailDrawer({ asset, outlet, movements, inspections, onClose, onR
             </div>
           </div>
           <div className="mt-4 flex gap-2">
-            {["overview", "movement", "inspection", "maintenance"].map((item) => <button key={item} className={`rounded-full px-3 py-1.5 text-xs font-bold ${tab === item ? "bg-primary text-white" : "bg-background text-text-secondary"}`} type="button" onClick={() => setTab(item)}>{item === "movement" ? "Movement Log" : item === "inspection" ? "Inspection History" : item === "maintenance" ? "Maintenance History" : "Overview"}</button>)}
+            {detailTabs.map((item) => <button key={item} className={`rounded-full px-3 py-1.5 text-xs font-bold ${tab === item ? "bg-primary text-white" : "bg-background text-text-secondary"}`} type="button" onClick={() => setTab(item)}>{item === "movement" ? "Movement Log" : item === "inspection" ? "Inspection History" : item === "maintenance" ? "Maintenance History" : "Overview"}</button>)}
           </div>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto p-5">
@@ -906,7 +934,7 @@ function AssetDetailDrawer({ asset, outlet, movements, inspections, onClose, onR
                 </div>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
-                {[["Last Inspected", formatRelativeDate(latestInspection?.inspection_date || asset.last_inspection_at)], ["Last Movement", formatRelativeDate(movements[0]?.movement_date)], ["Minimum Quantity", `${asset.minimum_quantity} ${asset.unit}`], ["Outlet Asset Type", asset.outlet_id ? "Outlet-specific" : "—"]].map(([label, value]) => (
+                {[["Last Inspected", formatRelativeDate(latestInspection?.inspection_date || asset.last_inspection_at)], ["Last Movement", formatRelativeDate(movements[0]?.movement_date)], ["Minimum Quantity", `${asset.minimum_quantity} ${asset.unit}`], ["Maintenance Scope", maintenanceEnabled ? "Enabled for this category" : "Not required"]].map(([label, value]) => (
                   <div key={label} className="rounded-2xl border border-border bg-background p-4"><div className="text-xs font-black uppercase tracking-wide text-text-muted">{label}</div><div className="mt-1 text-sm font-bold text-text-primary">{value}</div></div>
                 ))}
               </div>

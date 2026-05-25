@@ -2,9 +2,10 @@ import { supabase } from "../lib/supabase";
 import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
 
-const categoryFields = "id,name,description,sort_order,is_active,created_at,updated_at";
+const categoryBaseFields = "id,name,description,sort_order,is_active,created_at,updated_at";
+const categoryFields = "id,name,description,sort_order,is_active,maintenance_enabled,created_at,updated_at";
 const assetBaseFields = "id,outlet_id,category_id,name,description,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name)";
-const assetFields = "id,outlet_id,category_id,name,description,image_url,thumbnail_url,health_status,last_inspection_at,condition,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name)";
+const assetFields = "id,outlet_id,category_id,name,description,image_url,thumbnail_url,health_status,last_inspection_at,condition,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name,maintenance_enabled)";
 const movementFields = "id,asset_id,outlet_id,movement_type,quantity_change,quantity_before,quantity_after,reason,remark,movement_date,created_by,created_at";
 const inspectionFields = "id,outlet_id,inspection_date,checked_by,category_scope,status,summary,notes,remark,created_by,current_step,completion_percentage,last_edited_at,last_edited_by,draft_data,auto_saved,created_at,updated_at";
 const inspectionItemFields = "id,inspection_id,asset_id,expected_quantity,counted_quantity,expected_qty,counted_qty,difference,condition,condition_status,condition_template_id,evidence_required,evidence_status,remark,created_at,asset:asset_items(id,name,category:asset_categories(id,name))";
@@ -83,6 +84,7 @@ function mapCategory(row) {
     description: row.description ?? "",
     sort_order: Number(row.sort_order ?? 0),
     is_active: row.is_active !== false,
+    maintenance_enabled: row.maintenance_enabled === true,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -94,6 +96,7 @@ function mapAsset(row) {
     outlet_id: row.outlet_id,
     category_id: row.category_id,
     category_name: row.category?.name ?? "",
+    maintenance_enabled: row.category?.maintenance_enabled === true,
     name: row.name,
     description: row.description ?? "",
     image_url: row.image_url ?? "",
@@ -115,12 +118,19 @@ function isMissingOptionalAssetField(error) {
   const message = String(error?.message || error?.details || "");
   return error?.code === "42703" ||
     error?.code === "PGRST204" ||
-    /asset_items\.(image_url|thumbnail_url|health_status|last_inspection_at|condition)|'(image_url|thumbnail_url|health_status|last_inspection_at|condition)' column|column .* does not exist/i.test(message);
+    /asset_items\.(image_url|thumbnail_url|health_status|last_inspection_at|condition)|asset_categories\.maintenance_enabled|'(image_url|thumbnail_url|health_status|last_inspection_at|condition|maintenance_enabled)' column|column .* does not exist|relationship .*maintenance_enabled/i.test(message);
 }
 
 function withoutOptionalAssetFields(payload) {
   const { image_url, thumbnail_url, health_status, last_inspection_at, condition, ...rest } = payload;
   return rest;
+}
+
+function isMissingCategoryMaintenanceField(error) {
+  const message = String(error?.message || error?.details || "");
+  return error?.code === "42703" ||
+    error?.code === "PGRST204" ||
+    /asset_categories\.maintenance_enabled|'maintenance_enabled' column|column .*maintenance_enabled.* does not exist/i.test(message);
 }
 
 function mapMovement(row) {
@@ -217,6 +227,18 @@ export const assetTrackingService = {
       .order("name", { ascending: true });
     if (!includeInactive) query = query.eq("is_active", true);
     const { data, error } = await query;
+    if (error && isMissingCategoryMaintenanceField(error)) {
+      console.warn("Asset category maintenance flag is not available yet. Loading categories without maintenance workflow metadata.", error);
+      let fallbackQuery = supabase
+        .from("asset_categories")
+        .select(categoryBaseFields)
+        .order("sort_order", { ascending: true })
+        .order("name", { ascending: true });
+      if (!includeInactive) fallbackQuery = fallbackQuery.eq("is_active", true);
+      const { data: fallbackData, error: fallbackError } = await fallbackQuery;
+      throwSupabaseError("asset_categories.list", fallbackError);
+      return (fallbackData ?? []).map(mapCategory);
+    }
     throwSupabaseError("asset_categories.list", error);
     return (data ?? []).map(mapCategory);
   },
@@ -227,12 +249,22 @@ export const assetTrackingService = {
       description: category.description ?? "",
       sort_order: Number(category.sort_order ?? 0),
       is_active: category.is_active !== false,
+      maintenance_enabled: category.maintenance_enabled === true,
       updated_at: new Date().toISOString(),
     };
     const query = category.id
       ? supabase.from("asset_categories").update(payload).eq("id", category.id)
       : supabase.from("asset_categories").insert(payload);
-    const { data, error } = await query.select(categoryFields).single();
+    let { data, error } = await query.select(categoryFields).single();
+    if (error && isMissingCategoryMaintenanceField(error)) {
+      const { maintenance_enabled, ...fallbackPayload } = payload;
+      const fallbackQuery = category.id
+        ? supabase.from("asset_categories").update(fallbackPayload).eq("id", category.id)
+        : supabase.from("asset_categories").insert(fallbackPayload);
+      const fallbackResult = await fallbackQuery.select(categoryBaseFields).single();
+      data = fallbackResult.data;
+      error = fallbackResult.error;
+    }
     throwSupabaseError("asset_categories.save", error);
     await logAssetAudit(category.id ? "asset_category_edited" : "asset_category_created", "-", data.name, data);
     return mapCategory(data);
@@ -244,12 +276,22 @@ export const assetTrackingService = {
       .select("id", { count: "exact", head: true })
       .eq("category_id", category.id);
     throwSupabaseError("asset_categories.archive_count", countError);
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("asset_categories")
       .update({ is_active: false, updated_at: new Date().toISOString() })
       .eq("id", category.id)
       .select(categoryFields)
       .single();
+    if (error && isMissingCategoryMaintenanceField(error)) {
+      const fallbackResult = await supabase
+        .from("asset_categories")
+        .update({ is_active: false, updated_at: new Date().toISOString() })
+        .eq("id", category.id)
+        .select(categoryBaseFields)
+        .single();
+      data = fallbackResult.data;
+      error = fallbackResult.error;
+    }
     throwSupabaseError("asset_categories.archive", error);
     await logAssetAudit("asset_category_deactivated", "-", data.name, { linked_assets: count ?? 0 });
     return mapCategory(data);
