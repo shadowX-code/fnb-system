@@ -9,7 +9,7 @@ import Modal from "../../../components/feedback/Modal.jsx";
 import { assetTrackingService } from "../../../services/assetTrackingService.js";
 import { canCreate, canDelete, canEdit, canExport, canManage, notifyPermissionDenied } from "../../../utils/accessControl.js";
 
-const assetStatuses = ["active", "healthy", "needs_review", "damaged", "missing", "under_maintenance", "low_quantity", "disposed", "inactive"];
+const assetConditions = ["healthy", "needs_review", "damaged", "missing", "under_maintenance", "low_quantity", "disposed", "inactive"];
 const reduceReasons = ["broken", "missing", "disposed", "stolen", "transferred", "correction", "other"];
 
 function titleCase(value) {
@@ -39,17 +39,18 @@ function formatRelativeDate(value) {
   return formatFullDate(value);
 }
 
-function statusTone(status) {
-  if (status === "active" || status === "healthy") return "success";
-  if (status === "needs_review" || status === "under_maintenance" || status === "low_quantity" || status === "damaged") return "warning";
-  if (status === "missing" || status === "disposed") return "danger";
+function assetConditionTone(condition) {
+  if (condition === "healthy") return "success";
+  if (condition === "needs_review" || condition === "under_maintenance" || condition === "low_quantity") return "warning";
+  if (condition === "damaged" || condition === "missing") return "danger";
   return "neutral";
 }
 
-function assetStatusLabel(status) {
-  if (status === "active") return "Healthy";
-  if (status === "under_maintenance") return "Under Maintenance";
-  return titleCase(status);
+function assetConditionLabel(condition) {
+  if (condition === "under_maintenance") return "Under Maintenance";
+  if (condition === "needs_review") return "Needs Review";
+  if (condition === "low_quantity") return "Low Quantity";
+  return titleCase(condition || "healthy");
 }
 
 function getQuantityHealth(asset) {
@@ -120,6 +121,7 @@ function emptyAsset() {
     current_quantity: 0,
     minimum_quantity: 0,
     status: "active",
+    condition: "healthy",
     image_url: "",
     remark: "",
   };
@@ -190,8 +192,8 @@ function AssetFormModal({ asset, outlets, categories, onClose, onSubmit, saving 
         <FieldLabel label="Category">
           <SelectField value={values.category_id} options={categories.filter((category) => category.is_active).map((category) => ({ value: category.id, label: category.name }))} onChange={(value) => update("category_id", value)} searchable />
         </FieldLabel>
-        <FieldLabel label="Status">
-          <SelectField value={values.status} options={assetStatuses.map((status) => ({ value: status, label: assetStatusLabel(status) }))} onChange={(value) => update("status", value)} />
+        <FieldLabel label="Condition">
+          <SelectField value={values.condition || "healthy"} options={assetConditions.map((condition) => ({ value: condition, label: assetConditionLabel(condition) }))} onChange={(value) => update("condition", value)} />
         </FieldLabel>
         <FieldLabel label="Current Quantity">
           <input className="control" type="number" min="0" value={values.current_quantity} onChange={(event) => update("current_quantity", event.target.value)} disabled={isEdit} />
@@ -215,44 +217,20 @@ function AssetFormModal({ asset, outlets, categories, onClose, onSubmit, saving 
   );
 }
 
-function CategoryModal({ categories, conditionTemplates, assets = [], onClose, onSave, onArchive, onSaveCondition, saving, canWrite, canArchive }) {
+function CategoryModal({ categories, assets = [], onClose, onSave, onArchive, saving, canWrite, canArchive }) {
   const defaultCategoryDraft = { name: "", description: "", sort_order: categories.length + 1, is_active: true };
   const [selectedCategoryId, setSelectedCategoryId] = useState(categories[0]?.id || "new");
   const [activeTab, setActiveTab] = useState("overview");
   const [categoryDraft, setCategoryDraft] = useState(defaultCategoryDraft);
-  const [conditionDraft, setConditionDraft] = useState(null);
-  const [conditionSearch, setConditionSearch] = useState("");
-  const [severityFilter, setSeverityFilter] = useState("all");
-  const [copyFromId, setCopyFromId] = useState("");
   const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
-  const selectedConditions = useMemo(() => conditionTemplates
-    .filter((condition) => condition.category_id === selectedCategory?.id)
-    .filter((condition) => condition.name.toLowerCase().includes(conditionSearch.trim().toLowerCase()))
-    .filter((condition) => severityFilter === "all" || condition.severity === severityFilter)
-    .sort((first, second) => Number(first.sort_order || 0) - Number(second.sort_order || 0)), [conditionSearch, conditionTemplates, selectedCategory?.id, severityFilter]);
-  const conditionCountByCategory = useMemo(() => conditionTemplates.reduce((map, condition) => {
-    map.set(condition.category_id, (map.get(condition.category_id) || 0) + 1);
-    return map;
-  }, new Map()), [conditionTemplates]);
   const assetCountByCategory = useMemo(() => assets.reduce((map, asset) => {
     map.set(asset.category_id, (map.get(asset.category_id) || 0) + 1);
     return map;
   }, new Map()), [assets]);
-  const sourceConditions = conditionTemplates.filter((condition) => condition.category_id === copyFromId);
   const tabs = [
     { id: "overview", label: "Overview" },
-    { id: "conditions", label: "Conditions" },
-    { id: "rules", label: "Inspection Rules" },
-    { id: "automation", label: "Automation" },
     { id: "history", label: "History" },
   ];
-  const severityStyles = {
-    healthy: "border-emerald-100 bg-emerald-50 text-emerald-700",
-    low: "border-blue-100 bg-blue-50 text-blue-700",
-    medium: "border-amber-100 bg-amber-50 text-amber-700",
-    high: "border-orange-100 bg-orange-50 text-orange-700",
-    critical: "border-rose-100 bg-rose-50 text-rose-700",
-  };
   const presets = [
     { name: "Kitchen Equipment", description: "Operational assets used by kitchen teams.", sort_order: categories.length + 1 },
     { name: "Electronics", description: "POS, electrical, and connected equipment.", sort_order: categories.length + 1 },
@@ -277,24 +255,6 @@ function CategoryModal({ categories, conditionTemplates, assets = [], onClose, o
   function selectCategory(categoryId) {
     setSelectedCategoryId(categoryId);
     setActiveTab("overview");
-    setConditionDraft(null);
-  }
-
-  function startConditionEdit(condition = null) {
-    if (!selectedCategory) return;
-    setActiveTab("conditions");
-    setConditionDraft(condition || {
-      category_id: selectedCategory.id,
-      name: "",
-      severity: "healthy",
-      color: "emerald",
-      requires_photo: false,
-      requires_remark: false,
-      affects_health: true,
-      triggers_alert: false,
-      active: true,
-      sort_order: selectedConditions.length + 1,
-    });
   }
 
   async function saveCategoryDraft() {
@@ -303,33 +263,8 @@ function CategoryModal({ categories, conditionTemplates, assets = [], onClose, o
     if (!categoryDraft.id) setSelectedCategoryId("new");
   }
 
-  async function saveConditionDraft() {
-    if (!conditionDraft?.name?.trim()) return;
-    await onSaveCondition(conditionDraft);
-    setConditionDraft(null);
-  }
-
-  async function copyConditions() {
-    if (!selectedCategory || !sourceConditions.length) return;
-    for (const condition of sourceConditions) {
-      await onSaveCondition({
-        category_id: selectedCategory.id,
-        name: condition.name,
-        severity: condition.severity,
-        color: condition.color,
-        requires_photo: Boolean(condition.requires_photo),
-        requires_remark: Boolean(condition.requires_remark),
-        affects_health: Boolean(condition.affects_health),
-        triggers_alert: Boolean(condition.triggers_alert),
-        active: condition.active !== false,
-        sort_order: selectedConditions.length + sourceConditions.indexOf(condition) + 1,
-      });
-    }
-    setCopyFromId("");
-  }
-
   return (
-    <Modal title="Asset Category Configuration" description="Manage asset categories, inspection conditions, and operational rules." onClose={onClose} size="2xl" bodyClassName="p-0">
+    <Modal title="Asset Category Configuration" description="Manage asset categories used to classify outlet assets." onClose={onClose} size="xl" bodyClassName="p-0">
       <div className="grid min-h-[620px] overflow-hidden lg:grid-cols-[280px_1fr]">
         <aside className="border-b border-border bg-slate-50/80 p-4 lg:border-b-0 lg:border-r">
           <div className="mb-4 flex items-center justify-between gap-3">
@@ -357,7 +292,7 @@ function CategoryModal({ categories, conditionTemplates, assets = [], onClose, o
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[11px] font-black text-primary shadow-sm">{categoryIcon(category.name)}</span>
                   <span className="min-w-0 flex-1">
                     <span className="block truncate text-sm font-black text-text-primary">{category.name}</span>
-                    <span className="block text-xs font-semibold text-text-secondary">{assetCount} assets · {conditionCountByCategory.get(category.id) || 0} conditions</span>
+                    <span className="block text-xs font-semibold text-text-secondary">{assetCount} linked assets</span>
                   </span>
                   <Badge tone={category.is_active ? "success" : "neutral"}>{category.is_active ? "Active" : "Archived"}</Badge>
                 </button>
@@ -410,7 +345,7 @@ function CategoryModal({ categories, conditionTemplates, assets = [], onClose, o
                       <div className="text-sm font-black text-text-primary">Category Overview</div>
                       <div className="text-xs text-text-secondary">Keep the category lightweight and operationally clear.</div>
                     </div>
-                    {selectedCategory ? <Badge tone="info">{conditionCountByCategory.get(selectedCategory.id) || 0} conditions</Badge> : null}
+                    {selectedCategory ? <Badge tone="info">{assetCountByCategory.get(selectedCategory.id) || 0} linked assets</Badge> : null}
                   </div>
                   {!selectedCategory ? (
                     <div className="mb-4 rounded-2xl border border-border bg-white p-3">
@@ -452,176 +387,15 @@ function CategoryModal({ categories, conditionTemplates, assets = [], onClose, o
 
                 <div className="space-y-3">
                   <div className="rounded-3xl border border-border bg-white p-4 shadow-sm">
-                    <div className="text-xs font-black uppercase tracking-wide text-text-muted">Operational Preview</div>
-                    <div className="mt-3 space-y-2">
-                      {(selectedConditions.length ? selectedConditions : [{ id: "empty", name: "Good" }, { id: "empty-2", name: "Damaged" }, { id: "empty-3", name: "Missing" }]).slice(0, 4).map((condition) => (
-                        <div key={condition.id} className="flex items-center gap-2 rounded-2xl bg-slate-50 px-3 py-2">
-                          <span className="h-2.5 w-2.5 rounded-full bg-primary" />
-                          <span className="text-sm font-bold text-text-primary">{condition.name}</span>
-                        </div>
-                      ))}
-                    </div>
-                    <p className="mt-3 text-xs text-text-secondary">{selectedCategory ? `${selectedCategory.name} inspections may use these conditions.` : "Preset conditions can be customized after the category is created."}</p>
+                    <div className="text-xs font-black uppercase tracking-wide text-text-muted">Category Purpose</div>
+                    <div className="mt-2 text-sm font-black text-text-primary">Classification only</div>
+                    <p className="mt-2 text-xs text-text-secondary">Asset condition is maintained on each asset and updated during inspections.</p>
                   </div>
                   <div className="rounded-3xl border border-amber-100 bg-amber-50 p-4">
                     <div className="text-sm font-black text-amber-800">Safety Rule</div>
                     <p className="mt-1 text-xs font-semibold text-amber-700">{selectedCategory ? `This category is linked to ${assetCountByCategory.get(selectedCategory.id) || 0} assets. Linked categories should be archived instead of deleted.` : "New categories become available in asset forms after saving."}</p>
                   </div>
                 </div>
-              </div>
-            ) : null}
-
-            {activeTab === "conditions" && selectedCategory ? (
-              <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
-                <div className="space-y-3">
-                  <div className="rounded-3xl border border-border bg-slate-50/70 p-4">
-                    <div className="flex flex-wrap items-end gap-3">
-                      <FieldLabel label="Search Conditions">
-                        <div className="relative">
-                          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
-                          <input className="control pl-9" value={conditionSearch} onChange={(event) => setConditionSearch(event.target.value)} placeholder="Search condition" />
-                        </div>
-                      </FieldLabel>
-                      <FieldLabel label="Severity">
-                        <SelectField value={severityFilter} options={[{ value: "all", label: "All Severity" }, ...["healthy", "low", "medium", "high", "critical"].map((severity) => ({ value: severity, label: titleCase(severity) }))]} onChange={setSeverityFilter} />
-                      </FieldLabel>
-                      {canWrite ? <button className="btn-primary h-10" type="button" onClick={() => startConditionEdit()}><Plus size={15} /> Add Condition</button> : null}
-                    </div>
-                  </div>
-
-                  <div className="rounded-3xl border border-border bg-white p-4">
-                    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <div className="text-sm font-black text-text-primary">Condition Library</div>
-                        <div className="text-xs text-text-secondary">Reusable audit conditions for {selectedCategory.name} inspections.</div>
-                      </div>
-                      <Badge tone="info">{selectedConditions.length} shown</Badge>
-                    </div>
-                    <div className="space-y-2">
-                      {selectedConditions.map((condition) => (
-                        <div key={condition.id} className="rounded-2xl border border-border bg-slate-50/70 p-3 transition hover:border-primary/20 hover:bg-primary/5">
-                          <div className="flex flex-wrap items-start justify-between gap-3">
-                            <div className="flex min-w-0 gap-3">
-                              <span className={`mt-1 h-3 w-3 shrink-0 rounded-full ${condition.severity === "critical" ? "bg-rose-500" : condition.severity === "high" ? "bg-orange-500" : condition.severity === "medium" ? "bg-amber-500" : condition.severity === "low" ? "bg-blue-500" : "bg-emerald-500"}`} />
-                              <div className="min-w-0">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <span className="font-black text-text-primary">{condition.name}</span>
-                                  <span className={`rounded-full border px-2 py-0.5 text-[11px] font-black ${severityStyles[condition.severity] || severityStyles.healthy}`}>{titleCase(condition.severity)}</span>
-                                  <Badge tone={condition.active === false ? "neutral" : "success"}>{condition.active === false ? "Inactive" : "Active"}</Badge>
-                                </div>
-                                <div className="mt-2 flex flex-wrap gap-1.5">
-                                  {condition.requires_photo ? <span className="rounded-full bg-white px-2 py-1 text-[11px] font-bold text-text-secondary">Photo required</span> : null}
-                                  {condition.requires_remark ? <span className="rounded-full bg-white px-2 py-1 text-[11px] font-bold text-text-secondary">Remark required</span> : null}
-                                  {condition.affects_health ? <span className="rounded-full bg-white px-2 py-1 text-[11px] font-bold text-text-secondary">Affects health</span> : null}
-                                  {condition.triggers_alert ? <span className="rounded-full bg-white px-2 py-1 text-[11px] font-bold text-text-secondary">Triggers alert</span> : null}
-                                </div>
-                              </div>
-                            </div>
-                            {canWrite ? <button className="btn-secondary h-8 text-xs" type="button" onClick={() => startConditionEdit(condition)}>Edit</button> : null}
-                          </div>
-                        </div>
-                      ))}
-                      {!selectedConditions.length ? (
-                        <div className="rounded-3xl border border-dashed border-border bg-slate-50 p-8 text-center">
-                          <div className="text-sm font-black text-text-primary">No inspection conditions configured yet.</div>
-                          <p className="mt-1 text-sm text-text-secondary">Add the first condition or copy conditions from a similar category.</p>
-                          {canWrite ? <button className="btn-primary mt-4" type="button" onClick={() => startConditionEdit()}><Plus size={15} /> Add First Condition</button> : null}
-                        </div>
-                      ) : null}
-                    </div>
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="rounded-3xl border border-border bg-white p-4 shadow-sm">
-                    <div className="text-sm font-black text-text-primary">Copy Conditions</div>
-                    <p className="mt-1 text-xs text-text-secondary">Reuse a condition set from another category.</p>
-                    <div className="mt-3 space-y-2">
-                      <SelectField value={copyFromId} placeholder="Choose category" options={categories.filter((category) => category.id !== selectedCategory.id).map((category) => ({ value: category.id, label: category.name }))} onChange={setCopyFromId} searchable />
-                      <button className="btn-secondary w-full" type="button" disabled={!canWrite || saving || !copyFromId || !sourceConditions.length} onClick={copyConditions}>
-                        Copy {sourceConditions.length || ""} Conditions
-                      </button>
-                    </div>
-                  </div>
-
-                  {conditionDraft ? (
-                    <div className="rounded-3xl border border-primary/20 bg-primary/5 p-4">
-                      <div className="mb-3">
-                        <div className="text-sm font-black text-text-primary">{conditionDraft.id ? "Edit Condition" : "Add Condition"}</div>
-                        <div className="text-xs text-text-secondary">Set evidence rules and operational impact.</div>
-                      </div>
-                      <div className="space-y-3">
-                        <FieldLabel label="Condition Name">
-                          <input className="control" value={conditionDraft.name} onChange={(event) => setConditionDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Cracked" />
-                        </FieldLabel>
-                        <FieldLabel label="Severity">
-                          <SelectField value={conditionDraft.severity} options={["healthy", "low", "medium", "high", "critical"].map((severity) => ({ value: severity, label: titleCase(severity) }))} onChange={(value) => setConditionDraft((current) => ({ ...current, severity: value }))} />
-                        </FieldLabel>
-                        <FieldLabel label="Color">
-                          <input className="control" value={conditionDraft.color || ""} onChange={(event) => setConditionDraft((current) => ({ ...current, color: event.target.value }))} placeholder="emerald / amber / rose" />
-                        </FieldLabel>
-                        <FieldLabel label="Sort Order">
-                          <input className="control" type="number" value={conditionDraft.sort_order || ""} onChange={(event) => setConditionDraft((current) => ({ ...current, sort_order: event.target.value }))} />
-                        </FieldLabel>
-                        <div className="grid gap-2">
-                          {[
-                            ["requires_photo", "Require photo"],
-                            ["requires_remark", "Require remark"],
-                            ["affects_health", "Affect asset health"],
-                            ["triggers_alert", "Trigger alert"],
-                            ["active", "Active condition"],
-                          ].map(([key, label]) => (
-                            <label key={key} className="flex items-center justify-between rounded-2xl border border-border bg-white px-3 py-2 text-sm font-bold text-text-secondary">
-                              {label}
-                              <input type="checkbox" checked={conditionDraft[key] !== false} onChange={(event) => setConditionDraft((current) => ({ ...current, [key]: event.target.checked }))} />
-                            </label>
-                          ))}
-                        </div>
-                        <div className="flex gap-2">
-                          <button className="btn-primary flex-1" type="button" disabled={!canWrite || saving || !conditionDraft.name.trim()} onClick={saveConditionDraft}>Save Condition</button>
-                          <button className="btn-secondary" type="button" onClick={() => setConditionDraft(null)}>Cancel</button>
-                        </div>
-                      </div>
-                    </div>
-                  ) : (
-                    <div className="rounded-3xl border border-border bg-slate-50 p-4">
-                      <div className="text-sm font-black text-text-primary">Condition Preview</div>
-                      <p className="mt-1 text-xs text-text-secondary">Select a condition to edit its severity, evidence rules, and health impact.</p>
-                    </div>
-                  )}
-                </div>
-              </div>
-            ) : null}
-
-            {activeTab === "rules" && selectedCategory ? (
-              <div className="grid gap-3 md:grid-cols-2">
-                {[
-                  ["Missing asset", "Require photo and remark before inspection can be submitted."],
-                  ["Medium or higher severity", "Flag evidence as required and place item in the review queue."],
-                  ["Quantity difference", "Create a correction movement after final confirmation."],
-                  ["Large difference", "Future rule: request manager review when difference exceeds threshold."],
-                ].map(([title, body]) => (
-                  <div key={title} className="rounded-3xl border border-border bg-slate-50 p-4">
-                    <div className="text-sm font-black text-text-primary">{title}</div>
-                    <p className="mt-1 text-sm text-text-secondary">{body}</p>
-                  </div>
-                ))}
-              </div>
-            ) : null}
-
-            {activeTab === "automation" && selectedCategory ? (
-              <div className="grid gap-3 md:grid-cols-2">
-                {[
-                  ["Maintenance review", "Future automation can create a maintenance task for damaged conditions."],
-                  ["Operations alert", "Critical inspection results can notify the operations manager."],
-                  ["Health score", "Condition severity contributes to asset health scoring."],
-                  ["Compliance flag", "Repeated issues can be tracked for audit follow-up."],
-                ].map(([title, body]) => (
-                  <div key={title} className="rounded-3xl border border-border bg-white p-4 shadow-sm">
-                    <div className="text-sm font-black text-text-primary">{title}</div>
-                    <p className="mt-1 text-sm text-text-secondary">{body}</p>
-                  </div>
-                ))}
               </div>
             ) : null}
 
@@ -642,8 +416,8 @@ function CategoryModal({ categories, conditionTemplates, assets = [], onClose, o
                     <div className="mt-1 text-sm font-bold text-text-primary">{assetCountByCategory.get(selectedCategory.id) || 0}</div>
                   </div>
                   <div className="rounded-2xl bg-slate-50 p-3">
-                    <div className="text-xs font-black uppercase tracking-wide text-text-muted">Conditions</div>
-                    <div className="mt-1 text-sm font-bold text-text-primary">{conditionCountByCategory.get(selectedCategory.id) || 0}</div>
+                    <div className="text-xs font-black uppercase tracking-wide text-text-muted">Status</div>
+                    <div className="mt-1 text-sm font-bold text-text-primary">{selectedCategory.is_active ? "Active" : "Archived"}</div>
                   </div>
                 </div>
               </div>
@@ -696,17 +470,9 @@ function AdjustQuantityModal({ asset, onClose, onSubmit, saving }) {
   );
 }
 
-function conditionTone(condition) {
-  const severity = condition?.severity || "healthy";
-  if (severity === "critical") return "danger";
-  if (severity === "high" || severity === "medium") return "warning";
-  if (severity === "low") return "info";
-  return "success";
-}
-
-function evidenceNeeded(row, condition) {
+function evidenceRecommended(row) {
   const diff = Number(row.counted_quantity || 0) - Number(row.asset.current_quantity || 0);
-  return diff !== 0 || ["medium", "high", "critical"].includes(condition?.severity) || condition?.requires_photo || condition?.requires_remark;
+  return diff !== 0 || (row.condition_status || "healthy") !== "healthy";
 }
 
 function DifferenceBadge({ diff }) {
@@ -723,7 +489,7 @@ function readEvidenceFiles(files, onDone) {
   });
 }
 
-function InspectionModal({ outletId, categories, assets, conditionTemplates, draftInspection, onClose, onSubmit, saving }) {
+function InspectionModal({ outletId, categories, assets, draftInspection, onClose, onSubmit, saving }) {
   const draftData = draftInspection?.draft_data || {};
   const [step, setStep] = useState(draftInspection?.current_step || draftData.currentStep || 1);
   const [inspectionType, setInspectionType] = useState(draftData.inspectionType || draftInspection?.summary?.inspection_type || "routine_audit");
@@ -743,32 +509,26 @@ function InspectionModal({ outletId, categories, assets, conditionTemplates, dra
       return ({
       asset,
       counted_quantity: draftRow?.counted_quantity ?? asset.current_quantity,
-      condition_template_id: conditionTemplates.find((condition) => condition.category_id === asset.category_id && condition.name.toLowerCase() === "good")?.id || "",
-      condition_status: draftRow?.condition_status || "good",
+      condition_status: draftRow?.condition_status || asset.condition || "healthy",
       evidence: draftRow?.evidence || [],
       remark: draftRow?.remark || "",
-      ...(draftRow?.condition_template_id ? { condition_template_id: draftRow.condition_template_id } : {}),
     });
     }));
-  }, [conditionTemplates, scopedAssets, draftInspection?.id]);
+  }, [scopedAssets, draftInspection?.id]);
 
   const enrichedRows = rows.map((row) => {
-    const condition = conditionTemplates.find((template) => template.id === row.condition_template_id) ||
-      conditionTemplates.find((template) => template.category_id === row.asset.category_id && template.name.toLowerCase() === row.condition_status) ||
-      { name: titleCase(row.condition_status || "Good"), severity: row.condition_status === "missing" ? "critical" : row.condition_status === "good" ? "healthy" : "medium" };
     const diff = Number(row.counted_quantity || 0) - Number(row.asset.current_quantity || 0);
-    const needsEvidence = evidenceNeeded(row, condition);
-    const evidenceComplete = !needsEvidence || ((row.evidence || []).length > 0 && (!condition.requires_remark || row.remark.trim()));
-    return { ...row, condition, diff, needsEvidence, evidenceComplete };
+    const needsEvidence = evidenceRecommended(row);
+    const evidenceComplete = !needsEvidence || ((row.evidence || []).length > 0 || row.remark.trim());
+    return { ...row, diff, needsEvidence, evidenceComplete };
   });
-  const varianceRows = enrichedRows.filter((row) => row.diff !== 0);
-  const missingRows = enrichedRows.filter((row) => row.diff < 0 || row.condition?.severity === "critical" || row.condition?.name?.toLowerCase() === "missing");
+  const missingRows = enrichedRows.filter((row) => row.diff < 0 || row.condition_status === "missing");
   const extraRows = enrichedRows.filter((row) => row.diff > 0);
-  const damagedRows = enrichedRows.filter((row) => ["medium", "high", "critical"].includes(row.condition?.severity) && row.condition?.name?.toLowerCase() !== "missing");
+  const damagedRows = enrichedRows.filter((row) => ["damaged", "under_maintenance", "needs_review"].includes(row.condition_status));
   const pendingEvidenceRows = enrichedRows.filter((row) => row.needsEvidence && !row.evidenceComplete);
-  const matchedRows = enrichedRows.filter((row) => row.diff === 0 && row.condition?.severity === "healthy");
-  const criticalRows = enrichedRows.filter((row) => row.condition?.severity === "critical" || row.diff < 0);
-  const issueRows = enrichedRows.filter((row) => row.diff !== 0 || row.condition?.severity !== "healthy" || !row.evidenceComplete);
+  const matchedRows = enrichedRows.filter((row) => row.diff === 0 && row.condition_status === "healthy");
+  const criticalRows = enrichedRows.filter((row) => row.condition_status === "missing" || row.diff < 0);
+  const issueRows = enrichedRows.filter((row) => row.diff !== 0 || row.condition_status !== "healthy" || !row.evidenceComplete);
   const checkedRows = enrichedRows.filter((row) => row.counted_quantity !== "" && row.counted_quantity !== null && row.counted_quantity !== undefined);
   const categoryScope = scopeType === "all"
     ? { type: "all", category_ids: [] }
@@ -790,15 +550,6 @@ function InspectionModal({ outletId, categories, assets, conditionTemplates, dra
     setRows((current) => current.map((row) => (row.asset.id === assetId ? { ...row, [key]: value } : row)));
   }
 
-  function selectCondition(assetId, conditionId) {
-    const condition = conditionTemplates.find((item) => item.id === conditionId);
-    setRows((current) => current.map((row) => (row.asset.id === assetId ? {
-      ...row,
-      condition_template_id: conditionId,
-      condition_status: condition?.name?.toLowerCase().replace(/\s+/g, "_") || "good",
-    } : row)));
-  }
-
   function addEvidence(assetId, evidence) {
     setRows((current) => current.map((row) => (row.asset.id === assetId ? { ...row, evidence: [...(row.evidence || []), evidence] } : row)));
   }
@@ -811,7 +562,6 @@ function InspectionModal({ outletId, categories, assets, conditionTemplates, dra
     const draftRows = enrichedRows.map((row) => ({
       asset_id: row.asset.id,
       counted_quantity: row.counted_quantity,
-      condition_template_id: row.condition_template_id,
       condition_status: row.condition_status,
       evidence: row.evidence || [],
       remark: row.remark || "",
@@ -859,7 +609,7 @@ function InspectionModal({ outletId, categories, assets, conditionTemplates, dra
           ) : step === 3 ? (
             <button className="btn-primary" type="button" disabled={saving || !rows.length} onClick={() => setStep(4)}>Proceed to Submit</button>
           ) : (
-            <button className="btn-primary" type="button" disabled={saving || !rows.length || pendingEvidenceRows.length > 0} onClick={() => submit("completed")}>Submit Inspection</button>
+            <button className="btn-primary" type="button" disabled={saving || !rows.length} onClick={() => submit("completed")}>Submit Inspection</button>
           )}
         </>
       )}
@@ -914,10 +664,9 @@ function InspectionModal({ outletId, categories, assets, conditionTemplates, dra
       {step === 2 ? (
         <div className="space-y-3">
           {enrichedRows.map((row, index) => {
-                const categoryConditions = conditionTemplates.filter((condition) => condition.category_id === row.asset.category_id && condition.active);
-                const border = row.condition?.severity === "critical" || row.diff < 0
+                const border = row.condition_status === "missing" || row.diff < 0
                   ? "border-l-4 border-l-rose-500 bg-rose-50/40"
-                  : row.condition?.severity !== "healthy" || row.diff !== 0
+                  : row.condition_status !== "healthy" || row.diff !== 0
                     ? "border-l-4 border-l-amber-500 bg-amber-50/30"
                     : "bg-white";
                 return (
@@ -940,7 +689,7 @@ function InspectionModal({ outletId, categories, assets, conditionTemplates, dra
                       </div>
                       <div className="space-y-2">
                         <FieldLabel label="Condition">
-                          <SelectField value={row.condition_template_id} options={categoryConditions.map((condition) => ({ value: condition.id, label: `${condition.name} · ${titleCase(condition.severity)}` }))} onChange={(value) => selectCondition(row.asset.id, value)} />
+                          <SelectField value={row.condition_status || "healthy"} options={assetConditions.map((condition) => ({ value: condition, label: assetConditionLabel(condition) }))} onChange={(value) => updateRow(row.asset.id, "condition_status", value)} />
                         </FieldLabel>
                         <div className="grid gap-2 md:grid-cols-[1fr_auto]">
                           <input className="control h-10" value={row.remark} onChange={(event) => updateRow(row.asset.id, "remark", event.target.value)} placeholder={row.needsEvidence ? "Discrepancy explanation" : "Inspection note"} />
@@ -956,8 +705,8 @@ function InspectionModal({ outletId, categories, assets, conditionTemplates, dra
                               <span className="absolute -right-1 -top-1 hidden rounded-full bg-rose-600 px-1 text-[10px] font-black text-white group-hover:block" onClick={(event) => { event.stopPropagation(); removeEvidence(row.asset.id, evidenceIndex); }}>×</span>
                             </button>
                           ))}
-                          {row.needsEvidence ? <Badge tone={row.evidenceComplete ? "success" : "warning"}>{row.evidenceComplete ? "Evidence Complete" : "Evidence Required"}</Badge> : null}
-                          <Badge tone={conditionTone(row.condition)}>{row.condition?.name || "Good"}</Badge>
+                          {row.needsEvidence ? <Badge tone={row.evidenceComplete ? "success" : "warning"}>{row.evidenceComplete ? "Evidence or remark added" : "Evidence or remark recommended"}</Badge> : null}
+                          <Badge tone={assetConditionTone(row.condition_status)}>{assetConditionLabel(row.condition_status)}</Badge>
                         </div>
                       </div>
                     </div>
@@ -985,15 +734,15 @@ function InspectionModal({ outletId, categories, assets, conditionTemplates, dra
                 <div key={row.asset.id} className="grid gap-2 p-4 text-sm md:grid-cols-[1fr_150px_130px_1fr]">
                   <div className="font-bold text-text-primary">{row.asset.name}</div>
                   <DifferenceBadge diff={row.diff} />
-                  <Badge tone={conditionTone(row.condition)}>{row.condition?.name}</Badge>
-                  <div className={row.evidenceComplete ? "text-text-secondary" : "font-bold text-amber-700"}>{row.evidenceComplete ? row.remark || "Evidence complete" : "Evidence or remark pending"}</div>
+                  <Badge tone={assetConditionTone(row.condition_status)}>{assetConditionLabel(row.condition_status)}</Badge>
+                  <div className={row.evidenceComplete ? "text-text-secondary" : "font-bold text-amber-700"}>{row.evidenceComplete ? row.remark || "Evidence or remark added" : "Evidence or remark recommended"}</div>
                 </div>
               ))}
               {!issueRows.length ? <div className="p-5 text-center text-sm font-semibold text-text-secondary">No discrepancies or condition issues found.</div> : null}
             </div>
           </div>
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">
-            Quantity differences will create correction movement logs and update asset quantities after submission.
+            Quantity differences will create correction movement logs. Asset conditions and last inspected dates will be updated after submission.
           </div>
         </div>
       ) : null}
@@ -1002,11 +751,11 @@ function InspectionModal({ outletId, categories, assets, conditionTemplates, dra
         <div className="space-y-4">
           <div className="rounded-3xl border border-primary/20 bg-primary/5 p-5">
             <div className="text-xs font-black uppercase tracking-wide text-primary">Ready to Submit</div>
-            <div className="mt-2 text-lg font-black text-text-primary">{rows.length} assets checked · {criticalRows.length} critical alerts · {pendingEvidenceRows.length} pending evidence</div>
-            <p className="mt-2 text-sm text-text-secondary">Submitting completes the operational audit and records quantity corrections, conditions, notes, and evidence.</p>
+            <div className="mt-2 text-lg font-black text-text-primary">{rows.length} assets checked · {criticalRows.length} critical alerts · {pendingEvidenceRows.length} evidence reminders</div>
+            <p className="mt-2 text-sm text-text-secondary">Submitting completes the operational audit and records quantity corrections, asset conditions, notes, and evidence.</p>
           </div>
           {pendingEvidenceRows.length ? (
-            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">Complete required evidence before submitting. You can save this inspection as a draft.</div>
+            <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">Some rows have evidence or remark recommendations. You can still submit or save this inspection as a draft.</div>
           ) : null}
         </div>
       ) : null}
@@ -1032,7 +781,7 @@ function InspectionModal({ outletId, categories, assets, conditionTemplates, dra
 
 function AssetDetailDrawer({ asset, movements, inspections, onClose, onAdjust, onInspect, onEdit, onResumeDraft, onDeleteDraft, onArchiveDraft }) {
   const [tab, setTab] = useState("overview");
-  const quantityHealth = getQuantityHealth(asset);
+  const [previewOpen, setPreviewOpen] = useState(false);
   return (
     <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30 backdrop-blur-[2px]" role="dialog" aria-modal="true">
       <button className="flex-1 cursor-default" type="button" aria-label="Close asset detail" onClick={onClose} />
@@ -1040,16 +789,15 @@ function AssetDetailDrawer({ asset, movements, inspections, onClose, onAdjust, o
         <header className="shrink-0 border-b border-border bg-gradient-to-br from-white to-emerald-50/40 p-5">
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 gap-4">
-              <AssetThumbnail asset={asset} size="lg" />
+              <button type="button" onClick={() => setPreviewOpen(true)} aria-label={`Preview ${asset.name} image`}>
+                <AssetThumbnail asset={asset} size="lg" />
+              </button>
               <div className="min-w-0">
                 <div className="text-xs font-black uppercase tracking-[0.16em] text-primary">Asset Profile</div>
                 <h2 className="mt-1 truncate text-2xl font-semibold text-text-primary">{asset.name}</h2>
                 <p className="mt-1 text-sm text-text-secondary">{asset.category_name} · {asset.description || "No description"}</p>
                 <div className="mt-3 flex flex-wrap gap-2">
-                  <Badge tone={statusTone(asset.status)}>{assetStatusLabel(asset.status)}</Badge>
-                  <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-black ${quantityHealth.border} ${quantityHealth.bg} ${quantityHealth.text}`}>
-                    <span className={`h-2 w-2 rounded-full ${quantityHealth.dot}`} /> {quantityHealth.label}
-                  </span>
+                  <Badge tone={assetConditionTone(asset.condition)}>{assetConditionLabel(asset.condition)}</Badge>
                 </div>
               </div>
             </div>
@@ -1063,7 +811,7 @@ function AssetDetailDrawer({ asset, movements, inspections, onClose, onAdjust, o
           {tab === "overview" ? (
             <div className="space-y-4">
               <div className="grid gap-3 md:grid-cols-2">
-                {[["Current Quantity", `${asset.current_quantity} ${asset.unit}`], ["Minimum Quantity", `${asset.minimum_quantity} ${asset.unit}`], ["Status", assetStatusLabel(asset.status)], ["Last Checked", formatRelativeDate(inspections[0]?.inspection_date || asset.last_inspection_at)], ["Last Movement", formatRelativeDate(movements[0]?.movement_date)], ["Outlet Asset", asset.outlet_id ? "Outlet-specific" : "—"]].map(([label, value]) => (
+                {[["Current Quantity", `${asset.current_quantity} ${asset.unit}`], ["Minimum Quantity", `${asset.minimum_quantity} ${asset.unit}`], ["Condition", assetConditionLabel(asset.condition)], ["Last Inspected", formatRelativeDate(inspections[0]?.inspection_date || asset.last_inspection_at)], ["Last Movement", formatRelativeDate(movements[0]?.movement_date)], ["Outlet Asset", asset.outlet_id ? "Outlet-specific" : "—"]].map(([label, value]) => (
                   <div key={label} className="rounded-2xl border border-border bg-background p-4"><div className="text-xs font-black uppercase tracking-wide text-text-muted">{label}</div><div className="mt-1 text-sm font-bold text-text-primary">{value}</div></div>
                 ))}
               </div>
@@ -1079,6 +827,19 @@ function AssetDetailDrawer({ asset, movements, inspections, onClose, onAdjust, o
           {tab === "inspection" ? <InspectionHistory inspections={inspections} onResumeDraft={onResumeDraft} onDeleteDraft={onDeleteDraft} onArchiveDraft={onArchiveDraft} /> : null}
           {tab === "maintenance" ? <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm font-semibold text-text-secondary">No maintenance history yet.</div> : null}
         </div>
+        {previewOpen ? (
+          <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/80 p-4" role="dialog" aria-modal="true">
+            <button className="absolute inset-0" type="button" aria-label="Close image preview" onClick={() => setPreviewOpen(false)} />
+            <div className="relative max-w-[92vw] rounded-3xl bg-white p-3 shadow-2xl">
+              {asset.image_url || asset.thumbnail_url ? (
+                <img className="max-h-[78vh] max-w-[82vw] rounded-2xl object-contain" src={asset.image_url || asset.thumbnail_url} alt={asset.name} />
+              ) : (
+                <div className="flex h-72 w-72 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-50 to-slate-100 text-3xl font-black text-primary">{categoryIcon(asset.category_name)}</div>
+              )}
+              <button className="absolute -right-3 -top-3 rounded-full bg-white p-2 text-slate-700 shadow-xl" type="button" onClick={() => setPreviewOpen(false)}><X size={18} /></button>
+            </div>
+          </div>
+        ) : null}
       </aside>
     </div>
   );
@@ -1135,7 +896,6 @@ export default function AssetTrackingPage({ store, ui, auth }) {
   const [statusFilter, setStatusFilter] = useState("all");
   const [query, setQuery] = useState("");
   const [categories, setCategories] = useState([]);
-  const [conditionTemplates, setConditionTemplates] = useState([]);
   const [assets, setAssets] = useState([]);
   const [movements, setMovements] = useState([]);
   const [inspections, setInspections] = useState([]);
@@ -1144,6 +904,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
   const [adjustAsset, setAdjustAsset] = useState(null);
   const [inspectionOpen, setInspectionOpen] = useState(false);
   const [detailAsset, setDetailAsset] = useState(null);
+  const [imagePreviewAsset, setImagePreviewAsset] = useState(null);
   const [actionAssetId, setActionAssetId] = useState("");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -1173,15 +934,13 @@ export default function AssetTrackingPage({ store, ui, auth }) {
     setLoading(true);
     setError("");
     try {
-      const [categoryRows, assetRows, movementRows, inspectionRows, conditionRows] = await Promise.all([
+      const [categoryRows, assetRows, movementRows, inspectionRows] = await Promise.all([
         assetTrackingService.listCategories(),
         assetTrackingService.listAssets(outletId),
         assetTrackingService.listMovementLogs("", outletId),
         assetTrackingService.listInspections("", outletId),
-        assetTrackingService.listConditionTemplates(),
       ]);
       setCategories(categoryRows);
-      setConditionTemplates(conditionRows);
       setAssets(assetRows);
       setMovements(movementRows);
       setInspections(inspectionRows);
@@ -1199,7 +958,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
 
   const filteredAssets = useMemo(() => assets
     .filter((asset) => categoryFilter === "all" || asset.category_id === categoryFilter)
-    .filter((asset) => statusFilter === "all" || asset.status === statusFilter)
+    .filter((asset) => statusFilter === "all" || (asset.condition || "healthy") === statusFilter)
     .filter((asset) => {
       const search = query.trim().toLowerCase();
       if (!search) return true;
@@ -1212,7 +971,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       totalItems: filteredAssets.length,
       totalQuantity: filteredAssets.reduce((sum, asset) => sum + Number(asset.current_quantity || 0), 0),
       categories: new Set(filteredAssets.map((asset) => asset.category_id)).size,
-      review: filteredAssets.filter((asset) => asset.status !== "active" || Number(asset.current_quantity || 0) <= Number(asset.minimum_quantity || 0)).length,
+      review: filteredAssets.filter((asset) => (asset.condition || "healthy") !== "healthy" || Number(asset.current_quantity || 0) <= Number(asset.minimum_quantity || 0)).length,
       lastChecked,
     };
   }, [filteredAssets, inspections]);
@@ -1266,24 +1025,6 @@ export default function AssetTrackingPage({ store, ui, auth }) {
     } catch (archiveError) {
       console.error("Unable to archive category", archiveError);
       ui.notify({ title: "Unable to archive category", message: archiveError.message || "Please try again.", tone: "error" });
-    }
-  }
-
-  async function saveConditionTemplate(condition) {
-    if (!canEditAsset && !canAdd) {
-      notifyPermissionDenied(ui, "manage asset conditions");
-      return;
-    }
-    setSaving(true);
-    try {
-      await assetTrackingService.saveConditionTemplate(condition);
-      await loadData();
-      ui.notify({ title: "Condition saved", message: condition.name });
-    } catch (saveError) {
-      console.error("Unable to save condition", saveError);
-      ui.notify({ title: "Unable to save condition", message: saveError.message || "Please try again.", tone: "error" });
-    } finally {
-      setSaving(false);
     }
   }
 
@@ -1397,7 +1138,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
         <div className="grid gap-3 xl:grid-cols-[1fr_1fr_1fr_1.4fr] xl:items-end">
           <FieldLabel label="Outlet"><SelectField value={outletId} options={activeOutlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={setOutletId} /></FieldLabel>
           <FieldLabel label="Category"><SelectField value={categoryFilter} options={[{ value: "all", label: "All Categories" }, ...categories.filter((category) => category.is_active).map((category) => ({ value: category.id, label: category.name }))]} onChange={setCategoryFilter} searchable /></FieldLabel>
-          <FieldLabel label="Status"><SelectField value={statusFilter} options={[{ value: "all", label: "All Status" }, ...assetStatuses.map((status) => ({ value: status, label: assetStatusLabel(status) }))]} onChange={setStatusFilter} /></FieldLabel>
+          <FieldLabel label="Condition"><SelectField value={statusFilter} options={[{ value: "all", label: "All Conditions" }, ...assetConditions.map((condition) => ({ value: condition, label: assetConditionLabel(condition) }))]} onChange={setStatusFilter} /></FieldLabel>
           <FieldLabel label="Search Asset"><div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} /><input className="control h-10 pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search asset name..." /></div></FieldLabel>
         </div>
       </Card>
@@ -1471,7 +1212,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
             <table className="w-full min-w-[1120px] text-left text-sm">
               <thead className="border-b border-border bg-slate-50 text-xs uppercase tracking-wide text-text-muted">
                 <tr>
-                  {["Asset Name", "Category", "Outlet", "Current Quantity", "Unit", "Status", "Last Checked", "Last Movement", "Actions"].map((header) => <th key={header} className="px-4 py-3">{header}</th>)}
+                  {["Asset Name", "Category", "Outlet", "Current Quantity", "Unit", "Condition", "Last Checked", "Last Movement", "Actions"].map((header) => <th key={header} className="px-4 py-3">{header}</th>)}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -1483,13 +1224,15 @@ export default function AssetTrackingPage({ store, ui, auth }) {
                   return (
                     <tr key={asset.id} className="transition hover:bg-primary/5">
                       <td className="px-4 py-3">
-                        <button className="flex max-w-[330px] items-center gap-3 text-left" type="button" onClick={() => setDetailAsset(asset)}>
-                          <AssetThumbnail asset={asset} />
+                        <div className="flex max-w-[330px] items-center gap-3 text-left">
+                          <button type="button" onClick={() => setImagePreviewAsset(asset)} aria-label={`Preview ${asset.name} image`}>
+                            <AssetThumbnail asset={asset} />
+                          </button>
                           <span className="min-w-0">
-                            <span className="block truncate font-black text-text-primary transition hover:text-primary">{asset.name}</span>
+                            <button className="block truncate text-left font-black text-text-primary transition hover:text-primary" type="button" onClick={() => setDetailAsset(asset)}>{asset.name}</button>
                             <span className="mt-0.5 line-clamp-2 text-xs text-text-secondary">{asset.description || asset.remark || "No description"}</span>
                           </span>
-                        </button>
+                        </div>
                       </td>
                       <td className="px-4 py-3 font-semibold text-text-secondary">{asset.category_name}</td>
                       <td className="px-4 py-3 text-text-secondary">{outlet?.name || "—"}</td>
@@ -1497,12 +1240,12 @@ export default function AssetTrackingPage({ store, ui, auth }) {
                         <div className={`inline-flex min-w-[112px] items-center justify-between gap-3 rounded-2xl border px-3 py-2 ${quantityHealth.border} ${quantityHealth.bg}`}>
                           <span className="text-lg font-black text-text-primary">{asset.current_quantity}</span>
                           <span className={`inline-flex items-center gap-1.5 text-[11px] font-black ${quantityHealth.text}`}>
-                            <span className={`h-2 w-2 rounded-full ${quantityHealth.dot}`} /> {quantityHealth.label}
+                            {asset.unit}
                           </span>
                         </div>
                       </td>
                       <td className="px-4 py-3 text-text-secondary">{asset.unit}</td>
-                      <td className="px-4 py-3"><Badge tone={statusTone(asset.status)}>{assetStatusLabel(asset.status)}</Badge></td>
+                      <td className="px-4 py-3"><Badge tone={assetConditionTone(asset.condition)}>{assetConditionLabel(asset.condition)}</Badge></td>
                       <td className="px-4 py-3 text-text-secondary"><DateText value={lastInspection?.inspection_date || asset.last_inspection_at} /></td>
                       <td className="px-4 py-3 text-text-secondary"><DateText value={lastMovement?.movement_date} /></td>
                       <td className="relative px-4 py-3">
@@ -1532,10 +1275,29 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       </Card> : null}
 
       {assetModal ? <AssetFormModal asset={assetModal} outlets={activeOutlets} categories={categories} onClose={() => setAssetModal(null)} onSubmit={saveAsset} saving={saving} /> : null}
-      {categoryModalOpen ? <CategoryModal categories={categories} conditionTemplates={conditionTemplates} assets={assets} onClose={() => setCategoryModalOpen(false)} onSave={saveCategory} onArchive={archiveCategory} onSaveCondition={saveConditionTemplate} saving={saving} canWrite={canAdd || canEditAsset} canArchive={canDeleteAsset} /> : null}
+      {categoryModalOpen ? <CategoryModal categories={categories} assets={assets} onClose={() => setCategoryModalOpen(false)} onSave={saveCategory} onArchive={archiveCategory} saving={saving} canWrite={canAdd || canEditAsset} canArchive={canDeleteAsset} /> : null}
       {adjustAsset ? <AdjustQuantityModal asset={adjustAsset} onClose={() => setAdjustAsset(null)} onSubmit={adjustQuantity} saving={saving} /> : null}
-      {inspectionOpen ? <InspectionModal outletId={inspectionOpen?.outlet_id || outletId} categories={categories} assets={assets} conditionTemplates={conditionTemplates} draftInspection={inspectionOpen === true ? null : inspectionOpen} onClose={() => setInspectionOpen(false)} onSubmit={submitInspection} saving={saving} /> : null}
+      {inspectionOpen ? <InspectionModal outletId={inspectionOpen?.outlet_id || outletId} categories={categories} assets={assets} draftInspection={inspectionOpen === true ? null : inspectionOpen} onClose={() => setInspectionOpen(false)} onSubmit={submitInspection} saving={saving} /> : null}
       {detailAsset ? <AssetDetailDrawer asset={detailAsset} movements={assetMovements} inspections={assetInspections} onClose={() => setDetailAsset(null)} onAdjust={() => setAdjustAsset(detailAsset)} onInspect={() => setInspectionOpen(true)} onEdit={() => setAssetModal(detailAsset)} onResumeDraft={(inspection) => setInspectionOpen(inspection)} onDeleteDraft={deleteInspection} onArchiveDraft={(inspection) => updateInspectionStatus(inspection, "archived")} /> : null}
+      {imagePreviewAsset ? (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/80 p-4" role="dialog" aria-modal="true">
+          <button className="absolute inset-0" type="button" aria-label="Close image preview" onClick={() => setImagePreviewAsset(null)} />
+          <div className="relative max-w-[92vw] rounded-3xl bg-white p-3 shadow-2xl">
+            {imagePreviewAsset.image_url || imagePreviewAsset.thumbnail_url ? (
+              <img className="max-h-[78vh] max-w-[82vw] rounded-2xl object-contain" src={imagePreviewAsset.image_url || imagePreviewAsset.thumbnail_url} alt={imagePreviewAsset.name} />
+            ) : (
+              <div className="flex h-72 w-72 items-center justify-center rounded-2xl bg-gradient-to-br from-emerald-50 to-slate-100 text-3xl font-black text-primary">{categoryIcon(imagePreviewAsset.category_name)}</div>
+            )}
+            <div className="mt-3 flex items-center justify-between gap-3">
+              <div>
+                <div className="text-sm font-black text-text-primary">{imagePreviewAsset.name}</div>
+                <div className="text-xs text-text-secondary">{imagePreviewAsset.category_name}</div>
+              </div>
+              <button className="icon-btn" type="button" onClick={() => setImagePreviewAsset(null)}><X size={18} /></button>
+            </div>
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

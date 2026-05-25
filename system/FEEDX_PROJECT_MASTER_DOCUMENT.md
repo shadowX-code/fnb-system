@@ -1187,6 +1187,7 @@ Asset item fields:
 - minimum_quantity
 - health_status
 - last_inspection_at
+- condition
 - status
 - remark
 - created_by
@@ -1194,9 +1195,8 @@ Asset item fields:
 - created_at
 - updated_at
 
-Asset statuses:
+Asset condition values:
 
-- active
 - healthy
 - needs_review
 - damaged
@@ -1206,15 +1206,25 @@ Asset statuses:
 - disposed
 - inactive
 
+Asset lifecycle status:
+
+- active
+- inactive
+
+Asset category rules:
+
+- Categories classify assets only.
+- Category management does not manage inspection conditions.
+- Category configuration shows category list, name, description, sort order, active or archived status, and linked asset count.
+- Categories cannot be hard deleted when linked to assets; use Archive Category.
+
 Asset UI rules:
 
 - Asset photos are shown as thumbnails inside the Asset Name column and larger previews inside the Asset Profile drawer.
+- Asset thumbnails in the list and Asset Profile can be clicked to open an image preview.
 - If no photo exists, show a category-based visual placeholder instead of an empty or broken image.
-- Quantity display includes a health state:
-  - Healthy
-  - Low
-  - Critical
-  - Out
+- User-facing asset state is shown as Condition, not Status.
+- Quantity display shows the numeric quantity and unit without duplicating condition wording.
 - Asset list actions use a primary View action plus an overflow menu for Adjust Quantity, Start Inspection, Edit Asset, and Archive.
 - Date displays use relative business wording such as Today, Yesterday, 2d ago, and 1 week ago, with exact date available on hover.
 
@@ -1273,51 +1283,10 @@ Inspection item fields:
 - counted_qty
 - difference
 - condition_status
-- condition_template_id
 - evidence_required
 - evidence_status
 - remark
 - created_at
-
-Condition template fields:
-
-- id
-- category_id
-- name
-- severity
-- color
-- requires_photo
-- requires_remark
-- affects_health
-- triggers_alert
-- active
-- sort_order
-- created_at
-- updated_at
-
-Condition severity:
-
-- healthy
-- low
-- medium
-- high
-- critical
-
-Category and condition management UX:
-
-- Asset Category Management uses a split configuration-center layout.
-- Left panel shows compact category navigation with category icon, asset count, condition count, and active or archived state.
-- Right panel shows selected category detail with tabs:
-  - Overview
-  - Conditions
-  - Inspection Rules
-  - Automation
-  - History
-- Overview supports category editing, quick category presets, operational preview, and archive safety guidance.
-- Conditions are managed as scannable cards instead of a long spreadsheet table.
-- Condition cards show severity, evidence requirements, health impact, alert behavior, and active state.
-- Conditions support search, severity filtering, add/edit panel, and copying condition sets from another category.
-- Inspection Rules and Automation tabs are future-ready sections for evidence rules, alerts, maintenance tasks, health scoring, and compliance tracking.
 
 Inspection evidence fields:
 
@@ -1333,11 +1302,12 @@ Inspection flow:
 2. Complete an asset inspection checklist using operational audit cards.
 3. Each audit card shows asset thumbnail, asset name, description, category, expected quantity, counted quantity, difference status, condition, evidence upload, and remark.
 4. Difference states are Matched, Extra, and Missing.
-5. Conditions are category-aware templates with severity and evidence rules.
-6. Evidence is required when quantity differs or condition severity is medium, high, or critical.
+5. Condition dropdown uses the global asset condition values.
+6. Evidence or remark is recommended when quantity differs or condition is not Healthy, but submission is not blocked.
 7. Review enterprise summary cards and problematic rows before final submission.
 8. Submit inspection or save draft.
-9. Differences create correction movement logs and update asset quantity after confirmation.
+9. Submitting updates asset quantity, asset condition, and last inspected date.
+10. Quantity differences create correction movement logs.
 
 Inspection draft and resume rules:
 
@@ -1353,7 +1323,7 @@ Inspection draft and resume rules:
   - current step
   - selected outlet/date/type/scope
   - counted quantities
-  - selected conditions
+  - selected asset conditions
   - remarks
   - uploaded evidence previews
 - Draft records store full workflow state in `draft_data`.
