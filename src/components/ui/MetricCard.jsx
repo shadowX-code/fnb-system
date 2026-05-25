@@ -7,7 +7,7 @@ export default function MetricCard({ label, value, helper, trend, tone = "neutra
 
   return (
     <Component
-      className={`card flex min-h-[96px] w-full flex-col justify-between gap-2 px-3 py-3 text-left transition duration-150 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-card ${onClick ? "hover:border-primary/30 hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-primary/15" : ""} ${tone === "warning" ? "bg-amber-50/25" : tone === "danger" ? "bg-rose-50/25" : ""}`}
+      className={`card flex min-h-[86px] w-full flex-col justify-between gap-1.5 px-3 py-2.5 text-left transition duration-150 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-card ${onClick ? "hover:border-primary/30 hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-primary/15" : ""} ${tone === "warning" ? "bg-amber-50/25" : tone === "danger" ? "bg-rose-50/25" : ""}`}
       type={onClick ? "button" : undefined}
       title={title}
       onClick={onClick}
@@ -19,16 +19,16 @@ export default function MetricCard({ label, value, helper, trend, tone = "neutra
               <Icon size={12} />
             </span>
           ) : null}
-          <div className="truncate text-[12px] font-semibold text-text-secondary">{label}</div>
+          <div className="truncate type-caption font-semibold text-text-secondary">{label}</div>
         </div>
-        {status ? <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-semibold text-text-secondary">{status}</span> : null}
+        {status ? <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 type-micro font-semibold text-text-secondary">{status}</span> : null}
       </div>
-      <div className="mt-0.5 min-w-0 break-words text-[clamp(20px,1.45vw,26px)] font-semibold leading-tight tracking-tight text-text-primary">{value}</div>
-      <div className="mt-1 flex items-center justify-between gap-2 text-xs leading-4">
+      <div className="mt-0.5 min-w-0 break-words text-[clamp(18px,1.35vw,24px)] font-semibold leading-tight tracking-tight text-text-primary">{value}</div>
+      <div className="mt-0.5 flex items-center justify-between gap-2 type-caption">
         <span className="min-w-0 truncate text-text-secondary">{helper}</span>
         {trend ? <span className={`font-semibold ${trendColor}`}>{trend}</span> : null}
       </div>
-      {insight ? <div className="text-xs leading-4 text-text-muted">{insight}</div> : null}
+      {insight ? <div className="type-caption text-text-muted">{insight}</div> : null}
     </Component>
   );
 }

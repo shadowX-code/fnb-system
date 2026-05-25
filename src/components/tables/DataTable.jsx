@@ -1,6 +1,6 @@
 export default function DataTable({ columns, rows, getRowKey, footer, getRowClassName, getRowProps, onRowClick, density = "normal", tableClassName = "" }) {
-  const cellPadding = density === "compact" ? "px-2.5 py-1.5" : "px-3 py-2";
-  const headerPadding = density === "compact" ? "px-2.5 py-2" : "px-3 py-2";
+  const cellPadding = density === "compact" ? "px-2.5 py-1.5" : "px-3 py-1.5";
+  const headerPadding = density === "compact" ? "px-2.5 py-1.5" : "px-3 py-2";
 
   function shouldIgnoreRowClick(event) {
     return Boolean(event.target.closest("button, a, input, select, textarea, [role='button'], [data-row-action='true']"));
@@ -8,7 +8,7 @@ export default function DataTable({ columns, rows, getRowKey, footer, getRowClas
 
   return (
     <div className="data-table-scroll overflow-x-auto">
-      <table className={`w-full min-w-[880px] border-collapse text-sm ${tableClassName}`}>
+      <table className={`w-full min-w-[880px] border-collapse text-[13px] ${tableClassName}`}>
         <thead className="table-head">
           <tr>
             {columns.map((column) => (

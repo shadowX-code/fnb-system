@@ -640,13 +640,13 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
 
   const sidebarContent = (isMobile = false) => (
     <>
-      <div className="flex h-16 items-center gap-3 px-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary text-white shadow-sm">
-          <BarChart3 size={18} />
+      <div className="flex h-14 items-center gap-2.5 px-4">
+        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-white shadow-sm">
+          <BarChart3 size={16} />
         </div>
         <div className="min-w-0">
-          <div className="text-sm font-bold text-text-primary">FeedX</div>
-          <div className="text-xs text-text-secondary">F&amp;B Intelligence</div>
+          <div className="type-body-sm font-bold text-text-primary">FeedX</div>
+          <div className="type-micro text-text-secondary">F&amp;B Intelligence</div>
         </div>
         {isMobile ? (
           <button
@@ -671,13 +671,13 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
         )}
       </div>
 
-      <nav className="flex-1 space-y-3 overflow-y-auto px-3 py-3">
+      <nav className="flex-1 space-y-2.5 overflow-y-auto px-3 py-2.5">
         {sections.map((section) => {
           const isOpen = openSections[section.label] ?? section.label === activeSectionLabel;
           return (
             <div key={section.label}>
               <button
-                className="mb-2 flex w-full items-center justify-between rounded-lg px-3 py-1 text-left text-[11px] font-semibold uppercase tracking-[0.1em] text-text-muted transition hover:bg-slate-50 hover:text-text-secondary"
+                className="mb-1.5 flex w-full items-center justify-between rounded-lg px-2.5 py-0.5 text-left type-micro font-semibold uppercase tracking-[0.1em] text-text-muted transition hover:bg-slate-50 hover:text-text-secondary"
                 type="button"
                 aria-expanded={isOpen}
                 onClick={() => toggleSection(section.label)}
@@ -689,7 +689,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
                 {section.items.map((item) => {
                   if (item.type === "label") {
                     return (
-                      <div key={item.id} className="px-3 pb-1 pt-2 text-[11px] font-bold uppercase tracking-wide text-text-muted">
+                      <div key={item.id} className="px-3 pb-1 pt-2 type-micro font-bold uppercase tracking-wide text-text-muted">
                         {item.label}
                       </div>
                     );
@@ -701,7 +701,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
                       key={item.id}
                       type="button"
                       onClick={() => handleNavigate(item.id)}
-                      className={`flex h-10 w-full items-center gap-3 rounded-xl px-3 text-left text-sm font-semibold transition ${
+                      className={`flex h-9 w-full items-center gap-2.5 rounded-xl px-2.5 text-left text-[13px] font-semibold transition ${
                         active
                           ? "bg-primary/10 text-primary"
                           : "text-text-secondary hover:bg-slate-50 hover:text-text-primary"
@@ -718,9 +718,9 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
         })}
       </nav>
 
-      <div className="relative border-t border-border p-4" data-sidebar-profile-menu>
+      <div className="relative border-t border-border p-3" data-sidebar-profile-menu>
         <button
-          className={`flex w-full items-center gap-3 rounded-2xl p-3 text-left transition ${
+          className={`flex w-full items-center gap-2.5 rounded-2xl p-2.5 text-left transition ${
             sidebarProfileOpen ? "bg-primary/10 ring-1 ring-primary/20" : "bg-slate-50 hover:bg-primary/5"
           }`}
           type="button"
@@ -732,12 +732,12 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
             setSidebarProfileOpen((value) => !value);
           }}
         >
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-primary/15 text-xs font-bold text-primary">
+          <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary/15 type-caption font-bold text-primary">
             {getProfileInitials(auth?.profile, auth?.user)}
           </div>
           <div className="min-w-0">
-            <div className="truncate text-sm font-semibold">{getProfileDisplayName(auth?.profile, auth?.user)}</div>
-            <div className="truncate text-xs text-text-secondary">{auth?.profile?.role_name ?? "Authenticated"}</div>
+            <div className="truncate text-[13px] font-semibold">{getProfileDisplayName(auth?.profile, auth?.user)}</div>
+            <div className="truncate type-caption text-text-secondary">{auth?.profile?.role_name ?? "Authenticated"}</div>
           </div>
           <ChevronDown size={15} className={`ml-auto text-text-muted transition-transform ${sidebarProfileOpen ? "rotate-180" : ""}`} />
         </button>
@@ -790,13 +790,13 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
       >
         {sidebarContent(true)}
       </aside>
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[248px] border-r border-border bg-sidebar lg:flex lg:flex-col">
+      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[236px] border-r border-border bg-sidebar lg:flex lg:flex-col">
         {sidebarContent(false)}
       </aside>
 
-      <div className="lg:pl-[248px]">
+      <div className="lg:pl-[236px]">
         <header className="sticky top-0 z-20 border-b border-border bg-app-bg/95 backdrop-blur">
-          <div className="flex h-12 items-center justify-between gap-4 px-4 sm:px-6 lg:px-8">
+          <div className="flex h-11 items-center justify-between gap-4 px-4 sm:px-5 lg:px-6">
             <button
               className="icon-btn lg:hidden"
               type="button"
@@ -807,7 +807,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
               <Menu size={18} />
             </button>
             <div className="min-w-0">
-              <div className="text-xs font-semibold uppercase tracking-[0.12em] text-text-secondary">
+              <div className="type-caption font-semibold uppercase tracking-[0.12em] text-text-secondary">
                 Smart Operations Workspace
               </div>
             </div>
@@ -856,7 +856,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
           </div>
         </header>
 
-        <main className="px-4 py-3 sm:px-6 lg:px-8">
+        <main className="px-4 py-3 sm:px-5 lg:px-6">
           <div className="mx-auto max-w-[1440px]">
             {children}
           </div>

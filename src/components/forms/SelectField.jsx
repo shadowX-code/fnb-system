@@ -73,12 +73,12 @@ export default function SelectField({
   return (
     <div className={`relative min-w-0 ${className}`} ref={containerRef}>
       {label ? (
-        <div className="mb-1 text-xs font-semibold text-text-secondary">
+        <div className="mb-1 type-caption font-semibold text-text-secondary">
           {label} {required ? <span className="text-rose-500">*</span> : null}
         </div>
       ) : null}
       <button
-        className={`flex h-10 w-full items-center justify-between gap-2 rounded-xl border bg-white px-3 text-left text-sm font-semibold transition focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-text-muted ${
+        className={`flex h-9 w-full items-center justify-between gap-2 rounded-xl border bg-white px-3 text-left text-[13px] font-semibold transition focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-text-muted ${
           error ? "border-rose-200" : isOpen ? "border-primary/50 shadow-sm" : "border-border hover:border-slate-300 hover:bg-slate-50"
         } ${buttonClassName}`}
         type="button"
@@ -88,8 +88,8 @@ export default function SelectField({
         <span className={`truncate ${selectedOption ? "text-text-primary" : "text-text-secondary"}`}>{selectedOption?.label ?? placeholder}</span>
         <ChevronDown className={`shrink-0 text-text-muted transition ${isOpen ? "rotate-180" : ""}`} size={15} />
       </button>
-      {error ? <div className="mt-1 text-[11px] font-medium text-rose-600">{error}</div> : null}
-      {!error && helper ? <div className="mt-1 text-[11px] text-text-muted">{helper}</div> : null}
+      {error ? <div className="mt-1 type-micro font-medium text-rose-600">{error}</div> : null}
+      {!error && helper ? <div className="mt-1 type-micro text-text-muted">{helper}</div> : null}
 
       {isOpen && menuRect ? createPortal((
         <div
@@ -98,7 +98,7 @@ export default function SelectField({
           style={{ top: menuRect.top, left: menuRect.left, width: menuRect.width }}
         >
           <div className="mb-2 flex items-center justify-between px-1 sm:hidden">
-            <div className="text-sm font-bold text-text-primary">{label || placeholder}</div>
+            <div className="type-body font-bold text-text-primary">{label || placeholder}</div>
             <button className="icon-btn" type="button" onClick={() => setIsOpen(false)} aria-label="Close select">
               <X size={15} />
             </button>
@@ -107,7 +107,7 @@ export default function SelectField({
             <div className="relative mb-2">
               <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={14} />
               <input
-                className="control h-9 w-full pl-8 text-sm"
+                className="control h-8 w-full pl-8 text-[13px]"
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search..."
@@ -121,7 +121,7 @@ export default function SelectField({
               return (
                 <button
                   key={option.value}
-                  className={`flex w-full items-center justify-between gap-2 rounded-xl px-2.5 py-2 text-left text-sm transition ${
+                  className={`flex w-full items-center justify-between gap-2 rounded-xl px-2.5 py-1.5 text-left text-[13px] transition ${
                     option.disabled
                       ? "cursor-not-allowed text-text-muted opacity-50"
                       : checked

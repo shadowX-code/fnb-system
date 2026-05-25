@@ -8,7 +8,7 @@ const tones = {
 
 export default function Badge({ tone = "neutral", children }) {
   return (
-    <span className={`badge badge-${tone} inline-flex rounded-full border px-2.5 py-1 text-xs font-semibold ${tones[tone]}`}>
+    <span className={`badge badge-${tone} inline-flex rounded-full border px-2 py-0.5 type-caption font-semibold ${tones[tone]}`}>
       {children}
     </span>
   );
