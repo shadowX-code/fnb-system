@@ -291,6 +291,23 @@ export const importService = {
     return data ?? [];
   },
 
+  async listImportBatchRows(batchId) {
+    if (!batchId || isLocalBatch({ id: batchId })) return [];
+    const { data, error } = await supabase
+      .from("import_batch_rows")
+      .select("id,batch_id,source_row,raw_row,action,validation_result,imported_record_id,failure_reason,created_at")
+      .eq("batch_id", batchId)
+      .order("source_row", { ascending: true });
+
+    if (isMissingImportInfrastructure(error)) {
+      console.warn("[Supabase:import_batch_rows.list] import_batch_rows table is missing. Apply import history migration to enable row-level import details.", error);
+      return [];
+    }
+
+    throwSupabaseError("import_batch_rows.list", error);
+    return data ?? [];
+  },
+
   async detectSalesConflicts(records) {
     return detectSalesConflictsForRecords(records);
   },

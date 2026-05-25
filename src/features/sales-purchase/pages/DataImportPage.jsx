@@ -21,6 +21,24 @@ const salesFields = ["Ignore", "Outlet", "Month", "Year", "Dine In", "FoodPanda"
 const purchaseFields = ["Ignore", "Outlet", "Month", "Year", "Supplier", "Category", "Amount", "Remark"];
 const salesImportChannels = ["Dine In", "FoodPanda", "GrabFood", "ShopeeFood", "Takeaway"];
 const highAmountThreshold = 1_000_000;
+const importModeDetails = {
+  Sales: {
+    title: "Sales Import",
+    description: "Monthly outlet sales by channel",
+    required: "Required: Outlet, Month, Year, Dine In, Delivery channels",
+    confirmation: "Please confirm this file is a Sales Import file.",
+    banner: "You are importing monthly outlet sales data.",
+    template: "Download Sales Import Template",
+  },
+  Purchases: {
+    title: "Purchase Import",
+    description: "Monthly supplier purchase records",
+    required: "Required: Outlet, Month, Year, Supplier, Category, Amount",
+    confirmation: "Please confirm this file is a Purchase Import file.",
+    banner: "You are importing monthly supplier purchase data.",
+    template: "Download Purchase Import Template",
+  },
+};
 
 function normalize(value) {
   return String(value ?? "").trim();
@@ -186,6 +204,26 @@ function autoDetect(headers, importType) {
   return mappings;
 }
 
+function detectLikelyImportType(headers = [], mappings = {}) {
+  const normalizedHeaders = headers.map(canonical);
+  const mappedValues = Object.values(mappings);
+  const hasPurchaseColumns =
+    normalizedHeaders.some((header) => ["supplier", "suppliername", "vendor", "category", "purchasecategory", "amount", "purchaseamount"].includes(header)) ||
+    ["Supplier", "Category", "Amount"].filter((field) => mappedValues.includes(field)).length >= 2;
+  const hasSalesColumns =
+    normalizedHeaders.some((header) => ["dinein", "foodpanda", "grabfood", "shopeefood", "takeaway", "sales", "netsales"].includes(header)) ||
+    salesImportChannels.filter((field) => mappedValues.includes(field)).length >= 1;
+
+  if (hasPurchaseColumns && !hasSalesColumns) return "Purchases";
+  if (hasSalesColumns && !hasPurchaseColumns) return "Sales";
+  return null;
+}
+
+function modeMismatchMessage(importType, detectedType) {
+  if (!detectedType || detectedType === importType) return "";
+  return `This file looks like a ${importModeDetails[detectedType].title} because its columns match that format. Switch to ${importModeDetails[detectedType].title}?`;
+}
+
 function mappedValue(row, mappings, field) {
   const column = Object.entries(mappings).find(([, mapped]) => mapped === field)?.[0];
   return column ? row[column] : "";
@@ -256,6 +294,22 @@ function buildImportReport(preview) {
   return rows.map((row) => row.map(csvCell).join(",")).join("\n");
 }
 
+function getRawValue(row, candidates) {
+  const raw = row?.raw_row ?? row ?? {};
+  const entries = Object.entries(raw);
+  for (const candidate of candidates) {
+    const found = entries.find(([key]) => canonical(key) === canonical(candidate));
+    if (found) return found[1];
+  }
+  return "";
+}
+
+function getImportBatchPeriod(row) {
+  if (!row?.year || !row?.month_start) return "-";
+  if (row.month_start === row.month_end) return `${monthLabel(row.month_start)} ${row.year}`;
+  return `${monthLabel(row.month_start)} - ${monthLabel(row.month_end)} ${row.year}`;
+}
+
 function importRecordKey(importType, record) {
   return importType === "Sales"
     ? `${record.outlet_id}|${record.year}|${record.month}|${record.channel_id}`
@@ -316,6 +370,8 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
   const [validationState, setValidationState] = useState({ loading: false, message: "", error: "" });
   const [importSummary, setImportSummary] = useState(null);
   const [confirmImport, setConfirmImport] = useState(false);
+  const [modeConfirmed, setModeConfirmed] = useState(false);
+  const [importDetail, setImportDetail] = useState(null);
   const canRunImport = canImport(auth, "data_import");
   const canCreateImportSupplier = canCreate(auth, "suppliers");
   const canCreateImportCategory = canCreate(auth, "purchase_categories");
@@ -330,6 +386,9 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
   }, []);
 
   const fieldOptions = importType === "Sales" ? salesFields : purchaseFields;
+  const modeDetail = importModeDetails[importType];
+  const likelyImportType = useMemo(() => detectLikelyImportType(parsed.headers, mappings), [mappings, parsed.headers]);
+  const mismatchMessage = modeMismatchMessage(importType, likelyImportType);
   const unresolvedUnknownSuppliers = unknownSuppliers.filter((item) => {
     const resolution = supplierResolutions[item.name];
     if (!resolution) return true;
@@ -391,6 +450,7 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
       setValidationState({ loading: false, message: "", error: "" });
       setImportSummary(null);
       setConfirmImport(false);
+      setModeConfirmed(false);
       setStep("mapping");
     } catch (error) {
       console.error("Unable to parse import file", error);
@@ -405,6 +465,9 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
     required.filter((field) => !Object.values(mappings).includes(field)).forEach((field) => {
       issues.push({ row: "-", severity: "error", message: `Missing required column: ${field}` });
     });
+    if (!salesImportChannels.some((channelName) => Object.values(mappings).includes(channelName))) {
+      issues.push({ row: "-", severity: "error", message: "Missing required sales channel column. Map at least one sales channel such as Dine In, FoodPanda, GrabFood, ShopeeFood, or Takeaway." });
+    }
 
     parsed.rows.forEach((row) => {
       const outlet = findOutlet(store.outlets, mappedValue(row, mappings, "Outlet"));
@@ -429,7 +492,7 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
       });
 
       if (rowIssues.length) {
-        issues.push({ row: row.__row, severity: "error", message: rowIssues.join("; "), rawSupplier: supplierName, rawCategory: categoryName, rawRow: row });
+        issues.push({ row: row.__row, severity: "error", message: rowIssues.join("; "), rawRow: row });
         return;
       }
 
@@ -604,6 +667,16 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
     }
     console.info("[Import:validate] clicked", { importType, rows: parsed.rows.length, mappings });
     setPreview(null);
+    if (mismatchMessage) {
+      setValidationState({ loading: false, message: "", error: mismatchMessage });
+      ui.notify({ title: "Import mode mismatch", message: mismatchMessage, tone: "error" });
+      return;
+    }
+    if (!modeConfirmed) {
+      setValidationState({ loading: false, message: "", error: modeDetail.confirmation });
+      ui.notify({ title: "Confirm import mode", message: modeDetail.confirmation, tone: "error" });
+      return;
+    }
     setValidationState({ loading: true, message: "Validating file rows...", error: "" });
     try {
       const base = importType === "Sales" ? buildSalesRecords() : buildPurchaseRecords({}, {}, { allowPendingCreate: false, allowPendingCategoryCreate: false });
@@ -880,6 +953,30 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
     downloadTextFile(`${importType}_Import_Template.csv`, text);
   }
 
+  function switchImportType(type) {
+    setImportType(type);
+    setModeConfirmed(false);
+    setPreview(null);
+    setUnknownSuppliers([]);
+    setSupplierResolutions({});
+    setUnknownCategories([]);
+    setCategoryResolutions({});
+    setValidationState({ loading: false, message: "", error: "" });
+    if (parsed.headers.length) setMappings(autoDetect(parsed.headers, type));
+  }
+
+  async function openImportDetail(row, view = "summary") {
+    setImportDetail({ row, view, loading: view === "rows", rows: [], error: "" });
+    if (view !== "rows") return;
+    try {
+      const rows = await importService.listImportBatchRows(row.id);
+      setImportDetail({ row, view, loading: false, rows, error: "" });
+    } catch (error) {
+      console.error("Unable to load import row details", error);
+      setImportDetail({ row, view, loading: false, rows: [], error: error.message || "Unable to load imported rows." });
+    }
+  }
+
   const previewColumns = [
     { key: "sourceRow", header: "Row", align: "right" },
     { key: "period", header: "Period", render: (row) => row.isFailure ? "-" : `${row.outletCode || row.outletName} · ${monthLabel(row.month)} ${row.year}` },
@@ -891,12 +988,24 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
   const batchColumns = [
     { key: "source_filename", header: "File" },
     { key: "import_type", header: "Type", render: (row) => <Badge tone="info">{row.import_type}</Badge> },
+    { key: "period", header: "Period", render: getImportBatchPeriod },
     { key: "status", header: "Status", render: (row) => <Badge tone={row.status === "failed" ? "danger" : row.status === "partial_failed" ? "warning" : row.status === "completed" ? "success" : "info"}>{row.status || "completed"}</Badge> },
     { key: "total_rows", header: "Rows", align: "right" },
     { key: "created_count", header: "Created", align: "right" },
     { key: "updated_count", header: "Updated", align: "right" },
     { key: "failed_count", header: "Failed", align: "right" },
     { key: "created_at", header: "Imported At", render: (row) => row.created_at ? new Date(row.created_at).toLocaleString("en-MY") : "-" },
+    {
+      key: "actions",
+      header: "Actions",
+      render: (row) => (
+        <div className="flex flex-wrap gap-1.5">
+          <button className="btn-secondary h-8 px-2 text-xs" type="button" onClick={() => openImportDetail(row, "summary")}>View Summary</button>
+          <button className="btn-secondary h-8 px-2 text-xs" type="button" onClick={() => openImportDetail(row, "rows")}>View Imported Rows</button>
+          <button className="btn-secondary h-8 px-2 text-xs" type="button" disabled>Revert Import</button>
+        </div>
+      ),
+    },
   ];
   const previewTableRows = useMemo(() => {
     if (!preview) return [];
@@ -918,7 +1027,7 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
         section="Operations"
         title="Data Import"
         description="Upload, validate, preview and import sales or purchase data."
-        actions={<button className="btn-secondary" type="button" onClick={downloadTemplate}><Download size={16} /> Download Template</button>}
+        actions={<button className="btn-secondary" type="button" onClick={downloadTemplate}><Download size={16} /> {modeDetail.template}</button>}
       />
       {!canRunImport ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
@@ -929,10 +1038,41 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
         <Card title="Import Engine" description="No silent overwrite. Existing records are detected as duplicates and updated only after preview.">
           <div className="space-y-4 p-4">
-            <div className="flex flex-wrap items-center gap-2">
-              {["Sales", "Purchases"].map((type) => (
-                <button key={type} className={`h-9 rounded-xl px-4 text-sm font-semibold ${importType === type ? "bg-primary text-white" : "bg-white text-text-secondary ring-1 ring-border hover:bg-slate-50"}`} type="button" onClick={() => setImportType(type)}>{type}</button>
-              ))}
+            <div className="grid gap-3 md:grid-cols-2">
+              {["Sales", "Purchases"].map((type) => {
+                const selected = importType === type;
+                const detail = importModeDetails[type];
+                return (
+                  <button
+                    key={type}
+                    className={`rounded-3xl border p-4 text-left transition ${
+                      selected
+                        ? "border-primary bg-primary/10 shadow-sm ring-2 ring-primary/15"
+                        : "border-border bg-white hover:border-primary/30 hover:bg-primary/[0.03]"
+                    }`}
+                    type="button"
+                    onClick={() => switchImportType(type)}
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className={`text-base font-black ${selected ? "text-primary" : "text-text-primary"}`}>{detail.title}</div>
+                        <div className="mt-1 text-sm font-semibold text-text-secondary">{detail.description}</div>
+                      </div>
+                      <span className={`flex h-7 w-7 items-center justify-center rounded-full ${selected ? "bg-primary text-white" : "bg-slate-100 text-text-muted"}`}>
+                        {selected ? <CheckCircle2 size={16} /> : null}
+                      </span>
+                    </div>
+                    <div className="mt-3 rounded-2xl bg-white/70 px-3 py-2 text-xs font-semibold text-text-secondary">{detail.required}</div>
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3">
+              <div>
+                <div className="text-sm font-black text-primary">Current Mode: {modeDetail.title}</div>
+                <div className="mt-0.5 text-xs font-semibold text-text-secondary">{modeDetail.banner}</div>
+              </div>
               <Badge tone="info">Step: {step}</Badge>
             </div>
 
@@ -951,6 +1091,12 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
                 {importType === "Purchases" ? (
                   <div className="rounded-2xl border border-blue-200 bg-blue-50 p-3 text-xs font-semibold text-blue-800">
                     Column mapped. Values still need to match existing categories and suppliers.
+                  </div>
+                ) : null}
+                {mismatchMessage ? (
+                  <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">
+                    <div>{mismatchMessage}</div>
+                    <button className="btn-secondary mt-2 h-8 text-xs" type="button" onClick={() => switchImportType(likelyImportType)}>Switch to {importModeDetails[likelyImportType].title}</button>
                   </div>
                 ) : null}
                 <div className="overflow-x-auto rounded-2xl border border-border">
@@ -981,6 +1127,10 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
                     {validationState.message || "Validating..."}
                   </div>
                 ) : null}
+                <label className={`flex cursor-pointer items-start gap-3 rounded-2xl border p-3 text-sm font-semibold ${modeConfirmed ? "border-primary/30 bg-primary/5 text-text-primary" : "border-border bg-white text-text-secondary"}`}>
+                  <input className="mt-1" type="checkbox" checked={modeConfirmed} onChange={(event) => setModeConfirmed(event.target.checked)} />
+                  <span>{modeDetail.confirmation}</span>
+                </label>
                 <div className="flex justify-end gap-2">
                   <button className="btn-secondary" type="button" onClick={() => setStep("upload")}>Cancel</button>
                   <button className="btn-primary" type="button" disabled={validationState.loading || !canRunImport} onClick={validateImport}>
@@ -1245,6 +1395,85 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
                 </button>
               ) : null}
               <button className="btn-primary" type="button" onClick={() => setImportSummary(null)}>Done</button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {importDetail ? (
+        <div className="fixed inset-0 z-[90] flex items-center justify-center bg-slate-950/40 px-4">
+          <div className="max-h-[88vh] w-full max-w-5xl overflow-hidden rounded-3xl border border-border bg-surface shadow-2xl">
+            <div className="flex items-start justify-between gap-4 border-b border-border p-5">
+              <div>
+                <div className="text-xs font-black uppercase tracking-[0.16em] text-primary">Import History</div>
+                <div className="mt-1 text-xl font-semibold text-text-primary">{importDetail.view === "rows" ? "Imported Rows" : "Import Summary"}</div>
+                <div className="mt-1 text-sm text-text-secondary">{importDetail.row.source_filename}</div>
+              </div>
+              <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={() => setImportDetail(null)}>Close</button>
+            </div>
+            <div className="max-h-[72vh] overflow-y-auto p-5">
+              {importDetail.view === "summary" ? (
+                <div className="space-y-4">
+                  <div className="grid gap-3 md:grid-cols-3">
+                    {[
+                      ["Import Type", importDetail.row.import_type],
+                      ["Period", getImportBatchPeriod(importDetail.row)],
+                      ["Status", importDetail.row.status || "completed"],
+                      ["Rows Processed", importDetail.row.total_rows ?? 0],
+                      ["Rows Created", importDetail.row.created_count ?? 0],
+                      ["Rows Updated", importDetail.row.updated_count ?? 0],
+                      ["Rows Failed", importDetail.row.failed_count ?? 0],
+                      ["Imported By", importDetail.row.imported_by || importDetail.row.created_by || "System"],
+                      ["Imported At", importDetail.row.imported_at || importDetail.row.created_at ? new Date(importDetail.row.imported_at || importDetail.row.created_at).toLocaleString("en-MY") : "-"],
+                    ].map(([label, value]) => (
+                      <div key={label} className="rounded-2xl border border-border bg-background p-4">
+                        <div className="text-[11px] font-black uppercase tracking-wide text-text-muted">{label}</div>
+                        <div className="mt-1 text-sm font-bold text-text-primary">{value}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {Number(importDetail.row.failed_count || 0) > 0 ? (
+                    <button className="btn-secondary" type="button" onClick={() => openImportDetail(importDetail.row, "rows")}>View Failed Rows</button>
+                  ) : null}
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {importDetail.loading ? (
+                    <div className="rounded-2xl border border-blue-200 bg-blue-50 p-4 text-sm font-semibold text-blue-800">Loading imported rows...</div>
+                  ) : importDetail.error ? (
+                    <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">{importDetail.error}</div>
+                  ) : importDetail.rows.length ? (
+                    <DataTable
+                      density="compact"
+                      columns={[
+                        { key: "source_row", header: "Row", align: "right" },
+                        ...(importDetail.row.import_type === "sales"
+                          ? [
+                              { key: "outlet", header: "Outlet", render: (row) => getRawValue(row, ["Outlet", "Branch", "Outlet Code"]) || "-" },
+                              { key: "period", header: "Month / Year", render: (row) => `${getRawValue(row, ["Month"]) || "-"} ${getRawValue(row, ["Year"]) || ""}` },
+                              { key: "channel", header: "Channel", render: (row) => getRawValue(row, ["Channel", "Dine In", "FoodPanda", "GrabFood", "ShopeeFood", "Takeaway"]) || "-" },
+                              { key: "amount", header: "Amount", align: "right", render: (row) => getRawValue(row, ["Amount", "Dine In", "FoodPanda", "GrabFood", "ShopeeFood", "Takeaway"]) || "-" },
+                            ]
+                          : [
+                              { key: "outlet", header: "Outlet", render: (row) => getRawValue(row, ["Outlet", "Branch", "Outlet Code"]) || "-" },
+                              { key: "period", header: "Month / Year", render: (row) => `${getRawValue(row, ["Month"]) || "-"} ${getRawValue(row, ["Year"]) || ""}` },
+                              { key: "supplier", header: "Supplier", render: (row) => getRawValue(row, ["Supplier", "Supplier Name"]) || "-" },
+                              { key: "category", header: "Category", render: (row) => getRawValue(row, ["Category", "Purchase Category"]) || "-" },
+                              { key: "amount", header: "Amount", align: "right", render: (row) => getRawValue(row, ["Amount", "Purchase Amount"]) || "-" },
+                            ]),
+                        { key: "action", header: "Action", render: (row) => <Badge tone={row.action === "failed" ? "danger" : row.action === "update" ? "warning" : row.action === "skip" ? "neutral" : "success"}>{row.action}</Badge> },
+                        { key: "failure_reason", header: "Error", render: (row) => row.failure_reason || "-" },
+                      ]}
+                      rows={importDetail.rows}
+                      getRowKey={(row) => row.id}
+                    />
+                  ) : (
+                    <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm font-semibold text-text-secondary">
+                      No row-level import details are available for this import.
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>
