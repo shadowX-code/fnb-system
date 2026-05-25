@@ -11,7 +11,6 @@ import { canCreate, canDelete, canEdit, canExport, canManage, notifyPermissionDe
 
 const assetStatuses = ["active", "healthy", "needs_review", "damaged", "missing", "under_maintenance", "low_quantity", "disposed", "inactive"];
 const reduceReasons = ["broken", "missing", "disposed", "stolen", "transferred", "correction", "other"];
-const conditionStatuses = ["good", "damaged", "missing", "need_repair"];
 
 function titleCase(value) {
   return String(value || "").replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
@@ -216,90 +215,441 @@ function AssetFormModal({ asset, outlets, categories, onClose, onSubmit, saving 
   );
 }
 
-function CategoryModal({ categories, conditionTemplates, onClose, onSave, onArchive, onSaveCondition, saving, canWrite, canArchive }) {
-  const [draft, setDraft] = useState({ name: "", description: "", sort_order: categories.length + 1, is_active: true });
-  const [conditionDraft, setConditionDraft] = useState({ category_id: categories[0]?.id ?? "", name: "", severity: "healthy", color: "emerald", requires_photo: false, requires_remark: false, active: true, sort_order: conditionTemplates.length + 1 });
+function CategoryModal({ categories, conditionTemplates, assets = [], onClose, onSave, onArchive, onSaveCondition, saving, canWrite, canArchive }) {
+  const defaultCategoryDraft = { name: "", description: "", sort_order: categories.length + 1, is_active: true };
+  const [selectedCategoryId, setSelectedCategoryId] = useState(categories[0]?.id || "new");
+  const [activeTab, setActiveTab] = useState("overview");
+  const [categoryDraft, setCategoryDraft] = useState(defaultCategoryDraft);
+  const [conditionDraft, setConditionDraft] = useState(null);
+  const [conditionSearch, setConditionSearch] = useState("");
+  const [severityFilter, setSeverityFilter] = useState("all");
+  const [copyFromId, setCopyFromId] = useState("");
+  const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
+  const selectedConditions = useMemo(() => conditionTemplates
+    .filter((condition) => condition.category_id === selectedCategory?.id)
+    .filter((condition) => condition.name.toLowerCase().includes(conditionSearch.trim().toLowerCase()))
+    .filter((condition) => severityFilter === "all" || condition.severity === severityFilter)
+    .sort((first, second) => Number(first.sort_order || 0) - Number(second.sort_order || 0)), [conditionSearch, conditionTemplates, selectedCategory?.id, severityFilter]);
+  const conditionCountByCategory = useMemo(() => conditionTemplates.reduce((map, condition) => {
+    map.set(condition.category_id, (map.get(condition.category_id) || 0) + 1);
+    return map;
+  }, new Map()), [conditionTemplates]);
+  const assetCountByCategory = useMemo(() => assets.reduce((map, asset) => {
+    map.set(asset.category_id, (map.get(asset.category_id) || 0) + 1);
+    return map;
+  }, new Map()), [assets]);
+  const sourceConditions = conditionTemplates.filter((condition) => condition.category_id === copyFromId);
+  const tabs = [
+    { id: "overview", label: "Overview" },
+    { id: "conditions", label: "Conditions" },
+    { id: "rules", label: "Inspection Rules" },
+    { id: "automation", label: "Automation" },
+    { id: "history", label: "History" },
+  ];
+  const severityStyles = {
+    healthy: "border-emerald-100 bg-emerald-50 text-emerald-700",
+    low: "border-blue-100 bg-blue-50 text-blue-700",
+    medium: "border-amber-100 bg-amber-50 text-amber-700",
+    high: "border-orange-100 bg-orange-50 text-orange-700",
+    critical: "border-rose-100 bg-rose-50 text-rose-700",
+  };
+  const presets = [
+    { name: "Kitchen Equipment", description: "Operational assets used by kitchen teams.", sort_order: categories.length + 1 },
+    { name: "Electronics", description: "POS, electrical, and connected equipment.", sort_order: categories.length + 1 },
+    { name: "Furniture", description: "Dining area furniture and fixtures.", sort_order: categories.length + 1 },
+    { name: "Generic", description: "General outlet assets.", sort_order: categories.length + 1 },
+  ];
+
+  useEffect(() => {
+    if (selectedCategory) {
+      setCategoryDraft({
+        id: selectedCategory.id,
+        name: selectedCategory.name || "",
+        description: selectedCategory.description || "",
+        sort_order: selectedCategory.sort_order ?? "",
+        is_active: selectedCategory.is_active !== false,
+      });
+      return;
+    }
+    setCategoryDraft({ name: "", description: "", sort_order: categories.length + 1, is_active: true });
+  }, [categories.length, selectedCategory]);
+
+  function selectCategory(categoryId) {
+    setSelectedCategoryId(categoryId);
+    setActiveTab("overview");
+    setConditionDraft(null);
+  }
+
+  function startConditionEdit(condition = null) {
+    if (!selectedCategory) return;
+    setActiveTab("conditions");
+    setConditionDraft(condition || {
+      category_id: selectedCategory.id,
+      name: "",
+      severity: "healthy",
+      color: "emerald",
+      requires_photo: false,
+      requires_remark: false,
+      affects_health: true,
+      triggers_alert: false,
+      active: true,
+      sort_order: selectedConditions.length + 1,
+    });
+  }
+
+  async function saveCategoryDraft() {
+    if (!categoryDraft.name.trim()) return;
+    await onSave(categoryDraft);
+    if (!categoryDraft.id) setSelectedCategoryId("new");
+  }
+
+  async function saveConditionDraft() {
+    if (!conditionDraft?.name?.trim()) return;
+    await onSaveCondition(conditionDraft);
+    setConditionDraft(null);
+  }
+
+  async function copyConditions() {
+    if (!selectedCategory || !sourceConditions.length) return;
+    for (const condition of sourceConditions) {
+      await onSaveCondition({
+        category_id: selectedCategory.id,
+        name: condition.name,
+        severity: condition.severity,
+        color: condition.color,
+        requires_photo: Boolean(condition.requires_photo),
+        requires_remark: Boolean(condition.requires_remark),
+        affects_health: Boolean(condition.affects_health),
+        triggers_alert: Boolean(condition.triggers_alert),
+        active: condition.active !== false,
+        sort_order: selectedConditions.length + sourceConditions.indexOf(condition) + 1,
+      });
+    }
+    setCopyFromId("");
+  }
+
   return (
-    <Modal title="Asset Categories" description="Manage reusable asset categories." onClose={onClose} size="lg">
-      <div className="space-y-3">
-        <div className="rounded-2xl border border-border bg-background p-3">
-          <div className="grid gap-2 md:grid-cols-[1fr_1fr_100px_auto] md:items-end">
-            <FieldLabel label="Category Name">
-              <input className="control" value={draft.name} onChange={(event) => setDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Kitchen Equipment" />
-            </FieldLabel>
-            <FieldLabel label="Description">
-              <input className="control" value={draft.description} onChange={(event) => setDraft((current) => ({ ...current, description: event.target.value }))} placeholder="Optional" />
-            </FieldLabel>
-            <FieldLabel label="Order">
-              <input className="control" type="number" value={draft.sort_order} onChange={(event) => setDraft((current) => ({ ...current, sort_order: event.target.value }))} />
-            </FieldLabel>
-            <button className="btn-primary h-10" type="button" disabled={!canWrite || saving || !draft.name.trim()} onClick={async () => { await onSave(draft); setDraft({ name: "", description: "", sort_order: categories.length + 2, is_active: true }); }}>
-              {draft.id ? "Save" : "Add"}
-            </button>
-          </div>
-        </div>
-        <div className="divide-y divide-border overflow-hidden rounded-2xl border border-border">
-          {categories.map((category) => (
-            <div key={category.id} className="grid gap-2 p-3 md:grid-cols-[1fr_1fr_auto] md:items-center">
-              <div>
-                <div className="text-sm font-bold text-text-primary">{category.name}</div>
-                <div className="text-xs font-semibold text-text-secondary">{category.description || "No description"}</div>
-              </div>
-              <Badge tone={category.is_active ? "success" : "neutral"}>{category.is_active ? "Active" : "Archived"}</Badge>
-              <div className="flex justify-end gap-2">
-                {canWrite ? <button className="btn-secondary h-8 text-xs" type="button" onClick={() => setDraft(category)}>Edit</button> : null}
-                {category.is_active && canArchive ? <button className="btn-secondary h-8 text-xs" type="button" onClick={() => onArchive(category)}>Deactivate</button> : null}
-              </div>
-            </div>
-          ))}
-        </div>
-        <div className="rounded-2xl border border-border bg-background p-3">
-          <div className="mb-3 flex items-center justify-between gap-3">
+    <Modal title="Asset Category Configuration" description="Manage asset categories, inspection conditions, and operational rules." onClose={onClose} size="2xl" bodyClassName="p-0">
+      <div className="grid min-h-[620px] overflow-hidden lg:grid-cols-[280px_1fr]">
+        <aside className="border-b border-border bg-slate-50/80 p-4 lg:border-b-0 lg:border-r">
+          <div className="mb-4 flex items-center justify-between gap-3">
             <div>
-              <div className="text-sm font-black text-text-primary">Manage Conditions</div>
-              <div className="text-xs text-text-secondary">Category-aware audit conditions used in inspections.</div>
+              <div className="text-xs font-black uppercase tracking-wide text-text-muted">Category List</div>
+              <div className="text-sm font-black text-text-primary">{categories.length} categories</div>
             </div>
-            <Badge tone="info">{conditionTemplates.length} conditions</Badge>
+            {canWrite ? (
+              <button className="btn-primary h-9 px-3 text-xs" type="button" onClick={() => selectCategory("new")}>
+                <Plus size={14} /> New
+              </button>
+            ) : null}
           </div>
-          <div className="grid gap-2 md:grid-cols-[1fr_1fr_120px_120px_auto] md:items-end">
-            <FieldLabel label="Category">
-              <SelectField value={conditionDraft.category_id} options={categories.map((category) => ({ value: category.id, label: category.name }))} onChange={(value) => setConditionDraft((current) => ({ ...current, category_id: value }))} searchable />
-            </FieldLabel>
-            <FieldLabel label="Condition Name">
-              <input className="control" value={conditionDraft.name} onChange={(event) => setConditionDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Needs Cleaning" />
-            </FieldLabel>
-            <FieldLabel label="Severity">
-              <SelectField value={conditionDraft.severity} options={["healthy", "low", "medium", "high", "critical"].map((severity) => ({ value: severity, label: titleCase(severity) }))} onChange={(value) => setConditionDraft((current) => ({ ...current, severity: value }))} />
-            </FieldLabel>
-            <FieldLabel label="Rules">
-              <div className="flex h-10 items-center gap-2">
-                <label className="flex items-center gap-1 text-xs font-bold text-text-secondary"><input type="checkbox" checked={conditionDraft.requires_photo} onChange={(event) => setConditionDraft((current) => ({ ...current, requires_photo: event.target.checked }))} /> Photo</label>
-                <label className="flex items-center gap-1 text-xs font-bold text-text-secondary"><input type="checkbox" checked={conditionDraft.requires_remark} onChange={(event) => setConditionDraft((current) => ({ ...current, requires_remark: event.target.checked }))} /> Remark</label>
-              </div>
-            </FieldLabel>
-            <button className="btn-primary h-10" type="button" disabled={!canWrite || saving || !conditionDraft.category_id || !conditionDraft.name.trim()} onClick={async () => {
-              await onSaveCondition(conditionDraft);
-              setConditionDraft({ category_id: conditionDraft.category_id, name: "", severity: "healthy", color: "emerald", requires_photo: false, requires_remark: false, active: true, sort_order: conditionTemplates.length + 2 });
-            }}>
-              {conditionDraft.id ? "Save" : "Add"}
-            </button>
-          </div>
-          <div className="mt-3 max-h-56 divide-y divide-border overflow-y-auto rounded-2xl border border-border bg-white">
-            {conditionTemplates.map((condition) => {
-              const category = categories.find((item) => item.id === condition.category_id);
+          <div className="max-h-[540px] space-y-1.5 overflow-y-auto pr-1">
+            {categories.map((category) => {
+              const isSelected = selectedCategoryId === category.id;
+              const assetCount = assetCountByCategory.get(category.id) || 0;
               return (
-                <div key={condition.id} className="grid gap-2 p-3 md:grid-cols-[1fr_auto_auto] md:items-center">
-                  <div>
-                    <div className="text-sm font-bold text-text-primary">{condition.name}</div>
-                    <div className="text-xs text-text-secondary">{category?.name || "Category"} · {titleCase(condition.severity)} {condition.requires_photo ? "· Photo required" : ""} {condition.requires_remark ? "· Remark required" : ""}</div>
-                  </div>
-                  <Badge tone={conditionTone(condition)}>{titleCase(condition.severity)}</Badge>
-                  {canWrite ? <button className="btn-secondary h-8 text-xs" type="button" onClick={() => setConditionDraft(condition)}>Edit</button> : null}
-                </div>
+                <button
+                  key={category.id}
+                  className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition ${isSelected ? "border-primary/25 bg-primary/10 shadow-sm" : "border-transparent hover:border-border hover:bg-white"}`}
+                  type="button"
+                  onClick={() => selectCategory(category.id)}
+                >
+                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[11px] font-black text-primary shadow-sm">{categoryIcon(category.name)}</span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-sm font-black text-text-primary">{category.name}</span>
+                    <span className="block text-xs font-semibold text-text-secondary">{assetCount} assets · {conditionCountByCategory.get(category.id) || 0} conditions</span>
+                  </span>
+                  <Badge tone={category.is_active ? "success" : "neutral"}>{category.is_active ? "Active" : "Archived"}</Badge>
+                </button>
               );
             })}
+            {!categories.length ? <div className="rounded-2xl border border-dashed border-border bg-white p-4 text-sm font-semibold text-text-secondary">Create the first category to start building inspection rules.</div> : null}
           </div>
-        </div>
+        </aside>
+
+        <section className="min-h-0 overflow-y-auto bg-white">
+          <div className="sticky top-0 z-10 border-b border-border bg-white/95 p-5 backdrop-blur">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
+                <div className="flex items-center gap-3">
+                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/10 text-xs font-black text-primary">{categoryIcon(categoryDraft.name || selectedCategory?.name)}</span>
+                  <div>
+                    <h3 className="text-lg font-black text-text-primary">{selectedCategory ? selectedCategory.name : "New Category"}</h3>
+                    <p className="text-sm text-text-secondary">{selectedCategory?.description || "Configure category details and inspection conditions."}</p>
+                  </div>
+                </div>
+              </div>
+              {selectedCategory ? (
+                <div className="flex items-center gap-2">
+                  <Badge tone={selectedCategory.is_active ? "success" : "neutral"}>{selectedCategory.is_active ? "Active" : "Archived"}</Badge>
+                  <Badge tone="info">{assetCountByCategory.get(selectedCategory.id) || 0} assets</Badge>
+                </div>
+              ) : null}
+            </div>
+            <div className="mt-4 flex gap-1 overflow-x-auto rounded-2xl bg-slate-100 p-1">
+              {tabs.map((item) => (
+                <button
+                  key={item.id}
+                  className={`shrink-0 rounded-xl px-3 py-2 text-xs font-black transition ${activeTab === item.id ? "bg-white text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"}`}
+                  type="button"
+                  onClick={() => setActiveTab(item.id)}
+                  disabled={!selectedCategory && item.id !== "overview"}
+                >
+                  {item.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="space-y-4 p-5">
+            {activeTab === "overview" ? (
+              <div className="grid gap-4 xl:grid-cols-[1fr_280px]">
+                <div className="rounded-3xl border border-border bg-slate-50/70 p-4">
+                  <div className="mb-4 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-black text-text-primary">Category Overview</div>
+                      <div className="text-xs text-text-secondary">Keep the category lightweight and operationally clear.</div>
+                    </div>
+                    {selectedCategory ? <Badge tone="info">{conditionCountByCategory.get(selectedCategory.id) || 0} conditions</Badge> : null}
+                  </div>
+                  {!selectedCategory ? (
+                    <div className="mb-4 rounded-2xl border border-border bg-white p-3">
+                      <div className="text-xs font-black uppercase tracking-wide text-text-muted">Quick Preset</div>
+                      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+                        {presets.map((preset) => (
+                          <button key={preset.name} className="rounded-2xl border border-border bg-white p-3 text-left transition hover:border-primary/30 hover:bg-primary/5" type="button" onClick={() => setCategoryDraft((current) => ({ ...current, ...preset, is_active: true }))}>
+                            <span className="block text-sm font-black text-text-primary">{preset.name}</span>
+                            <span className="mt-1 block text-xs text-text-secondary">{preset.description}</span>
+                          </button>
+                        ))}
+                      </div>
+                    </div>
+                  ) : null}
+                  <div className="grid gap-3 md:grid-cols-2">
+                    <FieldLabel label="Name">
+                      <input className="control" value={categoryDraft.name} onChange={(event) => setCategoryDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Kitchen Equipment" disabled={!canWrite} />
+                    </FieldLabel>
+                    <FieldLabel label="Sort Order">
+                      <input className="control" type="number" value={categoryDraft.sort_order} onChange={(event) => setCategoryDraft((current) => ({ ...current, sort_order: event.target.value }))} disabled={!canWrite} />
+                    </FieldLabel>
+                    <FieldLabel label="Description">
+                      <textarea className="control min-h-24 md:col-span-2" value={categoryDraft.description} onChange={(event) => setCategoryDraft((current) => ({ ...current, description: event.target.value }))} placeholder="Optional category description" disabled={!canWrite} />
+                    </FieldLabel>
+                    <FieldLabel label="Status">
+                      <label className="flex h-10 items-center gap-2 rounded-xl border border-border bg-white px-3 text-sm font-bold text-text-secondary">
+                        <input type="checkbox" checked={categoryDraft.is_active} onChange={(event) => setCategoryDraft((current) => ({ ...current, is_active: event.target.checked }))} disabled={!canWrite} />
+                        Active category
+                      </label>
+                    </FieldLabel>
+                  </div>
+                  <div className="mt-4 flex flex-wrap items-center gap-2">
+                    <button className="btn-primary" type="button" disabled={!canWrite || saving || !categoryDraft.name.trim()} onClick={saveCategoryDraft}>
+                      {categoryDraft.id ? "Save Category" : "Create Category"}
+                    </button>
+                    {selectedCategory?.is_active && canArchive ? <button className="btn-secondary text-amber-700" type="button" disabled={saving} onClick={() => onArchive(selectedCategory)}>Archive Category</button> : null}
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="rounded-3xl border border-border bg-white p-4 shadow-sm">
+                    <div className="text-xs font-black uppercase tracking-wide text-text-muted">Operational Preview</div>
+                    <div className="mt-3 space-y-2">
+                      {(selectedConditions.length ? selectedConditions : [{ id: "empty", name: "Good" }, { id: "empty-2", name: "Damaged" }, { id: "empty-3", name: "Missing" }]).slice(0, 4).map((condition) => (
+                        <div key={condition.id} className="flex items-center gap-2 rounded-2xl bg-slate-50 px-3 py-2">
+                          <span className="h-2.5 w-2.5 rounded-full bg-primary" />
+                          <span className="text-sm font-bold text-text-primary">{condition.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                    <p className="mt-3 text-xs text-text-secondary">{selectedCategory ? `${selectedCategory.name} inspections may use these conditions.` : "Preset conditions can be customized after the category is created."}</p>
+                  </div>
+                  <div className="rounded-3xl border border-amber-100 bg-amber-50 p-4">
+                    <div className="text-sm font-black text-amber-800">Safety Rule</div>
+                    <p className="mt-1 text-xs font-semibold text-amber-700">{selectedCategory ? `This category is linked to ${assetCountByCategory.get(selectedCategory.id) || 0} assets. Linked categories should be archived instead of deleted.` : "New categories become available in asset forms after saving."}</p>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+
+            {activeTab === "conditions" && selectedCategory ? (
+              <div className="grid gap-4 xl:grid-cols-[1fr_320px]">
+                <div className="space-y-3">
+                  <div className="rounded-3xl border border-border bg-slate-50/70 p-4">
+                    <div className="flex flex-wrap items-end gap-3">
+                      <FieldLabel label="Search Conditions">
+                        <div className="relative">
+                          <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
+                          <input className="control pl-9" value={conditionSearch} onChange={(event) => setConditionSearch(event.target.value)} placeholder="Search condition" />
+                        </div>
+                      </FieldLabel>
+                      <FieldLabel label="Severity">
+                        <SelectField value={severityFilter} options={[{ value: "all", label: "All Severity" }, ...["healthy", "low", "medium", "high", "critical"].map((severity) => ({ value: severity, label: titleCase(severity) }))]} onChange={setSeverityFilter} />
+                      </FieldLabel>
+                      {canWrite ? <button className="btn-primary h-10" type="button" onClick={() => startConditionEdit()}><Plus size={15} /> Add Condition</button> : null}
+                    </div>
+                  </div>
+
+                  <div className="rounded-3xl border border-border bg-white p-4">
+                    <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <div className="text-sm font-black text-text-primary">Condition Library</div>
+                        <div className="text-xs text-text-secondary">Reusable audit conditions for {selectedCategory.name} inspections.</div>
+                      </div>
+                      <Badge tone="info">{selectedConditions.length} shown</Badge>
+                    </div>
+                    <div className="space-y-2">
+                      {selectedConditions.map((condition) => (
+                        <div key={condition.id} className="rounded-2xl border border-border bg-slate-50/70 p-3 transition hover:border-primary/20 hover:bg-primary/5">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="flex min-w-0 gap-3">
+                              <span className={`mt-1 h-3 w-3 shrink-0 rounded-full ${condition.severity === "critical" ? "bg-rose-500" : condition.severity === "high" ? "bg-orange-500" : condition.severity === "medium" ? "bg-amber-500" : condition.severity === "low" ? "bg-blue-500" : "bg-emerald-500"}`} />
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <span className="font-black text-text-primary">{condition.name}</span>
+                                  <span className={`rounded-full border px-2 py-0.5 text-[11px] font-black ${severityStyles[condition.severity] || severityStyles.healthy}`}>{titleCase(condition.severity)}</span>
+                                  <Badge tone={condition.active === false ? "neutral" : "success"}>{condition.active === false ? "Inactive" : "Active"}</Badge>
+                                </div>
+                                <div className="mt-2 flex flex-wrap gap-1.5">
+                                  {condition.requires_photo ? <span className="rounded-full bg-white px-2 py-1 text-[11px] font-bold text-text-secondary">Photo required</span> : null}
+                                  {condition.requires_remark ? <span className="rounded-full bg-white px-2 py-1 text-[11px] font-bold text-text-secondary">Remark required</span> : null}
+                                  {condition.affects_health ? <span className="rounded-full bg-white px-2 py-1 text-[11px] font-bold text-text-secondary">Affects health</span> : null}
+                                  {condition.triggers_alert ? <span className="rounded-full bg-white px-2 py-1 text-[11px] font-bold text-text-secondary">Triggers alert</span> : null}
+                                </div>
+                              </div>
+                            </div>
+                            {canWrite ? <button className="btn-secondary h-8 text-xs" type="button" onClick={() => startConditionEdit(condition)}>Edit</button> : null}
+                          </div>
+                        </div>
+                      ))}
+                      {!selectedConditions.length ? (
+                        <div className="rounded-3xl border border-dashed border-border bg-slate-50 p-8 text-center">
+                          <div className="text-sm font-black text-text-primary">No inspection conditions configured yet.</div>
+                          <p className="mt-1 text-sm text-text-secondary">Add the first condition or copy conditions from a similar category.</p>
+                          {canWrite ? <button className="btn-primary mt-4" type="button" onClick={() => startConditionEdit()}><Plus size={15} /> Add First Condition</button> : null}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="rounded-3xl border border-border bg-white p-4 shadow-sm">
+                    <div className="text-sm font-black text-text-primary">Copy Conditions</div>
+                    <p className="mt-1 text-xs text-text-secondary">Reuse a condition set from another category.</p>
+                    <div className="mt-3 space-y-2">
+                      <SelectField value={copyFromId} placeholder="Choose category" options={categories.filter((category) => category.id !== selectedCategory.id).map((category) => ({ value: category.id, label: category.name }))} onChange={setCopyFromId} searchable />
+                      <button className="btn-secondary w-full" type="button" disabled={!canWrite || saving || !copyFromId || !sourceConditions.length} onClick={copyConditions}>
+                        Copy {sourceConditions.length || ""} Conditions
+                      </button>
+                    </div>
+                  </div>
+
+                  {conditionDraft ? (
+                    <div className="rounded-3xl border border-primary/20 bg-primary/5 p-4">
+                      <div className="mb-3">
+                        <div className="text-sm font-black text-text-primary">{conditionDraft.id ? "Edit Condition" : "Add Condition"}</div>
+                        <div className="text-xs text-text-secondary">Set evidence rules and operational impact.</div>
+                      </div>
+                      <div className="space-y-3">
+                        <FieldLabel label="Condition Name">
+                          <input className="control" value={conditionDraft.name} onChange={(event) => setConditionDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Cracked" />
+                        </FieldLabel>
+                        <FieldLabel label="Severity">
+                          <SelectField value={conditionDraft.severity} options={["healthy", "low", "medium", "high", "critical"].map((severity) => ({ value: severity, label: titleCase(severity) }))} onChange={(value) => setConditionDraft((current) => ({ ...current, severity: value }))} />
+                        </FieldLabel>
+                        <FieldLabel label="Color">
+                          <input className="control" value={conditionDraft.color || ""} onChange={(event) => setConditionDraft((current) => ({ ...current, color: event.target.value }))} placeholder="emerald / amber / rose" />
+                        </FieldLabel>
+                        <FieldLabel label="Sort Order">
+                          <input className="control" type="number" value={conditionDraft.sort_order || ""} onChange={(event) => setConditionDraft((current) => ({ ...current, sort_order: event.target.value }))} />
+                        </FieldLabel>
+                        <div className="grid gap-2">
+                          {[
+                            ["requires_photo", "Require photo"],
+                            ["requires_remark", "Require remark"],
+                            ["affects_health", "Affect asset health"],
+                            ["triggers_alert", "Trigger alert"],
+                            ["active", "Active condition"],
+                          ].map(([key, label]) => (
+                            <label key={key} className="flex items-center justify-between rounded-2xl border border-border bg-white px-3 py-2 text-sm font-bold text-text-secondary">
+                              {label}
+                              <input type="checkbox" checked={conditionDraft[key] !== false} onChange={(event) => setConditionDraft((current) => ({ ...current, [key]: event.target.checked }))} />
+                            </label>
+                          ))}
+                        </div>
+                        <div className="flex gap-2">
+                          <button className="btn-primary flex-1" type="button" disabled={!canWrite || saving || !conditionDraft.name.trim()} onClick={saveConditionDraft}>Save Condition</button>
+                          <button className="btn-secondary" type="button" onClick={() => setConditionDraft(null)}>Cancel</button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="rounded-3xl border border-border bg-slate-50 p-4">
+                      <div className="text-sm font-black text-text-primary">Condition Preview</div>
+                      <p className="mt-1 text-xs text-text-secondary">Select a condition to edit its severity, evidence rules, and health impact.</p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            ) : null}
+
+            {activeTab === "rules" && selectedCategory ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                {[
+                  ["Missing asset", "Require photo and remark before inspection can be submitted."],
+                  ["Medium or higher severity", "Flag evidence as required and place item in the review queue."],
+                  ["Quantity difference", "Create a correction movement after final confirmation."],
+                  ["Large difference", "Future rule: request manager review when difference exceeds threshold."],
+                ].map(([title, body]) => (
+                  <div key={title} className="rounded-3xl border border-border bg-slate-50 p-4">
+                    <div className="text-sm font-black text-text-primary">{title}</div>
+                    <p className="mt-1 text-sm text-text-secondary">{body}</p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {activeTab === "automation" && selectedCategory ? (
+              <div className="grid gap-3 md:grid-cols-2">
+                {[
+                  ["Maintenance review", "Future automation can create a maintenance task for damaged conditions."],
+                  ["Operations alert", "Critical inspection results can notify the operations manager."],
+                  ["Health score", "Condition severity contributes to asset health scoring."],
+                  ["Compliance flag", "Repeated issues can be tracked for audit follow-up."],
+                ].map(([title, body]) => (
+                  <div key={title} className="rounded-3xl border border-border bg-white p-4 shadow-sm">
+                    <div className="text-sm font-black text-text-primary">{title}</div>
+                    <p className="mt-1 text-sm text-text-secondary">{body}</p>
+                  </div>
+                ))}
+              </div>
+            ) : null}
+
+            {activeTab === "history" && selectedCategory ? (
+              <div className="rounded-3xl border border-border bg-white p-4 shadow-sm">
+                <div className="text-sm font-black text-text-primary">Category History</div>
+                <div className="mt-4 grid gap-3 md:grid-cols-2">
+                  <div className="rounded-2xl bg-slate-50 p-3">
+                    <div className="text-xs font-black uppercase tracking-wide text-text-muted">Created</div>
+                    <div className="mt-1 text-sm font-bold text-text-primary">{formatFullDate(selectedCategory.created_at)}</div>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-3">
+                    <div className="text-xs font-black uppercase tracking-wide text-text-muted">Last Updated</div>
+                    <div className="mt-1 text-sm font-bold text-text-primary">{formatFullDate(selectedCategory.updated_at)}</div>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-3">
+                    <div className="text-xs font-black uppercase tracking-wide text-text-muted">Linked Assets</div>
+                    <div className="mt-1 text-sm font-bold text-text-primary">{assetCountByCategory.get(selectedCategory.id) || 0}</div>
+                  </div>
+                  <div className="rounded-2xl bg-slate-50 p-3">
+                    <div className="text-xs font-black uppercase tracking-wide text-text-muted">Conditions</div>
+                    <div className="mt-1 text-sm font-bold text-text-primary">{conditionCountByCategory.get(selectedCategory.id) || 0}</div>
+                  </div>
+                </div>
+              </div>
+            ) : null}
+          </div>
+        </section>
       </div>
     </Modal>
   );
@@ -1182,7 +1532,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       </Card> : null}
 
       {assetModal ? <AssetFormModal asset={assetModal} outlets={activeOutlets} categories={categories} onClose={() => setAssetModal(null)} onSubmit={saveAsset} saving={saving} /> : null}
-      {categoryModalOpen ? <CategoryModal categories={categories} conditionTemplates={conditionTemplates} onClose={() => setCategoryModalOpen(false)} onSave={saveCategory} onArchive={archiveCategory} onSaveCondition={saveConditionTemplate} saving={saving} canWrite={canAdd || canEditAsset} canArchive={canDeleteAsset} /> : null}
+      {categoryModalOpen ? <CategoryModal categories={categories} conditionTemplates={conditionTemplates} assets={assets} onClose={() => setCategoryModalOpen(false)} onSave={saveCategory} onArchive={archiveCategory} onSaveCondition={saveConditionTemplate} saving={saving} canWrite={canAdd || canEditAsset} canArchive={canDeleteAsset} /> : null}
       {adjustAsset ? <AdjustQuantityModal asset={adjustAsset} onClose={() => setAdjustAsset(null)} onSubmit={adjustQuantity} saving={saving} /> : null}
       {inspectionOpen ? <InspectionModal outletId={inspectionOpen?.outlet_id || outletId} categories={categories} assets={assets} conditionTemplates={conditionTemplates} draftInspection={inspectionOpen === true ? null : inspectionOpen} onClose={() => setInspectionOpen(false)} onSubmit={submitInspection} saving={saving} /> : null}
       {detailAsset ? <AssetDetailDrawer asset={detailAsset} movements={assetMovements} inspections={assetInspections} onClose={() => setDetailAsset(null)} onAdjust={() => setAdjustAsset(detailAsset)} onInspect={() => setInspectionOpen(true)} onEdit={() => setAssetModal(detailAsset)} onResumeDraft={(inspection) => setInspectionOpen(inspection)} onDeleteDraft={deleteInspection} onArchiveDraft={(inspection) => updateInspectionStatus(inspection, "archived")} /> : null}

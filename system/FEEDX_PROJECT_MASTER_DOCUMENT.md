@@ -1303,6 +1303,22 @@ Condition severity:
 - high
 - critical
 
+Category and condition management UX:
+
+- Asset Category Management uses a split configuration-center layout.
+- Left panel shows compact category navigation with category icon, asset count, condition count, and active or archived state.
+- Right panel shows selected category detail with tabs:
+  - Overview
+  - Conditions
+  - Inspection Rules
+  - Automation
+  - History
+- Overview supports category editing, quick category presets, operational preview, and archive safety guidance.
+- Conditions are managed as scannable cards instead of a long spreadsheet table.
+- Condition cards show severity, evidence requirements, health impact, alert behavior, and active state.
+- Conditions support search, severity filtering, add/edit panel, and copying condition sets from another category.
+- Inspection Rules and Automation tabs are future-ready sections for evidence rules, alerts, maintenance tasks, health scoring, and compliance tracking.
+
 Inspection evidence fields:
 
 - id
