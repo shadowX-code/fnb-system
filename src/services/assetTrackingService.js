@@ -8,6 +8,7 @@ const assetBaseFields = "id,outlet_id,category_id,name,description,unit,current_
 const assetBaseConditionFields = "id,outlet_id,category_id,name,description,condition,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name)";
 const assetFields = "id,outlet_id,category_id,name,description,image_url,thumbnail_url,health_status,last_inspection_at,condition,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name,maintenance_enabled)";
 const movementFields = "id,asset_id,outlet_id,movement_type,quantity_change,quantity_before,quantity_after,reason,remark,movement_date,created_by,created_at";
+const maintenanceFields = "id,asset_id,outlet_id,date,issue,action_taken,vendor,cost,status,remark,photo_url,created_by,created_at,updated_at";
 const inspectionFields = "id,outlet_id,inspection_date,checked_by,category_scope,status,summary,notes,remark,created_by,current_step,completion_percentage,last_edited_at,last_edited_by,draft_data,auto_saved,created_at,updated_at";
 const inspectionItemFields = "id,inspection_id,asset_id,expected_quantity,counted_quantity,expected_qty,counted_qty,difference,condition,condition_status,condition_template_id,evidence_required,evidence_status,remark,created_at,asset:asset_items(id,name,category:asset_categories(id,name))";
 const conditionFields = "id,category_id,name,severity,color,requires_photo,requires_remark,affects_health,triggers_alert,active,sort_order,created_at,updated_at";
@@ -75,6 +76,27 @@ async function uploadAssetImageIfNeeded(asset, userId) {
   }
   const { data: publicUrlData } = supabase.storage.from("asset-photos").getPublicUrl(data.path);
   console.info("[AssetTracking] Asset photo uploaded", { path: data.path, publicUrl: publicUrlData.publicUrl });
+  return publicUrlData.publicUrl;
+}
+
+async function uploadMaintenancePhotoIfNeeded(record, userId) {
+  if (!isDataUrl(record.photo_url)) return record.photo_url ?? "";
+  const extension = dataUrlExtension(record.photo_url);
+  const path = `maintenance/${record.outlet_id || "outlet"}/${record.asset_id || "asset"}-${Date.now()}.${extension}`;
+  const response = await fetch(record.photo_url);
+  const blob = await response.blob();
+  const { data, error } = await supabase.storage
+    .from("asset-photos")
+    .upload(path, blob, {
+      contentType: blob.type || `image/${extension}`,
+      upsert: true,
+      metadata: { uploaded_by: userId || "" },
+    });
+  if (error) {
+    console.error("[AssetTracking] Maintenance photo upload failed", error);
+    throw new Error("Unable to upload maintenance photo. Please try again.");
+  }
+  const { data: publicUrlData } = supabase.storage.from("asset-photos").getPublicUrl(data.path);
   return publicUrlData.publicUrl;
 }
 
@@ -148,6 +170,32 @@ function mapMovement(row) {
     movement_date: row.movement_date,
     created_at: row.created_at,
   };
+}
+
+function mapMaintenanceRecord(row) {
+  return {
+    id: row.id,
+    asset_id: row.asset_id,
+    outlet_id: row.outlet_id,
+    date: row.date,
+    issue: row.issue ?? "",
+    action_taken: row.action_taken ?? "",
+    vendor: row.vendor ?? "",
+    cost: Number(row.cost ?? 0),
+    status: row.status ?? "scheduled",
+    remark: row.remark ?? "",
+    photo_url: row.photo_url ?? "",
+    created_by: row.created_by ?? null,
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function isMissingMaintenanceTable(error) {
+  const message = String(error?.message || error?.details || "");
+  return error?.code === "42P01" ||
+    error?.code === "PGRST205" ||
+    /asset_maintenance_records/i.test(message);
 }
 
 function mapInspection(row, items = []) {
@@ -269,6 +317,24 @@ export const assetTrackingService = {
     throwSupabaseError("asset_categories.save", error);
     await logAssetAudit(category.id ? "asset_category_edited" : "asset_category_created", "-", data.name, data);
     return mapCategory(data);
+  },
+
+  async reorderCategories(categories) {
+    const updates = categories.map((category, index) => ({
+      id: category.id,
+      sort_order: index + 1,
+      updated_at: new Date().toISOString(),
+    }));
+    const results = await Promise.all(updates.map((update) => supabase
+      .from("asset_categories")
+      .update({ sort_order: update.sort_order, updated_at: update.updated_at })
+      .eq("id", update.id)
+      .select(categoryFields)
+      .single()));
+    const failed = results.find((result) => result.error);
+    if (failed?.error) throwSupabaseError("asset_categories.reorder", failed.error);
+    await logAssetAudit("asset_category_order_updated", "-", "Asset category order updated", { count: updates.length });
+    return results.map((result) => mapCategory(result.data));
   },
 
   async archiveCategory(category) {
@@ -463,6 +529,62 @@ export const assetTrackingService = {
     const { data, error } = await query;
     throwSupabaseError("asset_movement_logs.list", error);
     return (data ?? []).map(mapMovement);
+  },
+
+  async listMaintenanceRecords(assetId = "", outletId = "") {
+    let query = supabase
+      .from("asset_maintenance_records")
+      .select(maintenanceFields)
+      .order("date", { ascending: false })
+      .order("created_at", { ascending: false });
+    if (assetId) query = query.eq("asset_id", assetId);
+    if (outletId && outletId !== "all") query = query.eq("outlet_id", outletId);
+    const { data, error } = await query;
+    if (error && isMissingMaintenanceTable(error)) {
+      console.warn("Asset maintenance records table is not available yet.", error);
+      return [];
+    }
+    throwSupabaseError("asset_maintenance_records.list", error);
+    return (data ?? []).map(mapMaintenanceRecord);
+  },
+
+  async saveMaintenanceRecord(asset, record) {
+    const userId = await currentUserId();
+    const photoUrl = await uploadMaintenancePhotoIfNeeded({ ...record, asset_id: asset.id, outlet_id: asset.outlet_id }, userId);
+    const payload = {
+      asset_id: asset.id,
+      outlet_id: asset.outlet_id,
+      date: record.date || new Date().toISOString().slice(0, 10),
+      issue: record.issue ?? "",
+      action_taken: record.action_taken ?? "",
+      vendor: record.vendor ?? "",
+      cost: Number(record.cost || 0),
+      status: record.status || "scheduled",
+      remark: record.remark ?? "",
+      photo_url: photoUrl,
+      created_by: userId,
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabase
+      .from("asset_maintenance_records")
+      .insert(payload)
+      .select(maintenanceFields)
+      .single();
+    throwSupabaseError("asset_maintenance_records.save", error);
+
+    let updatedCondition = null;
+    if (payload.status === "in_progress") updatedCondition = "under_maintenance";
+    if (payload.status === "completed" && record.set_condition_good === true) updatedCondition = "healthy";
+    if (updatedCondition) {
+      const { error: assetError } = await supabase
+        .from("asset_items")
+        .update({ condition: updatedCondition, updated_by: userId, updated_at: new Date().toISOString() })
+        .eq("id", asset.id);
+      throwSupabaseError("asset_maintenance_records.asset_condition", assetError);
+    }
+
+    await logAssetAudit("asset_maintenance_record_created", asset.outlet_id, asset.name, payload);
+    return { record: mapMaintenanceRecord(data), condition: updatedCondition };
   },
 
   async adjustQuantity(asset, adjustment) {

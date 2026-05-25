@@ -299,26 +299,27 @@ function AssetFormModal({ asset, outlets, categories, onClose, onSubmit, saving 
   );
 }
 
-function CategoryModal({ categories, assets = [], onClose, onSave, onArchive, saving, canWrite, canArchive }) {
+function CategoryModal({ categories, assets = [], onClose, onSave, onArchive, onReorder, saving, canWrite, canArchive }) {
   const defaultCategoryDraft = { name: "", description: "", sort_order: categories.length + 1, is_active: true, maintenance_enabled: false };
   const [selectedCategoryId, setSelectedCategoryId] = useState(categories[0]?.id || "new");
-  const [activeTab, setActiveTab] = useState("overview");
   const [categoryDraft, setCategoryDraft] = useState(defaultCategoryDraft);
+  const [orderedCategories, setOrderedCategories] = useState(categories);
+  const [draggedCategoryId, setDraggedCategoryId] = useState("");
   const selectedCategory = categories.find((category) => category.id === selectedCategoryId);
   const assetCountByCategory = useMemo(() => assets.reduce((map, asset) => {
     map.set(asset.category_id, (map.get(asset.category_id) || 0) + 1);
     return map;
   }, new Map()), [assets]);
-  const tabs = [
-    { id: "overview", label: "Overview" },
-    { id: "history", label: "History" },
-  ];
   const presets = [
     { name: "Kitchen Equipment", description: "Maintainable kitchen equipment such as machines and electrical tools.", sort_order: categories.length + 1, maintenance_enabled: true },
     { name: "Electronics", description: "POS, electrical, and connected equipment.", sort_order: categories.length + 1, maintenance_enabled: true },
     { name: "Furniture", description: "Dining area furniture and fixtures.", sort_order: categories.length + 1, maintenance_enabled: false },
     { name: "Generic", description: "General outlet assets.", sort_order: categories.length + 1, maintenance_enabled: false },
   ];
+
+  useEffect(() => {
+    setOrderedCategories(categories);
+  }, [categories]);
 
   useEffect(() => {
     if (selectedCategory) {
@@ -337,7 +338,6 @@ function CategoryModal({ categories, assets = [], onClose, onSave, onArchive, sa
 
   function selectCategory(categoryId) {
     setSelectedCategoryId(categoryId);
-    setActiveTab("overview");
   }
 
   async function saveCategoryDraft() {
@@ -346,10 +346,35 @@ function CategoryModal({ categories, assets = [], onClose, onSave, onArchive, sa
     if (!categoryDraft.id) setSelectedCategoryId("new");
   }
 
+  async function reorderCategory(targetCategoryId) {
+    if (!draggedCategoryId || draggedCategoryId === targetCategoryId || !canWrite) return;
+    const fromIndex = orderedCategories.findIndex((category) => category.id === draggedCategoryId);
+    const toIndex = orderedCategories.findIndex((category) => category.id === targetCategoryId);
+    if (fromIndex < 0 || toIndex < 0) return;
+    const next = [...orderedCategories];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    setOrderedCategories(next);
+    setDraggedCategoryId("");
+    await onReorder?.(next);
+  }
+
+  async function keyboardReorder(categoryId, direction) {
+    const index = orderedCategories.findIndex((category) => category.id === categoryId);
+    const nextIndex = index + direction;
+    if (!canWrite || index < 0 || nextIndex < 0 || nextIndex >= orderedCategories.length) return;
+    const next = [...orderedCategories];
+    const [moved] = next.splice(index, 1);
+    next.splice(nextIndex, 0, moved);
+    setOrderedCategories(next);
+    setSelectedCategoryId(categoryId);
+    await onReorder?.(next);
+  }
+
   return (
     <Modal title="Asset Category Configuration" description="Manage asset categories used to classify outlet assets." onClose={onClose} size="xl" bodyClassName="p-0">
-      <div className="grid min-h-[620px] overflow-hidden lg:grid-cols-[280px_1fr]">
-        <aside className="border-b border-border bg-slate-50/80 p-4 lg:border-b-0 lg:border-r">
+      <div className="grid h-[min(760px,82vh)] overflow-hidden lg:grid-cols-[340px_1fr]">
+        <aside className="sticky top-0 flex min-h-0 flex-col border-b border-border bg-slate-50/80 p-4 lg:border-b-0 lg:border-r">
           <div className="mb-4 flex items-center justify-between gap-3">
             <div>
               <div className="text-xs font-black uppercase tracking-wide text-text-muted">Category List</div>
@@ -361,34 +386,42 @@ function CategoryModal({ categories, assets = [], onClose, onSave, onArchive, sa
               </button>
             ) : null}
           </div>
-          <div className="max-h-[540px] space-y-1.5 overflow-y-auto pr-1">
-            {categories.map((category) => {
+          <div className="min-h-0 flex-1 space-y-1.5 overflow-y-auto pr-1">
+            {orderedCategories.map((category) => {
               const isSelected = selectedCategoryId === category.id;
               const assetCount = assetCountByCategory.get(category.id) || 0;
               return (
-                <button
+                <div
                   key={category.id}
-                  className={`flex w-full items-center gap-3 rounded-2xl border px-3 py-2.5 text-left transition ${isSelected ? "border-primary/25 bg-primary/10 shadow-sm" : "border-transparent hover:border-border hover:bg-white"}`}
-                  type="button"
-                  onClick={() => selectCategory(category.id)}
+                  className={`flex w-full items-center gap-2 rounded-2xl border px-2.5 py-2.5 text-left transition ${draggedCategoryId === category.id ? "scale-[1.01] border-primary/40 bg-white shadow-lg" : isSelected ? "border-primary/25 bg-primary/10 shadow-sm" : "border-transparent hover:border-border hover:bg-white"}`}
+                  draggable={canWrite}
+                  onDragStart={() => setDraggedCategoryId(category.id)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={() => reorderCategory(category.id)}
+                  onDragEnd={() => setDraggedCategoryId("")}
                 >
+                  <button className="cursor-grab rounded-lg px-1.5 py-2 text-text-muted hover:bg-slate-100" type="button" aria-label={`Reorder ${category.name}`} disabled={!canWrite}>⋮⋮</button>
                   <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-white text-[11px] font-black text-primary shadow-sm">{categoryIcon(category.name)}</span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-black text-text-primary">{category.name}</span>
+                  <button className="min-w-0 flex-1 text-left" type="button" onClick={() => selectCategory(category.id)}>
+                    <span className="block whitespace-normal text-sm font-black leading-snug text-text-primary">{category.name}</span>
                     <span className="block text-xs font-semibold text-text-secondary">{assetCount} linked assets</span>
-                  </span>
+                  </button>
                   <span className="flex shrink-0 flex-col items-end gap-1">
                     <Badge tone={category.is_active ? "success" : "neutral"}>{category.is_active ? "Active" : "Archived"}</Badge>
                     {category.maintenance_enabled ? <span className="rounded-full bg-blue-50 px-2 py-0.5 text-[10px] font-black text-blue-700">Maintenance</span> : null}
+                    <span className="flex gap-0.5">
+                      <button className="rounded-md px-1 text-[10px] font-black text-text-muted hover:bg-white hover:text-primary" type="button" disabled={!canWrite} onClick={() => keyboardReorder(category.id, -1)}>↑</button>
+                      <button className="rounded-md px-1 text-[10px] font-black text-text-muted hover:bg-white hover:text-primary" type="button" disabled={!canWrite} onClick={() => keyboardReorder(category.id, 1)}>↓</button>
+                    </span>
                   </span>
-                </button>
+                </div>
               );
             })}
-            {!categories.length ? <div className="rounded-2xl border border-dashed border-border bg-white p-4 text-sm font-semibold text-text-secondary">Create the first category to start building inspection rules.</div> : null}
+            {!categories.length ? <div className="rounded-2xl border border-dashed border-border bg-white p-4 text-sm font-semibold text-text-secondary">Create the first category to start classifying assets.</div> : null}
           </div>
         </aside>
 
-        <section className="min-h-0 overflow-y-auto bg-white">
+        <section className="flex min-h-0 flex-col bg-white">
           <div className="sticky top-0 z-10 border-b border-border bg-white/95 p-5 backdrop-blur">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
@@ -407,29 +440,18 @@ function CategoryModal({ categories, assets = [], onClose, onSave, onArchive, sa
                 </div>
               ) : null}
             </div>
-            <div className="mt-4 flex gap-1 overflow-x-auto rounded-2xl bg-slate-100 p-1">
-              {tabs.map((item) => (
-                <button
-                  key={item.id}
-                  className={`shrink-0 rounded-xl px-3 py-2 text-xs font-black transition ${activeTab === item.id ? "bg-white text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"}`}
-                  type="button"
-                  onClick={() => setActiveTab(item.id)}
-                  disabled={!selectedCategory && item.id !== "overview"}
-                >
-                  {item.label}
-                </button>
-              ))}
+            <div className="mt-4 rounded-2xl border border-border bg-slate-50 px-3 py-2 text-xs font-semibold text-text-secondary">
+              Categories classify assets. Maintenance is optional and only appears for assets under maintenance-enabled categories.
             </div>
           </div>
 
-          <div className="space-y-4 p-5">
-            {activeTab === "overview" ? (
-              <div className="grid gap-4 xl:grid-cols-[1fr_280px]">
-                <div className="rounded-3xl border border-border bg-slate-50/70 p-4">
+          <div className="min-h-0 flex-1 overflow-y-auto p-5 pb-24">
+            <div className="space-y-4">
+              <div className="rounded-3xl border border-border bg-slate-50/70 p-4">
                   <div className="mb-4 flex items-center justify-between gap-3">
                     <div>
-                      <div className="text-sm font-black text-text-primary">Category Overview</div>
-                      <div className="text-xs text-text-secondary">Keep the category lightweight and operationally clear.</div>
+                      <div className="text-sm font-black text-text-primary">Category Details</div>
+                      <div className="text-xs text-text-secondary">Keep this short and easy for outlet teams to scan.</div>
                     </div>
                     {selectedCategory ? <Badge tone="info">{assetCountByCategory.get(selectedCategory.id) || 0} linked assets</Badge> : null}
                   </div>
@@ -450,14 +472,8 @@ function CategoryModal({ categories, assets = [], onClose, onSave, onArchive, sa
                     </div>
                   ) : null}
                   <div className="grid gap-3 md:grid-cols-2">
-                    <FieldLabel label="Name">
+                    <FieldLabel label="Category Name">
                       <input className="control" value={categoryDraft.name} onChange={(event) => setCategoryDraft((current) => ({ ...current, name: event.target.value }))} placeholder="Kitchen Equipment" disabled={!canWrite} />
-                    </FieldLabel>
-                    <FieldLabel label="Sort Order">
-                      <input className="control" type="number" value={categoryDraft.sort_order} onChange={(event) => setCategoryDraft((current) => ({ ...current, sort_order: event.target.value }))} disabled={!canWrite} />
-                    </FieldLabel>
-                    <FieldLabel label="Description">
-                      <textarea className="control min-h-24 md:col-span-2" value={categoryDraft.description} onChange={(event) => setCategoryDraft((current) => ({ ...current, description: event.target.value }))} placeholder="Optional category description" disabled={!canWrite} />
                     </FieldLabel>
                     <FieldLabel label="Status">
                       <label className="flex h-10 items-center gap-2 rounded-xl border border-border bg-white px-3 text-sm font-bold text-text-secondary">
@@ -465,43 +481,24 @@ function CategoryModal({ categories, assets = [], onClose, onSave, onArchive, sa
                         Active category
                       </label>
                     </FieldLabel>
-                    <FieldLabel label="Maintenance Workflow">
-                      <label className="flex min-h-20 items-start gap-3 rounded-xl border border-border bg-white px-3 py-3 text-sm text-text-secondary">
-                        <input className="mt-1" type="checkbox" checked={categoryDraft.maintenance_enabled === true} onChange={(event) => setCategoryDraft((current) => ({ ...current, maintenance_enabled: event.target.checked }))} disabled={!canWrite} />
-                        <span>
-                          <span className="block font-black text-text-primary">Maintenance Enabled</span>
-                          <span className="mt-1 block text-xs font-semibold">Use for machines, electrical equipment, POS hardware, aircond, refrigerators, or assets that need repair logs and service scheduling.</span>
-                        </span>
-                      </label>
+                    <FieldLabel label="Description">
+                      <textarea className="control min-h-24 md:col-span-2" value={categoryDraft.description} onChange={(event) => setCategoryDraft((current) => ({ ...current, description: event.target.value }))} placeholder="Optional category description" disabled={!canWrite} />
                     </FieldLabel>
                   </div>
-                  <div className="mt-4 flex flex-wrap items-center gap-2">
-                    <button className="btn-primary" type="button" disabled={!canWrite || saving || !categoryDraft.name.trim()} onClick={saveCategoryDraft}>
-                      {categoryDraft.id ? "Save Category" : "Create Category"}
-                    </button>
-                    {selectedCategory?.is_active && canArchive ? <button className="btn-secondary text-amber-700" type="button" disabled={saving} onClick={() => onArchive(selectedCategory)}>Archive Category</button> : null}
-                  </div>
-                </div>
-
-                <div className="space-y-3">
-                  <div className="rounded-3xl border border-border bg-white p-4 shadow-sm">
-                    <div className="text-xs font-black uppercase tracking-wide text-text-muted">Category Purpose</div>
-                    <div className="mt-2 text-sm font-black text-text-primary">Classification and workflow scope</div>
-                    <p className="mt-2 text-xs text-text-secondary">Simple categories support quantity, inspection, condition, and movement logs. Enable maintenance only for assets that need repair history, vendor tracking, or service scheduling.</p>
-                    <div className="mt-3">
-                      <Badge tone={categoryDraft.maintenance_enabled ? "info" : "neutral"}>{categoryDraft.maintenance_enabled ? "Maintenance workflows enabled" : "Maintenance workflows hidden"}</Badge>
-                    </div>
-                  </div>
-                  <div className="rounded-3xl border border-amber-100 bg-amber-50 p-4">
-                    <div className="text-sm font-black text-amber-800">Safety Rule</div>
-                    <p className="mt-1 text-xs font-semibold text-amber-700">{selectedCategory ? `This category is linked to ${assetCountByCategory.get(selectedCategory.id) || 0} assets. Linked categories should be archived instead of deleted.` : "New categories become available in asset forms after saving."}</p>
-                  </div>
-                </div>
               </div>
-            ) : null}
 
-            {activeTab === "history" && selectedCategory ? (
               <div className="rounded-3xl border border-border bg-white p-4 shadow-sm">
+                <div className="text-sm font-black text-text-primary">Maintenance Setting</div>
+                <label className="mt-3 flex items-start gap-3 rounded-2xl border border-border bg-slate-50 px-4 py-3 text-sm text-text-secondary">
+                  <input className="mt-1" type="checkbox" checked={categoryDraft.maintenance_enabled === true} onChange={(event) => setCategoryDraft((current) => ({ ...current, maintenance_enabled: event.target.checked }))} disabled={!canWrite} />
+                  <span>
+                    <span className="block font-black text-text-primary">Enable maintenance workflow for this category</span>
+                    <span className="mt-1 block text-xs font-semibold">Use for machines, electrical equipment, POS hardware, aircond, refrigerators, or assets that need repair/service history.</span>
+                  </span>
+                </label>
+              </div>
+
+              {selectedCategory ? <div className="rounded-3xl border border-border bg-white p-4 shadow-sm">
                 <div className="text-sm font-black text-text-primary">Category History</div>
                 <div className="mt-4 grid gap-3 md:grid-cols-2">
                   <div className="rounded-2xl bg-slate-50 p-3">
@@ -521,8 +518,23 @@ function CategoryModal({ categories, assets = [], onClose, onSave, onArchive, sa
                     <div className="mt-1 text-sm font-bold text-text-primary">{selectedCategory.is_active ? "Active" : "Archived"}</div>
                   </div>
                 </div>
-              </div>
-            ) : null}
+              </div> : null}
+            </div>
+          </div>
+          <div className="sticky bottom-0 z-10 flex flex-wrap items-center justify-between gap-3 border-t border-border bg-white/95 p-4 backdrop-blur">
+            <div className="text-xs font-semibold text-text-secondary">
+              {selectedCategory ? `Linked to ${assetCountByCategory.get(selectedCategory.id) || 0} assets. Archiving hides it from new assets; existing assets remain linked.` : "New categories become available after saving."}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {selectedCategory?.is_active && canArchive ? <button className="btn-secondary text-amber-700" type="button" disabled={saving} onClick={() => {
+                const linked = assetCountByCategory.get(selectedCategory.id) || 0;
+                if (linked && !window.confirm(`This category has ${linked} linked assets. Archiving will hide it from new assets but existing assets remain linked.`)) return;
+                onArchive(selectedCategory);
+              }}>Archive Category</button> : null}
+              <button className="btn-primary" type="button" disabled={!canWrite || saving || !categoryDraft.name.trim()} onClick={saveCategoryDraft}>
+                {categoryDraft.id ? "Save Category" : "Create Category"}
+              </button>
+            </div>
           </div>
         </section>
       </div>
@@ -565,6 +577,96 @@ function AdjustQuantityModal({ asset, onClose, onSubmit, saving }) {
         </FieldLabel>
         <FieldLabel label="Remark">
           <textarea className="control min-h-24 md:col-span-2" value={values.remark} onChange={(event) => update("remark", event.target.value)} placeholder={values.reason === "other" ? "Required for Other" : "Optional"} />
+        </FieldLabel>
+      </div>
+    </Modal>
+  );
+}
+
+function MaintenanceRecordModal({ asset, onClose, onSubmit, saving }) {
+  const [values, setValues] = useState({
+    date: new Date().toISOString().slice(0, 10),
+    issue: "",
+    action_taken: "",
+    vendor: "",
+    cost: "",
+    status: "scheduled",
+    remark: "",
+    photo_url: "",
+    set_condition_good: false,
+  });
+  const [photoError, setPhotoError] = useState("");
+  const invalid = !values.issue.trim() || !values.action_taken.trim();
+
+  function update(key, value) {
+    setValues((current) => ({ ...current, [key]: value }));
+  }
+
+  function handlePhoto(file) {
+    setPhotoError("");
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setPhotoError("Upload an image file.");
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => update("photo_url", reader.result);
+    reader.onerror = () => setPhotoError("Unable to read this image.");
+    reader.readAsDataURL(file);
+  }
+
+  return (
+    <Modal
+      title="Add Maintenance Record"
+      description={`${asset.name} · ${asset.category_name}`}
+      onClose={onClose}
+      footer={(
+        <>
+          <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" type="button" disabled={saving || invalid} onClick={() => onSubmit(values)}>Save Record</button>
+        </>
+      )}
+    >
+      <div className="grid gap-3 md:grid-cols-2">
+        <FieldLabel label="Date">
+          <input className="control" type="date" value={values.date} onChange={(event) => update("date", event.target.value)} />
+        </FieldLabel>
+        <FieldLabel label="Status">
+          <SelectField value={values.status} options={[
+            { value: "scheduled", label: "Scheduled" },
+            { value: "in_progress", label: "In Progress" },
+            { value: "completed", label: "Completed" },
+            { value: "cancelled", label: "Cancelled" },
+          ]} onChange={(value) => update("status", value)} />
+        </FieldLabel>
+        <FieldLabel label="Issue / Problem">
+          <input className="control" value={values.issue} onChange={(event) => update("issue", event.target.value)} placeholder="Compressor noise, leaking pipe..." />
+        </FieldLabel>
+        <FieldLabel label="Vendor / Technician">
+          <input className="control" value={values.vendor} onChange={(event) => update("vendor", event.target.value)} placeholder="Optional" />
+        </FieldLabel>
+        <FieldLabel label="Action Taken">
+          <textarea className="control min-h-24 md:col-span-2" value={values.action_taken} onChange={(event) => update("action_taken", event.target.value)} placeholder="Repair or service work performed" />
+        </FieldLabel>
+        <FieldLabel label="Cost">
+          <input className="control" type="number" min="0" step="0.01" value={values.cost} onChange={(event) => update("cost", event.target.value)} placeholder="0.00" />
+        </FieldLabel>
+        <FieldLabel label="Photo Evidence">
+          <label className="btn-secondary h-10 cursor-pointer px-3 text-xs">
+            <UploadCloud size={14} /> Upload Photo
+            <input className="sr-only" type="file" accept="image/*" onChange={(event) => handlePhoto(event.target.files?.[0])} />
+          </label>
+          {values.photo_url ? <div className="mt-2 text-xs font-bold text-primary">Photo attached</div> : null}
+          {photoError ? <div className="mt-1 text-xs font-semibold text-rose-600">{photoError}</div> : null}
+        </FieldLabel>
+        {values.status === "completed" ? (
+          <label className="flex items-center gap-2 rounded-xl border border-border bg-slate-50 px-3 py-2 text-sm font-bold text-text-secondary md:col-span-2">
+            <input type="checkbox" checked={values.set_condition_good} onChange={(event) => update("set_condition_good", event.target.checked)} />
+            Set asset condition back to Good after completion
+          </label>
+        ) : null}
+        <FieldLabel label="Remark">
+          <textarea className="control min-h-20 md:col-span-2" value={values.remark} onChange={(event) => update("remark", event.target.value)} placeholder="Optional follow-up notes" />
         </FieldLabel>
       </div>
     </Modal>
@@ -882,7 +984,7 @@ function InspectionModal({ outletId, categories, assets, draftInspection, onClos
   );
 }
 
-function AssetDetailDrawer({ asset, outlet, movements, inspections, onClose, onResumeDraft, onDeleteDraft, onArchiveDraft }) {
+function AssetDetailDrawer({ asset, outlet, movements, inspections, maintenanceRecords = [], onClose, onResumeDraft, onDeleteDraft, onArchiveDraft, onAddMaintenance }) {
   const [tab, setTab] = useState("overview");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewZoom, setPreviewZoom] = useState(false);
@@ -919,6 +1021,12 @@ function AssetDetailDrawer({ asset, outlet, movements, inspections, onClose, onR
       date: movement.movement_date,
       title: `Quantity ${titleCase(movement.movement_type)}`,
       detail: `${movement.quantity_change > 0 ? "+" : ""}${movement.quantity_change} · ${movement.quantity_before} → ${movement.quantity_after}`,
+    })),
+    ...maintenanceRecords.slice(0, 2).map((record) => ({
+      id: `maintenance-${record.id}`,
+      date: record.date,
+      title: "Maintenance recorded",
+      detail: `${titleCase(record.status)} · ${record.issue}`,
     })),
     asset.image_url ? {
       id: "asset-photo",
@@ -1034,7 +1142,44 @@ function AssetDetailDrawer({ asset, outlet, movements, inspections, onClose, onR
           ) : null}
           {tab === "movement" ? <Timeline rows={movements} empty="No movement logs yet." /> : null}
           {tab === "inspection" ? <InspectionHistory inspections={inspections} onResumeDraft={onResumeDraft} onDeleteDraft={onDeleteDraft} onArchiveDraft={onArchiveDraft} /> : null}
-          {tab === "maintenance" ? <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm font-semibold text-text-secondary">No maintenance history yet.</div> : null}
+          {tab === "maintenance" ? (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <div className="text-sm font-black text-text-primary">Maintenance History</div>
+                  <div className="text-xs text-text-secondary">Repairs, service work, vendor cost, and follow-up notes.</div>
+                </div>
+                <button className="btn-primary h-9 px-3 text-xs" type="button" onClick={() => onAddMaintenance?.(asset)}>+ Add Maintenance Record</button>
+              </div>
+              {maintenanceRecords.length ? (
+                <div className="space-y-2">
+                  {maintenanceRecords.map((record) => (
+                    <div key={record.id} className="rounded-2xl border border-border bg-background p-3">
+                      <div className="flex items-start justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-black text-text-primary">{record.issue}</div>
+                          <div className="mt-1 text-xs font-semibold text-text-secondary">{record.action_taken}</div>
+                        </div>
+                        <Badge tone={record.status === "completed" ? "success" : record.status === "in_progress" ? "info" : record.status === "cancelled" ? "neutral" : "warning"}>{titleCase(record.status)}</Badge>
+                      </div>
+                      <div className="mt-3 grid gap-2 text-xs font-semibold text-text-secondary md:grid-cols-3">
+                        <div><span className="font-black text-text-muted">Date: </span><DateText value={record.date} /></div>
+                        <div><span className="font-black text-text-muted">Vendor: </span>{record.vendor || "—"}</div>
+                        <div><span className="font-black text-text-muted">Cost: </span>RM {record.cost.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                      </div>
+                      {record.remark ? <div className="mt-2 rounded-xl bg-white px-3 py-2 text-xs text-text-secondary">{record.remark}</div> : null}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm font-semibold text-text-secondary">
+                  <div className="font-black text-text-primary">No maintenance records yet.</div>
+                  <p className="mx-auto mt-2 max-w-sm">Track repairs, service work, vendor cost, and follow-up notes for this asset.</p>
+                  <button className="btn-primary mt-4 h-9 px-3 text-xs" type="button" onClick={() => onAddMaintenance?.(asset)}>Add Maintenance Record</button>
+                </div>
+              )}
+            </div>
+          ) : null}
         </div>
         {previewOpen ? (
           <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/80 p-4" role="dialog" aria-modal="true">
@@ -1111,10 +1256,12 @@ export default function AssetTrackingPage({ store, ui, auth }) {
   const [assets, setAssets] = useState([]);
   const [movements, setMovements] = useState([]);
   const [inspections, setInspections] = useState([]);
+  const [maintenanceRecords, setMaintenanceRecords] = useState([]);
   const [assetModal, setAssetModal] = useState(null);
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [adjustAsset, setAdjustAsset] = useState(null);
   const [inspectionOpen, setInspectionOpen] = useState(false);
+  const [maintenanceAsset, setMaintenanceAsset] = useState(null);
   const [detailAsset, setDetailAsset] = useState(null);
   const [imagePreviewAsset, setImagePreviewAsset] = useState(null);
   const [imagePreviewZoom, setImagePreviewZoom] = useState(false);
@@ -1139,6 +1286,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       setAssets([]);
       setMovements([]);
       setInspections([]);
+      setMaintenanceRecords([]);
       setLoading(false);
       return;
     }
@@ -1151,16 +1299,18 @@ export default function AssetTrackingPage({ store, ui, auth }) {
     setLoading(true);
     setError("");
     try {
-      const [categoryRows, assetRows, movementRows, inspectionRows] = await Promise.all([
+      const [categoryRows, assetRows, movementRows, inspectionRows, maintenanceRows] = await Promise.all([
         assetTrackingService.listCategories(),
         assetTrackingService.listAssets(outletId),
         assetTrackingService.listMovementLogs("", outletId),
         assetTrackingService.listInspections("", outletId),
+        assetTrackingService.listMaintenanceRecords("", outletId),
       ]);
       setCategories(categoryRows);
       setAssets(assetRows);
       setMovements(movementRows);
       setInspections(inspectionRows);
+      setMaintenanceRecords(maintenanceRows);
     } catch (loadError) {
       console.error("Unable to load asset tracking", loadError);
       setError(loadError.message || "Unable to load asset tracking.");
@@ -1260,8 +1410,8 @@ export default function AssetTrackingPage({ store, ui, auth }) {
   }
 
   async function saveCategory(category) {
-    if (!canAdd) {
-      notifyPermissionDenied(ui, "create asset categories");
+    if ((category.id && !canEditAsset) || (!category.id && !canAdd)) {
+      notifyPermissionDenied(ui, category.id ? "edit asset categories" : "create asset categories");
       return;
     }
     setSaving(true);
@@ -1289,6 +1439,22 @@ export default function AssetTrackingPage({ store, ui, auth }) {
     } catch (archiveError) {
       console.error("Unable to archive category", archiveError);
       ui.notify({ title: "Unable to archive category", message: archiveError.message || "Please try again.", tone: "error" });
+    }
+  }
+
+  async function reorderCategories(nextCategories) {
+    if (!canAdd && !canEditAsset) {
+      notifyPermissionDenied(ui, "reorder asset categories");
+      return;
+    }
+    try {
+      const reordered = await assetTrackingService.reorderCategories(nextCategories);
+      setCategories(reordered);
+      ui.notify({ title: "Order updated", message: "Category order saved." });
+    } catch (reorderError) {
+      console.error("Unable to reorder categories", reorderError);
+      ui.notify({ title: "Unable to update order", message: reorderError.message || "Please try again.", tone: "error" });
+      await loadData();
     }
   }
 
@@ -1375,6 +1541,29 @@ export default function AssetTrackingPage({ store, ui, auth }) {
     }
   }
 
+  async function saveMaintenanceRecord(values) {
+    if (!canManageAsset) {
+      notifyPermissionDenied(ui, "add maintenance records");
+      return;
+    }
+    setSaving(true);
+    try {
+      const result = await assetTrackingService.saveMaintenanceRecord(maintenanceAsset, values);
+      setMaintenanceRecords((current) => [result.record, ...current]);
+      if (result.condition) {
+        setAssets((current) => current.map((asset) => asset.id === maintenanceAsset.id ? { ...asset, condition: result.condition } : asset));
+        if (detailAsset?.id === maintenanceAsset.id) setDetailAsset((current) => ({ ...current, condition: result.condition }));
+      }
+      setMaintenanceAsset(null);
+      ui.notify({ title: "Maintenance record added", message: maintenanceAsset.name });
+    } catch (maintenanceError) {
+      console.error("Unable to save maintenance record", maintenanceError);
+      ui.notify({ title: "Unable to save maintenance", message: maintenanceError.message || "Please try again.", tone: "error" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
   async function quickUpdateCondition(asset, condition) {
     if (!canEditAsset) {
       notifyPermissionDenied(ui, "update asset condition");
@@ -1403,6 +1592,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
   }
 
   const assetMovements = detailAsset ? movements.filter((movement) => movement.asset_id === detailAsset.id) : [];
+  const assetMaintenanceRecords = detailAsset ? maintenanceRecords.filter((record) => record.asset_id === detailAsset.id) : [];
   const assetInspections = detailAsset ? inspections.filter((inspection) => (
     inspection.items.some((item) => item.asset_id === detailAsset.id) ||
     (isDraftInspection(inspection) && (inspection.draft_data?.rows || []).some((row) => row.asset_id === detailAsset.id))
@@ -1610,10 +1800,11 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       </Card> : null}
 
       {assetModal ? <AssetFormModal asset={assetModal} outlets={activeOutlets} categories={categories} onClose={() => setAssetModal(null)} onSubmit={saveAsset} saving={saving} /> : null}
-      {categoryModalOpen ? <CategoryModal categories={categories} assets={assets} onClose={() => setCategoryModalOpen(false)} onSave={saveCategory} onArchive={archiveCategory} saving={saving} canWrite={canAdd || canEditAsset} canArchive={canDeleteAsset} /> : null}
+      {categoryModalOpen ? <CategoryModal categories={categories} assets={assets} onClose={() => setCategoryModalOpen(false)} onSave={saveCategory} onArchive={archiveCategory} onReorder={reorderCategories} saving={saving} canWrite={canAdd || canEditAsset} canArchive={canDeleteAsset} /> : null}
       {adjustAsset ? <AdjustQuantityModal asset={adjustAsset} onClose={() => setAdjustAsset(null)} onSubmit={adjustQuantity} saving={saving} /> : null}
+      {maintenanceAsset ? <MaintenanceRecordModal asset={maintenanceAsset} onClose={() => setMaintenanceAsset(null)} onSubmit={saveMaintenanceRecord} saving={saving} /> : null}
       {inspectionOpen ? <InspectionModal outletId={inspectionOpen?.outlet_id || outletId} categories={categories} assets={assets} draftInspection={inspectionOpen === true ? null : inspectionOpen} onClose={() => setInspectionOpen(false)} onSubmit={submitInspection} saving={saving} /> : null}
-      {detailAsset ? <AssetDetailDrawer asset={detailAsset} outlet={activeOutlets.find((outlet) => outlet.id === detailAsset.outlet_id)} movements={assetMovements} inspections={assetInspections} onClose={() => setDetailAsset(null)} onResumeDraft={(inspection) => setInspectionOpen(inspection)} onDeleteDraft={deleteInspection} onArchiveDraft={(inspection) => updateInspectionStatus(inspection, "archived")} /> : null}
+      {detailAsset ? <AssetDetailDrawer asset={detailAsset} outlet={activeOutlets.find((outlet) => outlet.id === detailAsset.outlet_id)} movements={assetMovements} inspections={assetInspections} maintenanceRecords={assetMaintenanceRecords} onClose={() => setDetailAsset(null)} onResumeDraft={(inspection) => setInspectionOpen(inspection)} onDeleteDraft={deleteInspection} onArchiveDraft={(inspection) => updateInspectionStatus(inspection, "archived")} onAddMaintenance={(asset) => setMaintenanceAsset(asset)} /> : null}
       {conditionMenu ? <FloatingLayer anchor={conditionMenu.anchor} width={220} align="left" onClose={() => setConditionMenu(null)}>
         <div className="overflow-hidden rounded-2xl border border-border bg-white p-1.5 shadow-2xl">
           <div className="px-3 py-2 text-[11px] font-black uppercase tracking-wide text-text-muted">Update Condition</div>
@@ -1632,9 +1823,11 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       </FloatingLayer> : null}
       {actionMenu ? <FloatingLayer anchor={actionMenu.anchor} width={190} align="right" onClose={() => setActionMenu(null)}>
         <div className="overflow-hidden rounded-2xl border border-border bg-white p-1.5 shadow-2xl">
+          <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-primary/5 hover:text-primary" type="button" onClick={() => { setActionMenu(null); setDetailAsset(actionMenu.asset); }}><Eye size={14} /> View</button>
           {canManageAsset ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-primary/5 hover:text-primary" type="button" onClick={() => { setActionMenu(null); setAdjustAsset(actionMenu.asset); }}><Wrench size={14} /> Adjust Quantity</button> : null}
           {canManageAsset ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-primary/5 hover:text-primary" type="button" onClick={() => { setActionMenu(null); setInspectionOpen(true); }}><ClipboardCheck size={14} /> Start Inspection</button> : null}
           {canEditAsset ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-primary/5 hover:text-primary" type="button" onClick={() => { setActionMenu(null); setAssetModal(actionMenu.asset); }}><PackageCheck size={14} /> Edit Asset</button> : null}
+          {canManageAsset && actionMenu.asset.maintenance_enabled ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-primary/5 hover:text-primary" type="button" onClick={() => { setActionMenu(null); setMaintenanceAsset(actionMenu.asset); }}><Wrench size={14} /> Add Maintenance Record</button> : null}
           {canDeleteAsset ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-amber-700 hover:bg-amber-50" type="button" onClick={() => { const asset = actionMenu.asset; setActionMenu(null); archiveAsset(asset); }}><AlertTriangle size={14} /> Archive</button> : null}
         </div>
       </FloatingLayer> : null}

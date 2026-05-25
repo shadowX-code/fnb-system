@@ -1161,6 +1161,7 @@ asset_items
 asset_movement_logs
 asset_inspections
 asset_inspection_items
+asset_maintenance_records
 ```
 
 Asset category fields:
@@ -1221,6 +1222,7 @@ Asset category rules:
 - `maintenance_enabled` controls whether assets in that category expose maintenance workflows.
 - Consumable or replacement categories such as bowls, spoons, trays, and utensils keep only quantity, inspection, condition, and movement logs.
 - Maintainable categories such as coffee machines, refrigerators, POS hardware, aircond, and kitchen electrical equipment can expose maintenance history, repair logs, vendor tracking, and service scheduling.
+- Category sort order is managed visually by dragging categories in the left category list; the order persists to `sort_order`.
 
 Asset UI rules:
 
@@ -1241,6 +1243,39 @@ Asset UI rules:
 - Date displays use relative business wording such as Today, Yesterday, 2d ago, and 1 week ago, with exact date available on hover.
 - Asset Profile hides the Maintenance tab entirely when the asset category has maintenance disabled.
 - Asset Profile shows maintenance scope as Enabled or Not required based on the asset category setting.
+- Maintainable assets show Add Maintenance Record in row actions and inside the Maintenance History tab.
+- Non-maintainable assets never show maintenance actions, tabs, or empty states.
+
+Maintenance record fields:
+
+- id
+- asset_id
+- outlet_id
+- date
+- issue
+- action_taken
+- vendor
+- cost
+- status
+- remark
+- photo_url
+- created_by
+- created_at
+- updated_at
+
+Maintenance status values:
+
+- scheduled
+- in_progress
+- completed
+- cancelled
+
+Maintenance rules:
+
+- Maintenance records are only exposed for assets whose category has `maintenance_enabled = true`.
+- Saving an In Progress maintenance record may set asset condition to Under Maintenance.
+- Saving a Completed maintenance record can optionally set asset condition back to Good.
+- Maintenance records support optional photo evidence using the asset photo storage bucket.
 
 Movement log fields:
 
