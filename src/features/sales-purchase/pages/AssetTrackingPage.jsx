@@ -1102,11 +1102,17 @@ function InspectionModal({ outletId, categories, assets, draftInspection, onClos
   );
 }
 
-function AssetDetailDrawer({ asset, outlet, movements, inspections, maintenanceRecords = [], onClose, onResumeDraft, onDeleteDraft, onArchiveDraft, onAddMaintenance }) {
+function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], maintenanceRecords = [], onClose, onResumeDraft, onDeleteDraft, onArchiveDraft, onAddMaintenance }) {
   const [tab, setTab] = useState("overview");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewZoom, setPreviewZoom] = useState(false);
-  const maintenanceEnabled = asset.maintenance_allowed === true;
+  const safeAsset = asset || {};
+  const latestInspection = inspections.find((inspection) => !isDraftInspection(inspection));
+  const latestInspectionItem = latestInspection?.items?.find((item) => item.asset_id === safeAsset.id);
+  const latestDifference = Number(latestInspectionItem?.difference || 0);
+  const latestEvidenceCount = latestInspectionItem?.evidence_status === "complete" ? 1 : 0;
+  const latestNotesCount = [latestInspectionItem?.remark, latestInspection?.notes, latestInspection?.remark].filter(Boolean).length;
+  const maintenanceEnabled = safeAsset.maintenance_allowed === true;
   const detailTabs = ["overview", "movement", "inspection", ...(maintenanceEnabled ? ["maintenance"] : [])];
   const activeMaintenance = maintenanceRecords.filter((record) => ["scheduled", "in_progress"].includes(record.status));
   const overdueMaintenance = maintenanceRecords.filter(isMaintenanceOverdue);
@@ -1123,16 +1129,11 @@ function AssetDetailDrawer({ asset, outlet, movements, inspections, maintenanceR
     overdueMaintenance.length ? "Overdue maintenance" : "No critical alerts",
     nextServiceDays !== null ? nextServiceDays >= 0 ? `Next service due in ${nextServiceDays} days` : "Next service overdue" : null,
   ].filter(Boolean);
-  const latestInspection = inspections.find((inspection) => !isDraftInspection(inspection));
-  const latestInspectionItem = latestInspection?.items?.find((item) => item.asset_id === asset.id);
-  const latestDifference = Number(latestInspectionItem?.difference || 0);
-  const latestEvidenceCount = latestInspectionItem?.evidence_status === "complete" ? 1 : 0;
-  const latestNotesCount = [latestInspectionItem?.remark, latestInspection?.notes, latestInspection?.remark].filter(Boolean).length;
   const quantityHint = latestDifference < 0
     ? { text: `↓ ${Math.abs(latestDifference)} from latest inspection`, className: "text-rose-700 bg-rose-50 border-rose-100" }
     : latestDifference > 0
       ? { text: `↑ ${latestDifference} extra from latest inspection`, className: "text-blue-700 bg-blue-50 border-blue-100" }
-      : Number(asset.minimum_quantity || 0) > 0 && Number(asset.current_quantity || 0) <= Number(asset.minimum_quantity || 0)
+      : Number(safeAsset.minimum_quantity || 0) > 0 && Number(safeAsset.current_quantity || 0) <= Number(safeAsset.minimum_quantity || 0)
         ? { text: "Below expected stock", className: "text-amber-700 bg-amber-50 border-amber-100" }
         : { text: "Stock level stable", className: "text-emerald-700 bg-emerald-50 border-emerald-100" };
   const operationalSummary = [
@@ -1140,14 +1141,14 @@ function AssetDetailDrawer({ asset, outlet, movements, inspections, maintenanceR
     maintenanceEnabled
       ? movements.length ? "Recent quantity movement has been recorded." : "No maintenance activity recorded recently."
       : "Maintenance workflow is not required for this asset category.",
-    asset.condition === "healthy" ? "Asset condition stable for recent operations." : assetConditionInsight(asset.condition),
+    (safeAsset.condition || "healthy") === "healthy" ? "Asset condition stable for recent operations." : assetConditionInsight(safeAsset.condition),
   ];
   const recentActivity = [
     latestInspection ? {
       id: `inspection-${latestInspection.id}`,
       date: latestInspection.inspection_date,
       title: "Inspection completed",
-      detail: latestDifference ? `Difference ${latestDifference > 0 ? "+" : ""}${latestDifference}` : `Condition recorded as ${assetConditionLabel(latestInspectionItem?.condition_status || asset.condition)}`,
+      detail: latestDifference ? `Difference ${latestDifference > 0 ? "+" : ""}${latestDifference}` : `Condition recorded as ${assetConditionLabel(latestInspectionItem?.condition_status || safeAsset.condition)}`,
     } : null,
     ...movements.slice(0, 3).map((movement) => ({
       id: `movement-${movement.id}`,
@@ -1161,9 +1162,9 @@ function AssetDetailDrawer({ asset, outlet, movements, inspections, maintenanceR
       title: "Maintenance recorded",
       detail: `${titleCase(record.status)} · ${record.issue}`,
     })),
-    asset.image_url ? {
+    safeAsset.image_url ? {
       id: "asset-photo",
-      date: asset.updated_at,
+      date: safeAsset.updated_at,
       title: "Asset photo updated",
       detail: "Image available in asset profile",
     } : null,
@@ -1369,7 +1370,7 @@ function Timeline({ rows, empty }) {
   ))}</div> : <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm font-semibold text-text-secondary">{empty}</div>;
 }
 
-function InspectionHistory({ inspections, onResumeDraft, onDeleteDraft, onArchiveDraft }) {
+function InspectionHistory({ inspections = [], onResumeDraft, onDeleteDraft, onArchiveDraft }) {
   return inspections.length ? <div className="space-y-3">{inspections.map((inspection) => (
     <div key={inspection.id} className={`rounded-2xl border p-3 ${isDraftInspection(inspection) ? "border-amber-200 bg-amber-50/50" : "border-border bg-background"}`}>
       <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
@@ -1378,7 +1379,7 @@ function InspectionHistory({ inspections, onResumeDraft, onDeleteDraft, onArchiv
             <div className="text-sm font-bold text-text-primary"><DateText value={inspection.inspection_date} /></div>
             <Badge tone={isDraftInspection(inspection) ? "warning" : "info"}>{draftStatusLabel(inspection.status)}</Badge>
           </div>
-          <div className="mt-2 text-xs font-semibold text-text-secondary">{inspection.summary?.total_assets || inspection.items.length} assets · {inspection.summary?.critical_alerts || 0} critical · saved <DateText value={inspection.last_edited_at || inspection.updated_at} /></div>
+          <div className="mt-2 text-xs font-semibold text-text-secondary">{inspection.summary?.total_assets || (inspection.items || []).length} assets · {inspection.summary?.critical_alerts || 0} critical · saved <DateText value={inspection.last_edited_at || inspection.updated_at} /></div>
           {isDraftInspection(inspection) ? (
             <div className="mt-2">
               <div className="h-2 overflow-hidden rounded-full bg-white">
@@ -1397,14 +1398,14 @@ function InspectionHistory({ inspections, onResumeDraft, onDeleteDraft, onArchiv
         ) : null}
       </div>
       <div className="mt-2 space-y-1">
-        {!isDraftInspection(inspection) ? inspection.items.map((item) => <div key={item.id} className="text-xs font-semibold text-text-secondary">{item.asset?.name || "Asset"} · Expected {item.expected_quantity}, Counted {item.counted_quantity}, Difference {item.difference} · {assetConditionLabel(item.condition_status)}</div>) : null}
+        {!isDraftInspection(inspection) ? (inspection.items || []).map((item) => <div key={item.id} className="text-xs font-semibold text-text-secondary">{item.asset?.name || "Asset"} · Expected {item.expected_quantity}, Counted {item.counted_quantity}, Difference {item.difference} · {assetConditionLabel(item.condition_status)}</div>) : null}
       </div>
     </div>
   ))}</div> : <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm font-semibold text-text-secondary">No inspection history yet.</div>;
 }
 
 export default function AssetTrackingPage({ store, ui, auth }) {
-  const activeOutlets = useMemo(() => store.outlets.filter((outlet) => outlet.status === "active" || outlet.is_active), [store.outlets]);
+  const activeOutlets = useMemo(() => (store?.outlets || []).filter((outlet) => outlet.status === "active" || outlet.is_active), [store?.outlets]);
   const [outletId, setOutletId] = useState(activeOutlets[0]?.id ?? "");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -1490,7 +1491,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       if (quickFilter === "missing") return (asset.condition || "healthy") === "missing" || Number(asset.current_quantity || 0) <= 0;
       if (quickFilter === "no_photo") return !asset.image_url && !asset.thumbnail_url;
       if (quickFilter === "inspected_today") {
-        const latest = asset.last_inspection_at || inspections.find((inspection) => inspection.items.some((item) => item.asset_id === asset.id))?.inspection_date;
+        const latest = asset.last_inspection_at || inspections.find((inspection) => (inspection.items || []).some((item) => item.asset_id === asset.id))?.inspection_date;
         return formatRelativeDate(latest) === "Today";
       }
       return true;
@@ -1523,7 +1524,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
   }, new Map()), [movements]);
 
   const inspectionByAsset = useMemo(() => inspections.reduce((map, inspection) => {
-    inspection.items.forEach((item) => {
+    (inspection.items || []).forEach((item) => {
       if (!map.has(item.asset_id)) map.set(item.asset_id, inspection);
     });
     return map;
@@ -1751,7 +1752,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
   const assetMovements = detailAsset ? movements.filter((movement) => movement.asset_id === detailAsset.id) : [];
   const assetMaintenanceRecords = detailAsset ? maintenanceRecords.filter((record) => record.asset_id === detailAsset.id) : [];
   const assetInspections = detailAsset ? inspections.filter((inspection) => (
-    inspection.items.some((item) => item.asset_id === detailAsset.id) ||
+    (inspection.items || []).some((item) => item.asset_id === detailAsset.id) ||
     (isDraftInspection(inspection) && (inspection.draft_data?.rows || []).some((row) => row.asset_id === detailAsset.id))
   )) : [];
   const draftInspections = inspections.filter(isDraftInspection);
