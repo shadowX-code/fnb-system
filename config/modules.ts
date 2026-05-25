@@ -56,6 +56,15 @@ export const moduleSectionOrder = ["Overview", "Sales", "Purchases", "Operations
 
 export const moduleRegistry: AppModule[] = [
   {
+    id: "dashboard",
+    section: "Overview",
+    label: "Overview Dashboard",
+    route: "/overview/dashboard",
+    icon: "dashboard",
+    sidebar: true,
+    permissions: { view: true },
+  },
+  {
     id: "outlet-pnl",
     section: "Overview",
     label: "Outlet P&L",
@@ -63,15 +72,6 @@ export const moduleRegistry: AppModule[] = [
     icon: "outlet-pnl",
     sidebar: true,
     permissions: { view: true, export: true },
-  },
-  {
-    id: "dashboard",
-    section: "Overview",
-    label: "S&P Dashboard",
-    route: "/overview/dashboard",
-    icon: "dashboard",
-    sidebar: true,
-    permissions: { view: true },
   },
   {
     id: "product_analytics",

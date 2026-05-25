@@ -8,6 +8,7 @@ const itemFields = "id,report_id,outlet_id,category_name,product_name,variant_na
 function mapReport(row) {
   return {
     id: row.id,
+    report_id: row.report_id,
     outlet_id: row.outlet_id,
     report_month: Number(row.report_month),
     report_year: Number(row.report_year),

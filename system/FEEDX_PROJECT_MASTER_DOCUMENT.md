@@ -75,8 +75,8 @@ Final sidebar structure:
 
 ```text
 OVERVIEW
+- Overview Dashboard
 - Outlet P&L
-- S&P Dashboard
 - Product Analytics
 - Sales Comparison
 - Purchase Comparison
@@ -343,16 +343,16 @@ Current status:
 
 ---
 
-## 5.2 S&P Dashboard
+## 5.2 Overview Dashboard
 
 Purpose:
 
-Sales and purchase performance overview.
+Monthly HQ management overview workspace for owners/admins to review business health, outlet issues, alerts, pending actions, product signals, operational risks, and team birthday reminders.
 
 Sidebar label:
 
 ```text
-S&P Dashboard
+Overview Dashboard
 ```
 
 Data:
@@ -362,15 +362,37 @@ Data:
 - Sales channels
 - Purchase categories
 - Suppliers
+- Product sales reports
+- Asset items
+- Asset inspections
+- Asset maintenance records
+- Duty roster records
+- Employee birthdays
 
-Charts:
+Core rules:
 
-- Sales vs Purchase Trend
-- COGS Margin Trend
+- Dashboard is month-based only.
+- Do not show daily, hourly, real-time POS, or last-7-days metrics.
+- Outlet scope supports All Outlets and individual accessible outlets.
+- Every outlet-specific alert, product signal, action, and birthday must show outlet identity.
+- Missing data shows helpful empty states instead of misleading zeros.
+
+Dashboard sections:
+
+- Header greeting with outlet scope, month selector, last updated timestamp, notification icon, and user avatar.
+- Executive KPI cards: MTD Sales, MTD Purchase, Avg. COGS %, Estimated Gross Profit, Active Alerts.
+- Outlet Health table: outlet, MTD sales, COGS %, vs last month, alerts, staffing, assets, status.
+- Smart Alerts panel with top outlet-tagged monthly alerts.
+- Monthly Trend chart using last 6 monthly totals.
+- Operational Snapshot for draft audits, maintenance due, low quantity assets, missing stock items, unresolved alerts, duty roster issues.
+- Pending Actions linking to the relevant module.
+- Top Product Signals using monthly Product Analytics uploads.
+- Business Pulse summary across the selected outlet scope.
+- Upcoming Celebrations using employee birthday fields.
 
 Chart rules:
 
-- Always display Jan-Dec timeline.
+- Use last six uploaded/entered monthly periods.
 - Line chart dots must be circular SVG dots.
 - Avoid decorative segmented KPI footer bars.
 - Use clean enterprise analytics style.

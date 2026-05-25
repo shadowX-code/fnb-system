@@ -36,7 +36,7 @@ function ModulePlaceholderPage({ moduleLabel = "Module", moduleSection = "Worksp
 
 const routeDetails = {
   dashboard: {
-    description: "Saved sales, purchase, COGS, margin and alerts overview.",
+    description: "Monthly HQ management overview for outlet health, alerts, operations and team moments.",
     component: DashboardOverviewPage,
   },
   "sales-input": {
