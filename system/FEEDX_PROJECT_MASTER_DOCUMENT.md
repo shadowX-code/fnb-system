@@ -1245,10 +1245,13 @@ Inspection fields:
 
 - id
 - outlet_id
+- created_by
 - inspection_date
 - checked_by
 - category_scope
 - status
+- summary
+- notes
 - remark
 - created_at
 - updated_at
@@ -1260,21 +1263,59 @@ Inspection item fields:
 - asset_id
 - expected_quantity
 - counted_quantity
+- expected_qty
+- counted_qty
 - difference
 - condition_status
+- condition_template_id
+- evidence_required
+- evidence_status
 - remark
+- created_at
+
+Condition template fields:
+
+- id
+- category_id
+- name
+- severity
+- color
+- requires_photo
+- requires_remark
+- affects_health
+- triggers_alert
+- active
+- sort_order
+- created_at
+- updated_at
+
+Condition severity:
+
+- healthy
+- low
+- medium
+- high
+- critical
+
+Inspection evidence fields:
+
+- id
+- inspection_item_id
+- image_url
+- caption
 - created_at
 
 Inspection flow:
 
-1. Select outlet.
-2. Select inspection date and checked-by name.
-3. Choose All Categories or Selected Categories.
-4. Count assets in the selected scope.
-5. Select condition: Good, Damaged, Missing, Need Repair.
-6. Review variance.
-7. Submit inspection.
-8. Differences create correction movement logs and update asset quantity after confirmation.
+1. Select outlet, inspection type, inspection date, checked-by name, and category scope.
+2. Complete an asset inspection checklist using operational audit cards.
+3. Each audit card shows asset thumbnail, asset name, description, category, expected quantity, counted quantity, difference status, condition, evidence upload, and remark.
+4. Difference states are Matched, Extra, and Missing.
+5. Conditions are category-aware templates with severity and evidence rules.
+6. Evidence is required when quantity differs or condition severity is medium, high, or critical.
+7. Review enterprise summary cards and problematic rows before final submission.
+8. Submit inspection or save draft.
+9. Differences create correction movement logs and update asset quantity after confirmation.
 
 MVP exclusions:
 

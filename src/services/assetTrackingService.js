@@ -6,8 +6,10 @@ const categoryFields = "id,name,description,sort_order,is_active,created_at,upda
 const assetBaseFields = "id,outlet_id,category_id,name,description,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name)";
 const assetFields = "id,outlet_id,category_id,name,description,image_url,thumbnail_url,health_status,last_inspection_at,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name)";
 const movementFields = "id,asset_id,outlet_id,movement_type,quantity_change,quantity_before,quantity_after,reason,remark,movement_date,created_by,created_at";
-const inspectionFields = "id,outlet_id,inspection_date,checked_by,category_scope,status,remark,created_at,updated_at";
-const inspectionItemFields = "id,inspection_id,asset_id,expected_quantity,counted_quantity,difference,condition_status,remark,created_at,asset:asset_items(id,name,category:asset_categories(id,name))";
+const inspectionFields = "id,outlet_id,inspection_date,checked_by,category_scope,status,summary,notes,remark,created_by,created_at,updated_at";
+const inspectionItemFields = "id,inspection_id,asset_id,expected_quantity,counted_quantity,expected_qty,counted_qty,difference,condition_status,condition_template_id,evidence_required,evidence_status,remark,created_at,asset:asset_items(id,name,category:asset_categories(id,name)),condition:asset_condition_templates(id,name,severity,color,requires_photo,requires_remark)";
+const conditionFields = "id,category_id,name,severity,color,requires_photo,requires_remark,affects_health,triggers_alert,active,sort_order,created_at,updated_at";
+const evidenceFields = "id,inspection_item_id,image_url,caption,created_at";
 
 function mapCategory(row) {
   return {
@@ -78,12 +80,39 @@ function mapInspection(row, items = []) {
     inspection_date: row.inspection_date,
     checked_by: row.checked_by ?? "",
     category_scope: row.category_scope ?? {},
+    summary: row.summary ?? {},
+    notes: row.notes ?? row.remark ?? "",
     status: row.status ?? "completed",
     remark: row.remark ?? "",
     created_at: row.created_at,
     updated_at: row.updated_at,
     items,
   };
+}
+
+function mapConditionTemplate(row) {
+  return {
+    id: row.id,
+    category_id: row.category_id,
+    name: row.name,
+    severity: row.severity ?? "healthy",
+    color: row.color ?? "emerald",
+    requires_photo: row.requires_photo === true,
+    requires_remark: row.requires_remark === true,
+    affects_health: row.affects_health === true,
+    triggers_alert: row.triggers_alert === true,
+    active: row.active !== false,
+    sort_order: Number(row.sort_order ?? 0),
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function isMissingInspectionV2Field(error) {
+  const message = String(error?.message || error?.details || "");
+  return error?.code === "42703" ||
+    error?.code === "PGRST204" ||
+    /asset_condition_templates|asset_inspection_evidence|condition_template_id|evidence_required|evidence_status|expected_qty|counted_qty|summary|notes/i.test(message);
 }
 
 async function currentUserId() {
@@ -147,6 +176,50 @@ export const assetTrackingService = {
     throwSupabaseError("asset_categories.archive", error);
     await logAssetAudit("asset_category_deactivated", "-", data.name, { linked_assets: count ?? 0 });
     return mapCategory(data);
+  },
+
+  async listConditionTemplates(categoryId = "") {
+    const fallback = [
+      { name: "Good", severity: "healthy", color: "emerald", requires_photo: false, requires_remark: false, affects_health: false, triggers_alert: false, active: true, sort_order: 1 },
+      { name: "Damaged", severity: "high", color: "orange", requires_photo: true, requires_remark: true, affects_health: true, triggers_alert: true, active: true, sort_order: 2 },
+      { name: "Missing", severity: "critical", color: "rose", requires_photo: true, requires_remark: true, affects_health: true, triggers_alert: true, active: true, sort_order: 3 },
+    ];
+    let query = supabase
+      .from("asset_condition_templates")
+      .select(conditionFields)
+      .order("sort_order", { ascending: true })
+      .order("name", { ascending: true });
+    if (categoryId) query = query.eq("category_id", categoryId);
+    const { data, error } = await query;
+    if (error && isMissingInspectionV2Field(error)) {
+      console.warn("Asset condition template table is not available yet. Using default inspection conditions.", error);
+      return fallback.map((row, index) => ({ ...row, id: `fallback-${row.name.toLowerCase()}`, category_id: categoryId || "", sort_order: index + 1 }));
+    }
+    throwSupabaseError("asset_condition_templates.list", error);
+    return (data ?? []).map(mapConditionTemplate);
+  },
+
+  async saveConditionTemplate(condition) {
+    const payload = {
+      category_id: condition.category_id,
+      name: condition.name,
+      severity: condition.severity ?? "healthy",
+      color: condition.color ?? "emerald",
+      requires_photo: condition.requires_photo === true,
+      requires_remark: condition.requires_remark === true,
+      affects_health: condition.affects_health === true,
+      triggers_alert: condition.triggers_alert === true,
+      active: condition.active !== false,
+      sort_order: Number(condition.sort_order ?? 0),
+      updated_at: new Date().toISOString(),
+    };
+    const query = condition.id && !String(condition.id).startsWith("fallback-")
+      ? supabase.from("asset_condition_templates").update(payload).eq("id", condition.id)
+      : supabase.from("asset_condition_templates").insert(payload);
+    const { data, error } = await query.select(conditionFields).single();
+    throwSupabaseError("asset_condition_templates.save", error);
+    await logAssetAudit(condition.id ? "asset_condition_edited" : "asset_condition_created", "-", data.name, data);
+    return mapConditionTemplate(data);
   },
 
   async listAssets(outletId = "") {
@@ -307,12 +380,39 @@ export const assetTrackingService = {
       .order("inspection_date", { ascending: false });
     if (outletId && outletId !== "all") inspectionQuery = inspectionQuery.eq("outlet_id", outletId);
     const { data: inspections, error } = await inspectionQuery;
+    if (error && isMissingInspectionV2Field(error)) {
+      let fallbackInspectionQuery = supabase
+        .from("asset_inspections")
+        .select("id,outlet_id,inspection_date,checked_by,category_scope,status,remark,created_at,updated_at")
+        .order("inspection_date", { ascending: false });
+      if (outletId && outletId !== "all") fallbackInspectionQuery = fallbackInspectionQuery.eq("outlet_id", outletId);
+      const { data: fallbackInspections, error: fallbackError } = await fallbackInspectionQuery;
+      throwSupabaseError("asset_inspections.list", fallbackError);
+      const { data: fallbackItems, error: fallbackItemError } = await supabase
+        .from("asset_inspection_items")
+        .select("id,inspection_id,asset_id,expected_quantity,counted_quantity,difference,condition_status,remark,created_at,asset:asset_items(id,name,category:asset_categories(id,name))")
+        .order("created_at", { ascending: false });
+      throwSupabaseError("asset_inspection_items.list", fallbackItemError);
+      const filteredItems = assetId ? (fallbackItems ?? []).filter((item) => item.asset_id === assetId) : (fallbackItems ?? []);
+      const inspectionIds = new Set(filteredItems.map((item) => item.inspection_id));
+      return (fallbackInspections ?? [])
+        .filter((inspection) => !assetId || inspectionIds.has(inspection.id))
+        .map((inspection) => mapInspection(inspection, filteredItems.filter((item) => item.inspection_id === inspection.id)));
+    }
     throwSupabaseError("asset_inspections.list", error);
 
-    const { data: items, error: itemError } = await supabase
+    let { data: items, error: itemError } = await supabase
       .from("asset_inspection_items")
       .select(inspectionItemFields)
       .order("created_at", { ascending: false });
+    if (itemError && isMissingInspectionV2Field(itemError)) {
+      const fallbackResult = await supabase
+        .from("asset_inspection_items")
+        .select("id,inspection_id,asset_id,expected_quantity,counted_quantity,difference,condition_status,remark,created_at,asset:asset_items(id,name,category:asset_categories(id,name))")
+        .order("created_at", { ascending: false });
+      items = fallbackResult.data;
+      itemError = fallbackResult.error;
+    }
     throwSupabaseError("asset_inspection_items.list", itemError);
     const filteredItems = assetId ? (items ?? []).filter((item) => item.asset_id === assetId) : (items ?? []);
     const inspectionIds = new Set(filteredItems.map((item) => item.inspection_id));
@@ -321,20 +421,39 @@ export const assetTrackingService = {
       .map((inspection) => mapInspection(inspection, filteredItems.filter((item) => item.inspection_id === inspection.id)));
   },
 
-  async submitInspection({ outletId, inspectionDate, checkedBy, categoryScope, remark, rows, applyCorrections = true }) {
+  async submitInspection({ outletId, inspectionDate, checkedBy, categoryScope, remark, notes, rows, summary = {}, status = "completed", applyCorrections = true }) {
     const userId = await currentUserId();
-    const { data: inspection, error } = await supabase
+    let { data: inspection, error } = await supabase
       .from("asset_inspections")
       .insert({
         outlet_id: outletId,
         inspection_date: inspectionDate,
+        created_by: userId,
         checked_by: checkedBy,
         category_scope: categoryScope,
-        status: "completed",
+        status,
+        summary,
+        notes: notes ?? remark ?? "",
         remark: remark ?? "",
       })
       .select(inspectionFields)
       .single();
+    if (error && isMissingInspectionV2Field(error)) {
+      const fallbackResult = await supabase
+        .from("asset_inspections")
+        .insert({
+          outlet_id: outletId,
+          inspection_date: inspectionDate,
+          checked_by: checkedBy,
+          category_scope: categoryScope,
+          status,
+          remark: remark ?? notes ?? "",
+        })
+        .select("id,outlet_id,inspection_date,checked_by,category_scope,status,remark,created_at,updated_at")
+        .single();
+      inspection = fallbackResult.data;
+      error = fallbackResult.error;
+    }
     throwSupabaseError("asset_inspections.insert", error);
 
     const itemPayload = rows.map((row) => ({
@@ -342,15 +461,57 @@ export const assetTrackingService = {
       asset_id: row.asset.id,
       expected_quantity: Number(row.asset.current_quantity || 0),
       counted_quantity: Number(row.counted_quantity || 0),
+      expected_qty: Number(row.asset.current_quantity || 0),
+      counted_qty: Number(row.counted_quantity || 0),
       difference: Number(row.counted_quantity || 0) - Number(row.asset.current_quantity || 0),
       condition_status: row.condition_status || "good",
+      condition_template_id: row.condition_template_id && !String(row.condition_template_id).startsWith("fallback-") ? row.condition_template_id : null,
+      evidence_required: row.evidence_required === true,
+      evidence_status: row.evidence_required ? ((row.evidence || []).length ? "complete" : "pending") : "not_required",
       remark: row.remark ?? "",
     }));
-    const { data: savedItems, error: itemError } = await supabase
+    let { data: savedItems, error: itemError } = await supabase
       .from("asset_inspection_items")
       .insert(itemPayload)
       .select(inspectionItemFields);
+    if (itemError && isMissingInspectionV2Field(itemError)) {
+      const fallbackPayload = itemPayload.map((item) => ({
+        inspection_id: item.inspection_id,
+        asset_id: item.asset_id,
+        expected_quantity: item.expected_quantity,
+        counted_quantity: item.counted_quantity,
+        difference: item.difference,
+        condition_status: item.condition_status,
+        remark: item.remark,
+      }));
+      const fallbackResult = await supabase
+        .from("asset_inspection_items")
+        .insert(fallbackPayload)
+        .select("id,inspection_id,asset_id,expected_quantity,counted_quantity,difference,condition_status,remark,created_at,asset:asset_items(id,name,category:asset_categories(id,name))");
+      savedItems = fallbackResult.data;
+      itemError = fallbackResult.error;
+    }
     throwSupabaseError("asset_inspection_items.insert", itemError);
+
+    const evidencePayload = [];
+    for (const savedItem of savedItems ?? []) {
+      const sourceRow = rows.find((row) => row.asset.id === savedItem.asset_id);
+      for (const evidence of sourceRow?.evidence ?? []) {
+        evidencePayload.push({
+          inspection_item_id: savedItem.id,
+          image_url: evidence.image_url,
+          caption: evidence.caption ?? "",
+        });
+      }
+    }
+    if (evidencePayload.length) {
+      const { error: evidenceError } = await supabase
+        .from("asset_inspection_evidence")
+        .insert(evidencePayload);
+      if (evidenceError && !isMissingInspectionV2Field(evidenceError)) {
+        throwSupabaseError("asset_inspection_evidence.insert", evidenceError);
+      }
+    }
 
     if (applyCorrections) {
       for (const item of itemPayload.filter((entry) => entry.difference !== 0)) {
@@ -358,9 +519,16 @@ export const assetTrackingService = {
         if (!asset) continue;
         const { error: assetError } = await supabase
           .from("asset_items")
-          .update({ current_quantity: item.counted_quantity, updated_by: userId, updated_at: new Date().toISOString() })
+          .update({ current_quantity: item.counted_quantity, last_inspection_at: inspectionDate, updated_by: userId, updated_at: new Date().toISOString() })
           .eq("id", item.asset_id);
-        throwSupabaseError("asset_items.inspection_correction", assetError);
+        if (assetError && !isMissingOptionalAssetField(assetError)) throwSupabaseError("asset_items.inspection_correction", assetError);
+        if (assetError && isMissingOptionalAssetField(assetError)) {
+          const { error: fallbackAssetError } = await supabase
+            .from("asset_items")
+            .update({ current_quantity: item.counted_quantity, updated_by: userId, updated_at: new Date().toISOString() })
+            .eq("id", item.asset_id);
+          throwSupabaseError("asset_items.inspection_correction", fallbackAssetError);
+        }
         const { error: movementError } = await supabase.from("asset_movement_logs").insert({
           asset_id: item.asset_id,
           outlet_id: outletId,
