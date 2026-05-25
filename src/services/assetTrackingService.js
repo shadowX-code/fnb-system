@@ -6,9 +6,9 @@ const categoryBaseFields = "id,name,description,sort_order,is_active,created_at,
 const categoryFields = "id,name,description,sort_order,is_active,maintenance_enabled,created_at,updated_at";
 const assetBaseFields = "id,outlet_id,category_id,name,description,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name)";
 const assetBaseConditionFields = "id,outlet_id,category_id,name,description,condition,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name)";
-const assetFields = "id,outlet_id,category_id,name,description,image_url,thumbnail_url,health_status,last_inspection_at,condition,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name,maintenance_enabled)";
+const assetFields = "id,outlet_id,category_id,name,description,image_url,thumbnail_url,health_status,last_inspection_at,maintenance_override,condition,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name,maintenance_enabled)";
 const movementFields = "id,asset_id,outlet_id,movement_type,quantity_change,quantity_before,quantity_after,reason,remark,movement_date,created_by,created_at";
-const maintenanceFields = "id,asset_id,outlet_id,date,issue,action_taken,vendor,cost,status,remark,photo_url,created_by,created_at,updated_at";
+const maintenanceFields = "id,asset_id,outlet_id,date,maintenance_type,priority,issue,action_taken,vendor,cost,status,scheduled_date,completed_date,next_service_date,remark,photo_url,created_by,created_at,updated_at";
 const inspectionFields = "id,outlet_id,inspection_date,checked_by,category_scope,status,summary,notes,remark,created_by,current_step,completion_percentage,last_edited_at,last_edited_by,draft_data,auto_saved,created_at,updated_at";
 const inspectionItemFields = "id,inspection_id,asset_id,expected_quantity,counted_quantity,expected_qty,counted_qty,difference,condition,condition_status,condition_template_id,evidence_required,evidence_status,remark,created_at,asset:asset_items(id,name,category:asset_categories(id,name))";
 const conditionFields = "id,category_id,name,severity,color,requires_photo,requires_remark,affects_health,triggers_alert,active,sort_order,created_at,updated_at";
@@ -114,12 +114,16 @@ function mapCategory(row) {
 }
 
 function mapAsset(row) {
+  const maintenanceOverride = ["inherit", "enabled", "disabled"].includes(row.maintenance_override) ? row.maintenance_override : "inherit";
+  const categoryMaintenanceEnabled = row.category?.maintenance_enabled === true;
   return {
     id: row.id,
     outlet_id: row.outlet_id,
     category_id: row.category_id,
     category_name: row.category?.name ?? "",
-    maintenance_enabled: row.category?.maintenance_enabled === true,
+    maintenance_enabled: categoryMaintenanceEnabled,
+    maintenance_override: maintenanceOverride,
+    maintenance_allowed: maintenanceOverride === "enabled" || (maintenanceOverride === "inherit" && categoryMaintenanceEnabled),
     name: row.name,
     description: row.description ?? "",
     image_url: row.image_url ?? "",
@@ -141,11 +145,11 @@ function isMissingOptionalAssetField(error) {
   const message = String(error?.message || error?.details || "");
   return error?.code === "42703" ||
     error?.code === "PGRST204" ||
-    /asset_items\.(image_url|thumbnail_url|health_status|last_inspection_at|condition)|asset_categories\.maintenance_enabled|'(image_url|thumbnail_url|health_status|last_inspection_at|condition|maintenance_enabled)' column|column .* does not exist|relationship .*maintenance_enabled/i.test(message);
+    /asset_items\.(image_url|thumbnail_url|health_status|last_inspection_at|condition|maintenance_override)|asset_categories\.maintenance_enabled|'(image_url|thumbnail_url|health_status|last_inspection_at|condition|maintenance_enabled|maintenance_override)' column|column .* does not exist|relationship .*maintenance_enabled/i.test(message);
 }
 
 function withoutOptionalAssetFields(payload) {
-  const { image_url, thumbnail_url, health_status, last_inspection_at, condition, ...rest } = payload;
+  const { image_url, thumbnail_url, health_status, last_inspection_at, condition, maintenance_override, ...rest } = payload;
   return rest;
 }
 
@@ -177,12 +181,17 @@ function mapMaintenanceRecord(row) {
     id: row.id,
     asset_id: row.asset_id,
     outlet_id: row.outlet_id,
-    date: row.date,
+    date: row.scheduled_date ?? row.completed_date ?? row.date,
+    maintenance_type: row.maintenance_type ?? "repair",
+    priority: row.priority ?? "medium",
     issue: row.issue ?? "",
     action_taken: row.action_taken ?? "",
     vendor: row.vendor ?? "",
     cost: Number(row.cost ?? 0),
     status: row.status ?? "scheduled",
+    scheduled_date: row.scheduled_date ?? row.date ?? null,
+    completed_date: row.completed_date ?? null,
+    next_service_date: row.next_service_date ?? null,
     remark: row.remark ?? "",
     photo_url: row.photo_url ?? "",
     created_by: row.created_by ?? null,
@@ -195,7 +204,7 @@ function isMissingMaintenanceTable(error) {
   const message = String(error?.message || error?.details || "");
   return error?.code === "42P01" ||
     error?.code === "PGRST205" ||
-    /asset_maintenance_records/i.test(message);
+    /asset_maintenance_records|maintenance_type|priority|scheduled_date|completed_date|next_service_date/i.test(message);
 }
 
 function mapInspection(row, items = []) {
@@ -443,6 +452,7 @@ export const assetTrackingService = {
       image_url: imageUrl,
       thumbnail_url: isDataUrl(asset.thumbnail_url) ? imageUrl : (asset.thumbnail_url ?? imageUrl),
       health_status: asset.health_status ?? "healthy",
+      maintenance_override: ["inherit", "enabled", "disabled"].includes(asset.maintenance_override) ? asset.maintenance_override : "inherit",
       condition,
       unit: asset.unit || "unit",
       current_quantity: Number(asset.current_quantity ?? 0),
@@ -554,12 +564,17 @@ export const assetTrackingService = {
     const payload = {
       asset_id: asset.id,
       outlet_id: asset.outlet_id,
-      date: record.date || new Date().toISOString().slice(0, 10),
+      date: record.scheduled_date || record.completed_date || record.date || new Date().toISOString().slice(0, 10),
+      maintenance_type: record.maintenance_type || "repair",
+      priority: record.priority || "medium",
       issue: record.issue ?? "",
       action_taken: record.action_taken ?? "",
       vendor: record.vendor ?? "",
       cost: Number(record.cost || 0),
       status: record.status || "scheduled",
+      scheduled_date: record.scheduled_date || record.date || new Date().toISOString().slice(0, 10),
+      completed_date: record.status === "completed" ? (record.completed_date || new Date().toISOString().slice(0, 10)) : (record.completed_date || null),
+      next_service_date: record.next_service_date || null,
       remark: record.remark ?? "",
       photo_url: photoUrl,
       created_by: userId,

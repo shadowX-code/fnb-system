@@ -12,6 +12,8 @@ import { canCreate, canDelete, canEdit, canExport, canManage, notifyPermissionDe
 
 const assetConditions = ["healthy", "needs_review", "damaged", "missing", "under_maintenance", "low_quantity", "disposed", "inactive"];
 const reduceReasons = ["broken", "missing", "disposed", "stolen", "transferred", "correction", "other"];
+const maintenancePriorities = ["low", "medium", "high", "critical"];
+const maintenanceTypes = ["preventive", "repair", "inspection", "cleaning", "calibration", "replacement", "emergency"];
 
 function titleCase(value) {
   return String(value || "").replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
@@ -53,6 +55,69 @@ function assetConditionLabel(condition) {
   if (condition === "needs_review") return "Needs Review";
   if (condition === "low_quantity") return "Low Quantity";
   return titleCase(condition || "healthy");
+}
+
+function maintenanceTypeLabel(type) {
+  const labels = {
+    preventive: "Preventive Maintenance",
+    repair: "Repair",
+    inspection: "Inspection",
+    cleaning: "Cleaning",
+    calibration: "Calibration",
+    replacement: "Replacement",
+    emergency: "Emergency",
+  };
+  return labels[type] || titleCase(type || "repair");
+}
+
+function maintenanceTypeIcon(type) {
+  const icons = {
+    preventive: "PM",
+    repair: "RP",
+    inspection: "IN",
+    cleaning: "CL",
+    calibration: "CA",
+    replacement: "RE",
+    emergency: "EM",
+  };
+  return icons[type] || "MT";
+}
+
+function priorityTone(priority) {
+  if (priority === "critical") return "danger";
+  if (priority === "high") return "warning";
+  if (priority === "medium") return "warning";
+  return "info";
+}
+
+function isMaintenanceOverdue(record) {
+  if (!record?.scheduled_date || ["completed", "cancelled"].includes(record.status)) return false;
+  const scheduled = new Date(record.scheduled_date);
+  const today = new Date();
+  return scheduled < new Date(today.getFullYear(), today.getMonth(), today.getDate());
+}
+
+function daysUntil(value) {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  const today = new Date();
+  const startToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const startDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  return Math.round((startDate - startToday) / 86400000);
+}
+
+function maintenanceTimelineGroup(record) {
+  const value = record.completed_date || record.scheduled_date || record.date;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Older";
+  const today = new Date();
+  const startToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  const startDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const diffDays = Math.round((startToday - startDate) / 86400000);
+  if (diffDays === 0) return "Today";
+  if (diffDays >= 0 && diffDays < 7) return "This Week";
+  return "Older";
 }
 
 function normalizeAssetCondition(value) {
@@ -204,6 +269,7 @@ function emptyAsset() {
     minimum_quantity: 0,
     status: "active",
     condition: "healthy",
+    maintenance_override: "inherit",
     image_url: "",
     remark: "",
   };
@@ -213,6 +279,7 @@ function AssetFormModal({ asset, outlets, categories, onClose, onSubmit, saving 
   const [values, setValues] = useState(() => ({ ...emptyAsset(), ...asset }));
   const [imageError, setImageError] = useState("");
   const isEdit = Boolean(asset?.id);
+  const selectedCategory = categories.find((category) => category.id === values.category_id);
   function update(key, value) {
     setValues((current) => ({ ...current, [key]: value }));
   }
@@ -292,6 +359,22 @@ function AssetFormModal({ asset, outlets, categories, onClose, onSubmit, saving 
         <FieldLabel label="Description">
           <textarea className="control min-h-24 md:col-span-2" value={values.description} onChange={(event) => update("description", event.target.value)} placeholder="Optional asset details" />
         </FieldLabel>
+        <div className="rounded-2xl border border-border bg-slate-50 p-3 md:col-span-2">
+          <div className="text-xs font-black uppercase tracking-wide text-text-muted">Maintenance Workflow</div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            {[
+              ["inherit", `Inherit from category${selectedCategory ? selectedCategory.maintenance_enabled ? " (enabled)" : " (disabled)" : ""}`],
+              ["enabled", "Enabled for this asset"],
+              ["disabled", "Disabled for this asset"],
+            ].map(([value, label]) => (
+              <label key={value} className={`flex items-center gap-2 rounded-xl border px-3 py-2 text-xs font-black transition ${values.maintenance_override === value ? "border-primary bg-primary/10 text-primary" : "border-border bg-white text-text-secondary"}`}>
+                <input type="radio" name="maintenance_override" checked={values.maintenance_override === value} onChange={() => update("maintenance_override", value)} />
+                {label}
+              </label>
+            ))}
+          </div>
+          <p className="mt-2 text-xs font-semibold text-text-secondary">Use maintenance for machines, electrical equipment, POS hardware, aircond, refrigerators, or assets that need repair/service history.</p>
+        </div>
         </div>
       </div>
       {isEdit ? <p className="mt-3 text-xs font-semibold text-text-secondary">Use Adjust Quantity for stock changes so a movement log is created.</p> : null}
@@ -586,6 +669,11 @@ function AdjustQuantityModal({ asset, onClose, onSubmit, saving }) {
 function MaintenanceRecordModal({ asset, onClose, onSubmit, saving }) {
   const [values, setValues] = useState({
     date: new Date().toISOString().slice(0, 10),
+    scheduled_date: new Date().toISOString().slice(0, 10),
+    completed_date: "",
+    next_service_date: "",
+    maintenance_type: "repair",
+    priority: "medium",
     issue: "",
     action_taken: "",
     vendor: "",
@@ -596,7 +684,8 @@ function MaintenanceRecordModal({ asset, onClose, onSubmit, saving }) {
     set_condition_good: false,
   });
   const [photoError, setPhotoError] = useState("");
-  const invalid = !values.issue.trim() || !values.action_taken.trim();
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const invalid = !values.issue.trim() || !values.action_taken.trim() || !values.maintenance_type;
 
   function update(key, value) {
     setValues((current) => ({ ...current, [key]: value }));
@@ -628,9 +717,6 @@ function MaintenanceRecordModal({ asset, onClose, onSubmit, saving }) {
       )}
     >
       <div className="grid gap-3 md:grid-cols-2">
-        <FieldLabel label="Date">
-          <input className="control" type="date" value={values.date} onChange={(event) => update("date", event.target.value)} />
-        </FieldLabel>
         <FieldLabel label="Status">
           <SelectField value={values.status} options={[
             { value: "scheduled", label: "Scheduled" },
@@ -638,6 +724,12 @@ function MaintenanceRecordModal({ asset, onClose, onSubmit, saving }) {
             { value: "completed", label: "Completed" },
             { value: "cancelled", label: "Cancelled" },
           ]} onChange={(value) => update("status", value)} />
+        </FieldLabel>
+        <FieldLabel label="Maintenance Type">
+          <SelectField value={values.maintenance_type} options={maintenanceTypes.map((type) => ({ value: type, label: maintenanceTypeLabel(type) }))} onChange={(value) => update("maintenance_type", value)} />
+        </FieldLabel>
+        <FieldLabel label="Priority">
+          <SelectField value={values.priority} options={maintenancePriorities.map((priority) => ({ value: priority, label: titleCase(priority) }))} onChange={(value) => update("priority", value)} />
         </FieldLabel>
         <FieldLabel label="Issue / Problem">
           <input className="control" value={values.issue} onChange={(event) => update("issue", event.target.value)} placeholder="Compressor noise, leaking pipe..." />
@@ -651,14 +743,33 @@ function MaintenanceRecordModal({ asset, onClose, onSubmit, saving }) {
         <FieldLabel label="Cost">
           <input className="control" type="number" min="0" step="0.01" value={values.cost} onChange={(event) => update("cost", event.target.value)} placeholder="0.00" />
         </FieldLabel>
+        <FieldLabel label="Scheduled Date">
+          <input className="control" type="date" value={values.scheduled_date} onChange={(event) => update("scheduled_date", event.target.value)} />
+        </FieldLabel>
+        <FieldLabel label="Completed Date">
+          <input className="control" type="date" value={values.completed_date} onChange={(event) => update("completed_date", event.target.value)} disabled={values.status !== "completed"} />
+        </FieldLabel>
+        <FieldLabel label="Next Service Date">
+          <input className="control" type="date" value={values.next_service_date} onChange={(event) => update("next_service_date", event.target.value)} />
+        </FieldLabel>
         <FieldLabel label="Photo Evidence">
-          <label className="btn-secondary h-10 cursor-pointer px-3 text-xs">
-            <UploadCloud size={14} /> Upload Photo
-            <input className="sr-only" type="file" accept="image/*" onChange={(event) => handlePhoto(event.target.files?.[0])} />
-          </label>
-          {values.photo_url ? <div className="mt-2 text-xs font-bold text-primary">Photo attached</div> : null}
+          <div className="flex items-center gap-3">
+            <label className="btn-secondary h-10 cursor-pointer px-3 text-xs">
+              <UploadCloud size={14} /> Upload Photo
+              <input className="sr-only" type="file" accept="image/*" onChange={(event) => handlePhoto(event.target.files?.[0])} />
+            </label>
+            {values.photo_url ? (
+              <button className="relative h-12 w-12 overflow-hidden rounded-xl border border-border" type="button" onClick={() => setPreviewOpen(true)}>
+                <img className="h-full w-full object-cover" src={values.photo_url} alt="Maintenance evidence preview" />
+              </button>
+            ) : null}
+          </div>
+          {values.photo_url ? <button className="mt-2 text-xs font-bold text-text-muted hover:text-rose-600" type="button" onClick={() => update("photo_url", "")}>Remove photo</button> : null}
           {photoError ? <div className="mt-1 text-xs font-semibold text-rose-600">{photoError}</div> : null}
         </FieldLabel>
+        {values.status === "in_progress" ? (
+          <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 md:col-span-2">Saving as In Progress will set this asset condition to Under Maintenance.</div>
+        ) : null}
         {values.status === "completed" ? (
           <label className="flex items-center gap-2 rounded-xl border border-border bg-slate-50 px-3 py-2 text-sm font-bold text-text-secondary md:col-span-2">
             <input type="checkbox" checked={values.set_condition_good} onChange={(event) => update("set_condition_good", event.target.checked)} />
@@ -669,6 +780,13 @@ function MaintenanceRecordModal({ asset, onClose, onSubmit, saving }) {
           <textarea className="control min-h-20 md:col-span-2" value={values.remark} onChange={(event) => update("remark", event.target.value)} placeholder="Optional follow-up notes" />
         </FieldLabel>
       </div>
+      {previewOpen && values.photo_url ? (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/80 p-4" role="dialog" aria-modal="true">
+          <button className="absolute inset-0" type="button" aria-label="Close preview" onClick={() => setPreviewOpen(false)} />
+          <img className="relative max-h-[82vh] max-w-[86vw] rounded-3xl object-contain shadow-2xl" src={values.photo_url} alt="Maintenance evidence preview" />
+          <button className="absolute right-5 top-5 rounded-full bg-white p-2 text-slate-700 shadow-xl" type="button" onClick={() => setPreviewOpen(false)}><X size={18} /></button>
+        </div>
+      ) : null}
     </Modal>
   );
 }
@@ -988,8 +1106,23 @@ function AssetDetailDrawer({ asset, outlet, movements, inspections, maintenanceR
   const [tab, setTab] = useState("overview");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewZoom, setPreviewZoom] = useState(false);
-  const maintenanceEnabled = asset.maintenance_enabled === true;
+  const maintenanceEnabled = asset.maintenance_allowed === true;
   const detailTabs = ["overview", "movement", "inspection", ...(maintenanceEnabled ? ["maintenance"] : [])];
+  const activeMaintenance = maintenanceRecords.filter((record) => ["scheduled", "in_progress"].includes(record.status));
+  const overdueMaintenance = maintenanceRecords.filter(isMaintenanceOverdue);
+  const nextService = maintenanceRecords.map((record) => record.next_service_date).filter(Boolean).sort()[0];
+  const nextServiceDays = daysUntil(nextService);
+  const maintenanceGroups = maintenanceRecords.reduce((groups, record) => {
+    const group = maintenanceTimelineGroup(record);
+    groups[group] = [...(groups[group] || []), record];
+    return groups;
+  }, {});
+  const operationalSignals = [
+    latestInspection ? `Last inspected ${formatRelativeDate(latestInspection.inspection_date).toLowerCase()}` : "No inspection yet",
+    maintenanceEnabled ? `${activeMaintenance.length} active maintenance` : null,
+    overdueMaintenance.length ? "Overdue maintenance" : "No critical alerts",
+    nextServiceDays !== null ? nextServiceDays >= 0 ? `Next service due in ${nextServiceDays} days` : "Next service overdue" : null,
+  ].filter(Boolean);
   const latestInspection = inspections.find((inspection) => !isDraftInspection(inspection));
   const latestInspectionItem = latestInspection?.items?.find((item) => item.asset_id === asset.id);
   const latestDifference = Number(latestInspectionItem?.difference || 0);
@@ -1067,6 +1200,11 @@ function AssetDetailDrawer({ asset, outlet, movements, inspections, maintenanceR
           </div>
           <div className="mt-4 flex gap-2">
             {detailTabs.map((item) => <button key={item} className={`rounded-full px-3 py-1.5 text-xs font-bold ${tab === item ? "bg-primary text-white" : "bg-background text-text-secondary"}`} type="button" onClick={() => setTab(item)}>{item === "movement" ? "Movement Log" : item === "inspection" ? "Inspection History" : item === "maintenance" ? "Maintenance History" : "Overview"}</button>)}
+          </div>
+          <div className="mt-3 flex flex-wrap gap-1.5">
+            {operationalSignals.map((signal) => (
+              <span key={signal} className={`rounded-full px-2.5 py-1 text-[11px] font-black ${signal.includes("Overdue") ? "bg-rose-50 text-rose-700" : "bg-white/80 text-text-secondary"}`}>{signal}</span>
+            ))}
           </div>
         </header>
         <div className="min-h-0 flex-1 overflow-y-auto p-5">
@@ -1152,22 +1290,41 @@ function AssetDetailDrawer({ asset, outlet, movements, inspections, maintenanceR
                 <button className="btn-primary h-9 px-3 text-xs" type="button" onClick={() => onAddMaintenance?.(asset)}>+ Add Maintenance Record</button>
               </div>
               {maintenanceRecords.length ? (
-                <div className="space-y-2">
-                  {maintenanceRecords.map((record) => (
-                    <div key={record.id} className="rounded-2xl border border-border bg-background p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="text-sm font-black text-text-primary">{record.issue}</div>
-                          <div className="mt-1 text-xs font-semibold text-text-secondary">{record.action_taken}</div>
+                <div className="space-y-4">
+                  {["Today", "This Week", "Older"].filter((group) => maintenanceGroups[group]?.length).map((group) => (
+                    <div key={group} className="space-y-2">
+                      <div className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{group}</div>
+                      {maintenanceGroups[group].map((record) => (
+                        <div key={record.id} className={`rounded-2xl border bg-white p-3 shadow-sm ${isMaintenanceOverdue(record) ? "border-rose-200" : "border-border"}`}>
+                          <div className="grid gap-3 md:grid-cols-[44px_1fr_150px]">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-xs font-black text-primary">{maintenanceTypeIcon(record.maintenance_type)}</div>
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <span className="text-sm font-black text-text-primary">{record.issue}</span>
+                                <span className="text-xs font-bold text-text-muted">{maintenanceTypeLabel(record.maintenance_type)}</span>
+                              </div>
+                              <div className="mt-1 line-clamp-2 text-xs font-semibold text-text-secondary">{record.action_taken}</div>
+                              <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold text-text-muted">
+                                <span>{record.vendor || "No vendor"}</span>
+                                <span>•</span>
+                                <span>{record.status === "completed" ? "Completed" : "Scheduled"} <DateText value={record.status === "completed" ? record.completed_date : record.scheduled_date} /></span>
+                                <span>•</span>
+                                <span>{record.photo_url ? "1 photo" : "No photo"}</span>
+                              </div>
+                            </div>
+                            <div className="flex flex-col items-start gap-2 md:items-end">
+                              <div className="flex flex-wrap gap-1.5 md:justify-end">
+                                <Badge tone={record.status === "completed" ? "success" : record.status === "in_progress" ? "info" : record.status === "cancelled" ? "neutral" : "warning"}>{titleCase(record.status)}</Badge>
+                                <Badge tone={priorityTone(record.priority)}>{titleCase(record.priority)}</Badge>
+                              </div>
+                              <div className="text-sm font-black text-text-primary">RM {record.cost.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+                              <button className="rounded-full px-2 py-1 text-xs font-black text-text-muted hover:bg-slate-100" type="button">•••</button>
+                            </div>
+                          </div>
+                          {isMaintenanceOverdue(record) ? <div className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-xs font-black text-rose-700">Overdue scheduled maintenance</div> : null}
+                          {record.remark ? <div className="mt-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-text-secondary">{record.remark}</div> : null}
                         </div>
-                        <Badge tone={record.status === "completed" ? "success" : record.status === "in_progress" ? "info" : record.status === "cancelled" ? "neutral" : "warning"}>{titleCase(record.status)}</Badge>
-                      </div>
-                      <div className="mt-3 grid gap-2 text-xs font-semibold text-text-secondary md:grid-cols-3">
-                        <div><span className="font-black text-text-muted">Date: </span><DateText value={record.date} /></div>
-                        <div><span className="font-black text-text-muted">Vendor: </span>{record.vendor || "—"}</div>
-                        <div><span className="font-black text-text-muted">Cost: </span>RM {record.cost.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                      </div>
-                      {record.remark ? <div className="mt-2 rounded-xl bg-white px-3 py-2 text-xs text-text-secondary">{record.remark}</div> : null}
+                      ))}
                     </div>
                   ))}
                 </div>
@@ -1827,7 +1984,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
           {canManageAsset ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-primary/5 hover:text-primary" type="button" onClick={() => { setActionMenu(null); setAdjustAsset(actionMenu.asset); }}><Wrench size={14} /> Adjust Quantity</button> : null}
           {canManageAsset ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-primary/5 hover:text-primary" type="button" onClick={() => { setActionMenu(null); setInspectionOpen(true); }}><ClipboardCheck size={14} /> Start Inspection</button> : null}
           {canEditAsset ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-primary/5 hover:text-primary" type="button" onClick={() => { setActionMenu(null); setAssetModal(actionMenu.asset); }}><PackageCheck size={14} /> Edit Asset</button> : null}
-          {canManageAsset && actionMenu.asset.maintenance_enabled ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-primary/5 hover:text-primary" type="button" onClick={() => { setActionMenu(null); setMaintenanceAsset(actionMenu.asset); }}><Wrench size={14} /> Add Maintenance Record</button> : null}
+          {canManageAsset && actionMenu.asset.maintenance_allowed ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-primary/5 hover:text-primary" type="button" onClick={() => { setActionMenu(null); setMaintenanceAsset(actionMenu.asset); }}><Wrench size={14} /> Add Maintenance Record</button> : null}
           {canDeleteAsset ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-amber-700 hover:bg-amber-50" type="button" onClick={() => { const asset = actionMenu.asset; setActionMenu(null); archiveAsset(asset); }}><AlertTriangle size={14} /> Archive</button> : null}
         </div>
       </FloatingLayer> : null}

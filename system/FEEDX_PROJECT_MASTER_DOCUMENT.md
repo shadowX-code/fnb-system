@@ -1190,6 +1190,7 @@ Asset item fields:
 - health_status
 - last_inspection_at
 - condition
+- maintenance_override
 - status
 - remark
 - created_by
@@ -1220,6 +1221,8 @@ Asset category rules:
 - Category configuration shows category list, name, description, sort order, active or archived status, and linked asset count.
 - Categories cannot be hard deleted when linked to assets; use Archive Category.
 - `maintenance_enabled` controls whether assets in that category expose maintenance workflows.
+- Asset-level `maintenance_override` can be `inherit`, `enabled`, or `disabled`.
+- Final maintenance access is resolved as enabled when override is `enabled`, or when override is `inherit` and the category has maintenance enabled.
 - Consumable or replacement categories such as bowls, spoons, trays, and utensils keep only quantity, inspection, condition, and movement logs.
 - Maintainable categories such as coffee machines, refrigerators, POS hardware, aircond, and kitchen electrical equipment can expose maintenance history, repair logs, vendor tracking, and service scheduling.
 - Category sort order is managed visually by dragging categories in the left category list; the order persists to `sort_order`.
@@ -1245,6 +1248,7 @@ Asset UI rules:
 - Asset Profile shows maintenance scope as Enabled or Not required based on the asset category setting.
 - Maintainable assets show Add Maintenance Record in row actions and inside the Maintenance History tab.
 - Non-maintainable assets never show maintenance actions, tabs, or empty states.
+- Asset Profile header shows compact operational signals such as last inspected, active maintenance, overdue maintenance, and next service due.
 
 Maintenance record fields:
 
@@ -1252,11 +1256,16 @@ Maintenance record fields:
 - asset_id
 - outlet_id
 - date
+- maintenance_type
+- priority
 - issue
 - action_taken
 - vendor
 - cost
 - status
+- scheduled_date
+- completed_date
+- next_service_date
 - remark
 - photo_url
 - created_by
@@ -1270,12 +1279,31 @@ Maintenance status values:
 - completed
 - cancelled
 
+Maintenance priority values:
+
+- low
+- medium
+- high
+- critical
+
+Maintenance type values:
+
+- preventive
+- repair
+- inspection
+- cleaning
+- calibration
+- replacement
+- emergency
+
 Maintenance rules:
 
 - Maintenance records are only exposed for assets whose category has `maintenance_enabled = true`.
+- Asset-level override can enable or disable maintenance independent of the category default.
 - Saving an In Progress maintenance record may set asset condition to Under Maintenance.
 - Saving a Completed maintenance record can optionally set asset condition back to Good.
 - Maintenance records support optional photo evidence using the asset photo storage bucket.
+- Maintenance records keep one single `cost` field. Cost breakdown fields are intentionally not part of the current scope.
 
 Movement log fields:
 
