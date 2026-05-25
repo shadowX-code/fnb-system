@@ -3,7 +3,8 @@ import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
 
 const categoryFields = "id,name,description,sort_order,is_active,created_at,updated_at";
-const assetFields = "id,outlet_id,category_id,name,description,image_url,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name)";
+const assetBaseFields = "id,outlet_id,category_id,name,description,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name)";
+const assetFields = "id,outlet_id,category_id,name,description,image_url,thumbnail_url,health_status,last_inspection_at,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name)";
 const movementFields = "id,asset_id,outlet_id,movement_type,quantity_change,quantity_before,quantity_after,reason,remark,movement_date,created_by,created_at";
 const inspectionFields = "id,outlet_id,inspection_date,checked_by,category_scope,status,remark,created_at,updated_at";
 const inspectionItemFields = "id,inspection_id,asset_id,expected_quantity,counted_quantity,difference,condition_status,remark,created_at,asset:asset_items(id,name,category:asset_categories(id,name))";
@@ -29,6 +30,9 @@ function mapAsset(row) {
     name: row.name,
     description: row.description ?? "",
     image_url: row.image_url ?? "",
+    thumbnail_url: row.thumbnail_url ?? row.image_url ?? "",
+    health_status: row.health_status ?? "healthy",
+    last_inspection_at: row.last_inspection_at ?? null,
     unit: row.unit ?? "unit",
     current_quantity: Number(row.current_quantity ?? 0),
     minimum_quantity: Number(row.minimum_quantity ?? 0),
@@ -37,6 +41,18 @@ function mapAsset(row) {
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
+}
+
+function isMissingOptionalAssetField(error) {
+  const message = String(error?.message || error?.details || "");
+  return error?.code === "42703" ||
+    error?.code === "PGRST204" ||
+    /asset_items\.(image_url|thumbnail_url|health_status|last_inspection_at)|'(image_url|thumbnail_url|health_status|last_inspection_at)' column|column .* does not exist/i.test(message);
+}
+
+function withoutOptionalAssetFields(payload) {
+  const { image_url, thumbnail_url, health_status, last_inspection_at, ...rest } = payload;
+  return rest;
 }
 
 function mapMovement(row) {
@@ -140,6 +156,17 @@ export const assetTrackingService = {
       .order("name", { ascending: true });
     if (outletId && outletId !== "all") query = query.eq("outlet_id", outletId);
     const { data, error } = await query;
+    if (error && isMissingOptionalAssetField(error)) {
+      console.warn("Asset image fields are not available yet. Loading assets without optional image metadata.", error);
+      let fallbackQuery = supabase
+        .from("asset_items")
+        .select(assetBaseFields)
+        .order("name", { ascending: true });
+      if (outletId && outletId !== "all") fallbackQuery = fallbackQuery.eq("outlet_id", outletId);
+      const { data: fallbackData, error: fallbackError } = await fallbackQuery;
+      throwSupabaseError("asset_items.list", fallbackError);
+      return (fallbackData ?? []).map(mapAsset);
+    }
     throwSupabaseError("asset_items.list", error);
     return (data ?? []).map(mapAsset);
   },
@@ -152,6 +179,8 @@ export const assetTrackingService = {
       name: asset.name,
       description: asset.description ?? "",
       image_url: asset.image_url ?? "",
+      thumbnail_url: asset.thumbnail_url ?? asset.image_url ?? "",
+      health_status: asset.health_status ?? "healthy",
       unit: asset.unit || "unit",
       current_quantity: Number(asset.current_quantity ?? 0),
       minimum_quantity: Number(asset.minimum_quantity ?? 0),
@@ -164,7 +193,16 @@ export const assetTrackingService = {
     const query = asset.id
       ? supabase.from("asset_items").update(payload).eq("id", asset.id)
       : supabase.from("asset_items").insert(payload);
-    const { data, error } = await query.select(assetFields).single();
+    let { data, error } = await query.select(assetFields).single();
+    if (error && isMissingOptionalAssetField(error)) {
+      const fallbackPayload = withoutOptionalAssetFields(payload);
+      const fallbackQuery = asset.id
+        ? supabase.from("asset_items").update(fallbackPayload).eq("id", asset.id)
+        : supabase.from("asset_items").insert(fallbackPayload);
+      const fallbackResult = await fallbackQuery.select(assetBaseFields).single();
+      data = fallbackResult.data;
+      error = fallbackResult.error;
+    }
     throwSupabaseError("asset_items.save", error);
     await logAssetAudit(asset.id ? "asset_edited" : "asset_created", data.outlet_id, data.name, data);
     return mapAsset(data);
@@ -172,12 +210,22 @@ export const assetTrackingService = {
 
   async archiveAsset(asset) {
     const userId = await currentUserId();
-    const { data, error } = await supabase
+    let { data, error } = await supabase
       .from("asset_items")
       .update({ status: "inactive", updated_by: userId, updated_at: new Date().toISOString() })
       .eq("id", asset.id)
       .select(assetFields)
       .single();
+    if (error && isMissingOptionalAssetField(error)) {
+      const fallbackResult = await supabase
+        .from("asset_items")
+        .update({ status: "inactive", updated_by: userId, updated_at: new Date().toISOString() })
+        .eq("id", asset.id)
+        .select(assetBaseFields)
+        .single();
+      data = fallbackResult.data;
+      error = fallbackResult.error;
+    }
     throwSupabaseError("asset_items.archive", error);
     await logAssetAudit("asset_edited", data.outlet_id, `${data.name} archived`, data);
     return mapAsset(data);
@@ -211,12 +259,22 @@ export const assetTrackingService = {
     if (after < 0) throw new Error("Quantity cannot be below 0.");
 
     const userId = await currentUserId();
-    const { data: updatedAsset, error: assetError } = await supabase
+    let { data: updatedAsset, error: assetError } = await supabase
       .from("asset_items")
       .update({ current_quantity: after, updated_by: userId, updated_at: new Date().toISOString() })
       .eq("id", asset.id)
       .select(assetFields)
       .single();
+    if (assetError && isMissingOptionalAssetField(assetError)) {
+      const fallbackResult = await supabase
+        .from("asset_items")
+        .update({ current_quantity: after, updated_by: userId, updated_at: new Date().toISOString() })
+        .eq("id", asset.id)
+        .select(assetBaseFields)
+        .single();
+      updatedAsset = fallbackResult.data;
+      assetError = fallbackResult.error;
+    }
     throwSupabaseError("asset_items.adjust_update", assetError);
 
     const movementPayload = {

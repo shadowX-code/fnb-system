@@ -1181,9 +1181,12 @@ Asset item fields:
 - name
 - description
 - image_url
+- thumbnail_url
 - unit
 - current_quantity
 - minimum_quantity
+- health_status
+- last_inspection_at
 - status
 - remark
 - created_by

@@ -75,9 +75,11 @@ function categoryIcon(categoryName) {
 }
 
 function AssetThumbnail({ asset, size = "md" }) {
+  const [failed, setFailed] = useState(false);
   const sizeClass = size === "lg" ? "h-28 w-28 rounded-3xl" : "h-14 w-14 rounded-xl";
-  if (asset.image_url) {
-    return <img className={`${sizeClass} shrink-0 object-cover shadow-sm`} src={asset.image_url} alt={asset.name} />;
+  const imageUrl = asset.thumbnail_url || asset.image_url;
+  if (imageUrl && !failed) {
+    return <img className={`${sizeClass} shrink-0 bg-slate-100 object-cover shadow-sm`} src={imageUrl} alt={asset.name} onError={() => setFailed(true)} />;
   }
   return (
     <div className={`${sizeClass} flex shrink-0 items-center justify-center bg-gradient-to-br from-emerald-50 to-slate-100 text-xs font-black text-primary shadow-sm`}>
@@ -429,7 +431,7 @@ function AssetDetailDrawer({ asset, movements, inspections, onClose, onAdjust, o
           {tab === "overview" ? (
             <div className="space-y-4">
               <div className="grid gap-3 md:grid-cols-2">
-                {[["Current Quantity", `${asset.current_quantity} ${asset.unit}`], ["Minimum Quantity", `${asset.minimum_quantity} ${asset.unit}`], ["Status", assetStatusLabel(asset.status)], ["Last Checked", formatRelativeDate(inspections[0]?.inspection_date)], ["Last Movement", formatRelativeDate(movements[0]?.movement_date)], ["Outlet Asset", asset.outlet_id ? "Outlet-specific" : "—"]].map(([label, value]) => (
+                {[["Current Quantity", `${asset.current_quantity} ${asset.unit}`], ["Minimum Quantity", `${asset.minimum_quantity} ${asset.unit}`], ["Status", assetStatusLabel(asset.status)], ["Last Checked", formatRelativeDate(inspections[0]?.inspection_date || asset.last_inspection_at)], ["Last Movement", formatRelativeDate(movements[0]?.movement_date)], ["Outlet Asset", asset.outlet_id ? "Outlet-specific" : "—"]].map(([label, value]) => (
                   <div key={label} className="rounded-2xl border border-border bg-background p-4"><div className="text-xs font-black uppercase tracking-wide text-text-muted">{label}</div><div className="mt-1 text-sm font-bold text-text-primary">{value}</div></div>
                 ))}
               </div>
@@ -547,7 +549,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
     }), [assets, categoryFilter, query, statusFilter]);
 
   const summary = useMemo(() => {
-    const lastChecked = inspections[0]?.inspection_date;
+    const lastChecked = inspections[0]?.inspection_date || filteredAssets.find((asset) => asset.last_inspection_at)?.last_inspection_at;
     return {
       totalItems: filteredAssets.length,
       totalQuantity: filteredAssets.reduce((sum, asset) => sum + Number(asset.current_quantity || 0), 0),
@@ -748,7 +750,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
                       </td>
                       <td className="px-4 py-3 text-text-secondary">{asset.unit}</td>
                       <td className="px-4 py-3"><Badge tone={statusTone(asset.status)}>{assetStatusLabel(asset.status)}</Badge></td>
-                      <td className="px-4 py-3 text-text-secondary"><DateText value={lastInspection?.inspection_date} /></td>
+                      <td className="px-4 py-3 text-text-secondary"><DateText value={lastInspection?.inspection_date || asset.last_inspection_at} /></td>
                       <td className="px-4 py-3 text-text-secondary"><DateText value={lastMovement?.movement_date} /></td>
                       <td className="relative px-4 py-3">
                         <div className="flex items-center gap-1.5">
