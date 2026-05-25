@@ -1,5 +1,5 @@
--- Simplifies Asset Tracking condition handling.
--- Categories classify assets only; each asset carries its current operational condition.
+-- Repair Asset Inspection condition constraints and asset photo storage.
+-- This migration is safe to run after earlier Asset Tracking migrations.
 
 alter table public.asset_items
   add column if not exists condition text not null default 'healthy';
@@ -24,11 +24,12 @@ end $$;
 
 update public.asset_items
 set condition = case
-  when status in ('healthy', 'needs_review', 'damaged', 'missing', 'under_maintenance', 'low_quantity', 'disposed', 'inactive') then status
-  when health_status in ('low', 'critical', 'out', 'needs_review') then 'needs_review'
+  when condition in ('good', 'active') then 'healthy'
+  when condition = 'need_repair' then 'needs_review'
+  when condition in ('healthy', 'needs_review', 'damaged', 'missing', 'under_maintenance', 'low_quantity', 'disposed', 'inactive') then condition
+  when status in ('damaged', 'missing', 'disposed', 'inactive') then status
   else 'healthy'
-end
-where condition is null or condition = 'healthy';
+end;
 
 update public.asset_items
 set status = case
@@ -37,6 +38,23 @@ set status = case
 end
 where status is null
    or status not in ('active', 'inactive');
+
+update public.asset_inspection_items
+set condition_status = case
+  when condition_status in ('good', 'active') then 'healthy'
+  when condition_status = 'need_repair' then 'needs_review'
+  when condition_status in ('healthy', 'needs_review', 'damaged', 'missing', 'under_maintenance', 'low_quantity', 'disposed', 'inactive') then condition_status
+  else 'healthy'
+end;
+
+update public.asset_inspection_items
+set condition = case
+  when condition in ('good', 'active') then 'healthy'
+  when condition = 'need_repair' then 'needs_review'
+  when condition in ('healthy', 'needs_review', 'damaged', 'missing', 'under_maintenance', 'low_quantity', 'disposed', 'inactive') then condition
+  when condition_status in ('healthy', 'needs_review', 'damaged', 'missing', 'under_maintenance', 'low_quantity', 'disposed', 'inactive') then condition_status
+  else 'healthy'
+end;
 
 do $$
 begin
@@ -56,31 +74,7 @@ begin
   alter table public.asset_items
     add constraint asset_items_status_check
     check (status in ('active', 'inactive'));
-end $$;
 
-create index if not exists asset_items_condition_idx
-  on public.asset_items (condition, outlet_id);
-
-update public.asset_inspection_items
-set condition_status = case
-  when condition_status = 'good' then 'healthy'
-  when condition_status = 'active' then 'healthy'
-  when condition_status = 'need_repair' then 'needs_review'
-  else condition_status
-end
-where condition_status in ('good', 'active', 'need_repair');
-
-update public.asset_inspection_items
-set condition = case
-  when condition in ('good', 'active') then 'healthy'
-  when condition = 'need_repair' then 'needs_review'
-  when condition in ('healthy', 'needs_review', 'damaged', 'missing', 'under_maintenance', 'low_quantity', 'disposed', 'inactive') then condition
-  when condition_status in ('healthy', 'needs_review', 'damaged', 'missing', 'under_maintenance', 'low_quantity', 'disposed', 'inactive') then condition_status
-  else 'healthy'
-end;
-
-do $$
-begin
   alter table public.asset_inspection_items
     add constraint asset_inspection_items_condition_status_check
     check (condition_status in (
@@ -107,6 +101,9 @@ begin
       'inactive'
     ));
 end $$;
+
+create index if not exists asset_items_condition_idx
+  on public.asset_items (condition, outlet_id);
 
 insert into storage.buckets (id, name, public)
 values ('asset-photos', 'asset-photos', true)

@@ -7,9 +7,74 @@ const assetBaseFields = "id,outlet_id,category_id,name,description,unit,current_
 const assetFields = "id,outlet_id,category_id,name,description,image_url,thumbnail_url,health_status,last_inspection_at,condition,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name)";
 const movementFields = "id,asset_id,outlet_id,movement_type,quantity_change,quantity_before,quantity_after,reason,remark,movement_date,created_by,created_at";
 const inspectionFields = "id,outlet_id,inspection_date,checked_by,category_scope,status,summary,notes,remark,created_by,current_step,completion_percentage,last_edited_at,last_edited_by,draft_data,auto_saved,created_at,updated_at";
-const inspectionItemFields = "id,inspection_id,asset_id,expected_quantity,counted_quantity,expected_qty,counted_qty,difference,condition_status,condition_template_id,evidence_required,evidence_status,remark,created_at,asset:asset_items(id,name,category:asset_categories(id,name)),condition:asset_condition_templates(id,name,severity,color,requires_photo,requires_remark)";
+const inspectionItemFields = "id,inspection_id,asset_id,expected_quantity,counted_quantity,expected_qty,counted_qty,difference,condition,condition_status,condition_template_id,evidence_required,evidence_status,remark,created_at,asset:asset_items(id,name,category:asset_categories(id,name))";
 const conditionFields = "id,category_id,name,severity,color,requires_photo,requires_remark,affects_health,triggers_alert,active,sort_order,created_at,updated_at";
 const evidenceFields = "id,inspection_item_id,image_url,caption,created_at";
+const assetConditionValues = new Set(["healthy", "needs_review", "damaged", "missing", "under_maintenance", "low_quantity", "disposed", "inactive"]);
+
+function normalizeConditionValue(value) {
+  const normalized = String(value || "")
+    .trim()
+    .toLowerCase()
+    .replace(/[\s-]+/g, "_");
+  const aliases = {
+    good: "healthy",
+    active: "healthy",
+    healthy: "healthy",
+    needs_review: "needs_review",
+    review: "needs_review",
+    need_repair: "needs_review",
+    need_repairs: "needs_review",
+    damaged: "damaged",
+    missing: "missing",
+    under_maintenance: "under_maintenance",
+    maintenance: "under_maintenance",
+    low_quantity: "low_quantity",
+    low: "low_quantity",
+    disposed: "disposed",
+    inactive: "inactive",
+  };
+  const mapped = aliases[normalized] || normalized;
+  if (!assetConditionValues.has(mapped)) {
+    console.warn("[AssetTracking] Unknown asset condition normalized to healthy", { value });
+    return "healthy";
+  }
+  return mapped;
+}
+
+function isDataUrl(value) {
+  return /^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(String(value || ""));
+}
+
+function dataUrlExtension(value) {
+  const match = String(value || "").match(/^data:image\/([a-zA-Z0-9.+-]+);base64,/);
+  const type = match?.[1] || "png";
+  if (type === "jpeg") return "jpg";
+  return type.split("+")[0];
+}
+
+async function uploadAssetImageIfNeeded(asset, userId) {
+  if (!isDataUrl(asset.image_url)) return asset.image_url ?? "";
+  const extension = dataUrlExtension(asset.image_url);
+  const path = `${asset.outlet_id || "outlet"}/${asset.id || crypto.randomUUID()}-${Date.now()}.${extension}`;
+  console.info("[AssetTracking] Uploading asset photo", { path, assetName: asset.name });
+  const response = await fetch(asset.image_url);
+  const blob = await response.blob();
+  const { data, error } = await supabase.storage
+    .from("asset-photos")
+    .upload(path, blob, {
+      contentType: blob.type || `image/${extension}`,
+      upsert: true,
+      metadata: { uploaded_by: userId || "" },
+    });
+  if (error) {
+    console.error("[AssetTracking] Asset photo upload failed", error);
+    throw new Error("Unable to upload asset photo. Please try again.");
+  }
+  const { data: publicUrlData } = supabase.storage.from("asset-photos").getPublicUrl(data.path);
+  console.info("[AssetTracking] Asset photo uploaded", { path: data.path, publicUrl: publicUrlData.publicUrl });
+  return publicUrlData.publicUrl;
+}
 
 function mapCategory(row) {
   return {
@@ -35,7 +100,7 @@ function mapAsset(row) {
     thumbnail_url: row.thumbnail_url ?? row.image_url ?? "",
     health_status: row.health_status ?? "healthy",
     last_inspection_at: row.last_inspection_at ?? null,
-    condition: row.condition ?? (["damaged", "missing", "disposed", "inactive"].includes(row.status) ? row.status : "healthy"),
+    condition: normalizeConditionValue(row.condition ?? (["damaged", "missing", "disposed", "inactive"].includes(row.status) ? row.status : "healthy")),
     unit: row.unit ?? "unit",
     current_quantity: Number(row.current_quantity ?? 0),
     minimum_quantity: Number(row.minimum_quantity ?? 0),
@@ -75,6 +140,11 @@ function mapMovement(row) {
 }
 
 function mapInspection(row, items = []) {
+  const normalizedItems = (items ?? []).map((item) => ({
+    ...item,
+    condition: normalizeConditionValue(item.condition ?? item.condition_status),
+    condition_status: normalizeConditionValue(item.condition_status ?? item.condition),
+  }));
   return {
     id: row.id,
     outlet_id: row.outlet_id,
@@ -93,7 +163,7 @@ function mapInspection(row, items = []) {
     remark: row.remark ?? "",
     created_at: row.created_at,
     updated_at: row.updated_at,
-    items,
+    items: normalizedItems,
   };
 }
 
@@ -119,7 +189,7 @@ function isMissingInspectionV2Field(error) {
   const message = String(error?.message || error?.details || "");
   return error?.code === "42703" ||
     error?.code === "PGRST204" ||
-    /asset_condition_templates|asset_inspection_evidence|condition_template_id|evidence_required|evidence_status|expected_qty|counted_qty|summary|notes|current_step|completion_percentage|last_edited_at|last_edited_by|draft_data|auto_saved/i.test(message);
+    /asset_condition_templates|asset_inspection_evidence|condition_template_id|evidence_required|evidence_status|expected_qty|counted_qty|summary|notes|current_step|completion_percentage|last_edited_at|last_edited_by|draft_data|auto_saved|asset_inspection_items\.condition|'condition' column/i.test(message);
 }
 
 async function currentUserId() {
@@ -253,15 +323,18 @@ export const assetTrackingService = {
 
   async saveAsset(asset) {
     const userId = await currentUserId();
+    const imageUrl = await uploadAssetImageIfNeeded(asset, userId);
+    const condition = normalizeConditionValue(asset.condition);
+    console.info("[AssetTracking] Saving asset", { assetId: asset.id || "new", name: asset.name, condition, hasImage: Boolean(imageUrl) });
     const payload = {
       outlet_id: asset.outlet_id,
       category_id: asset.category_id,
       name: asset.name,
       description: asset.description ?? "",
-      image_url: asset.image_url ?? "",
-      thumbnail_url: asset.thumbnail_url ?? asset.image_url ?? "",
+      image_url: imageUrl,
+      thumbnail_url: isDataUrl(asset.thumbnail_url) ? imageUrl : (asset.thumbnail_url ?? imageUrl),
       health_status: asset.health_status ?? "healthy",
-      condition: asset.condition ?? "healthy",
+      condition,
       unit: asset.unit || "unit",
       current_quantity: Number(asset.current_quantity ?? 0),
       minimum_quantity: Number(asset.minimum_quantity ?? 0),
@@ -431,6 +504,15 @@ export const assetTrackingService = {
 
   async submitInspection({ draftId = "", outletId, inspectionDate, checkedBy, categoryScope, remark, notes, rows, summary = {}, status = "completed", currentStep = 4, draftData = {}, autoSaved = false, applyCorrections = true }) {
     const userId = await currentUserId();
+    console.info("[AssetTracking] Submit inspection payload", {
+      draftId,
+      outletId,
+      inspectionDate,
+      status,
+      rowCount: rows.length,
+      conditions: rows.map((row) => normalizeConditionValue(row.condition_status || row.condition)),
+      summary,
+    });
     const inspectionPayload = {
         outlet_id: outletId,
         inspection_date: inspectionDate,
@@ -498,7 +580,8 @@ export const assetTrackingService = {
       expected_qty: Number(row.asset.current_quantity || 0),
       counted_qty: Number(row.counted_quantity || 0),
       difference: Number(row.counted_quantity || 0) - Number(row.asset.current_quantity || 0),
-      condition_status: row.condition_status || "good",
+      condition: normalizeConditionValue(row.condition_status || row.condition || "healthy"),
+      condition_status: normalizeConditionValue(row.condition_status || row.condition || "healthy"),
       condition_template_id: row.condition_template_id && !String(row.condition_template_id).startsWith("fallback-") ? row.condition_template_id : null,
       evidence_required: row.evidence_required === true,
       evidence_status: row.evidence_required ? ((row.evidence || []).length ? "complete" : "pending") : "not_required",
@@ -508,6 +591,13 @@ export const assetTrackingService = {
       .from("asset_inspection_items")
       .insert(itemPayload)
       .select(inspectionItemFields);
+    console.info("[AssetTracking] Inspection item insert response", {
+      inspectionId: inspection.id,
+      rows: itemPayload.length,
+      error,
+      itemError,
+      conditions: itemPayload.map((item) => item.condition_status),
+    });
     if (itemError && isMissingInspectionV2Field(itemError)) {
       const fallbackPayload = itemPayload.map((item) => ({
         inspection_id: item.inspection_id,
@@ -553,11 +643,17 @@ export const assetTrackingService = {
         if (!asset) continue;
         const assetUpdate = {
           current_quantity: item.counted_quantity,
-          condition: item.condition_status || "healthy",
+          condition: normalizeConditionValue(item.condition_status),
           last_inspection_at: inspectionDate,
           updated_by: userId,
           updated_at: new Date().toISOString(),
         };
+        console.info("[AssetTracking] Updating asset from inspection", {
+          assetId: item.asset_id,
+          condition: assetUpdate.condition,
+          countedQuantity: item.counted_quantity,
+          difference: item.difference,
+        });
         const { error: assetError } = await supabase
           .from("asset_items")
           .update(assetUpdate)

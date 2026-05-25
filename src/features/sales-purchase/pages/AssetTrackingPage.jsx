@@ -53,6 +53,13 @@ function assetConditionLabel(condition) {
   return titleCase(condition || "healthy");
 }
 
+function normalizeAssetCondition(value) {
+  const normalized = String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
+  if (normalized === "good" || normalized === "active") return "healthy";
+  if (normalized === "need_repair") return "needs_review";
+  return assetConditions.includes(normalized) ? normalized : "healthy";
+}
+
 function getQuantityHealth(asset) {
   const quantity = Number(asset.current_quantity || 0);
   const minimum = Number(asset.minimum_quantity || 0);
@@ -509,7 +516,7 @@ function InspectionModal({ outletId, categories, assets, draftInspection, onClos
       return ({
       asset,
       counted_quantity: draftRow?.counted_quantity ?? asset.current_quantity,
-      condition_status: draftRow?.condition_status || asset.condition || "healthy",
+      condition_status: normalizeAssetCondition(draftRow?.condition_status || asset.condition || "healthy"),
       evidence: draftRow?.evidence || [],
       remark: draftRow?.remark || "",
     });
@@ -524,10 +531,11 @@ function InspectionModal({ outletId, categories, assets, draftInspection, onClos
   });
   const missingRows = enrichedRows.filter((row) => row.diff < 0 || row.condition_status === "missing");
   const extraRows = enrichedRows.filter((row) => row.diff > 0);
-  const damagedRows = enrichedRows.filter((row) => ["damaged", "under_maintenance", "needs_review"].includes(row.condition_status));
+  const damagedRows = enrichedRows.filter((row) => row.condition_status === "damaged");
+  const warningRows = enrichedRows.filter((row) => ["needs_review", "low_quantity", "under_maintenance"].includes(row.condition_status));
   const pendingEvidenceRows = enrichedRows.filter((row) => row.needsEvidence && !row.evidenceComplete);
   const matchedRows = enrichedRows.filter((row) => row.diff === 0 && row.condition_status === "healthy");
-  const criticalRows = enrichedRows.filter((row) => row.condition_status === "missing" || row.diff < 0);
+  const criticalRows = enrichedRows.filter((row) => ["damaged", "missing"].includes(row.condition_status));
   const issueRows = enrichedRows.filter((row) => row.diff !== 0 || row.condition_status !== "healthy" || !row.evidenceComplete);
   const checkedRows = enrichedRows.filter((row) => row.counted_quantity !== "" && row.counted_quantity !== null && row.counted_quantity !== undefined);
   const categoryScope = scopeType === "all"
@@ -542,6 +550,7 @@ function InspectionModal({ outletId, categories, assets, draftInspection, onClos
     extra_assets: extraRows.length,
     damaged_assets: damagedRows.length,
     critical_alerts: criticalRows.length,
+    warning_alerts: warningRows.length,
     pending_evidence: pendingEvidenceRows.length,
     inspection_type: inspectionType,
   };
@@ -720,7 +729,7 @@ function InspectionModal({ outletId, categories, assets, draftInspection, onClos
       {step === 3 ? (
         <div className="space-y-4">
           <div className="grid gap-3 md:grid-cols-4">
-            {[["Assets Inspected", rows.length], ["Matched Assets", matchedRows.length], ["Missing Assets", missingRows.length], ["Extra Assets", extraRows.length], ["Damaged Assets", damagedRows.length], ["Critical Alerts", criticalRows.length], ["Pending Evidence", pendingEvidenceRows.length]].map(([label, value]) => (
+            {[["Assets Inspected", rows.length], ["Matched Assets", matchedRows.length], ["Missing Assets", missingRows.length], ["Extra Assets", extraRows.length], ["Damaged Assets", damagedRows.length], ["Warning Items", warningRows.length], ["Critical Alerts", criticalRows.length], ["Evidence Reminders", pendingEvidenceRows.length]].map(([label, value]) => (
               <div key={label} className="rounded-2xl border border-border bg-background p-4">
                 <div className="text-xs font-black uppercase tracking-wide text-text-muted">{label}</div>
                 <div className="mt-2 text-2xl font-semibold text-text-primary">{value}</div>

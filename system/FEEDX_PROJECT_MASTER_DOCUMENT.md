@@ -1221,6 +1221,7 @@ Asset category rules:
 Asset UI rules:
 
 - Asset photos are shown as thumbnails inside the Asset Name column and larger previews inside the Asset Profile drawer.
+- Asset photos are uploaded to Supabase Storage bucket `asset-photos`; the public URL is saved in `asset_items.image_url` and reused as `thumbnail_url`.
 - Asset thumbnails in the list and Asset Profile can be clicked to open an image preview.
 - If no photo exists, show a category-based visual placeholder instead of an empty or broken image.
 - User-facing asset state is shown as Condition, not Status.
@@ -1282,6 +1283,7 @@ Inspection item fields:
 - expected_qty
 - counted_qty
 - difference
+- condition
 - condition_status
 - evidence_required
 - evidence_status
@@ -1308,6 +1310,8 @@ Inspection flow:
 8. Submit inspection or save draft.
 9. Submitting updates asset quantity, asset condition, and last inspected date.
 10. Quantity differences create correction movement logs.
+11. Inspection submit normalizes condition values to lowercase snake_case before saving.
+12. Critical alerts count only Damaged and Missing conditions; Needs Review, Low Quantity, and Under Maintenance count as warnings.
 
 Inspection draft and resume rules:
 
