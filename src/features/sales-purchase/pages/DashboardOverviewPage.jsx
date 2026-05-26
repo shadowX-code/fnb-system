@@ -85,14 +85,30 @@ function formatShortDate(dateString) {
   return date.toLocaleDateString("en-MY", { day: "numeric", month: "short" });
 }
 
-function formatUpdated(date = new Date()) {
-  return date.toLocaleString("en-MY", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-    hour: "numeric",
-    minute: "2-digit",
-  });
+function employeeBirthday(employee) {
+  return employee?.birthday || employee?.birth_date || employee?.date_of_birth || employee?.dob || "";
+}
+
+function parseBirthdayValue(value) {
+  if (!value) return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) {
+    return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+  }
+  const text = String(value).trim();
+  if (!text) return null;
+  const isoMatch = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (isoMatch) {
+    const date = new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]));
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  const slashMatch = text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
+  if (slashMatch) {
+    const year = slashMatch[3].length === 2 ? Number(`19${slashMatch[3]}`) : Number(slashMatch[3]);
+    const date = new Date(year, Number(slashMatch[2]) - 1, Number(slashMatch[1]));
+    return Number.isNaN(date.getTime()) ? null : date;
+  }
+  const parsed = new Date(text);
+  return Number.isNaN(parsed.getTime()) ? null : new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
 }
 
 function outletCode(outlet) {
@@ -196,9 +212,8 @@ function isWorkingShift(roster) {
 }
 
 function birthdayOccurrence(birthday, referenceDate = todayDate()) {
-  if (!birthday) return null;
-  const birthDate = new Date(`${birthday}T00:00:00`);
-  if (Number.isNaN(birthDate.getTime())) return null;
+  const birthDate = parseBirthdayValue(birthday);
+  if (!birthDate) return null;
   let next = new Date(referenceDate.getFullYear(), birthDate.getMonth(), birthDate.getDate());
   if (next < referenceDate) next = new Date(referenceDate.getFullYear() + 1, birthDate.getMonth(), birthDate.getDate());
   const days = Math.round((next - referenceDate) / 86400000);
@@ -520,14 +535,14 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
   const birthdays = useMemo(() => {
     const scopedEmployees = opsData.employees.filter((employee) => employee.is_active !== false && (!employee.workplace || scopeOutletIds.includes(employee.workplace)));
     const mapped = scopedEmployees
-      .map((employee) => ({ employee, birthday: birthdayOccurrence(employee.birthday, today) }))
+      .map((employee) => ({ employee, birthday: birthdayOccurrence(employeeBirthday(employee), today) }))
       .filter((item) => item.birthday)
       .sort((a, b) => a.birthday.days - b.birthday.days);
     return {
       upcoming: mapped.filter((item) => item.birthday.days <= 30),
       next: mapped[0],
     };
-  }, [opsData.employees, scopeOutletIds]);
+  }, [opsData.employees, scopeOutletIds, today]);
 
   const statusCounts = outletMonthlyRows.reduce((counts, row) => {
     counts[row.status] = (counts[row.status] || 0) + 1;
@@ -557,10 +572,10 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
   ].filter(Boolean).slice(0, 3).join(" ");
 
   return (
-    <div className="relative mx-auto max-w-[1500px] space-y-4 before:pointer-events-none before:absolute before:-left-8 before:-right-8 before:-top-6 before:h-80 before:rounded-full before:bg-[radial-gradient(circle_at_25%_15%,rgba(34,197,94,0.14),transparent_36rem)] before:content-['']">
-      <section className="relative overflow-hidden rounded-[28px] border border-emerald-100/80 bg-white/90 p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_18px_48px_rgba(15,23,42,0.06)] backdrop-blur">
-        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_12%_8%,rgba(34,197,94,0.18),transparent_20rem),linear-gradient(135deg,rgba(236,253,245,0.82),transparent_42%)]" />
-        <div className="pointer-events-none absolute inset-0 opacity-[0.18] [background-image:linear-gradient(rgba(15,23,42,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.08)_1px,transparent_1px)] [background-size:28px_28px]" />
+    <div className="relative mx-auto max-w-[1500px] space-y-3">
+      <section className="relative overflow-hidden rounded-[26px] border border-slate-200/80 bg-white/95 p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_18px_44px_rgba(15,23,42,0.055)] backdrop-blur">
+        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(248,250,252,0.78))]" />
+        <div className="pointer-events-none absolute inset-0 opacity-[0.12] [background-image:linear-gradient(rgba(15,23,42,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.08)_1px,transparent_1px)] [background-size:28px_28px]" />
         <div className="relative">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -598,17 +613,6 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
                 {monthOptions().map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
               </select>
             </label>
-            <div className="rounded-2xl border border-white/70 bg-white/65 px-3 py-2 type-caption font-semibold text-text-secondary shadow-sm sm:col-span-2">
-              Last updated {formatUpdated()} · All amounts are monthly totals.
-            </div>
-            <div className="hidden items-center justify-end gap-2 lg:flex">
-              <button className="icon-btn" type="button" title="Notifications">
-                <Bell size={17} />
-              </button>
-              <span className="flex h-9 w-9 items-center justify-center rounded-2xl bg-primary/10 text-sm font-black text-primary">
-                {String(greetingName).slice(0, 1).toUpperCase()}
-              </span>
-            </div>
           </div>
         </div>
         </div>
@@ -623,6 +627,7 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
           trend={signedPercent(selectedTotals.salesChange)}
           tone={metricTone(selectedTotals.salesChange)}
           status="Monthly"
+          emphasis="primary"
         />
         <MetricCard
           icon={ShoppingCart}
@@ -660,10 +665,11 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
           tone={allAlerts.length ? "warning" : "success"}
           status={priorityAlerts.length ? "Critical" : allAlerts.length ? "Watch" : "Clear"}
           onClick={() => ui?.navigate?.("alerts")}
+          emphasis={allAlerts.length ? "urgent" : "normal"}
         />
       </div>
 
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.75fr)]">
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(360px,0.75fr)]">
         <Card
           title="Outlet Health"
           description="Monthly performance snapshot by outlet."
@@ -766,7 +772,7 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
         </Card>
       </div>
 
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)_minmax(300px,0.7fr)]">
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1.25fr)_minmax(320px,0.75fr)_minmax(300px,0.7fr)]">
         <Card
           title="Monthly Trend"
           description="Last 6 months. All amounts are monthly totals."
@@ -844,7 +850,7 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
         </Card>
       </div>
 
-      <div className="grid items-start gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(330px,0.75fr)_minmax(330px,0.75fr)]">
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(330px,0.75fr)_minmax(330px,0.75fr)]">
         <Card
           title="Top Product Signals (MTD)"
           description="Monthly uploaded Product Analytics data."
@@ -855,22 +861,29 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
               <EmptyState title="No product report uploaded for this month." message="Upload a POS product sales report in Product Analytics to activate product signals." />
             ) : (
               [
-                { label: "Top Seller", product: topProduct, helper: topProduct ? `${toCurrency(topProduct.nett_sales)} · ${topProduct.quantity} sold` : "" },
-                { label: "Fastest Growing", product: fastestGrowing, helper: fastestGrowing ? `${signedPercent(fastestGrowing.change)} vs compare month` : "" },
-                { label: "Needs Attention", product: needsAttentionProduct, helper: needsAttentionProduct ? `${needsAttentionProduct.quantity} sold · ${toCurrency(needsAttentionProduct.nett_sales)}` : "" },
-              ].map((item) => (
-                <div key={item.label} className="rounded-2xl border border-border bg-white p-3">
-                  <div className="flex items-start justify-between gap-3">
+                { label: "Top Seller", product: topProduct, helper: topProduct ? `${toCurrency(topProduct.nett_sales)} · ${topProduct.quantity} sold` : "", tone: "green" },
+                { label: "Fastest Growing", product: fastestGrowing, helper: fastestGrowing ? `${signedPercent(fastestGrowing.change)} vs compare month` : "", tone: "blue" },
+                { label: "Needs Attention", product: needsAttentionProduct, helper: needsAttentionProduct ? `${needsAttentionProduct.quantity} sold · ${toCurrency(needsAttentionProduct.nett_sales)}` : "", tone: "amber" },
+              ].map((item) => {
+                const toneClass = item.tone === "green"
+                  ? "border-emerald-100 bg-emerald-50/35 text-emerald-700"
+                  : item.tone === "blue"
+                    ? "border-cyan-100 bg-cyan-50/45 text-cyan-700"
+                    : "border-amber-100 bg-amber-50/45 text-amber-700";
+                return (
+                <div key={item.label} className={`rounded-2xl border p-3 transition hover:-translate-y-0.5 hover:shadow-[0_12px_28px_rgba(15,23,42,0.06)] ${toneClass}`}>
+                  <div className="flex items-start justify-between gap-2">
                     <div className="min-w-0">
-                      <div className="text-[11px] font-black uppercase tracking-wide text-primary">{item.label}</div>
-                      <div className="mt-1 truncate font-bold text-text-primary">{item.product?.product_name ?? "Not enough data"}</div>
+                      <div className="text-[10px] font-black uppercase tracking-wide opacity-80">{item.label}</div>
+                      <div className="mt-1 truncate text-[15px] font-bold leading-tight text-text-primary">{item.product?.product_name ?? "Not enough data"}</div>
                       <div className="mt-0.5 text-xs font-semibold text-text-secondary">{item.product?.category_name ?? "Upload more product data"}</div>
                     </div>
                     {item.product?.outlet_id ? <OutletBadge outlet={outletById.get(item.product.outlet_id)} /> : null}
                   </div>
-                  {item.helper ? <div className="mt-2 text-xs font-bold text-text-secondary">{item.helper}</div> : null}
+                  {item.helper ? <div className="mt-2 inline-flex rounded-full bg-white/70 px-2 py-1 text-xs font-bold text-text-secondary">{item.helper}</div> : null}
                 </div>
-              ))
+                );
+              })
             )}
           </div>
         </Card>
@@ -927,16 +940,16 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
         </Card>
 
         <Card title="Business Pulse" description="Overall business health across selected outlet scope.">
-          <div className="space-y-4 p-4">
+          <div className="space-y-3 p-4">
             <div className={`rounded-3xl border p-4 ${businessStatus === "Critical" ? "border-rose-200 bg-rose-50" : businessStatus === "Watch" ? "border-amber-200 bg-amber-50" : "border-emerald-200 bg-emerald-50"}`}>
               <div className="flex items-center justify-between gap-3">
                 <div>
                   <div className="text-xs font-black uppercase tracking-wide text-text-muted">Status</div>
-                  <div className="mt-1 text-3xl font-semibold tracking-tight text-text-primary">{businessStatus}</div>
+                  <div className="mt-1 text-2xl font-semibold tracking-tight text-text-primary">{businessStatus}</div>
                 </div>
-                {businessStatus === "Good" ? <CheckCircle2 className="text-emerald-600" size={34} /> : <Sparkles className={businessStatus === "Watch" ? "text-amber-600" : "text-rose-600"} size={34} />}
+                {businessStatus === "Good" ? <CheckCircle2 className="text-emerald-600" size={30} /> : <Sparkles className={businessStatus === "Watch" ? "text-amber-600" : "text-rose-600"} size={30} />}
               </div>
-              <p className="mt-3 text-sm font-semibold text-text-secondary">
+              <p className="mt-2 text-sm font-semibold text-text-secondary">
                 {businessStatus === "Good" ? "Monthly operations look stable." : "Some areas need attention."}
               </p>
             </div>
@@ -950,7 +963,7 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
                 ))}
               </div>
             ) : null}
-            <div className="rounded-2xl border border-border p-3">
+            <div className="rounded-2xl border border-border bg-white p-3">
               <div className="text-xs font-black uppercase tracking-wide text-text-muted">Reasons</div>
               <div className="mt-2 space-y-1.5">
                 {(businessReasons.length ? businessReasons : ["No priority risk detected."]).map((reason) => (
@@ -961,12 +974,12 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
                 ))}
               </div>
             </div>
-            <div className="rounded-2xl border border-primary/15 bg-primary/5 p-3">
-              <div className="flex items-center gap-2 type-caption font-black uppercase tracking-wide text-primary">
-                <Sparkles size={14} />
+            <div className="rounded-2xl border border-emerald-100 bg-emerald-50/45 p-3">
+              <div className="flex items-center gap-2 type-caption font-black uppercase tracking-wide text-emerald-700">
+                <Sparkles size={12} />
                 AI Summary
               </div>
-              <p className="mt-2 text-sm font-semibold leading-5 text-text-secondary">{aiSummary || "Monthly operations look stable across the selected outlet scope."}</p>
+              <p className="mt-2 max-w-[34rem] text-[13px] font-semibold leading-5 text-text-secondary">{aiSummary || "Monthly operations look stable across the selected outlet scope."}</p>
             </div>
           </div>
         </Card>

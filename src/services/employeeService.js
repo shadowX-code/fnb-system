@@ -26,7 +26,7 @@ function mapEmployee(row) {
     employment_status: row.employment_status ?? "full_time",
     access_state: normalizeEmployeeAccessState(row.access_state, enableSystemLogin),
     enable_system_login: enableSystemLogin,
-    is_active: Boolean(row.is_active),
+    is_active: row.is_active !== false,
     email_verified: Boolean(row.email_verified),
     last_login_at: row.last_login_at,
     joined_date: row.joined_date ?? "",
