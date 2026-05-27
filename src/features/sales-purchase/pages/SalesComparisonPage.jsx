@@ -3,6 +3,7 @@ import { Download, Percent, Printer, TrendingDown, TrendingUp, Wallet } from "lu
 import Badge from "../../../components/ui/Badge.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
+import TrendChart from "../../../components/charts/TrendChart.jsx";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import { FieldLabel, OutletSelector, YearSelector } from "../../../components/forms/Selectors.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
@@ -15,6 +16,7 @@ import { salesRecordService } from "../../../services/salesRecordService.js";
 import { auditLogService } from "../../../services/auditLogService.js";
 
 const deliveryChannels = new Set(["GrabFood", "FoodPanda", "ShopeeFood"]);
+const trendColors = ["#16a34a", "#0ea5e9", "#f59e0b", "#8b5cf6", "#ef4444", "#14b8a6", "#64748b", "#2563eb"];
 
 function canonicalChannelName(name) {
   const normalized = String(name ?? "").toLowerCase();
@@ -114,6 +116,22 @@ function monthLabel(month) {
   return months.find((item) => item.value === month)?.label ?? "";
 }
 
+function addMonths(year, month, offset) {
+  const date = new Date(Number(year), Number(month) - 1 + offset, 1);
+  return { year: date.getFullYear(), month: date.getMonth() + 1 };
+}
+
+function buildTrendPeriods(year, month, count = 12) {
+  return Array.from({ length: count }, (_, index) => {
+    const period = addMonths(year, month, index - count + 1);
+    return {
+      ...period,
+      label: `${monthLabel(period.month).slice(0, 3)} ${String(period.year).slice(2)}`,
+      fullLabel: `${monthLabel(period.month)} ${period.year}`,
+    };
+  });
+}
+
 function isSstEnabledInAnyVisibleMonth(store, outletId, year, visibleMonths) {
   return visibleMonths.some((month) => getOutletTaxConfig(store.outletTaxConfigs, outletId, month.value, year, "SST").enabled);
 }
@@ -173,6 +191,40 @@ function currentMonthFor(store, outletId, year) {
 function getContribution(row, total, grossTotal) {
   if (row.type === "group" || row.isPercent || !grossTotal || total === null || total === undefined) return null;
   return (total / grossTotal) * 100;
+}
+
+function buildTrendChannelOptions(store) {
+  const activeChannels = store.salesChannels
+    .filter((channel) => channel.status === "active" && channel.type === "channel")
+    .filter((channel) => ["Dine In", "GrabFood", "FoodPanda", "ShopeeFood", "Takeaway"].includes(channel.name));
+  return [
+    { id: "gross-sales", label: "Gross Sales", row: { id: "gross-sales", label: "Gross Sales", kind: "gross" } },
+    { id: "net-sales", label: "Net Sales", row: { id: "net-sales", label: "Net Sales", kind: "net" } },
+    ...activeChannels.map((channel) => ({
+      id: `channel-${channel.id}`,
+      label: channel.name,
+      row: { id: channel.id, label: channel.name, kind: "channel", channelId: channel.id },
+    })),
+  ];
+}
+
+function TrendInsightCard({ label, value, helper, tone = "neutral" }) {
+  const toneClass = tone === "success"
+    ? "border-emerald-100 bg-emerald-50/45"
+    : tone === "info"
+      ? "border-blue-100 bg-blue-50/45"
+    : tone === "warning"
+      ? "border-amber-100 bg-amber-50/45"
+      : tone === "danger"
+        ? "border-rose-100 bg-rose-50/45"
+        : "border-border bg-white";
+  return (
+    <div className={`rounded-2xl border px-3 py-2.5 ${toneClass}`}>
+      <div className="text-[10px] font-black uppercase tracking-wide text-text-muted">{label}</div>
+      <div className="mt-1 truncate text-sm font-bold text-text-primary">{value}</div>
+      <div className="mt-0.5 truncate text-xs font-semibold text-text-secondary">{helper}</div>
+    </div>
+  );
 }
 
 function buildBusinessInsights({ compareLabel, compareWith, currentNetSales, netComparison, currentDelivery, deliveryComparison, currentDineInShare, bestChannel, bestChannelShare, viewMode }) {
@@ -306,9 +358,9 @@ function SalesCell({ row, cell, compareWith, year }) {
 
   return (
     <div className="group relative flex justify-end">
-      <button type="button" className="rounded-lg px-2 py-1 text-right transition hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-primary/20">
+      <button type="button" className="rounded-lg px-1.5 py-0.5 text-right transition hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-primary/20">
         <span className={cell.current < 0 ? "block font-semibold text-rose-600" : "block font-semibold text-text-primary"}>{formatRowValue(row, cell.current)}</span>
-        <span className={`mt-1 block text-[11px] font-bold ${cell.variance === "-" ? "text-text-muted" : isPositive ? "text-emerald-600" : "text-rose-600"}`}>{cell.variance}</span>
+        <span className={`mt-0.5 block text-[10px] font-bold ${cell.variance === "-" ? "text-text-muted" : isPositive ? "text-emerald-600" : "text-rose-600"}`}>{cell.variance}</span>
       </button>
       <div className="pointer-events-none absolute right-0 top-full z-50 mt-2 hidden w-56 rounded-2xl border border-border bg-white p-3 text-left text-xs shadow-xl group-hover:block">
         <div className="font-bold text-text-primary">{row.label} · {cell.month.label} {year}</div>
@@ -334,23 +386,23 @@ function SalesCell({ row, cell, compareWith, year }) {
 
 function SalesMatrix({ rows, visibleMonths, selectedMonth, compareWith, compareLabel, year, highlightedRows }) {
   return (
-    <div className="max-h-[640px] overflow-auto">
-      <table className="w-full min-w-[980px] border-collapse text-sm">
-        <thead className="sticky top-0 z-30 border-b border-slate-300 bg-slate-100 text-xs uppercase tracking-wide text-slate-600">
+    <div className="max-h-[560px] overflow-auto">
+      <table className="w-full min-w-[980px] border-collapse text-[13px]">
+        <thead className="sticky top-0 z-30 border-b border-slate-300 bg-slate-100 text-[10px] uppercase tracking-wide text-slate-600">
           <tr>
-            <th className="sticky left-0 top-0 z-40 w-56 bg-slate-50 px-3 py-2.5 text-left">Metric / Channel</th>
+            <th className="sticky left-0 top-0 z-40 w-52 bg-slate-50 px-3 py-2 text-left">Metric / Channel</th>
             {visibleMonths.map((month) => (
-              <th key={month.value} className={`top-0 px-3 py-2.5 text-right ${month.value === selectedMonth ? "bg-primary/10 text-primary" : "bg-slate-50"}`}>
-                <div className="flex flex-col items-end gap-1">
+              <th key={month.value} className={`top-0 px-2.5 py-2 text-right ${month.value === selectedMonth ? "bg-primary/10 text-primary" : "bg-slate-50"}`}>
+                <div className="flex flex-col items-end gap-0.5">
                   <span>{month.label}</span>
                   {month.value === selectedMonth ? <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold normal-case text-primary">Current</span> : null}
                 </div>
               </th>
             ))}
-            <th className="top-0 bg-slate-50 px-3 py-2.5 text-right">Total</th>
-            <th className="top-0 bg-slate-50 px-3 py-2.5 text-right">Average</th>
-            <th className="top-0 bg-slate-50 px-3 py-2.5 text-right">Contribution</th>
-            <th className="top-0 bg-slate-50 px-3 py-2.5 text-right">vs {compareLabel}</th>
+            <th className="top-0 bg-slate-50 px-2.5 py-2 text-right">Total</th>
+            <th className="top-0 bg-slate-50 px-2.5 py-2 text-right">Average</th>
+            <th className="top-0 bg-slate-50 px-2.5 py-2 text-right">Contribution</th>
+            <th className="top-0 bg-slate-50 px-2.5 py-2 text-right">vs {compareLabel}</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-border bg-white">
@@ -358,8 +410,8 @@ function SalesMatrix({ rows, visibleMonths, selectedMonth, compareWith, compareL
             if (row.type === "group") {
               return (
                 <tr key={row.id} className="bg-slate-50/90">
-                  <td className="sticky left-0 z-20 bg-slate-50 px-4 py-2 text-xs font-bold uppercase tracking-wide text-text-secondary">{row.label}</td>
-                  <td colSpan={visibleMonths.length + 4} className="bg-slate-50 px-3 py-2" />
+                  <td className="sticky left-0 z-20 bg-slate-50 px-3 py-1.5 text-[10px] font-bold uppercase tracking-wide text-text-secondary">{row.label}</td>
+                  <td colSpan={visibleMonths.length + 4} className="bg-slate-50 px-2.5 py-1.5" />
                 </tr>
               );
             }
@@ -368,19 +420,19 @@ function SalesMatrix({ rows, visibleMonths, selectedMonth, compareWith, compareL
             const isSoftNegative = row.kind === "sst" || row.label.toLowerCase().includes("sst");
             return (
               <tr key={row.id} className={`transition hover:bg-slate-50/70 ${row.highlight ? "bg-blue-50/40" : ""} ${isHighlighted ? "ring-2 ring-inset ring-primary/20" : ""}`}>
-                <td className={`sticky left-0 z-20 px-3 py-2.5 ${row.highlight ? "bg-blue-50" : "bg-white"}`}>
+                <td className={`sticky left-0 z-20 px-3 py-2 ${row.highlight ? "bg-blue-50" : "bg-white"}`}>
                   <div className={`font-semibold ${row.highlight ? "text-primary" : isSoftNegative ? "text-rose-500/80" : "text-text-primary"}`}>{row.label}</div>
-                  {row.note ? <div className="mt-1 text-xs text-text-secondary">{row.note}</div> : null}
+                  {row.note ? <div className="mt-0.5 text-[11px] text-text-secondary">{row.note}</div> : null}
                 </td>
                 {row.cells.map((cell) => (
-                  <td key={cell.month.value} className={`px-3 py-2.5 text-right ${cell.month.value === selectedMonth ? "bg-primary/5" : ""}`}>
+                  <td key={cell.month.value} className={`px-2.5 py-2 text-right ${cell.month.value === selectedMonth ? "bg-primary/5" : ""}`}>
                     <SalesCell row={row} cell={cell} compareWith={compareWith} year={year} />
                   </td>
                 ))}
-                <td className="px-3 py-2.5 text-right font-bold">{formatRowValue(row, row.total)}</td>
-                <td className="px-3 py-2.5 text-right font-semibold text-text-secondary">{formatRowValue(row, row.average)}</td>
-                <td className="px-3 py-2.5 text-right font-semibold text-text-secondary">{row.contribution === null ? "-" : toPercent(row.contribution)}</td>
-                <td className="px-3 py-2.5 text-right">
+                <td className="px-2.5 py-2 text-right font-bold">{formatRowValue(row, row.total)}</td>
+                <td className="px-2.5 py-2 text-right font-semibold text-text-secondary">{formatRowValue(row, row.average)}</td>
+                <td className="px-2.5 py-2 text-right font-semibold text-text-secondary">{row.contribution === null ? "-" : toPercent(row.contribution)}</td>
+                <td className="px-2.5 py-2 text-right">
                   <span className={`font-semibold ${totalVariance === "-" ? "text-text-muted" : totalVariance.startsWith("-") ? "text-rose-600" : "text-emerald-600"}`}>{totalVariance}</span>
                 </td>
               </tr>
@@ -396,6 +448,7 @@ export default function SalesComparisonPage({ store, setStore, ui }) {
   const filters = usePeriodFilters(store);
   const [compareWith, setCompareWith] = useState("Previous Year");
   const [viewMode, setViewMode] = useState("Summary");
+  const [selectedTrendChannels, setSelectedTrendChannels] = useState(() => new Set(["gross-sales", "net-sales"]));
   const [highlightedRows, setHighlightedRows] = useState(() => new Set());
   const [loading, setLoading] = useState(false);
   const [recordsError, setRecordsError] = useState("");
@@ -448,6 +501,7 @@ export default function SalesComparisonPage({ store, setStore, ui }) {
   );
   const compareLabel = getComparisonContext({ compareWith, month: selectedMonth, year: filters.year }).label;
   const rows = useMemo(() => buildRows(store, viewMode, filters.outletId, filters.year, visibleMonths), [filters.outletId, filters.year, store, viewMode, visibleMonths]);
+  const trendChannelOptions = useMemo(() => buildTrendChannelOptions(store), [store]);
 
   const netRow = { id: "net-sales", label: "Net Sales", kind: "net" };
   const grossRow = { id: "gross-sales", label: "Gross Sales", kind: "gross" };
@@ -462,6 +516,40 @@ export default function SalesComparisonPage({ store, setStore, ui }) {
   const grossComparison = getComparisonValue(store, filters.outletId, filters.year, selectedMonth, grossRow, compareWith);
   const deliveryComparison = getComparisonValue(store, filters.outletId, filters.year, selectedMonth, deliveryRow, compareWith);
   const dineInComparison = getComparisonValue(store, filters.outletId, filters.year, selectedMonth, dineInShareRow, compareWith);
+
+  const trendPeriods = useMemo(() => buildTrendPeriods(filters.year, selectedMonth, 12), [filters.year, selectedMonth]);
+  const selectedTrendOptions = trendChannelOptions.filter((option) => selectedTrendChannels.has(option.id));
+  const trendSeries = selectedTrendOptions.map((option, index) => {
+    const color = trendColors[index % trendColors.length];
+    return {
+      name: option.label,
+      data: trendPeriods.map((period) => getRowValue(store, filters.outletId, period.year, period.month, option.row) || 0),
+      stroke: color,
+      fill: color,
+      area: index < 2,
+      areaOpacity: index === 0 ? 0.14 : 0.08,
+      strokeWidth: index < 2 ? 2.4 : 2,
+      format: toCurrency,
+    };
+  });
+  const trendTotals = trendPeriods.map((period) => ({
+    ...period,
+    gross: getRowValue(store, filters.outletId, period.year, period.month, grossRow) || 0,
+    net: getRowValue(store, filters.outletId, period.year, period.month, netRow) || 0,
+  }));
+  const trendMonthsWithData = trendTotals.filter((item) => item.gross > 0 || item.net > 0);
+  const highestTrendMonth = [...trendTotals].sort((a, b) => b.net - a.net)[0];
+  const lowestTrendMonth = [...trendMonthsWithData].sort((a, b) => a.net - b.net)[0];
+  const strongestTrendChannel = trendChannelOptions
+    .filter((option) => option.row.kind === "channel")
+    .map((option) => ({
+      label: option.label,
+      total: trendPeriods.reduce((sum, period) => sum + (getRowValue(store, filters.outletId, period.year, period.month, option.row) || 0), 0),
+    }))
+    .sort((a, b) => b.total - a.total)[0];
+  const firstTrendNet = trendMonthsWithData[0]?.net ?? 0;
+  const lastTrendNet = trendMonthsWithData.at(-1)?.net ?? 0;
+  const trendGrowth = firstTrendNet ? percentageChange(lastTrendNet, firstTrendNet) : null;
 
   const metricTrend = (row, current, comparison) => formatVariance(row, current, comparison);
   const sparkline = (row) =>
@@ -528,6 +616,18 @@ export default function SalesComparisonPage({ store, setStore, ui }) {
     setHighlightedRows(new Set(ids));
   }
 
+  function toggleTrendChannel(channelId) {
+    setSelectedTrendChannels((current) => {
+      const next = new Set(current);
+      if (next.has(channelId)) {
+        if (next.size > 1) next.delete(channelId);
+      } else {
+        next.add(channelId);
+      }
+      return next;
+    });
+  }
+
   async function queueExport(format) {
     ui.notify({ title: `${format} queued`, message: `Sales comparison ${format.toLowerCase()} is being prepared.` });
     await auditLogService.createAuditLog({
@@ -575,6 +675,80 @@ export default function SalesComparisonPage({ store, setStore, ui }) {
           onClick={() => highlightRows(bestChannelRow ? [bestChannelRow.id] : [])}
         />
       </div>
+
+      <Card
+        title="12-Month Sales Trend"
+        description="Visualize monthly performance across selected sales channels."
+      >
+        <div className="space-y-4 p-4">
+          <div className="flex flex-wrap gap-2">
+            {trendChannelOptions.map((option) => {
+              const active = selectedTrendChannels.has(option.id);
+              return (
+                <button
+                  key={option.id}
+                  type="button"
+                  className={`rounded-full border px-3 py-1.5 text-xs font-bold transition ${
+                    active
+                      ? "border-primary/30 bg-primary/10 text-primary shadow-sm"
+                      : "border-border bg-white text-text-secondary hover:border-primary/20 hover:bg-primary/5"
+                  }`}
+                  onClick={() => toggleTrendChannel(option.id)}
+                >
+                  {option.label}
+                </button>
+              );
+            })}
+          </div>
+          <div className="overflow-x-auto">
+            <div className="min-w-[720px]">
+              <TrendChart
+                type="area"
+                yAxisType="currency"
+                yLabel="Monthly RM"
+                labels={trendPeriods.map((period) => period.label)}
+                series={trendSeries}
+                renderTooltip={({ label, index }) => {
+                  const period = trendPeriods[index];
+                  return (
+                    <div className="min-w-48">
+                      <div className="font-black text-text-primary">{period?.fullLabel || label}</div>
+                      <div className="mt-2 space-y-1">
+                        {selectedTrendOptions.map((option) => (
+                          <div key={option.id} className="flex justify-between gap-6 text-text-secondary">
+                            <span>{option.label}</span>
+                            <strong className="text-text-primary">{toCurrency(getRowValue(store, filters.outletId, period.year, period.month, option.row) || 0)}</strong>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }}
+              />
+            </div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
+            <TrendInsightCard
+              label="Highest Month"
+              value={highestTrendMonth?.net ? highestTrendMonth.fullLabel : "No data yet"}
+              helper={highestTrendMonth?.net ? toCurrency(highestTrendMonth.net) : "Save monthly sales to populate trend"}
+              tone="success"
+            />
+            <TrendInsightCard
+              label="Strongest Channel"
+              value={strongestTrendChannel?.total ? strongestTrendChannel.label : "No channel data"}
+              helper={strongestTrendChannel?.total ? toCurrency(strongestTrendChannel.total) : "Channel totals will appear here"}
+              tone="info"
+            />
+            <TrendInsightCard
+              label={trendGrowth === null ? "Growth Trend" : trendGrowth >= 0 ? "Growth Trend" : "Lowest Month"}
+              value={trendGrowth === null ? "Baseline needed" : trendGrowth >= 0 ? `+${toPercent(trendGrowth)}` : lowestTrendMonth?.fullLabel ?? "Decline"}
+              helper={trendGrowth === null ? "At least two saved months needed" : trendGrowth >= 0 ? "Net Sales from first to latest saved month" : `${toCurrency(lowestTrendMonth?.net || 0)} Net Sales`}
+              tone={trendGrowth === null ? "neutral" : trendGrowth >= 0 ? "success" : "warning"}
+            />
+          </div>
+        </div>
+      </Card>
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_300px]">
         <Card
