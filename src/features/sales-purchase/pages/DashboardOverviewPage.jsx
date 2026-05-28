@@ -89,26 +89,40 @@ function employeeBirthday(employee) {
   return employee?.birthday || employee?.birth_date || employee?.date_of_birth || employee?.dob || "";
 }
 
-function parseBirthdayValue(value) {
+function normalizeLookupValue(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function parseBirthdayParts(value) {
   if (!value) return null;
   if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return new Date(value.getFullYear(), value.getMonth(), value.getDate());
+    return { monthIndex: value.getMonth(), day: value.getDate() };
   }
   const text = String(value).trim();
   if (!text) return null;
   const isoMatch = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
   if (isoMatch) {
-    const date = new Date(Number(isoMatch[1]), Number(isoMatch[2]) - 1, Number(isoMatch[3]));
-    return Number.isNaN(date.getTime()) ? null : date;
+    return validBirthdayParts(Number(isoMatch[2]), Number(isoMatch[3]));
   }
-  const slashMatch = text.match(/^(\d{1,2})[/-](\d{1,2})[/-](\d{2,4})$/);
-  if (slashMatch) {
-    const year = slashMatch[3].length === 2 ? Number(`19${slashMatch[3]}`) : Number(slashMatch[3]);
-    const date = new Date(year, Number(slashMatch[2]) - 1, Number(slashMatch[1]));
-    return Number.isNaN(date.getTime()) ? null : date;
+  const separatedMatch = text.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
+  if (separatedMatch) {
+    const first = Number(separatedMatch[1]);
+    const second = Number(separatedMatch[2]);
+    // FeedX employee forms are Malaysia-first, so ambiguous dates default to DD/MM/YYYY.
+    const day = first > 12 ? first : second > 12 ? second : first;
+    const month = first > 12 ? second : second > 12 ? first : second;
+    return validBirthdayParts(month, day);
   }
   const parsed = new Date(text);
-  return Number.isNaN(parsed.getTime()) ? null : new Date(parsed.getFullYear(), parsed.getMonth(), parsed.getDate());
+  return Number.isNaN(parsed.getTime()) ? null : { monthIndex: parsed.getMonth(), day: parsed.getDate() };
+}
+
+function validBirthdayParts(month, day) {
+  if (!Number.isInteger(month) || !Number.isInteger(day) || month < 1 || month > 12 || day < 1) return null;
+  const validationYear = 2000; // Leap year keeps 29 Feb valid while still validating impossible dates.
+  const date = new Date(validationYear, month - 1, day);
+  if (date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+  return { monthIndex: month - 1, day };
 }
 
 function outletCode(outlet) {
@@ -129,6 +143,39 @@ function outletMeta(outlet, index = 0) {
     code: outletCode(outlet),
     color: outletColors[index % outletColors.length],
   };
+}
+
+function employeeMatchesOutletScope(employee, scopeOutletIds, outletById) {
+  const workplace = normalizeLookupValue(employee?.workplace);
+  if (!workplace) return false;
+  if (["all outlets", "all outlet", "hq", "headquarters"].includes(workplace)) return true;
+  return scopeOutletIds.some((outletId) => {
+    const outlet = outletById.get(outletId);
+    return [
+      outletId,
+      outlet?.id,
+      outlet?.name,
+      outlet?.code,
+    ].some((value) => normalizeLookupValue(value) === workplace);
+  });
+}
+
+function resolveEmployeeOutlet(employee, outletById) {
+  const workplace = normalizeLookupValue(employee?.workplace);
+  if (!workplace) return null;
+  for (const outlet of outletById.values()) {
+    if ([outlet.id, outlet.name, outlet.code].some((value) => normalizeLookupValue(value) === workplace)) {
+      return outlet;
+    }
+  }
+  return null;
+}
+
+function isActiveBirthdayEmployee(employee) {
+  if (!employee || employee.is_active === false) return false;
+  if (normalizeLookupValue(employee.employment_status) === "resigned") return false;
+  if (employee.resigned_date) return false;
+  return true;
 }
 
 function OutletBadge({ outlet }) {
@@ -212,10 +259,10 @@ function isWorkingShift(roster) {
 }
 
 function birthdayOccurrence(birthday, referenceDate = todayDate()) {
-  const birthDate = parseBirthdayValue(birthday);
-  if (!birthDate) return null;
-  let next = new Date(referenceDate.getFullYear(), birthDate.getMonth(), birthDate.getDate());
-  if (next < referenceDate) next = new Date(referenceDate.getFullYear() + 1, birthDate.getMonth(), birthDate.getDate());
+  const parts = parseBirthdayParts(birthday);
+  if (!parts) return null;
+  let next = new Date(referenceDate.getFullYear(), parts.monthIndex, parts.day);
+  if (next < referenceDate) next = new Date(referenceDate.getFullYear() + 1, parts.monthIndex, parts.day);
   const days = Math.round((next - referenceDate) / 86400000);
   return { date: next, days };
 }
@@ -384,7 +431,7 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
         maintenance: results[2].status === "fulfilled" ? scoped(results[2].value) : [],
         productReports: reports,
         productItems,
-        employees: results[4].status === "fulfilled" ? results[4].value.filter((employee) => !employee.workplace || scopeOutletIds.includes(employee.workplace)) : [],
+        employees: results[4].status === "fulfilled" ? results[4].value : [],
         rosters: results[5].status === "fulfilled" ? results[5].value.flat().filter((row) => scopeOutletIds.includes(row.outlet_id)) : [],
         loading: false,
         errors,
@@ -514,7 +561,7 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
     .filter((item) => item.quantity < 5 || item.nett_sales < 100)
     .sort((a, b) => a.quantity - b.quantity || a.nett_sales - b.nett_sales)[0];
 
-  const today = todayDate();
+  const today = useMemo(() => todayDate(), []);
   const inspectionDrafts = opsData.inspections.filter((inspection) => ["draft", "in_progress", "pending_review"].includes(inspection.status));
   const overdueMaintenance = opsData.maintenance.filter((record) => {
     const scheduled = new Date(`${record.scheduled_date || record.date}T00:00:00`);
@@ -537,7 +584,10 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
   ];
 
   const birthdays = useMemo(() => {
-    const scopedEmployees = opsData.employees.filter((employee) => employee.is_active !== false && (!employee.workplace || scopeOutletIds.includes(employee.workplace)));
+    const scopedEmployees = opsData.employees.filter((employee) => (
+      isActiveBirthdayEmployee(employee)
+      && employeeMatchesOutletScope(employee, scopeOutletIds, outletById)
+    ));
     const mapped = scopedEmployees
       .map((employee) => ({ employee, birthday: birthdayOccurrence(employeeBirthday(employee), today) }))
       .filter((item) => item.birthday)
@@ -546,7 +596,7 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
       upcoming: mapped.filter((item) => item.birthday.days <= 30),
       next: mapped[0],
     };
-  }, [opsData.employees, scopeOutletIds, today]);
+  }, [opsData.employees, outletById, scopeOutletIds, today]);
 
   const statusCounts = outletMonthlyRows.reduce((counts, row) => {
     counts[row.status] = (counts[row.status] || 0) + 1;
@@ -899,7 +949,7 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
           <div className="space-y-4 p-4">
             <div className="grid grid-cols-2 gap-3">
               <div className="rounded-2xl bg-primary/5 p-3">
-                <div className="flex items-center gap-2 text-primary"><Cake size={16} /><span className="text-xs font-bold">This Month</span></div>
+                <div className="flex items-center gap-2 text-primary"><Cake size={16} /><span className="text-xs font-bold">Next 30 Days</span></div>
                 <div className="mt-2 text-2xl font-semibold text-text-primary">{birthdays.upcoming.length}</div>
               </div>
               <div className="rounded-2xl bg-slate-50 p-3">
@@ -918,7 +968,7 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
                       <div className="flex items-start justify-between gap-3">
                         <div>
                           <div className="font-bold text-text-primary">🎂 {employee.nickname || employee.full_name}</div>
-                          <div className="mt-1 text-xs font-semibold text-text-secondary">{employee.position || "Team member"} · {outletById.get(employee.workplace)?.name ?? "Outlet team"}</div>
+                          <div className="mt-1 text-xs font-semibold text-text-secondary">{employee.position || "Team member"} · {resolveEmployeeOutlet(employee, outletById)?.name ?? employee.workplace ?? "Outlet team"}</div>
                         </div>
                         <div className="text-right text-xs font-bold text-primary">{formatShortDate(toDateInputValue(birthday.date))}<br />in {birthday.days}d</div>
                       </div>
