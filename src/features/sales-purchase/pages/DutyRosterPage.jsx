@@ -660,15 +660,27 @@ function shiftShareTone(template) {
   return { fill: "#ecfdf5", stroke: "#bbf7d0", text: "#065f46" };
 }
 
+function shiftSharePillLabel(template) {
+  if (!template) return "NONE";
+  return String(template.code || template.name || "SHIFT").toUpperCase();
+}
+
+function shiftShareTimeLabel(roster, template) {
+  if (!template) return "No shift assigned";
+  if (nonWorkingCodes.has(template.code)) return template.name || template.code;
+  return formatShiftTimeRange(roster?.start_time, roster?.end_time).replace(" - ", " \u2192 ") || template.name || template.code;
+}
+
 function buildRosterShareVerticalSvg({ outletName, rangeLabel, status, groups, weekDates, rosterByEmployeeDate, generatedAt }) {
   const width = 1080;
   const margin = 34;
-  const headerHeight = 148;
-  const legendHeight = 38;
-  const groupHeaderHeight = 30;
-  const employeeCardBase = 70;
-  const dayRowHeight = 32;
-  const footerHeight = 44;
+  const headerHeight = 164;
+  const legendHeight = 46;
+  const groupHeaderHeight = 42;
+  const employeeCardBase = 78;
+  const dayRowHeight = 46;
+  const employeeGap = 14;
+  const footerHeight = 48;
   const weekValues = weekDates.map(toDateInputValue);
   const employees = groups.flatMap((group) => [
     { type: "group", label: group.label },
@@ -676,23 +688,25 @@ function buildRosterShareVerticalSvg({ outletName, rangeLabel, status, groups, w
   ]);
   const bodyHeight = employees.reduce((sum, row) => {
     if (row.type === "group") return sum + groupHeaderHeight;
-    return sum + employeeCardBase + weekValues.length * dayRowHeight;
+    return sum + employeeCardBase + weekValues.length * dayRowHeight + employeeGap;
   }, 0);
   const height = headerHeight + legendHeight + bodyHeight + footerHeight + margin;
   let y = headerHeight;
 
   const legend = [
-    ["Morning", "#ecfdf5", "#065f46"],
-    ["Mid", "#fffbeb", "#92400e"],
-    ["Closing", "#fff1f2", "#be123c"],
-    ["Full", "#eff6ff", "#1d4ed8"],
-    ["Leave", "#f5f3ff", "#6d28d9"],
-    ["OFF", "#f1f5f9", "#64748b"],
-  ].map(([label, fill, text], index) => {
-    const x = margin + index * 122;
+    ["Morning", "#ecfdf5", "#bbf7d0", "#065f46"],
+    ["Mid", "#fffbeb", "#fde68a", "#92400e"],
+    ["Closing", "#fff1f2", "#fecdd3", "#be123c"],
+    ["Full", "#eff6ff", "#bfdbfe", "#1d4ed8"],
+    ["AL", "#f5f3ff", "#ddd6fe", "#6d28d9"],
+    ["MC", "#f8f5ff", "#e9d5ff", "#7e22ce"],
+    ["OFF", "#f1f5f9", "#cbd5e1", "#64748b"],
+  ].map(([label, fill, stroke, text], index) => {
+    const x = margin + index * 138;
     return `
-      <circle cx="${x + 8}" cy="${headerHeight + 8}" r="5" fill="${fill}" stroke="${text}" stroke-width="1.4"/>
-      <text x="${x + 20}" y="${headerHeight + 12}" font-size="12" font-weight="600" fill="${text}">${escapeXml(label)}</text>
+      <rect x="${x}" y="${headerHeight + 8}" width="116" height="28" rx="14" fill="${fill}" stroke="${stroke}" stroke-width="1"/>
+      <circle cx="${x + 18}" cy="${headerHeight + 22}" r="4.5" fill="${text}"/>
+      <text x="${x + 30}" y="${headerHeight + 26}" font-size="12" font-weight="700" fill="${text}">${escapeXml(label)}</text>
     `;
   }).join("");
 
@@ -701,8 +715,9 @@ function buildRosterShareVerticalSvg({ outletName, rangeLabel, status, groups, w
   const body = employees.map((row) => {
     if (row.type === "group") {
       const markup = `
-        <line x1="${margin}" y1="${y + 14}" x2="${margin + 56}" y2="${y + 14}" stroke="#22c55e" stroke-width="3" stroke-linecap="round"/>
-        <text x="${margin + 70}" y="${y + 19}" font-size="16" font-weight="600" fill="#047857" letter-spacing="2.2">${escapeXml(row.label)}</text>
+        <rect x="${margin}" y="${y + 4}" width="${width - margin * 2}" height="30" rx="15" fill="#f8fafc" stroke="#eef2f7"/>
+        <line x1="${margin + 18}" y1="${y + 19}" x2="${margin + 56}" y2="${y + 19}" stroke="#22c55e" stroke-width="3" stroke-linecap="round"/>
+        <text x="${margin + 72}" y="${y + 24}" font-size="14" font-weight="800" fill="#047857" letter-spacing="2.4">${escapeXml(row.label)}</text>
       `;
       y += groupHeaderHeight;
       return markup;
@@ -711,33 +726,34 @@ function buildRosterShareVerticalSvg({ outletName, rangeLabel, status, groups, w
     const employee = row.employee;
     const cardY = y;
     const cardHeight = employeeCardBase + weekValues.length * dayRowHeight;
-    y += cardHeight + 12;
+    y += cardHeight + employeeGap;
     const initials = String(employee.nickname || employee.full_name || "?").trim().slice(0, 2).toUpperCase();
     const dayRows = weekValues.map((dateValue, index) => {
-      const rowY = cardY + 62 + index * dayRowHeight;
+      const rowY = cardY + employeeCardBase - 5 + index * dayRowHeight;
       const date = weekDates[index];
       const roster = rosterByEmployeeDate.get(rosterKey(employee.id, dateValue));
       const template = roster?.template;
-      const code = template?.code;
-      const isNonWorking = template && nonWorkingCodes.has(code);
       const tone = shiftShareTone(template);
-      const shiftLabel = template ? (isNonWorking ? code : formatShiftTimeRange(roster.start_time, roster.end_time)) : "-";
-      const subLabel = template && !isNonWorking ? template.name : template?.name || "";
-      const dateLabel = `${dayLabels[(date.getDay() + 6) % 7].toUpperCase()} ${date.getDate()} ${new Intl.DateTimeFormat("en-MY", { month: "short" }).format(date)}`;
+      const shiftLabel = shiftSharePillLabel(template);
+      const timeLabel = shiftShareTimeLabel(roster, template);
+      const dayLabel = dayLabels[(date.getDay() + 6) % 7].toUpperCase();
+      const dateLabel = `${date.getDate()} ${new Intl.DateTimeFormat("en-MY", { month: "short" }).format(date)}`;
       return `
-        <text x="${margin + 80}" y="${rowY + 21}" font-size="15" font-weight="600" fill="#475569">${escapeXml(dateLabel)}</text>
-        <rect x="${margin + 258}" y="${rowY + 3}" width="${width - margin * 2 - 272}" height="26" rx="13" fill="${tone.fill}" stroke="${tone.stroke}"/>
-        <text x="${margin + 276}" y="${rowY + 21}" font-size="15" font-weight="600" fill="${tone.text}">${escapeXml(shiftLabel)}</text>
-        <text x="${width - margin - 22}" y="${rowY + 21}" text-anchor="end" font-size="12" font-weight="500" fill="${tone.text}" opacity="0.68">${escapeXml(subLabel)}</text>
+        <line x1="${margin + 78}" y1="${rowY - 2}" x2="${width - margin - 36}" y2="${rowY - 2}" stroke="#f1f5f9"/>
+        <text x="${margin + 82}" y="${rowY + 18}" font-size="15" font-weight="800" fill="#111827" letter-spacing="1.3">${escapeXml(dayLabel)}</text>
+        <text x="${margin + 82}" y="${rowY + 36}" font-size="12" font-weight="600" fill="#94a3b8">${escapeXml(dateLabel)}</text>
+        <rect x="${margin + 172}" y="${rowY + 8}" width="94" height="26" rx="13" fill="${tone.fill}" stroke="${tone.stroke}"/>
+        <text x="${margin + 219}" y="${rowY + 26}" text-anchor="middle" font-size="12" font-weight="800" fill="${tone.text}" letter-spacing="0.8">${escapeXml(shiftLabel)}</text>
+        <text x="${margin + 292}" y="${rowY + 27}" font-size="17" font-weight="700" fill="#334155">${escapeXml(timeLabel)}</text>
       `;
     }).join("");
 
     return `
-      <rect x="${margin}" y="${cardY}" width="${width - margin * 2}" height="${cardHeight}" rx="16" fill="#ffffff" stroke="#e5e7eb" filter="url(#posterShadow)"/>
-      <circle cx="${margin + 38}" cy="${cardY + 36}" r="22" fill="#dcfce7"/>
-      <text x="${margin + 38}" y="${cardY + 44}" text-anchor="middle" font-size="15" font-weight="700" fill="#047857">${escapeXml(initials)}</text>
-      <text x="${margin + 76}" y="${cardY + 31}" font-size="22" font-weight="700" fill="#111827">${escapeXml(employee.nickname || employee.full_name)}</text>
-      <text x="${margin + 76}" y="${cardY + 55}" font-size="14" font-weight="500" fill="#6b7280">${escapeXml(employee.position || "Employee")}</text>
+      <rect x="${margin}" y="${cardY}" width="${width - margin * 2}" height="${cardHeight}" rx="24" fill="#ffffff" stroke="#e8edf3" filter="url(#posterShadow)"/>
+      <circle cx="${margin + 44}" cy="${cardY + 42}" r="25" fill="#e8faef"/>
+      <text x="${margin + 44}" y="${cardY + 51}" text-anchor="middle" font-size="16" font-weight="800" fill="#047857">${escapeXml(initials)}</text>
+      <text x="${margin + 84}" y="${cardY + 35}" font-size="23" font-weight="800" fill="#0f172a">${escapeXml(employee.nickname || employee.full_name)}</text>
+      <text x="${margin + 84}" y="${cardY + 60}" font-size="14" font-weight="600" fill="#64748b">${escapeXml(employee.position || "Employee")}</text>
       ${dayRows}
     `;
   }).join("");
@@ -749,20 +765,20 @@ function buildRosterShareVerticalSvg({ outletName, rangeLabel, status, groups, w
           <feDropShadow dx="0" dy="4" stdDeviation="7" flood-color="#101828" flood-opacity="0.04"/>
         </filter>
       </defs>
-      <rect width="${width}" height="${height}" fill="#f7f8fa"/>
-      <rect x="16" y="16" width="${width - 32}" height="${height - 32}" rx="26" fill="#ffffff" stroke="#e5e7eb"/>
-      <rect x="16" y="16" width="${width - 32}" height="118" rx="26" fill="#f8faf8"/>
-      <circle cx="${margin + 30}" cy="66" r="23" fill="#dcfce7"/>
-      <text x="${margin + 30}" y="74" text-anchor="middle" font-size="23" font-weight="700" fill="#16a34a">F</text>
-      <text x="${margin + 72}" y="59" font-size="32" font-weight="700" fill="#111827">${escapeXml(outletName)}</text>
-      <text x="${margin + 72}" y="91" font-size="17" font-weight="600" fill="#475569">Duty Roster</text>
-      <text x="${margin + 178}" y="91" font-size="17" font-weight="500" fill="#6b7280">${escapeXml(rangeLabel)}</text>
-      <rect x="${width - margin - 138}" y="48" width="112" height="34" rx="17" fill="#ecfdf5" stroke="#bbf7d0"/>
-      <text x="${width - margin - 82}" y="70" text-anchor="middle" font-size="13" font-weight="600" fill="#047857">${escapeXml(status)}</text>
-      <text x="${width - margin - 190}" y="102" font-size="11" font-weight="500" fill="#94a3b8">Generated ${escapeXml(generatedAt)}</text>
+      <rect width="${width}" height="${height}" fill="#f4f7f6"/>
+      <rect x="16" y="16" width="${width - 32}" height="${height - 32}" rx="34" fill="#ffffff" stroke="#e5e7eb"/>
+      <rect x="16" y="16" width="${width - 32}" height="132" rx="34" fill="#f8faf8"/>
+      <circle cx="${margin + 33}" cy="70" r="25" fill="#dcfce7"/>
+      <text x="${margin + 33}" y="79" text-anchor="middle" font-size="24" font-weight="800" fill="#16a34a">F</text>
+      <text x="${margin + 78}" y="60" font-size="32" font-weight="800" fill="#0f172a">${escapeXml(outletName)}</text>
+      <text x="${margin + 78}" y="93" font-size="16" font-weight="700" fill="#475569">Duty Roster</text>
+      <text x="${margin + 184}" y="93" font-size="16" font-weight="600" fill="#64748b">${escapeXml(rangeLabel)}</text>
+      <rect x="${width - margin - 142}" y="44" width="116" height="34" rx="17" fill="#ecfdf5" stroke="#bbf7d0"/>
+      <text x="${width - margin - 84}" y="66" text-anchor="middle" font-size="13" font-weight="800" fill="#047857">${escapeXml(status)}</text>
+      <text x="${width - margin - 210}" y="106" font-size="11" font-weight="600" fill="#94a3b8">Generated ${escapeXml(generatedAt)}</text>
       ${legend}
       ${body}
-      <text x="${margin}" y="${height - 30}" font-size="12" font-weight="500" fill="#94a3b8">Generated by FeedX · ${escapeXml(generatedAt)}</text>
+      <text x="${margin}" y="${height - 30}" font-size="12" font-weight="600" fill="#94a3b8">Generated by FeedX · ${escapeXml(generatedAt)}</text>
     </svg>
   `;
 }
