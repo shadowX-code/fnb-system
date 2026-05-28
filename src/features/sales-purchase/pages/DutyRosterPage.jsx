@@ -1,9 +1,10 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { CalendarDays, CalendarX, ChevronLeft, ChevronRight, Clipboard, Clock, Download, HeartPulse, LockKeyhole, Plane, Plus, Send, Share2, Trash2, UnlockKeyhole, Users, X } from "lucide-react";
+import { CalendarDays, CalendarX, ChevronDown, ChevronLeft, ChevronRight, Clipboard, Clock, Download, HeartPulse, LockKeyhole, Plane, Plus, Send, Share2, Trash2, UnlockKeyhole, Users, X } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
+import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import { employeeService } from "../../../services/employeeService.js";
@@ -436,33 +437,45 @@ function TimeComboField({ label, value, onChange, error, onError }) {
   return (
     <div ref={wrapperRef} className="relative">
       <label className="mb-1.5 block text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">{label}</label>
-      <input
-        className={`control h-10 pr-9 ${error ? "border-rose-300 bg-rose-50/60 text-rose-900" : ""}`}
-        value={draft}
-        onChange={(event) => {
-          setDraft(event.target.value);
-          onChange("");
-          onError?.("");
-        }}
-        onFocus={(event) => {
-          event.target.select();
-          setOpen(true);
-        }}
-        onBlur={() => commit()}
-        onKeyDown={(event) => {
-          if (event.key === "Enter") {
-            event.preventDefault();
-            if (commit()) setOpen(false);
-          }
-        }}
-        placeholder="10:00am"
-      />
-      <button className="absolute right-2 top-[27px] rounded-lg p-1 text-text-muted hover:bg-primary/10 hover:text-primary" type="button" onClick={() => setOpen((current) => !current)} aria-label={`Open ${label} suggestions`}>
-        <ChevronRight size={14} className={`transition ${open ? "rotate-90" : ""}`} />
-      </button>
+      <div className="relative">
+        <input
+          className={`control h-10 w-full pr-9 ${error ? "border-rose-300 bg-rose-50/60 text-rose-900" : ""}`}
+          value={draft}
+          onChange={(event) => {
+            setDraft(event.target.value);
+            onChange("");
+            onError?.("");
+          }}
+          onFocus={(event) => {
+            event.target.select();
+            setOpen(true);
+          }}
+          onBlur={() => commit()}
+          onKeyDown={(event) => {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              if (commit()) setOpen(false);
+            }
+          }}
+          placeholder="10:00am"
+        />
+        <button className="absolute right-2 top-1/2 flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-lg text-text-muted hover:bg-primary/10 hover:text-primary" type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => setOpen((current) => !current)} aria-label={`Open ${label} suggestions`}>
+          <ChevronDown size={14} className={`transition ${open ? "rotate-180" : ""}`} />
+        </button>
+      </div>
       {error ? <div className="mt-1 text-[11px] font-semibold text-rose-600">{error}</div> : null}
-      {open ? (
-        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-[9999] max-h-56 overflow-y-auto rounded-2xl border border-border bg-white p-1.5 shadow-2xl">
+      <FloatingLayer
+        open={open}
+        onOpenChange={setOpen}
+        anchorRef={wrapperRef}
+        align="start"
+        offset={6}
+        minWidth={220}
+        estimatedHeight={224}
+        maxHeight={224}
+        className="p-1.5"
+      >
+        <div className="max-h-52 overflow-y-auto">
           {timeOptions.map((option) => (
             <button
               key={option.value}
@@ -481,7 +494,7 @@ function TimeComboField({ label, value, onChange, error, onError }) {
             </button>
           ))}
         </div>
-      ) : null}
+      </FloatingLayer>
     </div>
   );
 }
@@ -491,28 +504,12 @@ function BreakDurationField({ value, onChange }) {
   const wrapperRef = useRef(null);
   const currentValue = Number(value || 0);
 
-  useEffect(() => {
-    if (!open) return undefined;
-    function handlePointerDown(event) {
-      if (!wrapperRef.current?.contains(event.target)) setOpen(false);
-    }
-    function handleKeyDown(event) {
-      if (event.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [open]);
-
   return (
-    <div ref={wrapperRef} className="relative">
+    <div ref={wrapperRef} className="relative min-w-0">
       <label className="mb-1.5 block text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">Break Duration</label>
       <div className="relative">
         <input
-          className="control h-10 pr-24"
+          className="control h-10 w-full pr-28"
           type="number"
           min="0"
           step="5"
@@ -523,30 +520,36 @@ function BreakDurationField({ value, onChange }) {
             setOpen(true);
           }}
         />
-        <button className="absolute right-2 top-1/2 flex -translate-y-1/2 items-center gap-1 rounded-lg px-2 py-1 text-xs font-bold text-text-muted hover:bg-primary/10 hover:text-primary" type="button" onClick={() => setOpen((current) => !current)}>
+        <button className="absolute right-2 top-1/2 flex h-7 -translate-y-1/2 items-center gap-1 rounded-lg px-2 text-xs font-bold text-text-muted hover:bg-primary/10 hover:text-primary" type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => setOpen((current) => !current)}>
           mins unpaid
-          <ChevronRight size={13} className={`transition ${open ? "rotate-90" : ""}`} />
+          <ChevronDown size={13} className={`transition ${open ? "rotate-180" : ""}`} />
         </button>
       </div>
-      <div className="mt-1 text-[11px] text-text-muted">Use 0 for no break.</div>
-      {open ? (
-        <div className="absolute left-0 right-0 top-[calc(100%+6px)] z-[9999] rounded-2xl border border-border bg-white p-1.5 shadow-2xl">
-          {breakOptions.map((option) => (
-            <button
-              key={option.value}
-              className={`flex w-full rounded-xl px-3 py-2 text-left text-sm font-bold transition hover:bg-primary/5 hover:text-primary ${String(currentValue) === option.value ? "bg-primary/10 text-primary" : "text-text-primary"}`}
-              type="button"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                onChange(Number(option.value));
-                setOpen(false);
-              }}
-            >
-              {option.label}
-            </button>
-          ))}
-        </div>
-      ) : null}
+      <FloatingLayer
+        open={open}
+        onOpenChange={setOpen}
+        anchorRef={wrapperRef}
+        align="start"
+        offset={6}
+        minWidth={220}
+        estimatedHeight={220}
+        className="p-1.5"
+      >
+        {breakOptions.map((option) => (
+          <button
+            key={option.value}
+            className={`flex w-full rounded-xl px-3 py-2 text-left text-sm font-bold transition hover:bg-primary/5 hover:text-primary ${String(currentValue) === option.value ? "bg-primary/10 text-primary" : "text-text-primary"}`}
+            type="button"
+            onMouseDown={(event) => event.preventDefault()}
+            onClick={() => {
+              onChange(Number(option.value));
+              setOpen(false);
+            }}
+          >
+            {option.label}
+          </button>
+        ))}
+      </FloatingLayer>
     </div>
   );
 }
@@ -1161,10 +1164,11 @@ function RosterSettingsDrawer({ outletId, outlets, positions, mappings, template
                 </div>
                 {templateDraft.id ? <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={resetTemplate}>New</button> : null}
               </div>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <div>
+                  <label className="mb-1.5 block text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">Name</label>
                   <input
-                    className={`control ${templateErrors.name ? "border-rose-300 bg-rose-50/60" : ""}`}
+                    className={`control h-10 w-full ${templateErrors.name ? "border-rose-300 bg-rose-50/60" : ""}`}
                     value={templateDraft.name}
                     onChange={(event) => {
                       setTemplateDraft((current) => ({ ...current, name: event.target.value }));
@@ -1174,7 +1178,10 @@ function RosterSettingsDrawer({ outletId, outlets, positions, mappings, template
                   />
                   {templateErrors.name ? <div className="mt-1 text-[11px] font-semibold text-rose-600">{templateErrors.name}</div> : null}
                 </div>
-                <input className="control" value={templateDraft.code} onChange={(event) => setTemplateDraft((current) => ({ ...current, code: event.target.value }))} placeholder="Code" />
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">Code</label>
+                  <input className="control h-10 w-full" value={templateDraft.code} onChange={(event) => setTemplateDraft((current) => ({ ...current, code: event.target.value }))} placeholder="Code" />
+                </div>
                 <TimeComboField
                   label="Start Time"
                   value={templateDraft.start_time || ""}
@@ -1193,18 +1200,35 @@ function RosterSettingsDrawer({ outletId, outlets, positions, mappings, template
                   value={templateDraft.break_minutes ?? 0}
                   onChange={(break_minutes) => setTemplateDraft((current) => ({ ...current, break_minutes }))}
                 />
-                <SelectField
-                  label="Template Color"
-                  value={templateDraft.color}
-                  options={["green", "amber", "red", "blue", "purple", "gray"].map((color) => ({ value: color, label: color[0].toUpperCase() + color.slice(1) }))}
-                  onChange={(color) => setTemplateDraft((current) => ({ ...current, color }))}
-                  placeholder="Color"
-                />
+                <div>
+                  <label className="mb-1.5 block text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">Template Color</label>
+                  <SelectField
+                    value={templateDraft.color}
+                    options={["green", "amber", "red", "blue", "purple", "gray"].map((color) => ({ value: color, label: color[0].toUpperCase() + color.slice(1) }))}
+                    onChange={(color) => setTemplateDraft((current) => ({ ...current, color }))}
+                    placeholder="Color"
+                    buttonClassName="h-10"
+                  />
+                </div>
               </div>
-              <div className={`mt-3 rounded-2xl border px-3 py-2 ${templateAccent(templateDraft)}`}>
-                <div className="text-xs font-black uppercase tracking-[0.16em] text-text-muted">Live Preview</div>
-                <div className="mt-1 text-sm font-black text-text-primary">{templateDraft.name || "New Shift Template"}</div>
-                <div className="mt-0.5 text-xs font-semibold text-text-secondary">{shiftTimeLabel(templateDraft)} · {Number(templateDraft.break_minutes || 0)} mins break</div>
+              <div className="mt-4 rounded-2xl border border-border bg-background p-3">
+                <div className="mb-2 text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">Live Preview</div>
+                <div className={`rounded-2xl border p-3 shadow-sm ${templateTone(templateDraft)}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate text-sm font-black">{templateDraft.name || "New Shift Template"}</div>
+                      <div className="mt-1 text-xs font-bold opacity-80">{shiftTimeLabel(templateDraft)}</div>
+                    </div>
+                    <span className="shrink-0 rounded-full bg-white/70 px-2 py-1 text-[11px] font-black shadow-sm">{templateDraft.code || "CODE"}</span>
+                  </div>
+                  <div className="mt-3 flex flex-wrap items-center gap-2 text-[11px] font-black">
+                    <span className="rounded-full bg-white/70 px-2 py-1 shadow-sm">{Number(templateDraft.break_minutes || 0)} mins unpaid break</span>
+                    <span className="flex items-center gap-1 rounded-full bg-white/70 px-2 py-1 shadow-sm">
+                      <span className="h-2 w-2 rounded-full bg-current opacity-70" />
+                      {templateDraft.color || "green"}
+                    </span>
+                  </div>
+                </div>
               </div>
               <div className="mt-3 flex flex-wrap justify-end gap-2">
                 {templateDraft.id && templateDraft.is_active !== false ? (

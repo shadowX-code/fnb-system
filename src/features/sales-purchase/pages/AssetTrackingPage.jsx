@@ -159,16 +159,16 @@ function LifecycleProgress({ status }) {
         const current = index === currentIndex;
         return (
         <Fragment key={step}>
-          <span className={`rounded-full px-2 py-1 text-[10px] font-black transition ${
+          <span className={`rounded-full px-2 py-0.5 text-[10px] font-black transition ${
             completed
-              ? "bg-emerald-100 text-emerald-700"
+              ? "bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100"
               : current
-                ? "bg-primary text-white shadow-sm"
-                : "bg-slate-100 text-text-muted"
+                ? "bg-primary/10 text-primary ring-1 ring-primary/20"
+                : "bg-slate-50 text-text-muted ring-1 ring-border"
           }`}>
             {maintenanceStatusLabel(step)}
           </span>
-          {index < maintenanceStatuses.length - 1 ? <span className={`h-px w-5 ${index < currentIndex ? "bg-emerald-300" : "bg-border"}`} /> : null}
+          {index < maintenanceStatuses.length - 1 ? <span className={`h-px w-4 ${index < currentIndex ? "bg-emerald-300" : "bg-border"}`} /> : null}
         </Fragment>
       );})}
     </div>
@@ -192,16 +192,40 @@ function daysUntil(value) {
   return Math.round((startDate - startToday) / 86400000);
 }
 
+function maintenanceRelevantDate(record) {
+  return record?.completed_date || record?.scheduled_date || record?.date || record?.created_at || record?.updated_at || null;
+}
+
+function maintenanceSortTime(record) {
+  const candidates = [
+    record?.completed_date,
+    record?.scheduled_date,
+    record?.date,
+    record?.created_at,
+    record?.updated_at,
+  ];
+  for (const candidate of candidates) {
+    if (!candidate) continue;
+    const time = new Date(candidate).getTime();
+    if (!Number.isNaN(time)) return time;
+  }
+  return 0;
+}
+
+function sortMaintenanceNewestFirst(first, second) {
+  return maintenanceSortTime(second) - maintenanceSortTime(first);
+}
+
 function maintenanceTimelineGroup(record) {
-  const value = record.completed_date || record.scheduled_date || record.date;
+  const value = maintenanceRelevantDate(record);
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "Older";
   const today = new Date();
   const startToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
   const startDate = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const diffDays = Math.round((startToday - startDate) / 86400000);
+  const diffDays = Math.round((startDate - startToday) / 86400000);
+  if (record.status !== "completed" && diffDays > 0) return "Upcoming";
   if (diffDays === 0) return "Today";
-  if (diffDays >= 0 && diffDays < 7) return "This Week";
   return "Older";
 }
 
@@ -1160,12 +1184,12 @@ function MaintenanceRecordEditorPanel({ asset, record, onBack, onSubmit, saving 
 
 function MaintenanceRecordViewPanel({ asset, record, onBack, onEdit, onUpdateStatus }) {
   const [dateLabel, dateValue] = maintenanceStatusDateLabel(record);
-  const photoLabel = record.photo_url ? "1 photo uploaded" : "No photo uploaded";
+  const photoLabel = record.photo_url ? "1 photo uploaded" : "No photo";
   const costLabel = `RM ${Number(record.cost || 0).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
   const detailRows = [
     ["Issue", record.issue || "No issue recorded"],
-    ["Action Taken", record.action_taken || "No action recorded yet"],
-    ["Vendor", record.vendor || "No vendor recorded"],
+    ["Action Taken", record.action_taken || "No action recorded"],
+    ["Vendor", record.vendor || "No vendor"],
     [dateLabel, record.status === "completed" ? <DateText value={dateValue} /> : <DateText value={dateValue} />],
     ["Next Service", record.next_service_date ? <DateText value={record.next_service_date} /> : "No date set"],
     ["Photo", photoLabel],
@@ -1742,7 +1766,8 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
   const lastCompletedMaintenance = latestCompletedMaintenanceRecord(maintenanceRecords);
   const nextService = currentNextServiceDate(maintenanceRecords);
   const nextServiceDays = daysUntil(nextService);
-  const maintenanceGroups = maintenanceRecords.reduce((groups, record) => {
+  const sortedMaintenanceRecords = useMemo(() => [...maintenanceRecords].sort(sortMaintenanceNewestFirst), [maintenanceRecords]);
+  const maintenanceGroups = sortedMaintenanceRecords.reduce((groups, record) => {
     const group = maintenanceTimelineGroup(record);
     groups[group] = [...(groups[group] || []), record];
     return groups;
@@ -1781,11 +1806,11 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
       title: `Quantity ${titleCase(movement.movement_type)}`,
       detail: `${movement.quantity_change > 0 ? "+" : ""}${movement.quantity_change} · ${movement.quantity_before} → ${movement.quantity_after}`,
     })),
-    ...maintenanceRecords.slice(0, 2).map((record) => ({
+    ...sortedMaintenanceRecords.slice(0, 2).map((record) => ({
       id: `maintenance-${record.id}`,
-      date: record.date,
+      date: maintenanceRelevantDate(record),
       title: "Maintenance recorded",
-      detail: `${titleCase(record.status)} · ${record.issue}`,
+      detail: `${maintenanceStatusLabel(record.status)} · ${record.issue || "No issue recorded"}`,
     })),
     safeAsset.image_url ? {
       id: "asset-photo",
@@ -1945,37 +1970,43 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
                 <button className="btn-primary h-9 px-3 text-xs" type="button" onClick={() => setMaintenanceEditor({ mode: "edit", record: null })}>+ Add Maintenance Record</button>
               </div>
               <div className="grid gap-3 md:grid-cols-3">
-                <div className="rounded-2xl border border-emerald-100 bg-emerald-50/40 p-3">
-                  <div className="flex items-center justify-between">
-                    <div className="text-[10px] font-black uppercase tracking-wide text-emerald-700">Last Service Date</div>
-                    <Wrench size={14} className="text-emerald-600" />
+                <div className="rounded-2xl border border-border bg-white p-3 shadow-sm">
+                  <div className="flex items-start gap-2.5">
+                    <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-emerald-50 text-emerald-700"><Wrench size={14} /></div>
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-black uppercase tracking-wide text-text-muted">Last Service Date</div>
+                      <div className="mt-1 text-sm font-black text-text-primary">{lastCompletedMaintenance ? formatFullDate(maintenanceCompletedDate(lastCompletedMaintenance)) : "No service yet"}</div>
+                    </div>
                   </div>
-                  <div className="mt-1 text-sm font-black text-text-primary">{lastCompletedMaintenance ? formatFullDate(maintenanceCompletedDate(lastCompletedMaintenance)) : "No service yet"}</div>
                 </div>
-                <div className={`rounded-2xl border p-3 ${activeMaintenance.length ? "border-blue-100 bg-blue-50/60" : "border-border bg-white"}`}>
-                  <div className="flex items-center justify-between">
-                    <div className={`text-[10px] font-black uppercase tracking-wide ${activeMaintenance.length ? "text-blue-700" : "text-text-muted"}`}>Open Maintenance</div>
-                    <AlertTriangle size={14} className={activeMaintenance.length ? "text-blue-600" : "text-text-muted"} />
+                <div className={`rounded-2xl border p-3 shadow-sm ${activeMaintenance.length ? "border-blue-100 bg-blue-50/60" : "border-border bg-white"}`}>
+                  <div className="flex items-start gap-2.5">
+                    <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${activeMaintenance.length ? "bg-blue-100 text-blue-700" : "bg-slate-50 text-text-muted"}`}><AlertTriangle size={14} /></div>
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-black uppercase tracking-wide text-text-muted">Open Maintenance</div>
+                      <div className="mt-1 text-sm font-black text-text-primary">{activeMaintenance.length ? `${activeMaintenance.length} open issue${activeMaintenance.length === 1 ? "" : "s"}` : "No active issue"}</div>
+                    </div>
                   </div>
-                  <div className="mt-1 text-sm font-black text-text-primary">{activeMaintenance.length ? `${activeMaintenance.length} open issue${activeMaintenance.length === 1 ? "" : "s"}` : "No active issue"}</div>
                 </div>
-                <div className={`rounded-2xl border p-3 ${nextServiceDays !== null && nextServiceDays < 0 ? "border-rose-100 bg-rose-50/70" : "border-border bg-white"}`}>
-                  <div className="flex items-center justify-between">
-                    <div className={`text-[10px] font-black uppercase tracking-wide ${nextServiceDays !== null && nextServiceDays < 0 ? "text-rose-700" : "text-text-muted"}`}>Next Service Due</div>
-                    <CalendarDays size={14} className={nextServiceDays !== null && nextServiceDays < 0 ? "text-rose-600" : "text-text-muted"} />
+                <div className={`rounded-2xl border p-3 shadow-sm ${nextServiceDays !== null && nextServiceDays < 0 ? "border-rose-100 bg-rose-50/70" : "border-border bg-white"}`}>
+                  <div className="flex items-start gap-2.5">
+                    <div className={`flex h-8 w-8 items-center justify-center rounded-xl ${nextServiceDays !== null && nextServiceDays < 0 ? "bg-rose-100 text-rose-700" : "bg-slate-50 text-text-muted"}`}><CalendarDays size={14} /></div>
+                    <div className="min-w-0">
+                      <div className="text-[10px] font-black uppercase tracking-wide text-text-muted">Next Service Due</div>
+                      <div className="mt-1 text-sm font-black text-text-primary">{nextService ? formatFullDate(nextService) : "No due date set"}</div>
+                    </div>
                   </div>
-                  <div className="mt-1 text-sm font-black text-text-primary">{nextService ? formatFullDate(nextService) : "No due date set"}</div>
                 </div>
               </div>
               {maintenanceRecords.length ? (
                 <div className="space-y-4">
-                  {["Today", "This Week", "Older"].filter((group) => maintenanceGroups[group]?.length).map((group) => (
+                  {["Upcoming", "Today", "Older"].filter((group) => maintenanceGroups[group]?.length).map((group) => (
                     <div key={group} className="space-y-2">
                       <div className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{group}</div>
                       {maintenanceGroups[group].map((record) => (
                         <div key={record.id} className={`rounded-2xl border bg-white p-3 shadow-sm transition hover:border-primary/20 hover:shadow-md ${isMaintenanceOverdue(record) ? "border-rose-200" : "border-border"}`}>
-                          <div className="grid gap-3 md:grid-cols-[40px_1fr_180px]">
-                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-xs font-black text-primary">{maintenanceTypeIcon(record.maintenance_type)}</div>
+                          <div className="grid gap-3 md:grid-cols-[42px_1fr_auto]">
+                            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-xs font-black text-primary ring-1 ring-primary/10">{maintenanceTypeIcon(record.maintenance_type)}</div>
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
                                 <span className="text-sm font-black text-text-primary">{maintenanceTypeLabel(record.maintenance_type)}</span>
@@ -1983,7 +2014,7 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
                                 {record.status !== "completed" ? <Badge tone={priorityTone(record.priority)}>{titleCase(record.priority)}</Badge> : null}
                                 <span className="text-sm font-black text-text-primary">RM {Number(record.cost || 0).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                               </div>
-                              <div className="mt-1 line-clamp-2 text-sm font-bold text-text-primary">{record.issue || "No issue title"}</div>
+                              <div className="mt-1 line-clamp-2 text-sm font-semibold text-text-secondary">{record.issue || "No issue recorded"}{record.action_taken ? ` · ${record.action_taken}` : " · No action recorded"}</div>
                               <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold text-text-muted">
                                 <span>{record.vendor || "No vendor"}</span>
                                 <span>•</span>
@@ -1996,12 +2027,9 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
                               </div>
                               <div className="mt-3"><LifecycleProgress status={record.status} /></div>
                             </div>
-                            <div className="flex flex-col items-start gap-2 md:items-end">
-                              <div className="flex flex-wrap justify-end gap-1">
-                                {record.status !== "completed" ? <button className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-700 hover:bg-blue-100" type="button" onClick={() => setMaintenanceEditor({ mode: "edit", record })}>Update Status</button> : null}
-                                <button className="rounded-full px-2 py-1 text-xs font-black text-text-muted hover:bg-slate-100" type="button" onClick={() => setMaintenanceEditor({ mode: "view", record })}>View</button>
-                                <button className="rounded-full px-2 py-1 text-xs font-black text-primary hover:bg-primary/10" type="button" onClick={() => setMaintenanceEditor({ mode: "edit", record })}>Edit</button>
-                              </div>
+                            <div className="flex items-start justify-end gap-1">
+                              <button className="rounded-full px-2.5 py-1 text-xs font-black text-text-muted hover:bg-slate-100" type="button" onClick={() => setMaintenanceEditor({ mode: "view", record })}>View</button>
+                              <button className="rounded-full px-2.5 py-1 text-xs font-black text-primary hover:bg-primary/10" type="button" onClick={() => setMaintenanceEditor({ mode: "edit", record })}>Edit</button>
                             </div>
                           </div>
                           {isMaintenanceOverdue(record) ? <div className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-xs font-black text-rose-700">Overdue scheduled maintenance</div> : null}
@@ -2657,7 +2685,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       const result = await assetTrackingService.saveMaintenanceRecord(targetAsset, values);
       setMaintenanceRecords((current) => {
         const withoutCurrent = current.filter((record) => record.id !== result.record.id);
-        return [result.record, ...withoutCurrent].sort((first, second) => new Date(second.date || second.created_at || 0) - new Date(first.date || first.created_at || 0));
+        return [result.record, ...withoutCurrent].sort(sortMaintenanceNewestFirst);
       });
       if (result.condition) {
         setAssets((current) => current.map((asset) => asset.id === targetAsset.id ? { ...asset, condition: result.condition } : asset));
