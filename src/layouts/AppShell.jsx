@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BarChart3, Bell, Building2, CalendarDays, Check, ChevronsDownUp, ChevronsUpDown, ChevronDown, ClipboardList, Download, KeyRound, LogOut, Menu, Monitor, Moon, PackageCheck, PieChart, Settings, Shield, Sun, UserRound, Users, Wallet, X } from "lucide-react";
+import { AlertTriangle, BarChart3, Bell, Boxes, Building2, CalendarDays, Check, ChevronsDownUp, ChevronsUpDown, ChevronDown, ClipboardCheck, ClipboardList, Download, FileText, KeyRound, LogOut, Menu, Monitor, Moon, PackageCheck, PackagePlus, PieChart, RefreshCw, Settings, Shield, ShoppingCart, Sun, Truck, UserRound, Users, Wallet, X } from "lucide-react";
 import Modal from "../components/feedback/Modal.jsx";
 import Badge from "../components/ui/Badge.jsx";
 import { EMPLOYEE_ACCESS_STATE, EMPLOYEE_ACCESS_STATE_LABEL } from "../constants/employeeAccessStates.js";
@@ -23,6 +23,14 @@ const iconMap = {
   "operating-expenses": Wallet,
   "duty-roster": CalendarDays,
   "inventory-control": PackageCheck,
+  "inventory-master": Boxes,
+  "inventory-groups": ClipboardList,
+  "inventory-stock-check": ClipboardCheck,
+  "inventory-requests": PackagePlus,
+  "inventory-orders": Truck,
+  "inventory-movements": RefreshCw,
+  "inventory-waste": AlertTriangle,
+  "inventory-recipes": FileText,
   "data-import": Download,
   "data-health": BarChart3,
   "audit-logs": KeyRound,

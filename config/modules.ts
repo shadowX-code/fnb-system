@@ -100,7 +100,7 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   export: "Export",
 };
 
-export const moduleSectionOrder = ["Overview", "Sales", "Purchases", "Operations", "People", "System"];
+export const moduleSectionOrder = ["Overview", "Sales", "Purchases", "Operations", "Inventory Control", "People", "System"];
 
 export const moduleRegistry: AppModule[] = [
   {
@@ -240,8 +240,8 @@ export const moduleRegistry: AppModule[] = [
   },
   {
     id: "roles",
-    section: "System",
-    label: "Roles",
+    section: "People",
+    label: "Roles & Permissions",
     route: "/system/roles",
     icon: "roles",
     sidebar: true,
@@ -276,11 +276,11 @@ export const moduleRegistry: AppModule[] = [
   },
   {
     id: "inventory_control",
-    section: "Operations",
+    section: "Inventory Control",
     label: "Inventory Control",
     route: "/operations/inventory-control",
     icon: "inventory-control",
-    sidebar: true,
+    sidebar: false,
     permissions: {
       view: true,
       create: true,
@@ -306,6 +306,87 @@ export const moduleRegistry: AppModule[] = [
       view_insights: true,
       manage_recipes: true,
     },
+  },
+  {
+    id: "inventory_dashboard",
+    section: "Inventory Control",
+    label: "Dashboard",
+    route: "/inventory/dashboard",
+    icon: "inventory-control",
+    sidebar: true,
+    permissions: { view: true },
+  },
+  {
+    id: "inventory_master",
+    section: "Inventory Control",
+    label: "Master Inventory",
+    route: "/inventory/master",
+    icon: "inventory-master",
+    sidebar: true,
+    permissions: { view: true, create: true, edit: true, delete: true, import: true, export: true },
+  },
+  {
+    id: "inventory_groups",
+    section: "Inventory Control",
+    label: "Stock Check Groups",
+    route: "/inventory/groups",
+    icon: "inventory-groups",
+    sidebar: true,
+    permissions: { view: true, create: true, edit: true, delete: true },
+  },
+  {
+    id: "inventory_stock_check",
+    section: "Inventory Control",
+    label: "Stock Check",
+    route: "/inventory/stock-check",
+    icon: "inventory-stock-check",
+    sidebar: true,
+    permissions: { view: true, create: true, edit: true, approve: true },
+  },
+  {
+    id: "inventory_requests",
+    section: "Inventory Control",
+    label: "Stock Requests",
+    route: "/inventory/requests",
+    icon: "inventory-requests",
+    sidebar: true,
+    permissions: { view: true, create: true, edit: true, approve: true },
+  },
+  {
+    id: "inventory_orders",
+    section: "Inventory Control",
+    label: "Purchase Orders",
+    route: "/inventory/purchase-orders",
+    icon: "inventory-orders",
+    sidebar: true,
+    permissions: { view: true, create: true, edit: true, approve: true, export: true },
+  },
+  {
+    id: "inventory_movements",
+    section: "Inventory Control",
+    label: "Inventory Movements",
+    route: "/inventory/movements",
+    icon: "inventory-movements",
+    sidebar: true,
+    permissions: { view: true, create: true, edit: true, export: true },
+  },
+  {
+    id: "inventory_waste",
+    section: "Inventory Control",
+    label: "Waste & Variance",
+    route: "/inventory/waste",
+    icon: "inventory-waste",
+    sidebar: true,
+    permissions: { view: true, create: true, edit: true, export: true },
+  },
+  {
+    id: "inventory_recipes",
+    section: "Inventory Control",
+    label: "Recipes & Usage",
+    route: "/inventory/recipes",
+    icon: "inventory-recipes",
+    sidebar: true,
+    permissions: { view: true, create: true, edit: true, delete: true },
   },
   {
     id: "outlets",

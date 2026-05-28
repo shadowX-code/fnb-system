@@ -120,7 +120,7 @@ function remapSalesRecordsToChannels(records, previousChannels, nextChannels) {
 }
 
 function filterRoutesByPermission(routes, auth) {
-  return routes.filter((route) => !route.permission || auth.hasPermission(route.permission));
+  return routes.filter((route) => routePermissionAllowed(auth, route.permission));
 }
 
 function filterSectionsByPermission(sections, routes, auth) {
@@ -130,12 +130,17 @@ function filterSectionsByPermission(sections, routes, auth) {
       const items = section.items.filter((item) => {
         if (item.type === "label") return true;
         const route = routeById.get(item.id);
-        return route && (!route.permission || auth.hasPermission(route.permission));
+        return route && routePermissionAllowed(auth, route.permission);
       });
       const hasVisibleRoute = items.some((item) => item.type !== "label");
       return { ...section, items: hasVisibleRoute ? items : [] };
     })
     .filter((section) => section.items.length);
+}
+
+function routePermissionAllowed(auth, permission) {
+  if (!permission) return true;
+  return String(permission).split(" OR ").some((code) => auth.hasPermission(code.trim()));
 }
 
 const BOOTSTRAP_LOADS = [

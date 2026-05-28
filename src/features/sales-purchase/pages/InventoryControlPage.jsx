@@ -34,17 +34,44 @@ const STORAGE_KEY = "feedx.inventoryControl.v1";
 
 const INVENTORY_MODULE = "inventory_control";
 
-const tabs = [
-  { id: "dashboard", label: "Dashboard", icon: Warehouse },
-  { id: "master", label: "Master Inventory", icon: Boxes },
-  { id: "groups", label: "Groups", icon: ClipboardList },
-  { id: "stock-check", label: "Stock Check", icon: ClipboardCheck },
-  { id: "requests", label: "Requests", icon: PackagePlus },
-  { id: "orders", label: "Orders", icon: Truck },
-  { id: "movements", label: "Movements", icon: RefreshCw },
-  { id: "waste", label: "Waste", icon: AlertTriangle },
-  { id: "recipes", label: "Recipes", icon: FileText },
-];
+const pageMeta = {
+  dashboard: {
+    title: "Inventory Dashboard",
+    description: "Monitor stock health, ordering activity and inventory risks.",
+  },
+  master: {
+    title: "Master Inventory",
+    description: "Create and manage all inventory items used across outlets.",
+  },
+  groups: {
+    title: "Stock Check Groups",
+    description: "Manage outlet-level stock check groups and frequencies.",
+  },
+  "stock-check": {
+    title: "Stock Check",
+    description: "Complete scheduled inventory checks by outlet and group.",
+  },
+  requests: {
+    title: "Stock Requests",
+    description: "Review and manage replenishment requests from outlets.",
+  },
+  orders: {
+    title: "Purchase Orders",
+    description: "Convert approved requests into supplier purchase orders.",
+  },
+  movements: {
+    title: "Inventory Movements",
+    description: "Track purchases, transfers, waste, usage and adjustments.",
+  },
+  waste: {
+    title: "Waste & Variance",
+    description: "Identify wastage, stock leakage and unusual variance.",
+  },
+  recipes: {
+    title: "Recipes & Usage",
+    description: "Link menu items to ingredients and estimate consumption.",
+  },
+};
 
 const categoryPresets = ["Raw Material", "Beverage", "Packaging", "Cleaning", "Frozen", "Dry Goods", "Kitchen Supply", "Retail Item"];
 const units = ["kg", "g", "pcs", "box", "pack", "bottle", "carton", "litre"];
@@ -710,11 +737,11 @@ function WasteModal({ outlets, items, onClose, onSave }) {
   );
 }
 
-function InventoryControlPage({ store, auth, ui }) {
+function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const outlets = store?.outlets ?? [];
   const suppliers = store?.suppliers ?? [];
   const [data, setData] = useInventoryData(outlets, suppliers);
-  const [activeTab, setActiveTab] = useState("dashboard");
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [selectedOutletId, setSelectedOutletId] = useState("all");
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
@@ -724,24 +751,28 @@ function InventoryControlPage({ store, auth, ui }) {
   const [activeCheckGroupId, setActiveCheckGroupId] = useState(null);
   const [checkRows, setCheckRows] = useState([]);
 
+  useEffect(() => {
+    setActiveTab(initialTab);
+  }, [initialTab]);
+
   const can = useMemo(() => ({
-    import: canImport(auth, INVENTORY_MODULE),
-    export: canExport(auth, INVENTORY_MODULE),
-    manageMaster: hasPermission(auth, "inventory_control.manage_master") || hasPermission(auth, "inventory_control.manage"),
-    manageCategories: hasPermission(auth, "inventory_control.manage_categories") || hasPermission(auth, "inventory_control.manage"),
-    manageGroups: hasPermission(auth, "inventory_control.manage_groups") || hasPermission(auth, "inventory_control.manage"),
-    createCheck: hasPermission(auth, "inventory_control.create_stock_check") || hasPermission(auth, "inventory_control.create"),
-    editCheck: hasPermission(auth, "inventory_control.edit_stock_check") || hasPermission(auth, "inventory_control.edit"),
-    reviewCheck: hasPermission(auth, "inventory_control.review_stock_check") || hasPermission(auth, "inventory_control.approve"),
-    createRequest: hasPermission(auth, "inventory_control.create_request") || hasPermission(auth, "inventory_control.create"),
-    approveRequest: hasPermission(auth, "inventory_control.approve_request") || hasPermission(auth, "inventory_control.approve"),
-    generatePo: hasPermission(auth, "inventory_control.generate_purchase_order") || hasPermission(auth, "inventory_control.manage"),
-    managePo: hasPermission(auth, "inventory_control.manage_purchase_orders") || hasPermission(auth, "inventory_control.manage"),
-    recordMovement: hasPermission(auth, "inventory_control.record_movement") || hasPermission(auth, "inventory_control.manage"),
-    recordWaste: hasPermission(auth, "inventory_control.record_waste") || hasPermission(auth, "inventory_control.manage"),
-    viewWaste: hasPermission(auth, "inventory_control.view_waste") || hasPermission(auth, "inventory_control.view"),
-    viewInsights: hasPermission(auth, "inventory_control.view_insights") || hasPermission(auth, "inventory_control.view"),
-    manageRecipes: hasPermission(auth, "inventory_control.manage_recipes") || hasPermission(auth, "inventory_control.manage"),
+    import: canImport(auth, INVENTORY_MODULE) || hasPermission(auth, "inventory_master.import"),
+    export: canExport(auth, INVENTORY_MODULE) || hasPermission(auth, "inventory_master.export") || hasPermission(auth, "inventory_orders.export") || hasPermission(auth, "inventory_movements.export") || hasPermission(auth, "inventory_waste.export"),
+    manageMaster: hasPermission(auth, "inventory_master.create") || hasPermission(auth, "inventory_master.edit") || hasPermission(auth, "inventory_control.manage_master") || hasPermission(auth, "inventory_control.manage"),
+    manageCategories: hasPermission(auth, "inventory_master.edit") || hasPermission(auth, "inventory_control.manage_categories") || hasPermission(auth, "inventory_control.manage"),
+    manageGroups: hasPermission(auth, "inventory_groups.create") || hasPermission(auth, "inventory_groups.edit") || hasPermission(auth, "inventory_control.manage_groups") || hasPermission(auth, "inventory_control.manage"),
+    createCheck: hasPermission(auth, "inventory_stock_check.create") || hasPermission(auth, "inventory_control.create_stock_check") || hasPermission(auth, "inventory_control.create"),
+    editCheck: hasPermission(auth, "inventory_stock_check.edit") || hasPermission(auth, "inventory_control.edit_stock_check") || hasPermission(auth, "inventory_control.edit"),
+    reviewCheck: hasPermission(auth, "inventory_stock_check.approve") || hasPermission(auth, "inventory_control.review_stock_check") || hasPermission(auth, "inventory_control.approve"),
+    createRequest: hasPermission(auth, "inventory_requests.create") || hasPermission(auth, "inventory_control.create_request") || hasPermission(auth, "inventory_control.create"),
+    approveRequest: hasPermission(auth, "inventory_requests.approve") || hasPermission(auth, "inventory_control.approve_request") || hasPermission(auth, "inventory_control.approve"),
+    generatePo: hasPermission(auth, "inventory_orders.create") || hasPermission(auth, "inventory_control.generate_purchase_order") || hasPermission(auth, "inventory_control.manage"),
+    managePo: hasPermission(auth, "inventory_orders.edit") || hasPermission(auth, "inventory_control.manage_purchase_orders") || hasPermission(auth, "inventory_control.manage"),
+    recordMovement: hasPermission(auth, "inventory_movements.create") || hasPermission(auth, "inventory_control.record_movement") || hasPermission(auth, "inventory_control.manage"),
+    recordWaste: hasPermission(auth, "inventory_waste.create") || hasPermission(auth, "inventory_control.record_waste") || hasPermission(auth, "inventory_control.manage"),
+    viewWaste: hasPermission(auth, "inventory_waste.view") || hasPermission(auth, "inventory_control.view_waste") || hasPermission(auth, "inventory_control.view"),
+    viewInsights: hasPermission(auth, "inventory_dashboard.view") || hasPermission(auth, "inventory_control.view_insights") || hasPermission(auth, "inventory_control.view"),
+    manageRecipes: hasPermission(auth, "inventory_recipes.create") || hasPermission(auth, "inventory_recipes.edit") || hasPermission(auth, "inventory_control.manage_recipes") || hasPermission(auth, "inventory_control.manage"),
   }), [auth]);
 
   const categoryById = useMemo(() => new Map(data.categories.map((category) => [category.id, category])), [data.categories]);
@@ -1042,7 +1073,7 @@ function InventoryControlPage({ store, auth, ui }) {
                       <td>{toCurrency(row.waste)}</td>
                       <td>{row.pendingOrders}</td>
                       <td><Badge tone={row.status === "Good" ? "success" : row.status === "Watch" ? "warning" : "danger"}>{row.status}</Badge></td>
-                      <td><button className="text-xs font-bold text-primary" type="button" onClick={() => { setSelectedOutletId(row.outlet.id); setActiveTab("stock-check"); }}>Open checks</button></td>
+                      <td><button className="text-xs font-bold text-primary" type="button" onClick={() => { setSelectedOutletId(row.outlet.id); ui?.navigate?.("inventory_stock_check"); }}>Open checks</button></td>
                     </tr>
                   ))}
                 </tbody>
@@ -1544,43 +1575,51 @@ function InventoryControlPage({ store, auth, ui }) {
     return renderRecipes();
   }
 
-  const actions = (
-    <>
+  function renderPageActions() {
+    if (activeTab === "master") {
+      return (
+        <>
+          <button className="btn-secondary" type="button" onClick={() => requirePermission(can.import, "import inventory")}>
+            <Upload size={15} /> Import
+          </button>
+          <button className="btn-secondary" type="button" onClick={() => requirePermission(can.export, "export inventory")}>
+            <Download size={15} /> Export
+          </button>
+          <button className="btn-primary" type="button" onClick={() => requirePermission(can.manageMaster, "add inventory items") && setModal({ type: "item" })}>
+            <PackagePlus size={15} /> Add Item
+          </button>
+        </>
+      );
+    }
+    if (activeTab === "groups") {
+      return <button className="btn-primary" type="button" onClick={() => requirePermission(can.manageGroups, "manage stock check groups") && setModal({ type: "group" })}><PackagePlus size={15} /> Add Group</button>;
+    }
+    if (activeTab === "requests") {
+      return <button className="btn-primary" type="button" onClick={() => requirePermission(can.createRequest, "create stock requests") && setModal({ type: "request" })}><PackagePlus size={15} /> New Request</button>;
+    }
+    if (activeTab === "movements") {
+      return <button className="btn-primary" type="button" onClick={() => requirePermission(can.recordMovement, "record inventory movements") && setModal({ type: "movement" })}><RefreshCw size={15} /> Record Movement</button>;
+    }
+    if (activeTab === "waste") {
+      return <button className="btn-primary" type="button" onClick={() => requirePermission(can.recordWaste, "record waste") && setModal({ type: "waste" })}>Record Waste</button>;
+    }
+    return (
       <button className="btn-secondary" type="button" onClick={() => requirePermission(can.export, "export inventory")}>
         <Download size={15} /> Export
       </button>
-      <button className="btn-primary" type="button" onClick={() => requirePermission(can.manageMaster, "add inventory items") && setModal({ type: "item" })}>
-        <PackagePlus size={15} /> Add Item
-      </button>
-    </>
-  );
+    );
+  }
+
+  const meta = pageMeta[activeTab] ?? pageMeta.dashboard;
 
   return (
     <div className="space-y-4">
       <PageHeader
-        section="OPERATIONS"
-        title="Inventory Control"
-        description="Daily stock checks, replenishment requests, purchase orders and inventory movement intelligence."
-        actions={actions}
+        section="INVENTORY CONTROL"
+        title={meta.title}
+        description={meta.description}
+        actions={renderPageActions()}
       />
-
-      <div className="card flex gap-1 overflow-x-auto p-1">
-        {tabs.map((tab) => {
-          const Icon = tab.icon;
-          const active = activeTab === tab.id;
-          return (
-            <button
-              key={tab.id}
-              className={`flex shrink-0 items-center gap-2 rounded-xl px-3 py-2 text-[13px] font-semibold transition ${active ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-slate-50 hover:text-text-primary"}`}
-              type="button"
-              onClick={() => setActiveTab(tab.id)}
-            >
-              <Icon size={15} />
-              {tab.label}
-            </button>
-          );
-        })}
-      </div>
 
       <div className="rounded-2xl border border-primary/15 bg-gradient-to-r from-primary/8 via-white to-white p-3">
         <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
