@@ -2193,6 +2193,16 @@ Purpose:
 
 Track wastage and operational leakage.
 
+Page behavior:
+
+- Waste & Variance uses an Outlet filter as the active operational context.
+- Owner/admin protected roles may view All Outlets; non-protected roles only see accessible outlets.
+- Record Waste uses the currently selected outlet context and does not ask for outlet inside the modal.
+- If the active context is All Outlets, Record Waste is blocked with helper text asking the user to select an outlet first.
+- Waste dashboard metrics, Waste Types, Waste Records, and operational insights respond to outlet, waste type, date range, and search filters.
+- Waste Records are outlet-scoped and should show Date, Item, Category, Waste Type, Qty, Outlet, Recorded By, Notes, Evidence, and Actions.
+- Record Waste item picker only shows active inventory items linked to the selected outlet.
+
 Waste types:
 
 - Spoilage
@@ -2206,9 +2216,11 @@ Waste types:
 Waste & Variance sections:
 
 - Waste Value
-- Waste % of Inventory
-- Highest Waste Outlet
+- Waste Records
+- Highest Waste Category or Highest Waste Item depending on outlet scope
 - Unexplained Loss %
+- Waste Types with counts
+- Waste Records table
 - Waste by Category
 - Top Wasted Items
 - Outlet Variance Table

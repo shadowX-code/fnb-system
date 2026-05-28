@@ -1769,39 +1769,80 @@ function MovementModal({ outlets, items, onClose, onSave }) {
   );
 }
 
-function WasteModal({ outlets, items, onClose, onSave }) {
+function WasteModal({ outlet, items, onClose, onSave }) {
   const [form, setForm] = useState({
     id: "",
     date: todayInput(),
     itemId: items[0]?.id ?? "",
-    outletId: outlets[0]?.id ?? "",
+    outletId: outlet?.id ?? "",
     wasteType: "Spoilage",
     quantity: 0,
-    value: 0,
+    photoUrl: "",
     notes: "",
   });
+  const [photoError, setPhotoError] = useState("");
+  const selectedItem = items.find((item) => item.id === form.itemId);
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+
+  async function handlePhoto(file) {
+    setPhotoError("");
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setPhotoError("Please upload an image file.");
+      return;
+    }
+    try {
+      const preview = await readFileAsDataUrl(file);
+      update("photoUrl", preview);
+    } catch (error) {
+      setPhotoError(error.message || "Unable to read image.");
+    }
+  }
+
   return (
     <Modal
       title="Record Waste"
-      description="Track spoilage, expiry, kitchen error and unexplained operational leakage."
+      description={`${outlet?.name || "Selected outlet"} · Track spoilage, expiry, kitchen error and unexplained leakage.`}
       onClose={onClose}
       footer={(
         <>
           <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="button" disabled={!form.itemId || !form.outletId || !Number(form.quantity)} onClick={() => onSave({ ...form, id: makeId("waste") })}>Save Waste</button>
+          <button className="btn-primary" type="button" disabled={!form.itemId || !form.outletId || !Number(form.quantity)} onClick={() => onSave({ ...form, id: makeId("waste"), value: 0 })}>Save Waste</button>
         </>
       )}
     >
       <div className="grid gap-3">
+        <div className="rounded-2xl border border-border bg-slate-50 p-3">
+          <div className="type-caption font-semibold text-text-secondary">Outlet</div>
+          <div className="mt-1 type-body-sm font-bold text-text-primary">{outlet?.name || "Selected outlet"}</div>
+        </div>
         <SelectField label="Item" value={form.itemId} options={items.map((item) => ({ value: item.id, label: item.name }))} onChange={(value) => update("itemId", value)} searchable />
-        <SelectField label="Outlet" value={form.outletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={(value) => update("outletId", value)} searchable />
         <SelectField label="Waste Type" value={form.wasteType} options={wasteTypes.map((type) => ({ value: type, label: type }))} onChange={(value) => update("wasteType", value)} />
         <div className="grid gap-3 sm:grid-cols-2">
           <Field label="Quantity" type="number" value={form.quantity} onChange={(value) => update("quantity", Number(value || 0))} />
-          <Field label="Estimated Value" type="number" value={form.value} onChange={(value) => update("value", Number(value || 0))} />
+          <label className="block">
+            <div className="mb-1 type-caption font-semibold text-text-secondary">Unit</div>
+            <div className="control flex h-9 items-center text-[13px] font-semibold text-text-secondary">{selectedItem?.unit || "Unit"}</div>
+          </label>
         </div>
-        <TextArea label="Notes" value={form.notes} onChange={(value) => update("notes", value)} />
+        <DatePickerField label="Waste Date" value={form.date} onChange={(value) => update("date", value)} />
+        <TextArea label="Reason / Remark" value={form.notes} onChange={(value) => update("notes", value)} />
+        <div>
+          <div className="mb-1 type-caption font-semibold text-text-secondary">Photo Evidence</div>
+          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-slate-50 p-3">
+            <label className="btn-secondary h-8 cursor-pointer px-3 text-xs">
+              <Upload size={14} /> Upload Photo
+              <input className="sr-only" type="file" accept="image/*" onChange={(event) => handlePhoto(event.target.files?.[0])} />
+            </label>
+            {form.photoUrl ? (
+              <>
+                <img className="h-12 w-12 rounded-xl border border-border object-cover" src={form.photoUrl} alt="Waste evidence preview" />
+                <button className="btn-secondary h-8 px-3 text-xs text-rose-700" type="button" onClick={() => update("photoUrl", "")}>Remove</button>
+              </>
+            ) : <span className="type-caption font-semibold text-text-muted">Optional evidence</span>}
+          </div>
+          {photoError ? <div className="mt-1 type-caption font-semibold text-amber-700">{photoError}</div> : null}
+        </div>
       </div>
     </Modal>
   );
@@ -2181,6 +2222,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [collapsedParCategoryIds, setCollapsedParCategoryIds] = useState(() => new Set());
   const [parLevelOutletId, setParLevelOutletId] = useState(outlets[0]?.id ?? "");
   const [poFilters, setPoFilters] = useState({ outletId: "all", supplierId: "all", status: "all", source: "all", search: "", from: "", to: "" });
+  const [wasteFilters, setWasteFilters] = useState({ wasteType: "all", from: "", to: "", search: "" });
   const [date, setDate] = useState(todayInput());
   const [modal, setModal] = useState(null);
   const [activeCheckGroupId, setActiveCheckGroupId] = useState(null);
@@ -2199,7 +2241,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }, [outlets, parLevelOutletId]);
 
   useEffect(() => {
-    if (activeTab !== "groups") return;
+    if (!["groups", "waste"].includes(activeTab)) return;
     if (!outlets.length) return;
     const canViewAllOutlets = isProtectedRole(auth);
     if (selectedOutletId !== "all" && !outlets.some((outlet) => outlet.id === selectedOutletId)) {
@@ -2609,6 +2651,15 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       return;
     }
     setModal({ type: "group", outletId: selectedOutletId });
+  }
+
+  function openRecordWaste() {
+    if (!requirePermission(can.recordWaste, "record waste")) return;
+    if (selectedOutletId === "all") {
+      notify("Select an outlet first", "Select an outlet before recording waste.", "warning");
+      return;
+    }
+    setModal({ type: "waste", outletId: selectedOutletId });
   }
 
   function archiveGroup(groupId) {
@@ -4078,57 +4129,118 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     if (!can.viewWaste) {
       return <EmptyState title="Permission required" description="You do not have permission to view Waste & Variance." />;
     }
-    const wasteValue = data.waste.reduce((sum, row) => sum + Number(row.value || 0), 0);
+    const canViewAllOutlets = isProtectedRole(auth);
+    const outletOptions = [
+      ...(canViewAllOutlets ? [{ value: "all", label: "All Outlets" }] : []),
+      ...outlets.map((outlet) => ({ value: outlet.id, label: outlet.name })),
+    ];
+    const filteredWaste = data.waste.filter((row) => {
+      const item = itemById.get(row.itemId);
+      const category = categoryById.get(item?.categoryId);
+      const searchText = `${item?.name || ""} ${item?.sku || ""} ${category?.name || ""} ${row.notes || ""} ${outletById.get(row.outletId)?.name || ""}`.toLowerCase();
+      const matchesOutlet = selectedOutletId === "all" || row.outletId === selectedOutletId;
+      const matchesType = wasteFilters.wasteType === "all" || row.wasteType === wasteFilters.wasteType;
+      const matchesFrom = !wasteFilters.from || row.date >= wasteFilters.from;
+      const matchesTo = !wasteFilters.to || row.date <= wasteFilters.to;
+      const matchesSearch = !wasteFilters.search.trim() || searchText.includes(wasteFilters.search.trim().toLowerCase());
+      return matchesOutlet && matchesType && matchesFrom && matchesTo && matchesSearch;
+    });
+    const wasteValue = filteredWaste.reduce((sum, row) => sum + Number(row.value || 0), 0);
+    const typeCounts = wasteTypes.map((type) => ({
+      type,
+      count: filteredWaste.filter((row) => row.wasteType === type).length,
+    }));
+    const categoryTotals = new Map();
+    const itemTotals = new Map();
+    filteredWaste.forEach((row) => {
+      const item = itemById.get(row.itemId);
+      const categoryName = categoryById.get(item?.categoryId)?.name || "Uncategorized";
+      categoryTotals.set(categoryName, (categoryTotals.get(categoryName) || 0) + Number(row.quantity || 0));
+      itemTotals.set(item?.name || "Inventory item", (itemTotals.get(item?.name || "Inventory item") || 0) + Number(row.quantity || 0));
+    });
+    const topCategory = [...categoryTotals.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || "No data";
+    const topItem = [...itemTotals.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || "No data";
+    const updateWasteFilter = (key, value) => setWasteFilters((current) => ({ ...current, [key]: value }));
     return (
       <div className="space-y-4">
+        <div className="card grid gap-3 p-3 lg:grid-cols-[220px_180px_170px_170px_1fr] lg:items-end">
+          <SelectField label="Outlet" value={selectedOutletId} options={outletOptions} onChange={setSelectedOutletId} searchable />
+          <SelectField label="Waste Type" value={wasteFilters.wasteType} options={[{ value: "all", label: "All Waste Types" }, ...wasteTypes.map((type) => ({ value: type, label: type }))]} onChange={(value) => updateWasteFilter("wasteType", value)} />
+          <DatePickerField label="From" value={wasteFilters.from} onChange={(value) => updateWasteFilter("from", value)} />
+          <DatePickerField label="To" value={wasteFilters.to} onChange={(value) => updateWasteFilter("to", value)} />
+          <label>
+            <div className="mb-1 type-caption font-semibold text-text-secondary">Search item/record</div>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
+              <input className="control h-9 w-full pl-9 text-[13px]" value={wasteFilters.search} onChange={(event) => updateWasteFilter("search", event.target.value)} placeholder="Search item, category, note" />
+            </div>
+          </label>
+        </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="Waste Value" value={toCurrency(wasteValue)} helper="Recorded waste value" tone={wasteValue ? "warning" : "success"} />
-          <MetricCard label="Waste % of Inventory" value={dashboard.inventoryValue ? `${((wasteValue / dashboard.inventoryValue) * 100).toFixed(1)}%` : "0%"} helper="Against estimated inventory value" />
-          <MetricCard label="Highest Waste Outlet" value={outlets[0]?.name ?? "-"} helper="Based on current records" />
+          <MetricCard label="Waste Records" value={filteredWaste.length} helper="Matching current filters" tone={filteredWaste.length ? "warning" : "success"} />
+          <MetricCard label={selectedOutletId === "all" ? "Highest Waste Category" : "Highest Waste Item"} value={selectedOutletId === "all" ? topCategory : topItem} helper="Based on quantity recorded" />
           <MetricCard label="Unexplained Loss %" value="0%" helper="No unexplained loss logged" />
         </div>
-        <SectionCard
-          title="Waste & Variance Insights"
-          description="Rule-based operational signals for leakage and stock variance."
-          action={<button className="btn-primary" type="button" onClick={() => requirePermission(can.recordWaste, "record waste") && setModal({ type: "waste" })}>Record Waste</button>}
-        >
+        <DashboardSection title="Operational Insights" subtitle="Rule-based signals for leakage and stock variance.">
           <div className="grid gap-3 xl:grid-cols-3">
             {[
-              "Oil usage variance will appear after recipe usage is connected.",
-              "Stock check misses will appear when due checks become overdue.",
-              "Top wasted items will appear after waste movements are recorded.",
+              "Top wasted items will appear after records are created.",
+              "Recurring spoilage patterns will appear after more operational data is collected.",
+              "Variance trends will appear after stock checks are completed.",
             ].map((insight) => (
               <div key={insight} className="rounded-2xl border border-primary/15 bg-primary/5 p-3">
-                <div className="flex items-center gap-2 font-bold text-text-primary"><Sparkles size={15} className="text-primary" /> AI-style insight</div>
+                <div className="flex items-center gap-2 type-body-sm font-bold text-text-primary"><Sparkles size={15} className="text-primary" /> Operational signal</div>
                 <p className="mt-2 type-body-sm text-text-secondary">{insight}</p>
               </div>
             ))}
           </div>
-        </SectionCard>
-        <SectionCard title="Waste Types" description="Spoilage, expired stock, kitchen error and unexplained leakage.">
-          <div className="flex flex-wrap gap-2">{wasteTypes.map((type) => <Badge key={type} tone="neutral">{type}</Badge>)}</div>
-        </SectionCard>
-        <SectionCard title="Waste Records" description="Recorded waste entries for the selected outlet scope.">
-          {data.waste.length ? (
-            <div className="space-y-2">
-              {data.waste.filter((row) => selectedOutletId === "all" || row.outletId === selectedOutletId).map((row) => {
+        </DashboardSection>
+        <DashboardSection title="Waste Types" subtitle="Current waste mix across the selected outlet and filter range." density="compact">
+          <div className="flex flex-wrap gap-2">{typeCounts.map(({ type, count }) => <Badge key={type} tone={count ? "warning" : "neutral"}>{type} ({count})</Badge>)}</div>
+        </DashboardSection>
+        <DashboardSection title="Waste Records" subtitle="Outlet-scoped waste entries and future audit trail structure.">
+          {filteredWaste.length ? (
+            <div className="overflow-x-auto rounded-2xl border border-border">
+              <table className="w-full min-w-[980px] text-left">
+                <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
+                  <tr>
+                    <th className="px-3 py-2">Date</th>
+                    <th>Item</th>
+                    <th>Category</th>
+                    <th>Waste Type</th>
+                    <th>Qty</th>
+                    <th>Outlet</th>
+                    <th>Recorded By</th>
+                    <th>Notes</th>
+                    <th>Evidence</th>
+                    <th>Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border text-[13px]">
+                  {filteredWaste.map((row) => {
                 const item = itemById.get(row.itemId);
+                const category = categoryById.get(item?.categoryId);
                 return (
-                  <div key={row.id} className="flex items-center justify-between rounded-2xl border border-border px-3 py-2.5">
-                    <div>
-                      <div className="type-body-sm font-bold text-text-primary">{item?.name ?? "Inventory item"}</div>
-                      <div className="type-caption text-text-secondary">{formatDate(row.date)} · {row.wasteType} · {outletById.get(row.outletId)?.name}</div>
-                    </div>
-                    <div className="text-right">
-                      <div className="font-bold text-text-primary">{row.quantity} {item?.unit}</div>
-                      <div className="type-caption text-text-secondary">{toCurrency(row.value)}</div>
-                    </div>
-                  </div>
+                    <tr key={row.id}>
+                      <td className="px-3 py-2 font-semibold text-text-primary">{formatDate(row.date)}</td>
+                      <td className="font-bold text-text-primary">{item?.name ?? "Inventory item"}</td>
+                      <td>{category?.name || "Uncategorized"}</td>
+                      <td><Badge tone="warning">{row.wasteType}</Badge></td>
+                      <td className="font-semibold">{row.quantity} {item?.unit}</td>
+                      <td>{outletById.get(row.outletId)?.name || "Outlet"}</td>
+                      <td>{row.user || row.recordedBy || "Current User"}</td>
+                      <td className="max-w-52 truncate">{row.notes || "-"}</td>
+                      <td>{row.photoUrl || row.photo_url ? <Badge tone="info">Photo</Badge> : <span className="type-caption text-text-muted">No evidence</span>}</td>
+                      <td><button className="btn-secondary h-8 px-2.5 text-xs" type="button">View</button></td>
+                    </tr>
                 );
               })}
+                </tbody>
+              </table>
             </div>
-          ) : <EmptyState title="No waste recorded yet." description="Waste and variance records will appear here." />}
-        </SectionCard>
+          ) : <EmptyState title={selectedOutletId === "all" ? "No waste records for the current filters." : "No waste records for this outlet and filter range."} description="Record spoilage, expiry or kitchen error to begin tracking operational leakage." />}
+        </DashboardSection>
       </div>
     );
   }
@@ -4196,7 +4308,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       return <button className="btn-primary" type="button" onClick={() => requirePermission(can.recordMovement, "record inventory movements") && setModal({ type: "movement" })}><RefreshCw size={15} /> Record Movement</button>;
     }
     if (activeTab === "waste") {
-      return <button className="btn-primary" type="button" onClick={() => requirePermission(can.recordWaste, "record waste") && setModal({ type: "waste" })}>Record Waste</button>;
+      return <button className="btn-primary" type="button" onClick={openRecordWaste}>Record Waste</button>;
     }
     return (
       <button className="btn-secondary" type="button" onClick={() => requirePermission(can.export, "export inventory")}>
@@ -4265,7 +4377,14 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       {modal?.type === "skip-check-row" ? <SkipReasonModal itemName={modal.itemName} onClose={() => setModal(null)} onSave={(reason) => skipCheckRow(modal.rowIndex, reason)} /> : null}
       {modal?.type === "request" ? <RequestModal outlets={outlets} items={data.items} categories={sortedCategories} suppliers={suppliers} onClose={() => setModal(null)} onSave={saveRequest} /> : null}
       {modal?.type === "movement" ? <MovementModal outlets={outlets} items={data.items} onClose={() => setModal(null)} onSave={saveMovement} /> : null}
-      {modal?.type === "waste" ? <WasteModal outlets={outlets} items={data.items} onClose={() => setModal(null)} onSave={saveWaste} /> : null}
+      {modal?.type === "waste" ? (
+        <WasteModal
+          outlet={outletById.get(modal.outletId || selectedOutletId)}
+          items={data.items.filter((item) => item.status === "active" && itemHasActiveOutletLink(item, modal.outletId || selectedOutletId))}
+          onClose={() => setModal(null)}
+          onSave={saveWaste}
+        />
+      ) : null}
       {modal?.type === "po-edit" ? <PurchaseOrderEditModal order={modal.order} suppliers={suppliers} items={data.items} onClose={() => setModal(null)} onSave={savePurchaseOrder} /> : null}
       {modal?.type === "po-receive" ? (
         <ReceiveInventoryModal
