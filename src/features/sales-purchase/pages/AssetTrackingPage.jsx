@@ -27,6 +27,11 @@ const quickFilterLabels = {
   all: "All Assets",
   scheduled_maintenance: "Scheduled Maintenance",
   maintenance_due: "Maintenance Due",
+  under_maintenance: "Under Maintenance",
+  needs_attention: "Needs Attention",
+  low_quantity: "Low Quantity",
+  missing: "Missing",
+  disposed: "Disposed",
   inspected_today: "Recently Inspected",
   high_variance: "High Variance",
   no_photo: "No Photo",
@@ -2358,6 +2363,11 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       if (quickFilter === "all") return true;
       if (quickFilter === "scheduled_maintenance") return (maintenanceByAsset.get(asset.id) || []).some((record) => record.status === "scheduled");
       if (quickFilter === "maintenance_due") return assetSignalsById.get(asset.id)?.maintenanceDue === true;
+      if (quickFilter === "under_maintenance") return normalizeAssetCondition(asset.condition) === "under_maintenance";
+      if (quickFilter === "needs_attention") return normalizeAssetCondition(asset.condition) === "needs_attention";
+      if (quickFilter === "low_quantity") return normalizeAssetCondition(asset.condition) === "low_quantity";
+      if (quickFilter === "missing") return normalizeAssetCondition(asset.condition) === "missing";
+      if (quickFilter === "disposed") return normalizeAssetCondition(asset.condition) === "disposed";
       if (quickFilter === "high_variance") return assetSignalsById.get(asset.id)?.highVariance === true;
       if (quickFilter === "no_photo") return !asset.image_url && !asset.thumbnail_url;
       if (quickFilter === "inspected_today") {
@@ -2692,8 +2702,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
   }
 
   function applyConditionFilter(condition) {
-    setQuickFilter("all");
-    setStatusFilter((current) => current === condition ? "all" : condition);
+    setQuickFilter((current) => current === condition ? "all" : condition);
   }
 
   return (
@@ -2716,7 +2725,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
         <div className="grid gap-3 xl:grid-cols-[1fr_1fr_1fr_1.4fr] xl:items-end">
           <FieldLabel label="Outlet"><SelectField value={outletId} options={activeOutlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={setOutletId} /></FieldLabel>
           <FieldLabel label="Category"><SelectField value={categoryFilter} options={[{ value: "all", label: "All Categories" }, ...categories.filter((category) => category.is_active).map((category) => ({ value: category.id, label: category.name }))]} onChange={setCategoryFilter} searchable /></FieldLabel>
-          <FieldLabel label="Condition"><SelectField value={statusFilter} options={[{ value: "all", label: "All Conditions" }, ...assetConditions.map((condition) => ({ value: condition, label: assetConditionLabel(condition) }))]} onChange={setStatusFilter} /></FieldLabel>
+          <FieldLabel label="Condition"><SelectField value={statusFilter} options={[{ value: "all", label: "All Conditions" }, ...assetConditions.map((condition) => ({ value: condition, label: assetConditionLabel(condition) }))]} onChange={(value) => { setQuickFilter("all"); setStatusFilter(value); }} /></FieldLabel>
           <FieldLabel label="Search Asset"><div className="relative"><Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} /><input className="control h-10 pl-9" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search asset name..." /></div></FieldLabel>
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
@@ -2850,7 +2859,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
                 ["Disposed", operationalKpis.disposed, "Written off / no longer operational", { type: "condition", value: "disposed" }, "bg-slate-50 text-slate-600 border-slate-200"],
                 ["Recently Inspected", operationalKpis.recentlyInspected, "Checked today", { type: "quick", value: "inspected_today" }, "bg-emerald-50 text-emerald-700 border-emerald-100"],
               ].map(([label, value, helper, filter, className]) => {
-                const active = filter.type === "condition" ? statusFilter === filter.value : quickFilter === filter.value;
+                const active = quickFilter === filter.value;
                 const muted = Number(value) === 0;
                 return (
                 <button
