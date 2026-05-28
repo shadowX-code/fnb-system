@@ -3574,6 +3574,16 @@ Shared UI foundation primitives:
 - StatusBadge: shared semantic badge primitive for lifecycle, condition, alert, maintenance, inspection, inventory, and dashboard states.
 - MetricCard: shared KPI/summary card primitive with default, primary, warning, danger, info, and neutral variants plus compact and standard sizes.
 
+FloatingLayer migration status:
+
+- SupplierCombobox uses FloatingLayer for supplier search dropdowns.
+- FilterPopover uses FloatingLayer for filter option popovers.
+- AppShell notification popover uses FloatingLayer.
+- AppShell profile/theme popover uses FloatingLayer.
+- AppShell sidebar profile popover uses FloatingLayer.
+- New dropdowns, action menus, contextual popovers, date pickers, and tooltips must use FloatingLayer by default unless a stronger shared primitive already wraps it.
+- New overlays must not use arbitrary `z-[9999]` style values or page-local `createPortal` positioning unless documented as a temporary migration exception.
+
 Typography tokens:
 
 ```text

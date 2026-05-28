@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, ChevronDown, X } from "lucide-react";
+import FloatingLayer from "../ui/FloatingLayer.jsx";
 
 function normalizeValue(value, multiple) {
   if (multiple) return Array.isArray(value) ? value : value ? [value] : [];
@@ -38,25 +39,6 @@ export default function FilterPopover({
     if (!isOpen) return;
     setDraftValue(selectedValue);
   }, [isOpen, selectedValue]);
-
-  useEffect(() => {
-    if (!isOpen) return undefined;
-
-    function handlePointerDown(event) {
-      if (!containerRef.current?.contains(event.target)) setIsOpen(false);
-    }
-
-    function handleKeyDown(event) {
-      if (event.key === "Escape") setIsOpen(false);
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [isOpen]);
 
   function toggleOption(optionValue) {
     if (!multiple) {
@@ -100,51 +82,59 @@ export default function FilterPopover({
         <ChevronDown className={`shrink-0 text-text-muted transition ${isOpen ? "rotate-180" : ""}`} size={15} />
       </button>
 
-      {isOpen ? (
-        <>
-          <div className="fixed inset-x-0 bottom-0 z-50 max-h-[78vh] rounded-t-3xl border border-border bg-white p-3 shadow-2xl animate-in slide-in-from-bottom-2 duration-150 sm:absolute sm:inset-auto sm:left-0 sm:top-[calc(100%+8px)] sm:w-72 sm:rounded-2xl sm:p-2 sm:shadow-xl sm:animate-in sm:fade-in-0 sm:zoom-in-95">
-            <div className="mb-2 flex items-center justify-between px-1 sm:hidden">
-              <div>
-                <div className="text-sm font-bold text-text-primary">{label}</div>
-                <div className="text-xs text-text-secondary">{placeholder}</div>
-              </div>
-              <button className="icon-btn" type="button" onClick={() => setIsOpen(false)} aria-label="Close filter">
-                <X size={15} />
-              </button>
-            </div>
-            <div className="max-h-[52vh] space-y-1 overflow-y-auto pr-1 sm:max-h-72">
-              {options.map((option) => {
-                const checked = multiple ? draftValue.includes(option.value) : draftValue === option.value;
-                return (
-                  <button
-                    key={option.value}
-                    className={`flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm transition ${
-                      checked ? "bg-primary/10 text-primary" : "text-text-secondary hover:bg-slate-50 hover:text-text-primary"
-                    }`}
-                    type="button"
-                    onClick={() => toggleOption(option.value)}
-                  >
-                    <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
-                      checked ? "border-primary bg-primary text-white" : "border-slate-300 bg-white"
-                    }`}>
-                      {checked ? <Check size={12} strokeWidth={3} /> : null}
-                    </span>
-                    <span className="font-semibold">{option.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-            <div className="mt-2 flex items-center justify-between border-t border-border pt-2">
-              <button className="h-8 rounded-xl px-2.5 text-xs font-bold text-text-secondary transition hover:bg-slate-50 hover:text-text-primary" type="button" onClick={clearSelection}>
-                Clear
-              </button>
-              <button className="h-8 rounded-xl bg-primary px-3 text-xs font-bold text-white transition hover:bg-primary/90" type="button" onClick={applySelection}>
-                Apply
-              </button>
-            </div>
+      <FloatingLayer
+        open={isOpen}
+        onOpenChange={setIsOpen}
+        anchorRef={containerRef}
+        align="start"
+        offset={8}
+        width={288}
+        minWidth={240}
+        estimatedHeight={360}
+        maxHeight={520}
+        mobileSheet
+        className="p-2 sm:rounded-2xl"
+      >
+        <div className="mb-2 flex items-center justify-between px-1 sm:hidden">
+          <div>
+            <div className="text-sm font-bold text-text-primary">{label}</div>
+            <div className="text-xs text-text-secondary">{placeholder}</div>
           </div>
-        </>
-      ) : null}
+          <button className="icon-btn" type="button" onClick={() => setIsOpen(false)} aria-label="Close filter">
+            <X size={15} />
+          </button>
+        </div>
+        <div className="max-h-[52vh] space-y-1 overflow-y-auto pr-1 sm:max-h-72">
+          {options.map((option) => {
+            const checked = multiple ? draftValue.includes(option.value) : draftValue === option.value;
+            return (
+              <button
+                key={option.value}
+                className={`flex w-full items-center gap-2 rounded-xl px-2.5 py-2 text-left text-sm transition ${
+                  checked ? "bg-primary/10 text-primary" : "text-text-secondary hover:bg-slate-50 hover:text-text-primary"
+                }`}
+                type="button"
+                onClick={() => toggleOption(option.value)}
+              >
+                <span className={`flex h-4 w-4 shrink-0 items-center justify-center rounded border ${
+                  checked ? "border-primary bg-primary text-white" : "border-slate-300 bg-white"
+                }`}>
+                  {checked ? <Check size={12} strokeWidth={3} /> : null}
+                </span>
+                <span className="font-semibold">{option.label}</span>
+              </button>
+            );
+          })}
+        </div>
+        <div className="mt-2 flex items-center justify-between border-t border-border pt-2">
+          <button className="h-8 rounded-xl px-2.5 text-xs font-bold text-text-secondary transition hover:bg-slate-50 hover:text-text-primary" type="button" onClick={clearSelection}>
+            Clear
+          </button>
+          <button className="h-8 rounded-xl bg-primary px-3 text-xs font-bold text-white transition hover:bg-primary/90" type="button" onClick={applySelection}>
+            Apply
+          </button>
+        </div>
+      </FloatingLayer>
     </div>
   );
 }

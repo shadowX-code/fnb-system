@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AlertTriangle, BarChart3, Bell, Boxes, Building2, CalendarDays, Check, ChevronsDownUp, ChevronsUpDown, ChevronDown, ClipboardCheck, ClipboardList, Download, FileText, KeyRound, LogOut, Menu, Monitor, Moon, PackageCheck, PackagePlus, PieChart, RefreshCw, Settings, Shield, ShoppingCart, Sun, Truck, UserRound, Users, Wallet, X } from "lucide-react";
 import Modal from "../components/feedback/Modal.jsx";
 import Badge from "../components/ui/Badge.jsx";
+import FloatingLayer from "../components/ui/FloatingLayer.jsx";
 import { EMPLOYEE_ACCESS_STATE, EMPLOYEE_ACCESS_STATE_LABEL } from "../constants/employeeAccessStates.js";
 import { buildAlerts, getPreviousPeriod, getSupplierName, percentageChange, toPercent } from "../features/sales-purchase/utils/analytics.js";
 import { formatDateTime } from "../lib/dateTime.js";
@@ -150,7 +151,7 @@ function NotificationPopover({ items, onClose }) {
   })).filter((group) => group.items.length);
 
   return (
-    <div className="absolute right-0 top-11 z-50 w-[360px] origin-top-right rounded-2xl border border-border bg-white shadow-xl ring-1 ring-black/5 animate-in fade-in zoom-in-95">
+    <div>
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div>
           <div className="text-sm font-bold text-text-primary">Notifications</div>
@@ -210,7 +211,7 @@ function getSystemTheme() {
 
 function ThemeMenu({ themeChoice, resolvedTheme, onThemeChange, onLogout }) {
   return (
-    <div className="absolute right-0 top-10 z-50 w-[260px] origin-top-right rounded-2xl border border-border bg-surface p-2 shadow-xl ring-1 ring-black/5 animate-in fade-in zoom-in-95">
+    <div>
       <div className="px-2 py-2">
         <div className="text-sm font-bold text-text-primary">Workspace Theme</div>
         <div className="mt-1 text-xs text-text-secondary">Current appearance: {resolvedTheme === "dark" ? "Dark" : "Light"}</div>
@@ -454,7 +455,7 @@ function SidebarProfilePopover({ auth, onViewProfile, onChangePassword, onSignOu
   const workplace = profile.workplace || profile.outlet_name || profile.workplace_name || "—";
 
   return (
-    <div className="absolute bottom-full left-3 right-3 z-[70] mb-2 rounded-2xl border border-border bg-surface p-3 shadow-xl ring-1 ring-black/5 animate-in fade-in zoom-in-95">
+    <div>
       <div className="flex items-start gap-3 border-b border-border pb-3">
         <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl bg-primary/15 text-sm font-bold text-primary">
           {getProfileInitials(profile, auth?.user)}
@@ -512,7 +513,9 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
     }
   });
   const [systemTheme, setSystemTheme] = useState(getSystemTheme);
-  const notificationRef = useRef(null);
+  const notificationButtonRef = useRef(null);
+  const profileButtonRef = useRef(null);
+  const sidebarProfileButtonRef = useRef(null);
   const activeSectionLabel = useMemo(
     () => sections.find((section) => section.items.some((item) => item.id === activeRouteId))?.label,
     [activeRouteId, sections],
@@ -594,32 +597,6 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
     setMobileSidebarOpen(false);
     setSidebarProfileOpen(false);
   }
-
-  useEffect(() => {
-    if (!notificationsOpen && !profileMenuOpen && !sidebarProfileOpen) return undefined;
-    function handlePointerDown(event) {
-      if (!notificationRef.current?.contains(event.target)) {
-        setNotificationsOpen(false);
-        setProfileMenuOpen(false);
-      }
-      if (!event.target.closest?.("[data-sidebar-profile-menu]")) {
-        setSidebarProfileOpen(false);
-      }
-    }
-    function handleKeyDown(event) {
-      if (event.key === "Escape") {
-        setNotificationsOpen(false);
-        setProfileMenuOpen(false);
-        setSidebarProfileOpen(false);
-      }
-    }
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [notificationsOpen, profileMenuOpen, sidebarProfileOpen]);
 
   useEffect(() => {
     if (!mobileSidebarOpen) return undefined;
@@ -730,6 +707,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
 
       <div className="relative border-t border-border p-3" data-sidebar-profile-menu>
         <button
+          ref={sidebarProfileButtonRef}
           className={`flex w-full items-center gap-2.5 rounded-2xl p-2.5 text-left transition ${
             sidebarProfileOpen ? "bg-primary/10 ring-1 ring-primary/20" : "bg-slate-50 hover:bg-primary/5"
           }`}
@@ -751,7 +729,18 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
           </div>
           <ChevronDown size={15} className={`ml-auto text-text-muted transition-transform ${sidebarProfileOpen ? "rotate-180" : ""}`} />
         </button>
-        {sidebarProfileOpen ? (
+        <FloatingLayer
+          open={sidebarProfileOpen}
+          onOpenChange={setSidebarProfileOpen}
+          anchorRef={sidebarProfileButtonRef}
+          align="start"
+          placement="top"
+          offset={8}
+          width={260}
+          minWidth={240}
+          estimatedHeight={300}
+          className="p-3"
+        >
           <SidebarProfilePopover
             auth={auth}
             onViewProfile={() => {
@@ -769,7 +758,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
               onLogout();
             }}
           />
-        ) : null}
+        </FloatingLayer>
       </div>
     </>
   );
@@ -821,8 +810,9 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
                 Smart Operations Workspace
               </div>
             </div>
-            <div className="relative ml-auto flex items-center gap-2" ref={notificationRef}>
+            <div className="relative ml-auto flex items-center gap-2">
               <button
+                ref={notificationButtonRef}
                 className={`icon-btn relative ${notificationsOpen ? "border-primary/30 bg-primary/5 text-primary" : ""}`}
                 type="button"
                 aria-label="Notifications"
@@ -840,6 +830,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
                 ) : null}
               </button>
               <button
+                ref={profileButtonRef}
                 className={`h-8 w-8 rounded-full text-xs font-bold transition ${profileMenuOpen ? "bg-primary text-white" : "bg-primary/15 text-primary hover:bg-primary/20"}`}
                 type="button"
                 title={auth?.profile?.full_name ?? auth?.user?.email ?? "Profile"}
@@ -850,8 +841,31 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
               >
                 {(auth?.profile?.full_name ?? auth?.user?.email ?? "U").slice(0, 1).toUpperCase()}
               </button>
-              {notificationsOpen ? <NotificationPopover items={notificationItems} onClose={() => setNotificationsOpen(false)} /> : null}
-              {profileMenuOpen ? (
+              <FloatingLayer
+                open={notificationsOpen}
+                onOpenChange={setNotificationsOpen}
+                anchorRef={notificationButtonRef}
+                align="end"
+                offset={8}
+                width={360}
+                minWidth={320}
+                estimatedHeight={500}
+                maxHeight={560}
+                className="p-0"
+              >
+                <NotificationPopover items={notificationItems} onClose={() => setNotificationsOpen(false)} />
+              </FloatingLayer>
+              <FloatingLayer
+                open={profileMenuOpen}
+                onOpenChange={setProfileMenuOpen}
+                anchorRef={profileButtonRef}
+                align="end"
+                offset={8}
+                width={260}
+                minWidth={240}
+                estimatedHeight={320}
+                className="p-2"
+              >
                 <ThemeMenu
                   themeChoice={themeChoice}
                   resolvedTheme={resolvedTheme}
@@ -861,7 +875,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
                   }}
                   onLogout={onLogout}
                 />
-              ) : null}
+              </FloatingLayer>
             </div>
           </div>
         </header>

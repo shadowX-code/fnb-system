@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { Check, ChevronDown, Plus, Search, X } from "lucide-react";
+import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
 
 function normalize(value) {
   return String(value ?? "").toLowerCase().replace(/[^a-z0-9]/g, "");
@@ -34,9 +34,7 @@ export default function SupplierCombobox({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(selected?.name ?? "");
   const [activeIndex, setActiveIndex] = useState(0);
-  const [position, setPosition] = useState(null);
   const wrapperRef = useRef(null);
-  const dropdownRef = useRef(null);
   const inputRef = useRef(null);
 
   useEffect(() => {
@@ -48,36 +46,6 @@ export default function SupplierCombobox({
       window.setTimeout(() => inputRef.current?.focus(), 0);
     }
   }, [autoFocus, disabled]);
-
-  useEffect(() => {
-    function handleClick(event) {
-      if (wrapperRef.current?.contains(event.target) || dropdownRef.current?.contains(event.target)) return;
-      setOpen(false);
-    }
-    document.addEventListener("mousedown", handleClick);
-    return () => document.removeEventListener("mousedown", handleClick);
-  }, []);
-
-  useEffect(() => {
-    function updatePosition() {
-      const rect = wrapperRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      setPosition({
-        left: rect.left,
-        top: rect.bottom + 6,
-        width: Math.min(rect.width, 320),
-      });
-    }
-
-    if (!open) return undefined;
-    updatePosition();
-    window.addEventListener("resize", updatePosition);
-    window.addEventListener("scroll", updatePosition, true);
-    return () => {
-      window.removeEventListener("resize", updatePosition);
-      window.removeEventListener("scroll", updatePosition, true);
-    };
-  }, [open]);
 
   const options = useMemo(
     () => suppliers.filter((supplier) => supplier.status === "active" && fuzzyMatch(supplier, query)).slice(0, 8),
@@ -159,53 +127,55 @@ export default function SupplierCombobox({
         </div>
       </div>
 
-      {open && !disabled && position
-        ? createPortal(
-            <div
-              ref={dropdownRef}
-              className="fixed z-[9999] overflow-hidden rounded-xl border border-border bg-surface shadow-2xl ring-1 ring-slate-900/5"
-              style={{ left: position.left, top: position.top, width: position.width }}
+      <FloatingLayer
+        open={open && !disabled}
+        onOpenChange={setOpen}
+        anchorRef={wrapperRef}
+        align="start"
+        offset={6}
+        width={Math.min(wrapperRef.current?.getBoundingClientRect?.().width || 320, 320)}
+        minWidth={Math.min(wrapperRef.current?.getBoundingClientRect?.().width || 224, 320)}
+        estimatedHeight={288}
+        maxHeight={288}
+        className="overflow-hidden rounded-xl p-0"
+      >
+        <div className="max-h-72 overflow-y-auto py-1">
+          {options.map((supplier, index) => (
+            <button
+              key={supplier.id}
+              type="button"
+              className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition ${
+                index === activeIndex ? "bg-primary/[0.06] text-text-primary" : "hover:bg-slate-50"
+              }`}
+              onMouseEnter={() => setActiveIndex(index)}
+              onClick={() => selectSupplier(supplier)}
             >
-              <div className="max-h-72 overflow-y-auto py-1">
-                {options.map((supplier, index) => (
-                  <button
-                    key={supplier.id}
-                    type="button"
-                    className={`flex w-full items-center justify-between gap-3 px-3 py-2 text-left text-sm transition ${
-                      index === activeIndex ? "bg-primary/[0.06] text-text-primary" : "hover:bg-slate-50"
-                    }`}
-                    onMouseEnter={() => setActiveIndex(index)}
-                    onClick={() => selectSupplier(supplier)}
-                  >
-                    <span className="min-w-0 truncate font-semibold">{supplier.name}</span>
-                    {supplier.id === value ? <Check className="text-primary" size={14} /> : null}
-                  </button>
-                ))}
+              <span className="min-w-0 truncate font-semibold">{supplier.name}</span>
+              {supplier.id === value ? <Check className="text-primary" size={14} /> : null}
+            </button>
+          ))}
 
-                {loading ? (
-                  <div className="px-3 py-3 text-sm font-semibold text-text-secondary">Loading suppliers...</div>
-                ) : !options.length ? (
-                  <div className="px-3 py-3 text-sm text-text-secondary">No matching supplier found.</div>
-                ) : null}
+          {loading ? (
+            <div className="px-3 py-3 text-sm font-semibold text-text-secondary">Loading suppliers...</div>
+          ) : !options.length ? (
+            <div className="px-3 py-3 text-sm text-text-secondary">No matching supplier found.</div>
+          ) : null}
 
-                {canCreate ? (
-                  <button
-                    type="button"
-                    className={`flex w-full items-center gap-2 border-t border-border px-3 py-2 text-left text-sm font-semibold text-primary transition hover:bg-primary/5 ${
-                      activeIndex >= options.length ? "bg-primary/5" : ""
-                    }`}
-                    onMouseEnter={() => setActiveIndex(options.length)}
-                    onClick={createSupplier}
-                  >
-                    <Plus size={15} />
-                    Create new supplier "{query.trim()}"
-                  </button>
-                ) : null}
-              </div>
-            </div>,
-            document.body,
-          )
-        : null}
+          {canCreate ? (
+            <button
+              type="button"
+              className={`flex w-full items-center gap-2 border-t border-border px-3 py-2 text-left text-sm font-semibold text-primary transition hover:bg-primary/5 ${
+                activeIndex >= options.length ? "bg-primary/5" : ""
+              }`}
+              onMouseEnter={() => setActiveIndex(options.length)}
+              onClick={createSupplier}
+            >
+              <Plus size={15} />
+              Create new supplier "{query.trim()}"
+            </button>
+          ) : null}
+        </div>
+      </FloatingLayer>
     </div>
   );
 }
