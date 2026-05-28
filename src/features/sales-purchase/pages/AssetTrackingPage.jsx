@@ -110,16 +110,26 @@ function maintenanceStatusDateLabel(record) {
 }
 
 function LifecycleProgress({ status }) {
+  const currentIndex = Math.max(0, maintenanceStatuses.indexOf(status));
   return (
     <div className="flex items-center gap-1.5">
-      {maintenanceStatuses.map((step, index) => (
+      {maintenanceStatuses.map((step, index) => {
+        const completed = index < currentIndex;
+        const current = index === currentIndex;
+        return (
         <Fragment key={step}>
-          <span className={`rounded-full px-2 py-1 text-[10px] font-black ${status === step ? "bg-primary text-white" : "bg-slate-100 text-text-muted"}`}>
+          <span className={`rounded-full px-2 py-1 text-[10px] font-black transition ${
+            completed
+              ? "bg-emerald-100 text-emerald-700"
+              : current
+                ? "bg-primary text-white shadow-sm"
+                : "bg-slate-100 text-text-muted"
+          }`}>
             {maintenanceStatusLabel(step)}
           </span>
-          {index < maintenanceStatuses.length - 1 ? <span className="h-px w-4 bg-border" /> : null}
+          {index < maintenanceStatuses.length - 1 ? <span className={`h-px w-5 ${index < currentIndex ? "bg-emerald-300" : "bg-border"}`} /> : null}
         </Fragment>
-      ))}
+      );})}
     </div>
   );
 }
@@ -204,12 +214,79 @@ function assetNeedsAttention(asset) {
 function latestMovementSummary(movement) {
   if (!movement) return "—";
   const amount = Math.abs(Number(movement.quantity_change || 0));
-  if (movement.movement_type === "add") return `+${amount} added`;
-  if (movement.movement_type === "reduce") return `-${amount} removed`;
-  if (movement.movement_type === "correction") return "Inspection update";
-  if (movement.movement_type === "transfer_in") return `+${amount} transfer in`;
-  if (movement.movement_type === "transfer_out") return `-${amount} transfer out`;
-  return "Quantity adjusted";
+  const relative = formatRelativeDate(movement.movement_date);
+  if (movement.movement_type === "add") return `Quantity Adjusted · +${amount}`;
+  if (movement.movement_type === "reduce") return `Quantity Adjusted · -${amount}`;
+  if (movement.movement_type === "correction") return `Inspection · ${relative}`;
+  if (movement.movement_type === "transfer_in") return "Transfer · Received";
+  if (movement.movement_type === "transfer_out") return "Transfer · Sent";
+  return `Quantity Adjusted · ${relative}`;
+}
+
+function nextMaintenanceInfo(records = []) {
+  const candidates = records
+    .filter((record) => record.status !== "completed")
+    .map((record) => ({ record, date: record.scheduled_date || record.date }))
+    .filter((entry) => entry.date)
+    .sort((first, second) => new Date(first.date) - new Date(second.date));
+  if (!candidates.length) return { label: "No schedule", tone: "neutral", days: null, date: null };
+  const next = candidates[0];
+  const days = daysUntil(next.date);
+  if (days === null) return { label: "No schedule", tone: "neutral", days: null, date: null };
+  if (days < 0) return { label: `Overdue ${Math.abs(days)}d`, tone: "danger", days, date: next.date };
+  if (days === 0) return { label: "Due Today", tone: "warning", days, date: next.date };
+  if (days === 1) return { label: "Tomorrow", tone: "warning", days, date: next.date };
+  if (days <= 7) return { label: formatFullDate(next.date).replace(/\s\d{4}$/, ""), tone: "warning", days, date: next.date };
+  return { label: formatFullDate(next.date).replace(/\s\d{4}$/, ""), tone: "success", days, date: next.date };
+}
+
+function getOperationalStatus(asset, records = []) {
+  const condition = asset.condition || "healthy";
+  if (["disposed", "inactive"].includes(condition) || asset.status === "archived") return { label: "Retired", tone: "neutral" };
+  if (condition === "missing" || condition === "damaged" || Number(asset.current_quantity || 0) <= 0) return { label: "Out of Service", tone: "danger" };
+  if (condition === "under_maintenance" || records.some((record) => record.status === "in_progress")) return { label: "Under Maintenance", tone: "info" };
+  return { label: "Operational", tone: "success" };
+}
+
+function calculateAssetHealth(asset, records = [], latestInspection, latestMovement) {
+  let score = 100;
+  const condition = asset.condition || "healthy";
+  const conditionPenalty = {
+    healthy: 0,
+    low_quantity: 14,
+    needs_review: 20,
+    under_maintenance: 24,
+    damaged: 36,
+    missing: 48,
+    disposed: 60,
+    inactive: 42,
+  };
+  score -= conditionPenalty[condition] ?? 0;
+  if (Number(asset.current_quantity || 0) <= 0) score -= 22;
+  if (Number(asset.minimum_quantity || 0) > 0 && Number(asset.current_quantity || 0) <= Number(asset.minimum_quantity || 0)) score -= 12;
+  score -= records.filter((record) => ["scheduled", "in_progress"].includes(record.status)).length * 8;
+  score -= records.filter(isMaintenanceOverdue).length * 18;
+  const inspectionItem = latestInspection?.items?.find((item) => item.asset_id === asset.id);
+  if (inspectionItem && Number(inspectionItem.difference || 0) !== 0) score -= 12;
+  if (!latestInspection && !asset.last_inspection_at) score -= 6;
+  if (!latestMovement && assetNeedsAttention(asset)) score -= 4;
+  return Math.max(5, Math.min(100, Math.round(score)));
+}
+
+function healthTone(score) {
+  if (score >= 80) return "success";
+  if (score >= 60) return "warning";
+  return "danger";
+}
+
+function healthColor(score) {
+  if (score >= 80) return "text-emerald-700 bg-emerald-50 border-emerald-100";
+  if (score >= 60) return "text-amber-700 bg-amber-50 border-amber-100";
+  return "text-rose-700 bg-rose-50 border-rose-100";
+}
+
+function assetNameById(assets = [], assetId) {
+  return assets.find((asset) => asset.id === assetId)?.name || "Asset";
 }
 
 function assetHoverInsight(asset, lastMovement, lastInspection) {
@@ -234,6 +311,19 @@ function FloatingLayer({ anchor, width = 190, align = "right", onClose, children
         {children}
       </div>
     </>,
+    document.body,
+  );
+}
+
+function FloatingPreviewLayer({ anchor, width = 300, children }) {
+  if (!anchor) return null;
+  const margin = 12;
+  const top = Math.min(anchor.bottom + 8, window.innerHeight - margin);
+  const left = Math.max(margin, Math.min(anchor.right - width, window.innerWidth - width - margin));
+  return createPortal(
+    <div className="pointer-events-none fixed z-[9970]" style={{ top, left, width }}>
+      {children}
+    </div>,
     document.body,
   );
 }
@@ -1050,6 +1140,78 @@ function MaintenanceRecordEditorPanel({ asset, record, onBack, onSubmit, saving 
   );
 }
 
+function MaintenanceRecordViewPanel({ asset, record, onBack, onEdit, onUpdateStatus }) {
+  const [dateLabel, dateValue] = maintenanceStatusDateLabel(record);
+  const photoLabel = record.photo_url ? "1 photo uploaded" : "No photo uploaded";
+  const costLabel = `RM ${Number(record.cost || 0).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+  const detailRows = [
+    ["Issue", record.issue || "No issue recorded"],
+    ["Action Taken", record.action_taken || "No action recorded yet"],
+    ["Vendor", record.vendor || "No vendor recorded"],
+    [dateLabel, record.status === "completed" ? <DateText value={dateValue} /> : <DateText value={dateValue} />],
+    ["Next Service", record.next_service_date ? <DateText value={record.next_service_date} /> : "No date set"],
+    ["Photo", photoLabel],
+  ];
+
+  return (
+    <div className="flex min-h-full flex-col">
+      <div className="sticky top-0 z-20 border-b border-border bg-white/95 p-5 backdrop-blur">
+        <button className="mb-3 text-xs font-black text-primary hover:text-primary/80" type="button" onClick={onBack}>← Back to Maintenance History</button>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <div className="text-xs font-black uppercase tracking-[0.16em] text-primary">Maintenance Record</div>
+            <h2 className="mt-1 text-2xl font-semibold text-text-primary">{maintenanceTypeLabel(record.maintenance_type)}</h2>
+            <p className="mt-1 text-sm font-semibold text-text-secondary">{asset.name} · {asset.category_name}</p>
+          </div>
+          <div className="flex flex-col items-end gap-1.5">
+            <Badge tone={maintenanceStatusTone(record.status)}>{maintenanceStatusLabel(record.status)}</Badge>
+            {record.status !== "completed" ? <Badge tone={priorityTone(record.priority)}>{titleCase(record.priority)}</Badge> : null}
+            <div className="text-sm font-black text-text-primary">{costLabel}</div>
+          </div>
+        </div>
+      </div>
+
+      <div className="flex-1 space-y-4 p-5">
+        <div className="rounded-3xl border border-border bg-white p-4 shadow-sm">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <div className="text-[11px] font-black uppercase tracking-wide text-text-muted">Lifecycle</div>
+              <div className="mt-1 text-sm font-bold text-text-primary">{maintenanceStatusLabel(record.status)} · {costLabel}</div>
+            </div>
+          </div>
+          <LifecycleProgress status={record.status} />
+        </div>
+
+        <div className="grid gap-3 sm:grid-cols-2">
+          {detailRows.map(([label, value]) => (
+            <div key={label} className="rounded-2xl border border-border bg-white p-3">
+              <div className="text-[10px] font-black uppercase tracking-wide text-text-muted">{label}</div>
+              <div className="mt-1 text-sm font-bold text-text-primary">{value}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="rounded-2xl border-l-4 border-primary/30 bg-slate-50 px-4 py-3">
+          <div className="text-[10px] font-black uppercase tracking-wide text-text-muted">Operational Note</div>
+          <div className="mt-1 text-sm font-semibold text-text-secondary">{record.remark || "No remark recorded."}</div>
+        </div>
+
+        {record.photo_url ? (
+          <div className="rounded-3xl border border-border bg-white p-3 shadow-sm">
+            <div className="mb-2 text-[10px] font-black uppercase tracking-wide text-text-muted">Photo Evidence</div>
+            <img className="max-h-72 w-full rounded-2xl object-cover" src={record.photo_url} alt="Maintenance evidence" />
+          </div>
+        ) : null}
+      </div>
+
+      <div className="sticky bottom-0 z-20 flex justify-end gap-2 border-t border-border bg-slate-50 p-4">
+        <button className="btn-secondary" type="button" onClick={onEdit}>Edit</button>
+        {record.status !== "completed" ? <button className="btn-primary" type="button" onClick={onUpdateStatus}>Update Status</button> : null}
+      </div>
+    </div>
+  );
+}
+
 function evidenceRecommended(row) {
   const diff = Number(row.counted_quantity || 0) - Number(row.asset.current_quantity || 0);
   return diff !== 0 || (row.condition_status || "healthy") !== "healthy";
@@ -1384,6 +1546,9 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
     groups[group] = [...(groups[group] || []), record];
     return groups;
   }, {});
+  const assetHealthScore = calculateAssetHealth(safeAsset, maintenanceRecords, latestInspection, movements[0]);
+  const operationalStatus = getOperationalStatus(safeAsset, maintenanceRecords);
+  const nextMaintenance = nextMaintenanceInfo(maintenanceRecords);
   const operationalSignals = [
     latestInspection ? `Last inspected ${formatRelativeDate(latestInspection.inspection_date).toLowerCase()}` : "No inspection yet",
     maintenanceEnabled ? `${activeMaintenance.length} active maintenance` : null,
@@ -1442,17 +1607,28 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
   }
 
   if (maintenanceEditor) {
+    const mode = maintenanceEditor.mode || "edit";
     return (
       <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30 backdrop-blur-[2px]" role="dialog" aria-modal="true">
         <button className="flex-1 cursor-default" type="button" aria-label="Close asset detail" onClick={onClose} />
         <aside className="flex h-full w-full max-w-[720px] flex-col border-l border-border bg-surface shadow-2xl">
-          <MaintenanceRecordEditorPanel
-            asset={asset}
-            record={maintenanceEditor.record}
-            saving={saving}
-            onBack={() => setMaintenanceEditor(null)}
-            onSubmit={handleMaintenanceSubmit}
-          />
+          {mode === "view" ? (
+            <MaintenanceRecordViewPanel
+              asset={asset}
+              record={maintenanceEditor.record}
+              onBack={() => setMaintenanceEditor(null)}
+              onEdit={() => setMaintenanceEditor((current) => ({ ...current, mode: "edit" }))}
+              onUpdateStatus={() => setMaintenanceEditor((current) => ({ ...current, mode: "edit" }))}
+            />
+          ) : (
+            <MaintenanceRecordEditorPanel
+              asset={asset}
+              record={maintenanceEditor.record}
+              saving={saving}
+              onBack={() => setMaintenanceEditor(maintenanceEditor.record ? { mode: "view", record: maintenanceEditor.record } : null)}
+              onSubmit={handleMaintenanceSubmit}
+            />
+          )}
         </aside>
       </div>
     );
@@ -1479,6 +1655,7 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
               </div>
             </div>
             <div className="flex shrink-0 items-start gap-2">
+              <Badge tone={operationalStatus.tone}>{operationalStatus.label}</Badge>
               <Badge tone={assetConditionTone(asset.condition)}>{assetConditionLabel(asset.condition)}</Badge>
               <button className="icon-btn" type="button" onClick={onClose}><X size={18} /></button>
             </div>
@@ -1486,9 +1663,9 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
           <div className="mt-4 flex gap-2">
             {detailTabs.map((item) => <button key={item} className={`rounded-full px-3 py-1.5 text-xs font-bold ${tab === item ? "bg-primary text-white" : "bg-background text-text-secondary"}`} type="button" onClick={() => setTab(item)}>{item === "movement" ? "Movement Log" : item === "inspection" ? "Inspection History" : item === "maintenance" ? "Maintenance History" : "Overview"}</button>)}
           </div>
-          <div className="mt-3 flex flex-wrap gap-1.5">
+          <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border/70 pt-3">
             {operationalSignals.map((signal) => (
-              <span key={signal} className={`rounded-full px-2.5 py-1 text-[11px] font-black ${signal.includes("Overdue") ? "bg-rose-50 text-rose-700" : "bg-white/80 text-text-secondary"}`}>{signal}</span>
+              <span key={signal} className={`rounded-xl border px-2.5 py-1 text-[11px] font-black shadow-sm ${signal.includes("Overdue") ? "border-rose-100 bg-rose-50 text-rose-700" : signal.includes("active") && !signal.startsWith("0") ? "border-blue-100 bg-blue-50 text-blue-700" : "border-border bg-white/80 text-text-secondary"}`}>{signal}</span>
             ))}
           </div>
         </header>
@@ -1513,7 +1690,7 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
                 </div>
               </div>
               <div className="grid gap-3 md:grid-cols-2">
-                {[["Last Inspected", formatRelativeDate(latestInspection?.inspection_date || asset.last_inspection_at)], ["Last Movement", formatRelativeDate(movements[0]?.movement_date)], ["Minimum Quantity", `${asset.minimum_quantity} ${asset.unit}`], ["Maintenance Scope", maintenanceEnabled ? "Enabled for this category" : "Not required"]].map(([label, value]) => (
+                {[["Health Score", `${assetHealthScore}%`], ["Operational Status", operationalStatus.label], ["Last Inspected", formatRelativeDate(latestInspection?.inspection_date || asset.last_inspection_at)], ["Next Maintenance", nextMaintenance.label], ["Last Movement", formatRelativeDate(movements[0]?.movement_date)], ["Minimum Quantity", `${asset.minimum_quantity} ${asset.unit}`]].map(([label, value]) => (
                   <div key={label} className="rounded-2xl border border-border bg-background p-4"><div className="text-xs font-black uppercase tracking-wide text-text-muted">{label}</div><div className="mt-1 text-sm font-bold text-text-primary">{value}</div></div>
                 ))}
               </div>
@@ -1572,7 +1749,7 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
                   <div className="text-sm font-black text-text-primary">Maintenance Summary</div>
                   <div className="text-xs text-text-secondary">Repairs, service work, vendor cost, and follow-up notes.</div>
                 </div>
-                <button className="btn-primary h-9 px-3 text-xs" type="button" onClick={() => setMaintenanceEditor({ record: null })}>+ Add Maintenance Record</button>
+                <button className="btn-primary h-9 px-3 text-xs" type="button" onClick={() => setMaintenanceEditor({ mode: "edit", record: null })}>+ Add Maintenance Record</button>
               </div>
               <div className="grid gap-3 md:grid-cols-3">
                 <div className="rounded-2xl border border-emerald-100 bg-emerald-50/40 p-3">
@@ -1580,21 +1757,23 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
                     <div className="text-[10px] font-black uppercase tracking-wide text-emerald-700">Last Service Date</div>
                     <Wrench size={14} className="text-emerald-600" />
                   </div>
-                  <div className="mt-1 text-sm font-black text-text-primary">{lastCompletedMaintenance ? <DateText value={lastCompletedMaintenance.completed_date || lastCompletedMaintenance.date} /> : "No service yet"}</div>
+                  <div className="mt-1 text-sm font-black text-text-primary">{lastCompletedMaintenance ? formatRelativeDate(lastCompletedMaintenance.completed_date || lastCompletedMaintenance.date) : "No service yet"}</div>
+                  {lastCompletedMaintenance ? <div className="mt-0.5 text-[11px] font-semibold text-text-muted">{formatFullDate(lastCompletedMaintenance.completed_date || lastCompletedMaintenance.date)}</div> : null}
                 </div>
                 <div className={`rounded-2xl border p-3 ${activeMaintenance.length ? "border-blue-100 bg-blue-50/60" : "border-border bg-white"}`}>
                   <div className="flex items-center justify-between">
                     <div className={`text-[10px] font-black uppercase tracking-wide ${activeMaintenance.length ? "text-blue-700" : "text-text-muted"}`}>Open Maintenance</div>
                     <AlertTriangle size={14} className={activeMaintenance.length ? "text-blue-600" : "text-text-muted"} />
                   </div>
-                  <div className="mt-1 text-sm font-black text-text-primary">{activeMaintenance.length ? `${activeMaintenance.length} open issue${activeMaintenance.length === 1 ? "" : "s"}` : "No open issue"}</div>
+                  <div className="mt-1 text-sm font-black text-text-primary">{activeMaintenance.length ? `${activeMaintenance.length} open issue${activeMaintenance.length === 1 ? "" : "s"}` : "No active issue"}</div>
                 </div>
                 <div className={`rounded-2xl border p-3 ${nextServiceDays !== null && nextServiceDays < 0 ? "border-rose-100 bg-rose-50/70" : "border-border bg-white"}`}>
                   <div className="flex items-center justify-between">
                     <div className={`text-[10px] font-black uppercase tracking-wide ${nextServiceDays !== null && nextServiceDays < 0 ? "text-rose-700" : "text-text-muted"}`}>Next Service Due</div>
                     <CalendarDays size={14} className={nextServiceDays !== null && nextServiceDays < 0 ? "text-rose-600" : "text-text-muted"} />
                   </div>
-                  <div className="mt-1 text-sm font-black text-text-primary">{nextService ? <DateText value={nextService} /> : "No due date set"}</div>
+                  <div className="mt-1 text-sm font-black text-text-primary">{nextService ? formatRelativeDate(nextService) : "No due date set"}</div>
+                  {nextService ? <div className="mt-0.5 text-[11px] font-semibold text-text-muted">{formatFullDate(nextService)}</div> : null}
                 </div>
               </div>
               {maintenanceRecords.length ? (
@@ -1603,15 +1782,17 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
                     <div key={group} className="space-y-2">
                       <div className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{group}</div>
                       {maintenanceGroups[group].map((record) => (
-                        <div key={record.id} className={`rounded-2xl border bg-white p-3 shadow-sm ${isMaintenanceOverdue(record) ? "border-rose-200" : "border-border"}`}>
-                          <div className="grid gap-3 md:grid-cols-[44px_1fr_170px]">
+                        <div key={record.id} className={`rounded-2xl border bg-white p-3 shadow-sm transition hover:border-primary/20 hover:shadow-md ${isMaintenanceOverdue(record) ? "border-rose-200" : "border-border"}`}>
+                          <div className="grid gap-3 md:grid-cols-[40px_1fr_180px]">
                             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-xs font-black text-primary">{maintenanceTypeIcon(record.maintenance_type)}</div>
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
-                                <span className="text-sm font-black text-text-primary">{record.issue}</span>
-                                <span className="text-xs font-bold text-text-muted">{maintenanceTypeLabel(record.maintenance_type)}</span>
+                                <span className="text-sm font-black text-text-primary">{maintenanceTypeLabel(record.maintenance_type)}</span>
+                                <Badge tone={maintenanceStatusTone(record.status)}>{maintenanceStatusLabel(record.status)}</Badge>
+                                {record.status !== "completed" ? <Badge tone={priorityTone(record.priority)}>{titleCase(record.priority)}</Badge> : null}
+                                <span className="text-sm font-black text-text-primary">RM {Number(record.cost || 0).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                               </div>
-                              <div className="mt-1 line-clamp-2 text-xs font-semibold text-text-secondary">{record.action_taken || "No action recorded yet."}</div>
+                              <div className="mt-1 line-clamp-2 text-sm font-bold text-text-primary">{record.issue || "No issue title"}</div>
                               <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold text-text-muted">
                                 <span>{record.vendor || "No vendor"}</span>
                                 <span>•</span>
@@ -1625,20 +1806,15 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
                               <div className="mt-3"><LifecycleProgress status={record.status} /></div>
                             </div>
                             <div className="flex flex-col items-start gap-2 md:items-end">
-                              <div className="flex flex-wrap gap-1.5 md:justify-end">
-                                <Badge tone={maintenanceStatusTone(record.status)}>{maintenanceStatusLabel(record.status)}</Badge>
-                                {record.status !== "completed" ? <Badge tone={priorityTone(record.priority)}>{titleCase(record.priority)}</Badge> : null}
-                              </div>
-                              <div className="text-sm font-black text-text-primary">RM {Number(record.cost || 0).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
                               <div className="flex flex-wrap justify-end gap-1">
-                                {record.status !== "completed" ? <button className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-700 hover:bg-blue-100" type="button" onClick={() => setMaintenanceEditor({ record })}>Update Status</button> : null}
-                                <button className="rounded-full px-2 py-1 text-xs font-black text-text-muted hover:bg-slate-100" type="button" onClick={() => setMaintenanceEditor({ record })}>View</button>
-                                <button className="rounded-full px-2 py-1 text-xs font-black text-primary hover:bg-primary/10" type="button" onClick={() => setMaintenanceEditor({ record })}>Edit</button>
+                                {record.status !== "completed" ? <button className="rounded-full bg-blue-50 px-2.5 py-1 text-xs font-black text-blue-700 hover:bg-blue-100" type="button" onClick={() => setMaintenanceEditor({ mode: "edit", record })}>Update Status</button> : null}
+                                <button className="rounded-full px-2 py-1 text-xs font-black text-text-muted hover:bg-slate-100" type="button" onClick={() => setMaintenanceEditor({ mode: "view", record })}>View</button>
+                                <button className="rounded-full px-2 py-1 text-xs font-black text-primary hover:bg-primary/10" type="button" onClick={() => setMaintenanceEditor({ mode: "edit", record })}>Edit</button>
                               </div>
                             </div>
                           </div>
                           {isMaintenanceOverdue(record) ? <div className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-xs font-black text-rose-700">Overdue scheduled maintenance</div> : null}
-                          {record.remark ? <div className="mt-2 rounded-xl bg-slate-50 px-3 py-2 text-xs text-text-secondary">{record.remark}</div> : null}
+                          {record.remark ? <div className="mt-2 rounded-xl border-l-4 border-primary/25 bg-slate-50 px-3 py-2 text-xs font-semibold text-text-secondary">{record.remark}</div> : null}
                         </div>
                       ))}
                     </div>
@@ -1648,7 +1824,7 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
                 <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm font-semibold text-text-secondary">
                   <div className="font-black text-text-primary">No maintenance records yet.</div>
                   <p className="mx-auto mt-2 max-w-sm">Track repairs, service work, vendor cost, and follow-up notes for this asset.</p>
-                  <button className="btn-primary mt-4 h-9 px-3 text-xs" type="button" onClick={() => setMaintenanceEditor({ record: null })}>Add Maintenance Record</button>
+                  <button className="btn-primary mt-4 h-9 px-3 text-xs" type="button" onClick={() => setMaintenanceEditor({ mode: "edit", record: null })}>Add Maintenance Record</button>
                 </div>
               )}
             </div>
@@ -1740,6 +1916,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
   const [imagePreviewZoom, setImagePreviewZoom] = useState(false);
   const [actionMenu, setActionMenu] = useState(null);
   const [conditionMenu, setConditionMenu] = useState(null);
+  const [assetPreview, setAssetPreview] = useState(null);
   const [conditionUpdatingId, setConditionUpdatingId] = useState("");
   const [quickFilter, setQuickFilter] = useState("all");
   const [collapsedGroups, setCollapsedGroups] = useState({});
@@ -1796,14 +1973,54 @@ export default function AssetTrackingPage({ store, ui, auth }) {
     if (outletId) loadData();
   }, [outletId]);
 
+  const movementByAsset = useMemo(() => movements.reduce((map, movement) => {
+    if (!map.has(movement.asset_id)) map.set(movement.asset_id, movement);
+    return map;
+  }, new Map()), [movements]);
+
+  const inspectionByAsset = useMemo(() => inspections.reduce((map, inspection) => {
+    (inspection.items || []).forEach((item) => {
+      if (!map.has(item.asset_id)) map.set(item.asset_id, inspection);
+    });
+    return map;
+  }, new Map()), [inspections]);
+
+  const maintenanceByAsset = useMemo(() => maintenanceRecords.reduce((map, record) => {
+    const list = map.get(record.asset_id) || [];
+    list.push(record);
+    map.set(record.asset_id, list);
+    return map;
+  }, new Map()), [maintenanceRecords]);
+
+  const assetSignalsById = useMemo(() => assets.reduce((map, asset) => {
+    const assetMaintenance = maintenanceByAsset.get(asset.id) || [];
+    const latestInspection = inspectionByAsset.get(asset.id);
+    const latestMovement = movementByAsset.get(asset.id);
+    map.set(asset.id, {
+      health: calculateAssetHealth(asset, assetMaintenance, latestInspection, latestMovement),
+      nextMaintenance: nextMaintenanceInfo(assetMaintenance),
+      operationalStatus: getOperationalStatus(asset, assetMaintenance),
+      maintenanceDue: assetMaintenance.some((record) => {
+        const info = nextMaintenanceInfo([record]);
+        return info.days !== null && info.days <= 1;
+      }),
+      overdue: assetMaintenance.some(isMaintenanceOverdue),
+      highVariance: (latestInspection?.items || []).some((item) => item.asset_id === asset.id && Math.abs(Number(item.difference || 0)) > 0),
+    });
+    return map;
+  }, new Map()), [assets, inspectionByAsset, maintenanceByAsset, movementByAsset]);
+
   const filteredAssets = useMemo(() => assets
     .filter((asset) => categoryFilter === "all" || asset.category_id === categoryFilter)
     .filter((asset) => statusFilter === "all" || (asset.condition || "healthy") === statusFilter)
     .filter((asset) => {
       if (quickFilter === "all") return true;
       if (quickFilter === "attention") return assetNeedsAttention(asset);
+      if (quickFilter === "maintenance_due") return assetSignalsById.get(asset.id)?.maintenanceDue === true;
+      if (quickFilter === "overdue") return assetSignalsById.get(asset.id)?.overdue === true;
       if (quickFilter === "low_quantity") return (asset.condition || "healthy") === "low_quantity" || (Number(asset.minimum_quantity || 0) > 0 && Number(asset.current_quantity || 0) <= Number(asset.minimum_quantity || 0));
       if (quickFilter === "missing") return (asset.condition || "healthy") === "missing" || Number(asset.current_quantity || 0) <= 0;
+      if (quickFilter === "high_variance") return assetSignalsById.get(asset.id)?.highVariance === true;
       if (quickFilter === "no_photo") return !asset.image_url && !asset.thumbnail_url;
       if (quickFilter === "inspected_today") {
         const latest = asset.last_inspection_at || inspections.find((inspection) => (inspection.items || []).some((item) => item.asset_id === asset.id))?.inspection_date;
@@ -1815,7 +2032,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       const search = query.trim().toLowerCase();
       if (!search) return true;
       return [asset.name, asset.category_name, asset.remark].some((value) => String(value || "").toLowerCase().includes(search));
-    }), [assets, categoryFilter, inspections, query, quickFilter, statusFilter]);
+    }), [assetSignalsById, assets, categoryFilter, inspections, query, quickFilter, statusFilter]);
 
   const groupedAssets = useMemo(() => {
     const groups = new Map();
@@ -1830,20 +2047,15 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       }
       groups.get(key).assets.push(asset);
     });
-    return Array.from(groups.values()).sort((first, second) => first.name.localeCompare(second.name));
-  }, [filteredAssets]);
-
-  const movementByAsset = useMemo(() => movements.reduce((map, movement) => {
-    if (!map.has(movement.asset_id)) map.set(movement.asset_id, movement);
-    return map;
-  }, new Map()), [movements]);
-
-  const inspectionByAsset = useMemo(() => inspections.reduce((map, inspection) => {
-    (inspection.items || []).forEach((item) => {
-      if (!map.has(item.asset_id)) map.set(item.asset_id, inspection);
-    });
-    return map;
-  }, new Map()), [inspections]);
+    return Array.from(groups.values()).map((group) => {
+      const maintenanceDue = group.assets.filter((asset) => assetSignalsById.get(asset.id)?.maintenanceDue || assetSignalsById.get(asset.id)?.overdue).length;
+      const attention = group.assets.filter((asset) => assetNeedsAttention(asset) || assetSignalsById.get(asset.id)?.overdue).length;
+      const averageHealth = group.assets.length
+        ? Math.round(group.assets.reduce((sum, asset) => sum + Number(assetSignalsById.get(asset.id)?.health || 100), 0) / group.assets.length)
+        : 100;
+      return { ...group, maintenanceDue, attention, averageHealth };
+    }).sort((first, second) => first.name.localeCompare(second.name));
+  }, [assetSignalsById, filteredAssets]);
 
   const summary = useMemo(() => {
     const lastChecked = inspections[0]?.inspection_date || filteredAssets.find((asset) => asset.last_inspection_at)?.last_inspection_at;
@@ -1859,9 +2071,38 @@ export default function AssetTrackingPage({ store, ui, auth }) {
   const operationalStrip = useMemo(() => {
     const attention = filteredAssets.filter(assetNeedsAttention).length;
     const low = filteredAssets.filter((asset) => (asset.condition || "healthy") === "low_quantity" || (Number(asset.minimum_quantity || 0) > 0 && Number(asset.current_quantity || 0) <= Number(asset.minimum_quantity || 0))).length;
+    const due = filteredAssets.filter((asset) => assetSignalsById.get(asset.id)?.maintenanceDue).length;
     const inspectedToday = inspections.some((inspection) => formatRelativeDate(inspection.inspection_date) === "Today");
-    return `${attention} assets need attention · ${low} low quantity alert${low === 1 ? "" : "s"} · Last inspection ${inspectedToday ? "completed today" : formatRelativeDate(summary.lastChecked)}`;
-  }, [filteredAssets, inspections, summary.lastChecked]);
+    return `${attention} assets need attention · ${low} low quantity alert${low === 1 ? "" : "s"} · ${due} maintenance due · Last inspection ${inspectedToday ? "completed today" : formatRelativeDate(summary.lastChecked)}`;
+  }, [assetSignalsById, filteredAssets, inspections, summary.lastChecked]);
+
+  const recentActivityRows = useMemo(() => {
+    const movementRows = movements.slice(0, 6).map((movement) => ({
+      id: `movement-${movement.id}`,
+      date: movement.movement_date,
+      title: `${assetNameById(assets, movement.asset_id)} ${movement.movement_type === "correction" ? "inspected" : "quantity adjusted"}`,
+      detail: latestMovementSummary(movement),
+      tone: movement.movement_type === "correction" ? "info" : "success",
+    }));
+    const maintenanceRows = maintenanceRecords.slice(0, 6).map((record) => ({
+      id: `maintenance-${record.id}`,
+      date: record.completed_date || record.scheduled_date || record.date,
+      title: `${assetNameById(assets, record.asset_id)} maintenance ${maintenanceStatusLabel(record.status).toLowerCase()}`,
+      detail: record.issue || maintenanceTypeLabel(record.maintenance_type),
+      tone: record.status === "completed" ? "success" : record.status === "in_progress" ? "info" : "warning",
+    }));
+    const inspectionRows = inspections.slice(0, 6).map((inspection) => ({
+      id: `inspection-${inspection.id}`,
+      date: inspection.inspection_date || inspection.updated_at,
+      title: "Inspection completed",
+      detail: `${inspection.summary?.total_assets || (inspection.items || []).length || 0} assets checked`,
+      tone: "info",
+    }));
+    return [...movementRows, ...maintenanceRows, ...inspectionRows]
+      .filter((row) => row.date)
+      .sort((first, second) => new Date(second.date) - new Date(first.date))
+      .slice(0, 8);
+  }, [assets, inspections, maintenanceRecords, movements]);
 
   async function saveAsset(asset) {
     if ((asset.id && !canEditAsset) || (!asset.id && !canAdd)) {
@@ -2105,9 +2346,12 @@ export default function AssetTrackingPage({ store, ui, auth }) {
         <div className="mt-4 flex flex-wrap gap-2">
           {[
             ["attention", "Needs Attention"],
+            ["maintenance_due", "Maintenance Due"],
+            ["overdue", "Overdue"],
+            ["inspected_today", "Recently Inspected"],
             ["low_quantity", "Low Quantity"],
             ["missing", "Missing"],
-            ["inspected_today", "Inspected Today"],
+            ["high_variance", "High Variance"],
             ["no_photo", "No Photo"],
           ].map(([value, label]) => (
             <button
@@ -2192,27 +2436,48 @@ export default function AssetTrackingPage({ store, ui, auth }) {
         </div>
       ) : null}
 
+      {activeOutlets.length ? (
+        <Card title="Recent Activity" description="Latest inspection, maintenance and movement events across this outlet.">
+          {recentActivityRows.length ? (
+            <div className="grid gap-2 lg:grid-cols-2">
+              {recentActivityRows.map((row) => (
+                <div key={row.id} className="flex items-start gap-3 rounded-2xl border border-border bg-white px-3 py-2.5 transition hover:border-primary/20 hover:bg-primary/5">
+                  <span className={`mt-1 h-2.5 w-2.5 rounded-full ${row.tone === "danger" ? "bg-rose-500" : row.tone === "warning" ? "bg-amber-500" : row.tone === "info" ? "bg-blue-500" : "bg-emerald-500"}`} />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="truncate text-sm font-black text-text-primary">{row.title}</div>
+                      <div className="shrink-0 text-xs font-semibold text-text-muted"><DateText value={row.date} /></div>
+                    </div>
+                    <div className="mt-0.5 text-xs font-semibold text-text-secondary">{row.detail}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : <div className="rounded-2xl border border-dashed border-border p-5 text-center text-sm font-semibold text-text-secondary">Operational activity will appear after inspections, movements and maintenance updates.</div>}
+        </Card>
+      ) : null}
+
       {activeOutlets.length ? <Card title="Asset List" description="Grouped by category with quick operational updates.">
         {loading ? <div className="p-8 text-center text-sm font-semibold text-text-secondary">Loading assets...</div> : (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[1080px] text-left text-sm">
+            <table className="w-full min-w-[1380px] text-left text-sm">
               <thead className="border-b border-border bg-slate-50 text-xs uppercase tracking-wide text-text-muted">
                 <tr>
-                  {["Asset Name", "Outlet", "Current Quantity", "Condition", "Last Checked", "Last Movement", "Actions"].map((header) => <th key={header} className="px-4 py-3">{header}</th>)}
+                  {["Asset Name", "Outlet", "Current Quantity", "Health", "Condition", "Operational Status", "Next Maintenance", "Last Checked", "Last Movement", "Actions"].map((header) => <th key={header} className="px-4 py-3">{header}</th>)}
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
                 {groupedAssets.map((group) => {
                   const isCollapsed = collapsedGroups[group.id] === true;
-                  const attentionCount = group.assets.filter(assetNeedsAttention).length;
+                  const attentionCount = group.attention;
                   return (
                     <Fragment key={group.id}>
                       <tr key={`${group.id}-header`} className="bg-slate-50/80">
-                        <td colSpan={7} className="px-4 py-3">
+                        <td colSpan={10} className="px-4 py-3">
                           <button className="flex w-full items-center justify-between gap-3 text-left" type="button" onClick={() => setCollapsedGroups((current) => ({ ...current, [group.id]: !current[group.id] }))}>
                             <span>
                               <span className="text-sm font-black text-text-primary">{group.name}</span>
-                              <span className="ml-2 text-xs font-semibold text-text-secondary">{group.assets.length} assets · {attentionCount} needs attention</span>
+                              <span className="ml-2 text-xs font-semibold text-text-secondary">{group.assets.length} assets · {group.maintenanceDue} maintenance due · {attentionCount} needs attention · Health {group.averageHealth}%</span>
                             </span>
                             <span className="rounded-full border border-border bg-white px-2.5 py-1 text-[11px] font-black text-text-secondary">{isCollapsed ? "Expand" : "Collapse"}</span>
                           </button>
@@ -2223,6 +2488,16 @@ export default function AssetTrackingPage({ store, ui, auth }) {
                         const lastMovement = movementByAsset.get(asset.id);
                         const lastInspection = inspectionByAsset.get(asset.id);
                         const quantityHealth = getQuantityHealth(asset);
+                        const signals = assetSignalsById.get(asset.id) || {};
+                        const latestMaintenance = (maintenanceByAsset.get(asset.id) || [])[0];
+                        const movementDisplay = lastMovement
+                          ? latestMovementSummary(lastMovement)
+                          : latestMaintenance
+                            ? `Maintenance · ${maintenanceStatusLabel(latestMaintenance.status)}`
+                            : "—";
+                        const health = signals.health || 100;
+                        const nextMaintenance = signals.nextMaintenance || { label: "No schedule", tone: "neutral" };
+                        const operationalStatus = signals.operationalStatus || { label: "Operational", tone: "success" };
                         return (
                           <tr key={asset.id} className="group transition hover:bg-primary/5">
                             <td className="px-4 py-3">
@@ -2245,6 +2520,9 @@ export default function AssetTrackingPage({ store, ui, auth }) {
                               </div>
                             </td>
                             <td className="px-4 py-3">
+                              <span className={`inline-flex min-w-[58px] justify-center rounded-full border px-2.5 py-1 text-xs font-black ${healthColor(health)}`}>{health}%</span>
+                            </td>
+                            <td className="px-4 py-3">
                               <button
                                 className={`transition ${canEditAsset ? "cursor-pointer hover:scale-[1.02]" : "cursor-not-allowed opacity-80"}`}
                                 type="button"
@@ -2254,13 +2532,30 @@ export default function AssetTrackingPage({ store, ui, auth }) {
                                 <Badge tone={assetConditionTone(asset.condition)}>{conditionUpdatingId === asset.id ? "Saving..." : assetConditionLabel(asset.condition)}</Badge>
                               </button>
                             </td>
+                            <td className="px-4 py-3"><Badge tone={operationalStatus.tone}>{operationalStatus.label}</Badge></td>
+                            <td className="px-4 py-3">
+                              <Badge tone={nextMaintenance.tone}>{nextMaintenance.label}</Badge>
+                            </td>
                             <td className="px-4 py-3 text-text-secondary"><DateText value={lastInspection?.inspection_date || asset.last_inspection_at} /></td>
                             <td className="px-4 py-3 text-text-secondary">
-                              {lastMovement ? <span title={formatFullDate(lastMovement.movement_date)}>{latestMovementSummary(lastMovement)}</span> : "—"}
+                              <span title={formatFullDate(lastMovement?.movement_date || latestMaintenance?.completed_date || latestMaintenance?.scheduled_date || latestMaintenance?.date)}>{movementDisplay}</span>
                             </td>
                             <td className="px-4 py-3">
                               <div className="flex items-center gap-1.5">
-                                <button className="btn-secondary h-8 px-2 text-xs" type="button" onClick={() => setDetailAsset(asset)}><Eye size={13} /> View</button>
+                                <div className="flex max-w-0 items-center gap-1 overflow-hidden opacity-0 transition-all group-hover:max-w-[280px] group-hover:opacity-100">
+                                  {canManageAsset ? <button className="rounded-full bg-white px-2 py-1 text-[11px] font-black text-text-secondary shadow-sm ring-1 ring-border hover:text-primary" type="button" onClick={() => setInspectionOpen(true)}>Inspect</button> : null}
+                                  {canManageAsset && asset.maintenance_allowed ? <button className="rounded-full bg-white px-2 py-1 text-[11px] font-black text-text-secondary shadow-sm ring-1 ring-border hover:text-primary" type="button" onClick={() => setMaintenanceContext({ asset, record: null })}>Maintenance</button> : null}
+                                  {canManageAsset ? <button className="rounded-full bg-white px-2 py-1 text-[11px] font-black text-text-secondary shadow-sm ring-1 ring-border hover:text-primary" type="button" onClick={() => setAdjustAsset(asset)}>Adjust</button> : null}
+                                </div>
+                                <button
+                                  className="btn-secondary h-8 px-2 text-xs"
+                                  type="button"
+                                  onMouseEnter={(event) => setAssetPreview({ asset, anchor: event.currentTarget.getBoundingClientRect(), lastInspection, lastMovement, signals })}
+                                  onMouseLeave={() => setAssetPreview(null)}
+                                  onClick={() => setDetailAsset(asset)}
+                                >
+                                  <Eye size={13} /> View
+                                </button>
                                 <button className="icon-btn h-8 w-8" type="button" onClick={(event) => setActionMenu({ asset, anchor: event.currentTarget.getBoundingClientRect() })} aria-label={`More actions for ${asset.name}`}>
                                   <MoreHorizontal size={15} />
                                 </button>
@@ -2285,6 +2580,37 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       {maintenanceContext ? <MaintenanceRecordModal asset={maintenanceContext.asset} record={maintenanceContext.record} onClose={() => setMaintenanceContext(null)} onSubmit={saveMaintenanceRecord} saving={saving} /> : null}
       {inspectionOpen ? <InspectionModal outletId={inspectionOpen?.outlet_id || outletId} categories={categories} assets={assets} draftInspection={inspectionOpen === true ? null : inspectionOpen} onClose={() => setInspectionOpen(false)} onSubmit={submitInspection} saving={saving} /> : null}
       {detailAsset ? <AssetDetailDrawer asset={detailAsset} outlet={activeOutlets.find((outlet) => outlet.id === detailAsset.outlet_id)} movements={assetMovements} inspections={assetInspections} maintenanceRecords={assetMaintenanceRecords} onClose={() => setDetailAsset(null)} onResumeDraft={(inspection) => setInspectionOpen(inspection)} onDeleteDraft={deleteInspection} onArchiveDraft={(inspection) => updateInspectionStatus(inspection, "archived")} onSaveMaintenance={(asset, values) => saveMaintenanceRecord(values, asset)} saving={saving} /> : null}
+      {assetPreview ? <FloatingPreviewLayer anchor={assetPreview.anchor} width={300}>
+        <div className="overflow-hidden rounded-3xl border border-border bg-white shadow-2xl">
+          <div className="p-3">
+            <div className="flex gap-3">
+              <AssetThumbnail asset={assetPreview.asset} size="lg" />
+              <div className="min-w-0 flex-1">
+                <div className="truncate text-sm font-black text-text-primary">{assetPreview.asset.name}</div>
+                <div className="mt-0.5 text-xs font-semibold text-text-secondary">{activeOutlets.find((outlet) => outlet.id === assetPreview.asset.outlet_id)?.name || "Outlet"}</div>
+                <div className="mt-2 flex flex-wrap gap-1.5">
+                  <Badge tone={assetConditionTone(assetPreview.asset.condition)}>{assetConditionLabel(assetPreview.asset.condition)}</Badge>
+                  <Badge tone={assetPreview.signals?.operationalStatus?.tone || "success"}>{assetPreview.signals?.operationalStatus?.label || "Operational"}</Badge>
+                </div>
+              </div>
+            </div>
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              <div className={`rounded-2xl border px-3 py-2 ${healthColor(assetPreview.signals?.health || 100)}`}>
+                <div className="text-[10px] font-black uppercase tracking-wide">Health</div>
+                <div className="mt-1 text-lg font-black">{assetPreview.signals?.health || 100}%</div>
+              </div>
+              <div className="rounded-2xl border border-border bg-slate-50 px-3 py-2">
+                <div className="text-[10px] font-black uppercase tracking-wide text-text-muted">Next Maintenance</div>
+                <div className="mt-1 text-sm font-black text-text-primary">{assetPreview.signals?.nextMaintenance?.label || "No schedule"}</div>
+              </div>
+            </div>
+            <div className="mt-3 space-y-1 text-xs font-semibold text-text-secondary">
+              <div>Last inspection: <span className="font-black text-text-primary">{formatRelativeDate(assetPreview.lastInspection?.inspection_date || assetPreview.asset.last_inspection_at)}</span></div>
+              <div>Recent issue: <span className="font-black text-text-primary">{assetHoverInsight(assetPreview.asset, assetPreview.lastMovement, assetPreview.lastInspection)}</span></div>
+            </div>
+          </div>
+        </div>
+      </FloatingPreviewLayer> : null}
       {conditionMenu ? <FloatingLayer anchor={conditionMenu.anchor} width={220} align="left" onClose={() => setConditionMenu(null)}>
         <div className="overflow-hidden rounded-2xl border border-border bg-white p-1.5 shadow-2xl">
           <div className="px-3 py-2 text-[11px] font-black uppercase tracking-wide text-text-muted">Update Condition</div>
