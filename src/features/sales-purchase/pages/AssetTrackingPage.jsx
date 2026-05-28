@@ -2043,20 +2043,14 @@ export default function AssetTrackingPage({ store, ui, auth }) {
     return { scheduledMaintenance, underMaintenance, missingLowQuantity, needsAttention, recentlyInspected, inspectionCompletion, missingAssets, lowQuantity };
   }, [assetSignalsById, filteredAssets, inspections, maintenanceRecords]);
 
-  const operationalStrip = useMemo(() => {
-    const attention = filteredAssets.filter(assetNeedsAttention).length;
-    const low = filteredAssets.filter((asset) => (asset.condition || "healthy") === "low_quantity" || (Number(asset.minimum_quantity || 0) > 0 && Number(asset.current_quantity || 0) <= Number(asset.minimum_quantity || 0))).length;
-    const due = filteredAssets.filter((asset) => assetSignalsById.get(asset.id)?.maintenanceDue).length;
-    const inspectedToday = inspections.some((inspection) => formatRelativeDate(inspection.inspection_date) === "Today");
-    return `${attention} assets need attention · ${low} low quantity alert${low === 1 ? "" : "s"} · ${due} maintenance due · Last inspection ${inspectedToday ? "completed today" : formatFullDate(summary.lastChecked)}`;
-  }, [assetSignalsById, filteredAssets, inspections, summary.lastChecked]);
-
   const recentActivityRows = useMemo(() => {
     const movementRows = movements.slice(0, 6).map((movement) => ({
       id: `movement-${movement.id}`,
       date: movement.movement_date,
-      title: `${assetNameById(assets, movement.asset_id)} ${movement.movement_type === "correction" ? "inspected" : "quantity adjusted"}`,
-      detail: latestMovementSummary(movement),
+      title: movement.movement_type === "correction"
+        ? `${assetNameById(assets, movement.asset_id)} inspected`
+        : `${assetNameById(assets, movement.asset_id)} quantity adjusted`,
+      detail: movement.movement_type === "correction" ? "Inspection completed" : latestMovementSummary(movement),
       tone: movement.movement_type === "correction" ? "info" : "warning",
       kind: movement.movement_type === "correction" ? "inspection" : "movement",
     }));
@@ -2398,13 +2392,10 @@ export default function AssetTrackingPage({ store, ui, auth }) {
         </Card>
       ) : null}
 
-      {activeOutlets.length ? <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-5">
+      {activeOutlets.length ? <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-2">
         {[
           ["Total Asset Items", summary.totalItems, "Assets in selected scope", "text-text-primary"],
-          ["Needs Attention", operationalKpis.needsAttention, "Review condition or quantity", operationalKpis.needsAttention ? "text-amber-700" : "text-emerald-700"],
-          ["Scheduled Maintenance", operationalKpis.scheduledMaintenance, "Upcoming service tasks", operationalKpis.scheduledMaintenance ? "text-blue-700" : "text-text-primary"],
-          ["Under Maintenance", operationalKpis.underMaintenance, "Active repair work", operationalKpis.underMaintenance ? "text-blue-700" : "text-text-primary"],
-          ["Missing / Low Quantity", operationalKpis.missingLowQuantity, "Stock risk items", operationalKpis.missingLowQuantity ? "text-rose-700" : "text-emerald-700"],
+          ["Active Outlets", activeOutlets.length, "Outlets available to this view", "text-text-primary"],
         ].map(([label, value, helper, toneClass]) => (
           <Card key={label} className="p-3.5">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{label}</div>
@@ -2415,34 +2406,23 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       </div> : null}
 
       {activeOutlets.length ? (
-        <div className="rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3 text-sm font-bold text-text-primary">
-          {operationalStrip}
-        </div>
-      ) : null}
-
-      {activeOutlets.length ? (
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.95fr)]">
           <Card title="Recent Activity" description="Latest operational event stream.">
             {recentActivityRows.length ? (
-              <div className="space-y-0">
+              <div className="space-y-0 pl-3">
                 {recentActivityRows.map((row, index) => {
                   const dateLabel = formatFullDate(row.date);
                   const previousDate = index > 0 ? formatFullDate(recentActivityRows[index - 1].date) : "";
                   const showDate = index === 0 || dateLabel !== previousDate;
                   const dotClass = row.tone === "danger" ? "bg-rose-500" : row.tone === "warning" ? "bg-amber-500" : row.tone === "info" ? "bg-blue-500" : "bg-emerald-500";
-                  const typeLabel = row.kind === "maintenance" ? "Maintenance" : row.kind === "inspection" ? "Inspection" : "Movement";
                   return (
                     <div key={row.id}>
-                      {showDate ? <div className="pb-0.5 pt-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-text-muted">{dateLabel}</div> : null}
-                      <div className="relative py-1.5 pl-4">
-                        <span className={`absolute left-0 top-3 h-2 w-2 rounded-full ring-4 ring-white ${dotClass}`} />
-                        {index < recentActivityRows.length - 1 ? <span className="absolute bottom-0 left-[3px] top-5 w-px bg-border" /> : null}
+                      {showDate ? <div className="pb-0.5 pt-1 text-[10px] font-black uppercase tracking-[0.14em] text-text-muted/80">{dateLabel}</div> : null}
+                      <div className="relative py-1.5 pl-6">
+                        <span className={`absolute left-1 top-3 h-2 w-2 rounded-full ring-4 ring-white ${dotClass}`} />
+                        {index < recentActivityRows.length - 1 ? <span className="absolute bottom-0 left-[7px] top-5 w-px bg-border" /> : null}
                         <div className="text-sm font-black leading-tight text-text-primary">{row.title}</div>
-                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs font-semibold text-text-secondary">
-                          <span>{typeLabel}</span>
-                          <span className="text-text-muted">·</span>
-                          <span>{row.detail}</span>
-                        </div>
+                        <div className="mt-0.5 text-[11px] font-semibold text-text-muted">{row.detail}</div>
                       </div>
                     </div>
                   );
@@ -2452,7 +2432,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
           </Card>
 
           <Card title="Asset Operations Summary" description="Current asset workflow signals.">
-            <div className="grid gap-2">
+            <div className="grid gap-1.5">
               {[
                 ["Under Maintenance", operationalKpis.underMaintenance, "Active repair work", "bg-blue-50 text-blue-700 border-blue-100"],
                 ["Needs Attention", operationalKpis.needsAttention, "Condition or quantity review", "bg-amber-50 text-amber-700 border-amber-100"],
@@ -2461,7 +2441,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
                 ["Missing Asset", operationalKpis.missingAssets, "Unavailable or zero quantity", "bg-rose-50 text-rose-700 border-rose-100"],
                 ["Inspection Completion", `${operationalKpis.inspectionCompletion}%`, "Today across visible assets", "bg-slate-50 text-slate-700 border-slate-200"],
               ].map(([label, value, helper, className]) => (
-                <div key={label} className={`flex items-center justify-between gap-3 rounded-2xl border px-3 py-2.5 ${className}`}>
+                <div key={label} className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 ${className}`}>
                   <div className="min-w-0">
                     <div className="text-xs font-black text-current">{label}</div>
                     <div className="mt-0.5 truncate text-[11px] font-semibold opacity-75">{helper}</div>
