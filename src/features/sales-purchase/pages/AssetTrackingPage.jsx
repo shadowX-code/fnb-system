@@ -2026,8 +2026,22 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       return condition === "missing" || condition === "low_quantity" || quantity <= 0 || (minimum > 0 && quantity <= minimum);
     }).length;
     const needsAttention = filteredAssets.filter((asset) => assetNeedsAttention(asset) || assetSignalsById.get(asset.id)?.overdue).length;
-    return { scheduledMaintenance, underMaintenance, missingLowQuantity, needsAttention };
-  }, [assetSignalsById, filteredAssets, maintenanceRecords]);
+    const inspectedTodayAssetIds = new Set();
+    inspections
+      .filter((inspection) => formatRelativeDate(inspection.inspection_date) === "Today")
+      .forEach((inspection) => {
+        (inspection.items || []).forEach((item) => inspectedTodayAssetIds.add(item.asset_id));
+      });
+    const recentlyInspected = filteredAssets.filter((asset) => inspectedTodayAssetIds.has(asset.id) || formatRelativeDate(asset.last_inspection_at) === "Today").length;
+    const inspectionCompletion = filteredAssets.length ? Math.round((recentlyInspected / filteredAssets.length) * 100) : 0;
+    const missingAssets = filteredAssets.filter((asset) => (asset.condition || "healthy") === "missing" || Number(asset.current_quantity || 0) <= 0).length;
+    const lowQuantity = filteredAssets.filter((asset) => {
+      const quantity = Number(asset.current_quantity || 0);
+      const minimum = Number(asset.minimum_quantity || 0);
+      return (asset.condition || "healthy") === "low_quantity" || (minimum > 0 && quantity <= minimum);
+    }).length;
+    return { scheduledMaintenance, underMaintenance, missingLowQuantity, needsAttention, recentlyInspected, inspectionCompletion, missingAssets, lowQuantity };
+  }, [assetSignalsById, filteredAssets, inspections, maintenanceRecords]);
 
   const operationalStrip = useMemo(() => {
     const attention = filteredAssets.filter(assetNeedsAttention).length;
@@ -2043,7 +2057,8 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       date: movement.movement_date,
       title: `${assetNameById(assets, movement.asset_id)} ${movement.movement_type === "correction" ? "inspected" : "quantity adjusted"}`,
       detail: latestMovementSummary(movement),
-      tone: movement.movement_type === "correction" ? "info" : "success",
+      tone: movement.movement_type === "correction" ? "info" : "warning",
+      kind: movement.movement_type === "correction" ? "inspection" : "movement",
     }));
     const maintenanceRows = maintenanceRecords.slice(0, 6).map((record) => ({
       id: `maintenance-${record.id}`,
@@ -2051,6 +2066,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       title: `${assetNameById(assets, record.asset_id)} maintenance ${maintenanceStatusLabel(record.status).toLowerCase()}`,
       detail: record.issue || maintenanceTypeLabel(record.maintenance_type),
       tone: record.status === "completed" ? "success" : record.status === "in_progress" ? "info" : "warning",
+      kind: "maintenance",
     }));
     const inspectionRows = inspections.slice(0, 6).map((inspection) => ({
       id: `inspection-${inspection.id}`,
@@ -2058,6 +2074,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       title: "Inspection completed",
       detail: `${inspection.summary?.total_assets || (inspection.items || []).length || 0} assets checked`,
       tone: "info",
+      kind: "inspection",
     }));
     return [...movementRows, ...maintenanceRows, ...inspectionRows]
       .filter((row) => row.date)
@@ -2381,7 +2398,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
         </Card>
       ) : null}
 
-      {activeOutlets.length ? <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+      {activeOutlets.length ? <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-5">
         {[
           ["Total Asset Items", summary.totalItems, "Assets in selected scope", "text-text-primary"],
           ["Needs Attention", operationalKpis.needsAttention, "Review condition or quantity", operationalKpis.needsAttention ? "text-amber-700" : "text-emerald-700"],
@@ -2389,9 +2406,9 @@ export default function AssetTrackingPage({ store, ui, auth }) {
           ["Under Maintenance", operationalKpis.underMaintenance, "Active repair work", operationalKpis.underMaintenance ? "text-blue-700" : "text-text-primary"],
           ["Missing / Low Quantity", operationalKpis.missingLowQuantity, "Stock risk items", operationalKpis.missingLowQuantity ? "text-rose-700" : "text-emerald-700"],
         ].map(([label, value, helper, toneClass]) => (
-          <Card key={label} className="p-4">
+          <Card key={label} className="p-3.5">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{label}</div>
-            <div className={`mt-2 text-2xl font-semibold ${toneClass}`}>{value}</div>
+            <div className={`mt-1.5 text-xl font-semibold ${toneClass}`}>{value}</div>
             <div className="mt-1 text-xs font-semibold text-text-secondary">{helper}</div>
           </Card>
         ))}
@@ -2404,29 +2421,57 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       ) : null}
 
       {activeOutlets.length ? (
-        <Card title="Recent Activity" description="Latest inspection, maintenance and movement events across this outlet.">
-          {recentActivityRows.length ? (
-            <div className="space-y-0">
-              {recentActivityRows.map((row, index) => {
-                const dateLabel = formatFullDate(row.date);
-                const previousDate = index > 0 ? formatFullDate(recentActivityRows[index - 1].date) : "";
-                const showDate = index === 0 || dateLabel !== previousDate;
-                const dotClass = row.tone === "danger" ? "bg-rose-500" : row.tone === "warning" ? "bg-amber-500" : row.tone === "info" ? "bg-blue-500" : "bg-emerald-500";
-                return (
-                  <div key={row.id}>
-                    {showDate ? <div className="pb-1 pt-2 text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{dateLabel}</div> : null}
-                    <div className="relative py-2 pl-6">
-                      <span className={`absolute left-0 top-3.5 h-2.5 w-2.5 rounded-full ${dotClass}`} />
-                      {index < recentActivityRows.length - 1 ? <span className="absolute bottom-0 left-[4px] top-6 w-px bg-border" /> : null}
-                      <div className="text-sm font-black text-text-primary">{row.title}</div>
-                      <div className="mt-0.5 text-xs font-semibold text-text-secondary">{row.detail}</div>
+        <div className="grid gap-3 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.95fr)]">
+          <Card title="Recent Activity" description="Latest operational event stream.">
+            {recentActivityRows.length ? (
+              <div className="space-y-0">
+                {recentActivityRows.map((row, index) => {
+                  const dateLabel = formatFullDate(row.date);
+                  const previousDate = index > 0 ? formatFullDate(recentActivityRows[index - 1].date) : "";
+                  const showDate = index === 0 || dateLabel !== previousDate;
+                  const dotClass = row.tone === "danger" ? "bg-rose-500" : row.tone === "warning" ? "bg-amber-500" : row.tone === "info" ? "bg-blue-500" : "bg-emerald-500";
+                  const typeLabel = row.kind === "maintenance" ? "Maintenance" : row.kind === "inspection" ? "Inspection" : "Movement";
+                  return (
+                    <div key={row.id}>
+                      {showDate ? <div className="pb-0.5 pt-1.5 text-[10px] font-black uppercase tracking-[0.16em] text-text-muted">{dateLabel}</div> : null}
+                      <div className="relative py-1.5 pl-4">
+                        <span className={`absolute left-0 top-3 h-2 w-2 rounded-full ring-4 ring-white ${dotClass}`} />
+                        {index < recentActivityRows.length - 1 ? <span className="absolute bottom-0 left-[3px] top-5 w-px bg-border" /> : null}
+                        <div className="text-sm font-black leading-tight text-text-primary">{row.title}</div>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs font-semibold text-text-secondary">
+                          <span>{typeLabel}</span>
+                          <span className="text-text-muted">·</span>
+                          <span>{row.detail}</span>
+                        </div>
+                      </div>
                     </div>
+                  );
+                })}
+              </div>
+            ) : <div className="rounded-2xl border border-dashed border-border p-4 text-center text-sm font-semibold text-text-secondary">Operational activity will appear after inspections, movements and maintenance updates.</div>}
+          </Card>
+
+          <Card title="Asset Operations Summary" description="Current asset workflow signals.">
+            <div className="grid gap-2">
+              {[
+                ["Under Maintenance", operationalKpis.underMaintenance, "Active repair work", "bg-blue-50 text-blue-700 border-blue-100"],
+                ["Needs Attention", operationalKpis.needsAttention, "Condition or quantity review", "bg-amber-50 text-amber-700 border-amber-100"],
+                ["Low Quantity", operationalKpis.lowQuantity, "At or below minimum level", "bg-orange-50 text-orange-700 border-orange-100"],
+                ["Recently Inspected", operationalKpis.recentlyInspected, "Checked today", "bg-emerald-50 text-emerald-700 border-emerald-100"],
+                ["Missing Asset", operationalKpis.missingAssets, "Unavailable or zero quantity", "bg-rose-50 text-rose-700 border-rose-100"],
+                ["Inspection Completion", `${operationalKpis.inspectionCompletion}%`, "Today across visible assets", "bg-slate-50 text-slate-700 border-slate-200"],
+              ].map(([label, value, helper, className]) => (
+                <div key={label} className={`flex items-center justify-between gap-3 rounded-2xl border px-3 py-2.5 ${className}`}>
+                  <div className="min-w-0">
+                    <div className="text-xs font-black text-current">{label}</div>
+                    <div className="mt-0.5 truncate text-[11px] font-semibold opacity-75">{helper}</div>
                   </div>
-                );
-              })}
+                  <div className="shrink-0 text-lg font-black">{value}</div>
+                </div>
+              ))}
             </div>
-          ) : <div className="rounded-2xl border border-dashed border-border p-5 text-center text-sm font-semibold text-text-secondary">Operational activity will appear after inspections, movements and maintenance updates.</div>}
-        </Card>
+          </Card>
+        </div>
       ) : null}
 
       {activeOutlets.length ? <Card title="Asset List" description="Grouped by category with quick operational updates.">
@@ -2450,7 +2495,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
                             <span className="flex flex-wrap items-center gap-2">
                               <span>
                                 <span className="block text-sm font-black text-text-primary">{group.name}</span>
-                                <span className="text-xs font-semibold text-text-secondary">{group.assets.length} assets · {attentionCount} issue{attentionCount === 1 ? "" : "s"}</span>
+                                <span className="text-xs font-semibold text-text-secondary">{group.assets.length} assets</span>
                               </span>
                               {attentionCount ? <Badge tone="warning">Health Watch</Badge> : null}
                             </span>
@@ -2511,7 +2556,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
                               )}
                             </td>
                             <td className="px-4 py-3">
-                              <div className="flex min-w-[252px] items-center justify-end gap-1.5">
+                              <div className="flex min-w-[96px] items-center justify-end gap-1.5">
                                 <button
                                   className="btn-secondary h-8 px-2 text-xs"
                                   type="button"
@@ -2521,11 +2566,6 @@ export default function AssetTrackingPage({ store, ui, auth }) {
                                 >
                                   <Eye size={13} /> View
                                 </button>
-                                <div className="flex w-[150px] items-center justify-end gap-1 opacity-0 transition-opacity group-hover:opacity-100 group-focus-within:opacity-100">
-                                  {canManageAsset ? <button className="rounded-full bg-white px-2 py-1 text-[11px] font-black text-text-secondary shadow-sm ring-1 ring-border hover:text-primary" type="button" onClick={() => setInspectionOpen(true)}>Inspect</button> : null}
-                                  {canManageAsset && asset.maintenance_allowed ? <button className="rounded-full bg-white px-2 py-1 text-[11px] font-black text-text-secondary shadow-sm ring-1 ring-border hover:text-primary" type="button" onClick={() => setMaintenanceContext({ asset, record: null })}>Maint.</button> : null}
-                                  {canManageAsset ? <button className="rounded-full bg-white px-2 py-1 text-[11px] font-black text-text-secondary shadow-sm ring-1 ring-border hover:text-primary" type="button" onClick={() => setAdjustAsset(asset)}>Adjust</button> : null}
-                                </div>
                                 <button className="icon-btn h-8 w-8" type="button" onClick={(event) => setActionMenu({ asset, anchor: event.currentTarget.getBoundingClientRect() })} aria-label={`More actions for ${asset.name}`}>
                                   <MoreHorizontal size={15} />
                                 </button>
