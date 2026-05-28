@@ -105,7 +105,6 @@ OPERATIONS
 INVENTORY CONTROL
 - Dashboard
 - Master Inventory
-- Inventory Categories
 - Par Levels
 - Stock Check Groups
 - Stock Check
@@ -189,7 +188,7 @@ Inventory Control registry entries:
 ```text
 inventory_dashboard     INVENTORY_CONTROL   Dashboard              #inventory_dashboard
 inventory_master        INVENTORY_CONTROL   Master Inventory       #inventory_master
-inventory_categories    INVENTORY_CONTROL   Inventory Categories   #inventory_categories
+inventory_categories    INVENTORY_CONTROL   Inventory Categories   internal only, sidebar false
 inventory_par_levels    INVENTORY_CONTROL   Par Levels             #inventory_par_levels
 inventory_groups        INVENTORY_CONTROL   Stock Check Groups     #inventory_groups
 inventory_stock_check   INVENTORY_CONTROL   Stock Check            #inventory_stock_check
@@ -1729,7 +1728,6 @@ Routes:
 
 - `#inventory_dashboard`
 - `#inventory_master`
-- `#inventory_categories`
 - `#inventory_par_levels`
 - `#inventory_groups`
 - `#inventory_stock_check`
@@ -1743,7 +1741,8 @@ Core rules:
 
 - Master Inventory is the source of truth for inventory items.
 - Master Inventory defines global item identity only.
-- Inventory Categories is a standalone page under Inventory Control.
+- Inventory Categories is managed through Master Inventory > Category Settings.
+- Inventory Categories does not appear as a standalone sidebar page.
 - One inventory item can be linked to multiple outlets.
 - Not every outlet uses every inventory item.
 - Par Level, Storage Location, and outlet link active state are outlet-specific and live on `inventory_item_outlets`.
@@ -1826,7 +1825,10 @@ Master Inventory UI:
 - Subtitle: Create and manage all inventory items used across outlets.
 - Search by item name or SKU.
 - Filter by category, status, and outlet.
-- Page header actions include Add Item, Import, and Export.
+- Page header actions include Import, Export, Category Settings, and Add Item.
+- Category Settings opens `Inventory Category Settings`.
+- Inventory Category Settings contains category list/cards, Add Category, Edit Category, and Active/Inactive badges.
+- Category management access is controlled by inventory_categories.view/create/edit/delete.
 - The Master Inventory table columns are Item, Category, SKU Code, Unit, Linked Outlets, Status, and Actions.
 - The Master Inventory table does not show Low Stock or Par Level columns because those values are outlet-specific.
 - Linked Outlets displays a compact count such as `3 outlets`.

@@ -618,6 +618,41 @@ function CategoryModal({ category, onClose, onSave }) {
   );
 }
 
+function CategorySettingsModal({ categories, canManage, requirePermission, onAdd, onEdit, onClose }) {
+  return (
+    <Modal
+      title="Inventory Category Settings"
+      description="Manage categories used by master inventory items, stock checks and reports."
+      size="lg"
+      onClose={onClose}
+      footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}
+    >
+      <div className="mb-3 flex items-center justify-between gap-3">
+        <div className="type-caption text-text-secondary">{categories.length} configured categor{categories.length === 1 ? "y" : "ies"}</div>
+        <button className="btn-primary h-8 px-3 text-xs" type="button" onClick={() => requirePermission(canManage, "add inventory categories") && onAdd()}>
+          <PackagePlus size={14} /> Add Category
+        </button>
+      </div>
+      <div className="grid gap-2 sm:grid-cols-2">
+        {categories.map((category) => (
+          <button
+            key={category.id}
+            className="rounded-2xl border border-border p-3 text-left transition hover:border-primary/30 hover:bg-primary/5"
+            type="button"
+            onClick={() => requirePermission(canManage, "edit inventory categories") && onEdit(category)}
+          >
+            <div className="flex items-start justify-between gap-2">
+              <div className="font-bold text-text-primary">{category.name}</div>
+              <Badge tone={statusTone(category.status)}>{toTitle(category.status)}</Badge>
+            </div>
+            <p className="mt-1 line-clamp-2 type-caption text-text-secondary">{category.description || "No description provided."}</p>
+          </button>
+        ))}
+      </div>
+    </Modal>
+  );
+}
+
 function GroupModal({ group, outlets, items, categories, onClose, onSave }) {
   const [form, setForm] = useState(group ?? {
     id: "",
@@ -1018,7 +1053,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         ? current.categories.map((entry) => entry.id === category.id ? category : entry)
         : [...current.categories, category],
     }));
-    setModal(null);
+    setModal(modal?.returnToSettings ? { type: "category-settings" } : null);
     notify("Inventory category saved");
   }
 
@@ -1383,30 +1418,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               </table>
             </div>
           ) : <EmptyState title="Create your first inventory item to start stock tracking." description="Inventory items can be linked to one or multiple outlets." />}
-        </SectionCard>
-      </div>
-    );
-  }
-
-  function renderInventoryCategories() {
-    return (
-      <div className="space-y-4">
-        <SectionCard
-          title="Inventory Categories"
-          description="Manage item categories used in master inventory filters, stock checks and reports."
-          action={<button className="btn-secondary" type="button" onClick={() => requirePermission(can.manageCategories, "manage inventory categories") && setModal({ type: "category" })}>Add Category</button>}
-        >
-          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
-            {data.categories.map((category) => (
-              <button key={category.id} className="rounded-2xl border border-border p-3 text-left transition hover:border-primary/30 hover:bg-primary/5" type="button" onClick={() => requirePermission(can.manageCategories, "edit categories") && setModal({ type: "category", category })}>
-                <div className="flex items-start justify-between gap-2">
-                  <div className="font-bold text-text-primary">{category.name}</div>
-                  <Badge tone={statusTone(category.status)}>{toTitle(category.status)}</Badge>
-                </div>
-                <p className="mt-1 line-clamp-2 type-caption text-text-secondary">{category.description}</p>
-              </button>
-            ))}
-          </div>
         </SectionCard>
       </div>
     );
@@ -1911,7 +1922,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   function renderActiveTab() {
     if (activeTab === "dashboard") return renderDashboard();
     if (activeTab === "master") return renderMasterInventory();
-    if (activeTab === "categories") return renderInventoryCategories();
     if (activeTab === "par-levels") return renderParLevels();
     if (activeTab === "groups") return renderGroups();
     if (activeTab === "stock-check") return renderStockCheck();
@@ -1932,14 +1942,14 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           <button className="btn-secondary" type="button" onClick={() => requirePermission(can.export, "export inventory")}>
             <Download size={15} /> Export
           </button>
+          <button className="btn-secondary" type="button" onClick={() => requirePermission(can.manageCategories, "manage inventory categories") && setModal({ type: "category-settings" })}>
+            Category Settings
+          </button>
           <button className="btn-primary" type="button" onClick={() => requirePermission(can.manageMaster, "add inventory items") && setModal({ type: "item" })}>
             <PackagePlus size={15} /> Add Item
           </button>
         </>
       );
-    }
-    if (activeTab === "categories") {
-      return <button className="btn-primary" type="button" onClick={() => requirePermission(can.manageCategories, "manage inventory categories") && setModal({ type: "category" })}><PackagePlus size={15} /> Add Category</button>;
     }
     if (activeTab === "par-levels") {
       return (
@@ -1995,6 +2005,16 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       {renderActiveTab()}
 
       {modal?.type === "item" ? <InventoryItemModal item={modal.item} categories={data.categories} outlets={outlets} suppliers={suppliers} onClose={() => setModal(null)} onSave={saveItem} /> : null}
+      {modal?.type === "category-settings" ? (
+        <CategorySettingsModal
+          categories={data.categories}
+          canManage={can.manageCategories}
+          requirePermission={requirePermission}
+          onClose={() => setModal(null)}
+          onAdd={() => setModal({ type: "category", returnToSettings: true })}
+          onEdit={(category) => setModal({ type: "category", category, returnToSettings: true })}
+        />
+      ) : null}
       {modal?.type === "category" ? <CategoryModal category={modal.category} onClose={() => setModal(null)} onSave={saveCategory} /> : null}
       {modal?.type === "group" ? <GroupModal group={modal.group} outlets={outlets} items={data.items} categories={data.categories} onClose={() => setModal(null)} onSave={saveGroup} /> : null}
       {modal?.type === "request" ? <RequestModal outlets={outlets} items={data.items} categories={data.categories} suppliers={suppliers} onClose={() => setModal(null)} onSave={saveRequest} /> : null}

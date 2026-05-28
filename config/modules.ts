@@ -331,7 +331,7 @@ export const moduleRegistry: AppModule[] = [
     label: "Inventory Categories",
     route: "/inventory/categories",
     icon: "purchase-categories",
-    sidebar: true,
+    sidebar: false,
     permissions: { view: true, create: true, edit: true, delete: true },
   },
   {
