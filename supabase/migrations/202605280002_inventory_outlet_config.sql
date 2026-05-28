@@ -146,8 +146,13 @@ alter table public.inventory_purchase_orders
   add column if not exists status text not null default 'draft',
   add column if not exists source_type text,
   add column if not exists source_stock_check_id uuid references public.inventory_stock_checks(id) on delete set null,
+  add column if not exists source_stock_request_id uuid,
   add column if not exists created_by uuid references auth.users(id) on delete set null,
   add column if not exists submitted_at timestamptz,
+  add column if not exists confirmed_at timestamptz,
+  add column if not exists completed_at timestamptz,
+  add column if not exists cancelled_at timestamptz,
+  add column if not exists cancellation_reason text,
   add column if not exists created_at timestamptz not null default now(),
   add column if not exists updated_at timestamptz not null default now();
 
@@ -159,10 +164,34 @@ alter table public.inventory_purchase_order_items
   add column if not exists purchase_order_id uuid references public.inventory_purchase_orders(id) on delete cascade,
   add column if not exists item_id uuid references public.inventory_items(id) on delete set null,
   add column if not exists requested_qty numeric(14,3) not null default 0,
+  add column if not exists received_qty numeric(14,3) not null default 0,
   add column if not exists unit text,
   add column if not exists remark text,
   add column if not exists source_stock_check_item_id uuid references public.inventory_stock_check_items(id) on delete set null,
-  add column if not exists created_at timestamptz not null default now();
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
+
+create table if not exists public.inventory_purchase_receipts (
+  id uuid primary key default gen_random_uuid(),
+  purchase_order_id uuid references public.inventory_purchase_orders(id) on delete cascade,
+  outlet_id uuid references public.outlets(id) on delete set null,
+  supplier_id uuid references public.suppliers(id) on delete set null,
+  received_by uuid references auth.users(id) on delete set null,
+  received_at timestamptz not null default now(),
+  remark text,
+  created_at timestamptz not null default now()
+);
+
+create table if not exists public.inventory_purchase_receipt_items (
+  id uuid primary key default gen_random_uuid(),
+  receipt_id uuid references public.inventory_purchase_receipts(id) on delete cascade,
+  purchase_order_item_id uuid references public.inventory_purchase_order_items(id) on delete set null,
+  item_id uuid references public.inventory_items(id) on delete set null,
+  received_qty numeric(14,3) not null default 0,
+  unit text,
+  remark text,
+  created_at timestamptz not null default now()
+);
 
 grant select, insert, update, delete on table public.inventory_categories to authenticated;
 grant select, insert, update, delete on table public.inventory_items to authenticated;
@@ -173,6 +202,8 @@ grant select, insert, update, delete on table public.inventory_stock_checks to a
 grant select, insert, update, delete on table public.inventory_stock_check_items to authenticated;
 grant select, insert, update, delete on table public.inventory_purchase_orders to authenticated;
 grant select, insert, update, delete on table public.inventory_purchase_order_items to authenticated;
+grant select, insert, update, delete on table public.inventory_purchase_receipts to authenticated;
+grant select, insert, update, delete on table public.inventory_purchase_receipt_items to authenticated;
 revoke all on table public.inventory_categories from anon;
 revoke all on table public.inventory_items from anon;
 revoke all on table public.inventory_item_outlets from anon;
@@ -182,6 +213,8 @@ revoke all on table public.inventory_stock_checks from anon;
 revoke all on table public.inventory_stock_check_items from anon;
 revoke all on table public.inventory_purchase_orders from anon;
 revoke all on table public.inventory_purchase_order_items from anon;
+revoke all on table public.inventory_purchase_receipts from anon;
+revoke all on table public.inventory_purchase_receipt_items from anon;
 
 alter table public.inventory_categories enable row level security;
 alter table public.inventory_items enable row level security;
@@ -192,6 +225,8 @@ alter table public.inventory_stock_checks enable row level security;
 alter table public.inventory_stock_check_items enable row level security;
 alter table public.inventory_purchase_orders enable row level security;
 alter table public.inventory_purchase_order_items enable row level security;
+alter table public.inventory_purchase_receipts enable row level security;
+alter table public.inventory_purchase_receipt_items enable row level security;
 
 drop policy if exists "inventory category viewers can view categories" on public.inventory_categories;
 create policy "inventory category viewers can view categories"
@@ -505,6 +540,43 @@ with check (
     select 1 from public.inventory_purchase_orders po
     where po.id = inventory_purchase_order_items.purchase_order_id
       and public.current_user_can_access_outlet(po.outlet_id)
+  )
+);
+
+drop policy if exists "inventory purchase receipts scoped access" on public.inventory_purchase_receipts;
+create policy "inventory purchase receipts scoped access"
+on public.inventory_purchase_receipts for all to authenticated
+using (
+  (
+    public.current_user_has_permission('inventory_orders.view')
+    or public.current_user_has_permission('inventory_orders.edit')
+    or public.current_user_has_permission('inventory_control.view')
+  )
+  and public.current_user_can_access_outlet(outlet_id)
+)
+with check (
+  (
+    public.current_user_has_permission('inventory_orders.edit')
+    or public.current_user_has_permission('inventory_control.manage')
+  )
+  and public.current_user_can_access_outlet(outlet_id)
+);
+
+drop policy if exists "inventory purchase receipt items scoped access" on public.inventory_purchase_receipt_items;
+create policy "inventory purchase receipt items scoped access"
+on public.inventory_purchase_receipt_items for all to authenticated
+using (
+  exists (
+    select 1 from public.inventory_purchase_receipts receipt
+    where receipt.id = inventory_purchase_receipt_items.receipt_id
+      and public.current_user_can_access_outlet(receipt.outlet_id)
+  )
+)
+with check (
+  exists (
+    select 1 from public.inventory_purchase_receipts receipt
+    where receipt.id = inventory_purchase_receipt_items.receipt_id
+      and public.current_user_can_access_outlet(receipt.outlet_id)
   )
 );
 

@@ -2110,9 +2110,9 @@ PO statuses:
 
 - Draft
 - Submitted
-- Confirmed
-- Partial Delivered
-- Delivered
+- Supplier Confirmed
+- Partial Received
+- Fully Received
 - Completed
 - Cancelled
 
@@ -2122,10 +2122,22 @@ Rules:
 - One Draft PO is created per supplier per outlet per stock check confirmation.
 - Draft POs include only included suggestion rows with order quantity greater than zero.
 - Purchase Orders track source type and source stock check when generated from Stock Check.
-- PO detail shows supplier, outlet, source stock check, item rows, order quantity, unit, remark, and status timeline.
-- Status workflow: Draft → Submitted → Confirmed → Partial Delivered → Delivered → Completed.
-- Cancelled is allowed where business rules permit.
-- Edit is primarily allowed in Draft status.
+- Stock is not updated when a PO is submitted.
+- Receiving inventory requires explicit received quantity confirmation.
+- Receiving creates inventory movement rows with movement type Purchase.
+- Receiving updates `inventory_purchase_order_items.received_qty` cumulatively.
+- Partial receiving sets status to Partial Received.
+- Full receiving sets status to Fully Received.
+- Complete PO closes a Fully Received order.
+- PO detail shows supplier, outlet, source stock check/request, item rows, ordered quantity, received quantity, remaining quantity, unit, remark, receiving history, and status timeline.
+- Status workflow: Draft → Submitted → Supplier Confirmed → Partial Received → Fully Received → Completed.
+- Cancelled preserves historical PO records and requires a cancellation reason.
+- Draft can be cancelled anytime.
+- Submitted and Supplier Confirmed can be cancelled if no quantity has been received.
+- Partial Received can cancel remaining unreceived quantity where business rules permit.
+- Edit is allowed for Draft status only.
+- Purchase Orders support outlet, supplier, status, source, date range, and search filters.
+- Purchase Order export respects current filters and includes PO No., Supplier, Outlet, Items, Ordered Qty, Received Qty, Remaining Qty, Status, Source, Created Date, Submitted Date, Completed Date, and Cancelled Reason.
 
 Inventory Movements:
 
@@ -3256,6 +3268,8 @@ Inventory Control tables:
 - inventory_stock_request_items
 - inventory_purchase_orders
 - inventory_purchase_order_items
+- inventory_purchase_receipts
+- inventory_purchase_receipt_items
 - inventory_movements
 - inventory_waste_records
 - inventory_recipes

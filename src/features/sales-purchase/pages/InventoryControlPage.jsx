@@ -93,6 +93,8 @@ const shifts = ["Opening", "Mid", "Closing", "Any Shift"];
 const weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const movementTypes = ["purchase", "transfer_in", "transfer_out", "waste", "adjustment", "staff_meal", "production_usage", "return"];
 const wasteTypes = ["Spoilage", "Expired", "Kitchen Error", "Burnt", "Returned Item", "Staff Consumption", "Unknown"];
+const poStatuses = ["draft", "submitted", "supplier_confirmed", "partial_received", "fully_received", "completed", "cancelled"];
+const poSources = ["stock_check", "stock_request", "manual"];
 
 function todayInput() {
   return new Date().toISOString().slice(0, 10);
@@ -106,6 +108,20 @@ function toTitle(value = "") {
   return String(value)
     .replace(/_/g, " ")
     .replace(/\b\w/g, (match) => match.toUpperCase());
+}
+
+function poStatusLabel(status) {
+  const labels = {
+    supplier_confirmed: "Supplier Confirmed",
+    partial_received: "Partial Received",
+    fully_received: "Fully Received",
+  };
+  return labels[status] || toTitle(status);
+}
+
+function poSourceLabel(source) {
+  const labels = { stock_check: "Stock Check", stock_request: "Stock Request", manual: "Manual" };
+  return labels[source] || toTitle(source || "manual");
 }
 
 function toCurrency(value) {
@@ -141,10 +157,10 @@ function weekdayName(value = todayInput()) {
 }
 
 function statusTone(status) {
-  if (["active", "normal", "completed", "submitted", "reviewed", "locked", "delivered"].includes(status)) return "success";
-  if (["draft", "due today", "scheduled", "partial approved", "partial delivery", "partial_delivered"].includes(status)) return "warning";
+  if (["active", "normal", "completed", "reviewed", "locked", "delivered", "fully_received"].includes(status)) return "success";
+  if (["draft", "due today", "scheduled", "partial approved", "partial delivery", "partial_delivered", "partial_received"].includes(status)) return "warning";
   if (["critical", "shortage", "overdue", "rejected", "archived", "cancelled"].includes(status)) return "danger";
-  if (["excess", "sent", "confirmed", "ordered", "packing"].includes(status)) return "info";
+  if (["excess", "sent", "submitted", "confirmed", "supplier_confirmed", "ordered", "packing"].includes(status)) return "info";
   return "neutral";
 }
 
@@ -417,6 +433,25 @@ function outletConfigsForScope(item = {}, outletIds = []) {
 
 function parLevelForOutlet(item = {}, outletId) {
   return outletConfigForItem(item, outletId).parLevel;
+}
+
+function orderedQty(order = {}) {
+  return (order.lines || []).reduce((sum, line) => sum + Number(line.requestedQty || 0), 0);
+}
+
+function receivedQty(order = {}) {
+  return (order.lines || []).reduce((sum, line) => sum + Number(line.receivedQty || 0), 0);
+}
+
+function remainingQty(line = {}) {
+  return Math.max(0, Number(line.requestedQty || 0) - Number(line.receivedQty || 0));
+}
+
+function poProgress(order = {}) {
+  const ordered = orderedQty(order);
+  const received = receivedQty(order);
+  const percent = ordered ? Math.round((received / ordered) * 100) : 0;
+  return { ordered, received, percent };
 }
 
 function normalizeInventoryData(raw, outlets = [], suppliers = []) {
@@ -1683,6 +1718,141 @@ function PurchaseSuggestionsModal({ suggestions, suppliers, outlet, onClose, onC
   );
 }
 
+function PurchaseOrderEditModal({ order, suppliers, items, onClose, onSave }) {
+  const [form, setForm] = useState({
+    ...order,
+    lines: (order.lines || []).map((line) => ({ ...line })),
+  });
+  const updateLine = (index, patch) => setForm((current) => ({
+    ...current,
+    lines: current.lines.map((line, lineIndex) => lineIndex === index ? { ...line, ...patch } : line),
+  }));
+  const availableItems = items.filter((item) => item.status === "active" && item.linkedOutletIds?.includes(form.outletId || form.outletIds?.[0]));
+
+  return (
+    <Modal
+      title="Edit Draft PO"
+      description="Draft purchase orders can be adjusted before submission."
+      size="xl"
+      onClose={onClose}
+      footer={(
+        <>
+          <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" type="button" disabled={form.status !== "draft" || !form.lines.length} onClick={() => onSave(form)}>Save Draft PO</button>
+        </>
+      )}
+    >
+      <div className="space-y-4">
+        {form.status !== "draft" ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 type-body-sm font-semibold text-amber-800">
+            This PO has already been submitted. Create an adjustment or cancel if needed.
+          </div>
+        ) : null}
+        <div className="grid gap-3 sm:grid-cols-2">
+          <SelectField label="Supplier" value={form.supplierId} options={suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))} onChange={(value) => setForm((current) => ({ ...current, supplierId: value }))} searchable disabled={form.status !== "draft"} />
+        </div>
+        <div className="space-y-2">
+          {form.lines.map((line, index) => {
+            const item = items.find((entry) => entry.id === line.itemId);
+            return (
+              <div key={line.id || `${line.itemId}-${index}`} className="grid gap-2 rounded-2xl border border-border p-3 md:grid-cols-[1.4fr_120px_1fr_auto] md:items-end">
+                <SelectField label="Item" value={line.itemId} options={availableItems.map((entry) => ({ value: entry.id, label: entry.name }))} onChange={(value) => {
+                  const nextItem = items.find((entry) => entry.id === value);
+                  updateLine(index, { itemId: value, unit: nextItem?.unit || line.unit });
+                }} searchable disabled={form.status !== "draft"} />
+                <Field label="Order Qty" type="number" value={line.requestedQty} onChange={(value) => updateLine(index, { requestedQty: Number(value || 0) })} />
+                <Field label="Remark" value={line.remark || ""} onChange={(value) => updateLine(index, { remark: value })} />
+                <button className="btn-secondary h-9 px-2.5 text-xs" type="button" disabled={form.status !== "draft"} onClick={() => setForm((current) => ({ ...current, lines: current.lines.filter((_, lineIndex) => lineIndex !== index) }))}>Remove</button>
+                <div className="type-caption text-text-secondary md:col-span-4">Unit: <span className="font-bold text-text-primary">{line.unit || item?.unit || "-"}</span></div>
+              </div>
+            );
+          })}
+        </div>
+        <button className="btn-secondary" type="button" disabled={form.status !== "draft"} onClick={() => setForm((current) => ({ ...current, lines: [...current.lines, { id: makeId("po_item"), itemId: availableItems[0]?.id || "", requestedQty: 1, receivedQty: 0, unit: availableItems[0]?.unit || "", remark: "" }] }))}>Add Item</button>
+      </div>
+    </Modal>
+  );
+}
+
+function ReceiveInventoryModal({ order, supplier, outlet, items, onClose, onReceive }) {
+  const [remark, setRemark] = useState("");
+  const [rows, setRows] = useState((order.lines || []).map((line) => ({ ...line, receiveNowQty: 0, receiveRemark: "" })));
+  const receivable = rows.filter((row) => remainingQty(row) > 0);
+  const hasValidQty = rows.some((row) => Number(row.receiveNowQty || 0) > 0);
+  const invalid = rows.some((row) => Number(row.receiveNowQty || 0) < 0 || Number(row.receiveNowQty || 0) > remainingQty(row));
+  const updateRow = (id, patch) => setRows((current) => current.map((row) => (row.id || row.itemId) === id ? { ...row, ...patch } : row));
+
+  return (
+    <Modal
+      title="Receive Inventory"
+      description={`${order.poNo} · ${supplier?.name || "Supplier"} · ${outlet?.name || "Outlet"} · ${poStatusLabel(order.status)}`}
+      size="xl"
+      onClose={onClose}
+      footer={(
+        <>
+          <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" type="button" disabled={!hasValidQty || invalid || ["cancelled", "completed"].includes(order.status)} onClick={() => onReceive(rows, remark)}>Confirm Receive</button>
+        </>
+      )}
+    >
+      <div className="space-y-4">
+        <div className="overflow-x-auto rounded-2xl border border-border">
+          <table className="w-full min-w-[860px] text-left">
+            <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
+              <tr>
+                <th className="px-3 py-2">Item</th>
+                <th>Ordered</th>
+                <th>Previously Received</th>
+                <th>Remaining</th>
+                <th>Receive Now</th>
+                <th>Unit</th>
+                <th>Remark</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border text-[13px]">
+              {rows.map((row) => {
+                const item = items.find((entry) => entry.id === row.itemId);
+                return (
+                  <tr key={row.id || row.itemId}>
+                    <td className="px-3 py-2 font-bold text-text-primary">{item?.name || "Inventory item"}</td>
+                    <td>{row.requestedQty}</td>
+                    <td>{row.receivedQty || 0}</td>
+                    <td>{remainingQty(row)}</td>
+                    <td><input className="control h-8 w-24 text-[13px]" type="number" min="0" max={remainingQty(row)} disabled={remainingQty(row) <= 0} value={row.receiveNowQty} onChange={(event) => updateRow(row.id || row.itemId, { receiveNowQty: Number(event.target.value || 0) })} /></td>
+                    <td>{row.unit || item?.unit || ""}</td>
+                    <td><input className="control h-8 min-w-40 text-[13px]" value={row.receiveRemark} onChange={(event) => updateRow(row.id || row.itemId, { receiveRemark: event.target.value })} placeholder="Optional" /></td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        {!receivable.length ? <EmptyState title="No remaining quantity to receive." description="This PO has already been fully received." /> : null}
+        <TextArea label="Receipt Remark" value={remark} onChange={setRemark} />
+      </div>
+    </Modal>
+  );
+}
+
+function CancelPurchaseOrderModal({ order, onClose, onCancel }) {
+  const [reason, setReason] = useState("");
+  return (
+    <Modal
+      title="Cancel Purchase Order"
+      description={`${order.poNo} will be preserved for audit history.`}
+      onClose={onClose}
+      footer={(
+        <>
+          <button className="btn-secondary" type="button" onClick={onClose}>Keep PO</button>
+          <button className="btn-danger" type="button" disabled={!reason.trim()} onClick={() => onCancel(reason)}>Cancel PO</button>
+        </>
+      )}
+    >
+      <TextArea label="Cancellation Reason" value={reason} onChange={setReason} required />
+    </Modal>
+  );
+}
+
 function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const outlets = store?.outlets ?? [];
   const suppliers = store?.suppliers ?? [];
@@ -1698,6 +1868,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [parLevelGroupBy, setParLevelGroupBy] = useState("category");
   const [collapsedParCategoryIds, setCollapsedParCategoryIds] = useState(() => new Set());
   const [parLevelOutletId, setParLevelOutletId] = useState(outlets[0]?.id ?? "");
+  const [poFilters, setPoFilters] = useState({ outletId: "all", supplierId: "all", status: "all", source: "all", search: "", from: "", to: "" });
   const [date, setDate] = useState(todayInput());
   const [modal, setModal] = useState(null);
   const [activeCheckGroupId, setActiveCheckGroupId] = useState(null);
@@ -1973,6 +2144,43 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     notify("Par levels exported successfully", `${rows.length} outlet item config${rows.length === 1 ? "" : "s"} exported.`);
   }
 
+  function exportPurchaseOrders() {
+    const rows = data.orders.filter((order) => {
+      const outletId = order.outletId || order.outletIds?.[0] || "";
+      const supplier = suppliers.find((entry) => entry.id === order.supplierId);
+      const createdDate = (order.createdAt || order.submittedAt || "").slice(0, 10);
+      const searchText = [order.poNo, supplier?.name, ...(order.lines || []).map((line) => itemById.get(line.itemId)?.name)].join(" ").toLowerCase();
+      return (poFilters.outletId === "all" || outletId === poFilters.outletId)
+        && (poFilters.supplierId === "all" || order.supplierId === poFilters.supplierId)
+        && (poFilters.status === "all" || order.status === poFilters.status)
+        && (poFilters.source === "all" || (order.sourceType || "manual") === poFilters.source)
+        && (!poFilters.search.trim() || searchText.includes(poFilters.search.trim().toLowerCase()))
+        && (!poFilters.from || !createdDate || createdDate >= poFilters.from)
+        && (!poFilters.to || !createdDate || createdDate <= poFilters.to);
+    }).map((order) => {
+      const progress = poProgress(order);
+      return {
+        "PO No.": order.poNo,
+        Supplier: suppliers.find((supplier) => supplier.id === order.supplierId)?.name || "",
+        Outlet: outletById.get(order.outletId || order.outletIds?.[0])?.name || "",
+        Items: order.lines.length,
+        "Ordered Qty": progress.ordered,
+        "Received Qty": progress.received,
+        "Remaining Qty": Math.max(0, progress.ordered - progress.received),
+        Status: poStatusLabel(order.status),
+        Source: poSourceLabel(order.sourceType),
+        "Created Date": order.createdAt || "",
+        "Submitted Date": order.submittedAt || "",
+        "Completed Date": order.completedAt || "",
+        "Cancelled Reason": order.cancellationReason || "",
+      };
+    });
+    const columns = ["PO No.", "Supplier", "Outlet", "Items", "Ordered Qty", "Received Qty", "Remaining Qty", "Status", "Source", "Created Date", "Submitted Date", "Completed Date", "Cancelled Reason"];
+    const csv = [columns.join(","), ...rows.map((row) => columns.map((column) => csvEscape(row[column])).join(","))].join("\n");
+    downloadTextFile(`feedx-purchase-orders-${todayInput()}.csv`, csv);
+    notify("Purchase orders exported", `${rows.length} PO${rows.length === 1 ? "" : "s"} exported.`);
+  }
+
   function saveParLevelConfig(itemId, outletId, patch) {
     setData((current) => ({
       ...current,
@@ -2095,7 +2303,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       createdAt: new Date().toISOString(),
       submittedAt: "",
       eta: "",
-      lines,
+      lines: lines.map((line) => ({ ...line, receivedQty: Number(line.receivedQty || 0) })),
     }));
     setData((current) => ({
       ...current,
@@ -2176,6 +2384,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         id: makeId("po_item"),
         itemId: row.itemId,
         requestedQty: Number(row.suggestedOrderQty || 0),
+        receivedQty: 0,
         unit: row.unit,
         remark: row.remark || "",
         sourceStockCheckItemId: row.stockCheckItemId,
@@ -2191,11 +2400,106 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }
 
   function updatePurchaseOrderStatus(orderId, status) {
+    const timestamp = new Date().toISOString();
     setData((current) => ({
       ...current,
-      orders: current.orders.map((order) => order.id === orderId ? { ...order, status, submittedAt: status === "submitted" ? new Date().toISOString() : order.submittedAt } : order),
+      orders: current.orders.map((order) => order.id === orderId ? {
+        ...order,
+        status,
+        submittedAt: status === "submitted" ? timestamp : order.submittedAt,
+        confirmedAt: status === "supplier_confirmed" ? timestamp : order.confirmedAt,
+        completedAt: status === "completed" ? timestamp : order.completedAt,
+        updatedAt: timestamp,
+      } : order),
     }));
-    notify("PO status updated", toTitle(status));
+    notify("PO status updated", poStatusLabel(status));
+  }
+
+  function savePurchaseOrder(order) {
+    setData((current) => ({
+      ...current,
+      orders: current.orders.map((entry) => entry.id === order.id ? { ...order, updatedAt: new Date().toISOString() } : entry),
+    }));
+    setModal(null);
+    notify("Draft PO saved");
+  }
+
+  function cancelPurchaseOrder(order, reason) {
+    const hasReceived = receivedQty(order) > 0;
+    if (["completed", "cancelled"].includes(order.status)) return;
+    if (hasReceived && order.status !== "partial_received") {
+      notify("Cannot cancel received PO", "Received quantities remain part of inventory history.", "warning");
+      return;
+    }
+    setData((current) => ({
+      ...current,
+      orders: current.orders.map((entry) => entry.id === order.id ? {
+        ...entry,
+        status: "cancelled",
+        cancellationReason: reason,
+        cancelledAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      } : entry),
+    }));
+    setModal(null);
+    notify("Purchase order cancelled");
+  }
+
+  function receivePurchaseOrder(order, rows, receiptRemark) {
+    if (["cancelled", "completed"].includes(order.status)) return;
+    const receivedRows = rows.filter((row) => Number(row.receiveNowQty || 0) > 0);
+    if (!receivedRows.length) return;
+    const receiptId = makeId("receipt");
+    const receivedAt = new Date().toISOString();
+    const nextLines = (order.lines || []).map((line) => {
+      const received = receivedRows.find((row) => (row.id || row.itemId) === (line.id || line.itemId));
+      return received ? { ...line, receivedQty: Number(line.receivedQty || 0) + Number(received.receiveNowQty || 0) } : line;
+    });
+    const nextStatus = nextLines.every((line) => remainingQty(line) <= 0) ? "fully_received" : "partial_received";
+    const movements = receivedRows.map((row) => ({
+      id: makeId("move"),
+      date: todayInput(),
+      dateTime: receivedAt,
+      itemId: row.itemId,
+      type: "purchase",
+      movementType: "Purchase",
+      quantity: Number(row.receiveNowQty || 0),
+      unit: row.unit,
+      outletId: order.outletId || order.outletIds?.[0],
+      user: "Current User",
+      reference: order.poNo,
+      notes: row.receiveRemark || receiptRemark || "Purchase receive",
+    }));
+    const receipt = {
+      id: receiptId,
+      purchaseOrderId: order.id,
+      outletId: order.outletId || order.outletIds?.[0],
+      supplierId: order.supplierId,
+      receivedBy: "Current User",
+      receivedAt,
+      remark: receiptRemark,
+      items: receivedRows.map((row) => ({
+        id: makeId("receipt_item"),
+        purchaseOrderItemId: row.id,
+        itemId: row.itemId,
+        receivedQty: Number(row.receiveNowQty || 0),
+        unit: row.unit,
+        remark: row.receiveRemark || "",
+      })),
+    };
+    setData((current) => ({
+      ...current,
+      orders: current.orders.map((entry) => entry.id === order.id ? {
+        ...entry,
+        lines: nextLines,
+        status: nextStatus,
+        receipts: [receipt, ...(entry.receipts || [])],
+        updatedAt: receivedAt,
+      } : entry),
+      movements: [...movements, ...current.movements],
+    }));
+    setModal(null);
+    notify(nextStatus === "fully_received" ? "PO fully received" : "PO partially received", "Inventory movement records were created.");
   }
 
   function saveMovement(movement) {
@@ -2916,18 +3220,56 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }
 
   function renderOrders() {
+    const filteredOrders = data.orders.filter((order) => {
+      const outletId = order.outletId || order.outletIds?.[0] || "";
+      const supplier = suppliers.find((entry) => entry.id === order.supplierId);
+      const createdDate = (order.createdAt || order.submittedAt || "").slice(0, 10);
+      const searchText = [
+        order.poNo,
+        supplier?.name,
+        ...(order.lines || []).map((line) => itemById.get(line.itemId)?.name),
+      ].join(" ").toLowerCase();
+      const matchesOutlet = poFilters.outletId === "all" || outletId === poFilters.outletId;
+      const matchesSupplier = poFilters.supplierId === "all" || order.supplierId === poFilters.supplierId;
+      const matchesStatus = poFilters.status === "all" || order.status === poFilters.status;
+      const matchesSource = poFilters.source === "all" || (order.sourceType || "manual") === poFilters.source;
+      const matchesSearch = !poFilters.search.trim() || searchText.includes(poFilters.search.trim().toLowerCase());
+      const matchesFrom = !poFilters.from || !createdDate || createdDate >= poFilters.from;
+      const matchesTo = !poFilters.to || !createdDate || createdDate <= poFilters.to;
+      return matchesOutlet && matchesSupplier && matchesStatus && matchesSource && matchesSearch && matchesFrom && matchesTo;
+    });
+    const updateFilter = (key, value) => setPoFilters((current) => ({ ...current, [key]: value }));
+    const primaryAction = (order) => {
+      if (order.status === "draft") return { label: "Submit Order", tone: "primary", action: () => requirePermission(can.managePo, "submit purchase orders") && updatePurchaseOrderStatus(order.id, "submitted") };
+      if (["submitted", "supplier_confirmed", "partial_received"].includes(order.status)) return { label: "Receive", tone: "primary", action: () => requirePermission(can.managePo, "receive inventory") && setModal({ type: "po-receive", order }) };
+      if (order.status === "fully_received") return { label: "Complete PO", tone: "primary", action: () => requirePermission(can.managePo, "complete purchase orders") && updatePurchaseOrderStatus(order.id, "completed") };
+      return { label: "View", tone: "secondary", action: () => setModal({ type: "po-detail", order }) };
+    };
+
     return (
-      <SectionCard title="Purchase Orders" description="Draft POs can be created from reviewed stock check suggestions or approved stock requests.">
-        {data.orders.length ? (
+      <SectionCard title="Purchase Orders" description="Draft POs move through submission, supplier confirmation, receiving and completion.">
+        <div className="mb-4 grid gap-3 lg:grid-cols-6">
+          <SelectField label="Outlet" value={poFilters.outletId} options={[{ value: "all", label: "All Outlets" }, ...outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))]} onChange={(value) => updateFilter("outletId", value)} searchable />
+          <SelectField label="Supplier" value={poFilters.supplierId} options={[{ value: "all", label: "All Suppliers" }, ...suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))]} onChange={(value) => updateFilter("supplierId", value)} searchable />
+          <SelectField label="Status" value={poFilters.status} options={[{ value: "all", label: "All Status" }, ...poStatuses.map((status) => ({ value: status, label: poStatusLabel(status) }))]} onChange={(value) => updateFilter("status", value)} />
+          <SelectField label="Source" value={poFilters.source} options={[{ value: "all", label: "All Sources" }, ...poSources.map((source) => ({ value: source, label: poSourceLabel(source) }))]} onChange={(value) => updateFilter("source", value)} />
+          <Field label="From" type="date" value={poFilters.from} onChange={(value) => updateFilter("from", value)} />
+          <Field label="To" type="date" value={poFilters.to} onChange={(value) => updateFilter("to", value)} />
+          <label className="lg:col-span-6">
+            <div className="mb-1 type-caption font-semibold text-text-secondary">Search PO / Supplier / Item</div>
+            <input className="control h-9 w-full text-[13px]" value={poFilters.search} onChange={(event) => updateFilter("search", event.target.value)} placeholder="Search PO no, supplier or item" />
+          </label>
+        </div>
+        {filteredOrders.length ? (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-left">
+            <table className="w-full min-w-[1040px] text-left">
               <thead className="text-[11px] uppercase tracking-wide text-text-muted">
                 <tr className="border-b border-border">
                   <th className="py-2">PO No.</th>
                   <th>Supplier</th>
                   <th>Outlet</th>
                   <th>Items</th>
-                  <th>Total Qty</th>
+                  <th>Received Progress</th>
                   <th>Status</th>
                   <th>Source</th>
                   <th>Created Date</th>
@@ -2935,26 +3277,31 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                 </tr>
               </thead>
               <tbody className="divide-y divide-border text-[13px]">
-                {data.orders.map((order) => {
+                {filteredOrders.map((order) => {
                   const supplier = suppliers.find((entry) => entry.id === order.supplierId);
                   const outlet = outletById.get(order.outletId || order.outletIds?.[0]);
-                  const totalQty = order.lines.reduce((sum, line) => sum + Number(line.requestedQty || 0), 0);
+                  const progress = poProgress(order);
+                  const action = primaryAction(order);
                   return (
                     <tr key={order.id} className="transition hover:bg-primary/5">
                       <td className="py-3 font-mono text-xs font-bold text-text-primary">{order.poNo}</td>
                       <td className="font-semibold text-text-primary">{supplier?.name ?? "Unassigned Supplier"}</td>
                       <td>{outlet?.name ?? "Outlet"}</td>
                       <td>{order.lines.length}</td>
-                      <td>{totalQty}</td>
-                      <td><Badge tone={statusTone(order.status)}>{toTitle(order.status)}</Badge></td>
-                      <td>{order.sourceType === "stock_check" ? "Stock Check" : "Stock Request"}</td>
+                      <td>
+                        <div className="font-semibold text-text-primary">{progress.received} / {progress.ordered}</div>
+                        <div className="mt-1 h-1.5 rounded-full bg-slate-100"><div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(progress.percent, 100)}%` }} /></div>
+                      </td>
+                      <td><Badge tone={statusTone(order.status)}>{poStatusLabel(order.status)}</Badge></td>
+                      <td>{poSourceLabel(order.sourceType)}</td>
                       <td>{formatDate(order.createdAt || order.submittedAt || todayInput())}</td>
                       <td>
                         <div className="flex justify-end gap-2">
+                          <button className={action.tone === "primary" ? "btn-primary h-8 px-2.5 text-xs" : "btn-secondary h-8 px-2.5 text-xs"} type="button" onClick={action.action}>{action.label}</button>
                           <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setModal({ type: "po-detail", order })}>View</button>
-                          <button className="btn-secondary h-8 px-2.5 text-xs" type="button" disabled={order.status !== "draft"} onClick={() => setModal({ type: "po-detail", order, edit: true })}>Edit</button>
-                          {order.status === "draft" ? <button className="btn-primary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.managePo, "submit purchase orders") && updatePurchaseOrderStatus(order.id, "submitted")}>Submit</button> : null}
-                          {order.status !== "completed" ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.managePo, "update purchase order status") && updatePurchaseOrderStatus(order.id, order.status === "submitted" ? "confirmed" : order.status === "confirmed" ? "partial_delivered" : order.status === "partial_delivered" ? "delivered" : "completed")}>Update Status</button> : null}
+                          {order.status === "draft" ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setModal({ type: "po-edit", order })}>Edit</button> : null}
+                          {order.status === "submitted" ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.managePo, "mark supplier confirmed") && updatePurchaseOrderStatus(order.id, "supplier_confirmed")}>Mark Confirmed</button> : null}
+                          {["draft", "submitted", "supplier_confirmed", "partial_received"].includes(order.status) ? <button className="btn-secondary h-8 px-2.5 text-xs text-rose-700" type="button" onClick={() => requirePermission(can.managePo, "cancel purchase orders") && setModal({ type: "po-cancel", order })}>{order.status === "partial_received" ? "Cancel Remaining" : "Cancel"}</button> : null}
                         </div>
                       </td>
                     </tr>
@@ -2963,7 +3310,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               </tbody>
             </table>
           </div>
-        ) : <EmptyState title="No purchase orders yet." description="Convert approved stock requests into supplier purchase orders." />}
+        ) : <EmptyState title="No purchase orders found." description="Adjust filters or create Draft POs from purchase suggestions and stock requests." />}
       </SectionCard>
     );
   }
@@ -3124,6 +3471,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     if (activeTab === "requests") {
       return <button className="btn-primary" type="button" onClick={() => requirePermission(can.createRequest, "create stock requests") && setModal({ type: "request" })}><PackagePlus size={15} /> New Request</button>;
     }
+    if (activeTab === "orders") {
+      return <button className="btn-secondary" type="button" onClick={() => requirePermission(can.export, "export purchase orders") && exportPurchaseOrders()}><Download size={15} /> Export</button>;
+    }
     if (activeTab === "movements") {
       return <button className="btn-primary" type="button" onClick={() => requirePermission(can.recordMovement, "record inventory movements") && setModal({ type: "movement" })}><RefreshCw size={15} /> Record Movement</button>;
     }
@@ -3196,6 +3546,18 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       {modal?.type === "request" ? <RequestModal outlets={outlets} items={data.items} categories={sortedCategories} suppliers={suppliers} onClose={() => setModal(null)} onSave={saveRequest} /> : null}
       {modal?.type === "movement" ? <MovementModal outlets={outlets} items={data.items} onClose={() => setModal(null)} onSave={saveMovement} /> : null}
       {modal?.type === "waste" ? <WasteModal outlets={outlets} items={data.items} onClose={() => setModal(null)} onSave={saveWaste} /> : null}
+      {modal?.type === "po-edit" ? <PurchaseOrderEditModal order={modal.order} suppliers={suppliers} items={data.items} onClose={() => setModal(null)} onSave={savePurchaseOrder} /> : null}
+      {modal?.type === "po-receive" ? (
+        <ReceiveInventoryModal
+          order={modal.order}
+          supplier={suppliers.find((supplier) => supplier.id === modal.order.supplierId)}
+          outlet={outletById.get(modal.order.outletId || modal.order.outletIds?.[0])}
+          items={data.items}
+          onClose={() => setModal(null)}
+          onReceive={(rows, remark) => receivePurchaseOrder(modal.order, rows, remark)}
+        />
+      ) : null}
+      {modal?.type === "po-cancel" ? <CancelPurchaseOrderModal order={modal.order} onClose={() => setModal(null)} onCancel={(reason) => cancelPurchaseOrder(modal.order, reason)} /> : null}
       {modal?.type === "purchase-suggestions" ? (
         <PurchaseSuggestionsModal
           suggestions={modal.suggestions}
@@ -3256,9 +3618,15 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           <div className="space-y-4">
             <div className="grid gap-3 sm:grid-cols-4">
               <MetricCard label="Supplier" value={suppliers.find((supplier) => supplier.id === modal.order.supplierId)?.name || "Unassigned"} helper={outletById.get(modal.order.outletId || modal.order.outletIds?.[0])?.name || "Outlet"} />
-              <MetricCard label="Status" value={toTitle(modal.order.status)} helper="PO workflow" tone={statusTone(modal.order.status)} />
+              <MetricCard label="Status" value={poStatusLabel(modal.order.status)} helper="PO workflow" tone={statusTone(modal.order.status)} />
               <MetricCard label="Items" value={modal.order.lines.length} helper="PO lines" />
               <MetricCard label="Source Check" value={modal.order.sourceStockCheckId ? "Linked" : "None"} helper={modal.order.sourceStockCheckId || "No stock check"} tone={modal.order.sourceStockCheckId ? "info" : "neutral"} />
+            </div>
+            <div className="grid gap-2 rounded-2xl border border-border bg-slate-50 p-3 type-caption font-semibold text-text-secondary sm:grid-cols-4">
+              <div>Created: <span className="text-text-primary">{formatDate(modal.order.createdAt)}</span></div>
+              <div>Submitted: <span className="text-text-primary">{modal.order.submittedAt ? formatDate(modal.order.submittedAt) : "-"}</span></div>
+              <div>Completed: <span className="text-text-primary">{modal.order.completedAt ? formatDate(modal.order.completedAt) : "-"}</span></div>
+              <div>Cancelled: <span className="text-text-primary">{modal.order.cancelledAt ? formatDate(modal.order.cancelledAt) : "-"}</span></div>
             </div>
             <div className="overflow-x-auto rounded-2xl border border-border">
               <table className="w-full min-w-[720px] text-left">
@@ -3266,6 +3634,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                   <tr>
                     <th className="px-3 py-2">Item</th>
                     <th>Order Qty</th>
+                    <th>Received</th>
+                    <th>Remaining</th>
                     <th>Unit</th>
                     <th>Remark</th>
                   </tr>
@@ -3277,6 +3647,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                       <tr key={line.id || line.itemId}>
                         <td className="px-3 py-2 font-bold text-text-primary">{item?.name || "Inventory item"}</td>
                         <td>{line.requestedQty}</td>
+                        <td>{line.receivedQty || 0}</td>
+                        <td>{remainingQty(line)}</td>
                         <td>{line.unit || item?.unit || ""}</td>
                         <td>{line.remark || "-"}</td>
                       </tr>
@@ -3285,11 +3657,29 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                 </tbody>
               </table>
             </div>
+            <div className="rounded-2xl border border-border p-3">
+              <div className="mb-2 type-title font-bold text-text-primary">Receiving History</div>
+              {modal.order.receipts?.length ? (
+                <div className="space-y-2">
+                  {modal.order.receipts.map((receipt) => (
+                    <div key={receipt.id} className="rounded-xl bg-slate-50 p-2">
+                      <div className="type-caption font-bold text-text-primary">{formatDate(receipt.receivedAt)} · Received by {receipt.receivedBy || "Current User"}</div>
+                      <div className="mt-1 space-y-1">
+                        {(receipt.items || []).map((line) => (
+                          <div key={line.id} className="type-caption text-text-secondary">{itemById.get(line.itemId)?.name || "Inventory item"} +{line.receivedQty} {line.unit} {line.remark ? `· ${line.remark}` : ""}</div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : <div className="type-caption font-semibold text-text-muted">No receiving records yet.</div>}
+            </div>
             <div className="flex flex-wrap items-center gap-2 type-caption font-semibold text-text-secondary">
-              {["Draft", "Submitted", "Confirmed", "Partial Delivered", "Delivered", "Completed"].map((stage) => (
-                <span key={stage} className={`rounded-full px-2 py-1 ${toTitle(modal.order.status) === stage ? "bg-primary/10 text-primary" : "bg-slate-100 text-text-secondary"}`}>{stage}</span>
+              {poStatuses.map((stage) => (
+                <span key={stage} className={`rounded-full px-2 py-1 ${modal.order.status === stage ? "bg-primary/10 text-primary" : "bg-slate-100 text-text-secondary"}`}>{poStatusLabel(stage)}</span>
               ))}
             </div>
+            {modal.order.cancellationReason ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 type-body-sm font-semibold text-rose-800">Cancellation reason: {modal.order.cancellationReason}</div> : null}
           </div>
         </Modal>
       ) : null}
