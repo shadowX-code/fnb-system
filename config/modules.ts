@@ -326,6 +326,15 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, create: true, edit: true, delete: true, import: true, export: true },
   },
   {
+    id: "inventory_categories",
+    section: "Inventory Control",
+    label: "Inventory Categories",
+    route: "/inventory/categories",
+    icon: "purchase-categories",
+    sidebar: true,
+    permissions: { view: true, create: true, edit: true, delete: true },
+  },
+  {
     id: "inventory_groups",
     section: "Inventory Control",
     label: "Stock Check Groups",

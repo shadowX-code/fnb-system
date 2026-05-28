@@ -105,6 +105,7 @@ OPERATIONS
 INVENTORY CONTROL
 - Dashboard
 - Master Inventory
+- Inventory Categories
 - Stock Check Groups
 - Stock Check
 - Stock Requests
@@ -187,6 +188,7 @@ Inventory Control registry entries:
 ```text
 inventory_dashboard     INVENTORY_CONTROL   Dashboard              #inventory_dashboard
 inventory_master        INVENTORY_CONTROL   Master Inventory       #inventory_master
+inventory_categories    INVENTORY_CONTROL   Inventory Categories   #inventory_categories
 inventory_groups        INVENTORY_CONTROL   Stock Check Groups     #inventory_groups
 inventory_stock_check   INVENTORY_CONTROL   Stock Check            #inventory_stock_check
 inventory_requests      INVENTORY_CONTROL   Stock Requests         #inventory_requests
@@ -1725,6 +1727,7 @@ Routes:
 
 - `#inventory_dashboard`
 - `#inventory_master`
+- `#inventory_categories`
 - `#inventory_groups`
 - `#inventory_stock_check`
 - `#inventory_requests`
@@ -1736,8 +1739,11 @@ Routes:
 Core rules:
 
 - Master Inventory is the source of truth for inventory items.
+- Master Inventory defines global item identity only.
+- Inventory Categories is a standalone page under Inventory Control.
 - One inventory item can be linked to multiple outlets.
 - Not every outlet uses every inventory item.
+- Par Level, Low Stock Threshold, Reorder Qty, Storage Location, and outlet link active state are outlet-specific and live on `inventory_item_outlets`.
 - Stock Check Groups belong to one outlet.
 - A group can only include inventory items linked to that outlet.
 - Not every inventory item needs daily checking.
@@ -1757,6 +1763,7 @@ Inventory Control permissions:
 - inventory_master.create
 - inventory_master.edit
 - inventory_master.delete
+- inventory_master.import
 - inventory_master.export
 - inventory_categories.view
 - inventory_categories.create
@@ -1799,8 +1806,6 @@ Master Inventory fields:
 - description
 - inventory_type
 - default_supplier_id
-- low_stock_threshold
-- par_level
 - status
 - created_by
 - updated_by
@@ -1813,8 +1818,14 @@ Master Inventory UI:
 - Subtitle: Create and manage all inventory items used across outlets.
 - Search by item name or SKU.
 - Filter by category, status, and outlet.
-- Actions include Add Item, Edit Item, Archive Item, Import, and Export.
-- Linked Outlets uses a multi-select outlet picker.
+- Page header actions include Add Item, Import, and Export.
+- The Master Inventory table columns are Item, Category, SKU Code, Unit, Linked Outlets, Status, and Actions.
+- The Master Inventory table does not show Low Stock or Par Level columns because those values are outlet-specific.
+- Linked Outlets displays a compact count such as `3 outlets`.
+- Clicking the Linked Outlets count opens a FloatingLayer popover with outlet names, outlet codes, active/inactive link status, and key outlet stock settings.
+- Outlet Configuration editing uses a drawer or modal workflow for outlet-specific stock settings.
+- Add/Edit Item keeps master item fields separate from `Outlet Stock Settings`.
+- `Outlet Stock Settings` contains one configuration row per selected outlet: Par Level, Low Stock Threshold, Reorder Qty, Storage Location, and Active.
 - Non-protected roles can only link items to outlets they can access.
 
 Inventory item status:
@@ -1850,10 +1861,26 @@ Outlet linking:
 
 Inventory items are linked to outlets through an item-outlet relation table.
 
+`inventory_item_outlets` fields:
+
+- id
+- inventory_item_id
+- outlet_id
+- par_level
+- low_stock_threshold
+- reorder_qty
+- storage_location
+- is_active
+- created_at
+- updated_at
+
 Rules:
 
 - One item can belong to many outlets.
 - One outlet can use many items.
+- Same item can have different par levels and thresholds per outlet.
+- Stock Check reads `par_level` from `inventory_item_outlets` for the selected outlet.
+- Low stock alerts compare outlet current stock against `inventory_item_outlets.low_stock_threshold`.
 - Outlet selectors and item pickers must respect role outlet access.
 - Stock Check Groups can only select items linked to the selected outlet.
 
@@ -3121,7 +3148,7 @@ Inventory Control tables:
 
 - inventory_categories
 - inventory_items
-- inventory_item_outlets
+- inventory_item_outlets (`inventory_item_id`, `outlet_id`, `par_level`, `low_stock_threshold`, `reorder_qty`, `storage_location`, `is_active`)
 - inventory_stock_check_groups
 - inventory_stock_check_group_items
 - inventory_stock_checks

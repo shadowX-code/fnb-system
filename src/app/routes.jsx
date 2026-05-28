@@ -148,6 +148,12 @@ const routeDetails = {
     permission: "inventory_master.view OR inventory_control.view",
     props: { initialTab: "master" },
   },
+  inventory_categories: {
+    description: "Manage inventory item categories used across inventory workflows.",
+    component: InventoryControlPage,
+    permission: "inventory_categories.view OR inventory_control.view",
+    props: { initialTab: "categories" },
+  },
   inventory_groups: {
     description: "Manage outlet-level stock check groups and frequencies.",
     component: InventoryControlPage,
