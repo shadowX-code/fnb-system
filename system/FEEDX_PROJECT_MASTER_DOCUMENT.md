@@ -1827,7 +1827,11 @@ Master Inventory UI:
 - Filter by category, status, and outlet.
 - Page header actions include Import, Export, Category Settings, and Add Item.
 - Category Settings opens `Inventory Category Settings`.
-- Inventory Category Settings contains category list/cards, Add Category, Edit Category, and Active/Inactive badges.
+- Inventory Category Settings uses a compact sortable list view, not large cards.
+- Category rows show drag handle, category name, description, linked item count, status badge, and actions.
+- Dragging category rows updates `inventory_categories.sort_order`.
+- Category order controls display order in inventory filters and item forms.
+- Inventory Category Settings supports Add Category, Edit Category, Archive/Deactivate, and Delete when existing protection rules allow.
 - Category management access is controlled by inventory_categories.view/create/edit/delete.
 - The Master Inventory table columns are Item, Category, SKU Code, Unit, Linked Outlets, Status, and Actions.
 - The Master Inventory table does not show Low Stock or Par Level columns because those values are outlet-specific.

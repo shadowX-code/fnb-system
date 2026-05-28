@@ -11,6 +11,7 @@ import {
   Download,
   FileText,
   Filter,
+  GripVertical,
   PackageCheck,
   PackagePlus,
   RefreshCw,
@@ -611,44 +612,93 @@ function CategoryModal({ category, onClose, onSave }) {
       <div className="grid gap-3">
         <Field label="Category Name" value={form.name} required onChange={(value) => setForm((current) => ({ ...current, name: value }))} />
         <TextArea label="Description" value={form.description} onChange={(value) => setForm((current) => ({ ...current, description: value }))} />
-        <Field label="Sort Order" type="number" value={form.sortOrder} onChange={(value) => setForm((current) => ({ ...current, sortOrder: Number(value || 0) }))} />
         <SelectField label="Status" value={form.status} options={statuses.map((status) => ({ value: status, label: toTitle(status) }))} onChange={(value) => setForm((current) => ({ ...current, status: value }))} />
       </div>
     </Modal>
   );
 }
 
-function CategorySettingsModal({ categories, canManage, requirePermission, onAdd, onEdit, onClose }) {
+function CategorySettingsModal({ categories, itemCounts, canAdd, canEdit, canDelete, requirePermission, onAdd, onEdit, onArchive, onDelete, onSort, onClose }) {
+  const [draggedId, setDraggedId] = useState(null);
+
+  function handleDrop(targetId) {
+    if (!draggedId || draggedId === targetId) return;
+    onSort(draggedId, targetId);
+    setDraggedId(null);
+  }
+
   return (
     <Modal
       title="Inventory Category Settings"
       description="Manage categories used by master inventory items, stock checks and reports."
-      size="lg"
+      size="xl"
       onClose={onClose}
       footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}
     >
-      <div className="mb-3 flex items-center justify-between gap-3">
-        <div className="type-caption text-text-secondary">{categories.length} configured categor{categories.length === 1 ? "y" : "ies"}</div>
-        <button className="btn-primary h-8 px-3 text-xs" type="button" onClick={() => requirePermission(canManage, "add inventory categories") && onAdd()}>
+      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="type-caption text-text-secondary">{categories.length} configured categor{categories.length === 1 ? "y" : "ies"}</div>
+          <div className="type-caption text-text-muted">Drag categories to control display order in inventory filters and item forms.</div>
+        </div>
+        <button className="btn-primary h-8 px-3 text-xs" type="button" onClick={() => requirePermission(canAdd, "add inventory categories") && onAdd()}>
           <PackagePlus size={14} /> Add Category
         </button>
       </div>
-      <div className="grid gap-2 sm:grid-cols-2">
-        {categories.map((category) => (
-          <button
-            key={category.id}
-            className="rounded-2xl border border-border p-3 text-left transition hover:border-primary/30 hover:bg-primary/5"
-            type="button"
-            onClick={() => requirePermission(canManage, "edit inventory categories") && onEdit(category)}
-          >
-            <div className="flex items-start justify-between gap-2">
-              <div className="font-bold text-text-primary">{category.name}</div>
-              <Badge tone={statusTone(category.status)}>{toTitle(category.status)}</Badge>
-            </div>
-            <p className="mt-1 line-clamp-2 type-caption text-text-secondary">{category.description || "No description provided."}</p>
-          </button>
-        ))}
-      </div>
+
+      {categories.length ? (
+        <div className="overflow-hidden rounded-2xl border border-border bg-surface">
+          {categories.map((category) => {
+            const linkedCount = itemCounts.get(category.id) || 0;
+            return (
+              <div
+                key={category.id}
+                draggable={canEdit}
+                onDragStart={(event) => {
+                  if (!canEdit) return;
+                  setDraggedId(category.id);
+                  event.dataTransfer.effectAllowed = "move";
+                }}
+                onDragEnd={() => setDraggedId(null)}
+                onDragOver={(event) => {
+                  if (canEdit) event.preventDefault();
+                }}
+                onDrop={() => handleDrop(category.id)}
+                className={`grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-3 py-2.5 transition last:border-b-0 hover:bg-primary/5 ${
+                  draggedId === category.id ? "bg-primary/8 opacity-70" : ""
+                }`}
+              >
+                <button
+                  className={`icon-btn h-8 w-8 cursor-grab text-text-muted ${canEdit ? "" : "opacity-40"}`}
+                  type="button"
+                  title={canEdit ? "Drag to reorder" : "Reordering requires edit permission"}
+                  aria-label="Drag to reorder category"
+                >
+                  <GripVertical size={16} />
+                </button>
+                <div className="min-w-0">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="truncate type-body-sm font-bold text-text-primary">{category.name}</div>
+                    <Badge tone={statusTone(category.status)}>{toTitle(category.status)}</Badge>
+                  </div>
+                  <div className="mt-0.5 truncate type-caption text-text-secondary">{category.description || "No description provided."}</div>
+                  <div className="mt-1 type-caption font-semibold text-text-muted">{linkedCount} linked item{linkedCount === 1 ? "" : "s"}</div>
+                </div>
+                <div className="flex items-center justify-end gap-2">
+                  <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(canEdit, "edit inventory categories") && onEdit(category)}>Edit</button>
+                  <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(canDelete, "archive inventory categories") && onArchive(category)}>Archive</button>
+                  {linkedCount === 0 ? (
+                    <button className="icon-btn h-8 w-8 text-rose-600" type="button" onClick={() => requirePermission(canDelete, "delete inventory categories") && onDelete(category)} title="Delete category">
+                      <Trash2 size={14} />
+                    </button>
+                  ) : null}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      ) : (
+        <EmptyState title="Create your first inventory category to organize items." description="Categories keep filters, item forms and reports easier to scan." />
+      )}
     </Modal>
   );
 }
@@ -962,7 +1012,10 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     import: canImport(auth, INVENTORY_MODULE) || hasPermission(auth, "inventory_master.import"),
     export: canExport(auth, INVENTORY_MODULE) || hasPermission(auth, "inventory_master.export") || hasPermission(auth, "inventory_orders.export") || hasPermission(auth, "inventory_movements.export") || hasPermission(auth, "inventory_waste.export"),
     manageMaster: hasPermission(auth, "inventory_master.create") || hasPermission(auth, "inventory_master.edit") || hasPermission(auth, "inventory_control.manage_master") || hasPermission(auth, "inventory_control.manage"),
-    manageCategories: hasPermission(auth, "inventory_categories.create") || hasPermission(auth, "inventory_categories.edit") || hasPermission(auth, "inventory_control.manage_categories") || hasPermission(auth, "inventory_control.manage"),
+    viewCategories: hasPermission(auth, "inventory_categories.view") || hasPermission(auth, "inventory_master.view") || hasPermission(auth, "inventory_control.view"),
+    createCategory: hasPermission(auth, "inventory_categories.create") || hasPermission(auth, "inventory_control.manage_categories") || hasPermission(auth, "inventory_control.manage"),
+    editCategory: hasPermission(auth, "inventory_categories.edit") || hasPermission(auth, "inventory_control.manage_categories") || hasPermission(auth, "inventory_control.manage"),
+    deleteCategory: hasPermission(auth, "inventory_categories.delete") || hasPermission(auth, "inventory_control.manage_categories") || hasPermission(auth, "inventory_control.manage"),
     manageGroups: hasPermission(auth, "inventory_groups.create") || hasPermission(auth, "inventory_groups.edit") || hasPermission(auth, "inventory_control.manage_groups") || hasPermission(auth, "inventory_control.manage"),
     createCheck: hasPermission(auth, "inventory_stock_check.create") || hasPermission(auth, "inventory_control.create_stock_check") || hasPermission(auth, "inventory_control.create"),
     editCheck: hasPermission(auth, "inventory_stock_check.edit") || hasPermission(auth, "inventory_control.edit_stock_check") || hasPermission(auth, "inventory_control.edit"),
@@ -978,7 +1031,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     manageRecipes: hasPermission(auth, "inventory_recipes.create") || hasPermission(auth, "inventory_recipes.edit") || hasPermission(auth, "inventory_control.manage_recipes") || hasPermission(auth, "inventory_control.manage"),
   }), [auth]);
 
+  const sortedCategories = useMemo(() => [...data.categories].sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0) || a.name.localeCompare(b.name)), [data.categories]);
   const categoryById = useMemo(() => new Map(data.categories.map((category) => [category.id, category])), [data.categories]);
+  const itemCountByCategory = useMemo(() => {
+    const counts = new Map();
+    data.items.forEach((item) => counts.set(item.categoryId, (counts.get(item.categoryId) || 0) + 1));
+    return counts;
+  }, [data.items]);
   const outletById = useMemo(() => new Map(outlets.map((outlet) => [outlet.id, outlet])), [outlets]);
   const itemById = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items]);
 
@@ -1051,10 +1110,48 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       ...current,
       categories: current.categories.some((entry) => entry.id === category.id)
         ? current.categories.map((entry) => entry.id === category.id ? category : entry)
-        : [...current.categories, category],
+        : [...current.categories, { ...category, sortOrder: current.categories.length ? Math.max(...current.categories.map((entry) => Number(entry.sortOrder || 0))) + 1 : 1 }],
     }));
     setModal(modal?.returnToSettings ? { type: "category-settings" } : null);
     notify("Inventory category saved");
+  }
+
+  function sortCategories(draggedId, targetId) {
+    setData((current) => {
+      const ordered = [...current.categories].sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0) || a.name.localeCompare(b.name));
+      const fromIndex = ordered.findIndex((category) => category.id === draggedId);
+      const toIndex = ordered.findIndex((category) => category.id === targetId);
+      if (fromIndex < 0 || toIndex < 0) return current;
+      const [moved] = ordered.splice(fromIndex, 1);
+      ordered.splice(toIndex, 0, moved);
+      const sorted = ordered.map((category, index) => ({ ...category, sortOrder: index + 1 }));
+      const byId = new Map(sorted.map((category) => [category.id, category]));
+      return {
+        ...current,
+        categories: current.categories.map((category) => byId.get(category.id) || category),
+      };
+    });
+    notify("Category order updated");
+  }
+
+  function archiveCategory(category) {
+    setData((current) => ({
+      ...current,
+      categories: current.categories.map((entry) => entry.id === category.id ? { ...entry, status: "archived" } : entry),
+    }));
+    notify("Inventory category archived");
+  }
+
+  function deleteCategory(category) {
+    if ((itemCountByCategory.get(category.id) || 0) > 0) {
+      notify("Category is linked to inventory items", "Archive it instead to preserve item history.", "warning");
+      return;
+    }
+    setData((current) => ({
+      ...current,
+      categories: current.categories.filter((entry) => entry.id !== category.id),
+    }));
+    notify("Inventory category deleted");
   }
 
   function saveParLevelConfig(itemId, outletId, patch) {
@@ -1215,7 +1312,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         <SelectField
           label="Category"
           value={categoryFilter}
-          options={[{ value: "all", label: "All Categories" }, ...data.categories.map((category) => ({ value: category.id, label: category.name }))]}
+          options={[{ value: "all", label: "All Categories" }, ...sortedCategories.map((category) => ({ value: category.id, label: category.name }))]}
           onChange={setCategoryFilter}
           searchable
           className="lg:w-56"
@@ -1448,7 +1545,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             <SelectField
               label="Category"
               value={categoryFilter}
-              options={[{ value: "all", label: "All Categories" }, ...data.categories.map((category) => ({ value: category.id, label: category.name }))]}
+              options={[{ value: "all", label: "All Categories" }, ...sortedCategories.map((category) => ({ value: category.id, label: category.name }))]}
               onChange={setCategoryFilter}
               searchable
               className="lg:w-56"
@@ -1942,7 +2039,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           <button className="btn-secondary" type="button" onClick={() => requirePermission(can.export, "export inventory")}>
             <Download size={15} /> Export
           </button>
-          <button className="btn-secondary" type="button" onClick={() => requirePermission(can.manageCategories, "manage inventory categories") && setModal({ type: "category-settings" })}>
+          <button className="btn-secondary" type="button" onClick={() => requirePermission(can.viewCategories, "view inventory categories") && setModal({ type: "category-settings" })}>
             Category Settings
           </button>
           <button className="btn-primary" type="button" onClick={() => requirePermission(can.manageMaster, "add inventory items") && setModal({ type: "item" })}>
@@ -2004,20 +2101,26 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
       {renderActiveTab()}
 
-      {modal?.type === "item" ? <InventoryItemModal item={modal.item} categories={data.categories} outlets={outlets} suppliers={suppliers} onClose={() => setModal(null)} onSave={saveItem} /> : null}
+      {modal?.type === "item" ? <InventoryItemModal item={modal.item} categories={sortedCategories} outlets={outlets} suppliers={suppliers} onClose={() => setModal(null)} onSave={saveItem} /> : null}
       {modal?.type === "category-settings" ? (
         <CategorySettingsModal
-          categories={data.categories}
-          canManage={can.manageCategories}
+          categories={sortedCategories}
+          itemCounts={itemCountByCategory}
+          canAdd={can.createCategory}
+          canEdit={can.editCategory}
+          canDelete={can.deleteCategory}
           requirePermission={requirePermission}
           onClose={() => setModal(null)}
           onAdd={() => setModal({ type: "category", returnToSettings: true })}
           onEdit={(category) => setModal({ type: "category", category, returnToSettings: true })}
+          onArchive={archiveCategory}
+          onDelete={deleteCategory}
+          onSort={sortCategories}
         />
       ) : null}
       {modal?.type === "category" ? <CategoryModal category={modal.category} onClose={() => setModal(null)} onSave={saveCategory} /> : null}
-      {modal?.type === "group" ? <GroupModal group={modal.group} outlets={outlets} items={data.items} categories={data.categories} onClose={() => setModal(null)} onSave={saveGroup} /> : null}
-      {modal?.type === "request" ? <RequestModal outlets={outlets} items={data.items} categories={data.categories} suppliers={suppliers} onClose={() => setModal(null)} onSave={saveRequest} /> : null}
+      {modal?.type === "group" ? <GroupModal group={modal.group} outlets={outlets} items={data.items} categories={sortedCategories} onClose={() => setModal(null)} onSave={saveGroup} /> : null}
+      {modal?.type === "request" ? <RequestModal outlets={outlets} items={data.items} categories={sortedCategories} suppliers={suppliers} onClose={() => setModal(null)} onSave={saveRequest} /> : null}
       {modal?.type === "movement" ? <MovementModal outlets={outlets} items={data.items} onClose={() => setModal(null)} onSave={saveMovement} /> : null}
       {modal?.type === "waste" ? <WasteModal outlets={outlets} items={data.items} onClose={() => setModal(null)} onSave={saveWaste} /> : null}
     </div>
