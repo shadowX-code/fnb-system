@@ -11,7 +11,6 @@ import {
   Copy,
   Download,
   FileText,
-  Filter,
   GripVertical,
   PackageCheck,
   PackagePlus,
@@ -98,6 +97,7 @@ const wasteTypes = ["Spoilage", "Expired", "Kitchen Error", "Burnt", "Returned I
 const poStatuses = ["draft", "submitted", "supplier_confirmed", "partial_received", "fully_received", "completed", "cancelled"];
 const poSources = ["stock_check", "manual"];
 const auditTypes = ["Month-End Closing", "Full Stock Audit", "Spot Check", "Category Audit", "Custom Audit"];
+const recipeMenuCategories = ["Main Dish", "Beverage", "Side Dish", "Sauce", "Dessert", "Prep Item", "Combo", "Other"];
 
 function todayInput() {
   return new Date().toISOString().slice(0, 10);
@@ -1848,6 +1848,182 @@ function WasteModal({ outlet, items, onClose, onSave }) {
   );
 }
 
+function RecipeModal({ recipe, outlets, items, onClose, onSave }) {
+  const [form, setForm] = useState(() => ({
+    id: recipe?.id || "",
+    outletId: recipe?.outletId || outlets[0]?.id || "",
+    recipeName: recipe?.recipeName || recipe?.recipe_name || "",
+    menuCategory: recipe?.menuCategory || recipe?.menu_category || recipeMenuCategories[0],
+    servingSize: recipe?.servingSize || recipe?.serving_size || "1 portion",
+    status: recipe?.status || "active",
+    notes: recipe?.notes || "",
+    ingredients: (recipe?.ingredients || recipe?.items || []).map((line) => ({
+      id: line.id || makeId("recipe_item"),
+      itemId: line.itemId || line.inventory_item_id || "",
+      quantityUsed: line.quantityUsed ?? line.quantity_used ?? 0,
+      unit: line.unit || "",
+      wastagePercent: line.wastagePercent ?? line.wastage_percent ?? 0,
+      remark: line.remark || "",
+    })),
+  }));
+  const availableItems = items.filter((item) => item.status === "active" && itemHasActiveOutletLink(item, form.outletId));
+  const update = (key, value) => setForm((current) => {
+    if (key === "outletId") return { ...current, outletId: value, ingredients: [] };
+    return { ...current, [key]: value };
+  });
+  const updateIngredient = (id, patch) => setForm((current) => ({
+    ...current,
+    ingredients: current.ingredients.map((line) => {
+      if (line.id !== id) return line;
+      const next = { ...line, ...patch };
+      if (patch.itemId) next.unit = items.find((item) => item.id === patch.itemId)?.unit || next.unit;
+      return next;
+    }),
+  }));
+  const addIngredient = () => {
+    const firstItem = availableItems[0];
+    setForm((current) => ({
+      ...current,
+      ingredients: [
+        ...current.ingredients,
+        {
+          id: makeId("recipe_item"),
+          itemId: firstItem?.id || "",
+          quantityUsed: 0,
+          unit: firstItem?.unit || "",
+          wastagePercent: 0,
+          remark: "",
+        },
+      ],
+    }));
+  };
+  const removeIngredient = (id) => setForm((current) => ({ ...current, ingredients: current.ingredients.filter((line) => line.id !== id) }));
+  const invalid = !form.recipeName.trim() || !form.outletId || !form.ingredients.length || form.ingredients.some((line) => !line.itemId || Number(line.quantityUsed || 0) <= 0);
+
+  return (
+    <Modal
+      title={recipe ? "Edit Recipe" : "Add Recipe"}
+      description="Build a recipe BOM by linking menu items to outlet-linked inventory ingredients."
+      size="xl"
+      onClose={onClose}
+      footer={(
+        <>
+          <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" type="button" disabled={invalid} onClick={() => onSave({ ...form, id: form.id || makeId("recipe") })}>Save Recipe</button>
+        </>
+      )}
+    >
+      <div className="space-y-4">
+        <div className="grid gap-3 md:grid-cols-2">
+          <Field label="Recipe Name / Menu Item Name" value={form.recipeName} required onChange={(value) => update("recipeName", value)} placeholder="Nasi Lemak Ayam" />
+          <SelectField label="Outlet" value={form.outletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={(value) => update("outletId", value)} searchable />
+          <SelectField label="Menu Category" value={form.menuCategory} options={recipeMenuCategories.map((category) => ({ value: category, label: category }))} onChange={(value) => update("menuCategory", value)} />
+          <SelectField label="Status" value={form.status} options={statuses.map((status) => ({ value: status, label: toTitle(status) }))} onChange={(value) => update("status", value)} />
+          <Field label="Serving Size / Yield" value={form.servingSize} onChange={(value) => update("servingSize", value)} placeholder="1 portion" />
+          <div className="rounded-2xl border border-primary/15 bg-primary/5 p-3 type-caption text-text-secondary">
+            Ingredient selector only shows active inventory items linked to the selected outlet.
+          </div>
+          <div className="md:col-span-2">
+            <TextArea label="Notes" value={form.notes} onChange={(value) => update("notes", value)} placeholder="Prep notes, yield assumptions or special handling." />
+          </div>
+        </div>
+        <div className="rounded-2xl border border-border p-3">
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <div className="type-title font-bold text-text-primary">Ingredients</div>
+              <div className="type-caption text-text-secondary">Quantity used is per serving/yield above.</div>
+            </div>
+            <button className="btn-secondary h-8 px-3 text-xs" type="button" onClick={addIngredient} disabled={!availableItems.length}>
+              <Plus size={14} /> Add Ingredient
+            </button>
+          </div>
+          {form.ingredients.length ? (
+            <div className="space-y-2">
+              {form.ingredients.map((line) => {
+                const item = items.find((entry) => entry.id === line.itemId);
+                return (
+                  <div key={line.id} className="grid gap-2 rounded-2xl border border-border bg-slate-50/70 p-2 lg:grid-cols-[1.4fr_110px_80px_110px_1fr_auto] lg:items-end">
+                    <SelectField label="Inventory Item" value={line.itemId} options={availableItems.map((entry) => ({ value: entry.id, label: entry.name }))} onChange={(value) => updateIngredient(line.id, { itemId: value })} searchable />
+                    <Field label="Qty Used" type="number" value={line.quantityUsed} onChange={(value) => updateIngredient(line.id, { quantityUsed: Number(value || 0) })} />
+                    <label>
+                      <div className="mb-1 type-caption font-semibold text-text-secondary">Unit</div>
+                      <div className="control flex h-9 items-center text-[13px] font-semibold text-text-secondary">{item?.unit || line.unit || "-"}</div>
+                    </label>
+                    <Field label="Wastage %" type="number" value={line.wastagePercent} onChange={(value) => updateIngredient(line.id, { wastagePercent: Number(value || 0) })} />
+                    <Field label="Remark" value={line.remark} onChange={(value) => updateIngredient(line.id, { remark: value })} placeholder="Optional" />
+                    <button className="btn-secondary h-9 px-3 text-xs text-rose-700" type="button" onClick={() => removeIngredient(line.id)}>Remove</button>
+                  </div>
+                );
+              })}
+            </div>
+          ) : <EmptyState title="No ingredients yet" description={availableItems.length ? "Add ingredients to define usage per serving." : "No active outlet-linked inventory items are available for this outlet."} />}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function RecipeDetailModal({ recipe, outlet, items, categories, onClose, onEdit }) {
+  const ingredients = recipe?.ingredients || [];
+  return (
+    <Modal
+      title={recipe?.recipeName || "Recipe"}
+      description={`${outlet?.name || "Outlet"} · ${recipe?.menuCategory || "Menu Category"}`}
+      size="xl"
+      onClose={onClose}
+      footer={(
+        <>
+          <button className="btn-secondary" type="button" onClick={onClose}>Close</button>
+          <button className="btn-primary" type="button" onClick={onEdit}>Edit Recipe</button>
+        </>
+      )}
+    >
+      <div className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <MetricCard label="Ingredients" value={ingredients.length} helper="BOM rows" />
+          <MetricCard label="Serving Size" value={recipe?.servingSize || "1 portion"} helper="Yield basis" />
+          <MetricCard label="Status" value={toTitle(recipe?.status || "active")} helper="Recipe lifecycle" tone={statusTone(recipe?.status || "active")} />
+        </div>
+        <div className="overflow-x-auto rounded-2xl border border-border">
+          <table className="w-full min-w-[720px] text-left">
+            <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
+              <tr>
+                <th className="px-3 py-2">Inventory Item</th>
+                <th>Category</th>
+                <th>Qty Used</th>
+                <th>Unit</th>
+                <th>Wastage %</th>
+                <th>Remark</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border text-[13px]">
+              {ingredients.map((line) => {
+                const item = items.find((entry) => entry.id === line.itemId);
+                const category = categories.find((entry) => entry.id === item?.categoryId);
+                return (
+                  <tr key={line.id || line.itemId}>
+                    <td className="px-3 py-2 font-bold text-text-primary">{item?.name || "Inventory item"}</td>
+                    <td>{category?.name || "Uncategorized"}</td>
+                    <td>{line.quantityUsed}</td>
+                    <td>{line.unit || item?.unit || "-"}</td>
+                    <td>{line.wastagePercent || 0}%</td>
+                    <td>{line.remark || "-"}</td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+        <div className="rounded-2xl border border-primary/15 bg-primary/5 p-3">
+          <div className="type-title font-bold text-text-primary">Usage Estimate</div>
+          <p className="mt-1 type-body-sm text-text-secondary">Upload product sales reports and connect menu items to recipes to estimate ingredient usage.</p>
+        </div>
+        {recipe?.notes ? <div className="rounded-2xl border border-border bg-slate-50 p-3 type-body-sm text-text-secondary">{recipe.notes}</div> : null}
+      </div>
+    </Modal>
+  );
+}
+
 function PurchaseSuggestionsModal({ suggestions, suppliers, outlet, existingOrders = [], onClose, onCreateDraftPo, onViewPurchaseOrder }) {
   const [rows, setRows] = useState(suggestions.map((row) => ({
     ...row,
@@ -2223,6 +2399,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [parLevelOutletId, setParLevelOutletId] = useState(outlets[0]?.id ?? "");
   const [poFilters, setPoFilters] = useState({ outletId: "all", supplierId: "all", status: "all", source: "all", search: "", from: "", to: "" });
   const [wasteFilters, setWasteFilters] = useState({ wasteType: "all", from: "", to: "", search: "" });
+  const [recipeFilters, setRecipeFilters] = useState({ category: "all", status: "active", search: "" });
   const [date, setDate] = useState(todayInput());
   const [modal, setModal] = useState(null);
   const [activeCheckGroupId, setActiveCheckGroupId] = useState(null);
@@ -2241,7 +2418,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }, [outlets, parLevelOutletId]);
 
   useEffect(() => {
-    if (!["groups", "waste"].includes(activeTab)) return;
+    if (!["groups", "waste", "recipes"].includes(activeTab)) return;
     if (!outlets.length) return;
     const canViewAllOutlets = isProtectedRole(auth);
     if (selectedOutletId !== "all" && !outlets.some((outlet) => outlet.id === selectedOutletId)) {
@@ -2274,6 +2451,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     recordWaste: hasPermission(auth, "inventory_waste.create") || hasPermission(auth, "inventory_control.record_waste") || hasPermission(auth, "inventory_control.manage"),
     viewWaste: hasPermission(auth, "inventory_waste.view") || hasPermission(auth, "inventory_control.view_waste") || hasPermission(auth, "inventory_control.view"),
     viewInsights: hasPermission(auth, "inventory_dashboard.view") || hasPermission(auth, "inventory_control.view_insights") || hasPermission(auth, "inventory_control.view"),
+    viewRecipes: hasPermission(auth, "inventory_recipes.view") || hasPermission(auth, "inventory_control.view_recipes") || hasPermission(auth, "inventory_control.view"),
     manageRecipes: hasPermission(auth, "inventory_recipes.create") || hasPermission(auth, "inventory_recipes.edit") || hasPermission(auth, "inventory_control.manage_recipes") || hasPermission(auth, "inventory_control.manage"),
   }), [auth]);
 
@@ -3122,6 +3300,67 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     setData((current) => ({ ...current, waste: [waste, ...current.waste], movements: [movement, ...current.movements] }));
     setModal(null);
     notify("Waste recorded", "A waste movement was added to the inventory audit trail.");
+  }
+
+  function saveRecipe(recipe) {
+    const normalized = {
+      ...recipe,
+      recipeName: recipe.recipeName.trim(),
+      servingSize: recipe.servingSize || "1 portion",
+      ingredients: (recipe.ingredients || []).map((line) => {
+        const item = itemById.get(line.itemId);
+        return {
+          ...line,
+          id: line.id || makeId("recipe_item"),
+          unit: line.unit || item?.unit || "",
+          quantityUsed: Number(line.quantityUsed || 0),
+          wastagePercent: Number(line.wastagePercent || 0),
+        };
+      }),
+      updatedAt: new Date().toISOString(),
+      createdAt: recipe.createdAt || new Date().toISOString(),
+    };
+    setData((current) => ({
+      ...current,
+      recipes: [normalized, ...current.recipes.filter((entry) => entry.id !== normalized.id)],
+    }));
+    setModal(null);
+    notify("Recipe saved");
+  }
+
+  function archiveRecipe(recipeId) {
+    if (!requirePermission(can.manageRecipes, "archive recipes")) return;
+    setData((current) => ({
+      ...current,
+      recipes: current.recipes.map((recipe) => recipe.id === recipeId ? { ...recipe, status: "archived", updatedAt: new Date().toISOString() } : recipe),
+    }));
+    notify("Recipe archived");
+  }
+
+  function exportRecipes() {
+    if (!requirePermission(can.export, "export recipes")) return;
+    const rows = data.recipes.filter((recipe) => {
+      const searchText = `${recipe.recipeName || ""} ${recipe.menuCategory || ""} ${outletById.get(recipe.outletId)?.name || ""}`.toLowerCase();
+      return (selectedOutletId === "all" || recipe.outletId === selectedOutletId)
+        && (recipeFilters.category === "all" || recipe.menuCategory === recipeFilters.category)
+        && (recipeFilters.status === "all" || recipe.status === recipeFilters.status)
+        && (!recipeFilters.search.trim() || searchText.includes(recipeFilters.search.trim().toLowerCase()));
+    }).map((recipe) => {
+      const outlet = outletById.get(recipe.outletId);
+      return {
+        "Recipe Name": recipe.recipeName,
+        Outlet: outlet?.name || "",
+        "Menu Category": recipe.menuCategory,
+        "Serving Size": recipe.servingSize,
+        Ingredients: (recipe.ingredients || []).length,
+        Status: recipe.status,
+        Notes: recipe.notes || "",
+      };
+    });
+    const columns = ["Recipe Name", "Outlet", "Menu Category", "Serving Size", "Ingredients", "Status", "Notes"];
+    const csv = [columns.join(","), ...rows.map((row) => columns.map((column) => csvEscape(row[column])).join(","))].join("\n");
+    downloadTextFile(`feedx-recipes-${todayInput()}.csv`, csv);
+    notify("Recipes exported successfully");
   }
 
   function renderFilters() {
@@ -4246,10 +4485,96 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }
 
   function renderRecipes() {
+    if (!can.viewRecipes) {
+      return <EmptyState title="Permission required" description="You do not have permission to view Recipes & Usage." />;
+    }
+    const canViewAllOutlets = isProtectedRole(auth);
+    const outletOptions = [
+      ...(canViewAllOutlets ? [{ value: "all", label: "All Outlets" }] : []),
+      ...outlets.map((outlet) => ({ value: outlet.id, label: outlet.name })),
+    ];
+    const updateRecipeFilter = (key, value) => setRecipeFilters((current) => ({ ...current, [key]: value }));
+    const filteredRecipes = data.recipes.filter((recipe) => {
+      const outlet = outletById.get(recipe.outletId);
+      const searchText = `${recipe.recipeName || ""} ${recipe.menuCategory || ""} ${outlet?.name || ""} ${(recipe.ingredients || []).map((line) => itemById.get(line.itemId)?.name).join(" ")}`.toLowerCase();
+      return (selectedOutletId === "all" || recipe.outletId === selectedOutletId)
+        && (recipeFilters.category === "all" || recipe.menuCategory === recipeFilters.category)
+        && (recipeFilters.status === "all" || recipe.status === recipeFilters.status)
+        && (!recipeFilters.search.trim() || searchText.includes(recipeFilters.search.trim().toLowerCase()));
+    });
+
     return (
-      <SectionCard title="Recipes & Usage" description="Future-ready recipe usage and production consumption workspace.">
-        <EmptyState title="Recipes & Usage is ready for setup." description="Recipe-level consumption, staff meal usage and production variance can be connected here next." />
-      </SectionCard>
+      <div className="space-y-4">
+        <div className="card grid gap-3 p-3 lg:grid-cols-[220px_190px_170px_1fr] lg:items-end">
+          <SelectField label="Outlet" value={selectedOutletId} options={outletOptions} onChange={setSelectedOutletId} searchable />
+          <SelectField label="Category" value={recipeFilters.category} options={[{ value: "all", label: "All Categories" }, ...recipeMenuCategories.map((category) => ({ value: category, label: category }))]} onChange={(value) => updateRecipeFilter("category", value)} />
+          <SelectField label="Status" value={recipeFilters.status} options={[{ value: "all", label: "All Status" }, ...statuses.map((status) => ({ value: status, label: toTitle(status) }))]} onChange={(value) => updateRecipeFilter("status", value)} />
+          <label>
+            <div className="mb-1 type-caption font-semibold text-text-secondary">Search recipe/menu item</div>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
+              <input className="control h-9 w-full pl-9 text-[13px]" value={recipeFilters.search} onChange={(event) => updateRecipeFilter("search", event.target.value)} placeholder="Search recipe, outlet or ingredient" />
+            </div>
+          </label>
+        </div>
+        <DashboardSection title="Recipe BOM Setup" subtitle="Link menu/product items to outlet-linked inventory ingredients.">
+          {filteredRecipes.length ? (
+            <div className="overflow-x-auto rounded-2xl border border-border">
+              <table className="w-full min-w-[980px] text-left">
+                <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
+                  <tr>
+                    <th className="px-3 py-2">Menu Item / Recipe Name</th>
+                    <th>Outlet</th>
+                    <th>Category</th>
+                    <th>Ingredients</th>
+                    <th>Estimated Cost</th>
+                    <th>Status</th>
+                    <th className="text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border text-[13px]">
+                  {filteredRecipes.map((recipe) => (
+                    <tr key={recipe.id} className="transition hover:bg-primary/5">
+                      <td className="px-3 py-3">
+                        <div className="font-bold text-text-primary">{recipe.recipeName}</div>
+                        <div className="type-caption text-text-secondary">{recipe.servingSize || "1 portion"}</div>
+                      </td>
+                      <td>{outletById.get(recipe.outletId)?.name || "Outlet"}</td>
+                      <td><Badge tone="info">{recipe.menuCategory || "Uncategorized"}</Badge></td>
+                      <td>{(recipe.ingredients || []).length} ingredient{(recipe.ingredients || []).length === 1 ? "" : "s"}</td>
+                      <td className="font-semibold text-text-secondary">Not priced</td>
+                      <td><Badge tone={statusTone(recipe.status)}>{toTitle(recipe.status || "active")}</Badge></td>
+                      <td>
+                        <div className="flex justify-end gap-2">
+                          <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setModal({ type: "recipe-detail", recipe })}>View</button>
+                          <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.manageRecipes, "edit recipes") && setModal({ type: "recipe", recipe })}>Edit</button>
+                          {recipe.status !== "archived" ? <button className="btn-secondary h-8 px-2.5 text-xs text-rose-700" type="button" onClick={() => archiveRecipe(recipe.id)}>Archive</button> : null}
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              <EmptyState
+                title="No recipes set up yet."
+                description="Create recipes to connect menu items with inventory ingredients and estimate future usage variance."
+              />
+              <div className="flex justify-center">
+                <button className="btn-primary" type="button" onClick={() => requirePermission(can.manageRecipes, "add recipes") && setModal({ type: "recipe" })}>Add Recipe</button>
+              </div>
+            </div>
+          )}
+        </DashboardSection>
+        <DashboardSection title="Usage Estimate" subtitle="Future-ready product sales to ingredient usage foundation." density="compact">
+          <div className="rounded-2xl border border-primary/15 bg-primary/5 p-3">
+            <div className="type-title font-bold text-text-primary">Product sales quantity × recipe ingredient quantity = estimated inventory usage</div>
+            <p className="mt-1 type-body-sm text-text-secondary">Upload product sales reports and connect menu items to recipes to estimate ingredient usage.</p>
+          </div>
+        </DashboardSection>
+      </div>
     );
   }
 
@@ -4310,6 +4635,14 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     if (activeTab === "waste") {
       return <button className="btn-primary" type="button" onClick={openRecordWaste}>Record Waste</button>;
     }
+    if (activeTab === "recipes") {
+      return (
+        <>
+          <button className="btn-secondary" type="button" onClick={exportRecipes}><Download size={15} /> Export</button>
+          <button className="btn-primary" type="button" onClick={() => requirePermission(can.manageRecipes, "add recipes") && setModal({ type: "recipe" })}><PackagePlus size={15} /> Add Recipe</button>
+        </>
+      );
+    }
     return (
       <button className="btn-secondary" type="button" onClick={() => requirePermission(can.export, "export inventory")}>
         <Download size={15} /> Export
@@ -4327,20 +4660,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         description={meta.description}
         actions={renderPageActions()}
       />
-
-      <div className="rounded-2xl border border-primary/15 bg-gradient-to-r from-primary/8 via-white to-white p-3">
-        <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-          <div className="flex items-center gap-2 type-body-sm font-semibold text-text-primary">
-            <Filter size={15} className="text-primary" />
-            Daily F&B stock operations workspace
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <Badge tone="success">{outlets.length} accessible outlets</Badge>
-            <Badge tone="info">{data.items.length} master items</Badge>
-            <Badge tone="warning">{dueGroups.length} due checks</Badge>
-          </div>
-        </div>
-      </div>
 
       {renderActiveTab()}
 
@@ -4383,6 +4702,25 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           items={data.items.filter((item) => item.status === "active" && itemHasActiveOutletLink(item, modal.outletId || selectedOutletId))}
           onClose={() => setModal(null)}
           onSave={saveWaste}
+        />
+      ) : null}
+      {modal?.type === "recipe" ? (
+        <RecipeModal
+          recipe={modal.recipe}
+          outlets={outlets}
+          items={data.items}
+          onClose={() => setModal(null)}
+          onSave={saveRecipe}
+        />
+      ) : null}
+      {modal?.type === "recipe-detail" ? (
+        <RecipeDetailModal
+          recipe={modal.recipe}
+          outlet={outletById.get(modal.recipe?.outletId)}
+          items={data.items}
+          categories={sortedCategories}
+          onClose={() => setModal(null)}
+          onEdit={() => setModal({ type: "recipe", recipe: modal.recipe })}
         />
       ) : null}
       {modal?.type === "po-edit" ? <PurchaseOrderEditModal order={modal.order} suppliers={suppliers} items={data.items} onClose={() => setModal(null)} onSave={savePurchaseOrder} /> : null}

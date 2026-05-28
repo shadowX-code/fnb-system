@@ -2243,6 +2243,52 @@ Dashboard sections:
 - Stock Check Groups summary
 - Recent Movements
 
+Shared Inventory layout:
+
+- Inventory Control pages must not show the repeated global banner `Daily F&B stock operations workspace`.
+- Page-level filters, KPI cards, and operational summaries remain only when they are useful to the current subpage.
+
+Recipes & Usage:
+
+Purpose:
+
+Set up recipe BOMs by linking menu/product items to inventory ingredients for future usage and variance estimation.
+
+Recipe fields:
+
+- id
+- outlet_id
+- recipe_name
+- menu_category
+- serving_size
+- status
+- notes
+- created_by
+- created_at
+- updated_at
+
+Recipe item fields:
+
+- id
+- recipe_id
+- inventory_item_id
+- quantity_used
+- unit
+- wastage_percent
+- remark
+- created_at
+- updated_at
+
+Rules:
+
+- Recipes are outlet-scoped.
+- Recipe ingredient selectors only show active inventory items linked to the selected outlet.
+- Multiple ingredients are supported per recipe.
+- Unit follows the selected inventory item unit.
+- Recipes & Usage supports Add Recipe, View, Edit, Archive, Export, outlet/category/status/search filters, and empty state action.
+- Usage estimation foundation: `product_sales_quantity × recipe_ingredient_quantity = estimated_inventory_usage`.
+- Full POS/product sales integration is future scope; current page prepares the BOM structure.
+
 Empty states:
 
 - No inventory item: `Create your first inventory item to start stock tracking.`
@@ -2250,6 +2296,7 @@ Empty states:
 - No due check: `No stock check required today.`
 - No request: `No stock requests submitted yet.`
 - No movement: `Inventory movement history will appear here.`
+- No recipes: `Create recipes to connect menu items with inventory ingredients and estimate future usage variance.`
 
 RBAC and outlet scope:
 
