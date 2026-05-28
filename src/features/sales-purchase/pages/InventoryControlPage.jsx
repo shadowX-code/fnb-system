@@ -49,6 +49,10 @@ const pageMeta = {
     title: "Inventory Categories",
     description: "Manage inventory item categories used across master inventory and operational filters.",
   },
+  "par-levels": {
+    title: "Par Levels",
+    description: "Bulk manage outlet-specific minimum stock levels.",
+  },
   groups: {
     title: "Stock Check Groups",
     description: "Manage outlet-level stock check groups and frequencies.",
@@ -157,6 +161,15 @@ function varianceStatus(parLevel, count) {
   return { label: "Shortage", tone: "warning", variance };
 }
 
+function latestActualCount(checks = [], itemId, outletId) {
+  const rows = checks
+    .filter((check) => check.outletId === outletId && ["submitted", "reviewed", "locked"].includes(check.status))
+    .flatMap((check) => (check.rows || []).map((row) => ({ ...row, checkDate: check.date, submittedAt: check.submittedAt })))
+    .filter((row) => row.itemId === itemId && !row.na)
+    .sort((a, b) => new Date(b.submittedAt || b.checkDate || 0) - new Date(a.submittedAt || a.checkDate || 0));
+  return Number(rows[0]?.actualCount ?? Number.POSITIVE_INFINITY);
+}
+
 function uniqueIds(values = []) {
   return [...new Set(values.filter(Boolean))];
 }
@@ -170,16 +183,12 @@ function getLinkedOutletIds(item = {}) {
 
 function buildOutletConfig(item = {}, outletId, existing = {}) {
   const fallbackPar = Number(item.parLevel || 0);
-  const fallbackThreshold = Number(item.lowStockThreshold || 0);
   const parLevel = Number(existing.parLevel ?? fallbackPar);
-  const lowStockThreshold = Number(existing.lowStockThreshold ?? fallbackThreshold);
   return {
     id: existing.id || `${item.id || "draft"}_${outletId}`,
     inventoryItemId: existing.inventoryItemId || item.id || "",
     outletId,
     parLevel,
-    lowStockThreshold,
-    reorderQty: Number(existing.reorderQty ?? Math.max(0, parLevel - lowStockThreshold)),
     storageLocation: existing.storageLocation ?? "",
     isActive: existing.isActive !== false,
     createdAt: existing.createdAt || item.createdAt || "",
@@ -210,14 +219,6 @@ function outletConfigsForScope(item = {}, outletIds = []) {
 
 function parLevelForOutlet(item = {}, outletId) {
   return outletConfigForItem(item, outletId).parLevel;
-}
-
-function lowStockThresholdForOutlet(item = {}, outletId) {
-  return outletConfigForItem(item, outletId).lowStockThreshold;
-}
-
-function reorderQtyForOutlet(item = {}, outletId) {
-  return outletConfigForItem(item, outletId).reorderQty;
 }
 
 function normalizeInventoryData(raw, outlets = [], suppliers = []) {
@@ -261,13 +262,12 @@ function defaultData(outlets = [], suppliers = []) {
       description: "House sambal batch for kitchen production.",
       inventoryType: "Ingredient",
       defaultSupplierId: supplierId,
-      lowStockThreshold: 8,
       parLevel: 24,
       status: "active",
       linkedOutletIds: [firstOutlet.id, secondOutlet.id],
       outletConfigs: [
-        { id: "cfg_sambal_first", inventoryItemId: "item_sambal", outletId: firstOutlet.id, parLevel: 8, lowStockThreshold: 5, reorderQty: 8, storageLocation: "Kitchen chiller", isActive: true },
-        { id: "cfg_sambal_second", inventoryItemId: "item_sambal", outletId: secondOutlet.id, parLevel: 20, lowStockThreshold: 10, reorderQty: 12, storageLocation: "Prep kitchen", isActive: true },
+        { id: "cfg_sambal_first", inventoryItemId: "item_sambal", outletId: firstOutlet.id, parLevel: 8, storageLocation: "Kitchen chiller", isActive: true },
+        { id: "cfg_sambal_second", inventoryItemId: "item_sambal", outletId: secondOutlet.id, parLevel: 20, storageLocation: "Prep kitchen", isActive: true },
       ],
     },
     {
@@ -280,12 +280,11 @@ function defaultData(outlets = [], suppliers = []) {
       description: "Standard takeaway beverage cup.",
       inventoryType: "Packaging",
       defaultSupplierId: supplierId,
-      lowStockThreshold: 200,
       parLevel: 800,
       status: "active",
       linkedOutletIds: [firstOutlet.id],
       outletConfigs: [
-        { id: "cfg_cups_first", inventoryItemId: "item_cups", outletId: firstOutlet.id, parLevel: 800, lowStockThreshold: 200, reorderQty: 300, storageLocation: "Front counter dry rack", isActive: true },
+        { id: "cfg_cups_first", inventoryItemId: "item_cups", outletId: firstOutlet.id, parLevel: 800, storageLocation: "Front counter dry rack", isActive: true },
       ],
     },
     {
@@ -298,13 +297,12 @@ function defaultData(outlets = [], suppliers = []) {
       description: "Frozen chicken for daily prep.",
       inventoryType: "Ingredient",
       defaultSupplierId: supplierId,
-      lowStockThreshold: 20,
       parLevel: 60,
       status: "active",
       linkedOutletIds: [firstOutlet.id, secondOutlet.id],
       outletConfigs: [
-        { id: "cfg_chicken_first", inventoryItemId: "item_chicken", outletId: firstOutlet.id, parLevel: 60, lowStockThreshold: 20, reorderQty: 40, storageLocation: "Freezer A", isActive: true },
-        { id: "cfg_chicken_second", inventoryItemId: "item_chicken", outletId: secondOutlet.id, parLevel: 45, lowStockThreshold: 15, reorderQty: 30, storageLocation: "Freezer", isActive: true },
+        { id: "cfg_chicken_first", inventoryItemId: "item_chicken", outletId: firstOutlet.id, parLevel: 60, storageLocation: "Freezer A", isActive: true },
+        { id: "cfg_chicken_second", inventoryItemId: "item_chicken", outletId: secondOutlet.id, parLevel: 45, storageLocation: "Freezer", isActive: true },
       ],
     },
   ];
@@ -493,10 +491,9 @@ function LinkedOutletsSummary({ item, outlets, onConfigure }) {
                     </div>
                     <Badge tone={config.isActive === false ? "neutral" : "success"}>{config.isActive === false ? "Inactive link" : "Active"}</Badge>
                   </div>
-                  <div className="mt-2 grid grid-cols-3 gap-2 type-caption text-text-secondary">
+                  <div className="mt-2 grid grid-cols-2 gap-2 type-caption text-text-secondary">
                     <span>Par <strong className="text-text-primary">{config.parLevel}</strong></span>
-                    <span>Low <strong className="text-text-primary">{config.lowStockThreshold}</strong></span>
-                    <span>Reorder <strong className="text-text-primary">{config.reorderQty}</strong></span>
+                    <span>{config.storageLocation || "No location"}</span>
                   </div>
                 </div>
               );
@@ -510,59 +507,10 @@ function LinkedOutletsSummary({ item, outlets, onConfigure }) {
               onConfigure?.();
             }}
           >
-            Configure Outlets
+            Open Par Level Setup
           </button>
         </div>
       </FloatingLayer>
-    </div>
-  );
-}
-
-function OutletStockSettings({ form, outlets, updateOutletConfig }) {
-  const selectedOutlets = outlets.filter((outlet) => (form.linkedOutletIds || []).includes(outlet.id));
-  if (!selectedOutlets.length) {
-    return (
-      <div className="rounded-2xl border border-dashed border-border bg-slate-50/70 p-4 text-center type-body-sm text-text-secondary">
-        Select at least one linked outlet to configure stock settings.
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-3">
-      <div>
-        <div className="type-title font-bold text-text-primary">Outlet Stock Settings</div>
-        <p className="type-caption text-text-secondary">Par level and low stock threshold are outlet-specific.</p>
-      </div>
-      <div className="space-y-2">
-        {selectedOutlets.map((outlet) => {
-          const config = outletConfigForItem(form, outlet.id);
-          return (
-            <div key={outlet.id} className="rounded-2xl border border-border bg-slate-50/70 p-3">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div>
-                  <div className="type-body-sm font-bold text-text-primary">{outlet.name}</div>
-                  <div className="type-caption text-text-secondary">{outlet.code || outlet.shortCode || outlet.short_code || "Outlet stock configuration"}</div>
-                </div>
-                <label className="flex items-center gap-2 type-caption font-semibold text-text-secondary">
-                  <input
-                    type="checkbox"
-                    checked={config.isActive !== false}
-                    onChange={(event) => updateOutletConfig(outlet.id, "isActive", event.target.checked)}
-                  />
-                  Active
-                </label>
-              </div>
-              <div className="grid gap-2 md:grid-cols-4">
-                <Field label="Par Level" type="number" value={config.parLevel} onChange={(value) => updateOutletConfig(outlet.id, "parLevel", Number(value || 0))} />
-                <Field label="Low Stock Threshold" type="number" value={config.lowStockThreshold} onChange={(value) => updateOutletConfig(outlet.id, "lowStockThreshold", Number(value || 0))} />
-                <Field label="Reorder Qty" type="number" value={config.reorderQty} onChange={(value) => updateOutletConfig(outlet.id, "reorderQty", Number(value || 0))} />
-                <Field label="Storage Location" value={config.storageLocation} onChange={(value) => updateOutletConfig(outlet.id, "storageLocation", value)} placeholder="Chiller, dry store..." />
-              </div>
-            </div>
-          );
-        })}
-      </div>
     </div>
   );
 }
@@ -598,23 +546,11 @@ function InventoryItemModal({ item, categories, outlets, suppliers, onClose, onS
     });
   }
 
-  function updateOutletConfig(outletId, key, value) {
-    setForm((current) => {
-      const linkedOutletIds = getLinkedOutletIds(current);
-      const existing = new Map((current.outletConfigs || []).map((config) => [config.outletId, config]));
-      const nextConfigs = linkedOutletIds.map((id) => {
-        const config = buildOutletConfig(current, id, existing.get(id));
-        return id === outletId ? { ...config, [key]: value, updatedAt: new Date().toISOString() } : config;
-      });
-      return { ...current, outletConfigs: nextConfigs };
-    });
-  }
-
   return (
     <Modal
       title={item ? "Edit Inventory Item" : "Add Inventory Item"}
-      description="Define the global item identity, then configure outlet-specific stock settings separately."
-      size="xl"
+      description="Define the global item identity. Par levels are managed separately in Par Level Setup."
+      size="lg"
       onClose={onClose}
       footer={(
         <>
@@ -648,55 +584,11 @@ function InventoryItemModal({ item, categories, outlets, suppliers, onClose, onS
         </div>
         <div className="md:col-span-2">
           <MultiOutletPicker outlets={outlets} selectedIds={form.linkedOutletIds} onChange={updateLinkedOutlets} />
+          <div className="mt-2 rounded-xl border border-primary/15 bg-primary/5 px-3 py-2 type-caption text-text-secondary">
+            Par levels can be managed in <span className="font-bold text-text-primary">Par Level Setup</span> after the item is saved.
+          </div>
           {invalid ? <div className="mt-2 type-caption font-semibold text-rose-600">Item name, category, unit and at least one linked outlet are required.</div> : null}
         </div>
-        <div className="md:col-span-2">
-          <OutletStockSettings form={form} outlets={outlets} updateOutletConfig={updateOutletConfig} />
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
-function OutletConfigModal({ item, outlets, onClose, onSave }) {
-  const [form, setForm] = useState(normalizeInventoryItem(item));
-
-  function updateLinkedOutlets(ids) {
-    setForm((current) => {
-      const existing = new Map((current.outletConfigs || []).map((config) => [config.outletId, config]));
-      return {
-        ...current,
-        linkedOutletIds: ids,
-        outletConfigs: ids.map((outletId) => buildOutletConfig(current, outletId, existing.get(outletId))),
-      };
-    });
-  }
-
-  function updateOutletConfig(outletId, key, value) {
-    setForm((current) => ({
-      ...current,
-      outletConfigs: (current.outletConfigs || []).map((config) => (
-        config.outletId === outletId ? { ...config, [key]: value, updatedAt: new Date().toISOString() } : config
-      )),
-    }));
-  }
-
-  return (
-    <Modal
-      title="Outlet Configuration"
-      description={`${item.name} outlet-specific stock settings`}
-      size="xl"
-      onClose={onClose}
-      footer={(
-        <>
-          <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="button" onClick={() => onSave(normalizeInventoryItem(form))}>Save Configuration</button>
-        </>
-      )}
-    >
-      <div className="space-y-4">
-        <MultiOutletPicker outlets={outlets} selectedIds={form.linkedOutletIds} onChange={updateLinkedOutlets} />
-        <OutletStockSettings form={form} outlets={outlets} updateOutletConfig={updateOutletConfig} />
       </div>
     </Modal>
   );
@@ -844,7 +736,7 @@ function RequestModal({ outlets, items, categories, suppliers, onClose, onSave }
   const itemById = new Map(items.map((item) => [item.id, item]));
 
   function addLine(item) {
-    const suggestedQty = reorderQtyForOutlet(item, outletId) || Math.max(1, Number(parLevelForOutlet(item, outletId) || 0) - Number(lowStockThresholdForOutlet(item, outletId) || 0));
+    const suggestedQty = Math.max(1, Number(parLevelForOutlet(item, outletId) || 0));
     setLines((current) => [...current, { itemId: item.id, currentQty: 0, suggestedQty, requestedQty: suggestedQty, priority: "Normal", notes: "" }]);
   }
 
@@ -1016,6 +908,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("active");
+  const [parLevelView, setParLevelView] = useState("outlet");
+  const [parLevelOutletId, setParLevelOutletId] = useState(outlets[0]?.id ?? "");
   const [date, setDate] = useState(todayInput());
   const [modal, setModal] = useState(null);
   const [activeCheckGroupId, setActiveCheckGroupId] = useState(null);
@@ -1024,6 +918,10 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   useEffect(() => {
     setActiveTab(initialTab);
   }, [initialTab]);
+
+  useEffect(() => {
+    if (!parLevelOutletId && outlets[0]?.id) setParLevelOutletId(outlets[0].id);
+  }, [outlets, parLevelOutletId]);
 
   const can = useMemo(() => ({
     import: canImport(auth, INVENTORY_MODULE) || hasPermission(auth, "inventory_master.import"),
@@ -1066,7 +964,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     const scopedItems = data.items.filter((item) => selectedOutletId === "all" || item.linkedOutletIds?.includes(selectedOutletId));
     const lowStock = scopedItems.reduce((count, item) => {
       const configs = outletConfigsForScope(item, selectedOutletIds);
-      return count + configs.filter((config) => Number(config.lowStockThreshold || 0) > 0 && Number(config.parLevel || 0) <= Number(config.lowStockThreshold || 0)).length;
+      return count + configs.filter((config) => Number(config.parLevel || 0) > 0 && latestActualCount(data.checks, item.id, config.outletId) < Number(config.parLevel || 0)).length;
     }, 0);
     const pendingRequests = data.requests.filter((request) => selectedOutletIds.includes(request.outletId) && !["completed", "rejected"].includes(request.status)).length;
     const criticalChecks = dueGroups.filter((group) => dueStatus(group, data.checks, date) === "Overdue").length;
@@ -1122,6 +1020,23 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     }));
     setModal(null);
     notify("Inventory category saved");
+  }
+
+  function saveParLevelConfig(itemId, outletId, patch) {
+    setData((current) => ({
+      ...current,
+      items: current.items.map((item) => {
+        if (item.id !== itemId) return item;
+        const normalized = normalizeInventoryItem(item);
+        const linkedOutletIds = uniqueIds([...normalized.linkedOutletIds, outletId]);
+        const existing = new Map((normalized.outletConfigs || []).map((config) => [config.outletId, config]));
+        const outletConfigs = linkedOutletIds.map((id) => {
+          const config = buildOutletConfig({ ...normalized, linkedOutletIds }, id, existing.get(id));
+          return id === outletId ? { ...config, ...patch, updatedAt: new Date().toISOString() } : config;
+        });
+        return normalizeInventoryItem({ ...normalized, linkedOutletIds, outletConfigs });
+      }),
+    }));
   }
 
   function saveGroup(group) {
@@ -1293,10 +1208,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       const outletItems = data.items.filter((item) => item.linkedOutletIds?.includes(outlet.id));
       const outletGroups = data.groups.filter((group) => group.outletId === outlet.id);
       const outletDue = outletGroups.filter((group) => isGroupDue(group, date));
-      const lowStock = outletItems.filter((item) => {
-        const config = outletConfigForItem(item, outlet.id);
-        return Number(config.lowStockThreshold || 0) > 0 && Number(config.parLevel || 0) <= Number(config.lowStockThreshold || 0);
-      }).length;
+      const lowStock = outletItems.filter((item) => latestActualCount(data.checks, item.id, outlet.id) < parLevelForOutlet(item, outlet.id)).length;
       const waste = data.waste.filter((row) => row.outletId === outlet.id).reduce((sum, row) => sum + Number(row.value || 0), 0);
       const pendingOrders = data.orders.filter((order) => order.outletIds?.includes(outlet.id) && !["completed", "delivered"].includes(order.status)).length;
       const completion = outletDue.length ? Math.round((outletDue.filter((group) => dueStatus(group, data.checks, date) === "Completed").length / outletDue.length) * 100) : 100;
@@ -1305,7 +1217,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     }).filter((row) => selectedOutletId === "all" || row.outlet.id === selectedOutletId);
 
     const alerts = [
-      dashboard.lowStock ? { title: `${dashboard.lowStock} low stock items`, reason: "Review par levels and suggested requests.", tone: "warning", category: "Low Stock" } : null,
+      dashboard.lowStock ? { title: `${dashboard.lowStock} low stock items`, reason: "Actual counts are below configured par levels.", tone: "warning", category: "Low Stock" } : null,
       dashboard.varianceRisk ? { title: `${dashboard.varianceRisk} overdue stock checks`, reason: "Outlet check groups are not completed.", tone: "danger", category: "Stock Check" } : null,
       data.orders.some((order) => ["sent", "confirmed", "packing"].includes(order.status)) ? { title: "Supplier delivery pending", reason: "Purchase orders are still open.", tone: "info", category: "Ordering" } : null,
     ].filter(Boolean);
@@ -1314,7 +1226,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       <div className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <MetricCard icon={Warehouse} label="Inventory Value" value={toCurrency(dashboard.inventoryValue)} helper="Estimated at par level" trend="Monthly" emphasis="primary" />
-          <MetricCard icon={AlertTriangle} label="Low Stock Items" value={dashboard.lowStock} helper="Below configured threshold" tone={dashboard.lowStock ? "warning" : "success"} />
+          <MetricCard icon={AlertTriangle} label="Low Stock Items" value={dashboard.lowStock} helper="Below outlet par level" tone={dashboard.lowStock ? "warning" : "success"} />
           <MetricCard icon={PackagePlus} label="Pending Requests" value={dashboard.pendingRequests} helper="Draft / submitted / approved" tone={dashboard.pendingRequests ? "warning" : "success"} />
           <MetricCard icon={Sparkles} label="Variance Risk" value={dashboard.varianceRisk} helper="Overdue checks" tone={dashboard.varianceRisk ? "danger" : "success"} />
           <MetricCard icon={ClipboardCheck} label="Check Completion" value={`${dashboard.checkCompletion}%`} helper="Due groups completed" tone={dashboard.checkCompletion < 80 ? "warning" : "success"} />
@@ -1417,9 +1329,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     return (
       <div className="space-y-4">
         {renderFilters()}
-        <SectionCard
+          <SectionCard
           title="Inventory Items"
-          description="Global item definitions. Outlet par levels and low stock thresholds live in outlet configuration."
+          description="Global item definitions. Outlet par levels are managed in Par Level Setup."
         >
           {visibleItems.length ? (
             <div className="overflow-x-auto">
@@ -1455,7 +1367,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                         <td className="font-mono text-xs text-text-secondary">{item.sku || "-"}</td>
                         <td>{item.unit}</td>
                         <td>
-                          <LinkedOutletsSummary item={item} outlets={outlets} onConfigure={() => requirePermission(can.manageMaster, "configure outlet stock settings") && setModal({ type: "outlet-config", item })} />
+                          <LinkedOutletsSummary item={item} outlets={outlets} onConfigure={() => { if (requirePermission(can.manageMaster, "manage par levels")) ui?.navigate?.("inventory_par_levels"); }} />
                         </td>
                         <td><Badge tone={statusTone(item.status)}>{toTitle(item.status)}</Badge></td>
                         <td>
@@ -1496,6 +1408,172 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             ))}
           </div>
         </SectionCard>
+      </div>
+    );
+  }
+
+  function renderParLevels() {
+    const activeOutletId = parLevelOutletId || outlets[0]?.id || "";
+    const outletScopedItems = data.items.filter((item) => item.status === "active" && item.linkedOutletIds?.includes(activeOutletId));
+    const parItems = data.items.filter((item) => {
+      const matchesQuery = !query.trim() || `${item.name} ${item.sku}`.toLowerCase().includes(query.trim().toLowerCase());
+      const matchesCategory = categoryFilter === "all" || item.categoryId === categoryFilter;
+      const matchesStatus = statusFilter === "all" || item.status === statusFilter;
+      return matchesQuery && matchesCategory && matchesStatus;
+    });
+
+    return (
+      <div className="space-y-4">
+        <div className="card flex flex-col gap-3 p-3 lg:flex-row lg:items-end lg:justify-between">
+          <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-end">
+            <SelectField
+              label="Outlet"
+              value={activeOutletId}
+              options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))}
+              onChange={setParLevelOutletId}
+              searchable
+              className="lg:w-72"
+            />
+            <SelectField
+              label="Category"
+              value={categoryFilter}
+              options={[{ value: "all", label: "All Categories" }, ...data.categories.map((category) => ({ value: category.id, label: category.name }))]}
+              onChange={setCategoryFilter}
+              searchable
+              className="lg:w-56"
+            />
+            <label className="min-w-0 flex-1">
+              <div className="mb-1 type-caption font-semibold text-text-secondary">Search item</div>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
+                <input className="control h-9 w-full pl-9 text-[13px]" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search item name or SKU" />
+              </div>
+            </label>
+          </div>
+          <div className="inline-flex rounded-xl border border-border bg-slate-50 p-1">
+            {[
+              ["outlet", "Outlet View"],
+              ["matrix", "Matrix View"],
+            ].map(([value, label]) => (
+              <button
+                key={value}
+                className={`rounded-lg px-3 py-1.5 type-caption font-bold transition ${parLevelView === value ? "bg-white text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"}`}
+                type="button"
+                onClick={() => setParLevelView(value)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {parLevelView === "outlet" ? (
+          <SectionCard
+            title={`${outletById.get(activeOutletId)?.name ?? "Outlet"} Par Levels`}
+            description="Set the minimum quantity this outlet should keep for each linked item."
+          >
+            {outletScopedItems.length ? (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[820px] text-left">
+                  <thead className="text-[11px] uppercase tracking-wide text-text-muted">
+                    <tr className="border-b border-border">
+                      <th className="py-2">Item</th>
+                      <th>Category</th>
+                      <th>Unit</th>
+                      <th>Par Level</th>
+                      <th>Storage Location</th>
+                      <th>Active</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border text-[13px]">
+                    {outletScopedItems.map((item) => {
+                      const category = categoryById.get(item.categoryId);
+                      const config = outletConfigForItem(item, activeOutletId);
+                      return (
+                        <tr key={item.id} className="transition hover:bg-primary/5">
+                          <td className="py-3 font-bold text-text-primary">{item.name}</td>
+                          <td>{category?.name ?? "Uncategorized"}</td>
+                          <td>{item.unit}</td>
+                          <td>
+                            <input
+                              className="control h-8 w-28 text-[13px]"
+                              type="number"
+                              value={config.parLevel}
+                              onChange={(event) => saveParLevelConfig(item.id, activeOutletId, { parLevel: Number(event.target.value || 0) })}
+                            />
+                          </td>
+                          <td>
+                            <input
+                              className="control h-8 min-w-44 text-[13px]"
+                              value={config.storageLocation}
+                              onChange={(event) => saveParLevelConfig(item.id, activeOutletId, { storageLocation: event.target.value })}
+                              placeholder="Optional"
+                            />
+                          </td>
+                          <td>
+                            <label className="inline-flex items-center gap-2 type-caption font-semibold text-text-secondary">
+                              <input
+                                type="checkbox"
+                                checked={config.isActive !== false}
+                                onChange={(event) => saveParLevelConfig(item.id, activeOutletId, { isActive: event.target.checked })}
+                              />
+                              Active
+                            </label>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            ) : <EmptyState title="No linked items for this outlet" description="Link items to this outlet from Master Inventory before setting par levels." />}
+          </SectionCard>
+        ) : (
+          <SectionCard title="Par Level Matrix" description="HQ view for comparing item par levels across outlets.">
+            {parItems.length ? (
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[980px] text-left">
+                  <thead className="text-[11px] uppercase tracking-wide text-text-muted">
+                    <tr className="border-b border-border">
+                      <th className="py-2">Item</th>
+                      <th>Unit</th>
+                      {outlets.map((outlet) => <th key={outlet.id}>{outlet.name}</th>)}
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border text-[13px]">
+                    {parItems.map((item) => (
+                      <tr key={item.id} className="transition hover:bg-primary/5">
+                        <td className="py-3">
+                          <div className="font-bold text-text-primary">{item.name}</div>
+                          <div className="type-caption text-text-secondary">{categoryById.get(item.categoryId)?.name ?? "Uncategorized"}</div>
+                        </td>
+                        <td>{item.unit}</td>
+                        {outlets.map((outlet) => {
+                          const linked = item.linkedOutletIds?.includes(outlet.id);
+                          const config = outletConfigForItem(item, outlet.id);
+                          return (
+                            <td key={outlet.id}>
+                              {linked ? (
+                                <input
+                                  className="control h-8 w-24 text-[13px]"
+                                  type="number"
+                                  value={config.parLevel}
+                                  onChange={(event) => saveParLevelConfig(item.id, outlet.id, { parLevel: Number(event.target.value || 0) })}
+                                />
+                              ) : (
+                                <span className="type-caption text-text-muted">Not linked</span>
+                              )}
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            ) : <EmptyState title="No inventory items found" description="Adjust filters or create inventory items first." />}
+          </SectionCard>
+        )}
       </div>
     );
   }
@@ -1834,6 +1912,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     if (activeTab === "dashboard") return renderDashboard();
     if (activeTab === "master") return renderMasterInventory();
     if (activeTab === "categories") return renderInventoryCategories();
+    if (activeTab === "par-levels") return renderParLevels();
     if (activeTab === "groups") return renderGroups();
     if (activeTab === "stock-check") return renderStockCheck();
     if (activeTab === "requests") return renderRequests();
@@ -1861,6 +1940,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     }
     if (activeTab === "categories") {
       return <button className="btn-primary" type="button" onClick={() => requirePermission(can.manageCategories, "manage inventory categories") && setModal({ type: "category" })}><PackagePlus size={15} /> Add Category</button>;
+    }
+    if (activeTab === "par-levels") {
+      return (
+        <button className="btn-secondary" type="button" onClick={() => requirePermission(can.export, "export par levels")}>
+          <Download size={15} /> Export
+        </button>
+      );
     }
     if (activeTab === "groups") {
       return <button className="btn-primary" type="button" onClick={() => requirePermission(can.manageGroups, "manage stock check groups") && setModal({ type: "group" })}><PackagePlus size={15} /> Add Group</button>;
@@ -1909,7 +1995,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       {renderActiveTab()}
 
       {modal?.type === "item" ? <InventoryItemModal item={modal.item} categories={data.categories} outlets={outlets} suppliers={suppliers} onClose={() => setModal(null)} onSave={saveItem} /> : null}
-      {modal?.type === "outlet-config" ? <OutletConfigModal item={modal.item} outlets={outlets} onClose={() => setModal(null)} onSave={saveItem} /> : null}
       {modal?.type === "category" ? <CategoryModal category={modal.category} onClose={() => setModal(null)} onSave={saveCategory} /> : null}
       {modal?.type === "group" ? <GroupModal group={modal.group} outlets={outlets} items={data.items} categories={data.categories} onClose={() => setModal(null)} onSave={saveGroup} /> : null}
       {modal?.type === "request" ? <RequestModal outlets={outlets} items={data.items} categories={data.categories} suppliers={suppliers} onClose={() => setModal(null)} onSave={saveRequest} /> : null}

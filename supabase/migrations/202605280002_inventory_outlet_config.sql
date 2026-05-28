@@ -1,5 +1,5 @@
 -- Inventory Control outlet-specific stock configuration
--- Separates global inventory item identity from outlet par/threshold settings.
+-- Separates global inventory item identity from outlet par settings.
 
 create extension if not exists pgcrypto;
 
@@ -9,6 +9,9 @@ values
   ('inventory_categories.create', 'Inventory Categories', 'Create inventory categories.'),
   ('inventory_categories.edit', 'Inventory Categories', 'Edit inventory categories.'),
   ('inventory_categories.delete', 'Inventory Categories', 'Delete inventory categories.'),
+  ('inventory_par_levels.view', 'Par Levels', 'View inventory par levels.'),
+  ('inventory_par_levels.edit', 'Par Levels', 'Edit inventory par levels.'),
+  ('inventory_par_levels.export', 'Par Levels', 'Export inventory par levels.'),
   ('inventory_master.import', 'Master Inventory', 'Import master inventory.'),
   ('inventory_master.export', 'Master Inventory', 'Export master inventory.')
 on conflict (code) do update
@@ -61,8 +64,6 @@ alter table public.inventory_item_outlets
   add column if not exists inventory_item_id uuid references public.inventory_items(id) on delete cascade,
   add column if not exists outlet_id uuid references public.outlets(id) on delete cascade,
   add column if not exists par_level numeric(14,3) not null default 0,
-  add column if not exists low_stock_threshold numeric(14,3) not null default 0,
-  add column if not exists reorder_qty numeric(14,3) not null default 0,
   add column if not exists storage_location text,
   add column if not exists is_active boolean not null default true,
   add column if not exists created_at timestamptz not null default now(),
@@ -148,6 +149,7 @@ on public.inventory_item_outlets for select to authenticated
 using (
   (
     public.current_user_has_permission('inventory_master.view')
+    or public.current_user_has_permission('inventory_par_levels.view')
     or public.current_user_has_permission('inventory_stock_check.view')
     or public.current_user_has_permission('inventory_requests.view')
     or public.current_user_has_permission('inventory_control.view')
@@ -162,6 +164,7 @@ with check (
   (
     public.current_user_has_permission('inventory_master.create')
     or public.current_user_has_permission('inventory_master.edit')
+    or public.current_user_has_permission('inventory_par_levels.edit')
     or public.current_user_has_permission('inventory_control.manage_master')
   )
   and public.current_user_can_access_outlet(outlet_id)
@@ -173,6 +176,7 @@ on public.inventory_item_outlets for update to authenticated
 using (
   (
     public.current_user_has_permission('inventory_master.edit')
+    or public.current_user_has_permission('inventory_par_levels.edit')
     or public.current_user_has_permission('inventory_control.manage_master')
   )
   and public.current_user_can_access_outlet(outlet_id)
@@ -180,6 +184,7 @@ using (
 with check (
   (
     public.current_user_has_permission('inventory_master.edit')
+    or public.current_user_has_permission('inventory_par_levels.edit')
     or public.current_user_has_permission('inventory_control.manage_master')
   )
   and public.current_user_can_access_outlet(outlet_id)

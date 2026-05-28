@@ -154,6 +154,12 @@ const routeDetails = {
     permission: "inventory_categories.view OR inventory_control.view",
     props: { initialTab: "categories" },
   },
+  inventory_par_levels: {
+    description: "Bulk manage outlet-specific minimum stock levels.",
+    component: InventoryControlPage,
+    permission: "inventory_par_levels.view OR inventory_master.view OR inventory_control.view",
+    props: { initialTab: "par-levels" },
+  },
   inventory_groups: {
     description: "Manage outlet-level stock check groups and frequencies.",
     component: InventoryControlPage,

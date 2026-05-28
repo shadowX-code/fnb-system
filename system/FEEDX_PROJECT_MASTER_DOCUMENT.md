@@ -106,6 +106,7 @@ INVENTORY CONTROL
 - Dashboard
 - Master Inventory
 - Inventory Categories
+- Par Levels
 - Stock Check Groups
 - Stock Check
 - Stock Requests
@@ -189,6 +190,7 @@ Inventory Control registry entries:
 inventory_dashboard     INVENTORY_CONTROL   Dashboard              #inventory_dashboard
 inventory_master        INVENTORY_CONTROL   Master Inventory       #inventory_master
 inventory_categories    INVENTORY_CONTROL   Inventory Categories   #inventory_categories
+inventory_par_levels    INVENTORY_CONTROL   Par Levels             #inventory_par_levels
 inventory_groups        INVENTORY_CONTROL   Stock Check Groups     #inventory_groups
 inventory_stock_check   INVENTORY_CONTROL   Stock Check            #inventory_stock_check
 inventory_requests      INVENTORY_CONTROL   Stock Requests         #inventory_requests
@@ -1728,6 +1730,7 @@ Routes:
 - `#inventory_dashboard`
 - `#inventory_master`
 - `#inventory_categories`
+- `#inventory_par_levels`
 - `#inventory_groups`
 - `#inventory_stock_check`
 - `#inventory_requests`
@@ -1743,7 +1746,9 @@ Core rules:
 - Inventory Categories is a standalone page under Inventory Control.
 - One inventory item can be linked to multiple outlets.
 - Not every outlet uses every inventory item.
-- Par Level, Low Stock Threshold, Reorder Qty, Storage Location, and outlet link active state are outlet-specific and live on `inventory_item_outlets`.
+- Par Level, Storage Location, and outlet link active state are outlet-specific and live on `inventory_item_outlets`.
+- Par Level is the only outlet-specific minimum stock setting in the current scope.
+- Low Stock Threshold and Reorder Qty are deferred and must not appear in current UI workflows.
 - Stock Check Groups belong to one outlet.
 - A group can only include inventory items linked to that outlet.
 - Not every inventory item needs daily checking.
@@ -1769,6 +1774,9 @@ Inventory Control permissions:
 - inventory_categories.create
 - inventory_categories.edit
 - inventory_categories.delete
+- inventory_par_levels.view
+- inventory_par_levels.edit
+- inventory_par_levels.export
 - inventory_groups.view
 - inventory_groups.create
 - inventory_groups.edit
@@ -1823,10 +1831,21 @@ Master Inventory UI:
 - The Master Inventory table does not show Low Stock or Par Level columns because those values are outlet-specific.
 - Linked Outlets displays a compact count such as `3 outlets`.
 - Clicking the Linked Outlets count opens a FloatingLayer popover with outlet names, outlet codes, active/inactive link status, and key outlet stock settings.
-- Outlet Configuration editing uses a drawer or modal workflow for outlet-specific stock settings.
-- Add/Edit Item keeps master item fields separate from `Outlet Stock Settings`.
-- `Outlet Stock Settings` contains one configuration row per selected outlet: Par Level, Low Stock Threshold, Reorder Qty, Storage Location, and Active.
+- Add/Edit Item keeps master item fields separate from outlet-level par management.
+- Add/Edit Item shows linked outlets and a note that par levels are managed in Par Level Setup.
+- Add/Edit Item does not show outlet-by-outlet Par Level, Low Stock Threshold, or Reorder Qty inputs.
 - Non-protected roles can only link items to outlets they can access.
+
+Par Level Setup:
+
+- Route: `#inventory_par_levels`
+- Sidebar: Inventory Control > Par Levels
+- Purpose: bulk manage outlet-specific minimum stock levels.
+- Par Level means the minimum quantity an outlet should keep for an item.
+- Outlet View columns: Item, Category, Unit, Par Level, Storage Location, Active.
+- Matrix View rows are items and columns are outlets.
+- Users can update par levels without opening each item.
+- Low stock logic is `current_stock < inventory_item_outlets.par_level`.
 
 Inventory item status:
 
@@ -1867,8 +1886,6 @@ Inventory items are linked to outlets through an item-outlet relation table.
 - inventory_item_id
 - outlet_id
 - par_level
-- low_stock_threshold
-- reorder_qty
 - storage_location
 - is_active
 - created_at
@@ -1878,9 +1895,10 @@ Rules:
 
 - One item can belong to many outlets.
 - One outlet can use many items.
-- Same item can have different par levels and thresholds per outlet.
+- Same item can have different par levels per outlet.
 - Stock Check reads `par_level` from `inventory_item_outlets` for the selected outlet.
-- Low stock alerts compare outlet current stock against `inventory_item_outlets.low_stock_threshold`.
+- Stock Check variance is `par_level - actual_count_quantity`.
+- Low stock alerts compare outlet current stock against `inventory_item_outlets.par_level`.
 - Outlet selectors and item pickers must respect role outlet access.
 - Stock Check Groups can only select items linked to the selected outlet.
 
@@ -2842,6 +2860,12 @@ Inventory Categories:
 - inventory_categories.edit
 - inventory_categories.delete
 
+Par Levels:
+
+- inventory_par_levels.view
+- inventory_par_levels.edit
+- inventory_par_levels.export
+
 Stock Check Groups:
 
 - inventory_groups.view
@@ -3148,7 +3172,7 @@ Inventory Control tables:
 
 - inventory_categories
 - inventory_items
-- inventory_item_outlets (`inventory_item_id`, `outlet_id`, `par_level`, `low_stock_threshold`, `reorder_qty`, `storage_location`, `is_active`)
+- inventory_item_outlets (`inventory_item_id`, `outlet_id`, `par_level`, `storage_location`, `is_active`)
 - inventory_stock_check_groups
 - inventory_stock_check_group_items
 - inventory_stock_checks

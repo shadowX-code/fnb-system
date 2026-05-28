@@ -335,6 +335,15 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, create: true, edit: true, delete: true },
   },
   {
+    id: "inventory_par_levels",
+    section: "Inventory Control",
+    label: "Par Levels",
+    route: "/inventory/par-levels",
+    icon: "inventory-master",
+    sidebar: true,
+    permissions: { view: true, edit: true, export: true },
+  },
+  {
     id: "inventory_groups",
     section: "Inventory Control",
     label: "Stock Check Groups",
