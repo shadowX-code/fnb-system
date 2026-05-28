@@ -274,12 +274,12 @@ function MiniTile({ icon: Icon, count, label, tone = "neutral", outlet, route, u
   const Component = route ? "button" : "div";
   return (
     <Component
-      className={`w-full rounded-2xl border p-3 text-left transition duration-150 hover:-translate-y-0.5 ${toneClass} ${route ? "cursor-pointer" : "opacity-80"}`}
+      className={`overview-mini-tile w-full rounded-2xl border p-3 text-left transition duration-150 hover:-translate-y-0.5 ${toneClass} ${route ? "cursor-pointer" : "opacity-80"}`}
       type={route ? "button" : undefined}
       onClick={route ? () => ui?.navigate?.(route) : undefined}
     >
       <div className="flex items-center justify-between gap-2">
-        <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-white/75 shadow-sm">
+        <span className="overview-mini-icon flex h-8 w-8 items-center justify-center rounded-xl bg-white/75 shadow-sm">
           <Icon size={16} />
         </span>
         {outlet ? <OutletBadge outlet={outlet} /> : null}
@@ -577,9 +577,9 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
 
   return (
     <div className="relative mx-auto max-w-[1500px] space-y-3">
-      <section className="relative overflow-hidden rounded-[26px] border border-slate-200/80 bg-white/95 p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_18px_44px_rgba(15,23,42,0.055)] backdrop-blur">
-        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(248,250,252,0.78))]" />
-        <div className="pointer-events-none absolute inset-0 opacity-[0.12] [background-image:linear-gradient(rgba(15,23,42,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.08)_1px,transparent_1px)] [background-size:28px_28px]" />
+      <section className="overview-hero relative overflow-hidden rounded-[26px] border border-slate-200/80 bg-white/95 p-5 shadow-[0_1px_2px_rgba(15,23,42,0.04),0_18px_44px_rgba(15,23,42,0.055)] backdrop-blur">
+        <div className="overview-hero-wash pointer-events-none absolute inset-0 bg-[linear-gradient(135deg,rgba(255,255,255,0.96),rgba(248,250,252,0.78))]" />
+        <div className="overview-grid-texture pointer-events-none absolute inset-0 opacity-[0.12] [background-image:linear-gradient(rgba(15,23,42,0.08)_1px,transparent_1px),linear-gradient(90deg,rgba(15,23,42,0.08)_1px,transparent_1px)] [background-size:28px_28px]" />
         <div className="relative">
         <div className="flex flex-col gap-5 lg:flex-row lg:items-start lg:justify-between">
           <div>
@@ -841,7 +841,8 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
             {pendingActions.map((item) => (
               <button
                 key={item.label}
-                className={`flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-[13px] transition hover:bg-primary/5 ${item.count ? "bg-amber-50/30" : "opacity-70"}`}
+                className={`overview-action-row flex w-full items-center justify-between gap-3 px-4 py-3 text-left text-[13px] transition ${item.count ? "bg-amber-50/30" : "bg-transparent"}`}
+                data-active={item.count ? "true" : "false"}
                 type="button"
                 onClick={() => ui?.navigate?.(item.route)}
               >
@@ -886,7 +887,7 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
                     </div>
                     {item.product?.outlet_id ? <OutletBadge outlet={outletById.get(item.product.outlet_id)} /> : null}
                   </div>
-                  {item.helper ? <div className="mt-2 inline-flex rounded-full bg-white/70 px-2 py-1 text-xs font-bold text-text-secondary">{item.helper}</div> : null}
+                  {item.helper ? <div className="overview-product-helper mt-2 inline-flex rounded-full bg-white/70 px-2 py-1 text-xs font-bold text-text-secondary">{item.helper}</div> : null}
                 </div>
                 );
               })

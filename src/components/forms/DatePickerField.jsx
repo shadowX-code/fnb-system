@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { CalendarDays, ChevronLeft, ChevronRight } from "lucide-react";
+import FloatingLayer from "../ui/FloatingLayer.jsx";
 
 const monthNames = Array.from({ length: 12 }, (_, index) => new Date(2026, index, 1).toLocaleString("en-MY", { month: "short" }));
 const fullMonthNames = Array.from({ length: 12 }, (_, index) => new Date(2026, index, 1).toLocaleString("en-MY", { month: "long" }));
@@ -93,21 +94,6 @@ export default function DatePickerField({ label, required = false, value, onChan
     }
   }, [value]);
 
-  useEffect(() => {
-    function handlePointerDown(event) {
-      if (!wrapperRef.current?.contains(event.target)) setOpen(false);
-    }
-    function handleKeyDown(event) {
-      if (event.key === "Escape") setOpen(false);
-    }
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-    };
-  }, []);
-
   function handleManualInput(nextValue) {
     const cleaned = nextValue.replace(/[^A-Za-z0-9/\s]/g, "").slice(0, 14);
     setDisplayValue(cleaned);
@@ -198,8 +184,16 @@ export default function DatePickerField({ label, required = false, value, onChan
       {error ? <span className="text-[11px] font-medium text-rose-600">{error}</span> : null}
       {!error && helper ? <span className="text-[11px] text-text-muted">{helper}</span> : null}
 
-      {open ? (
-        <div className="absolute left-0 top-[68px] z-50 w-[min(340px,calc(100vw-32px))] rounded-3xl border border-slate-200 bg-white p-3 shadow-[0_24px_60px_rgba(15,23,42,0.16)] animate-in fade-in-0 zoom-in-95 duration-150">
+      <FloatingLayer
+        open={open}
+        onOpenChange={setOpen}
+        anchorRef={wrapperRef}
+        width={340}
+        minWidth={300}
+        align="start"
+        estimatedHeight={390}
+        className="rounded-3xl border-slate-200 bg-white p-3 shadow-[0_24px_60px_rgba(15,23,42,0.16)]"
+      >
           <div className="mb-3 flex items-center justify-between gap-2 rounded-2xl bg-slate-50 p-1.5">
             <button
               className="icon-btn h-8 w-8"
@@ -302,8 +296,7 @@ export default function DatePickerField({ label, required = false, value, onChan
             <button className="btn-secondary h-8 px-3 text-xs" type="button" onClick={() => { onChange(""); setOpen(false); }}>Clear</button>
             <button className="btn-primary h-8 px-3 text-xs" type="button" onClick={selectToday}>Today</button>
           </div>
-        </div>
-      ) : null}
+      </FloatingLayer>
     </label>
   );
 }

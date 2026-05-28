@@ -4,6 +4,11 @@ import { AlertTriangle, CalendarDays, ClipboardCheck, Download, Eye, MoreHorizon
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
+import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
+import Drawer from "../../../components/ui/Drawer.jsx";
+import MetricCard from "../../../components/ui/MetricCard.jsx";
+import ActivityTimeline from "../../../components/ui/Timeline.jsx";
+import DashboardSection from "../../../components/layout/DashboardSection.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
@@ -308,33 +313,6 @@ function assetHoverInsight(asset, lastMovement, lastInspection) {
   if (assetNeedsAttention(asset)) return assetConditionInsight(asset.condition);
   if (lastMovement) return latestMovementSummary(lastMovement);
   return "No recent operational issue";
-}
-
-function FloatingLayer({ anchor, width = 190, estimatedHeight = 240, align = "right", onClose, children }) {
-  if (!anchor) return null;
-  const margin = 12;
-  const offset = 8;
-  const viewportHeight = window.innerHeight;
-  const viewportWidth = window.innerWidth;
-  const maxHeight = Math.max(160, viewportHeight - margin * 2);
-  const layerHeight = Math.min(estimatedHeight, maxHeight);
-  const spaceBelow = viewportHeight - anchor.bottom - margin;
-  const spaceAbove = anchor.top - margin;
-  const shouldOpenUp = spaceBelow < layerHeight + offset && spaceAbove > spaceBelow;
-  const desiredTop = shouldOpenUp ? anchor.top - layerHeight - offset : anchor.bottom + offset;
-  const top = Math.max(margin, Math.min(desiredTop, viewportHeight - layerHeight - margin));
-  const left = align === "right"
-    ? Math.max(margin, Math.min(anchor.right - width, viewportWidth - width - margin))
-    : Math.max(margin, Math.min(anchor.left, viewportWidth - width - margin));
-  return createPortal(
-    <>
-      <button className="fixed inset-0 z-[9980] cursor-default" type="button" aria-label="Close floating menu" onClick={onClose} />
-      <div className="fixed z-[9990] overflow-y-auto overscroll-contain" style={{ top, left, width, maxHeight }}>
-        {children}
-      </div>
-    </>,
-    document.body,
-  );
 }
 
 function FloatingActionItem({ children, icon, tone = "default", onClick }) {
@@ -1790,35 +1768,30 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
   if (maintenanceEditor) {
     const mode = maintenanceEditor.mode || "edit";
     return (
-      <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30 backdrop-blur-[2px]" role="dialog" aria-modal="true">
-        <button className="flex-1 cursor-default" type="button" aria-label="Close asset detail" onClick={onClose} />
-        <aside className="flex h-full w-full max-w-[720px] flex-col border-l border-border bg-surface shadow-2xl">
-          {mode === "view" ? (
-            <MaintenanceRecordViewPanel
-              asset={asset}
-              record={maintenanceEditor.record}
-              onBack={() => setMaintenanceEditor(null)}
-              onEdit={() => setMaintenanceEditor((current) => ({ ...current, mode: "edit" }))}
-              onUpdateStatus={() => setMaintenanceEditor((current) => ({ ...current, mode: "edit" }))}
-            />
-          ) : (
-            <MaintenanceRecordEditorPanel
-              asset={asset}
-              record={maintenanceEditor.record}
-              saving={saving}
-              onBack={() => setMaintenanceEditor(maintenanceEditor.record ? { mode: "view", record: maintenanceEditor.record } : null)}
-              onSubmit={handleMaintenanceSubmit}
-            />
-          )}
-        </aside>
-      </div>
+      <Drawer open onClose={onClose} width="lg" header={false} bodyClassName="p-0">
+        {mode === "view" ? (
+          <MaintenanceRecordViewPanel
+            asset={asset}
+            record={maintenanceEditor.record}
+            onBack={() => setMaintenanceEditor(null)}
+            onEdit={() => setMaintenanceEditor((current) => ({ ...current, mode: "edit" }))}
+            onUpdateStatus={() => setMaintenanceEditor((current) => ({ ...current, mode: "edit" }))}
+          />
+        ) : (
+          <MaintenanceRecordEditorPanel
+            asset={asset}
+            record={maintenanceEditor.record}
+            saving={saving}
+            onBack={() => setMaintenanceEditor(maintenanceEditor.record ? { mode: "view", record: maintenanceEditor.record } : null)}
+            onSubmit={handleMaintenanceSubmit}
+          />
+        )}
+      </Drawer>
     );
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30 backdrop-blur-[2px]" role="dialog" aria-modal="true">
-      <button className="flex-1 cursor-default" type="button" aria-label="Close asset detail" onClick={onClose} />
-      <aside className="flex h-full w-full max-w-[720px] flex-col border-l border-border bg-surface shadow-2xl">
+    <Drawer open onClose={onClose} width="lg" header={false} bodyClassName="p-0">
         <header className="sticky top-0 z-20 shrink-0 border-b border-border bg-gradient-to-br from-white to-emerald-50/40 p-5 shadow-sm">
           <div className="flex items-start justify-between gap-3">
             <div className="flex min-w-0 gap-4">
@@ -2024,8 +1997,7 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
             </div>
           </div>
         ) : null}
-      </aside>
-    </div>
+    </Drawer>
   );
 }
 
@@ -2810,45 +2782,26 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       ) : null}
 
       {activeOutlets.length ? <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-2">
-        {[
-          ["Total Asset Items", summary.totalItems, "Assets in selected scope", "text-text-primary"],
-          ["Last Inspection", summary.lastChecked ? formatFullDate(summary.lastChecked) : "No inspection yet", summary.lastInspectionDetail, "text-text-primary"],
-        ].map(([label, value, helper, toneClass]) => (
-          <Card key={label} className="p-3.5">
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{label}</div>
-            <div className={`mt-1.5 text-xl font-semibold ${toneClass}`}>{value}</div>
-            <div className="mt-1 text-xs font-semibold text-text-secondary">{helper}</div>
-          </Card>
-        ))}
+        <MetricCard size="compact" label="Total Asset Items" value={summary.totalItems} helper="Assets in selected scope" />
+        <MetricCard size="compact" label="Last Inspection" value={summary.lastChecked ? formatFullDate(summary.lastChecked) : "No inspection yet"} helper={summary.lastInspectionDetail} />
       </div> : null}
 
       {activeOutlets.length ? (
         <div className="grid gap-3 xl:grid-cols-[minmax(0,1.65fr)_minmax(320px,0.95fr)]">
-          <Card title="Recent Activity" description="Latest operational event stream.">
-            {recentActivityRows.length ? (
-              <div className="space-y-0 pl-3">
-                {recentActivityRows.map((row, index) => {
-                  const dateLabel = formatFullDate(row.date);
-                  const previousDate = index > 0 ? formatFullDate(recentActivityRows[index - 1].date) : "";
-                  const showDate = index === 0 || dateLabel !== previousDate;
-                  const dotClass = row.tone === "danger" ? "bg-rose-500" : row.tone === "warning" ? "bg-amber-500" : row.tone === "info" ? "bg-blue-500" : "bg-emerald-500";
-                  return (
-                    <div key={row.id}>
-                      {showDate ? <div className="pb-0.5 pt-1 text-[10px] font-black uppercase tracking-[0.14em] text-text-muted/80">{dateLabel}</div> : null}
-                      <div className="relative py-1.5 pl-6">
-                        <span className={`absolute left-1 top-3 h-2 w-2 rounded-full ring-4 ring-white ${dotClass}`} />
-                        {index < recentActivityRows.length - 1 ? <span className="absolute bottom-0 left-[7px] top-5 w-px bg-border" /> : null}
-                        <div className="text-sm font-black leading-tight text-text-primary">{row.title}</div>
-                        <div className="mt-0.5 text-[11px] font-semibold text-text-muted">{row.detail}</div>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            ) : <div className="rounded-2xl border border-dashed border-border p-4 text-center text-sm font-semibold text-text-secondary">Operational activity will appear after inspections, movements and maintenance updates.</div>}
-          </Card>
+          <DashboardSection title="Recent Activity" subtitle="Latest operational event stream." density="compact">
+            <ActivityTimeline
+              events={recentActivityRows.map((row) => ({
+                id: row.id,
+                date: row.date,
+                type: row.type || (row.title?.toLowerCase().includes("maintenance") ? "maintenance" : row.title?.toLowerCase().includes("inspection") ? "inspection" : "movement"),
+                title: row.title,
+                description: row.detail,
+              }))}
+              empty="Operational activity will appear after inspections, movements and maintenance updates."
+            />
+          </DashboardSection>
 
-          <Card title="Asset Operations Summary" description="Current asset workflow signals.">
+          <DashboardSection title="Asset Operations Summary" subtitle="Current asset workflow signals." density="compact">
             <div className="grid gap-1.5">
               {[
                 ["Scheduled Maintenance", operationalKpis.scheduledMaintenance, "Upcoming service tasks", { type: "quick", value: "scheduled_maintenance" }, "bg-cyan-50 text-cyan-700 border-cyan-100"],
@@ -2864,7 +2817,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
                 return (
                 <button
                   key={label}
-                  className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${className} ${active ? "ring-2 ring-primary/25 shadow-sm" : ""} ${muted && !active ? "opacity-65" : ""}`}
+                  className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition-colors hover:shadow-sm ${className} ${active ? "ring-2 ring-primary/25 shadow-sm" : ""} ${muted && !active ? "opacity-65" : ""}`}
                   type="button"
                   onClick={() => filter.type === "condition" ? applyConditionFilter(filter.value) : applyOperationalFilter(filter.value)}
                 >
@@ -2876,7 +2829,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
                 </button>
               );})}
             </div>
-          </Card>
+          </DashboardSection>
         </div>
       ) : null}
 
@@ -2923,7 +2876,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
                             ? `Maintenance · ${maintenanceStatusLabel(latestMaintenance.status)}`
                             : "—";
                         return (
-                          <tr key={asset.id} className="group transition-colors hover:bg-primary/5">
+                          <tr key={asset.id} className="group table-row-interactive">
                             <td className="px-4 py-3">
                               <div className="flex max-w-[360px] items-center gap-3 text-left">
                                 <button type="button" onClick={() => setImagePreviewAsset(asset)} aria-label={`Preview ${asset.name} image`}>
@@ -2962,7 +2915,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
                               )}
                             </td>
                             <td className="px-4 py-3">
-                              <div className="flex min-w-[96px] items-center justify-end gap-1.5">
+                              <div className="table-action-cell">
                                 <button
                                   className="btn-secondary h-8 px-2 text-xs"
                                   type="button"
@@ -3020,7 +2973,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
           </div>
         </div>
       </FloatingPreviewLayer> : null}
-      {conditionMenu ? <FloatingLayer anchor={conditionMenu.anchor} width={220} align="left" onClose={() => setConditionMenu(null)}>
+      <FloatingLayer open={Boolean(conditionMenu)} onOpenChange={(open) => { if (!open) setConditionMenu(null); }} anchorRect={conditionMenu?.anchor} width={220} minWidth={220} align="start" estimatedHeight={260} className="p-0">
         <div className="overflow-hidden rounded-2xl border border-border bg-white p-1.5 shadow-2xl">
           <div className="px-3 py-2 text-[11px] font-black uppercase tracking-wide text-text-muted">Update Condition</div>
           {assetConditions.map((condition) => (
@@ -3035,8 +2988,8 @@ export default function AssetTrackingPage({ store, ui, auth }) {
             </button>
           ))}
         </div>
-      </FloatingLayer> : null}
-      {actionMenu ? <FloatingLayer anchor={actionMenu.anchor} width={220} estimatedHeight={286} align="right" onClose={() => setActionMenu(null)}>
+      </FloatingLayer>
+      <FloatingLayer open={Boolean(actionMenu)} onOpenChange={(open) => { if (!open) setActionMenu(null); }} anchorRect={actionMenu?.anchor} width={220} minWidth={220} estimatedHeight={286} align="end" className="p-0">
         <div className="rounded-2xl border border-border bg-white p-1.5 shadow-[0_18px_50px_rgba(15,23,42,0.18)]">
           <FloatingActionItem icon={<Eye size={13} />} onClick={() => { setActionMenu(null); setDetailAsset(actionMenu.asset); }}>View</FloatingActionItem>
           {canManageAsset ? <FloatingActionItem icon={<Wrench size={13} />} onClick={() => { setActionMenu(null); setAdjustAsset(actionMenu.asset); }}>Adjust Quantity</FloatingActionItem> : null}
@@ -3047,7 +3000,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
           {canDeleteAsset ? <div className="my-1 border-t border-border" /> : null}
           {canDeleteAsset ? <FloatingActionItem tone="warning" icon={<AlertTriangle size={13} />} onClick={() => { const asset = actionMenu.asset; setActionMenu(null); archiveAsset(asset); }}>Archive</FloatingActionItem> : null}
         </div>
-      </FloatingLayer> : null}
+      </FloatingLayer>
       {imagePreviewAsset ? (
         <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-950/80 p-4" role="dialog" aria-modal="true">
           <button className="absolute inset-0" type="button" aria-label="Close image preview" onClick={() => { setImagePreviewAsset(null); setImagePreviewZoom(false); }} />

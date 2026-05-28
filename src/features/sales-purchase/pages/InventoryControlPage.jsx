@@ -23,6 +23,7 @@ import {
   Warehouse,
 } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
+import DashboardSection from "../../../components/layout/DashboardSection.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
@@ -318,16 +319,9 @@ function TextArea({ label, value, onChange, placeholder }) {
 
 function SectionCard({ title, description, action, children, className = "" }) {
   return (
-    <section className={`card p-4 ${className}`}>
-      <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-        <div>
-          <h2 className="type-title font-bold text-text-primary">{title}</h2>
-          {description ? <p className="mt-0.5 type-body-sm text-text-secondary">{description}</p> : null}
-        </div>
-        {action}
-      </div>
+    <DashboardSection title={title} subtitle={description} action={action} className={className}>
       {children}
-    </section>
+    </DashboardSection>
   );
 }
 

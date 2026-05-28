@@ -1,3 +1,5 @@
+import StatusBadge from "./StatusBadge.jsx";
+
 const tones = {
   neutral: "border-slate-200 bg-slate-50 text-text-secondary",
   success: "border-emerald-200 bg-emerald-50 text-emerald-700",
@@ -6,7 +8,8 @@ const tones = {
   info: "border-blue-200 bg-blue-50 text-blue-700",
 };
 
-export default function Badge({ tone = "neutral", children }) {
+export default function Badge({ tone = "neutral", children, semantic = false, icon }) {
+  if (semantic) return <StatusBadge status={children} tone={tone === "neutral" ? undefined : tone} icon={icon} />;
   return (
     <span className={`badge badge-${tone} inline-flex rounded-full border px-2 py-0.5 type-caption font-semibold ${tones[tone]}`}>
       {children}

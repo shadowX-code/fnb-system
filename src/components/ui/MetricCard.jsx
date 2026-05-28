@@ -1,21 +1,40 @@
-export default function MetricCard({ label, value, helper, trend, tone = "neutral", icon: Icon, status, sparklineData, insight, onClick, title, emphasis = "normal" }) {
+export default function MetricCard({
+  label,
+  title,
+  value,
+  helper,
+  subtitle,
+  trend,
+  tone = "neutral",
+  variant,
+  icon: Icon,
+  status,
+  sparklineData,
+  insight,
+  onClick,
+  active = false,
+  size = "standard",
+  emphasis = "normal",
+}) {
   const trendColor = tone === "danger" ? "text-rose-600" : tone === "warning" ? "text-amber-600" : "text-emerald-600";
   const Component = onClick ? "button" : "div";
-  const emphasisClass = emphasis === "primary"
-    ? "border-emerald-200/80 bg-gradient-to-br from-white to-emerald-50/45 shadow-[0_14px_34px_rgba(22,163,74,0.08)]"
-    : emphasis === "urgent"
-      ? "border-rose-200/80 bg-gradient-to-br from-white to-rose-50/45 shadow-[0_14px_34px_rgba(244,63,94,0.08)]"
-      : "bg-white";
-  const valueClass = emphasis === "primary"
-    ? "text-[clamp(20px,1.5vw,26px)]"
-    : "text-[clamp(18px,1.35vw,24px)]";
+  const resolvedEmphasis = variant === "primary" ? "primary" : variant === "danger" ? "urgent" : emphasis;
+  const resolvedTone = variant && variant !== "primary" ? variant : tone;
+  const emphasisClass = resolvedEmphasis === "primary"
+    ? "metric-card-primary border-emerald-200/80 bg-gradient-to-br from-white to-emerald-50/45 shadow-[0_14px_34px_rgba(22,163,74,0.08)]"
+    : resolvedEmphasis === "urgent"
+      ? "metric-card-urgent border-rose-200/80 bg-gradient-to-br from-white to-rose-50/45 shadow-[0_14px_34px_rgba(244,63,94,0.08)]"
+      : "metric-card-normal bg-white";
+  const valueClass = resolvedEmphasis === "primary" ? "text-[clamp(20px,1.5vw,26px)]" : "type-metric";
+  const sizeClass = size === "compact" ? "min-h-[72px] px-3 py-2" : "min-h-[82px] px-3 py-2.5";
+  const hoverClass = onClick ? "cursor-pointer hover:border-primary/30 hover:bg-primary/5 hover:shadow-card focus:outline-none focus:ring-2 focus:ring-primary/15" : "hover:border-primary/20 hover:shadow-card";
   // Reserved for a future labeled mini-sparkline. Do not render decorative bars
   // unless the chart has clear labels, interaction, and trend meaning.
   void sparklineData;
 
   return (
     <Component
-      className={`card flex min-h-[82px] w-full flex-col justify-between gap-1.5 px-3 py-2.5 text-left transition duration-150 hover:-translate-y-0.5 hover:border-primary/20 hover:shadow-card ${emphasisClass} ${onClick ? "hover:border-primary/30 hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-primary/15" : ""} ${tone === "warning" && emphasis === "normal" ? "bg-amber-50/20" : tone === "danger" && emphasis === "normal" ? "bg-rose-50/20" : ""}`}
+      className={`card flex w-full flex-col justify-between gap-1.5 text-left transition-colors duration-150 ${sizeClass} ${hoverClass} ${emphasisClass} ${active ? "ring-2 ring-primary/20" : ""} ${resolvedTone === "warning" && resolvedEmphasis === "normal" ? "bg-amber-50/20" : resolvedTone === "danger" && resolvedEmphasis === "normal" ? "bg-rose-50/20" : ""}`}
       type={onClick ? "button" : undefined}
       title={title}
       onClick={onClick}
@@ -27,13 +46,13 @@ export default function MetricCard({ label, value, helper, trend, tone = "neutra
               <Icon size={12} />
             </span>
           ) : null}
-          <div className="truncate type-caption font-semibold text-text-secondary">{label}</div>
+          <div className="truncate type-caption font-semibold text-text-secondary">{label || title}</div>
         </div>
         {status ? <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 type-micro font-semibold text-text-secondary">{status}</span> : null}
       </div>
       <div className={`mt-0.5 min-w-0 break-words font-semibold leading-tight tracking-tight text-text-primary ${valueClass}`}>{value}</div>
       <div className="mt-0.5 flex items-center justify-between gap-2 type-caption">
-        <span className="min-w-0 truncate text-text-secondary">{helper}</span>
+        <span className="min-w-0 truncate text-text-secondary">{helper || subtitle}</span>
         {trend ? <span className={`font-semibold ${trendColor}`}>{trend}</span> : null}
       </div>
       {insight ? <div className="type-caption text-text-muted">{insight}</div> : null}

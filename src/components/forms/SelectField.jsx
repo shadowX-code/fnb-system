@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { Check, ChevronDown, Search, X } from "lucide-react";
+import FloatingLayer from "../ui/FloatingLayer.jsx";
 
 export default function SelectField({
   label,
@@ -18,9 +18,7 @@ export default function SelectField({
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
-  const [menuRect, setMenuRect] = useState(null);
   const containerRef = useRef(null);
-  const menuRef = useRef(null);
   const selectedOption = options.find((option) => String(option.value) === String(value));
   const filteredOptions = useMemo(() => {
     const search = query.trim().toLowerCase();
@@ -29,38 +27,7 @@ export default function SelectField({
   }, [options, query]);
 
   useEffect(() => {
-    if (!isOpen) return undefined;
-
-    function updateMenuRect() {
-      const rect = containerRef.current?.getBoundingClientRect();
-      if (!rect) return;
-      setMenuRect({
-        top: rect.bottom + 8,
-        left: rect.left,
-        width: Math.max(rect.width, 224),
-      });
-    }
-
-    updateMenuRect();
-
-    function handlePointerDown(event) {
-      if (!containerRef.current?.contains(event.target) && !menuRef.current?.contains(event.target)) setIsOpen(false);
-    }
-
-    function handleKeyDown(event) {
-      if (event.key === "Escape") setIsOpen(false);
-    }
-
-    document.addEventListener("pointerdown", handlePointerDown);
-    document.addEventListener("keydown", handleKeyDown);
-    window.addEventListener("resize", updateMenuRect);
-    window.addEventListener("scroll", updateMenuRect, true);
-    return () => {
-      document.removeEventListener("pointerdown", handlePointerDown);
-      document.removeEventListener("keydown", handleKeyDown);
-      window.removeEventListener("resize", updateMenuRect);
-      window.removeEventListener("scroll", updateMenuRect, true);
-    };
+    if (!isOpen) setQuery("");
   }, [isOpen]);
 
   function selectOption(option) {
@@ -91,12 +58,16 @@ export default function SelectField({
       {error ? <div className="mt-1 type-micro font-medium text-rose-600">{error}</div> : null}
       {!error && helper ? <div className="mt-1 type-micro text-text-muted">{helper}</div> : null}
 
-      {isOpen && menuRect ? createPortal((
-        <div
-          ref={menuRef}
-          className="fixed inset-x-0 bottom-0 z-[9999] max-h-[78vh] rounded-t-3xl border border-border bg-white p-3 shadow-2xl animate-in slide-in-from-bottom-2 duration-150 sm:inset-auto sm:bottom-auto sm:rounded-2xl sm:p-2 sm:shadow-xl sm:animate-in sm:fade-in-0 sm:zoom-in-95"
-          style={{ top: menuRect.top, left: menuRect.left, width: menuRect.width }}
-        >
+      <FloatingLayer
+        open={isOpen}
+        onOpenChange={setIsOpen}
+        anchorRef={containerRef}
+        minWidth={224}
+        align="start"
+        estimatedHeight={320}
+        focusOnOpen={searchable}
+        className="p-3 sm:p-2"
+      >
           <div className="mb-2 flex items-center justify-between px-1 sm:hidden">
             <div className="type-body font-bold text-text-primary">{label || placeholder}</div>
             <button className="icon-btn" type="button" onClick={() => setIsOpen(false)} aria-label="Close select">
@@ -111,7 +82,6 @@ export default function SelectField({
                 value={query}
                 onChange={(event) => setQuery(event.target.value)}
                 placeholder="Search..."
-                autoFocus
               />
             </div>
           ) : null}
@@ -140,8 +110,7 @@ export default function SelectField({
               <div className="rounded-xl border border-dashed border-border px-3 py-4 text-center text-xs font-semibold text-text-muted">No options found</div>
             )}
           </div>
-        </div>
-      ), document.body) : null}
+      </FloatingLayer>
     </div>
   );
 }

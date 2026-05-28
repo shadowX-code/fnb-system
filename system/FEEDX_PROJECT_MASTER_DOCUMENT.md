@@ -1,6 +1,6 @@
 # FeedX Project Master Document
 
-Last updated: 2026-05-23  
+Last updated: 2026-05-28  
 Document owner: FeedX product / engineering workspace  
 Document purpose: Permanent project source-of-truth for requirements, architecture, modules, fields, business rules, permissions, integrations, and development plan.
 
@@ -97,17 +97,29 @@ PURCHASES
 OPERATIONS
 - Operating Expenses
 - Duty Roster
+- Asset Tracking
 - Outlets
 - Data Import
 - Data Health
+
+INVENTORY CONTROL
+- Dashboard
+- Master Inventory
+- Stock Check Groups
+- Stock Check
+- Stock Requests
+- Purchase Orders
+- Inventory Movements
+- Waste & Variance
+- Recipes & Usage
 
 PEOPLE
 - Employees
 - Job Positions
 - Departments
+- Roles & Permissions
 
 SYSTEM
-- Roles
 - Audit Logs
 ```
 
@@ -159,6 +171,30 @@ Registry responsibilities:
 Strict rule:
 
 When a new module or page is added, developers should add or update the module registry entry first. The rest of the system should derive from that registry.
+
+Current registry architecture:
+
+- Overview modules use section `OVERVIEW`.
+- Sales modules use section `SALES`.
+- Purchases modules use section `PURCHASES`.
+- Operations modules use section `OPERATIONS`.
+- Inventory Control modules use section `INVENTORY_CONTROL`.
+- People modules use section `PEOPLE`.
+- System modules use section `SYSTEM`.
+
+Inventory Control registry entries:
+
+```text
+inventory_dashboard     INVENTORY_CONTROL   Dashboard              #inventory_dashboard
+inventory_master        INVENTORY_CONTROL   Master Inventory       #inventory_master
+inventory_groups        INVENTORY_CONTROL   Stock Check Groups     #inventory_groups
+inventory_stock_check   INVENTORY_CONTROL   Stock Check            #inventory_stock_check
+inventory_requests      INVENTORY_CONTROL   Stock Requests         #inventory_requests
+inventory_orders        INVENTORY_CONTROL   Purchase Orders        #inventory_orders
+inventory_movements     INVENTORY_CONTROL   Inventory Movements    #inventory_movements
+inventory_waste         INVENTORY_CONTROL   Waste & Variance       #inventory_waste
+inventory_recipes       INVENTORY_CONTROL   Recipes & Usage        #inventory_recipes
+```
 
 ---
 
@@ -1190,7 +1226,9 @@ Core rules:
 - If reduce reason is Other, remark is required.
 - Asset categories cannot be hard deleted when linked to assets; archive/deactivate instead.
 - Inspection compares expected system quantity with actual counted quantity.
-- Inspection can run for all categories or selected categories.
+- Inspection can run for all categories, selected categories, or a manually adjusted checklist.
+- Asset condition and asset status are separate systems.
+- Maintenance is optional and is enabled by category, with an asset-level override.
 
 Permissions:
 
@@ -1232,6 +1270,18 @@ Asset category fields:
 - created_at
 - updated_at
 
+Category purpose:
+
+- Categories classify assets only.
+- Categories do not manage condition templates, inspection rules, or automation rules in Phase 1.
+- Category configuration uses a split layout with a left category list and right detail panel.
+- Category detail includes name, description, active or archived state, linked asset count, and maintenance setting.
+- Manual Sort Order input is not shown. Sort order is managed by drag-and-drop in the category list and persisted to `sort_order`.
+- Categories cannot be hard deleted when linked to assets; use Archive Category.
+- `maintenance_enabled` controls whether assets under the category expose maintenance workflows by default.
+- Consumable or replacement categories such as bowls, spoons, trays, and utensils normally keep only quantity, inspection, condition, and movement logs.
+- Maintainable categories such as coffee machines, refrigerators, POS hardware, aircond, and kitchen electrical equipment can expose maintenance history, repair logs, vendor tracking, and service dates.
+
 Asset item fields:
 
 - id
@@ -1255,34 +1305,91 @@ Asset item fields:
 - created_at
 - updated_at
 
-Asset condition values:
+Asset Condition:
+
+Purpose:
+
+Represents the current operational state of the asset. This is what operations teams monitor day to day.
+
+User-facing values:
+
+- Good
+- Needs Attention
+- Under Maintenance
+- Low Quantity
+- Damaged
+- Missing
+- Disposed
+
+Internal values:
 
 - healthy
-- needs_review
-- damaged
-- missing
+- needs_attention
 - under_maintenance
 - low_quantity
+- damaged
+- missing
 - disposed
-- inactive
 
-Asset lifecycle status:
+Condition definitions:
+
+- Good: asset is usable with no active operational issue.
+- Needs Attention: minor issue detected and requires review or follow-up.
+- Under Maintenance: asset is currently under repair or service.
+- Low Quantity: quantity is below preferred operational level.
+- Damaged: physical damage detected.
+- Missing: asset or stock item cannot be located.
+- Disposed: asset was written off or discarded; historical records remain.
+
+Color system:
+
+- Good: green
+- Needs Attention: amber
+- Under Maintenance: blue
+- Low Quantity: orange
+- Damaged: red
+- Missing: dark red
+- Disposed: gray
+
+Asset Status:
+
+Purpose:
+
+Represents the lifecycle state of the asset record in the system.
+
+User-facing values:
+
+- Active
+- Archived
+
+Internal values:
 
 - active
-- inactive
+- archived
 
-Asset category rules:
+Status definitions:
 
-- Categories classify assets only.
-- Category management does not manage inspection conditions.
-- Category configuration shows category list, name, description, sort order, active or archived status, and linked asset count.
-- Categories cannot be hard deleted when linked to assets; use Archive Category.
-- `maintenance_enabled` controls whether assets in that category expose maintenance workflows.
-- Asset-level `maintenance_override` can be `inherit`, `enabled`, or `disabled`.
-- Final maintenance access is resolved as enabled when override is `enabled`, or when override is `inherit` and the category has maintenance enabled.
-- Consumable or replacement categories such as bowls, spoons, trays, and utensils keep only quantity, inspection, condition, and movement logs.
-- Maintainable categories such as coffee machines, refrigerators, POS hardware, aircond, and kitchen electrical equipment can expose maintenance history, repair logs, vendor tracking, and service scheduling.
-- Category sort order is managed visually by dragging categories in the left category list; the order persists to `sort_order`.
+- Active: visible in operational workflows, inspections, dashboards, and movement tracking.
+- Archived: hidden from daily operations while historical records remain available.
+
+Important rule:
+
+Condition is not Status.
+
+Example:
+
+```text
+Condition = Disposed
+Status = Active
+```
+
+This means the asset was operationally disposed, but its record remains accessible for historical review.
+
+Dashboard counting rules:
+
+- Operational dashboards track Needs Attention, Under Maintenance, Low Quantity, Damaged, and Missing.
+- Disposed assets are excluded from active operational issue counts unless explicitly filtered.
+- Archived assets are excluded from operational dashboards and active workflows.
 
 Asset UI rules:
 
@@ -1295,17 +1402,60 @@ Asset UI rules:
 - Asset List groups rows by category by default, with collapsible category headers showing asset count and attention count.
 - Asset List does not show a separate Unit column; unit is displayed inside Current Quantity.
 - Condition badges in Asset List are directly editable with a small popover and immediate save.
-- Row action menus must render in a floating layer above the table so they are not clipped by card overflow.
-- Quick filters include Needs Attention, Low Quantity, Missing, Inspected Today, and No Photo.
-- Last Movement shows the latest movement summary, such as +5 added or Inspection update, with the exact date available on hover.
+- Row action menus and condition popovers must render through a portal/floating layer above the table so they are not clipped by card overflow.
+- Table hover states must not change row height, scale rows, or shift layout. Allowed hover effects are subtle background, shadow, glow, and action fade-in.
+- Condition dropdown remains the primary condition filter.
+- Quick filter chips only contain operational shortcuts not covered by Condition:
+  - Scheduled Maintenance
+  - Maintenance Due
+  - Recently Inspected
+  - High Variance
+  - No Photo
+- Last Movement shows the latest movement summary, such as `Quantity Adjusted · -2`, `Inspection completed`, or `Maintenance completed`.
+- Operational records display actual dates such as `28 May 2026`; relative wording may appear only as tooltip/helper text.
 - Operational status strip summarizes attention count, low quantity alerts, and latest inspection state.
-- Asset list actions use a primary View action plus an overflow menu for Adjust Quantity, Start Inspection, Edit Asset, and Archive.
-- Date displays use relative business wording such as Today, Yesterday, 2d ago, and 1 week ago, with exact date available on hover.
-- Asset Profile hides the Maintenance tab entirely when the asset category has maintenance disabled.
-- Asset Profile shows maintenance scope as Enabled or Not required based on the asset category setting.
+- Asset list actions use a primary View action plus an overflow menu.
+- Detailed actions such as Adjust Quantity, Start Inspection, Edit Asset, Archive, and Add Maintenance Record live in the overflow menu or Asset Profile workflow.
+- Add Maintenance Record appears only when maintenance is allowed for that asset.
+- Asset Profile hides the Maintenance tab entirely when maintenance is not allowed.
+- Asset Profile shows maintenance scope as Enabled or Not required based on category setting and asset override.
 - Maintainable assets show Add Maintenance Record in row actions and inside the Maintenance History tab.
 - Non-maintainable assets never show maintenance actions, tabs, or empty states.
-- Asset Profile header shows compact operational signals such as last inspected, active maintenance, overdue maintenance, and next service due.
+- Asset Profile is a read-first operational drawer, not an edit modal.
+- Asset Profile View drawer does not show Adjust Quantity, Start Inspection, or Edit Asset as primary header buttons.
+- Asset Profile header shows asset photo, asset name, category, asset ID, outlet, condition badge, and close button.
+- Asset Profile tabs are visually isolated from compact operational metadata pills.
+- Asset Profile metadata pills include last inspected, active maintenance, critical alerts, and next service state when applicable.
+- Asset Profile Overview includes operational summary, latest inspection snapshot, recent activity, quantity, condition, outlet, last checked, and last movement.
+
+Asset Operations Summary:
+
+- Summary counts are calculated from the base scoped asset list only.
+- Base scope includes selected outlet, selected category, search text, and active asset visibility.
+- Base scope must not include the active summary filter or condition shortcut filter.
+- Clicking an Asset Operations Summary card filters only the Asset List.
+- Summary counts must remain unchanged while a summary filter is active.
+- The active summary filter is highlighted and a Clear Filter action is shown.
+
+Final Asset Operations Summary cards:
+
+- Scheduled Maintenance
+- Under Maintenance
+- Needs Attention
+- Low Quantity
+- Missing Asset
+- Disposed
+- Recently Inspected
+
+Recommended calculation structure:
+
+```ts
+const baseScopedAssets = assets.filter(outletCategorySearchAndStatusFilters)
+const summaryCounts = buildAssetSummaryCounts(baseScopedAssets)
+const displayedAssets = activeSummaryFilter
+  ? applySummaryFilter(baseScopedAssets, activeSummaryFilter)
+  : baseScopedAssets
+```
 
 Maintenance record fields:
 
@@ -1334,7 +1484,6 @@ Maintenance status values:
 - scheduled
 - in_progress
 - completed
-- cancelled
 
 Maintenance priority values:
 
@@ -1357,10 +1506,33 @@ Maintenance rules:
 
 - Maintenance records are only exposed for assets whose category has `maintenance_enabled = true`.
 - Asset-level override can enable or disable maintenance independent of the category default.
-- Saving an In Progress maintenance record may set asset condition to Under Maintenance.
+- Asset-level `maintenance_override` can be `inherit`, `enabled`, or `disabled`.
+- Final maintenance access is enabled when override is `enabled`, or when override is `inherit` and the category has maintenance enabled.
+- Disposed assets do not expose new maintenance workflows.
+- Workflow A: Scheduled → In Progress → Completed.
+- Workflow B: direct Completed record creation is allowed because many F&B repairs are recorded after completion.
+- Saving an In Progress maintenance record may set asset condition to Under Maintenance with clear UI feedback.
 - Saving a Completed maintenance record can optionally set asset condition back to Good.
 - Maintenance records support optional photo evidence using the asset photo storage bucket.
 - Maintenance records keep one single `cost` field. Cost breakdown fields are intentionally not part of the current scope.
+- Completed maintenance records are still editable later.
+- Maintenance View mode is read-only and shows structured information cards, not inputs.
+- Maintenance Edit mode is the only mode that shows form fields, dropdowns, date pickers, upload controls, and condition checkbox logic.
+
+Maintenance form behavior by status:
+
+- Scheduled shows maintenance type, priority, issue/problem, vendor/technician, scheduled date, estimated cost, photo evidence, and remark.
+- In Progress shows maintenance type, priority, issue/problem, vendor/technician, action taken, scheduled date, current cost, photo evidence, and remark.
+- Completed hides priority and scheduled date, and shows maintenance type, issue/problem, vendor/technician, action taken, final cost, completed date, optional next service date, photo evidence, remark, and optional Set asset condition back to Good checkbox.
+
+Next service reminder rule:
+
+- Asset Summary shows the latest completed service date.
+- Asset Summary shows only the latest active future next-service reminder.
+- When a new maintenance record is completed with a Next Service Date, it overwrites the asset-level next service reminder.
+- When a new maintenance record is completed without a Next Service Date, any previous asset-level next service reminder is cleared.
+- Old next service dates remain only inside historical maintenance records.
+- Asset Summary must never show a Last Service Date that is newer than the current Next Service Due.
 
 Movement log fields:
 
@@ -1435,16 +1607,55 @@ Inspection flow:
 
 1. Select outlet, inspection type, inspection date, checked-by name, and category scope.
 2. Complete an asset inspection checklist using operational audit cards.
-3. Each audit card shows asset thumbnail, asset name, description, category, expected quantity, counted quantity, difference status, condition, evidence upload, and remark.
-4. Difference states are Matched, Extra, and Missing.
-5. Condition dropdown uses the global asset condition values.
-6. Evidence or remark is recommended when quantity differs or condition is not Good, but submission is not blocked.
-7. Review enterprise summary cards and problematic rows before final submission.
-8. Submit inspection or save draft.
-9. Submitting updates asset quantity, asset condition, and last inspected date.
-10. Quantity differences create correction movement logs.
-11. Inspection submit normalizes condition values to lowercase snake_case before saving.
-12. Critical alerts count only Damaged and Missing conditions; Needs Review, Low Quantity, and Under Maintenance count as warnings.
+3. Step 2 checklist supports dynamic manual asset selection through Add Asset.
+4. Add Asset uses a searchable, multi-select asset picker.
+5. Users can remove items from the inspection, mark items as skipped, and flag items for review.
+6. Checklist progress shows completed, skipped, and flagged counts.
+7. Each audit card shows asset thumbnail, asset name, description, category, expected quantity, counted quantity, difference status, condition, evidence upload, and remark.
+8. Difference states are Matched, Extra, and Missing.
+9. Condition dropdown uses the global asset condition values.
+10. Evidence or remark is recommended when quantity differs or condition is not Good, but submission is not blocked.
+11. Review enterprise summary cards and problematic rows before final submission.
+12. Submit inspection or save draft.
+13. Submitting updates asset quantity, asset condition, and last inspected date.
+14. Quantity differences create correction movement logs.
+15. Inspection submit normalizes condition values to lowercase snake_case before saving.
+16. Critical alerts count only Damaged and Missing conditions; Needs Attention, Low Quantity, and Under Maintenance count as warnings.
+
+Inspection type presets:
+
+- Routine Check
+- Opening Check
+- Closing Check
+- Spot Check
+- Maintenance Verification
+- Incident Follow-up
+
+Preset behavior:
+
+- Routine Check defaults to the selected outlet/category active asset scope.
+- Opening Check prioritizes operational readiness assets and commonly checked opening items.
+- Closing Check prioritizes closing count and end-of-day operational verification.
+- Spot Check supports partial inspection and may start from a smaller or manually selected checklist.
+- Maintenance Verification prioritizes maintainable assets, Under Maintenance assets, Damaged assets, and recently completed maintenance.
+- Incident Follow-up prioritizes assets with recent issues, missing/damaged conditions, or flagged inspection history.
+- Presets influence default checklist behavior, default inspection scope, smart asset suggestions, and operational reporting.
+- Inspection Type is not just a static label.
+
+Inspection History:
+
+- Inspection history records sort newest first.
+- Sort order:
+  1. inspection date DESC
+  2. created_at DESC
+  3. updated_at DESC as fallback
+- Same-day records show time, for example `28 May 2026 · 4:07 PM`.
+- Each inspection card shows date, status badge, Checked By, total assets checked, critical count, variance count, and saved/submitted time.
+- Checked By displays user name, role or position if available, and timestamp.
+- If checked-by information is missing, display `Checked by: Unknown user`.
+- Each inspection card provides View Details.
+- View Details opens a read-only detail view with inspection date, checked by, outlet, checked assets, expected quantity, counted quantity, difference, condition, notes, and evidence.
+- Newly saved or submitted inspections must appear immediately in newest-first order without stale cached ordering.
 
 Inspection draft and resume rules:
 
@@ -1464,6 +1675,7 @@ Inspection draft and resume rules:
   - remarks
   - uploaded evidence previews
 - Draft records store full workflow state in `draft_data`.
+- Draft data preserves dynamically added assets, removed assets, skipped items, flagged items, counted quantities, selected conditions, remarks, and evidence previews.
 - Draft status values:
   - draft
   - in_progress
@@ -1481,8 +1693,410 @@ MVP exclusions:
 - Barcode scan
 - Maintenance scheduling automation for categories where maintenance is enabled
 - Supplier link
-- Asset photo upload
 - Transfer approval workflow
+
+---
+
+## 5.13A Inventory Control
+
+Purpose:
+
+Inventory Control is the daily stock operation system for F&B outlets.
+
+It covers:
+
+- Master Inventory
+- Outlet-linked inventory items
+- Inventory categories
+- Stock Check Groups
+- Frequency-based stock check schedules
+- Daily Stock Check workflow
+- Stock Requests
+- Purchase Orders
+- Inventory Movements
+- Waste & Variance
+- Recipes & Usage
+
+Sidebar placement:
+
+Inventory Control is its own main sidebar section, not a subpage under Operations.
+
+Routes:
+
+- `#inventory_dashboard`
+- `#inventory_master`
+- `#inventory_groups`
+- `#inventory_stock_check`
+- `#inventory_requests`
+- `#inventory_orders`
+- `#inventory_movements`
+- `#inventory_waste`
+- `#inventory_recipes`
+
+Core rules:
+
+- Master Inventory is the source of truth for inventory items.
+- One inventory item can be linked to multiple outlets.
+- Not every outlet uses every inventory item.
+- Stock Check Groups belong to one outlet.
+- A group can only include inventory items linked to that outlet.
+- Not every inventory item needs daily checking.
+- Daily Stock Check shows due groups first, not all inventory items.
+- Stock check due logic depends on group frequency.
+- Draft stock checks can be continued later.
+- Submitted stock checks can be reviewed.
+- Reviewed or locked stock checks cannot be edited except by users with the required permission.
+- Stock requests can be generated from low-stock items.
+- Purchase Orders can combine approved requests by supplier.
+- Every inventory movement creates an audit trail.
+
+Inventory Control permissions:
+
+- inventory_dashboard.view
+- inventory_master.view
+- inventory_master.create
+- inventory_master.edit
+- inventory_master.delete
+- inventory_master.export
+- inventory_categories.view
+- inventory_categories.create
+- inventory_categories.edit
+- inventory_categories.delete
+- inventory_groups.view
+- inventory_groups.create
+- inventory_groups.edit
+- inventory_groups.delete
+- inventory_stock_check.view
+- inventory_stock_check.create
+- inventory_stock_check.edit
+- inventory_stock_check.review
+- inventory_stock_check.lock
+- inventory_requests.view
+- inventory_requests.create
+- inventory_requests.edit
+- inventory_requests.approve
+- inventory_orders.view
+- inventory_orders.create
+- inventory_orders.edit
+- inventory_orders.manage
+- inventory_movements.view
+- inventory_movements.create
+- inventory_waste.view
+- inventory_waste.create
+- inventory_waste.manage
+- inventory_insights.view
+- inventory_recipes.view
+- inventory_recipes.manage
+
+Master Inventory fields:
+
+- id
+- item_name
+- sku_code
+- category_id
+- unit
+- photo_url
+- description
+- inventory_type
+- default_supplier_id
+- low_stock_threshold
+- par_level
+- status
+- created_by
+- updated_by
+- created_at
+- updated_at
+
+Master Inventory UI:
+
+- Title: Master Inventory
+- Subtitle: Create and manage all inventory items used across outlets.
+- Search by item name or SKU.
+- Filter by category, status, and outlet.
+- Actions include Add Item, Edit Item, Archive Item, Import, and Export.
+- Linked Outlets uses a multi-select outlet picker.
+- Non-protected roles can only link items to outlets they can access.
+
+Inventory item status:
+
+- Active
+- Inactive
+- Archived
+
+Inventory categories:
+
+Examples:
+
+- Raw Material
+- Beverage
+- Packaging
+- Cleaning
+- Frozen
+- Dry Goods
+- Kitchen Supply
+- Retail Item
+
+Category fields:
+
+- id
+- name
+- description
+- sort_order
+- status
+- created_at
+- updated_at
+
+Outlet linking:
+
+Inventory items are linked to outlets through an item-outlet relation table.
+
+Rules:
+
+- One item can belong to many outlets.
+- One outlet can use many items.
+- Outlet selectors and item pickers must respect role outlet access.
+- Stock Check Groups can only select items linked to the selected outlet.
+
+Stock Check Groups:
+
+Purpose:
+
+Each outlet groups linked inventory items into operational check lists.
+
+Group fields:
+
+- id
+- outlet_id
+- group_name
+- description
+- check_frequency
+- check_days
+- monthly_rule
+- shift
+- assigned_staff_id
+- status
+- last_checked_at
+- next_check_at
+- created_by
+- updated_by
+- created_at
+- updated_at
+
+Frequency options:
+
+- Daily
+- Weekly
+- Monthly
+- Custom Days
+
+Custom days:
+
+- Monday
+- Tuesday
+- Wednesday
+- Thursday
+- Friday
+- Saturday
+- Sunday
+
+Due status:
+
+- Due Today
+- Completed
+- Overdue
+- Not Due
+
+Daily Stock Check workflow:
+
+1. Select outlet and stock check group.
+2. Count items.
+3. Review variance.
+4. Submit stock check.
+
+Stock check statuses:
+
+- Draft
+- Submitted
+- Reviewed
+- Locked
+
+Stock check item fields:
+
+- item_id
+- category_id
+- par_level_quantity
+- actual_count_quantity
+- variance
+- unit
+- status
+- notes
+
+Variance rule:
+
+```text
+variance = par_level_quantity - actual_count_quantity
+```
+
+Variance statuses:
+
+- Normal
+- Shortage
+- Excess
+- Critical
+
+Daily Stock Check UI:
+
+- Header: Daily Stock Check
+- Subtitle: Fast inventory counting workflow.
+- Filters: Outlet, Date, Shift, Group, Category, Search Item.
+- Actual count input uses quantity stepper controls.
+- Quick count buttons: Full, Half, Empty, NA.
+- Sticky bottom bar shows items checked, critical items, Save Draft, and Submit Stock Check.
+- Mobile uses card layout instead of a dense table.
+
+Stock Requests:
+
+Purpose:
+
+Outlets submit replenishment requests.
+
+Request statuses:
+
+- Draft
+- Submitted
+- Approved
+- Partial Approved
+- Ordered
+- Delivered
+- Completed
+
+Request detail fields:
+
+- Item
+- Current Qty
+- Suggested Qty
+- Requested Qty
+- Unit
+- Supplier
+- Priority
+- Notes
+
+Rules:
+
+- Approval uses configurable Role & Permission, never hardcoded job titles.
+- Approved or partially approved requests can be converted to Purchase Orders.
+- Suggestion panels may show average usage, stock days remaining, suggested reorder quantity, and reason.
+
+Purchase Orders:
+
+Purpose:
+
+Convert approved stock requests into supplier orders.
+
+PO statuses:
+
+- Draft
+- Sent
+- Confirmed
+- Packing
+- Delivered
+- Partial Delivery
+- Completed
+
+Rules:
+
+- Purchase Orders can group requested items by supplier.
+- PO detail shows item, outlet breakdown, quantity, unit cost, total cost, ETA, and delivery status.
+- Delivery tracker uses timeline stages: Sent → Confirmed → Packing → Delivered.
+
+Inventory Movements:
+
+Purpose:
+
+Track all stock changes and adjustments.
+
+Movement types:
+
+- Purchase
+- Transfer In
+- Transfer Out
+- Waste
+- Adjustment
+- Staff Meal
+- Production Usage
+- Return
+
+Movement records include:
+
+- date_time
+- item_id
+- movement_type
+- quantity
+- unit
+- outlet_id
+- user_id
+- reference
+- notes
+
+Waste & Variance:
+
+Purpose:
+
+Track wastage and operational leakage.
+
+Waste types:
+
+- Spoilage
+- Expired
+- Kitchen Error
+- Burnt
+- Returned Item
+- Staff Consumption
+- Unknown
+
+Waste & Variance sections:
+
+- Waste Value
+- Waste % of Inventory
+- Highest Waste Outlet
+- Unexplained Loss %
+- Waste by Category
+- Top Wasted Items
+- Outlet Variance Table
+- AI-style rule-based insights
+
+Inventory Dashboard:
+
+KPI cards:
+
+- Inventory Value
+- Low Stock Items
+- Pending Requests
+- Variance Risk
+- Check Completion
+
+Dashboard sections:
+
+- Inventory Health by Outlet
+- Smart Alerts
+- Stock Check Groups summary
+- Recent Movements
+
+Empty states:
+
+- No inventory item: `Create your first inventory item to start stock tracking.`
+- No stock group: `Set up stock check groups so outlets know what to count.`
+- No due check: `No stock check required today.`
+- No request: `No stock requests submitted yet.`
+- No movement: `Inventory movement history will appear here.`
+
+RBAC and outlet scope:
+
+- All Inventory Control pages use configurable Role & Permission.
+- No Inventory Control workflow may hardcode role names such as Outlet Staff, Outlet Manager, or HQ Admin.
+- Owner/admin can access all outlets.
+- Custom roles can only view and act on assigned outlets.
+- Service-layer queries and RLS policies must enforce outlet scope, not just UI filters.
 
 ---
 
@@ -2180,6 +2794,73 @@ Asset Tracking:
 - asset_tracking.manage
 - asset_tracking.export
 
+### Inventory Control
+
+Inventory Dashboard:
+
+- inventory_dashboard.view
+
+Master Inventory:
+
+- inventory_master.view
+- inventory_master.create
+- inventory_master.edit
+- inventory_master.delete
+- inventory_master.export
+
+Inventory Categories:
+
+- inventory_categories.view
+- inventory_categories.create
+- inventory_categories.edit
+- inventory_categories.delete
+
+Stock Check Groups:
+
+- inventory_groups.view
+- inventory_groups.create
+- inventory_groups.edit
+- inventory_groups.delete
+
+Stock Check:
+
+- inventory_stock_check.view
+- inventory_stock_check.create
+- inventory_stock_check.edit
+- inventory_stock_check.review
+- inventory_stock_check.lock
+
+Stock Requests:
+
+- inventory_requests.view
+- inventory_requests.create
+- inventory_requests.edit
+- inventory_requests.approve
+
+Purchase Orders:
+
+- inventory_orders.view
+- inventory_orders.create
+- inventory_orders.edit
+- inventory_orders.manage
+
+Inventory Movements:
+
+- inventory_movements.view
+- inventory_movements.create
+
+Waste & Variance:
+
+- inventory_waste.view
+- inventory_waste.create
+- inventory_waste.manage
+- inventory_insights.view
+
+Recipes & Usage:
+
+- inventory_recipes.view
+- inventory_recipes.manage
+
 Outlets:
 
 - outlets.view
@@ -2275,6 +2956,7 @@ Rules:
 Outlet scope applies to:
 
 - Asset Tracking
+- Inventory Control
 - Duty Roster
 - Outlet Duty Roster
 - Sales Input
@@ -2424,6 +3106,49 @@ Core production tables:
 - audit_logs
 - import_batches
 - import_batch_rows
+- supplier_outlets
+- product_sales_reports
+- product_sales_items
+- asset_categories
+- asset_items
+- asset_movement_logs
+- asset_inspections
+- asset_inspection_items
+- asset_inspection_evidence
+- asset_maintenance_records
+
+Inventory Control tables:
+
+- inventory_categories
+- inventory_items
+- inventory_item_outlets
+- inventory_stock_check_groups
+- inventory_stock_check_group_items
+- inventory_stock_checks
+- inventory_stock_check_items
+- inventory_stock_requests
+- inventory_stock_request_items
+- inventory_purchase_orders
+- inventory_purchase_order_items
+- inventory_movements
+- inventory_waste_records
+- inventory_recipes
+- inventory_recipe_items
+
+Asset table status and condition rules:
+
+- `asset_items.condition` stores operational condition.
+- Allowed condition values are `healthy`, `needs_attention`, `under_maintenance`, `low_quantity`, `damaged`, `missing`, and `disposed`.
+- `asset_items.status` stores record lifecycle only.
+- Allowed asset status values are `active` and `archived`.
+- `asset_maintenance_records.status` allows only `scheduled`, `in_progress`, and `completed`.
+- Asset and maintenance constraints must not allow old values such as `needs_review`, `inactive`, or `cancelled`.
+
+Operational records:
+
+- Asset inspections, maintenance records, inventory checks, inventory requests, purchase orders, movements, and waste records must retain historical rows.
+- Historical records are never rewritten only to change current dashboard state.
+- Current operational summaries derive from latest valid records plus current active scope.
 
 Legacy/compatibility:
 
@@ -2474,6 +3199,9 @@ Examples:
 - suppliers readable by suppliers.view, purchase_input.view, purchase_comparison.view, data_import.view where needed.
 - sales_channels readable by sales_channels.view, sales_input.view, sales_comparison.view, data_import.view where needed.
 - outlet_tax_configs readable by tax_settings.view, sales_input.view, dashboard.view where needed.
+- asset_categories readable by asset_tracking.view.
+- inventory_categories readable by related Inventory Control view/manage permissions.
+- inventory_items readable by inventory_master.view, inventory_stock_check.view, inventory_requests.view, inventory_orders.view, inventory_movements.view, inventory_waste.view, and inventory_recipes.view where needed.
 
 Transaction records:
 
@@ -2490,6 +3218,34 @@ Purchase records:
 - INSERT: purchase_input.create OR data_import.import
 - UPDATE: purchase_input.edit OR data_import.import
 - DELETE: purchase_input.delete OR data_import.import
+
+Asset records:
+
+- SELECT: asset_tracking.view
+- INSERT: asset_tracking.create
+- UPDATE: asset_tracking.edit OR asset_tracking.manage
+- DELETE/archive: asset_tracking.delete
+- Asset tables with outlet_id must enforce role_outlets outlet scope.
+- Asset categories are global configuration, but linked asset records remain outlet-scoped.
+- Asset maintenance records are readable and writable only when the user can access the linked asset outlet and has the required asset_tracking permission.
+- Asset inspections and inspection items are readable and writable only when the user can access the inspection outlet and has asset_tracking.view/manage as appropriate.
+
+Inventory Control records:
+
+- SELECT: related Inventory Control view permission plus accessible outlet scope.
+- INSERT: related create permission plus accessible outlet scope.
+- UPDATE: related edit/review/approve/manage permission plus accessible outlet scope.
+- DELETE/archive: related delete/manage permission plus accessible outlet scope.
+- Inventory item master records may be global, but item-outlet links restrict outlet usage.
+- Stock Check Groups, Stock Checks, Requests, Purchase Orders, Movements, and Waste records must enforce outlet scope.
+- RLS must prevent users from adding inventory items to groups for outlets they cannot access.
+- RLS must prevent users from approving requests or managing orders without the related approval/manage permission.
+
+Supplier outlet links:
+
+- supplier_outlets must enforce that non-protected users can only read and write links for accessible outlets.
+- Purchase Input supplier lookups must only return suppliers linked to the selected accessible outlet.
+- Supplier Directory All Outlets mode must aggregate only accessible outlet links.
 
 ---
 
@@ -2656,6 +3412,92 @@ Roster settings:
   - Download Image.
   - Copy Image.
 
+### 12.8 Asset Inspection
+
+```text
+Select outlet, inspection type, date, checked by, and scope
+→ Load preset checklist from selected scope
+→ Add or remove assets manually when needed
+→ Count assets and select conditions
+→ Mark items skipped or flagged for review when needed
+→ Upload evidence or add remark when operationally useful
+→ Review discrepancy summary
+→ Submit inspection or save draft
+→ Update asset quantities, conditions, last inspected date, and movement logs
+→ Inspection History updates newest first
+```
+
+Rules:
+
+- Inspection Type is an operational preset, not only a label.
+- Checklist items can be dynamically added, removed, skipped, or flagged.
+- Skipped and flagged state is preserved in drafts.
+- Submitted inspections show Checked By and timestamp.
+- Inspection History sorts newest first by inspection date, then created_at, then updated_at.
+
+### 12.9 Asset Maintenance
+
+```text
+Open maintainable asset profile
+→ Maintenance History
+→ Add Maintenance Record
+→ Choose Scheduled, In Progress, or Completed
+→ Enter status-specific fields
+→ Save record
+→ Update asset condition when selected by user
+→ Update asset service summary from latest completed record
+```
+
+Rules:
+
+- Maintenance is shown only when category setting and asset override resolve to enabled.
+- Scheduled → In Progress → Completed is supported.
+- Direct Completed creation is supported.
+- Completed records can optionally set condition back to Good.
+- Latest completed maintenance controls current Last Service Date.
+- Latest completed maintenance with Next Service Date controls current Next Service Due.
+- Latest completed maintenance without Next Service Date clears stale current reminders.
+
+### 12.10 Inventory Stock Check
+
+```text
+Open Inventory Control > Stock Check
+→ Select outlet and date
+→ System shows due stock check groups
+→ Start a due group
+→ Count items
+→ Review variance
+→ Save Draft or Submit
+→ Reviewer can Review or Lock when permitted
+→ Inventory movements and alerts update where applicable
+```
+
+Rules:
+
+- Daily groups are due every day.
+- Weekly groups are due on configured weekdays.
+- Monthly groups are due by configured monthly rule.
+- Custom Days groups are due only on selected days.
+- Groups can only contain inventory items linked to the selected outlet.
+
+### 12.11 Stock Request and Purchase Order
+
+```text
+Outlet creates stock request
+→ Request submitted for approval
+→ Approver reviews full or partial quantities
+→ Approved request converts to Purchase Order
+→ Purchase Order groups items by supplier
+→ Delivery status updates
+→ Completed delivery creates inventory movements
+```
+
+Rules:
+
+- Approval access comes from configurable Role & Permission.
+- No stock request or PO workflow may hardcode role names.
+- Purchase Orders may combine requests by supplier while retaining outlet breakdown.
+
 ---
 
 ## 13. UI and Terminology Rules
@@ -2692,6 +3534,134 @@ Design direction:
 - Green operations-tech theme
 - Light and dark mode support
 - Professional, not cyberpunk
+- Compact enterprise density with clear hierarchy.
+- Use weight, contrast, spacing, and status color instead of oversized text.
+- Tables should feel stable and scannable, not like spreadsheets.
+- Dashboard pages should prioritize workflow visibility and operational action.
+- Drawer views should be read-first unless the user explicitly enters create/edit mode.
+- Nested workflows inside drawers should use same-drawer mode changes or correctly stacked top-level portals.
+- Dropdowns, context menus, popovers, tooltips, and row action menus must render through a portal/floating layer when they may cross card/table boundaries.
+- Floating layers must not be clipped by overflow containers and must not resize rows or parent cards.
+- Table hover states must never change row height, scale rows, or shift layout.
+- Use actual dates in operational records. Relative labels may be used only as supplemental helper text or tooltip.
+- Quick filters must not duplicate primary dropdown filters.
+- Asset condition filters belong in the Condition dropdown; operational quick filters are reserved for workflow shortcuts.
+- UI wording must use finalized business terms consistently:
+  - Good
+  - Needs Attention
+  - Under Maintenance
+  - Low Quantity
+  - Damaged
+  - Missing
+  - Disposed
+  - Active
+  - Archived
+  - Scheduled
+  - In Progress
+  - Completed
+- Do not use old asset/maintenance terms in user-facing UI:
+  - Healthy
+  - Needs Review
+  - Inactive
+  - Cancelled
+
+Shared UI foundation primitives:
+
+- FloatingLayer: shared portal/fixed-position primitive for action menus, dropdowns, select popovers, date pickers, contextual popovers, and lightweight tooltips.
+- Drawer: shared right-side drawer primitive for read-first profiles and nested workflows.
+- Timeline: shared event-stream primitive for Recent Activity, Inspection History, Maintenance History, Movement Log, Audit Log, and Dashboard Alerts.
+- DashboardSection: shared dashboard/card section wrapper for consistent section title, subtitle, action placement, density, and spacing.
+- StatusBadge: shared semantic badge primitive for lifecycle, condition, alert, maintenance, inspection, inventory, and dashboard states.
+- MetricCard: shared KPI/summary card primitive with default, primary, warning, danger, info, and neutral variants plus compact and standard sizes.
+
+Typography tokens:
+
+```text
+type-page-title     page titles, 22-24px equivalent
+type-section-title  dashboard and section headings, 15-16px equivalent
+type-card-title     compact card titles, 14-15px equivalent
+type-body           standard body copy, about 13px
+type-body-sm        secondary body copy, about 12px
+type-caption        metadata, badge text, helper text, about 11px
+type-micro          tiny labels, about 10px
+type-metric         KPI values
+```
+
+Typography rules:
+
+- Shared components must use semantic type classes instead of raw `text-sm`, `text-lg`, or arbitrary text sizes.
+- Raw Tailwind typography is allowed only for one-off visual exceptions, not repeated UI patterns.
+- Page-level modules should migrate gradually through shared components rather than mass rewriting every text node.
+
+StatusBadge semantic map:
+
+```text
+Green: Good, Completed, Positive, Active
+Amber: Watch, Needs Attention, Pending, Due Soon
+Red: Critical, Missing, Error, Overdue, Damaged
+Blue: Scheduled, Info, In Progress, Under Maintenance
+Gray: Archived, Disposed, No Data, Draft
+```
+
+StatusBadge rules:
+
+- Same padding, radius, and type scale across modules.
+- Icons are optional but must follow the semantic tone.
+- Modules should not create local badge colors unless a new semantic status is added to the shared map.
+
+MetricCard rules:
+
+- Dashboard KPI cards use MetricCard.
+- Clickable summary cards must show pointer affordance and active state when filtering/drilling down.
+- Hover lift is allowed for standalone dashboard cards only.
+- MetricCard must not be used inside table rows with transform hover behavior.
+
+Table interaction rules:
+
+- Use `table-row-interactive` for stable hover rows.
+- Use `table-action-cell` for the View + overflow action pattern.
+- Table rows must not translate, scale, expand, or change height on hover.
+- Hidden action groups must not appear in a way that changes row layout.
+
+Timeline rules:
+
+- Timeline events use actual dates.
+- Same-day records show time.
+- Newest-first sorting is default.
+- Timeline should be compact by default and avoid oversized cards.
+- Standard event shape:
+  - id
+  - date
+  - time
+  - type
+  - title
+  - description
+  - actor
+  - outlet
+  - status
+  - metadata
+  - actions
+
+Z-index scale:
+
+```text
+base: 0
+sticky: 30
+drawer: 50
+modal: 60
+popover: 70
+tooltip: 80
+lightbox: 90
+```
+
+Layering rules:
+
+- Drawers sit above normal page content.
+- Modals sit above drawers.
+- Popovers opened from drawers or modals sit above their parent surface.
+- Tooltips and lightboxes sit above popovers.
+- Avoid arbitrary high z-index values such as z-[9999] unless there is a temporary migration reason.
+- New overlay UI must use the shared primitives before adding page-local layering code.
 
 ---
 
@@ -2742,6 +3712,13 @@ Current/planned services:
 - auditLogService
 - importService
 - employeeAuthOnboardingService
+- productAnalyticsService
+- assetTrackingService
+- inventoryService
+- inventoryStockCheckService
+- inventoryRequestService
+- inventoryPurchaseOrderService
+- inventoryMovementService
 
 Service rules:
 
@@ -2749,6 +3726,9 @@ Service rules:
 - Show clean business messages in UI.
 - Never silently fail writes.
 - Refresh persistence must survive page reload.
+- Outlet-scoped services must apply accessible outlet filtering before querying or writing.
+- UI filtering alone is not sufficient for outlet-scoped data.
+- Derived dashboard counts must document their base scope and must not accidentally derive from a currently active drill-down filter.
 
 ---
 
@@ -2810,7 +3790,7 @@ Service rules:
 - Payroll
 - Staff KPI
 - Purchase approvals
-- Inventory control
+- Inventory forecasting and predictive ordering
 - Budget control
 - Multi-company support
 
@@ -2825,6 +3805,8 @@ Service rules:
 - Some audit metadata may lack created_by/updated_by names.
 - SMTP configuration is required for production email onboarding.
 - Manual setup link is an admin-safe fallback, not long-term default.
+- Asset, inventory, and dashboard summary logic can drift if base scope and active drill-down filters are not documented in each module.
+- Status naming can drift if Condition, Status, Maintenance Status, Inspection Status, and Inventory Status are not kept separate.
 
 ---
 
