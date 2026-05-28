@@ -2126,18 +2126,21 @@ Rules:
 - Receiving inventory requires explicit received quantity confirmation.
 - Receiving creates inventory movement rows with movement type Purchase.
 - Receiving updates `inventory_purchase_order_items.received_qty` cumulatively.
+- Inventory movement rows are created only for actual received quantities, never for unreceived or unfulfilled quantities.
 - Partial receiving sets status to Partial Received.
 - Full receiving sets status to Fully Received.
-- Complete PO closes a Fully Received order.
-- PO detail shows supplier, outlet, source stock check/request, item rows, ordered quantity, received quantity, remaining quantity, unit, remark, receiving history, and status timeline.
+- Complete PO closes a Fully Received order as `completion_type = full`.
+- Partial Received POs cannot be cancelled. They are closed with Complete PO when the supplier cannot fulfill the remaining quantity.
+- Completing a Partial Received PO records `completion_type = partial`, saves the completion reason when provided/required, and treats remaining quantity as unfulfilled.
+- PO detail shows supplier, outlet, source stock check/request, item rows, ordered quantity, received quantity, remaining quantity, fulfillment percentage, completion type/reason, unit, remark, receiving history, and status timeline.
 - Status workflow: Draft → Submitted → Supplier Confirmed → Partial Received → Fully Received → Completed.
 - Cancelled preserves historical PO records and requires a cancellation reason.
 - Draft can be cancelled anytime.
 - Submitted and Supplier Confirmed can be cancelled if no quantity has been received.
-- Partial Received can cancel remaining unreceived quantity where business rules permit.
+- PO cannot be cancelled after any receiving has started.
 - Edit is allowed for Draft status only.
 - Purchase Orders support outlet, supplier, status, source, date range, and search filters.
-- Purchase Order export respects current filters and includes PO No., Supplier, Outlet, Items, Ordered Qty, Received Qty, Remaining Qty, Status, Source, Created Date, Submitted Date, Completed Date, and Cancelled Reason.
+- Purchase Order export respects current filters and includes PO No., Supplier, Outlet, Items, Ordered Qty, Received Qty, Remaining Qty, Status, Source, Created Date, Submitted Date, Completed Date, Completion Type, Completion Reason, and Cancelled Reason.
 
 Inventory Movements:
 
@@ -3289,6 +3292,7 @@ Operational records:
 - Asset inspections, maintenance records, inventory checks, inventory requests, purchase orders, movements, and waste records must retain historical rows.
 - Historical records are never rewritten only to change current dashboard state.
 - Current operational summaries derive from latest valid records plus current active scope.
+- `inventory_purchase_orders` must preserve `completion_type` (`full` or `partial`), `completion_reason`, and unfulfilled quantity when a PO is completed.
 
 Legacy/compatibility:
 

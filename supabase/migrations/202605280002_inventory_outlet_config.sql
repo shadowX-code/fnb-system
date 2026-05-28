@@ -151,10 +151,22 @@ alter table public.inventory_purchase_orders
   add column if not exists submitted_at timestamptz,
   add column if not exists confirmed_at timestamptz,
   add column if not exists completed_at timestamptz,
+  add column if not exists completion_type text,
+  add column if not exists completion_reason text,
+  add column if not exists unfulfilled_qty numeric(14,3) not null default 0,
   add column if not exists cancelled_at timestamptz,
   add column if not exists cancellation_reason text,
   add column if not exists created_at timestamptz not null default now(),
   add column if not exists updated_at timestamptz not null default now();
+
+do $$
+begin
+  alter table public.inventory_purchase_orders
+    add constraint inventory_purchase_orders_completion_type_check
+    check (completion_type is null or completion_type in ('full', 'partial'));
+exception
+  when duplicate_object then null;
+end $$;
 
 create table if not exists public.inventory_purchase_order_items (
   id uuid primary key default gen_random_uuid()

@@ -1853,6 +1853,54 @@ function CancelPurchaseOrderModal({ order, onClose, onCancel }) {
   );
 }
 
+function CompletePurchaseOrderModal({ order, onClose, onComplete }) {
+  const [reason, setReason] = useState("");
+  const progress = poProgress(order);
+  const remaining = Math.max(0, progress.ordered - progress.received);
+  const isPartial = remaining > 0;
+  const reasonRequired = isPartial;
+
+  return (
+    <Modal
+      title="Complete Purchase Order?"
+      description={isPartial ? "This PO has not been fully received." : "All ordered quantities have been received."}
+      onClose={onClose}
+      footer={(
+        <>
+          <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" type="button" disabled={reasonRequired && !reason.trim()} onClick={() => onComplete(reason)}>
+            Complete PO
+          </button>
+        </>
+      )}
+    >
+      <div className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <MetricCard label="Ordered Qty" value={progress.ordered} helper="Original PO quantity" />
+          <MetricCard label="Received Qty" value={progress.received} helper="Confirmed into inventory" tone={progress.received ? "success" : "neutral"} />
+          <MetricCard label="Remaining Qty" value={remaining} helper={isPartial ? "Will be unfulfilled" : "None"} tone={isPartial ? "warning" : "success"} />
+        </div>
+        {isPartial ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 type-body-sm font-semibold text-amber-800">
+            The remaining quantity will be marked as unfulfilled. This PO will be closed and no further receiving can be recorded.
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 type-body-sm font-semibold text-emerald-800">
+            This PO will be closed as fully fulfilled.
+          </div>
+        )}
+        <TextArea
+          label={isPartial ? "Completion Reason" : "Completion Note"}
+          value={reason}
+          onChange={setReason}
+          required={reasonRequired}
+          placeholder={isPartial ? "Supplier cannot fulfill remaining quantity." : "Optional note"}
+        />
+      </div>
+    </Modal>
+  );
+}
+
 function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const outlets = store?.outlets ?? [];
   const suppliers = store?.suppliers ?? [];
@@ -2172,10 +2220,12 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         "Created Date": order.createdAt || "",
         "Submitted Date": order.submittedAt || "",
         "Completed Date": order.completedAt || "",
+        "Completion Type": order.completionType ? toTitle(order.completionType) : "",
+        "Completion Reason": order.completionReason || "",
         "Cancelled Reason": order.cancellationReason || "",
       };
     });
-    const columns = ["PO No.", "Supplier", "Outlet", "Items", "Ordered Qty", "Received Qty", "Remaining Qty", "Status", "Source", "Created Date", "Submitted Date", "Completed Date", "Cancelled Reason"];
+    const columns = ["PO No.", "Supplier", "Outlet", "Items", "Ordered Qty", "Received Qty", "Remaining Qty", "Status", "Source", "Created Date", "Submitted Date", "Completed Date", "Completion Type", "Completion Reason", "Cancelled Reason"];
     const csv = [columns.join(","), ...rows.map((row) => columns.map((column) => csvEscape(row[column])).join(","))].join("\n");
     downloadTextFile(`feedx-purchase-orders-${todayInput()}.csv`, csv);
     notify("Purchase orders exported", `${rows.length} PO${rows.length === 1 ? "" : "s"} exported.`);
@@ -2426,9 +2476,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   function cancelPurchaseOrder(order, reason) {
     const hasReceived = receivedQty(order) > 0;
-    if (["completed", "cancelled"].includes(order.status)) return;
-    if (hasReceived && order.status !== "partial_received") {
-      notify("Cannot cancel received PO", "Received quantities remain part of inventory history.", "warning");
+    const cancellableStatus = ["draft", "submitted", "supplier_confirmed"].includes(order.status);
+    if (!cancellableStatus || hasReceived) {
+      notify("Cannot cancel received PO", "Use Complete PO to close partially fulfilled orders after receiving has started.", "warning");
       return;
     }
     setData((current) => ({
@@ -2443,6 +2493,27 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     }));
     setModal(null);
     notify("Purchase order cancelled");
+  }
+
+  function completePurchaseOrder(order, reason = "") {
+    const timestamp = new Date().toISOString();
+    const progress = poProgress(order);
+    const remaining = Math.max(0, progress.ordered - progress.received);
+    const completionType = remaining > 0 ? "partial" : "full";
+    setData((current) => ({
+      ...current,
+      orders: current.orders.map((entry) => entry.id === order.id ? {
+        ...entry,
+        status: "completed",
+        completedAt: timestamp,
+        completionType,
+        completionReason: reason,
+        unfulfilledQty: remaining,
+        updatedAt: timestamp,
+      } : entry),
+    }));
+    setModal(null);
+    notify("Purchase order completed", completionType === "partial" ? "Remaining quantity marked as unfulfilled." : "PO closed as fully fulfilled.");
   }
 
   function receivePurchaseOrder(order, rows, receiptRemark) {
@@ -3241,8 +3312,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     const updateFilter = (key, value) => setPoFilters((current) => ({ ...current, [key]: value }));
     const primaryAction = (order) => {
       if (order.status === "draft") return { label: "Submit Order", tone: "primary", action: () => requirePermission(can.managePo, "submit purchase orders") && updatePurchaseOrderStatus(order.id, "submitted") };
-      if (["submitted", "supplier_confirmed", "partial_received"].includes(order.status)) return { label: "Receive", tone: "primary", action: () => requirePermission(can.managePo, "receive inventory") && setModal({ type: "po-receive", order }) };
-      if (order.status === "fully_received") return { label: "Complete PO", tone: "primary", action: () => requirePermission(can.managePo, "complete purchase orders") && updatePurchaseOrderStatus(order.id, "completed") };
+      if (["submitted", "supplier_confirmed"].includes(order.status)) return { label: "Receive", tone: "primary", action: () => requirePermission(can.managePo, "receive inventory") && setModal({ type: "po-receive", order }) };
+      if (order.status === "partial_received") return { label: "Receive More", tone: "primary", action: () => requirePermission(can.managePo, "receive inventory") && setModal({ type: "po-receive", order }) };
+      if (order.status === "fully_received") return { label: "Complete PO", tone: "primary", action: () => requirePermission(can.managePo, "complete purchase orders") && setModal({ type: "po-complete", order }) };
       return { label: "View", tone: "secondary", action: () => setModal({ type: "po-detail", order }) };
     };
 
@@ -3282,6 +3354,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                   const outlet = outletById.get(order.outletId || order.outletIds?.[0]);
                   const progress = poProgress(order);
                   const action = primaryAction(order);
+                  const canCancelOrder = ["draft", "submitted", "supplier_confirmed"].includes(order.status) && progress.received <= 0;
                   return (
                     <tr key={order.id} className="transition hover:bg-primary/5">
                       <td className="py-3 font-mono text-xs font-bold text-text-primary">{order.poNo}</td>
@@ -3298,10 +3371,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                       <td>
                         <div className="flex justify-end gap-2">
                           <button className={action.tone === "primary" ? "btn-primary h-8 px-2.5 text-xs" : "btn-secondary h-8 px-2.5 text-xs"} type="button" onClick={action.action}>{action.label}</button>
-                          <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setModal({ type: "po-detail", order })}>View</button>
+                          {action.label !== "View" ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setModal({ type: "po-detail", order })}>View</button> : null}
                           {order.status === "draft" ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setModal({ type: "po-edit", order })}>Edit</button> : null}
                           {order.status === "submitted" ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.managePo, "mark supplier confirmed") && updatePurchaseOrderStatus(order.id, "supplier_confirmed")}>Mark Confirmed</button> : null}
-                          {["draft", "submitted", "supplier_confirmed", "partial_received"].includes(order.status) ? <button className="btn-secondary h-8 px-2.5 text-xs text-rose-700" type="button" onClick={() => requirePermission(can.managePo, "cancel purchase orders") && setModal({ type: "po-cancel", order })}>{order.status === "partial_received" ? "Cancel Remaining" : "Cancel"}</button> : null}
+                          {order.status === "partial_received" ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.managePo, "complete purchase orders") && setModal({ type: "po-complete", order })}>Complete PO</button> : null}
+                          {canCancelOrder ? <button className="btn-secondary h-8 px-2.5 text-xs text-rose-700" type="button" onClick={() => requirePermission(can.managePo, "cancel purchase orders") && setModal({ type: "po-cancel", order })}>Cancel</button> : null}
                         </div>
                       </td>
                     </tr>
@@ -3558,6 +3632,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         />
       ) : null}
       {modal?.type === "po-cancel" ? <CancelPurchaseOrderModal order={modal.order} onClose={() => setModal(null)} onCancel={(reason) => cancelPurchaseOrder(modal.order, reason)} /> : null}
+      {modal?.type === "po-complete" ? <CompletePurchaseOrderModal order={modal.order} onClose={() => setModal(null)} onComplete={(reason) => completePurchaseOrder(modal.order, reason)} /> : null}
       {modal?.type === "purchase-suggestions" ? (
         <PurchaseSuggestionsModal
           suggestions={modal.suggestions}
@@ -3627,6 +3702,29 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               <div>Submitted: <span className="text-text-primary">{modal.order.submittedAt ? formatDate(modal.order.submittedAt) : "-"}</span></div>
               <div>Completed: <span className="text-text-primary">{modal.order.completedAt ? formatDate(modal.order.completedAt) : "-"}</span></div>
               <div>Cancelled: <span className="text-text-primary">{modal.order.cancelledAt ? formatDate(modal.order.cancelledAt) : "-"}</span></div>
+            </div>
+            <div className="rounded-2xl border border-border bg-surface p-3">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div className="type-title font-bold text-text-primary">Fulfillment Summary</div>
+                {modal.order.status === "completed" ? (
+                  <Badge tone={modal.order.completionType === "partial" ? "warning" : "success"}>
+                    {modal.order.completionType === "partial" ? "Partially fulfilled" : "Fully fulfilled"}
+                  </Badge>
+                ) : null}
+              </div>
+              <div className="grid gap-3 sm:grid-cols-4">
+                <MetricCard label="Ordered Qty" value={poProgress(modal.order).ordered} helper="Total ordered" />
+                <MetricCard label="Received Qty" value={poProgress(modal.order).received} helper="Confirmed received" tone={poProgress(modal.order).received ? "success" : "neutral"} />
+                <MetricCard label="Remaining Qty" value={Math.max(0, poProgress(modal.order).ordered - poProgress(modal.order).received)} helper={modal.order.status === "completed" && modal.order.completionType === "partial" ? "Unfulfilled" : "Open balance"} tone={Math.max(0, poProgress(modal.order).ordered - poProgress(modal.order).received) ? "warning" : "success"} />
+                <MetricCard label="Fulfillment" value={`${poProgress(modal.order).percent}%`} helper="Received vs ordered" tone={poProgress(modal.order).percent >= 100 ? "success" : "info"} />
+              </div>
+              {modal.order.status === "completed" && modal.order.completionType ? (
+                <div className="mt-3 grid gap-2 rounded-xl bg-slate-50 p-3 type-caption font-semibold text-text-secondary sm:grid-cols-2">
+                  <div>Completion Type: <span className="text-text-primary">{modal.order.completionType === "partial" ? "Partial" : "Full"}</span></div>
+                  {modal.order.completionType === "partial" ? <div>Unfulfilled Qty: <span className="text-text-primary">{modal.order.unfulfilledQty ?? Math.max(0, poProgress(modal.order).ordered - poProgress(modal.order).received)}</span></div> : null}
+                  {modal.order.completionReason ? <div className="sm:col-span-2">Completion Reason: <span className="text-text-primary">{modal.order.completionReason}</span></div> : null}
+                </div>
+              ) : null}
             </div>
             <div className="overflow-x-auto rounded-2xl border border-border">
               <table className="w-full min-w-[720px] text-left">
