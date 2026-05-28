@@ -1231,7 +1231,7 @@ function MaintenanceRecordViewPanel({ asset, record, onBack, onEdit, onUpdateSta
 }
 
 function evidenceRecommended(row) {
-  const diff = Number(row.counted_quantity || 0) - Number(row.asset.current_quantity || 0);
+  const diff = inspectionRowDifference(row);
   return diff !== 0 || (row.condition_status || "healthy") !== "healthy";
 }
 
@@ -1249,11 +1249,39 @@ function readEvidenceFiles(files, onDone) {
   });
 }
 
-function createInspectionChecklistRow(asset, draftRow = {}) {
+function safeInspectionAsset(row) {
+  const asset = row?.asset ?? {};
   return {
-    asset,
-    counted_quantity: draftRow.counted_quantity ?? asset.current_quantity,
-    condition_status: normalizeAssetCondition(draftRow.condition_status || asset.condition || "healthy"),
+    id: asset.id ?? row?.asset_id ?? "",
+    name: asset.name ?? "Unknown Asset",
+    description: asset.description ?? "",
+    category_id: asset.category_id ?? asset.category?.id ?? null,
+    category_name: asset.category_name ?? asset.category?.name ?? "Uncategorized",
+    current_quantity: Number(asset.current_quantity ?? row?.expected_quantity ?? row?.expected_qty ?? 0),
+    minimum_quantity: Number(asset.minimum_quantity ?? 0),
+    unit: asset.unit ?? "unit",
+    condition: normalizeAssetCondition(asset.condition ?? row?.condition_status ?? row?.condition ?? "healthy"),
+    thumbnail_url: asset.thumbnail_url ?? asset.image_url ?? "",
+    image_url: asset.image_url ?? "",
+  };
+}
+
+function inspectionRowAssetId(row) {
+  return safeInspectionAsset(row).id;
+}
+
+function inspectionRowDifference(row) {
+  const asset = safeInspectionAsset(row);
+  return Number(row?.counted_quantity || 0) - Number(asset.current_quantity || 0);
+}
+
+function createInspectionChecklistRow(asset, draftRow = {}) {
+  const safeAsset = safeInspectionAsset({ asset, ...draftRow });
+  return {
+    asset: safeAsset,
+    asset_id: safeAsset.id,
+    counted_quantity: draftRow.counted_quantity ?? safeAsset.current_quantity,
+    condition_status: normalizeAssetCondition(draftRow.condition_status || safeAsset.condition || "healthy"),
     evidence: draftRow.evidence || [],
     remark: draftRow.remark || "",
     skipped: draftRow.skipped === true,
@@ -1325,17 +1353,22 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
     const sourceAssets = draftRows.size
       ? outletAssets.filter((asset) => draftRows.has(asset.id))
       : presetAssetsForInspectionType(scopedAssets, inspectionType);
-    setRows(sourceAssets.map((asset) => {
+    const restoredRows = sourceAssets.map((asset) => {
       const draftRow = draftRows.get(asset.id);
       return createInspectionChecklistRow(asset, draftRow);
-    }));
+    });
+    const missingAssetRows = Array.from(draftRows.values())
+      .filter((row) => row.asset_id && !sourceAssets.some((asset) => asset.id === row.asset_id))
+      .map((row) => createInspectionChecklistRow(null, row));
+    setRows([...restoredRows, ...missingAssetRows]);
   }, [scopedAssets, outletAssets, inspectionType, draftInspection?.id]);
 
   const enrichedRows = rows.map((row) => {
-    const diff = Number(row.counted_quantity || 0) - Number(row.asset.current_quantity || 0);
+    const asset = safeInspectionAsset(row);
+    const diff = inspectionRowDifference(row);
     const needsEvidence = evidenceRecommended(row);
     const evidenceComplete = !needsEvidence || ((row.evidence || []).length > 0 || row.remark.trim());
-    return { ...row, diff, needsEvidence, evidenceComplete };
+    return { ...row, asset, asset_id: asset.id, diff, needsEvidence, evidenceComplete };
   });
   const activeRows = enrichedRows.filter((row) => !row.skipped);
   const skippedRows = enrichedRows.filter((row) => row.skipped);
@@ -1353,7 +1386,7 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
     ? { type: "all", category_ids: [] }
     : { type: "selected", category_ids: selectedCategoryIds };
   const availableAssets = useMemo(() => {
-    const rowAssetIds = new Set(rows.map((row) => row.asset.id));
+    const rowAssetIds = new Set(rows.map((row) => inspectionRowAssetId(row)).filter(Boolean));
     const search = assetPickerQuery.trim().toLowerCase();
     return outletAssets
       .filter((asset) => !rowAssetIds.has(asset.id))
@@ -1383,18 +1416,18 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
   };
 
   function updateRow(assetId, key, value) {
-    setRows((current) => current.map((row) => (row.asset.id === assetId ? { ...row, [key]: value } : row)));
+    setRows((current) => current.map((row) => (inspectionRowAssetId(row) === assetId ? { ...row, [key]: value } : row)));
   }
 
   function removeRow(assetId) {
-    setRows((current) => current.filter((row) => row.asset.id !== assetId));
+    setRows((current) => current.filter((row) => inspectionRowAssetId(row) !== assetId));
   }
 
   function addSelectedAssetsToChecklist() {
     if (!selectedAssetIds.length) return;
     const selectedAssets = outletAssets.filter((asset) => selectedAssetIds.includes(asset.id));
     setRows((current) => {
-      const existingIds = new Set(current.map((row) => row.asset.id));
+      const existingIds = new Set(current.map((row) => inspectionRowAssetId(row)).filter(Boolean));
       const nextRows = selectedAssets
         .filter((asset) => !existingIds.has(asset.id))
         .map((asset) => createInspectionChecklistRow(asset));
@@ -1406,16 +1439,16 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
   }
 
   function addEvidence(assetId, evidence) {
-    setRows((current) => current.map((row) => (row.asset.id === assetId ? { ...row, evidence: [...(row.evidence || []), evidence] } : row)));
+    setRows((current) => current.map((row) => (inspectionRowAssetId(row) === assetId ? { ...row, evidence: [...(row.evidence || []), evidence] } : row)));
   }
 
   function removeEvidence(assetId, index) {
-    setRows((current) => current.map((row) => (row.asset.id === assetId ? { ...row, evidence: (row.evidence || []).filter((_, itemIndex) => itemIndex !== index) } : row)));
+    setRows((current) => current.map((row) => (inspectionRowAssetId(row) === assetId ? { ...row, evidence: (row.evidence || []).filter((_, itemIndex) => itemIndex !== index) } : row)));
   }
 
   function submit(status = "completed") {
     const draftRows = enrichedRows.map((row) => ({
-      asset_id: row.asset.id,
+      asset_id: inspectionRowAssetId(row),
       counted_quantity: row.counted_quantity,
       condition_status: row.condition_status,
       evidence: row.evidence || [],
@@ -1560,58 +1593,61 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
             ) : null}
           </div>
           {enrichedRows.map((row, index) => {
+                const rowAsset = safeInspectionAsset(row);
+                const rowAssetId = rowAsset.id || `missing-${row.id || index}`;
+                const rowImages = [rowAsset.thumbnail_url || rowAsset.image_url].filter(Boolean);
                 const border = row.condition_status === "missing" || row.diff < 0
                   ? "border-l-4 border-l-rose-500 bg-rose-50/40"
                   : row.condition_status !== "healthy" || row.diff !== 0
                     ? "border-l-4 border-l-amber-500 bg-amber-50/30"
                     : "bg-white";
                 return (
-                  <div key={row.asset.id} className={`rounded-3xl border border-border p-4 shadow-sm ${border}`}>
+                  <div key={rowAssetId} className={`rounded-3xl border border-border p-4 shadow-sm ${border}`}>
                     <div className="grid gap-4 lg:grid-cols-[1.3fr_0.9fr_1fr]">
                       <div className="flex gap-3">
-                        <button type="button" onClick={() => setLightbox({ images: [row.asset.thumbnail_url || row.asset.image_url].filter(Boolean), index: 0 })}>
-                          <AssetThumbnail asset={row.asset} interactive />
+                        <button type="button" onClick={() => rowImages.length ? setLightbox({ images: rowImages, index: 0 }) : null}>
+                          <AssetThumbnail asset={rowAsset} interactive />
                         </button>
                         <div className="min-w-0">
-                          <div className="font-black text-text-primary">{row.asset.name}</div>
-                          <div className="mt-0.5 text-xs text-text-secondary">{row.asset.description || "No description"}</div>
+                          <div className="font-black text-text-primary">{rowAsset.name}</div>
+                          <div className="mt-0.5 text-xs text-text-secondary">{rowAsset.description || "No description"}</div>
                           <div className="mt-2 flex flex-wrap gap-1.5">
-                            <Badge tone="info">{row.asset.category_name}</Badge>
+                            <Badge tone="info">{rowAsset.category_name || "Uncategorized"}</Badge>
                             {row.skipped ? <Badge tone="neutral">Skipped</Badge> : null}
                             {row.flagged ? <Badge tone="warning">Flagged</Badge> : null}
                           </div>
                         </div>
                       </div>
                       <div className={`grid grid-cols-3 gap-2 ${row.skipped ? "opacity-55" : ""}`}>
-                        <div className="rounded-2xl bg-slate-50 p-3"><div className="text-[10px] font-black uppercase text-text-muted">Expected</div><div className="text-lg font-black">{row.asset.current_quantity}</div></div>
-                        <FieldLabel label="Current Qty"><input className="control h-11" type="number" min="0" value={row.counted_quantity} disabled={row.skipped} onChange={(event) => updateRow(row.asset.id, "counted_quantity", event.target.value)} /></FieldLabel>
+                        <div className="rounded-2xl bg-slate-50 p-3"><div className="text-[10px] font-black uppercase text-text-muted">Expected</div><div className="text-lg font-black">{rowAsset.current_quantity}</div></div>
+                        <FieldLabel label="Current Qty"><input className="control h-11" type="number" min="0" value={row.counted_quantity} disabled={row.skipped} onChange={(event) => updateRow(rowAssetId, "counted_quantity", event.target.value)} /></FieldLabel>
                         <div className="flex items-end pb-1"><DifferenceBadge diff={row.diff} /></div>
                       </div>
                       <div className={`space-y-2 ${row.skipped ? "opacity-60" : ""}`}>
                         <FieldLabel label="Condition">
-                          <SelectField value={row.condition_status || "healthy"} options={assetConditions.map((condition) => ({ value: condition, label: assetConditionLabel(condition) }))} onChange={(value) => updateRow(row.asset.id, "condition_status", value)} disabled={row.skipped} />
+                          <SelectField value={row.condition_status || "healthy"} options={assetConditions.map((condition) => ({ value: condition, label: assetConditionLabel(condition) }))} onChange={(value) => updateRow(rowAssetId, "condition_status", value)} disabled={row.skipped} />
                         </FieldLabel>
                         <div className="grid gap-2 md:grid-cols-[1fr_auto]">
-                          <input className="control h-10" value={row.remark} onChange={(event) => updateRow(row.asset.id, "remark", event.target.value)} placeholder={row.needsEvidence ? "Discrepancy explanation" : "Inspection note"} />
+                          <input className="control h-10" value={row.remark} onChange={(event) => updateRow(rowAssetId, "remark", event.target.value)} placeholder={row.needsEvidence ? "Discrepancy explanation" : "Inspection note"} />
                           <label className="btn-secondary h-10 cursor-pointer px-3 text-xs">
                             Upload Evidence
-                            <input className="sr-only" type="file" accept="image/*" multiple capture="environment" onChange={(event) => readEvidenceFiles(event.target.files, (evidence) => addEvidence(row.asset.id, evidence))} />
+                            <input className="sr-only" type="file" accept="image/*" multiple capture="environment" onChange={(event) => readEvidenceFiles(event.target.files, (evidence) => addEvidence(rowAssetId, evidence))} />
                           </label>
                         </div>
                         <div className="flex flex-wrap gap-2">
                           {(row.evidence || []).map((evidence, evidenceIndex) => (
                             <button key={`${evidence.image_url}-${evidenceIndex}`} className="group relative" type="button" onClick={() => setLightbox({ images: row.evidence.map((item) => item.image_url), index: evidenceIndex })}>
                               <img className="h-12 w-12 rounded-xl border border-border object-cover" src={evidence.image_url} alt={evidence.caption || "Evidence"} />
-                              <span className="absolute -right-1 -top-1 hidden rounded-full bg-rose-600 px-1 text-[10px] font-black text-white group-hover:block" onClick={(event) => { event.stopPropagation(); removeEvidence(row.asset.id, evidenceIndex); }}>×</span>
+                              <span className="absolute -right-1 -top-1 hidden rounded-full bg-rose-600 px-1 text-[10px] font-black text-white group-hover:block" onClick={(event) => { event.stopPropagation(); removeEvidence(rowAssetId, evidenceIndex); }}>×</span>
                             </button>
                           ))}
                           {row.needsEvidence ? <Badge tone={row.evidenceComplete ? "success" : "warning"}>{row.evidenceComplete ? "Evidence or remark added" : "Evidence or remark recommended"}</Badge> : null}
                           <Badge tone={assetConditionTone(row.condition_status)}>{assetConditionLabel(row.condition_status)}</Badge>
                         </div>
                         <div className="flex flex-wrap gap-1.5 border-t border-border pt-2">
-                          <button className={`rounded-full px-2.5 py-1 text-xs font-black ${row.skipped ? "bg-slate-800 text-white" : "bg-slate-100 text-text-secondary hover:bg-slate-200"}`} type="button" onClick={() => updateRow(row.asset.id, "skipped", !row.skipped)}>{row.skipped ? "Unskip" : "Mark Skipped"}</button>
-                          <button className={`rounded-full px-2.5 py-1 text-xs font-black ${row.flagged ? "bg-amber-500 text-white" : "bg-amber-50 text-amber-700 hover:bg-amber-100"}`} type="button" onClick={() => updateRow(row.asset.id, "flagged", !row.flagged)}>{row.flagged ? "Unflag" : "Flag for Review"}</button>
-                          <button className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-black text-rose-700 hover:bg-rose-100" type="button" onClick={() => removeRow(row.asset.id)}>Remove</button>
+                          <button className={`rounded-full px-2.5 py-1 text-xs font-black ${row.skipped ? "bg-slate-800 text-white" : "bg-slate-100 text-text-secondary hover:bg-slate-200"}`} type="button" onClick={() => updateRow(rowAssetId, "skipped", !row.skipped)}>{row.skipped ? "Unskip" : "Mark Skipped"}</button>
+                          <button className={`rounded-full px-2.5 py-1 text-xs font-black ${row.flagged ? "bg-amber-500 text-white" : "bg-amber-50 text-amber-700 hover:bg-amber-100"}`} type="button" onClick={() => updateRow(rowAssetId, "flagged", !row.flagged)}>{row.flagged ? "Unflag" : "Flag for Review"}</button>
+                          <button className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-black text-rose-700 hover:bg-rose-100" type="button" onClick={() => removeRow(rowAssetId)}>Remove</button>
                         </div>
                       </div>
                     </div>
@@ -1635,14 +1671,18 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
           <div className="overflow-hidden rounded-2xl border border-border">
             <div className="bg-slate-50 px-4 py-3 text-xs font-black uppercase tracking-wide text-text-muted">Problem Rows</div>
             <div className="divide-y divide-border">
-              {issueRows.map((row) => (
-                <div key={row.asset.id} className="grid gap-2 p-4 text-sm md:grid-cols-[1fr_150px_130px_1fr]">
-                  <div className="font-bold text-text-primary">{row.asset.name}</div>
-                  {row.skipped ? <Badge tone="neutral">Skipped</Badge> : <DifferenceBadge diff={row.diff} />}
-                  <Badge tone={row.flagged ? "warning" : assetConditionTone(row.condition_status)}>{row.flagged ? "Flagged" : assetConditionLabel(row.condition_status)}</Badge>
-                  <div className={row.evidenceComplete || row.skipped ? "text-text-secondary" : "font-bold text-amber-700"}>{row.skipped ? row.remark || "Skipped during this inspection" : row.evidenceComplete ? row.remark || "Evidence or remark added" : "Evidence or remark recommended"}</div>
-                </div>
-              ))}
+              {issueRows.map((row, index) => {
+                const rowAsset = safeInspectionAsset(row);
+                const rowAssetId = rowAsset.id || `issue-${row.id || index}`;
+                return (
+                  <div key={rowAssetId} className="grid gap-2 p-4 text-sm md:grid-cols-[1fr_150px_130px_1fr]">
+                    <div className="font-bold text-text-primary">{rowAsset.name}</div>
+                    {row.skipped ? <Badge tone="neutral">Skipped</Badge> : <DifferenceBadge diff={row.diff} />}
+                    <Badge tone={row.flagged ? "warning" : assetConditionTone(row.condition_status)}>{row.flagged ? "Flagged" : assetConditionLabel(row.condition_status)}</Badge>
+                    <div className={row.evidenceComplete || row.skipped ? "text-text-secondary" : "font-bold text-amber-700"}>{row.skipped ? row.remark || "Skipped during this inspection" : row.evidenceComplete ? row.remark || "Evidence or remark added" : "Evidence or remark recommended"}</div>
+                  </div>
+                );
+              })}
               {!issueRows.length ? <div className="p-5 text-center text-sm font-semibold text-text-secondary">No discrepancies or condition issues found.</div> : null}
             </div>
           </div>
@@ -2111,7 +2151,7 @@ function InspectionDetailModal({ inspection, outlet, currentProfile, onClose }) 
               {rows.map((item) => (
                 <div key={item.id} className="grid grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr_1fr] gap-2 px-3 py-2 text-xs font-semibold text-text-secondary">
                   <div className="min-w-0">
-                    <div className="truncate font-black text-text-primary">{item.asset?.name || "Asset"}</div>
+                    <div className="truncate font-black text-text-primary">{item.asset?.name || "Unknown Asset"}</div>
                     {item.remark ? <div className="mt-0.5 truncate text-[11px] text-text-muted">{item.remark}</div> : null}
                     {(item.evidence || []).length ? <div className="mt-0.5 text-[11px] font-bold text-primary">{(item.evidence || []).length} evidence uploaded</div> : null}
                   </div>
@@ -2192,7 +2232,7 @@ function InspectionHistory({ inspections = [], outlet, currentProfile, onResumeD
               <div className="mt-3 space-y-1.5">
                 {previewRows.map((item) => (
                   <div key={item.id} className="rounded-xl border border-border bg-white px-3 py-2 text-xs font-semibold text-text-secondary">
-                    <div className="font-black text-text-primary">{item.asset?.name || "Asset"}</div>
+                    <div className="font-black text-text-primary">{item.asset?.name || "Unknown Asset"}</div>
                     <div className="mt-0.5">Expected {item.expected_quantity ?? item.expected_qty ?? 0} · Counted {item.counted_quantity ?? item.counted_qty ?? 0} · {Number(item.difference || 0) > 0 ? "+" : ""}{Number(item.difference || 0)} · {assetConditionLabel(item.condition_status)}</div>
                   </div>
                 ))}
@@ -2957,18 +2997,18 @@ export default function AssetTrackingPage({ store, ui, auth }) {
         <div className="overflow-hidden rounded-3xl border border-border bg-white shadow-2xl">
           <div className="p-3">
             <div className="flex gap-3">
-              <AssetThumbnail asset={assetPreview.asset} size="lg" />
+              <AssetThumbnail asset={assetPreview.asset ?? { name: "Unknown Asset" }} size="lg" />
               <div className="min-w-0 flex-1">
-                <div className="truncate text-sm font-black text-text-primary">{assetPreview.asset.name}</div>
-                <div className="mt-0.5 text-xs font-semibold text-text-secondary">{activeOutlets.find((outlet) => outlet.id === assetPreview.asset.outlet_id)?.name || "Outlet"}</div>
+                <div className="truncate text-sm font-black text-text-primary">{assetPreview.asset?.name ?? "Unknown Asset"}</div>
+                <div className="mt-0.5 text-xs font-semibold text-text-secondary">{activeOutlets.find((outlet) => outlet.id === assetPreview.asset?.outlet_id)?.name || "Unknown outlet"}</div>
                 <div className="mt-2 flex flex-wrap gap-1.5">
-                  <Badge tone={assetConditionTone(assetPreview.asset.condition)}>{assetConditionLabel(assetPreview.asset.condition)}</Badge>
+                  <Badge tone={assetConditionTone(assetPreview.asset?.condition)}>{assetConditionLabel(assetPreview.asset?.condition)}</Badge>
                 </div>
               </div>
             </div>
             <div className="mt-3 space-y-1 text-xs font-semibold text-text-secondary">
-              <div>Last inspection: <span className="font-black text-text-primary">{formatFullDate(assetPreview.lastInspection?.inspection_date || assetPreview.asset.last_inspection_at)}</span></div>
-              <div>Recent issue: <span className="font-black text-text-primary">{assetHoverInsight(assetPreview.asset, assetPreview.lastMovement, assetPreview.lastInspection)}</span></div>
+              <div>Last inspection: <span className="font-black text-text-primary">{formatFullDate(assetPreview.lastInspection?.inspection_date || assetPreview.asset?.last_inspection_at)}</span></div>
+              <div>Recent issue: <span className="font-black text-text-primary">{assetPreview.asset ? assetHoverInsight(assetPreview.asset, assetPreview.lastMovement, assetPreview.lastInspection) : "No movement yet"}</span></div>
             </div>
           </div>
         </div>
@@ -2981,7 +3021,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
               key={condition}
               className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-xs font-black transition hover:bg-primary/5 ${conditionMenu?.asset?.condition === condition ? "text-primary" : "text-text-secondary"}`}
               type="button"
-              onClick={() => quickUpdateCondition(conditionMenu.asset, condition)}
+              onClick={() => conditionMenu?.asset ? quickUpdateCondition(conditionMenu.asset, condition) : setConditionMenu(null)}
             >
               <span>{assetConditionLabel(condition)}</span>
               <span className={`h-2.5 w-2.5 rounded-full ${getQuantityHealth({ condition, current_quantity: condition === "missing" ? 0 : 1 }).dot}`} />
@@ -2991,14 +3031,14 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       </FloatingLayer>
       <FloatingLayer open={Boolean(actionMenu)} onOpenChange={(open) => { if (!open) setActionMenu(null); }} anchorRect={actionMenu?.anchor} width={220} minWidth={220} estimatedHeight={286} align="end" className="p-0">
         <div className="rounded-2xl border border-border bg-white p-1.5 shadow-[0_18px_50px_rgba(15,23,42,0.18)]">
-          <FloatingActionItem icon={<Eye size={13} />} onClick={() => { setActionMenu(null); setDetailAsset(actionMenu.asset); }}>View</FloatingActionItem>
-          {canManageAsset ? <FloatingActionItem icon={<Wrench size={13} />} onClick={() => { setActionMenu(null); setAdjustAsset(actionMenu.asset); }}>Adjust Quantity</FloatingActionItem> : null}
+          <FloatingActionItem icon={<Eye size={13} />} onClick={() => { const asset = actionMenu?.asset; setActionMenu(null); if (asset) setDetailAsset(asset); }}>View</FloatingActionItem>
+          {canManageAsset ? <FloatingActionItem icon={<Wrench size={13} />} onClick={() => { const asset = actionMenu?.asset; setActionMenu(null); if (asset) setAdjustAsset(asset); }}>Adjust Quantity</FloatingActionItem> : null}
           {canManageAsset ? <FloatingActionItem icon={<ClipboardCheck size={13} />} onClick={() => { setActionMenu(null); setInspectionOpen(true); }}>Start Inspection</FloatingActionItem> : null}
-          {(canEditAsset || (canManageAsset && actionMenu.asset.maintenance_allowed)) ? <div className="my-1 border-t border-border" /> : null}
-          {canEditAsset ? <FloatingActionItem icon={<PackageCheck size={13} />} onClick={() => { setActionMenu(null); setAssetModal(actionMenu.asset); }}>Edit Asset</FloatingActionItem> : null}
-          {canManageAsset && actionMenu.asset.maintenance_allowed ? <FloatingActionItem icon={<Wrench size={13} />} onClick={() => { setActionMenu(null); setMaintenanceContext({ asset: actionMenu.asset, record: null }); }}>Add Maintenance Record</FloatingActionItem> : null}
+          {(canEditAsset || (canManageAsset && actionMenu?.asset?.maintenance_allowed)) ? <div className="my-1 border-t border-border" /> : null}
+          {canEditAsset ? <FloatingActionItem icon={<PackageCheck size={13} />} onClick={() => { const asset = actionMenu?.asset; setActionMenu(null); if (asset) setAssetModal(asset); }}>Edit Asset</FloatingActionItem> : null}
+          {canManageAsset && actionMenu?.asset?.maintenance_allowed ? <FloatingActionItem icon={<Wrench size={13} />} onClick={() => { const asset = actionMenu?.asset; setActionMenu(null); if (asset) setMaintenanceContext({ asset, record: null }); }}>Add Maintenance Record</FloatingActionItem> : null}
           {canDeleteAsset ? <div className="my-1 border-t border-border" /> : null}
-          {canDeleteAsset ? <FloatingActionItem tone="warning" icon={<AlertTriangle size={13} />} onClick={() => { const asset = actionMenu.asset; setActionMenu(null); archiveAsset(asset); }}>Archive</FloatingActionItem> : null}
+          {canDeleteAsset ? <FloatingActionItem tone="warning" icon={<AlertTriangle size={13} />} onClick={() => { const asset = actionMenu?.asset; setActionMenu(null); if (asset) archiveAsset(asset); }}>Archive</FloatingActionItem> : null}
         </div>
       </FloatingLayer>
       {imagePreviewAsset ? (

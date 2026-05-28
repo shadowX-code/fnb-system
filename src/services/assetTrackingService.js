@@ -211,8 +211,15 @@ function isMissingMaintenanceTable(error) {
 }
 
 function mapInspection(row, items = []) {
+  const fallbackAssetForItem = (item) => ({
+    id: item.asset_id ?? "",
+    name: "Unknown Asset",
+    category: { id: null, name: "Uncategorized" },
+    category_name: "Uncategorized",
+  });
   const normalizedItems = (items ?? []).map((item) => ({
     ...item,
+    asset: item.asset ?? fallbackAssetForItem(item),
     evidence: item.evidence ?? [],
     condition: normalizeConditionValue(item.condition ?? item.condition_status),
     condition_status: normalizeConditionValue(item.condition_status ?? item.condition),
@@ -838,21 +845,27 @@ export const assetTrackingService = {
       }
     }
 
-    const itemPayload = rows.map((row) => ({
-      inspection_id: inspection.id,
-      asset_id: row.asset.id,
-      expected_quantity: Number(row.asset.current_quantity || 0),
-      counted_quantity: Number(row.counted_quantity || 0),
-      expected_qty: Number(row.asset.current_quantity || 0),
-      counted_qty: Number(row.counted_quantity || 0),
-      difference: Number(row.counted_quantity || 0) - Number(row.asset.current_quantity || 0),
-      condition: normalizeConditionValue(row.condition_status || row.condition || "healthy"),
-      condition_status: normalizeConditionValue(row.condition_status || row.condition || "healthy"),
-      condition_template_id: row.condition_template_id && !String(row.condition_template_id).startsWith("fallback-") ? row.condition_template_id : null,
-      evidence_required: row.evidence_required === true,
-      evidence_status: row.evidence_required ? ((row.evidence || []).length ? "complete" : "pending") : "not_required",
-      remark: row.remark ?? "",
-    }));
+    const submissionRows = (rows ?? []).filter((row) => row?.asset?.id || row?.asset_id);
+    const itemPayload = submissionRows.map((row) => {
+      const assetId = row.asset?.id ?? row.asset_id;
+      const expectedQuantity = Number(row.asset?.current_quantity ?? row.expected_quantity ?? row.expected_qty ?? 0);
+      const countedQuantity = Number(row.counted_quantity || 0);
+      return {
+        inspection_id: inspection.id,
+        asset_id: assetId,
+        expected_quantity: expectedQuantity,
+        counted_quantity: countedQuantity,
+        expected_qty: expectedQuantity,
+        counted_qty: countedQuantity,
+        difference: countedQuantity - expectedQuantity,
+        condition: normalizeConditionValue(row.condition_status || row.condition || "healthy"),
+        condition_status: normalizeConditionValue(row.condition_status || row.condition || "healthy"),
+        condition_template_id: row.condition_template_id && !String(row.condition_template_id).startsWith("fallback-") ? row.condition_template_id : null,
+        evidence_required: row.evidence_required === true,
+        evidence_status: row.evidence_required ? ((row.evidence || []).length ? "complete" : "pending") : "not_required",
+        remark: row.remark ?? "",
+      };
+    });
     let { data: savedItems, error: itemError } = await supabase
       .from("asset_inspection_items")
       .insert(itemPayload)
@@ -885,7 +898,7 @@ export const assetTrackingService = {
 
     const evidencePayload = [];
     for (const savedItem of savedItems ?? []) {
-      const sourceRow = rows.find((row) => row.asset.id === savedItem.asset_id);
+      const sourceRow = submissionRows.find((row) => (row.asset?.id ?? row.asset_id) === savedItem.asset_id);
       for (const evidence of sourceRow?.evidence ?? []) {
         evidencePayload.push({
           inspection_item_id: savedItem.id,
@@ -905,7 +918,7 @@ export const assetTrackingService = {
 
     if (applyCorrections) {
       for (const item of itemPayload) {
-        const asset = rows.find((row) => row.asset.id === item.asset_id)?.asset;
+        const asset = submissionRows.find((row) => (row.asset?.id ?? row.asset_id) === item.asset_id)?.asset;
         if (!asset) continue;
         const assetUpdate = {
           current_quantity: item.counted_quantity,
