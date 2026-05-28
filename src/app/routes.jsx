@@ -179,7 +179,7 @@ const routeDetails = {
     props: { initialTab: "requests" },
   },
   inventory_orders: {
-    description: "Convert approved requests into supplier purchase orders.",
+    description: "Create draft POs from reviewed stock check suggestions or manual purchase planning.",
     component: InventoryControlPage,
     permission: "inventory_orders.view OR inventory_control.view",
     props: { initialTab: "orders" },

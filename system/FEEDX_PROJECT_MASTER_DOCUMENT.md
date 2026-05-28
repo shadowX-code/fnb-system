@@ -108,7 +108,6 @@ INVENTORY CONTROL
 - Par Levels
 - Stock Check Groups
 - Stock Check
-- Stock Requests
 - Purchase Orders
 - Inventory Movements
 - Waste & Variance
@@ -192,7 +191,7 @@ inventory_categories    INVENTORY_CONTROL   Inventory Categories   internal only
 inventory_par_levels    INVENTORY_CONTROL   Par Levels             #inventory_par_levels
 inventory_groups        INVENTORY_CONTROL   Stock Check Groups     #inventory_groups
 inventory_stock_check   INVENTORY_CONTROL   Stock Check            #inventory_stock_check
-inventory_requests      INVENTORY_CONTROL   Stock Requests         #inventory_requests
+inventory_requests      INVENTORY_CONTROL   Stock Requests         legacy/internal only, sidebar false
 inventory_orders        INVENTORY_CONTROL   Purchase Orders        #inventory_orders
 inventory_movements     INVENTORY_CONTROL   Inventory Movements    #inventory_movements
 inventory_waste         INVENTORY_CONTROL   Waste & Variance       #inventory_waste
@@ -1714,7 +1713,6 @@ It covers:
 - Stock Check Groups
 - Frequency-based stock check schedules
 - Daily Stock Check workflow
-- Stock Requests
 - Purchase Orders
 - Inventory Movements
 - Waste & Variance
@@ -1731,7 +1729,6 @@ Routes:
 - `#inventory_par_levels`
 - `#inventory_groups`
 - `#inventory_stock_check`
-- `#inventory_requests`
 - `#inventory_orders`
 - `#inventory_movements`
 - `#inventory_waste`
@@ -2011,6 +2008,18 @@ Daily Stock Check workflow:
 6. Completed check card shows Review Purchase Suggestions when shortages exist and the user has permission.
 7. Create Draft POs only after user review and confirmation.
 
+Audit Stock Check workflow:
+
+- Stock Check page provides an Audit Stock Check action for special non-scheduled checks.
+- Audit types: Month-End Closing, Full Stock Audit, Spot Check, Category Audit, and Custom Audit.
+- Audit setup captures Outlet, Audit Date, Audit Name, Audit Type, category selection, optional item selection, and notes.
+- If categories are selected and no specific items are selected, the audit includes all active outlet-linked items under those categories.
+- If specific items are selected, the audit includes only those selected active outlet-linked items.
+- Audit checks calculate variance against outlet par level and create stock check history/result records.
+- Audit checks use `stock_check_type = audit` and may omit `stock_check_group_id`.
+- Audit Stock Check does not generate Purchase Suggestions, Draft PO, or ordering workflows.
+- Audit result cards show View Audit Result only.
+
 Stock check statuses:
 
 - Draft
@@ -2040,8 +2049,8 @@ Shortage rule:
 - If variance > 0, the item is considered a shortage.
 - Stock Check submission must not directly create submitted Purchase Orders.
 - Stock Check submission only completes the check and returns the user to the Stock Check list.
-- Purchase Suggestions are accessed from completed Stock Check cards.
-- Purchase Suggestions are generated from submitted check rows when the user clicks Review Purchase Suggestions.
+- Purchase Suggestions are accessed from completed scheduled Stock Check cards only.
+- Purchase Suggestions are generated from submitted scheduled check rows when the user clicks Review Purchase Suggestions.
 - Purchase Suggestions are reviewed before creating Draft POs.
 - Suggested order quantity defaults to shortage quantity and remains editable.
 - Users may exclude suggested items, add remarks, or change supplier.
@@ -2069,42 +2078,15 @@ Daily Stock Check UI:
 
 Stock Requests:
 
-Purpose:
-
-Outlets submit replenishment requests.
-
-Request statuses:
-
-- Draft
-- Submitted
-- Approved
-- Partial Approved
-- Ordered
-- Delivered
-- Completed
-
-Request detail fields:
-
-- Item
-- Current Qty
-- Suggested Qty
-- Requested Qty
-- Unit
-- Supplier
-- Priority
-- Notes
-
-Rules:
-
-- Approval uses configurable Role & Permission, never hardcoded job titles.
-- Approved or partially approved requests can be converted to Purchase Orders.
-- Suggestion panels may show average usage, stock days remaining, suggested reorder quantity, and reason.
+- Removed from the current Inventory Control sidebar scope.
+- Legacy database tables and code/data may remain for compatibility.
+- Current ordering flow uses reviewed scheduled Stock Check suggestions or manual purchase planning.
 
 Purchase Orders:
 
 Purpose:
 
-Convert reviewed stock check purchase suggestions or approved stock requests into supplier orders.
+Convert reviewed scheduled stock check purchase suggestions or manual purchase planning into supplier orders.
 
 PO statuses:
 
@@ -2139,6 +2121,9 @@ Rules:
 - Submitted and Supplier Confirmed can be cancelled if no quantity has been received.
 - PO cannot be cancelled after any receiving has started.
 - Edit is allowed for Draft status only.
+- Purchase Orders support Copy PO Text for supplier communication through WhatsApp or email.
+- Copied PO text includes supplier, PO no, created date, outlet, item names, ordered quantities, UOM, and remarks when available.
+- Copy PO Text uses ordered quantity, not received quantity, and does not include internal IDs except PO No.
 - Purchase Orders support outlet, supplier, status, source, date range, and search filters.
 - Purchase Order export respects current filters and includes PO No., Supplier, Outlet, Items, Ordered Qty, Received Qty, Remaining Qty, Status, Source, Created Date, Submitted Date, Completed Date, Completion Type, Completion Reason, and Cancelled Reason.
 
@@ -2969,7 +2954,7 @@ Stock Check:
 - inventory_stock_check.review
 - inventory_stock_check.lock
 
-Stock Requests:
+Stock Requests (legacy/internal only):
 
 - inventory_requests.view
 - inventory_requests.create
@@ -3265,7 +3250,7 @@ Inventory Control tables:
 - inventory_stock_check_groups
 - inventory_stock_check_group_categories
 - inventory_stock_check_group_items (legacy compatibility only; not used by the current group editing workflow)
-- inventory_stock_checks
+- inventory_stock_checks (`stock_check_type` = `scheduled` or `audit`; audit rows may store `audit_type`, `audit_name`, and `notes`)
 - inventory_stock_check_items
 - inventory_stock_requests
 - inventory_stock_request_items

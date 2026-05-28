@@ -8,6 +8,7 @@ import {
   ChevronDown,
   ClipboardCheck,
   ClipboardList,
+  Copy,
   Download,
   FileText,
   Filter,
@@ -94,7 +95,8 @@ const weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Satur
 const movementTypes = ["purchase", "transfer_in", "transfer_out", "waste", "adjustment", "staff_meal", "production_usage", "return"];
 const wasteTypes = ["Spoilage", "Expired", "Kitchen Error", "Burnt", "Returned Item", "Staff Consumption", "Unknown"];
 const poStatuses = ["draft", "submitted", "supplier_confirmed", "partial_received", "fully_received", "completed", "cancelled"];
-const poSources = ["stock_check", "stock_request", "manual"];
+const poSources = ["stock_check", "manual"];
+const auditTypes = ["Month-End Closing", "Full Stock Audit", "Spot Check", "Category Audit", "Custom Audit"];
 
 function todayInput() {
   return new Date().toISOString().slice(0, 10);
@@ -229,6 +231,15 @@ function itemHasActiveOutletLink(item = {}, outletId) {
 }
 
 function stockCheckItemsForGroup(group = {}, items = []) {
+  const selectedItemIds = uniqueIds(group.itemIds || group.item_ids || []);
+  if (group.stockCheckType === "audit" && selectedItemIds.length) {
+    const selected = new Set(selectedItemIds);
+    return items
+      .filter((item) => item.status === "active")
+      .filter((item) => selected.has(item.id))
+      .filter((item) => itemHasActiveOutletLink(item, group.outletId))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }
   const selectedCategories = new Set(groupCategoryIds(group, items));
   if (!selectedCategories.size) return [];
   return items
@@ -1435,6 +1446,113 @@ function GroupModal({ group, outlets, items, categories, onClose, onSave }) {
   );
 }
 
+function AuditStockCheckModal({ outlets, categories, items, onClose, onStart }) {
+  const [form, setForm] = useState({
+    outletId: outlets[0]?.id || "",
+    date: todayInput(),
+    auditName: "",
+    auditType: auditTypes[0],
+    categoryIds: [],
+    itemIds: [],
+    notes: "",
+  });
+
+  const outletItems = items.filter((item) => item.status === "active" && itemHasActiveOutletLink(item, form.outletId));
+  const visibleItems = outletItems.filter((item) => !form.categoryIds.length || form.categoryIds.includes(item.categoryId));
+  const selectedCategories = new Set(form.categoryIds);
+  const selectedItems = new Set(form.itemIds);
+  const canStart = form.outletId && form.auditName.trim() && (form.categoryIds.length || form.itemIds.length);
+
+  function update(key, value) {
+    setForm((current) => {
+      if (key === "outletId") return { ...current, outletId: value, itemIds: [] };
+      if (key === "categoryIds") {
+        const allowedItems = new Set(items.filter((item) => value.includes(item.categoryId)).map((item) => item.id));
+        return { ...current, categoryIds: value, itemIds: current.itemIds.filter((id) => allowedItems.has(id)) };
+      }
+      return { ...current, [key]: value };
+    });
+  }
+
+  function toggleCategory(categoryId) {
+    update("categoryIds", selectedCategories.has(categoryId)
+      ? form.categoryIds.filter((id) => id !== categoryId)
+      : [...form.categoryIds, categoryId]);
+  }
+
+  function toggleItem(itemId) {
+    update("itemIds", selectedItems.has(itemId)
+      ? form.itemIds.filter((id) => id !== itemId)
+      : [...form.itemIds, itemId]);
+  }
+
+  return (
+    <Modal
+      title="Audit Stock Check"
+      description="Run a special non-scheduled stock check for closing, spot checks or control audits."
+      size="xl"
+      onClose={onClose}
+      footer={(
+        <>
+          <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" type="button" disabled={!canStart} onClick={() => onStart(form)}>Start Audit</button>
+        </>
+      )}
+    >
+      <div className="space-y-4">
+        <div className="grid gap-3 md:grid-cols-2">
+          <SelectField label="Outlet" value={form.outletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={(value) => update("outletId", value)} searchable />
+          <Field label="Audit Date" type="date" value={form.date} onChange={(value) => update("date", value)} required />
+          <Field label="Audit Name" value={form.auditName} onChange={(value) => update("auditName", value)} placeholder="Month-end closing count" required />
+          <SelectField label="Audit Type" value={form.auditType} options={auditTypes.map((type) => ({ value: type, label: type }))} onChange={(value) => update("auditType", value)} />
+        </div>
+        <div className="rounded-2xl border border-border p-3">
+          <div className="type-title font-bold text-text-primary">Category Selection</div>
+          <p className="mt-1 type-caption text-text-secondary">If categories are selected and no specific items are selected, all active outlet-linked items in those categories are included.</p>
+          <div className="mt-3 grid gap-2 md:grid-cols-2">
+            {categories.filter((category) => category.status === "active").map((category) => {
+              const count = outletItems.filter((item) => item.categoryId === category.id).length;
+              return (
+                <button
+                  key={category.id}
+                  className={`rounded-2xl border p-3 text-left transition ${selectedCategories.has(category.id) ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}
+                  type="button"
+                  disabled={!count}
+                  onClick={() => toggleCategory(category.id)}
+                >
+                  <div className="flex items-center justify-between gap-2">
+                    <span className="type-body-sm font-bold text-text-primary">{category.name}</span>
+                    <Badge tone={selectedCategories.has(category.id) ? "success" : "neutral"}>{count} items</Badge>
+                  </div>
+                  <div className="mt-1 type-caption text-text-secondary">{category.description || "Inventory category"}</div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+        <div className="rounded-2xl border border-border p-3">
+          <div className="type-title font-bold text-text-primary">Optional Item Selection</div>
+          <p className="mt-1 type-caption text-text-secondary">Select specific items only when this audit should not include the full category scope.</p>
+          {visibleItems.length ? (
+            <div className="mt-3 grid max-h-64 gap-2 overflow-y-auto pr-1 md:grid-cols-2">
+              {visibleItems.map((item) => (
+                <label key={item.id} className={`flex cursor-pointer items-center justify-between gap-3 rounded-xl border px-3 py-2 transition ${selectedItems.has(item.id) ? "border-primary bg-primary/5" : "border-border hover:border-primary/30"}`}>
+                  <span>
+                    <span className="block type-body-sm font-bold text-text-primary">{item.name}</span>
+                    <span className="type-caption text-text-secondary">{categories.find((category) => category.id === item.categoryId)?.name || "Uncategorized"} · {item.unit}</span>
+                  </span>
+                  <input type="checkbox" checked={selectedItems.has(item.id)} onChange={() => toggleItem(item.id)} />
+                </label>
+              ))}
+            </div>
+          ) : <EmptyState title="No outlet-linked items" description="Choose another outlet or link inventory items to this outlet first." />}
+        </div>
+        <TextArea label="Notes" value={form.notes} onChange={(value) => update("notes", value)} placeholder="Optional audit objective or instruction" />
+      </div>
+    </Modal>
+  );
+}
+
 function RequestModal({ outlets, items, categories, suppliers, onClose, onSave }) {
   const [outletId, setOutletId] = useState(outlets[0]?.id ?? "");
   const outletItems = items.filter((item) => item.linkedOutletIds?.includes(outletId) && item.status === "active");
@@ -1901,6 +2019,30 @@ function CompletePurchaseOrderModal({ order, onClose, onComplete }) {
   );
 }
 
+function CopyPoTextModal({ text, onClose, onCopy }) {
+  return (
+    <Modal
+      title="Copy PO Text"
+      description="Clipboard access was blocked. Copy the supplier message manually."
+      size="lg"
+      onClose={onClose}
+      footer={(
+        <>
+          <button className="btn-secondary" type="button" onClick={onClose}>Close</button>
+          <button className="btn-primary" type="button" onClick={() => onCopy(text)}><Copy size={15} /> Copy</button>
+        </>
+      )}
+    >
+      <textarea
+        className="control min-h-[360px] w-full whitespace-pre-wrap font-mono text-[12px]"
+        readOnly
+        value={text}
+        onFocus={(event) => event.target.select()}
+      />
+    </Modal>
+  );
+}
+
 function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const outlets = store?.outlets ?? [];
   const suppliers = store?.suppliers ?? [];
@@ -1920,6 +2062,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [date, setDate] = useState(todayInput());
   const [modal, setModal] = useState(null);
   const [activeCheckGroupId, setActiveCheckGroupId] = useState(null);
+  const [activeAuditCheck, setActiveAuditCheck] = useState(null);
   const [checkRows, setCheckRows] = useState([]);
 
   useEffect(() => {
@@ -1944,6 +2087,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     reviewCheck: hasPermission(auth, "inventory_stock_check.approve") || hasPermission(auth, "inventory_control.review_stock_check") || hasPermission(auth, "inventory_control.approve"),
     createRequest: hasPermission(auth, "inventory_requests.create") || hasPermission(auth, "inventory_control.create_request") || hasPermission(auth, "inventory_control.create"),
     approveRequest: hasPermission(auth, "inventory_requests.approve") || hasPermission(auth, "inventory_control.approve_request") || hasPermission(auth, "inventory_control.approve"),
+    viewPo: hasPermission(auth, "inventory_orders.view") || hasPermission(auth, "inventory_control.view"),
     generatePo: hasPermission(auth, "inventory_orders.create") || hasPermission(auth, "inventory_control.generate_purchase_order") || hasPermission(auth, "inventory_control.manage"),
     managePo: hasPermission(auth, "inventory_orders.edit") || hasPermission(auth, "inventory_control.manage_purchase_orders") || hasPermission(auth, "inventory_control.manage"),
     recordMovement: hasPermission(auth, "inventory_movements.create") || hasPermission(auth, "inventory_control.record_movement") || hasPermission(auth, "inventory_control.manage"),
@@ -1984,7 +2128,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const selectedOutletIds = selectedOutletId === "all" ? outlets.map((outlet) => outlet.id) : [selectedOutletId];
   const scopedGroups = data.groups.filter((group) => selectedOutletIds.includes(group.outletId));
   const dueGroups = scopedGroups.filter((group) => ["Due Today", "Completed", "Overdue"].includes(dueStatus(group, data.checks, date)));
-  const activeCheckGroup = data.groups.find((group) => group.id === activeCheckGroupId);
+  const activeCheckGroup = activeAuditCheck || data.groups.find((group) => group.id === activeCheckGroupId);
 
   const dashboard = useMemo(() => {
     const scopedItems = data.items.filter((item) => selectedOutletId === "all" || item.linkedOutletIds?.includes(selectedOutletId));
@@ -1992,17 +2136,16 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       const configs = outletConfigsForScope(item, selectedOutletIds);
       return count + configs.filter((config) => Number(config.parLevel || 0) > 0 && latestActualCount(data.checks, item.id, config.outletId) < Number(config.parLevel || 0)).length;
     }, 0);
-    const pendingRequests = data.requests.filter((request) => selectedOutletIds.includes(request.outletId) && !["completed", "rejected"].includes(request.status)).length;
     const criticalChecks = dueGroups.filter((group) => dueStatus(group, data.checks, date) === "Overdue").length;
     const completion = dueGroups.length ? Math.round((dueGroups.filter((group) => dueStatus(group, data.checks, date) === "Completed").length / dueGroups.length) * 100) : 100;
     return {
       inventoryValue: scopedItems.reduce((sum, item) => sum + outletConfigsForScope(item, selectedOutletIds).reduce((configSum, config) => configSum + Number(config.parLevel || 0) * 8, 0), 0),
       lowStock,
-      pendingRequests,
+      pendingOrders: data.orders.filter((order) => selectedOutletIds.includes(order.outletId || order.outletIds?.[0]) && !["completed", "cancelled"].includes(order.status)).length,
       varianceRisk: criticalChecks,
       checkCompletion: completion,
     };
-  }, [data.items, data.requests, data.checks, dueGroups, selectedOutletId, selectedOutletIds, date]);
+  }, [data.items, data.orders, data.checks, dueGroups, selectedOutletId, selectedOutletIds, date]);
 
   useEffect(() => {
     if (!activeCheckGroup) return;
@@ -2013,7 +2156,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     }
     const items = stockCheckItemsForGroup(activeCheckGroup, data.items);
     setCheckRows(items.map((item) => ({ itemId: item.id, actualCount: parLevelForOutlet(item, activeCheckGroup.outletId), status: "normal", notes: "", na: false })));
-  }, [activeCheckGroupId, activeCheckGroup, data.checks, data.items, date]);
+  }, [activeCheckGroupId, activeAuditCheck, activeCheckGroup, data.checks, data.items, date]);
 
   function notify(title, message = "", tone = "success") {
     ui?.notify?.({ title, message, tone });
@@ -2231,6 +2374,60 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     notify("Purchase orders exported", `${rows.length} PO${rows.length === 1 ? "" : "s"} exported.`);
   }
 
+  function formatPurchaseOrderText(order) {
+    const supplier = suppliers.find((entry) => entry.id === order.supplierId);
+    const outlet = outletById.get(order.outletId || order.outletIds?.[0]);
+    const supplierName = supplier?.name || "Supplier";
+    const statusLine = ["cancelled", "completed"].includes(order.status) ? [`Status: ${poStatusLabel(order.status)}`] : [];
+    const itemLines = (order.lines || []).map((line, index) => {
+      const item = itemById.get(line.itemId);
+      const base = `${index + 1}. ${item?.name || "Inventory item"} — ${Number(line.requestedQty || 0)} ${line.unit || item?.unit || ""}`.trim();
+      return line.remark ? `${base}\n   Remark: ${line.remark}` : base;
+    });
+    const remarks = order.remark || order.notes || "";
+    return [
+      `Hi ${supplierName},`,
+      "",
+      "Please arrange the following order:",
+      "",
+      `PO No.: ${order.poNo || "-"}`,
+      `Date: ${formatDate(order.createdAt || todayInput())}`,
+      `Outlet: ${outlet?.name || "Outlet"}`,
+      ...statusLine,
+      "",
+      "Items:",
+      ...(itemLines.length ? itemLines : ["1. No items listed"]),
+      ...(remarks ? ["", "Remarks:", remarks] : []),
+      "",
+      "Please confirm stock availability and delivery date.",
+      "",
+      "Thank you.",
+    ].join("\n");
+  }
+
+  async function copyPurchaseOrderText(order) {
+    if (!requirePermission(can.viewPo, "view purchase orders")) return;
+    const text = formatPurchaseOrderText(order);
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable");
+      await navigator.clipboard.writeText(text);
+      notify("PO text copied.");
+    } catch {
+      setModal({ type: "po-copy-text", text });
+    }
+  }
+
+  async function copyRawText(text) {
+    try {
+      if (!navigator.clipboard?.writeText) throw new Error("Clipboard API unavailable");
+      await navigator.clipboard.writeText(text);
+      setModal(null);
+      notify("PO text copied.");
+    } catch {
+      notify("Unable to copy automatically", "Select and copy the text manually.", "warning");
+    }
+  }
+
   function saveParLevelConfig(itemId, outletId, patch) {
     setData((current) => ({
       ...current,
@@ -2265,6 +2462,32 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     notify("Stock check group saved");
   }
 
+  function startAuditStockCheck(form) {
+    const auditGroup = {
+      id: makeId("audit_group"),
+      outletId: form.outletId,
+      name: form.auditName.trim(),
+      description: form.notes || "",
+      categoryIds: form.categoryIds,
+      itemIds: form.itemIds,
+      frequency: "audit",
+      checkDays: [],
+      monthDay: "",
+      shift: "Audit",
+      status: "active",
+      stockCheckType: "audit",
+      auditType: form.auditType,
+      auditName: form.auditName.trim(),
+      date: form.date,
+      notes: form.notes,
+    };
+    setSelectedOutletId(form.outletId);
+    setDate(form.date);
+    setActiveCheckGroupId(null);
+    setActiveAuditCheck(auditGroup);
+    setModal(null);
+  }
+
   function archiveItem(itemId) {
     setData((current) => ({
       ...current,
@@ -2275,6 +2498,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   function saveStockCheck(status) {
     if (!activeCheckGroup) return;
+    const isAudit = activeCheckGroup.stockCheckType === "audit";
     const rows = checkRows.map((row) => {
       const item = itemById.get(row.itemId);
       const expectedQty = parLevelForOutlet(item, activeCheckGroup.outletId);
@@ -2283,10 +2507,14 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     });
     const record = {
       id: makeId("check"),
-      groupId: activeCheckGroup.id,
+      groupId: isAudit ? "" : activeCheckGroup.id,
       outletId: activeCheckGroup.outletId,
-      date,
+      date: activeCheckGroup.date || date,
       shift: activeCheckGroup.shift,
+      stockCheckType: isAudit ? "audit" : "scheduled",
+      auditType: activeCheckGroup.auditType || "",
+      auditName: activeCheckGroup.auditName || "",
+      notes: activeCheckGroup.notes || "",
       status,
       rows,
       submittedAt: status === "submitted" ? new Date().toISOString() : "",
@@ -2295,7 +2523,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       .filter((row) => row.variance !== 0)
       .map((row) => ({
         id: makeId("move"),
-        date,
+        date: activeCheckGroup.date || date,
         itemId: row.itemId,
         type: "adjustment",
         quantity: -row.variance,
@@ -2306,13 +2534,14 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       }));
     setData((current) => ({
       ...current,
-      checks: [record, ...current.checks.filter((check) => !(check.groupId === activeCheckGroup.id && check.date === date && check.status === "draft"))],
-      groups: current.groups.map((group) => group.id === activeCheckGroup.id && status !== "draft" ? { ...group, lastChecked: date } : group),
+      checks: [record, ...current.checks.filter((check) => !(check.groupId === activeCheckGroup.id && check.date === (activeCheckGroup.date || date) && check.status === "draft"))],
+      groups: isAudit ? current.groups : current.groups.map((group) => group.id === activeCheckGroup.id && status !== "draft" ? { ...group, lastChecked: date } : group),
       movements: status === "submitted" ? [...shortageMovements, ...current.movements] : current.movements,
     }));
     setActiveCheckGroupId(null);
+    setActiveAuditCheck(null);
     if (status === "submitted") {
-      notify("Stock check completed", "Review purchase suggestions from the completed check card if shortages exist.");
+      notify(isAudit ? "Audit stock check completed" : "Stock check completed", isAudit ? "Audit result saved without purchase suggestions." : "Review purchase suggestions from the completed check card if shortages exist.");
     } else {
       notify("Stock check draft saved");
     }
@@ -2657,7 +2886,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
           <MetricCard icon={Warehouse} label="Inventory Value" value={toCurrency(dashboard.inventoryValue)} helper="Estimated at par level" trend="Monthly" emphasis="primary" />
           <MetricCard icon={AlertTriangle} label="Low Stock Items" value={dashboard.lowStock} helper="Below outlet par level" tone={dashboard.lowStock ? "warning" : "success"} />
-          <MetricCard icon={PackagePlus} label="Pending Requests" value={dashboard.pendingRequests} helper="Draft / submitted / approved" tone={dashboard.pendingRequests ? "warning" : "success"} />
+          <MetricCard icon={PackagePlus} label="Pending Orders" value={dashboard.pendingOrders} helper="Open supplier orders" tone={dashboard.pendingOrders ? "warning" : "success"} />
           <MetricCard icon={Sparkles} label="Variance Risk" value={dashboard.varianceRisk} helper="Overdue checks" tone={dashboard.varianceRisk ? "danger" : "success"} />
           <MetricCard icon={ClipboardCheck} label="Check Completion" value={`${dashboard.checkCompletion}%`} helper="Due groups completed" tone={dashboard.checkCompletion < 80 ? "warning" : "success"} />
         </div>
@@ -3123,13 +3352,19 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }
 
   function renderStockCheck() {
+    const auditChecks = data.checks
+      .filter((check) => check.stockCheckType === "audit")
+      .filter((check) => selectedOutletId === "all" || check.outletId === selectedOutletId)
+      .sort((a, b) => new Date(b.submittedAt || b.date || 0) - new Date(a.submittedAt || a.date || 0));
+
     if (activeCheckGroup) {
+      const isAudit = activeCheckGroup.stockCheckType === "audit";
       return (
         <div className="space-y-4">
           <SectionCard
             title={activeCheckGroup.name}
-            description={`${outletById.get(activeCheckGroup.outletId)?.name} · ${activeCheckGroup.shift} · ${formatDate(date)}`}
-            action={<button className="btn-secondary" type="button" onClick={() => setActiveCheckGroupId(null)}>Back to Due Checks</button>}
+            description={`${outletById.get(activeCheckGroup.outletId)?.name} · ${isAudit ? activeCheckGroup.auditType : activeCheckGroup.shift} · ${formatDate(activeCheckGroup.date || date)}`}
+            action={<button className="btn-secondary" type="button" onClick={() => { setActiveCheckGroupId(null); setActiveAuditCheck(null); }}>Back to Due Checks</button>}
           >
             <div className="overflow-x-auto">
               <table className="w-full min-w-[880px] text-left">
@@ -3192,8 +3427,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               <span>{checkRows.filter((row) => varianceStatus(parLevelForOutlet(itemById.get(row.itemId), activeCheckGroup.outletId), row.actualCount).tone === "danger").length} critical items</span>
             </div>
             <div className="flex gap-2">
-              <button className="btn-secondary" type="button" onClick={() => requirePermission(can.editCheck, "save stock check drafts") && saveStockCheck("draft")}>Save Draft</button>
-              <button className="btn-primary" type="button" onClick={() => requirePermission(can.createCheck, "submit stock checks") && saveStockCheck("submitted")}>Submit Stock Check</button>
+              {!isAudit ? <button className="btn-secondary" type="button" onClick={() => requirePermission(can.editCheck, "save stock check drafts") && saveStockCheck("draft")}>Save Draft</button> : null}
+              <button className="btn-primary" type="button" onClick={() => requirePermission(can.createCheck, "submit stock checks") && saveStockCheck("submitted")}>{isAudit ? "Submit Audit Check" : "Submit Stock Check"}</button>
             </div>
           </div>
         </div>
@@ -3254,6 +3489,32 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               })}
             </div>
           ) : <EmptyState title="No stock check required today." description="Due groups will appear automatically based on each group's frequency and check days." />}
+        </SectionCard>
+        <SectionCard title="Audit Stock Checks" description="Special non-scheduled checks for month-end closing, surprise audits and control counts.">
+          {auditChecks.length ? (
+            <div className="grid gap-3 xl:grid-cols-3">
+              {auditChecks.slice(0, 9).map((check) => {
+                const shortageCount = (check.rows || []).filter((row) => Number(row.variance || 0) > 0).length;
+                return (
+                  <div key={check.id} className="rounded-2xl border border-border bg-white p-4 transition hover:border-primary/30 hover:shadow-sm">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="type-title font-bold text-text-primary">{check.auditName || "Audit Stock Check"}</div>
+                        <div className="type-caption text-text-secondary">{outletById.get(check.outletId)?.name || "Outlet"} · {formatDate(check.date)}</div>
+                      </div>
+                      <Badge tone={statusTone(check.status)}>{check.status === "submitted" ? "Completed" : toTitle(check.status)}</Badge>
+                    </div>
+                    <div className="mt-3 space-y-1 type-caption text-text-secondary">
+                      <div>Audit Type: <span className="font-semibold text-text-primary">{check.auditType || "Custom Audit"}</span></div>
+                      <div>Items checked: <span className="font-semibold text-text-primary">{check.rows?.length || 0}</span></div>
+                      <div>Variance items: <span className="font-semibold text-text-primary">{shortageCount}</span></div>
+                    </div>
+                    <button className="btn-secondary mt-4 w-full" type="button" onClick={() => setModal({ type: "check-result", stockCheck: check, suggestions: [], isAudit: true })}>View Audit Result</button>
+                  </div>
+                );
+              })}
+            </div>
+          ) : <EmptyState title="No audit stock checks yet." description="Use Audit Stock Check for month-end closing, full outlet counts or spot checks." />}
         </SectionCard>
       </div>
     );
@@ -3319,7 +3580,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     };
 
     return (
-      <SectionCard title="Purchase Orders" description="Draft POs move through submission, supplier confirmation, receiving and completion.">
+      <SectionCard title="Purchase Orders" description="Draft POs are created from reviewed stock check suggestions or manual purchase planning.">
         <div className="mb-4 grid gap-3 lg:grid-cols-6">
           <SelectField label="Outlet" value={poFilters.outletId} options={[{ value: "all", label: "All Outlets" }, ...outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))]} onChange={(value) => updateFilter("outletId", value)} searchable />
           <SelectField label="Supplier" value={poFilters.supplierId} options={[{ value: "all", label: "All Suppliers" }, ...suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))]} onChange={(value) => updateFilter("supplierId", value)} searchable />
@@ -3372,6 +3633,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                         <div className="flex justify-end gap-2">
                           <button className={action.tone === "primary" ? "btn-primary h-8 px-2.5 text-xs" : "btn-secondary h-8 px-2.5 text-xs"} type="button" onClick={action.action}>{action.label}</button>
                           {action.label !== "View" ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setModal({ type: "po-detail", order })}>View</button> : null}
+                          <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => copyPurchaseOrderText(order)}><Copy size={13} /> Copy Text</button>
                           {order.status === "draft" ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setModal({ type: "po-edit", order })}>Edit</button> : null}
                           {order.status === "submitted" ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.managePo, "mark supplier confirmed") && updatePurchaseOrderStatus(order.id, "supplier_confirmed")}>Mark Confirmed</button> : null}
                           {order.status === "partial_received" ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.managePo, "complete purchase orders") && setModal({ type: "po-complete", order })}>Complete PO</button> : null}
@@ -3384,7 +3646,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               </tbody>
             </table>
           </div>
-        ) : <EmptyState title="No purchase orders found." description="Adjust filters or create Draft POs from purchase suggestions and stock requests." />}
+        ) : <EmptyState title="No purchase orders found." description="Adjust filters or create Draft POs from scheduled stock check suggestions or manual purchase planning." />}
       </SectionCard>
     );
   }
@@ -3542,6 +3804,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     if (activeTab === "groups") {
       return <button className="btn-primary" type="button" onClick={() => requirePermission(can.manageGroups, "manage stock check groups") && setModal({ type: "group" })}><PackagePlus size={15} /> Add Group</button>;
     }
+    if (activeTab === "stock-check") {
+      return <button className="btn-primary" type="button" onClick={() => requirePermission(can.createCheck, "create audit stock checks") && setModal({ type: "audit-stock-check" })}><ClipboardCheck size={15} /> Audit Stock Check</button>;
+    }
     if (activeTab === "requests") {
       return <button className="btn-primary" type="button" onClick={() => requirePermission(can.createRequest, "create stock requests") && setModal({ type: "request" })}><PackagePlus size={15} /> New Request</button>;
     }
@@ -3617,6 +3882,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       ) : null}
       {modal?.type === "category" ? <CategoryModal category={modal.category} onClose={() => setModal(null)} onSave={saveCategory} /> : null}
       {modal?.type === "group" ? <GroupModal group={modal.group} outlets={outlets} items={data.items} categories={sortedCategories} onClose={() => setModal(null)} onSave={saveGroup} /> : null}
+      {modal?.type === "audit-stock-check" ? <AuditStockCheckModal outlets={outlets} categories={sortedCategories} items={data.items} onClose={() => setModal(null)} onStart={startAuditStockCheck} /> : null}
       {modal?.type === "request" ? <RequestModal outlets={outlets} items={data.items} categories={sortedCategories} suppliers={suppliers} onClose={() => setModal(null)} onSave={saveRequest} /> : null}
       {modal?.type === "movement" ? <MovementModal outlets={outlets} items={data.items} onClose={() => setModal(null)} onSave={saveMovement} /> : null}
       {modal?.type === "waste" ? <WasteModal outlets={outlets} items={data.items} onClose={() => setModal(null)} onSave={saveWaste} /> : null}
@@ -3633,6 +3899,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       ) : null}
       {modal?.type === "po-cancel" ? <CancelPurchaseOrderModal order={modal.order} onClose={() => setModal(null)} onCancel={(reason) => cancelPurchaseOrder(modal.order, reason)} /> : null}
       {modal?.type === "po-complete" ? <CompletePurchaseOrderModal order={modal.order} onClose={() => setModal(null)} onComplete={(reason) => completePurchaseOrder(modal.order, reason)} /> : null}
+      {modal?.type === "po-copy-text" ? <CopyPoTextModal text={modal.text} onClose={() => setModal(null)} onCopy={copyRawText} /> : null}
       {modal?.type === "purchase-suggestions" ? (
         <PurchaseSuggestionsModal
           suggestions={modal.suggestions}
@@ -3644,8 +3911,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       ) : null}
       {modal?.type === "check-result" ? (
         <Modal
-          title="Stock Check Result"
-          description={`${outletById.get(modal.stockCheck?.outletId)?.name || "Outlet"} · ${formatDate(modal.stockCheck?.date)} · ${modal.suggestions?.length || 0} shortage item${modal.suggestions?.length === 1 ? "" : "s"}`}
+          title={modal.isAudit || modal.stockCheck?.stockCheckType === "audit" ? "Audit Stock Check Result" : "Stock Check Result"}
+          description={`${outletById.get(modal.stockCheck?.outletId)?.name || "Outlet"} · ${formatDate(modal.stockCheck?.date)} · ${modal.isAudit || modal.stockCheck?.stockCheckType === "audit" ? (modal.stockCheck?.auditType || "Audit") : `${modal.suggestions?.length || 0} shortage item${modal.suggestions?.length === 1 ? "" : "s"}`}`}
           size="xl"
           onClose={() => setModal(null)}
           footer={<button className="btn-secondary" type="button" onClick={() => setModal(null)}>Close</button>}
@@ -3685,12 +3952,15 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       {modal?.type === "po-detail" ? (
         <Modal
           title={modal.edit ? "Edit Draft PO" : "View Purchase Order"}
-          description={`${modal.order.poNo} · ${modal.order.sourceType === "stock_check" ? "Source: Stock Check" : "Source: Stock Request"}`}
+          description={`${modal.order.poNo} · Source: ${poSourceLabel(modal.order.sourceType)}`}
           size="xl"
           onClose={() => setModal(null)}
           footer={<button className="btn-secondary" type="button" onClick={() => setModal(null)}>Close</button>}
         >
           <div className="space-y-4">
+            <div className="flex justify-end">
+              <button className="btn-secondary" type="button" onClick={() => copyPurchaseOrderText(modal.order)}><Copy size={15} /> Copy PO Text</button>
+            </div>
             <div className="grid gap-3 sm:grid-cols-4">
               <MetricCard label="Supplier" value={suppliers.find((supplier) => supplier.id === modal.order.supplierId)?.name || "Unassigned"} helper={outletById.get(modal.order.outletId || modal.order.outletIds?.[0])?.name || "Outlet"} />
               <MetricCard label="Status" value={poStatusLabel(modal.order.status)} helper="PO workflow" tone={statusTone(modal.order.status)} />

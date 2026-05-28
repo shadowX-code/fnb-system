@@ -113,12 +113,25 @@ create table if not exists public.inventory_stock_checks (
 alter table public.inventory_stock_checks
   add column if not exists outlet_id uuid references public.outlets(id) on delete set null,
   add column if not exists group_id uuid,
+  add column if not exists stock_check_type text not null default 'scheduled',
+  add column if not exists audit_type text,
+  add column if not exists audit_name text,
+  add column if not exists notes text,
   add column if not exists status text not null default 'draft',
   add column if not exists submitted_at timestamptz,
   add column if not exists reviewed_at timestamptz,
   add column if not exists created_by uuid references auth.users(id) on delete set null,
   add column if not exists created_at timestamptz not null default now(),
   add column if not exists updated_at timestamptz not null default now();
+
+do $$
+begin
+  alter table public.inventory_stock_checks
+    add constraint inventory_stock_checks_type_check
+    check (stock_check_type in ('scheduled', 'audit'));
+exception
+  when duplicate_object then null;
+end $$;
 
 create table if not exists public.inventory_stock_check_items (
   id uuid primary key default gen_random_uuid()

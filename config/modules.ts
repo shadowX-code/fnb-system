@@ -367,7 +367,7 @@ export const moduleRegistry: AppModule[] = [
     label: "Stock Requests",
     route: "/inventory/requests",
     icon: "inventory-requests",
-    sidebar: true,
+    sidebar: false,
     permissions: { view: true, create: true, edit: true, approve: true },
   },
   {
