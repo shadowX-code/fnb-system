@@ -177,6 +177,7 @@ function mapMovement(row) {
 }
 
 function mapMaintenanceRecord(row) {
+  const normalizedStatus = ["scheduled", "in_progress", "completed"].includes(row.status) ? row.status : "scheduled";
   return {
     id: row.id,
     asset_id: row.asset_id,
@@ -188,7 +189,7 @@ function mapMaintenanceRecord(row) {
     action_taken: row.action_taken ?? "",
     vendor: row.vendor ?? "",
     cost: Number(row.cost ?? 0),
-    status: row.status ?? "scheduled",
+    status: normalizedStatus,
     scheduled_date: row.scheduled_date ?? row.date ?? null,
     completed_date: row.completed_date ?? null,
     next_service_date: row.next_service_date ?? null,
@@ -561,30 +562,32 @@ export const assetTrackingService = {
   async saveMaintenanceRecord(asset, record) {
     const userId = await currentUserId();
     const photoUrl = await uploadMaintenancePhotoIfNeeded({ ...record, asset_id: asset.id, outlet_id: asset.outlet_id }, userId);
+    const status = ["scheduled", "in_progress", "completed"].includes(record.status) ? record.status : "scheduled";
+    const today = new Date().toISOString().slice(0, 10);
     const payload = {
       asset_id: asset.id,
       outlet_id: asset.outlet_id,
-      date: record.scheduled_date || record.completed_date || record.date || new Date().toISOString().slice(0, 10),
+      date: status === "completed"
+        ? (record.completed_date || record.date || today)
+        : (record.scheduled_date || record.date || today),
       maintenance_type: record.maintenance_type || "repair",
       priority: record.priority || "medium",
       issue: record.issue ?? "",
       action_taken: record.action_taken ?? "",
       vendor: record.vendor ?? "",
       cost: Number(record.cost || 0),
-      status: record.status || "scheduled",
-      scheduled_date: record.scheduled_date || record.date || new Date().toISOString().slice(0, 10),
-      completed_date: record.status === "completed" ? (record.completed_date || new Date().toISOString().slice(0, 10)) : (record.completed_date || null),
-      next_service_date: record.next_service_date || null,
+      status,
+      scheduled_date: status === "completed" ? null : (record.scheduled_date || record.date || today),
+      completed_date: status === "completed" ? (record.completed_date || today) : null,
+      next_service_date: status === "completed" ? (record.next_service_date || null) : null,
       remark: record.remark ?? "",
       photo_url: photoUrl,
-      created_by: userId,
       updated_at: new Date().toISOString(),
     };
-    const { data, error } = await supabase
-      .from("asset_maintenance_records")
-      .insert(payload)
-      .select(maintenanceFields)
-      .single();
+    const query = record.id
+      ? supabase.from("asset_maintenance_records").update(payload).eq("id", record.id)
+      : supabase.from("asset_maintenance_records").insert({ ...payload, created_by: userId });
+    const { data, error } = await query.select(maintenanceFields).single();
     throwSupabaseError("asset_maintenance_records.save", error);
 
     let updatedCondition = null;

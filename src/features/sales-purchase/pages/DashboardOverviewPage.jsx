@@ -518,13 +518,17 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
   const inspectionDrafts = opsData.inspections.filter((inspection) => ["draft", "in_progress", "pending_review"].includes(inspection.status));
   const overdueMaintenance = opsData.maintenance.filter((record) => {
     const scheduled = new Date(`${record.scheduled_date || record.date}T00:00:00`);
-    return scheduled < today && !["completed", "cancelled"].includes(record.status);
+    return scheduled < today && record.status !== "completed";
   });
+  const openRepairs = opsData.maintenance.filter((record) => ["scheduled", "in_progress"].includes(record.status));
+  const scheduledMaintenance = opsData.maintenance.filter((record) => record.status === "scheduled");
   const lowQuantityAssets = opsData.assets.filter((asset) => Number(asset.current_quantity || 0) <= Number(asset.minimum_quantity || 0) || asset.condition === "low_quantity");
   const missingAssets = opsData.assets.filter((asset) => asset.condition === "missing" || Number(asset.current_quantity || 0) === 0);
   const rosterIssueOutlets = outletMonthlyRows.filter((row) => row.staffing !== "Published");
   const pendingActions = [
     { label: "Purchase drafts", count: 0, route: "purchase-input" },
+    { label: "Maintenance overdue", count: overdueMaintenance.length, route: "asset_tracking" },
+    { label: "Unresolved repair issues", count: openRepairs.length, route: "asset_tracking" },
     { label: "Inspections incomplete", count: inspectionDrafts.length, route: "asset_tracking" },
     { label: "Alerts unresolved", count: allAlerts.length, route: "alerts" },
     { label: "Supplier not categorized", count: (store.suppliers ?? []).filter((supplier) => !supplier.default_category_id && !supplier.category).length, route: "suppliers" },
@@ -823,6 +827,8 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
           <div className="grid grid-cols-2 gap-3 p-4">
             <MiniTile icon={ClipboardList} count={inspectionDrafts.length} label="Draft Audits" tone={inspectionDrafts.length ? "warning" : "success"} route="asset_tracking" ui={ui} />
             <MiniTile icon={Wrench} count={overdueMaintenance.length} label="Maintenance Due" tone={overdueMaintenance.length ? "danger" : "success"} route="asset_tracking" ui={ui} />
+            <MiniTile icon={Wrench} count={openRepairs.length} label="Open Repairs" tone={openRepairs.length ? "warning" : "success"} route="asset_tracking" ui={ui} />
+            <MiniTile icon={Wrench} count={scheduledMaintenance.length} label="Scheduled Maintenance" tone={scheduledMaintenance.length ? "info" : "success"} route="asset_tracking" ui={ui} />
             <MiniTile icon={PackageSearch} count={lowQuantityAssets.length} label="Low Quantity Assets" tone={lowQuantityAssets.length ? "warning" : "success"} route="asset_tracking" ui={ui} />
             <MiniTile icon={AlertTriangle} count={missingAssets.length} label="Missing Stock Items" tone={missingAssets.length ? "danger" : "success"} route="asset_tracking" ui={ui} />
             <MiniTile icon={Bell} count={allAlerts.length} label="Unresolved Alerts" tone={allAlerts.length ? "warning" : "success"} route="alerts" ui={ui} />

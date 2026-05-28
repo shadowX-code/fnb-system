@@ -14,6 +14,7 @@ const assetConditions = ["healthy", "needs_review", "damaged", "missing", "under
 const reduceReasons = ["broken", "missing", "disposed", "stolen", "transferred", "correction", "other"];
 const maintenancePriorities = ["low", "medium", "high", "critical"];
 const maintenanceTypes = ["preventive", "repair", "inspection", "cleaning", "calibration", "replacement", "emergency"];
+const maintenanceStatuses = ["scheduled", "in_progress", "completed"];
 
 function titleCase(value) {
   return String(value || "").replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
@@ -90,8 +91,41 @@ function priorityTone(priority) {
   return "info";
 }
 
+function maintenanceStatusLabel(status) {
+  if (status === "in_progress") return "In Progress";
+  if (status === "completed") return "Completed";
+  return "Scheduled";
+}
+
+function maintenanceStatusTone(status) {
+  if (status === "completed") return "success";
+  if (status === "in_progress") return "info";
+  return "warning";
+}
+
+function maintenanceStatusDateLabel(record) {
+  if (record.status === "completed") return ["Completed", record.completed_date || record.date];
+  if (record.status === "in_progress") return ["Started", record.scheduled_date || record.date];
+  return ["Scheduled", record.scheduled_date || record.date];
+}
+
+function LifecycleProgress({ status }) {
+  return (
+    <div className="flex items-center gap-1.5">
+      {maintenanceStatuses.map((step, index) => (
+        <Fragment key={step}>
+          <span className={`rounded-full px-2 py-1 text-[10px] font-black ${status === step ? "bg-primary text-white" : "bg-slate-100 text-text-muted"}`}>
+            {maintenanceStatusLabel(step)}
+          </span>
+          {index < maintenanceStatuses.length - 1 ? <span className="h-px w-4 bg-border" /> : null}
+        </Fragment>
+      ))}
+    </div>
+  );
+}
+
 function isMaintenanceOverdue(record) {
-  if (!record?.scheduled_date || ["completed", "cancelled"].includes(record.status)) return false;
+  if (!record?.scheduled_date || record.status === "completed") return false;
   const scheduled = new Date(record.scheduled_date);
   const today = new Date();
   return scheduled < new Date(today.getFullYear(), today.getMonth(), today.getDate());
@@ -666,29 +700,55 @@ function AdjustQuantityModal({ asset, onClose, onSubmit, saving }) {
   );
 }
 
-function MaintenanceRecordModal({ asset, onClose, onSubmit, saving }) {
+function MaintenanceRecordModal({ asset, record, onClose, onSubmit, saving }) {
   const [values, setValues] = useState({
-    date: new Date().toISOString().slice(0, 10),
-    scheduled_date: new Date().toISOString().slice(0, 10),
-    completed_date: "",
-    next_service_date: "",
-    maintenance_type: "repair",
-    priority: "medium",
-    issue: "",
-    action_taken: "",
-    vendor: "",
-    cost: "",
-    status: "scheduled",
-    remark: "",
-    photo_url: "",
+    id: record?.id || "",
+    date: record?.date || new Date().toISOString().slice(0, 10),
+    scheduled_date: record?.scheduled_date || (record?.status === "completed" ? "" : new Date().toISOString().slice(0, 10)),
+    completed_date: record?.completed_date || (record?.status === "completed" ? new Date().toISOString().slice(0, 10) : ""),
+    next_service_date: record?.next_service_date || "",
+    maintenance_type: record?.maintenance_type || "repair",
+    priority: record?.priority || "medium",
+    issue: record?.issue || "",
+    action_taken: record?.action_taken || "",
+    vendor: record?.vendor || "",
+    cost: record?.cost ? String(record.cost) : "",
+    status: maintenanceStatuses.includes(record?.status) ? record.status : "scheduled",
+    remark: record?.remark || "",
+    photo_url: record?.photo_url || "",
     set_condition_good: false,
   });
   const [photoError, setPhotoError] = useState("");
   const [previewOpen, setPreviewOpen] = useState(false);
-  const invalid = !values.issue.trim() || !values.action_taken.trim() || !values.maintenance_type;
+  const showPriority = values.status !== "completed";
+  const showScheduledDate = values.status !== "completed";
+  const showCompletedDate = values.status === "completed";
+  const showNextServiceDate = values.status === "completed";
+  const showActionTaken = values.status !== "scheduled";
+  const costLabel = values.status === "completed" ? "Final Cost" : values.status === "in_progress" ? "Current Cost" : "Estimated Cost";
+  const ctaLabel = values.status === "completed" ? "Complete Maintenance" : values.status === "in_progress" ? "Update Progress" : "Save Scheduled Record";
+  const invalid = !values.issue.trim() ||
+    !values.maintenance_type ||
+    (showActionTaken && !values.action_taken.trim()) ||
+    (showScheduledDate && !values.scheduled_date) ||
+    (showCompletedDate && !values.completed_date);
 
   function update(key, value) {
-    setValues((current) => ({ ...current, [key]: value }));
+    setValues((current) => {
+      const next = { ...current, [key]: value };
+      if (key === "status") {
+        if (value === "completed") {
+          next.scheduled_date = "";
+          next.priority = current.priority || "medium";
+          next.completed_date = current.completed_date || new Date().toISOString().slice(0, 10);
+        } else {
+          next.completed_date = "";
+          next.next_service_date = "";
+          next.scheduled_date = current.scheduled_date || new Date().toISOString().slice(0, 10);
+        }
+      }
+      return next;
+    });
   }
 
   function handlePhoto(file) {
@@ -706,52 +766,74 @@ function MaintenanceRecordModal({ asset, onClose, onSubmit, saving }) {
 
   return (
     <Modal
-      title="Add Maintenance Record"
+      title={record ? "Edit Maintenance Record" : "Add Maintenance Record"}
       description={`${asset.name} · ${asset.category_name}`}
       onClose={onClose}
+      size="lg"
       footer={(
         <>
           <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="button" disabled={saving || invalid} onClick={() => onSubmit(values)}>Save Record</button>
+          <button className="btn-primary" type="button" disabled={saving || invalid} onClick={() => onSubmit(values)}>{ctaLabel}</button>
         </>
       )}
     >
-      <div className="grid gap-3 md:grid-cols-2">
-        <FieldLabel label="Status">
-          <SelectField value={values.status} options={[
-            { value: "scheduled", label: "Scheduled" },
-            { value: "in_progress", label: "In Progress" },
-            { value: "completed", label: "Completed" },
-            { value: "cancelled", label: "Cancelled" },
-          ]} onChange={(value) => update("status", value)} />
-        </FieldLabel>
-        <FieldLabel label="Maintenance Type">
-          <SelectField value={values.maintenance_type} options={maintenanceTypes.map((type) => ({ value: type, label: maintenanceTypeLabel(type) }))} onChange={(value) => update("maintenance_type", value)} />
-        </FieldLabel>
-        <FieldLabel label="Priority">
-          <SelectField value={values.priority} options={maintenancePriorities.map((priority) => ({ value: priority, label: titleCase(priority) }))} onChange={(value) => update("priority", value)} />
-        </FieldLabel>
-        <FieldLabel label="Issue / Problem">
-          <input className="control" value={values.issue} onChange={(event) => update("issue", event.target.value)} placeholder="Compressor noise, leaking pipe..." />
-        </FieldLabel>
-        <FieldLabel label="Vendor / Technician">
-          <input className="control" value={values.vendor} onChange={(event) => update("vendor", event.target.value)} placeholder="Optional" />
-        </FieldLabel>
-        <FieldLabel label="Action Taken">
-          <textarea className="control min-h-24 md:col-span-2" value={values.action_taken} onChange={(event) => update("action_taken", event.target.value)} placeholder="Repair or service work performed" />
-        </FieldLabel>
-        <FieldLabel label="Cost">
-          <input className="control" type="number" min="0" step="0.01" value={values.cost} onChange={(event) => update("cost", event.target.value)} placeholder="0.00" />
-        </FieldLabel>
-        <FieldLabel label="Scheduled Date">
-          <input className="control" type="date" value={values.scheduled_date} onChange={(event) => update("scheduled_date", event.target.value)} />
-        </FieldLabel>
-        <FieldLabel label="Completed Date">
-          <input className="control" type="date" value={values.completed_date} onChange={(event) => update("completed_date", event.target.value)} disabled={values.status !== "completed"} />
-        </FieldLabel>
-        <FieldLabel label="Next Service Date">
-          <input className="control" type="date" value={values.next_service_date} onChange={(event) => update("next_service_date", event.target.value)} />
-        </FieldLabel>
+      <div className="space-y-4">
+        <div className="rounded-2xl border border-border bg-slate-50 p-3">
+          <div className="mb-2 text-[11px] font-black uppercase tracking-wide text-text-muted">Maintenance Status</div>
+          <div className="grid gap-2 sm:grid-cols-3">
+            {maintenanceStatuses.map((status) => (
+              <button
+                key={status}
+                type="button"
+                className={`rounded-2xl border px-3 py-2 text-left transition ${values.status === status ? "border-primary bg-primary/10 text-primary shadow-sm" : "border-border bg-white text-text-secondary hover:border-primary/20"}`}
+                onClick={() => update("status", status)}
+              >
+                <div className="text-sm font-black">{maintenanceStatusLabel(status)}</div>
+                <div className="mt-0.5 text-[11px] font-semibold opacity-75">
+                  {status === "scheduled" ? "Plan service work" : status === "in_progress" ? "Track active repair" : "Record completed work"}
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <FieldLabel label="Maintenance Type">
+            <SelectField value={values.maintenance_type} options={maintenanceTypes.map((type) => ({ value: type, label: maintenanceTypeLabel(type) }))} onChange={(value) => update("maintenance_type", value)} />
+          </FieldLabel>
+          {showPriority ? (
+            <FieldLabel label="Priority">
+              <SelectField value={values.priority} options={maintenancePriorities.map((priority) => ({ value: priority, label: titleCase(priority) }))} onChange={(value) => update("priority", value)} />
+            </FieldLabel>
+          ) : null}
+          <FieldLabel label="Issue / Problem">
+            <input className="control" value={values.issue} onChange={(event) => update("issue", event.target.value)} placeholder="Compressor noise, leaking pipe..." />
+          </FieldLabel>
+          <FieldLabel label="Vendor / Technician">
+            <input className="control" value={values.vendor} onChange={(event) => update("vendor", event.target.value)} placeholder="Optional" />
+          </FieldLabel>
+          {showActionTaken ? (
+            <FieldLabel label="Action Taken">
+              <textarea className="control min-h-24 md:col-span-2" value={values.action_taken} onChange={(event) => update("action_taken", event.target.value)} placeholder={values.status === "completed" ? "Repair or service work performed" : "Current progress or temporary fix"} />
+            </FieldLabel>
+          ) : null}
+          <FieldLabel label={costLabel}>
+            <input className="control" type="number" min="0" step="0.01" value={values.cost} onChange={(event) => update("cost", event.target.value)} placeholder="0.00" />
+          </FieldLabel>
+          {showScheduledDate ? (
+            <FieldLabel label="Scheduled Date">
+              <input className="control" type="date" value={values.scheduled_date} onChange={(event) => update("scheduled_date", event.target.value)} />
+            </FieldLabel>
+          ) : null}
+          {showCompletedDate ? (
+            <FieldLabel label="Completed Date">
+              <input className="control" type="date" value={values.completed_date} onChange={(event) => update("completed_date", event.target.value)} />
+            </FieldLabel>
+          ) : null}
+          {showNextServiceDate ? (
+            <FieldLabel label="Next Service Date">
+              <input className="control" type="date" value={values.next_service_date} onChange={(event) => update("next_service_date", event.target.value)} />
+            </FieldLabel>
+          ) : null}
         <FieldLabel label="Photo Evidence">
           <div className="flex items-center gap-3">
             <label className="btn-secondary h-10 cursor-pointer px-3 text-xs">
@@ -767,18 +849,19 @@ function MaintenanceRecordModal({ asset, onClose, onSubmit, saving }) {
           {values.photo_url ? <button className="mt-2 text-xs font-bold text-text-muted hover:text-rose-600" type="button" onClick={() => update("photo_url", "")}>Remove photo</button> : null}
           {photoError ? <div className="mt-1 text-xs font-semibold text-rose-600">{photoError}</div> : null}
         </FieldLabel>
-        {values.status === "in_progress" ? (
-          <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 md:col-span-2">Saving as In Progress will set this asset condition to Under Maintenance.</div>
-        ) : null}
-        {values.status === "completed" ? (
-          <label className="flex items-center gap-2 rounded-xl border border-border bg-slate-50 px-3 py-2 text-sm font-bold text-text-secondary md:col-span-2">
-            <input type="checkbox" checked={values.set_condition_good} onChange={(event) => update("set_condition_good", event.target.checked)} />
-            Set asset condition back to Good after completion
-          </label>
-        ) : null}
-        <FieldLabel label="Remark">
-          <textarea className="control min-h-20 md:col-span-2" value={values.remark} onChange={(event) => update("remark", event.target.value)} placeholder="Optional follow-up notes" />
-        </FieldLabel>
+          {values.status === "in_progress" ? (
+            <div className="rounded-xl border border-blue-100 bg-blue-50 px-3 py-2 text-xs font-bold text-blue-700 md:col-span-2">Saving as In Progress will set this asset condition to Under Maintenance.</div>
+          ) : null}
+          {values.status === "completed" ? (
+            <label className="flex items-center gap-2 rounded-xl border border-emerald-100 bg-emerald-50 px-3 py-2 text-sm font-bold text-emerald-800 md:col-span-2">
+              <input type="checkbox" checked={values.set_condition_good} onChange={(event) => update("set_condition_good", event.target.checked)} />
+              Set asset condition back to Good after completion
+            </label>
+          ) : null}
+          <FieldLabel label="Remark">
+            <textarea className="control min-h-20 md:col-span-2" value={values.remark} onChange={(event) => update("remark", event.target.value)} placeholder="Optional follow-up notes" />
+          </FieldLabel>
+        </div>
       </div>
       {previewOpen && values.photo_url ? (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-950/80 p-4" role="dialog" aria-modal="true">
@@ -1102,7 +1185,7 @@ function InspectionModal({ outletId, categories, assets, draftInspection, onClos
   );
 }
 
-function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], maintenanceRecords = [], onClose, onResumeDraft, onDeleteDraft, onArchiveDraft, onAddMaintenance }) {
+function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], maintenanceRecords = [], onClose, onResumeDraft, onDeleteDraft, onArchiveDraft, onAddMaintenance, onEditMaintenance }) {
   const [tab, setTab] = useState("overview");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewZoom, setPreviewZoom] = useState(false);
@@ -1116,6 +1199,7 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
   const detailTabs = ["overview", "movement", "inspection", ...(maintenanceEnabled ? ["maintenance"] : [])];
   const activeMaintenance = maintenanceRecords.filter((record) => ["scheduled", "in_progress"].includes(record.status));
   const overdueMaintenance = maintenanceRecords.filter(isMaintenanceOverdue);
+  const lastCompletedMaintenance = maintenanceRecords.find((record) => record.status === "completed");
   const nextService = maintenanceRecords.map((record) => record.next_service_date).filter(Boolean).sort()[0];
   const nextServiceDays = daysUntil(nextService);
   const maintenanceGroups = maintenanceRecords.reduce((groups, record) => {
@@ -1282,13 +1366,27 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
           {tab === "movement" ? <Timeline rows={movements} empty="No movement logs yet." /> : null}
           {tab === "inspection" ? <InspectionHistory inspections={inspections} onResumeDraft={onResumeDraft} onDeleteDraft={onDeleteDraft} onArchiveDraft={onArchiveDraft} /> : null}
           {tab === "maintenance" ? (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between gap-3">
+            <div className="space-y-4">
+              <div className="flex items-start justify-between gap-3">
                 <div>
-                  <div className="text-sm font-black text-text-primary">Maintenance History</div>
+                  <div className="text-sm font-black text-text-primary">Maintenance Summary</div>
                   <div className="text-xs text-text-secondary">Repairs, service work, vendor cost, and follow-up notes.</div>
                 </div>
                 <button className="btn-primary h-9 px-3 text-xs" type="button" onClick={() => onAddMaintenance?.(asset)}>+ Add Maintenance Record</button>
+              </div>
+              <div className="grid gap-3 md:grid-cols-3">
+                <div className="rounded-2xl border border-border bg-white p-3">
+                  <div className="text-[10px] font-black uppercase tracking-wide text-text-muted">Last Service Date</div>
+                  <div className="mt-1 text-sm font-black text-text-primary"><DateText value={lastCompletedMaintenance?.completed_date || lastCompletedMaintenance?.date} /></div>
+                </div>
+                <div className="rounded-2xl border border-border bg-white p-3">
+                  <div className="text-[10px] font-black uppercase tracking-wide text-text-muted">Open Maintenance</div>
+                  <div className="mt-1 text-sm font-black text-text-primary">{activeMaintenance.length}</div>
+                </div>
+                <div className="rounded-2xl border border-border bg-white p-3">
+                  <div className="text-[10px] font-black uppercase tracking-wide text-text-muted">Next Service Due</div>
+                  <div className="mt-1 text-sm font-black text-text-primary"><DateText value={nextService} /></div>
+                </div>
               </div>
               {maintenanceRecords.length ? (
                 <div className="space-y-4">
@@ -1297,29 +1395,37 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
                       <div className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{group}</div>
                       {maintenanceGroups[group].map((record) => (
                         <div key={record.id} className={`rounded-2xl border bg-white p-3 shadow-sm ${isMaintenanceOverdue(record) ? "border-rose-200" : "border-border"}`}>
-                          <div className="grid gap-3 md:grid-cols-[44px_1fr_150px]">
+                          <div className="grid gap-3 md:grid-cols-[44px_1fr_170px]">
                             <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-xs font-black text-primary">{maintenanceTypeIcon(record.maintenance_type)}</div>
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
                                 <span className="text-sm font-black text-text-primary">{record.issue}</span>
                                 <span className="text-xs font-bold text-text-muted">{maintenanceTypeLabel(record.maintenance_type)}</span>
                               </div>
-                              <div className="mt-1 line-clamp-2 text-xs font-semibold text-text-secondary">{record.action_taken}</div>
+                              <div className="mt-1 line-clamp-2 text-xs font-semibold text-text-secondary">{record.action_taken || "No action recorded yet."}</div>
                               <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold text-text-muted">
                                 <span>{record.vendor || "No vendor"}</span>
                                 <span>•</span>
-                                <span>{record.status === "completed" ? "Completed" : "Scheduled"} <DateText value={record.status === "completed" ? record.completed_date : record.scheduled_date} /></span>
+                                {(() => {
+                                  const [label, value] = maintenanceStatusDateLabel(record);
+                                  return <span>{label} <DateText value={value} /></span>;
+                                })()}
                                 <span>•</span>
                                 <span>{record.photo_url ? "1 photo" : "No photo"}</span>
                               </div>
+                              <div className="mt-3"><LifecycleProgress status={record.status} /></div>
                             </div>
                             <div className="flex flex-col items-start gap-2 md:items-end">
                               <div className="flex flex-wrap gap-1.5 md:justify-end">
-                                <Badge tone={record.status === "completed" ? "success" : record.status === "in_progress" ? "info" : record.status === "cancelled" ? "neutral" : "warning"}>{titleCase(record.status)}</Badge>
-                                <Badge tone={priorityTone(record.priority)}>{titleCase(record.priority)}</Badge>
+                                <Badge tone={maintenanceStatusTone(record.status)}>{maintenanceStatusLabel(record.status)}</Badge>
+                                {record.status !== "completed" ? <Badge tone={priorityTone(record.priority)}>{titleCase(record.priority)}</Badge> : null}
                               </div>
                               <div className="text-sm font-black text-text-primary">RM {record.cost.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
-                              <button className="rounded-full px-2 py-1 text-xs font-black text-text-muted hover:bg-slate-100" type="button">•••</button>
+                              <div className="flex flex-wrap justify-end gap-1">
+                                <button className="rounded-full px-2 py-1 text-xs font-black text-text-muted hover:bg-slate-100" type="button" onClick={() => onEditMaintenance?.(asset, record)}>View</button>
+                                <button className="rounded-full px-2 py-1 text-xs font-black text-primary hover:bg-primary/10" type="button" onClick={() => onEditMaintenance?.(asset, record)}>Edit</button>
+                                {record.status !== "completed" ? <button className="rounded-full px-2 py-1 text-xs font-black text-blue-700 hover:bg-blue-50" type="button" onClick={() => onEditMaintenance?.(asset, record)}>Update Status</button> : null}
+                              </div>
                             </div>
                           </div>
                           {isMaintenanceOverdue(record) ? <div className="mt-3 rounded-xl bg-rose-50 px-3 py-2 text-xs font-black text-rose-700">Overdue scheduled maintenance</div> : null}
@@ -1419,7 +1525,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [adjustAsset, setAdjustAsset] = useState(null);
   const [inspectionOpen, setInspectionOpen] = useState(false);
-  const [maintenanceAsset, setMaintenanceAsset] = useState(null);
+  const [maintenanceContext, setMaintenanceContext] = useState(null);
   const [detailAsset, setDetailAsset] = useState(null);
   const [imagePreviewAsset, setImagePreviewAsset] = useState(null);
   const [imagePreviewZoom, setImagePreviewZoom] = useState(false);
@@ -1706,14 +1812,17 @@ export default function AssetTrackingPage({ store, ui, auth }) {
     }
     setSaving(true);
     try {
-      const result = await assetTrackingService.saveMaintenanceRecord(maintenanceAsset, values);
-      setMaintenanceRecords((current) => [result.record, ...current]);
+      const result = await assetTrackingService.saveMaintenanceRecord(maintenanceContext.asset, values);
+      setMaintenanceRecords((current) => {
+        const withoutCurrent = current.filter((record) => record.id !== result.record.id);
+        return [result.record, ...withoutCurrent].sort((first, second) => new Date(second.date || second.created_at || 0) - new Date(first.date || first.created_at || 0));
+      });
       if (result.condition) {
-        setAssets((current) => current.map((asset) => asset.id === maintenanceAsset.id ? { ...asset, condition: result.condition } : asset));
-        if (detailAsset?.id === maintenanceAsset.id) setDetailAsset((current) => ({ ...current, condition: result.condition }));
+        setAssets((current) => current.map((asset) => asset.id === maintenanceContext.asset.id ? { ...asset, condition: result.condition } : asset));
+        if (detailAsset?.id === maintenanceContext.asset.id) setDetailAsset((current) => ({ ...current, condition: result.condition }));
       }
-      setMaintenanceAsset(null);
-      ui.notify({ title: "Maintenance record added", message: maintenanceAsset.name });
+      setMaintenanceContext(null);
+      ui.notify({ title: values.id ? "Maintenance record updated" : "Maintenance record added", message: maintenanceContext.asset.name });
     } catch (maintenanceError) {
       console.error("Unable to save maintenance record", maintenanceError);
       ui.notify({ title: "Unable to save maintenance", message: maintenanceError.message || "Please try again.", tone: "error" });
@@ -1960,9 +2069,9 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       {assetModal ? <AssetFormModal asset={assetModal} outlets={activeOutlets} categories={categories} onClose={() => setAssetModal(null)} onSubmit={saveAsset} saving={saving} /> : null}
       {categoryModalOpen ? <CategoryModal categories={categories} assets={assets} onClose={() => setCategoryModalOpen(false)} onSave={saveCategory} onArchive={archiveCategory} onReorder={reorderCategories} saving={saving} canWrite={canAdd || canEditAsset} canArchive={canDeleteAsset} /> : null}
       {adjustAsset ? <AdjustQuantityModal asset={adjustAsset} onClose={() => setAdjustAsset(null)} onSubmit={adjustQuantity} saving={saving} /> : null}
-      {maintenanceAsset ? <MaintenanceRecordModal asset={maintenanceAsset} onClose={() => setMaintenanceAsset(null)} onSubmit={saveMaintenanceRecord} saving={saving} /> : null}
+      {maintenanceContext ? <MaintenanceRecordModal asset={maintenanceContext.asset} record={maintenanceContext.record} onClose={() => setMaintenanceContext(null)} onSubmit={saveMaintenanceRecord} saving={saving} /> : null}
       {inspectionOpen ? <InspectionModal outletId={inspectionOpen?.outlet_id || outletId} categories={categories} assets={assets} draftInspection={inspectionOpen === true ? null : inspectionOpen} onClose={() => setInspectionOpen(false)} onSubmit={submitInspection} saving={saving} /> : null}
-      {detailAsset ? <AssetDetailDrawer asset={detailAsset} outlet={activeOutlets.find((outlet) => outlet.id === detailAsset.outlet_id)} movements={assetMovements} inspections={assetInspections} maintenanceRecords={assetMaintenanceRecords} onClose={() => setDetailAsset(null)} onResumeDraft={(inspection) => setInspectionOpen(inspection)} onDeleteDraft={deleteInspection} onArchiveDraft={(inspection) => updateInspectionStatus(inspection, "archived")} onAddMaintenance={(asset) => setMaintenanceAsset(asset)} /> : null}
+      {detailAsset ? <AssetDetailDrawer asset={detailAsset} outlet={activeOutlets.find((outlet) => outlet.id === detailAsset.outlet_id)} movements={assetMovements} inspections={assetInspections} maintenanceRecords={assetMaintenanceRecords} onClose={() => setDetailAsset(null)} onResumeDraft={(inspection) => setInspectionOpen(inspection)} onDeleteDraft={deleteInspection} onArchiveDraft={(inspection) => updateInspectionStatus(inspection, "archived")} onAddMaintenance={(asset) => setMaintenanceContext({ asset, record: null })} onEditMaintenance={(asset, record) => setMaintenanceContext({ asset, record })} /> : null}
       {conditionMenu ? <FloatingLayer anchor={conditionMenu.anchor} width={220} align="left" onClose={() => setConditionMenu(null)}>
         <div className="overflow-hidden rounded-2xl border border-border bg-white p-1.5 shadow-2xl">
           <div className="px-3 py-2 text-[11px] font-black uppercase tracking-wide text-text-muted">Update Condition</div>
@@ -1985,7 +2094,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
           {canManageAsset ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-primary/5 hover:text-primary" type="button" onClick={() => { setActionMenu(null); setAdjustAsset(actionMenu.asset); }}><Wrench size={14} /> Adjust Quantity</button> : null}
           {canManageAsset ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-primary/5 hover:text-primary" type="button" onClick={() => { setActionMenu(null); setInspectionOpen(true); }}><ClipboardCheck size={14} /> Start Inspection</button> : null}
           {canEditAsset ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-primary/5 hover:text-primary" type="button" onClick={() => { setActionMenu(null); setAssetModal(actionMenu.asset); }}><PackageCheck size={14} /> Edit Asset</button> : null}
-          {canManageAsset && actionMenu.asset.maintenance_allowed ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-primary/5 hover:text-primary" type="button" onClick={() => { setActionMenu(null); setMaintenanceAsset(actionMenu.asset); }}><Wrench size={14} /> Add Maintenance Record</button> : null}
+          {canManageAsset && actionMenu.asset.maintenance_allowed ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-primary/5 hover:text-primary" type="button" onClick={() => { setActionMenu(null); setMaintenanceContext({ asset: actionMenu.asset, record: null }); }}><Wrench size={14} /> Add Maintenance Record</button> : null}
           {canDeleteAsset ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-amber-700 hover:bg-amber-50" type="button" onClick={() => { const asset = actionMenu.asset; setActionMenu(null); archiveAsset(asset); }}><AlertTriangle size={14} /> Archive</button> : null}
         </div>
       </FloatingLayer> : null}
