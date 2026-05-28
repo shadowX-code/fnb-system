@@ -9,6 +9,22 @@ export type ModuleAction =
   | "import"
   | "upload"
   | "manage"
+  | "manage_master"
+  | "manage_categories"
+  | "manage_groups"
+  | "create_stock_check"
+  | "edit_stock_check"
+  | "review_stock_check"
+  | "lock_stock_check"
+  | "create_request"
+  | "approve_request"
+  | "generate_purchase_order"
+  | "manage_purchase_orders"
+  | "record_movement"
+  | "record_waste"
+  | "view_waste"
+  | "view_insights"
+  | "manage_recipes"
   | "enable_login"
   | "reset_password";
 
@@ -32,6 +48,22 @@ export const permissionActionOrder: ModuleAction[] = [
   "reset_password",
   "approve",
   "manage",
+  "manage_master",
+  "manage_categories",
+  "manage_groups",
+  "create_stock_check",
+  "edit_stock_check",
+  "review_stock_check",
+  "lock_stock_check",
+  "create_request",
+  "approve_request",
+  "generate_purchase_order",
+  "manage_purchase_orders",
+  "record_movement",
+  "record_waste",
+  "view_waste",
+  "view_insights",
+  "manage_recipes",
   "import",
   "upload",
   "export",
@@ -47,6 +79,22 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   reset_password: "Reset Password",
   approve: "Approve",
   manage: "Manage",
+  manage_master: "Manage Master Inventory",
+  manage_categories: "Manage Inventory Categories",
+  manage_groups: "Manage Stock Check Groups",
+  create_stock_check: "Create Stock Check",
+  edit_stock_check: "Edit Stock Check",
+  review_stock_check: "Review Stock Check",
+  lock_stock_check: "Lock Stock Check",
+  create_request: "Create Stock Request",
+  approve_request: "Approve Stock Request",
+  generate_purchase_order: "Generate Purchase Order",
+  manage_purchase_orders: "Manage Purchase Orders",
+  record_movement: "Record Inventory Movement",
+  record_waste: "Record Waste",
+  view_waste: "View Waste & Variance",
+  view_insights: "View AI Inventory Insights",
+  manage_recipes: "Manage Recipes & Usage",
   import: "Import",
   upload: "Upload",
   export: "Export",
@@ -225,6 +273,39 @@ export const moduleRegistry: AppModule[] = [
     icon: "asset-tracking",
     sidebar: true,
     permissions: { view: true, create: true, edit: true, delete: true, manage: true, export: true },
+  },
+  {
+    id: "inventory_control",
+    section: "Operations",
+    label: "Inventory Control",
+    route: "/operations/inventory-control",
+    icon: "inventory-control",
+    sidebar: true,
+    permissions: {
+      view: true,
+      create: true,
+      edit: true,
+      delete: true,
+      manage: true,
+      import: true,
+      export: true,
+      manage_master: true,
+      manage_categories: true,
+      manage_groups: true,
+      create_stock_check: true,
+      edit_stock_check: true,
+      review_stock_check: true,
+      lock_stock_check: true,
+      create_request: true,
+      approve_request: true,
+      generate_purchase_order: true,
+      manage_purchase_orders: true,
+      record_movement: true,
+      record_waste: true,
+      view_waste: true,
+      view_insights: true,
+      manage_recipes: true,
+    },
   },
   {
     id: "outlets",

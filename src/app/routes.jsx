@@ -14,6 +14,7 @@ import OutletDutyRosterPage from "../features/sales-purchase/pages/OutletDutyRos
 import OperatingExpensesPage from "../features/sales-purchase/pages/OperatingExpensesPage.jsx";
 import DutyRosterPage from "../features/sales-purchase/pages/DutyRosterPage.jsx";
 import AssetTrackingPage from "../features/sales-purchase/pages/AssetTrackingPage.jsx";
+import InventoryControlPage from "../features/sales-purchase/pages/InventoryControlPage.jsx";
 import SettingsPage from "../features/sales-purchase/pages/SettingsPage.jsx";
 import SupplierManagementPage from "../features/sales-purchase/pages/SupplierManagementPage.jsx";
 import UsersPage from "../features/company-users/pages/UsersPage.jsx";
@@ -128,6 +129,10 @@ const routeDetails = {
   asset_tracking: {
     description: "Track outlet assets, quantities, inspections and movement logs.",
     component: AssetTrackingPage,
+  },
+  inventory_control: {
+    description: "Daily stock checks, stock requests, purchase orders and inventory movement controls.",
+    component: InventoryControlPage,
   },
   "data-import": {
     description: "Future-ready Excel and CSV import flow with mock progress feedback.",

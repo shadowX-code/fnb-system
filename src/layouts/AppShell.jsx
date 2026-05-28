@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { BarChart3, Bell, Building2, CalendarDays, Check, ChevronsDownUp, ChevronsUpDown, ChevronDown, ClipboardList, Download, KeyRound, LogOut, Menu, Monitor, Moon, PieChart, Settings, Shield, Sun, UserRound, Users, Wallet, X } from "lucide-react";
+import { BarChart3, Bell, Building2, CalendarDays, Check, ChevronsDownUp, ChevronsUpDown, ChevronDown, ClipboardList, Download, KeyRound, LogOut, Menu, Monitor, Moon, PackageCheck, PieChart, Settings, Shield, Sun, UserRound, Users, Wallet, X } from "lucide-react";
 import Modal from "../components/feedback/Modal.jsx";
 import Badge from "../components/ui/Badge.jsx";
 import { EMPLOYEE_ACCESS_STATE, EMPLOYEE_ACCESS_STATE_LABEL } from "../constants/employeeAccessStates.js";
@@ -22,6 +22,7 @@ const iconMap = {
   product_analytics: PieChart,
   "operating-expenses": Wallet,
   "duty-roster": CalendarDays,
+  "inventory-control": PackageCheck,
   "data-import": Download,
   "data-health": BarChart3,
   "audit-logs": KeyRound,
