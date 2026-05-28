@@ -116,6 +116,7 @@ alter table public.inventory_stock_checks
   add column if not exists stock_check_type text not null default 'scheduled',
   add column if not exists audit_type text,
   add column if not exists audit_name text,
+  add column if not exists audit_category_ids uuid[] not null default '{}',
   add column if not exists notes text,
   add column if not exists status text not null default 'draft',
   add column if not exists submitted_at timestamptz,
@@ -146,6 +147,8 @@ alter table public.inventory_stock_check_items
   add column if not exists unit text,
   add column if not exists status text,
   add column if not exists notes text,
+  add column if not exists skipped boolean not null default false,
+  add column if not exists skip_reason text,
   add column if not exists created_at timestamptz not null default now();
 
 create table if not exists public.inventory_purchase_orders (

@@ -1956,6 +1956,19 @@ Purpose:
 
 Each outlet groups inventory categories into operational check lists. Items are generated automatically from active outlet-linked inventory items in those categories.
 
+Page behavior:
+
+- Stock Check Groups page uses an Outlet filter as the active creation and viewing context.
+- Owner/admin protected roles may use All Outlets for viewing; non-protected roles only see accessible outlets.
+- Add Group uses the currently selected outlet context.
+- If the active outlet context is All Outlets, user must select one outlet before creating a stock check group.
+- Add/Edit Group modal does not ask outlet again; it displays the selected outlet as read-only context.
+- Group list uses compact schedule/category display rather than large cards.
+- Custom schedules are summarized as `Custom · N days`; full weekdays are shown only through tooltip/popover detail.
+- Monthly schedules are summarized as `Monthly · 1st day`, `Monthly · 15th day`, or `Monthly · Last day`.
+- Category display shows 2-3 chips plus `+X categories` for longer groups.
+- Stock Check Groups page includes quick stats for total groups, due today, completed today, and inactive groups.
+
 Group fields:
 
 - id
@@ -2012,13 +2025,17 @@ Audit Stock Check workflow:
 
 - Stock Check page provides an Audit Stock Check action for special non-scheduled checks.
 - Audit types: Month-End Closing, Full Stock Audit, Spot Check, Category Audit, and Custom Audit.
-- Audit setup captures Outlet, Audit Date, Audit Name, Audit Type, category selection, optional item selection, and notes.
-- If categories are selected and no specific items are selected, the audit includes all active outlet-linked items under those categories.
-- If specific items are selected, the audit includes only those selected active outlet-linked items.
+- Audit setup captures Outlet, Audit Date, Audit Name, Audit Type, category selection, and notes.
+- Audit setup selects categories only, not individual items.
+- Selected categories generate the full list of active outlet-linked items under those categories.
+- Audit counting page groups generated items by category by default and supports item search.
+- Individual audit items can be skipped during counting only when a skip reason is provided.
+- Skipped items are preserved with skip reason, do not calculate variance, and show status Skipped.
+- Audit checks can be saved as Draft and continued later with audit metadata, selected categories, generated items, counts, notes, skipped items, and skip reasons preserved.
 - Audit checks calculate variance against outlet par level and create stock check history/result records.
 - Audit checks use `stock_check_type = audit` and may omit `stock_check_group_id`.
 - Audit Stock Check does not generate Purchase Suggestions, Draft PO, or ordering workflows.
-- Audit result cards show View Audit Result only.
+- Submitted audit result cards show View Audit Result only. Draft audit cards show Continue Audit.
 
 Stock check statuses:
 
@@ -2031,12 +2048,21 @@ Stock check item fields:
 
 - item_id
 - category_id
+- item photo thumbnail from `inventory_items.photo_url` / item photo field
 - par_level_quantity
 - actual_count_quantity
 - variance
 - unit
 - status
 - notes
+
+Stock check item display:
+
+- Scheduled Stock Check and Audit Stock Check counting rows show an item photo thumbnail when available.
+- If no item photo exists, rows show a safe initials/category fallback; broken image icons must never appear.
+- Item thumbnails can be clicked to open a larger lightbox preview with item name.
+- Stock Check result/detail views also show item thumbnails and support the same larger photo preview.
+- Thumbnail UI must remain visible and readable on mobile and dark mode.
 
 Variance rule:
 
@@ -2052,6 +2078,10 @@ Shortage rule:
 - Purchase Suggestions are accessed from completed scheduled Stock Check cards only.
 - Purchase Suggestions are generated from submitted scheduled check rows when the user clicks Review Purchase Suggestions.
 - Purchase Suggestions are reviewed before creating Draft POs.
+- Purchase Suggestions modal does not include a Finish Only action; users either create Draft PO or close the modal.
+- One completed scheduled Stock Check can generate Draft PO records only once.
+- Existing non-cancelled Purchase Orders with `source_type = stock_check` and `source_stock_check_id = current stock_check_id` block duplicate Draft PO creation.
+- Once Draft PO is created, the completed Stock Check card shows View Draft PO / linked PO access instead of allowing another Draft PO creation.
 - Suggested order quantity defaults to shortage quantity and remains editable.
 - Users may exclude suggested items, add remarks, or change supplier.
 - Supplier choices must come from suppliers linked to the selected outlet and assigned to the outlet-item configuration.
@@ -2102,6 +2132,7 @@ Rules:
 
 - Stock Check generated POs are created as Draft only.
 - One Draft PO is created per supplier per outlet per stock check confirmation.
+- A completed scheduled Stock Check must not create duplicate Draft POs when linked non-cancelled POs already exist.
 - Draft POs include only included suggestion rows with order quantity greater than zero.
 - Purchase Orders track source type and source stock check when generated from Stock Check.
 - Stock is not updated when a PO is submitted.
@@ -3250,8 +3281,8 @@ Inventory Control tables:
 - inventory_stock_check_groups
 - inventory_stock_check_group_categories
 - inventory_stock_check_group_items (legacy compatibility only; not used by the current group editing workflow)
-- inventory_stock_checks (`stock_check_type` = `scheduled` or `audit`; audit rows may store `audit_type`, `audit_name`, and `notes`)
-- inventory_stock_check_items
+- inventory_stock_checks (`stock_check_type` = `scheduled` or `audit`; audit rows may store `audit_type`, `audit_name`, `audit_category_ids`, and `notes`)
+- inventory_stock_check_items (supports counted rows plus `skipped` and `skip_reason` for audit workflows)
 - inventory_stock_requests
 - inventory_stock_request_items
 - inventory_purchase_orders
@@ -3704,6 +3735,17 @@ Shared UI foundation primitives:
 - DashboardSection: shared dashboard/card section wrapper for consistent section title, subtitle, action placement, density, and spacing.
 - StatusBadge: shared semantic badge primitive for lifecycle, condition, alert, maintenance, inspection, inventory, and dashboard states.
 - MetricCard: shared KPI/summary card primitive with default, primary, warning, danger, info, and neutral variants plus compact and standard sizes.
+- DatePickerField: shared enterprise calendar/date picker built on FloatingLayer for all date selection across FeedX.
+
+Date picker rules:
+
+- All modules must use the shared FeedX DatePickerField rather than native browser date inputs or page-local calendar implementations.
+- Calendar popovers use FloatingLayer so they do not clip inside cards, tables, drawers, or modals.
+- Date picker styling follows FeedX semantic surfaces, green selected state, soft green hover, muted outside-month days, and subtle today indicator.
+- Date picker supports outside click close, Escape close, keyboard opening, arrow-key day navigation, Today, and Clear.
+- Display format is `DD MMM YYYY` style, for example `28 May 2026`.
+- Manual input may accept numeric format such as `28/05/2026`.
+- Dark mode must keep card surfaces, text, hover state, selected state, and outside-month days readable.
 
 FloatingLayer migration status:
 

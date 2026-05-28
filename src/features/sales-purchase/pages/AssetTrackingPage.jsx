@@ -10,6 +10,7 @@ import MetricCard from "../../../components/ui/MetricCard.jsx";
 import ActivityTimeline from "../../../components/ui/Timeline.jsx";
 import DashboardSection from "../../../components/layout/DashboardSection.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
+import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import { assetTrackingService } from "../../../services/assetTrackingService.js";
@@ -821,9 +822,7 @@ function AdjustQuantityModal({ asset, onClose, onSubmit, saving }) {
         <FieldLabel label="Reason">
           <SelectField value={values.reason} placeholder={requiresReason ? "Required" : "Optional"} options={reduceReasons.map((reason) => ({ value: reason, label: titleCase(reason) }))} onChange={(value) => update("reason", value)} />
         </FieldLabel>
-        <FieldLabel label="Date">
-          <input className="control" type="date" value={values.date} onChange={(event) => update("date", event.target.value)} />
-        </FieldLabel>
+        <DatePickerField label="Date" value={values.date} onChange={(value) => update("date", value)} />
         <FieldLabel label="Remark">
           <textarea className="control min-h-24 md:col-span-2" value={values.remark} onChange={(event) => update("remark", event.target.value)} placeholder={values.reason === "other" ? "Required for Other" : "Optional"} />
         </FieldLabel>
@@ -952,19 +951,13 @@ function MaintenanceRecordModal({ asset, record, onClose, onSubmit, saving }) {
             <input className="control" type="number" min="0" step="0.01" value={values.cost} onChange={(event) => update("cost", event.target.value)} placeholder="0.00" />
           </FieldLabel>
           {showScheduledDate ? (
-            <FieldLabel label="Scheduled Date">
-              <input className="control" type="date" value={values.scheduled_date} onChange={(event) => update("scheduled_date", event.target.value)} />
-            </FieldLabel>
+            <DatePickerField label="Scheduled Date" value={values.scheduled_date} onChange={(value) => update("scheduled_date", value)} />
           ) : null}
           {showCompletedDate ? (
-            <FieldLabel label="Completed Date">
-              <input className="control" type="date" value={values.completed_date} onChange={(event) => update("completed_date", event.target.value)} />
-            </FieldLabel>
+            <DatePickerField label="Completed Date" value={values.completed_date} onChange={(value) => update("completed_date", value)} />
           ) : null}
           {showNextServiceDate ? (
-            <FieldLabel label="Next Service Date">
-              <input className="control" type="date" value={values.next_service_date} onChange={(event) => update("next_service_date", event.target.value)} />
-            </FieldLabel>
+            <DatePickerField label="Next Service Date" value={values.next_service_date} onChange={(value) => update("next_service_date", value)} />
           ) : null}
         <FieldLabel label="Photo Evidence">
           <div className="flex items-center gap-3">
@@ -1122,19 +1115,13 @@ function MaintenanceRecordEditorPanel({ asset, record, onBack, onSubmit, saving 
             <input className="control" type="number" min="0" step="0.01" value={values.cost} onChange={(event) => update("cost", event.target.value)} placeholder="0.00" />
           </FieldLabel>
           {showScheduledDate ? (
-            <FieldLabel label="Scheduled Date">
-              <input className="control" type="date" value={values.scheduled_date} onChange={(event) => update("scheduled_date", event.target.value)} />
-            </FieldLabel>
+            <DatePickerField label="Scheduled Date" value={values.scheduled_date} onChange={(value) => update("scheduled_date", value)} />
           ) : null}
           {showCompletedDate ? (
-            <FieldLabel label="Completed Date">
-              <input className="control" type="date" value={values.completed_date} onChange={(event) => update("completed_date", event.target.value)} />
-            </FieldLabel>
+            <DatePickerField label="Completed Date" value={values.completed_date} onChange={(value) => update("completed_date", value)} />
           ) : null}
           {showNextServiceDate ? (
-            <FieldLabel label="Next Service Date">
-              <input className="control" type="date" value={values.next_service_date} onChange={(event) => update("next_service_date", event.target.value)} />
-            </FieldLabel>
+            <DatePickerField label="Next Service Date" value={values.next_service_date} onChange={(value) => update("next_service_date", value)} />
           ) : null}
           <FieldLabel label="Photo Evidence">
             <div className="flex items-center gap-3">
@@ -1546,7 +1533,7 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
             <SelectField value={inspectionType} options={inspectionTypeOptions.map((option) => ({ value: option.value, label: option.label }))} onChange={(value) => setInspectionType(normalizeInspectionType(value))} />
             <div className="mt-1 text-xs font-semibold text-text-muted">{inspectionTypeOptions.find((option) => option.value === inspectionType)?.helper}</div>
           </FieldLabel>
-          <FieldLabel label="Inspection Date"><input className="control" type="date" value={inspectionDate} onChange={(event) => setInspectionDate(event.target.value)} /></FieldLabel>
+          <DatePickerField label="Inspection Date" value={inspectionDate} onChange={setInspectionDate} />
           <FieldLabel label="Checked By"><input className="control" value={checkedBy} onChange={(event) => setCheckedBy(event.target.value)} placeholder="Manager name" /></FieldLabel>
           <FieldLabel label="Category Scope">
             <SelectField value={scopeType} options={[{ value: "all", label: "All Categories" }, { value: "selected", label: "Selected Categories" }]} onChange={setScopeType} />
