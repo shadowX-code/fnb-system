@@ -24,9 +24,9 @@ const quickFilterLabels = {
   under_maintenance: "Under Maintenance",
   overdue: "Overdue",
   inspected_today: "Recently Inspected",
-  inspection_completion: "Inspection Completion",
   low_quantity: "Low Quantity",
   missing: "Missing",
+  disposed: "Disposed",
   high_variance: "High Variance",
   no_photo: "No Photo",
 };
@@ -40,6 +40,20 @@ function formatFullDate(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return "—";
   return date.toLocaleDateString("en-MY", { day: "2-digit", month: "short", year: "numeric" });
+}
+
+function formatTime(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleTimeString("en-MY", { hour: "numeric", minute: "2-digit" });
+}
+
+function formatDateTime(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return `${formatFullDate(value)}, ${formatTime(value)}`;
 }
 
 function formatRelativeDate(value) {
@@ -1230,13 +1244,13 @@ function readEvidenceFiles(files, onDone) {
   });
 }
 
-function InspectionModal({ outletId, categories, assets, draftInspection, onClose, onSubmit, saving }) {
+function InspectionModal({ outletId, categories, assets, draftInspection, defaultCheckedBy = "", onClose, onSubmit, saving }) {
   const draftData = draftInspection?.draft_data || {};
   const [step, setStep] = useState(draftInspection?.current_step || draftData.currentStep || 1);
   const [inspectionType, setInspectionType] = useState(draftData.inspectionType || draftInspection?.summary?.inspection_type || "routine_audit");
   const [scopeType, setScopeType] = useState(draftData.scopeType || draftInspection?.category_scope?.type || "all");
   const [selectedCategoryIds, setSelectedCategoryIds] = useState(draftData.selectedCategoryIds || draftInspection?.category_scope?.category_ids || []);
-  const [checkedBy, setCheckedBy] = useState(draftData.checkedBy || draftInspection?.checked_by || "");
+  const [checkedBy, setCheckedBy] = useState(draftData.checkedBy || draftInspection?.checked_by || defaultCheckedBy || "");
   const [inspectionDate, setInspectionDate] = useState(draftData.inspectionDate || draftInspection?.inspection_date || new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState(draftData.notes || draftInspection?.notes || "");
   const [lightbox, setLightbox] = useState(null);
@@ -1522,7 +1536,7 @@ function InspectionModal({ outletId, categories, assets, draftInspection, onClos
   );
 }
 
-function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], maintenanceRecords = [], onClose, onResumeDraft, onDeleteDraft, onArchiveDraft, onSaveMaintenance, saving }) {
+function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], maintenanceRecords = [], currentProfile, onClose, onResumeDraft, onDeleteDraft, onArchiveDraft, onSaveMaintenance, saving }) {
   const [tab, setTab] = useState("overview");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewZoom, setPreviewZoom] = useState(false);
@@ -1737,7 +1751,7 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
             </div>
           ) : null}
           {tab === "movement" ? <Timeline rows={movements} empty="No movement logs yet." /> : null}
-          {tab === "inspection" ? <InspectionHistory inspections={inspections} onResumeDraft={onResumeDraft} onDeleteDraft={onDeleteDraft} onArchiveDraft={onArchiveDraft} /> : null}
+          {tab === "inspection" ? <InspectionHistory inspections={inspections} outlet={outlet} currentProfile={currentProfile} onResumeDraft={onResumeDraft} onDeleteDraft={onDeleteDraft} onArchiveDraft={onArchiveDraft} /> : null}
           {tab === "maintenance" ? (
             <div className="space-y-4">
               <div className="flex items-start justify-between gap-3">
@@ -1855,42 +1869,185 @@ function Timeline({ rows, empty }) {
   ))}</div> : <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm font-semibold text-text-secondary">{empty}</div>;
 }
 
-function InspectionHistory({ inspections = [], onResumeDraft, onDeleteDraft, onArchiveDraft }) {
-  return inspections.length ? <div className="space-y-3">{inspections.map((inspection) => (
-    <div key={inspection.id} className={`rounded-2xl border p-3 ${isDraftInspection(inspection) ? "border-amber-200 bg-amber-50/50" : "border-border bg-background"}`}>
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-        <button className="min-w-0 text-left" type="button" onClick={() => isDraftInspection(inspection) && onResumeDraft?.(inspection)}>
-          <div className="flex flex-wrap items-center gap-2">
-            <div className="text-sm font-bold text-text-primary"><DateText value={inspection.inspection_date} /></div>
-            <Badge tone={isDraftInspection(inspection) ? "warning" : "info"}>{draftStatusLabel(inspection.status)}</Badge>
+function profileDisplayName(profile) {
+  return profile?.nickname || profile?.full_name || profile?.email || "";
+}
+
+function inspectionActorMeta(inspection, currentProfile) {
+  const actorIds = [inspection.created_by, inspection.last_edited_by].filter(Boolean);
+  const actorMatchesProfile = Boolean(currentProfile?.id && actorIds.includes(currentProfile.id));
+  const name = inspection.checked_by || (actorMatchesProfile ? profileDisplayName(currentProfile) : "");
+  const role = actorMatchesProfile ? (currentProfile.position || currentProfile.role_name || "") : "";
+  const timestamp = inspection.updated_at || inspection.last_edited_at || inspection.created_at || inspection.inspection_date;
+  return { name, role, timestamp };
+}
+
+function CheckedByText({ inspection, currentProfile }) {
+  const actor = inspectionActorMeta(inspection, currentProfile);
+  if (!actor.name) return <span>Checked by: Unknown user</span>;
+  return (
+    <span>
+      Checked by {actor.name}
+      {actor.role ? <span> · {actor.role}</span> : null}
+      {actor.timestamp ? <span> · {formatDateTime(actor.timestamp)}</span> : null}
+    </span>
+  );
+}
+
+function inspectionDateKey(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 10);
+  return `${date.getFullYear()}-${date.getMonth() + 1}-${date.getDate()}`;
+}
+
+function inspectionDisplayDate(inspection, sameDateCount) {
+  const timestamp = inspection.updated_at || inspection.created_at || inspection.inspection_date;
+  return sameDateCount > 1 ? `${formatFullDate(inspection.inspection_date)} · ${formatTime(timestamp)}` : formatFullDate(inspection.inspection_date);
+}
+
+function inspectionVarianceCount(inspection) {
+  return (inspection.items || []).filter((item) => Number(item.difference || 0) !== 0).length;
+}
+
+function InspectionDetailModal({ inspection, outlet, currentProfile, onClose }) {
+  const rows = inspection.items || [];
+  return createPortal(
+    <div className="fixed inset-0 z-[10020] flex items-center justify-center bg-slate-950/45 p-4" role="dialog" aria-modal="true">
+      <button className="absolute inset-0" type="button" aria-label="Close inspection details" onClick={onClose} />
+      <div className="relative flex max-h-[86vh] w-full max-w-3xl flex-col overflow-hidden rounded-3xl border border-border bg-white shadow-2xl">
+        <div className="flex items-start justify-between gap-4 border-b border-border bg-slate-50 px-5 py-4">
+          <div>
+            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-primary">Inspection Details</div>
+            <div className="mt-1 text-xl font-semibold text-text-primary">{formatFullDate(inspection.inspection_date)}</div>
+            <div className="mt-1 text-xs font-semibold text-text-secondary"><CheckedByText inspection={inspection} currentProfile={currentProfile} /></div>
           </div>
-          <div className="mt-2 text-xs font-semibold text-text-secondary">{inspection.summary?.total_assets || (inspection.items || []).length} assets · {inspection.summary?.critical_alerts || 0} critical · saved <DateText value={inspection.last_edited_at || inspection.updated_at} /></div>
-          {isDraftInspection(inspection) ? (
-            <div className="mt-2">
-              <div className="h-2 overflow-hidden rounded-full bg-white">
-                <div className="h-full rounded-full bg-primary" style={{ width: `${inspectionProgress(inspection)}%` }} />
+          <button className="icon-btn" type="button" onClick={onClose} aria-label="Close inspection details"><X size={18} /></button>
+        </div>
+        <div className="space-y-4 overflow-y-auto p-5">
+          <div className="grid gap-3 sm:grid-cols-4">
+            {[
+              ["Outlet", outlet?.name || "Outlet"],
+              ["Status", draftStatusLabel(inspection.status)],
+              ["Assets Checked", inspection.summary?.checked_assets || rows.length],
+              ["Variance", inspectionVarianceCount(inspection)],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-2xl border border-border bg-background p-3">
+                <div className="text-[10px] font-black uppercase tracking-wide text-text-muted">{label}</div>
+                <div className="mt-1 text-sm font-black text-text-primary">{value}</div>
               </div>
-              <div className="mt-1 text-xs font-bold text-text-muted">{inspectionProgress(inspection)}% completed</div>
+            ))}
+          </div>
+          <div className="overflow-hidden rounded-2xl border border-border">
+            <div className="grid grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr_1fr] gap-2 bg-slate-50 px-3 py-2 text-[10px] font-black uppercase tracking-wide text-text-muted">
+              <div>Asset</div>
+              <div>Expected</div>
+              <div>Counted</div>
+              <div>Diff</div>
+              <div>Condition</div>
+            </div>
+            <div className="divide-y divide-border">
+              {rows.map((item) => (
+                <div key={item.id} className="grid grid-cols-[1.4fr_0.8fr_0.8fr_0.8fr_1fr] gap-2 px-3 py-2 text-xs font-semibold text-text-secondary">
+                  <div className="min-w-0">
+                    <div className="truncate font-black text-text-primary">{item.asset?.name || "Asset"}</div>
+                    {item.remark ? <div className="mt-0.5 truncate text-[11px] text-text-muted">{item.remark}</div> : null}
+                    {(item.evidence || []).length ? <div className="mt-0.5 text-[11px] font-bold text-primary">{(item.evidence || []).length} evidence uploaded</div> : null}
+                  </div>
+                  <div>{item.expected_quantity ?? item.expected_qty ?? 0}</div>
+                  <div>{item.counted_quantity ?? item.counted_qty ?? 0}</div>
+                  <div className={Number(item.difference || 0) === 0 ? "text-emerald-700" : Number(item.difference || 0) > 0 ? "text-blue-700" : "text-rose-700"}>{Number(item.difference || 0) > 0 ? "+" : ""}{Number(item.difference || 0)}</div>
+                  <div><Badge tone={assetConditionTone(item.condition_status)}>{assetConditionLabel(item.condition_status)}</Badge></div>
+                </div>
+              ))}
+              {!rows.length ? <div className="px-3 py-5 text-center text-sm font-semibold text-text-secondary">No checked assets recorded.</div> : null}
+            </div>
+          </div>
+          {inspection.notes || inspection.remark ? (
+            <div className="rounded-2xl border-l-4 border-primary/30 bg-slate-50 px-4 py-3">
+              <div className="text-[10px] font-black uppercase tracking-wide text-text-muted">Notes</div>
+              <div className="mt-1 text-sm font-semibold text-text-secondary">{inspection.notes || inspection.remark}</div>
             </div>
           ) : null}
-        </button>
-        {isDraftInspection(inspection) ? (
-          <div className="flex flex-wrap gap-1.5">
-            <button className="btn-primary h-8 px-2 text-xs" type="button" onClick={() => onResumeDraft?.(inspection)}>Resume</button>
-            <button className="btn-secondary h-8 px-2 text-xs" type="button" onClick={() => onArchiveDraft?.(inspection)}>Archive</button>
-            <button className="btn-secondary h-8 px-2 text-xs text-rose-700" type="button" onClick={() => onDeleteDraft?.(inspection)}>Delete</button>
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function InspectionHistory({ inspections = [], outlet, currentProfile, onResumeDraft, onDeleteDraft, onArchiveDraft }) {
+  const [detailInspection, setDetailInspection] = useState(null);
+  const dateCounts = useMemo(() => {
+    const counts = new Map();
+    inspections.forEach((inspection) => {
+      const key = inspectionDateKey(inspection.inspection_date);
+      counts.set(key, (counts.get(key) || 0) + 1);
+    });
+    return counts;
+  }, [inspections]);
+
+  return inspections.length ? (
+    <>
+      <div className="space-y-3">{inspections.map((inspection) => {
+        const rows = inspection.items || [];
+        const checkedCount = inspection.summary?.checked_assets || rows.length;
+        const varianceCount = inspectionVarianceCount(inspection);
+        const previewRows = rows.slice(0, 3);
+        const dateKey = inspectionDateKey(inspection.inspection_date);
+        return (
+          <div key={inspection.id} className={`rounded-2xl border p-3 ${isDraftInspection(inspection) ? "border-amber-200 bg-amber-50/50" : "border-border bg-background"}`}>
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <button className="min-w-0 flex-1 text-left" type="button" onClick={() => isDraftInspection(inspection) && onResumeDraft?.(inspection)}>
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="text-sm font-black text-text-primary">{inspectionDisplayDate(inspection, dateCounts.get(dateKey) || 0)}</div>
+                  <Badge tone={isDraftInspection(inspection) ? "warning" : "success"}>{draftStatusLabel(inspection.status)}</Badge>
+                </div>
+                <div className="mt-1 text-xs font-semibold text-text-secondary"><CheckedByText inspection={inspection} currentProfile={currentProfile} /></div>
+                <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold text-text-muted">
+                  <span>{checkedCount} assets checked</span>
+                  <span>{inspection.summary?.critical_alerts || 0} critical</span>
+                  <span>{varianceCount} variance</span>
+                  <span>Saved {formatDateTime(inspection.last_edited_at || inspection.updated_at || inspection.created_at)}</span>
+                </div>
+                {isDraftInspection(inspection) ? (
+                  <div className="mt-2">
+                    <div className="h-2 overflow-hidden rounded-full bg-white">
+                      <div className="h-full rounded-full bg-primary" style={{ width: `${inspectionProgress(inspection)}%` }} />
+                    </div>
+                    <div className="mt-1 text-xs font-bold text-text-muted">{inspectionProgress(inspection)}% completed</div>
+                  </div>
+                ) : null}
+              </button>
+              <div className="flex flex-wrap gap-1.5">
+                {!isDraftInspection(inspection) ? <button className="btn-secondary h-8 px-2 text-xs" type="button" onClick={() => setDetailInspection(inspection)}>View Details</button> : null}
+                {isDraftInspection(inspection) ? <button className="btn-primary h-8 px-2 text-xs" type="button" onClick={() => onResumeDraft?.(inspection)}>Resume</button> : null}
+                {isDraftInspection(inspection) ? <button className="btn-secondary h-8 px-2 text-xs" type="button" onClick={() => onArchiveDraft?.(inspection)}>Archive</button> : null}
+                {isDraftInspection(inspection) ? <button className="btn-secondary h-8 px-2 text-xs text-rose-700" type="button" onClick={() => onDeleteDraft?.(inspection)}>Delete</button> : null}
+              </div>
+            </div>
+            {!isDraftInspection(inspection) ? (
+              <div className="mt-3 space-y-1.5">
+                {previewRows.map((item) => (
+                  <div key={item.id} className="rounded-xl border border-border bg-white px-3 py-2 text-xs font-semibold text-text-secondary">
+                    <div className="font-black text-text-primary">{item.asset?.name || "Asset"}</div>
+                    <div className="mt-0.5">Expected {item.expected_quantity ?? item.expected_qty ?? 0} · Counted {item.counted_quantity ?? item.counted_qty ?? 0} · {Number(item.difference || 0) > 0 ? "+" : ""}{Number(item.difference || 0)} · {assetConditionLabel(item.condition_status)}</div>
+                  </div>
+                ))}
+                {rows.length > previewRows.length ? <div className="px-1 text-[11px] font-bold text-text-muted">+ {rows.length - previewRows.length} more checked assets</div> : null}
+              </div>
+            ) : null}
           </div>
-        ) : null}
-      </div>
-      <div className="mt-2 space-y-1">
-        {!isDraftInspection(inspection) ? (inspection.items || []).map((item) => <div key={item.id} className="text-xs font-semibold text-text-secondary">{item.asset?.name || "Asset"} · Expected {item.expected_quantity}, Counted {item.counted_quantity}, Difference {item.difference} · {assetConditionLabel(item.condition_status)}</div>) : null}
-      </div>
-    </div>
-  ))}</div> : <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm font-semibold text-text-secondary">No inspection history yet.</div>;
+        );
+      })}</div>
+      {detailInspection ? <InspectionDetailModal inspection={detailInspection} outlet={outlet} currentProfile={currentProfile} onClose={() => setDetailInspection(null)} /> : null}
+    </>
+  ) : <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm font-semibold text-text-secondary">No inspection history yet.</div>;
 }
 
 export default function AssetTrackingPage({ store, ui, auth }) {
   const activeOutlets = useMemo(() => (store?.outlets || []).filter((outlet) => outlet.status === "active" || outlet.is_active), [store?.outlets]);
+  const currentInspectorName = auth?.profile?.nickname || auth?.profile?.full_name || auth?.user?.email || "";
   const [outletId, setOutletId] = useState(activeOutlets[0]?.id ?? "");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -2001,9 +2158,17 @@ export default function AssetTrackingPage({ store, ui, auth }) {
     return map;
   }, new Map()), [assets, inspectionByAsset, maintenanceByAsset]);
 
-  const filteredAssets = useMemo(() => assets
+  const scopedAssets = useMemo(() => assets
     .filter((asset) => categoryFilter === "all" || asset.category_id === categoryFilter)
     .filter((asset) => statusFilter === "all" || normalizeAssetCondition(asset.condition) === statusFilter)
+    .filter((asset) => asset.status !== "archived")
+    .filter((asset) => {
+      const search = query.trim().toLowerCase();
+      if (!search) return true;
+      return [asset.name, asset.category_name, asset.remark].some((value) => String(value || "").toLowerCase().includes(search));
+    }), [assets, categoryFilter, query, statusFilter]);
+
+  const filteredAssets = useMemo(() => scopedAssets
     .filter((asset) => {
       if (quickFilter === "all") return true;
       if (quickFilter === "attention") return assetNeedsAttention(asset);
@@ -2014,19 +2179,15 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       if (quickFilter === "overdue") return assetSignalsById.get(asset.id)?.overdue === true;
       if (quickFilter === "low_quantity") return normalizeAssetCondition(asset.condition) === "low_quantity" || (Number(asset.minimum_quantity || 0) > 0 && Number(asset.current_quantity || 0) <= Number(asset.minimum_quantity || 0));
       if (quickFilter === "missing") return normalizeAssetCondition(asset.condition) === "missing" || Number(asset.current_quantity || 0) <= 0;
+      if (quickFilter === "disposed") return normalizeAssetCondition(asset.condition) === "disposed";
       if (quickFilter === "high_variance") return assetSignalsById.get(asset.id)?.highVariance === true;
       if (quickFilter === "no_photo") return !asset.image_url && !asset.thumbnail_url;
-      if (quickFilter === "inspected_today" || quickFilter === "inspection_completion") {
+      if (quickFilter === "inspected_today") {
         const latest = asset.last_inspection_at || inspections.find((inspection) => (inspection.items || []).some((item) => item.asset_id === asset.id))?.inspection_date;
         return formatRelativeDate(latest) === "Today";
       }
       return true;
-    })
-    .filter((asset) => {
-      const search = query.trim().toLowerCase();
-      if (!search) return true;
-      return [asset.name, asset.category_name, asset.remark].some((value) => String(value || "").toLowerCase().includes(search));
-    }), [assetSignalsById, assets, categoryFilter, inspections, maintenanceByAsset, query, quickFilter, statusFilter]);
+    }), [assetSignalsById, inspections, maintenanceByAsset, quickFilter, scopedAssets]);
 
   const groupedAssets = useMemo(() => {
     const groups = new Map();
@@ -2049,18 +2210,27 @@ export default function AssetTrackingPage({ store, ui, auth }) {
   }, [assetSignalsById, filteredAssets]);
 
   const summary = useMemo(() => {
-    const lastChecked = inspections[0]?.inspection_date || filteredAssets.find((asset) => asset.last_inspection_at)?.last_inspection_at;
+    const scopedAssetIds = new Set(scopedAssets.map((asset) => asset.id));
+    const latestInspection = inspections
+      .filter((inspection) => !isDraftInspection(inspection))
+      .filter((inspection) => (inspection.items || []).some((item) => scopedAssetIds.has(item.asset_id)))
+      .sort((first, second) => new Date(second.inspection_date || second.updated_at || 0) - new Date(first.inspection_date || first.updated_at || 0))[0];
+    const inspectedItems = (latestInspection?.items || []).filter((item) => scopedAssetIds.has(item.asset_id));
+    const lastChecked = latestInspection?.inspection_date || scopedAssets.find((asset) => asset.last_inspection_at)?.last_inspection_at;
+    const lastInspectionDetail = latestInspection
+      ? inspectedItems.length === 1
+        ? `${inspectedItems[0]?.asset?.name || "Asset"} inspected`
+        : `${inspectedItems.length || latestInspection.summary?.checked_assets || latestInspection.summary?.total_assets || 0} assets inspected`
+      : "No inspection yet";
     return {
-      totalItems: filteredAssets.length,
-      totalQuantity: filteredAssets.reduce((sum, asset) => sum + Number(asset.current_quantity || 0), 0),
-      categories: new Set(filteredAssets.map((asset) => asset.category_id)).size,
-      review: filteredAssets.filter((asset) => (asset.condition || "healthy") !== "healthy" || Number(asset.current_quantity || 0) <= Number(asset.minimum_quantity || 0)).length,
+      totalItems: scopedAssets.length,
       lastChecked,
+      lastInspectionDetail,
     };
-  }, [filteredAssets, inspections]);
+  }, [inspections, scopedAssets]);
 
   const operationalKpis = useMemo(() => {
-    const operationalAssets = filteredAssets.filter((asset) => normalizeAssetCondition(asset.condition) !== "disposed" && asset.status !== "archived");
+    const operationalAssets = scopedAssets.filter((asset) => normalizeAssetCondition(asset.condition) !== "disposed");
     const operationalAssetIds = new Set(operationalAssets.map((asset) => asset.id));
     const scheduledMaintenance = maintenanceRecords.filter((record) => record.status === "scheduled" && operationalAssetIds.has(record.asset_id)).length;
     const activeMaintenanceAssetIds = new Set(maintenanceRecords
@@ -2081,15 +2251,15 @@ export default function AssetTrackingPage({ store, ui, auth }) {
         (inspection.items || []).forEach((item) => inspectedTodayAssetIds.add(item.asset_id));
       });
     const recentlyInspected = operationalAssets.filter((asset) => inspectedTodayAssetIds.has(asset.id) || formatRelativeDate(asset.last_inspection_at) === "Today").length;
-    const inspectionCompletion = operationalAssets.length ? Math.round((recentlyInspected / operationalAssets.length) * 100) : 0;
     const missingAssets = operationalAssets.filter((asset) => normalizeAssetCondition(asset.condition) === "missing" || Number(asset.current_quantity || 0) <= 0).length;
     const lowQuantity = operationalAssets.filter((asset) => {
       const quantity = Number(asset.current_quantity || 0);
       const minimum = Number(asset.minimum_quantity || 0);
       return normalizeAssetCondition(asset.condition) === "low_quantity" || (minimum > 0 && quantity <= minimum);
     }).length;
-    return { scheduledMaintenance, underMaintenance, missingLowQuantity, needsAttention, recentlyInspected, inspectionCompletion, missingAssets, lowQuantity };
-  }, [assetSignalsById, filteredAssets, inspections, maintenanceRecords]);
+    const disposed = scopedAssets.filter((asset) => normalizeAssetCondition(asset.condition) === "disposed").length;
+    return { scheduledMaintenance, underMaintenance, missingLowQuantity, needsAttention, recentlyInspected, missingAssets, lowQuantity, disposed };
+  }, [scopedAssets, inspections, maintenanceRecords]);
 
   const recentActivityRows = useMemo(() => {
     const movementRows = movements.slice(0, 6).map((movement) => ({
@@ -2377,6 +2547,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
             ["inspected_today", "Recently Inspected"],
             ["low_quantity", "Low Quantity"],
             ["missing", "Missing"],
+            ["disposed", "Disposed"],
             ["high_variance", "High Variance"],
             ["no_photo", "No Photo"],
           ].map(([value, label]) => (
@@ -2456,7 +2627,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       {activeOutlets.length ? <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-2">
         {[
           ["Total Asset Items", summary.totalItems, "Assets in selected scope", "text-text-primary"],
-          ["Active Outlets", activeOutlets.length, "Outlets available to this view", "text-text-primary"],
+          ["Last Inspection", summary.lastChecked ? formatFullDate(summary.lastChecked) : "No inspection yet", summary.lastInspectionDetail, "text-text-primary"],
         ].map(([label, value, helper, toneClass]) => (
           <Card key={label} className="p-3.5">
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{label}</div>
@@ -2499,15 +2670,16 @@ export default function AssetTrackingPage({ store, ui, auth }) {
                 ["Under Maintenance", operationalKpis.underMaintenance, "Active repair work", "under_maintenance", "bg-blue-50 text-blue-700 border-blue-100"],
                 ["Needs Attention", operationalKpis.needsAttention, "Minor issue needs follow-up", "needs_attention", "bg-amber-50 text-amber-700 border-amber-100"],
                 ["Low Quantity", operationalKpis.lowQuantity, "At or below minimum level", "low_quantity", "bg-orange-50 text-orange-700 border-orange-100"],
-                ["Recently Inspected", operationalKpis.recentlyInspected, "Checked today", "inspected_today", "bg-emerald-50 text-emerald-700 border-emerald-100"],
                 ["Missing Asset", operationalKpis.missingAssets, "Unavailable or zero quantity", "missing", "bg-rose-50 text-rose-700 border-rose-100"],
-                ["Inspection Completion", `${operationalKpis.inspectionCompletion}%`, "Today across visible assets", "inspection_completion", "bg-slate-50 text-slate-700 border-slate-200"],
+                ["Disposed", operationalKpis.disposed, "Written off / no longer operational", "disposed", "bg-slate-50 text-slate-600 border-slate-200"],
+                ["Recently Inspected", operationalKpis.recentlyInspected, "Checked today", "inspected_today", "bg-emerald-50 text-emerald-700 border-emerald-100"],
               ].map(([label, value, helper, filterValue, className]) => {
                 const active = quickFilter === filterValue;
+                const muted = Number(value) === 0;
                 return (
                 <button
                   key={label}
-                  className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${className} ${active ? "ring-2 ring-primary/25 shadow-sm" : ""}`}
+                  className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${className} ${active ? "ring-2 ring-primary/25 shadow-sm" : ""} ${muted && !active ? "opacity-65" : ""}`}
                   type="button"
                   onClick={() => applyOperationalFilter(filterValue)}
                 >
@@ -2641,8 +2813,8 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       {categoryModalOpen ? <CategoryModal categories={categories} assets={assets} onClose={() => setCategoryModalOpen(false)} onSave={saveCategory} onArchive={archiveCategory} onReorder={reorderCategories} saving={saving} canWrite={canAdd || canEditAsset} canArchive={canDeleteAsset} /> : null}
       {adjustAsset ? <AdjustQuantityModal asset={adjustAsset} onClose={() => setAdjustAsset(null)} onSubmit={adjustQuantity} saving={saving} /> : null}
       {maintenanceContext ? <MaintenanceRecordModal asset={maintenanceContext.asset} record={maintenanceContext.record} onClose={() => setMaintenanceContext(null)} onSubmit={saveMaintenanceRecord} saving={saving} /> : null}
-      {inspectionOpen ? <InspectionModal outletId={inspectionOpen?.outlet_id || outletId} categories={categories} assets={assets} draftInspection={inspectionOpen === true ? null : inspectionOpen} onClose={() => setInspectionOpen(false)} onSubmit={submitInspection} saving={saving} /> : null}
-      {detailAsset ? <AssetDetailDrawer asset={detailAsset} outlet={activeOutlets.find((outlet) => outlet.id === detailAsset.outlet_id)} movements={assetMovements} inspections={assetInspections} maintenanceRecords={assetMaintenanceRecords} onClose={() => setDetailAsset(null)} onResumeDraft={(inspection) => setInspectionOpen(inspection)} onDeleteDraft={deleteInspection} onArchiveDraft={(inspection) => updateInspectionStatus(inspection, "archived")} onSaveMaintenance={(asset, values) => saveMaintenanceRecord(values, asset)} saving={saving} /> : null}
+      {inspectionOpen ? <InspectionModal outletId={inspectionOpen?.outlet_id || outletId} categories={categories} assets={assets} draftInspection={inspectionOpen === true ? null : inspectionOpen} defaultCheckedBy={currentInspectorName} onClose={() => setInspectionOpen(false)} onSubmit={submitInspection} saving={saving} /> : null}
+      {detailAsset ? <AssetDetailDrawer asset={detailAsset} outlet={activeOutlets.find((outlet) => outlet.id === detailAsset.outlet_id)} movements={assetMovements} inspections={assetInspections} maintenanceRecords={assetMaintenanceRecords} currentProfile={auth?.profile} onClose={() => setDetailAsset(null)} onResumeDraft={(inspection) => setInspectionOpen(inspection)} onDeleteDraft={deleteInspection} onArchiveDraft={(inspection) => updateInspectionStatus(inspection, "archived")} onSaveMaintenance={(asset, values) => saveMaintenanceRecord(values, asset)} saving={saving} /> : null}
       {assetPreview ? <FloatingPreviewLayer anchor={assetPreview.anchor} width={300}>
         <div className="overflow-hidden rounded-3xl border border-border bg-white shadow-2xl">
           <div className="p-3">

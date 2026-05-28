@@ -213,6 +213,7 @@ function isMissingMaintenanceTable(error) {
 function mapInspection(row, items = []) {
   const normalizedItems = (items ?? []).map((item) => ({
     ...item,
+    evidence: item.evidence ?? [],
     condition: normalizeConditionValue(item.condition ?? item.condition_status),
     condition_status: normalizeConditionValue(item.condition_status ?? item.condition),
   }));
@@ -227,6 +228,7 @@ function mapInspection(row, items = []) {
     status: row.status ?? "completed",
     current_step: Number(row.current_step ?? 1),
     completion_percentage: Number(row.completion_percentage ?? row.summary?.completion_percentage ?? 0),
+    created_by: row.created_by ?? null,
     last_edited_at: row.last_edited_at ?? row.updated_at,
     last_edited_by: row.last_edited_by ?? row.created_by ?? null,
     draft_data: row.draft_data ?? {},
@@ -684,6 +686,21 @@ export const assetTrackingService = {
         .order("created_at", { ascending: false });
       throwSupabaseError("asset_inspection_items.list", fallbackItemError);
       const filteredItems = assetId ? (fallbackItems ?? []).filter((item) => item.asset_id === assetId) : (fallbackItems ?? []);
+      const itemIds = filteredItems.map((item) => item.id).filter(Boolean);
+      if (itemIds.length) {
+        const { data: evidenceRows, error: evidenceError } = await supabase
+          .from("asset_inspection_evidence")
+          .select(evidenceFields)
+          .in("inspection_item_id", itemIds);
+        if (evidenceError && !isMissingInspectionV2Field(evidenceError)) throwSupabaseError("asset_inspection_evidence.list", evidenceError);
+        const evidenceByItem = new Map();
+        (evidenceRows ?? []).forEach((evidence) => {
+          evidenceByItem.set(evidence.inspection_item_id, [...(evidenceByItem.get(evidence.inspection_item_id) ?? []), evidence]);
+        });
+        filteredItems.forEach((item) => {
+          item.evidence = evidenceByItem.get(item.id) ?? [];
+        });
+      }
       const inspectionIds = new Set(filteredItems.map((item) => item.inspection_id));
       return (fallbackInspections ?? [])
         .filter((inspection) => !assetId || inspectionIds.has(inspection.id))
@@ -705,6 +722,21 @@ export const assetTrackingService = {
     }
     throwSupabaseError("asset_inspection_items.list", itemError);
     const filteredItems = assetId ? (items ?? []).filter((item) => item.asset_id === assetId) : (items ?? []);
+    const itemIds = filteredItems.map((item) => item.id).filter(Boolean);
+    if (itemIds.length) {
+      const { data: evidenceRows, error: evidenceError } = await supabase
+        .from("asset_inspection_evidence")
+        .select(evidenceFields)
+        .in("inspection_item_id", itemIds);
+      if (evidenceError && !isMissingInspectionV2Field(evidenceError)) throwSupabaseError("asset_inspection_evidence.list", evidenceError);
+      const evidenceByItem = new Map();
+      (evidenceRows ?? []).forEach((evidence) => {
+        evidenceByItem.set(evidence.inspection_item_id, [...(evidenceByItem.get(evidence.inspection_item_id) ?? []), evidence]);
+      });
+      filteredItems.forEach((item) => {
+        item.evidence = evidenceByItem.get(item.id) ?? [];
+      });
+    }
     const inspectionIds = new Set(filteredItems.map((item) => item.inspection_id));
     return (inspections ?? [])
       .filter((inspection) => !assetId || inspectionIds.has(inspection.id))
