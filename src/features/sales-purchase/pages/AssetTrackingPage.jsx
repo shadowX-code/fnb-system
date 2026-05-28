@@ -269,21 +269,46 @@ function assetHoverInsight(asset, lastMovement, lastInspection) {
   return "No recent operational issue";
 }
 
-function FloatingLayer({ anchor, width = 190, align = "right", onClose, children }) {
+function FloatingLayer({ anchor, width = 190, estimatedHeight = 240, align = "right", onClose, children }) {
   if (!anchor) return null;
   const margin = 12;
-  const top = Math.min(anchor.bottom + 8, window.innerHeight - margin);
+  const offset = 8;
+  const viewportHeight = window.innerHeight;
+  const viewportWidth = window.innerWidth;
+  const maxHeight = Math.max(160, viewportHeight - margin * 2);
+  const layerHeight = Math.min(estimatedHeight, maxHeight);
+  const spaceBelow = viewportHeight - anchor.bottom - margin;
+  const spaceAbove = anchor.top - margin;
+  const shouldOpenUp = spaceBelow < layerHeight + offset && spaceAbove > spaceBelow;
+  const desiredTop = shouldOpenUp ? anchor.top - layerHeight - offset : anchor.bottom + offset;
+  const top = Math.max(margin, Math.min(desiredTop, viewportHeight - layerHeight - margin));
   const left = align === "right"
-    ? Math.max(margin, Math.min(anchor.right - width, window.innerWidth - width - margin))
-    : Math.max(margin, Math.min(anchor.left, window.innerWidth - width - margin));
+    ? Math.max(margin, Math.min(anchor.right - width, viewportWidth - width - margin))
+    : Math.max(margin, Math.min(anchor.left, viewportWidth - width - margin));
   return createPortal(
     <>
       <button className="fixed inset-0 z-[9980] cursor-default" type="button" aria-label="Close floating menu" onClick={onClose} />
-      <div className="fixed z-[9990]" style={{ top, left, width }}>
+      <div className="fixed z-[9990] overflow-y-auto overscroll-contain" style={{ top, left, width, maxHeight }}>
         {children}
       </div>
     </>,
     document.body,
+  );
+}
+
+function FloatingActionItem({ children, icon, tone = "default", onClick }) {
+  const toneClass = tone === "warning"
+    ? "text-amber-700 hover:bg-amber-50"
+    : "text-text-secondary hover:bg-primary/5 hover:text-primary";
+  return (
+    <button
+      className={`flex w-full items-center gap-2 rounded-lg px-2.5 py-1.5 text-left text-xs font-bold transition ${toneClass}`}
+      type="button"
+      onClick={onClick}
+    >
+      <span className="flex h-4 w-4 shrink-0 items-center justify-center">{icon}</span>
+      <span className="truncate">{children}</span>
+    </button>
   );
 }
 
@@ -2590,7 +2615,11 @@ export default function AssetTrackingPage({ store, ui, auth }) {
                                 >
                                   <Eye size={13} /> View
                                 </button>
-                                <button className="icon-btn h-8 w-8" type="button" onClick={(event) => setActionMenu({ asset, anchor: event.currentTarget.getBoundingClientRect() })} aria-label={`More actions for ${asset.name}`}>
+                                <button className="icon-btn h-8 w-8" type="button" onClick={(event) => {
+                                  event.preventDefault();
+                                  event.stopPropagation();
+                                  setActionMenu({ asset, anchor: event.currentTarget.getBoundingClientRect() });
+                                }} aria-label={`More actions for ${asset.name}`}>
                                   <MoreHorizontal size={15} />
                                 </button>
                               </div>
@@ -2650,14 +2679,16 @@ export default function AssetTrackingPage({ store, ui, auth }) {
           ))}
         </div>
       </FloatingLayer> : null}
-      {actionMenu ? <FloatingLayer anchor={actionMenu.anchor} width={190} align="right" onClose={() => setActionMenu(null)}>
-        <div className="overflow-hidden rounded-2xl border border-border bg-white p-1.5 shadow-2xl">
-          <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-primary/5 hover:text-primary" type="button" onClick={() => { setActionMenu(null); setDetailAsset(actionMenu.asset); }}><Eye size={14} /> View</button>
-          {canManageAsset ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-primary/5 hover:text-primary" type="button" onClick={() => { setActionMenu(null); setAdjustAsset(actionMenu.asset); }}><Wrench size={14} /> Adjust Quantity</button> : null}
-          {canManageAsset ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-primary/5 hover:text-primary" type="button" onClick={() => { setActionMenu(null); setInspectionOpen(true); }}><ClipboardCheck size={14} /> Start Inspection</button> : null}
-          {canEditAsset ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-primary/5 hover:text-primary" type="button" onClick={() => { setActionMenu(null); setAssetModal(actionMenu.asset); }}><PackageCheck size={14} /> Edit Asset</button> : null}
-          {canManageAsset && actionMenu.asset.maintenance_allowed ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-text-secondary hover:bg-primary/5 hover:text-primary" type="button" onClick={() => { setActionMenu(null); setMaintenanceContext({ asset: actionMenu.asset, record: null }); }}><Wrench size={14} /> Add Maintenance Record</button> : null}
-          {canDeleteAsset ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-xs font-bold text-amber-700 hover:bg-amber-50" type="button" onClick={() => { const asset = actionMenu.asset; setActionMenu(null); archiveAsset(asset); }}><AlertTriangle size={14} /> Archive</button> : null}
+      {actionMenu ? <FloatingLayer anchor={actionMenu.anchor} width={220} estimatedHeight={286} align="right" onClose={() => setActionMenu(null)}>
+        <div className="rounded-2xl border border-border bg-white p-1.5 shadow-[0_18px_50px_rgba(15,23,42,0.18)]">
+          <FloatingActionItem icon={<Eye size={13} />} onClick={() => { setActionMenu(null); setDetailAsset(actionMenu.asset); }}>View</FloatingActionItem>
+          {canManageAsset ? <FloatingActionItem icon={<Wrench size={13} />} onClick={() => { setActionMenu(null); setAdjustAsset(actionMenu.asset); }}>Adjust Quantity</FloatingActionItem> : null}
+          {canManageAsset ? <FloatingActionItem icon={<ClipboardCheck size={13} />} onClick={() => { setActionMenu(null); setInspectionOpen(true); }}>Start Inspection</FloatingActionItem> : null}
+          {(canEditAsset || (canManageAsset && actionMenu.asset.maintenance_allowed)) ? <div className="my-1 border-t border-border" /> : null}
+          {canEditAsset ? <FloatingActionItem icon={<PackageCheck size={13} />} onClick={() => { setActionMenu(null); setAssetModal(actionMenu.asset); }}>Edit Asset</FloatingActionItem> : null}
+          {canManageAsset && actionMenu.asset.maintenance_allowed ? <FloatingActionItem icon={<Wrench size={13} />} onClick={() => { setActionMenu(null); setMaintenanceContext({ asset: actionMenu.asset, record: null }); }}>Add Maintenance Record</FloatingActionItem> : null}
+          {canDeleteAsset ? <div className="my-1 border-t border-border" /> : null}
+          {canDeleteAsset ? <FloatingActionItem tone="warning" icon={<AlertTriangle size={13} />} onClick={() => { const asset = actionMenu.asset; setActionMenu(null); archiveAsset(asset); }}>Archive</FloatingActionItem> : null}
         </div>
       </FloatingLayer> : null}
       {imagePreviewAsset ? (

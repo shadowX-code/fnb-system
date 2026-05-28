@@ -1,6 +1,31 @@
 -- Final FeedX asset condition/status model.
 -- Condition = operational state. Status = record lifecycle.
 
+do $$
+declare
+  constraint_record record;
+begin
+  for constraint_record in
+    select conname
+    from pg_constraint
+    where conrelid = 'public.asset_items'::regclass
+      and contype = 'c'
+      and pg_get_constraintdef(oid) ilike any (array['%condition%', '%status%'])
+  loop
+    execute format('alter table public.asset_items drop constraint if exists %I', constraint_record.conname);
+  end loop;
+
+  for constraint_record in
+    select conname
+    from pg_constraint
+    where conrelid = 'public.asset_inspection_items'::regclass
+      and contype = 'c'
+      and pg_get_constraintdef(oid) ilike any (array['%condition%', '%condition_status%'])
+  loop
+    execute format('alter table public.asset_inspection_items drop constraint if exists %I', constraint_record.conname);
+  end loop;
+end $$;
+
 update public.asset_items
 set condition = case
   when condition in ('good', 'active') then 'healthy'
@@ -48,31 +73,6 @@ set condition_status = case
 end
 where condition_status is null
    or condition_status not in ('healthy', 'needs_attention', 'under_maintenance', 'low_quantity', 'damaged', 'missing', 'disposed');
-
-do $$
-declare
-  constraint_record record;
-begin
-  for constraint_record in
-    select conname
-    from pg_constraint
-    where conrelid = 'public.asset_items'::regclass
-      and contype = 'c'
-      and pg_get_constraintdef(oid) ilike any (array['%condition%', '%status%'])
-  loop
-    execute format('alter table public.asset_items drop constraint if exists %I', constraint_record.conname);
-  end loop;
-
-  for constraint_record in
-    select conname
-    from pg_constraint
-    where conrelid = 'public.asset_inspection_items'::regclass
-      and contype = 'c'
-      and pg_get_constraintdef(oid) ilike any (array['%condition%', '%condition_status%'])
-  loop
-    execute format('alter table public.asset_inspection_items drop constraint if exists %I', constraint_record.conname);
-  end loop;
-end $$;
 
 alter table public.asset_items
   alter column condition set default 'healthy',
