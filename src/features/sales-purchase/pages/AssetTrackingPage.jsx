@@ -25,16 +25,9 @@ const inspectionTypeOptions = [
 ];
 const quickFilterLabels = {
   all: "All Assets",
-  attention: "Needs Attention",
-  needs_attention: "Needs Attention",
   scheduled_maintenance: "Scheduled Maintenance",
   maintenance_due: "Maintenance Due",
-  under_maintenance: "Under Maintenance",
-  overdue: "Overdue",
   inspected_today: "Recently Inspected",
-  low_quantity: "Low Quantity",
-  missing: "Missing",
-  disposed: "Disposed",
   high_variance: "High Variance",
   no_photo: "No Photo",
 };
@@ -277,6 +270,27 @@ function nextMaintenanceInfo(records = []) {
   if (days === 1) return { label: "Tomorrow", tone: "warning", days, date: next.date };
   if (days <= 7) return { label: formatFullDate(next.date).replace(/\s\d{4}$/, ""), tone: "warning", days, date: next.date };
   return { label: formatFullDate(next.date).replace(/\s\d{4}$/, ""), tone: "success", days, date: next.date };
+}
+
+function maintenanceCompletedDate(record) {
+  return record?.completed_date || (record?.status === "completed" ? record?.date : null) || record?.updated_at || record?.created_at || null;
+}
+
+function latestCompletedMaintenanceRecord(records = []) {
+  return records
+    .filter((record) => record.status === "completed")
+    .sort((first, second) => new Date(maintenanceCompletedDate(second) || 0) - new Date(maintenanceCompletedDate(first) || 0))[0] || null;
+}
+
+function currentNextServiceDate(records = []) {
+  const latestCompleted = latestCompletedMaintenanceRecord(records);
+  if (!latestCompleted?.next_service_date) return null;
+  const completedDate = maintenanceCompletedDate(latestCompleted);
+  const nextDate = new Date(latestCompleted.next_service_date);
+  const serviceDate = new Date(completedDate || 0);
+  if (Number.isNaN(nextDate.getTime())) return null;
+  if (!Number.isNaN(serviceDate.getTime()) && nextDate < serviceDate) return null;
+  return latestCompleted.next_service_date;
 }
 
 function assetNameById(assets = [], assetId) {
@@ -1702,8 +1716,8 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
   const detailTabs = ["overview", "movement", "inspection", ...(maintenanceEnabled ? ["maintenance"] : [])];
   const activeMaintenance = maintenanceRecords.filter((record) => ["scheduled", "in_progress"].includes(record.status));
   const overdueMaintenance = maintenanceRecords.filter(isMaintenanceOverdue);
-  const lastCompletedMaintenance = maintenanceRecords.find((record) => record.status === "completed");
-  const nextService = maintenanceRecords.map((record) => record.next_service_date).filter(Boolean).sort()[0];
+  const lastCompletedMaintenance = latestCompletedMaintenanceRecord(maintenanceRecords);
+  const nextService = currentNextServiceDate(maintenanceRecords);
   const nextServiceDays = daysUntil(nextService);
   const maintenanceGroups = maintenanceRecords.reduce((groups, record) => {
     const group = maintenanceTimelineGroup(record);
@@ -1918,7 +1932,7 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
                     <div className="text-[10px] font-black uppercase tracking-wide text-emerald-700">Last Service Date</div>
                     <Wrench size={14} className="text-emerald-600" />
                   </div>
-                  <div className="mt-1 text-sm font-black text-text-primary">{lastCompletedMaintenance ? formatFullDate(lastCompletedMaintenance.completed_date || lastCompletedMaintenance.date) : "No service yet"}</div>
+                  <div className="mt-1 text-sm font-black text-text-primary">{lastCompletedMaintenance ? formatFullDate(maintenanceCompletedDate(lastCompletedMaintenance)) : "No service yet"}</div>
                 </div>
                 <div className={`rounded-2xl border p-3 ${activeMaintenance.length ? "border-blue-100 bg-blue-50/60" : "border-border bg-white"}`}>
                   <div className="flex items-center justify-between">
@@ -2061,6 +2075,25 @@ function inspectionVarianceCount(inspection) {
   return (inspection.items || []).filter((item) => Number(item.difference || 0) !== 0).length;
 }
 
+function inspectionSortTime(inspection) {
+  const inspectionDate = inspection?.inspection_date ? new Date(inspection.inspection_date).getTime() : 0;
+  const createdAt = inspection?.created_at ? new Date(inspection.created_at).getTime() : 0;
+  const updatedAt = inspection?.updated_at ? new Date(inspection.updated_at).getTime() : 0;
+  return {
+    inspectionDate: Number.isNaN(inspectionDate) ? 0 : inspectionDate,
+    createdAt: Number.isNaN(createdAt) ? 0 : createdAt,
+    updatedAt: Number.isNaN(updatedAt) ? 0 : updatedAt,
+  };
+}
+
+function sortInspectionsNewestFirst(first, second) {
+  const firstTime = inspectionSortTime(first);
+  const secondTime = inspectionSortTime(second);
+  return secondTime.inspectionDate - firstTime.inspectionDate ||
+    secondTime.createdAt - firstTime.createdAt ||
+    secondTime.updatedAt - firstTime.updatedAt;
+}
+
 function InspectionDetailModal({ inspection, outlet, currentProfile, onClose }) {
   const rows = inspection.items || [];
   return createPortal(
@@ -2129,18 +2162,19 @@ function InspectionDetailModal({ inspection, outlet, currentProfile, onClose }) 
 
 function InspectionHistory({ inspections = [], outlet, currentProfile, onResumeDraft, onDeleteDraft, onArchiveDraft }) {
   const [detailInspection, setDetailInspection] = useState(null);
+  const sortedInspections = useMemo(() => [...inspections].sort(sortInspectionsNewestFirst), [inspections]);
   const dateCounts = useMemo(() => {
     const counts = new Map();
-    inspections.forEach((inspection) => {
+    sortedInspections.forEach((inspection) => {
       const key = inspectionDateKey(inspection.inspection_date);
       counts.set(key, (counts.get(key) || 0) + 1);
     });
     return counts;
-  }, [inspections]);
+  }, [sortedInspections]);
 
-  return inspections.length ? (
+  return sortedInspections.length ? (
     <>
-      <div className="space-y-3">{inspections.map((inspection) => {
+      <div className="space-y-3">{sortedInspections.map((inspection) => {
         const rows = inspection.items || [];
         const checkedCount = inspection.summary?.checked_assets || rows.length;
         const varianceCount = inspectionVarianceCount(inspection);
@@ -2322,15 +2356,8 @@ export default function AssetTrackingPage({ store, ui, auth }) {
   const filteredAssets = useMemo(() => scopedAssets
     .filter((asset) => {
       if (quickFilter === "all") return true;
-      if (quickFilter === "attention") return assetNeedsAttention(asset);
-      if (quickFilter === "needs_attention") return normalizeAssetCondition(asset.condition) === "needs_attention";
       if (quickFilter === "scheduled_maintenance") return (maintenanceByAsset.get(asset.id) || []).some((record) => record.status === "scheduled");
       if (quickFilter === "maintenance_due") return assetSignalsById.get(asset.id)?.maintenanceDue === true;
-      if (quickFilter === "under_maintenance") return normalizeAssetCondition(asset.condition) === "under_maintenance" || (maintenanceByAsset.get(asset.id) || []).some((record) => record.status === "in_progress");
-      if (quickFilter === "overdue") return assetSignalsById.get(asset.id)?.overdue === true;
-      if (quickFilter === "low_quantity") return normalizeAssetCondition(asset.condition) === "low_quantity" || (Number(asset.minimum_quantity || 0) > 0 && Number(asset.current_quantity || 0) <= Number(asset.minimum_quantity || 0));
-      if (quickFilter === "missing") return normalizeAssetCondition(asset.condition) === "missing" || Number(asset.current_quantity || 0) <= 0;
-      if (quickFilter === "disposed") return normalizeAssetCondition(asset.condition) === "disposed";
       if (quickFilter === "high_variance") return assetSignalsById.get(asset.id)?.highVariance === true;
       if (quickFilter === "no_photo") return !asset.image_url && !asset.thumbnail_url;
       if (quickFilter === "inspected_today") {
@@ -2362,10 +2389,10 @@ export default function AssetTrackingPage({ store, ui, auth }) {
 
   const summary = useMemo(() => {
     const scopedAssetIds = new Set(scopedAssets.map((asset) => asset.id));
-    const latestInspection = inspections
+    const latestInspection = [...inspections]
       .filter((inspection) => !isDraftInspection(inspection))
       .filter((inspection) => (inspection.items || []).some((item) => scopedAssetIds.has(item.asset_id)))
-      .sort((first, second) => new Date(second.inspection_date || second.updated_at || 0) - new Date(first.inspection_date || first.updated_at || 0))[0];
+      .sort(sortInspectionsNewestFirst)[0];
     const inspectedItems = (latestInspection?.items || []).filter((item) => scopedAssetIds.has(item.asset_id));
     const lastChecked = latestInspection?.inspection_date || scopedAssets.find((asset) => asset.last_inspection_at)?.last_inspection_at;
     const lastInspectionDetail = latestInspection
@@ -2658,11 +2685,15 @@ export default function AssetTrackingPage({ store, ui, auth }) {
   const assetInspections = detailAsset ? inspections.filter((inspection) => (
     (inspection.items || []).some((item) => item.asset_id === detailAsset.id) ||
     (isDraftInspection(inspection) && (inspection.draft_data?.rows || []).some((row) => row.asset_id === detailAsset.id))
-  )) : [];
+  )).sort(sortInspectionsNewestFirst) : [];
   const draftInspections = inspections.filter(isDraftInspection);
   function applyOperationalFilter(filterValue) {
-    setStatusFilter("all");
     setQuickFilter((current) => current === filterValue ? "all" : filterValue);
+  }
+
+  function applyConditionFilter(condition) {
+    setQuickFilter("all");
+    setStatusFilter((current) => current === condition ? "all" : condition);
   }
 
   return (
@@ -2690,15 +2721,9 @@ export default function AssetTrackingPage({ store, ui, auth }) {
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
           {[
-            ["needs_attention", "Needs Attention"],
             ["scheduled_maintenance", "Scheduled Maintenance"],
-            ["under_maintenance", "Under Maintenance"],
             ["maintenance_due", "Maintenance Due"],
-            ["overdue", "Overdue"],
             ["inspected_today", "Recently Inspected"],
-            ["low_quantity", "Low Quantity"],
-            ["missing", "Missing"],
-            ["disposed", "Disposed"],
             ["high_variance", "High Variance"],
             ["no_photo", "No Photo"],
           ].map(([value, label]) => (
@@ -2817,22 +2842,22 @@ export default function AssetTrackingPage({ store, ui, auth }) {
           <Card title="Asset Operations Summary" description="Current asset workflow signals.">
             <div className="grid gap-1.5">
               {[
-                ["Scheduled Maintenance", operationalKpis.scheduledMaintenance, "Upcoming service tasks", "scheduled_maintenance", "bg-cyan-50 text-cyan-700 border-cyan-100"],
-                ["Under Maintenance", operationalKpis.underMaintenance, "Active repair work", "under_maintenance", "bg-blue-50 text-blue-700 border-blue-100"],
-                ["Needs Attention", operationalKpis.needsAttention, "Minor issue needs follow-up", "needs_attention", "bg-amber-50 text-amber-700 border-amber-100"],
-                ["Low Quantity", operationalKpis.lowQuantity, "At or below minimum level", "low_quantity", "bg-orange-50 text-orange-700 border-orange-100"],
-                ["Missing Asset", operationalKpis.missingAssets, "Unavailable or zero quantity", "missing", "bg-rose-50 text-rose-700 border-rose-100"],
-                ["Disposed", operationalKpis.disposed, "Written off / no longer operational", "disposed", "bg-slate-50 text-slate-600 border-slate-200"],
-                ["Recently Inspected", operationalKpis.recentlyInspected, "Checked today", "inspected_today", "bg-emerald-50 text-emerald-700 border-emerald-100"],
-              ].map(([label, value, helper, filterValue, className]) => {
-                const active = quickFilter === filterValue;
+                ["Scheduled Maintenance", operationalKpis.scheduledMaintenance, "Upcoming service tasks", { type: "quick", value: "scheduled_maintenance" }, "bg-cyan-50 text-cyan-700 border-cyan-100"],
+                ["Under Maintenance", operationalKpis.underMaintenance, "Active repair work", { type: "condition", value: "under_maintenance" }, "bg-blue-50 text-blue-700 border-blue-100"],
+                ["Needs Attention", operationalKpis.needsAttention, "Minor issue needs follow-up", { type: "condition", value: "needs_attention" }, "bg-amber-50 text-amber-700 border-amber-100"],
+                ["Low Quantity", operationalKpis.lowQuantity, "At or below minimum level", { type: "condition", value: "low_quantity" }, "bg-orange-50 text-orange-700 border-orange-100"],
+                ["Missing Asset", operationalKpis.missingAssets, "Unavailable or zero quantity", { type: "condition", value: "missing" }, "bg-rose-50 text-rose-700 border-rose-100"],
+                ["Disposed", operationalKpis.disposed, "Written off / no longer operational", { type: "condition", value: "disposed" }, "bg-slate-50 text-slate-600 border-slate-200"],
+                ["Recently Inspected", operationalKpis.recentlyInspected, "Checked today", { type: "quick", value: "inspected_today" }, "bg-emerald-50 text-emerald-700 border-emerald-100"],
+              ].map(([label, value, helper, filter, className]) => {
+                const active = filter.type === "condition" ? statusFilter === filter.value : quickFilter === filter.value;
                 const muted = Number(value) === 0;
                 return (
                 <button
                   key={label}
                   className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${className} ${active ? "ring-2 ring-primary/25 shadow-sm" : ""} ${muted && !active ? "opacity-65" : ""}`}
                   type="button"
-                  onClick={() => applyOperationalFilter(filterValue)}
+                  onClick={() => filter.type === "condition" ? applyConditionFilter(filter.value) : applyOperationalFilter(filter.value)}
                 >
                   <div className="min-w-0">
                     <div className="text-xs font-black text-current">{label}</div>

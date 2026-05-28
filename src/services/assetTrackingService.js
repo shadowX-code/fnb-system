@@ -240,6 +240,25 @@ function mapInspection(row, items = []) {
   };
 }
 
+function inspectionSortTime(row) {
+  const inspectionDate = row?.inspection_date ? new Date(row.inspection_date).getTime() : 0;
+  const createdAt = row?.created_at ? new Date(row.created_at).getTime() : 0;
+  const updatedAt = row?.updated_at ? new Date(row.updated_at).getTime() : 0;
+  return {
+    inspectionDate: Number.isNaN(inspectionDate) ? 0 : inspectionDate,
+    createdAt: Number.isNaN(createdAt) ? 0 : createdAt,
+    updatedAt: Number.isNaN(updatedAt) ? 0 : updatedAt,
+  };
+}
+
+function sortInspectionsNewestFirst(first, second) {
+  const firstTime = inspectionSortTime(first);
+  const secondTime = inspectionSortTime(second);
+  return secondTime.inspectionDate - firstTime.inspectionDate ||
+    secondTime.createdAt - firstTime.createdAt ||
+    secondTime.updatedAt - firstTime.updatedAt;
+}
+
 function mapConditionTemplate(row) {
   return {
     id: row.id,
@@ -669,14 +688,18 @@ export const assetTrackingService = {
     let inspectionQuery = supabase
       .from("asset_inspections")
       .select(inspectionFields)
-      .order("inspection_date", { ascending: false });
+      .order("inspection_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("updated_at", { ascending: false });
     if (outletId && outletId !== "all") inspectionQuery = inspectionQuery.eq("outlet_id", outletId);
     const { data: inspections, error } = await inspectionQuery;
     if (error && isMissingInspectionV2Field(error)) {
       let fallbackInspectionQuery = supabase
         .from("asset_inspections")
         .select("id,outlet_id,inspection_date,checked_by,category_scope,status,remark,created_at,updated_at")
-        .order("inspection_date", { ascending: false });
+        .order("inspection_date", { ascending: false })
+        .order("created_at", { ascending: false })
+        .order("updated_at", { ascending: false });
       if (outletId && outletId !== "all") fallbackInspectionQuery = fallbackInspectionQuery.eq("outlet_id", outletId);
       const { data: fallbackInspections, error: fallbackError } = await fallbackInspectionQuery;
       throwSupabaseError("asset_inspections.list", fallbackError);
@@ -704,7 +727,8 @@ export const assetTrackingService = {
       const inspectionIds = new Set(filteredItems.map((item) => item.inspection_id));
       return (fallbackInspections ?? [])
         .filter((inspection) => !assetId || inspectionIds.has(inspection.id))
-        .map((inspection) => mapInspection(inspection, filteredItems.filter((item) => item.inspection_id === inspection.id)));
+        .map((inspection) => mapInspection(inspection, filteredItems.filter((item) => item.inspection_id === inspection.id)))
+        .sort(sortInspectionsNewestFirst);
     }
     throwSupabaseError("asset_inspections.list", error);
 
@@ -740,7 +764,8 @@ export const assetTrackingService = {
     const inspectionIds = new Set(filteredItems.map((item) => item.inspection_id));
     return (inspections ?? [])
       .filter((inspection) => !assetId || inspectionIds.has(inspection.id))
-      .map((inspection) => mapInspection(inspection, filteredItems.filter((item) => item.inspection_id === inspection.id)));
+      .map((inspection) => mapInspection(inspection, filteredItems.filter((item) => item.inspection_id === inspection.id)))
+      .sort(sortInspectionsNewestFirst);
   },
 
   async submitInspection({ draftId = "", outletId, inspectionDate, checkedBy, categoryScope, remark, notes, rows, summary = {}, status = "completed", currentStep = 4, draftData = {}, autoSaved = false, applyCorrections = true }) {
