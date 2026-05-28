@@ -13,7 +13,7 @@ const inspectionFields = "id,outlet_id,inspection_date,checked_by,category_scope
 const inspectionItemFields = "id,inspection_id,asset_id,expected_quantity,counted_quantity,expected_qty,counted_qty,difference,condition,condition_status,condition_template_id,evidence_required,evidence_status,remark,created_at,asset:asset_items(id,name,category:asset_categories(id,name))";
 const conditionFields = "id,category_id,name,severity,color,requires_photo,requires_remark,affects_health,triggers_alert,active,sort_order,created_at,updated_at";
 const evidenceFields = "id,inspection_item_id,image_url,caption,created_at";
-const assetConditionValues = new Set(["healthy", "needs_review", "damaged", "missing", "under_maintenance", "low_quantity", "disposed", "inactive"]);
+const assetConditionValues = new Set(["healthy", "needs_attention", "under_maintenance", "low_quantity", "damaged", "missing", "disposed"]);
 
 function normalizeConditionValue(value) {
   const normalized = String(value || "")
@@ -24,10 +24,12 @@ function normalizeConditionValue(value) {
     good: "healthy",
     active: "healthy",
     healthy: "healthy",
-    needs_review: "needs_review",
-    review: "needs_review",
-    need_repair: "needs_review",
-    need_repairs: "needs_review",
+    needs_attention: "needs_attention",
+    attention: "needs_attention",
+    needs_review: "needs_attention",
+    review: "needs_attention",
+    need_repair: "needs_attention",
+    need_repairs: "needs_attention",
     damaged: "damaged",
     missing: "missing",
     under_maintenance: "under_maintenance",
@@ -35,7 +37,7 @@ function normalizeConditionValue(value) {
     low_quantity: "low_quantity",
     low: "low_quantity",
     disposed: "disposed",
-    inactive: "inactive",
+    inactive: "disposed",
   };
   const mapped = aliases[normalized] || normalized;
   if (!assetConditionValues.has(mapped)) {
@@ -130,11 +132,11 @@ function mapAsset(row) {
     thumbnail_url: row.thumbnail_url ?? row.image_url ?? "",
     health_status: row.health_status ?? "healthy",
     last_inspection_at: row.last_inspection_at ?? null,
-    condition: normalizeConditionValue(row.condition ?? (["damaged", "missing", "disposed", "inactive"].includes(row.status) ? row.status : "healthy")),
+    condition: normalizeConditionValue(row.condition ?? (["damaged", "missing", "disposed"].includes(row.status) ? row.status : "healthy")),
     unit: row.unit ?? "unit",
     current_quantity: Number(row.current_quantity ?? 0),
     minimum_quantity: Number(row.minimum_quantity ?? 0),
-    status: row.status ?? "active",
+    status: row.status === "archived" || row.status === "inactive" ? "archived" : "active",
     remark: row.remark ?? "",
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -434,10 +436,10 @@ export const assetTrackingService = {
       if (outletId && outletId !== "all") fallbackQuery = fallbackQuery.eq("outlet_id", outletId);
       const { data: fallbackData, error: fallbackError } = await fallbackQuery;
       throwSupabaseError("asset_items.list", fallbackError);
-      return (fallbackData ?? []).map(mapAsset);
+      return (fallbackData ?? []).map(mapAsset).filter((asset) => asset.status !== "archived");
     }
     throwSupabaseError("asset_items.list", error);
-    return (data ?? []).map(mapAsset);
+    return (data ?? []).map(mapAsset).filter((asset) => asset.status !== "archived");
   },
 
   async saveAsset(asset) {
@@ -458,7 +460,7 @@ export const assetTrackingService = {
       unit: asset.unit || "unit",
       current_quantity: Number(asset.current_quantity ?? 0),
       minimum_quantity: Number(asset.minimum_quantity ?? 0),
-      status: asset.status === "inactive" ? "inactive" : "active",
+      status: asset.status === "archived" ? "archived" : "active",
       remark: asset.remark ?? "",
       updated_by: userId,
       updated_at: new Date().toISOString(),
@@ -510,14 +512,14 @@ export const assetTrackingService = {
     const userId = await currentUserId();
     let { data, error } = await supabase
       .from("asset_items")
-      .update({ status: "inactive", condition: "inactive", updated_by: userId, updated_at: new Date().toISOString() })
+      .update({ status: "archived", updated_by: userId, updated_at: new Date().toISOString() })
       .eq("id", asset.id)
       .select(assetFields)
       .single();
     if (error && isMissingOptionalAssetField(error)) {
       const fallbackResult = await supabase
         .from("asset_items")
-        .update({ status: "inactive", updated_by: userId, updated_at: new Date().toISOString() })
+        .update({ status: "archived", updated_by: userId, updated_at: new Date().toISOString() })
         .eq("id", asset.id)
         .select(assetBaseFields)
         .single();

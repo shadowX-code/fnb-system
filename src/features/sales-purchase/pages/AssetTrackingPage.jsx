@@ -10,11 +10,26 @@ import Modal from "../../../components/feedback/Modal.jsx";
 import { assetTrackingService } from "../../../services/assetTrackingService.js";
 import { canCreate, canDelete, canEdit, canExport, canManage, notifyPermissionDenied } from "../../../utils/accessControl.js";
 
-const assetConditions = ["healthy", "needs_review", "damaged", "missing", "under_maintenance", "low_quantity", "disposed", "inactive"];
+const assetConditions = ["healthy", "needs_attention", "under_maintenance", "low_quantity", "damaged", "missing", "disposed"];
 const reduceReasons = ["broken", "missing", "disposed", "stolen", "transferred", "correction", "other"];
 const maintenancePriorities = ["low", "medium", "high", "critical"];
 const maintenanceTypes = ["preventive", "repair", "inspection", "cleaning", "calibration", "replacement", "emergency"];
 const maintenanceStatuses = ["scheduled", "in_progress", "completed"];
+const quickFilterLabels = {
+  all: "All Assets",
+  attention: "Needs Attention",
+  needs_attention: "Needs Attention",
+  scheduled_maintenance: "Scheduled Maintenance",
+  maintenance_due: "Maintenance Due",
+  under_maintenance: "Under Maintenance",
+  overdue: "Overdue",
+  inspected_today: "Recently Inspected",
+  inspection_completion: "Inspection Completion",
+  low_quantity: "Low Quantity",
+  missing: "Missing",
+  high_variance: "High Variance",
+  no_photo: "No Photo",
+};
 
 function titleCase(value) {
   return String(value || "").replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
@@ -45,7 +60,8 @@ function formatRelativeDate(value) {
 
 function assetConditionTone(condition) {
   if (condition === "healthy") return "success";
-  if (condition === "needs_review" || condition === "under_maintenance" || condition === "low_quantity") return "warning";
+  if (condition === "under_maintenance") return "info";
+  if (condition === "needs_attention" || condition === "low_quantity") return "warning";
   if (condition === "damaged" || condition === "missing") return "danger";
   return "neutral";
 }
@@ -53,7 +69,7 @@ function assetConditionTone(condition) {
 function assetConditionLabel(condition) {
   if (condition === "healthy") return "Good";
   if (condition === "under_maintenance") return "Under Maintenance";
-  if (condition === "needs_review") return "Needs Review";
+  if (condition === "needs_attention") return "Needs Attention";
   if (condition === "low_quantity") return "Low Quantity";
   return titleCase(condition || "healthy");
 }
@@ -167,20 +183,20 @@ function maintenanceTimelineGroup(record) {
 function normalizeAssetCondition(value) {
   const normalized = String(value || "").trim().toLowerCase().replace(/[\s-]+/g, "_");
   if (normalized === "good" || normalized === "active") return "healthy";
-  if (normalized === "need_repair") return "needs_review";
+  if (["needs_review", "review", "need_repair", "need_repairs"].includes(normalized)) return "needs_attention";
+  if (normalized === "inactive") return "disposed";
   return assetConditions.includes(normalized) ? normalized : "healthy";
 }
 
 function assetConditionInsight(condition) {
   const insights = {
     healthy: "No active operational issues.",
-    needs_review: "Inspection mismatch detected.",
+    needs_attention: "Minor issue detected and needs follow-up.",
     damaged: "Maintenance attention required.",
     missing: "Asset unavailable during latest inspection.",
     under_maintenance: "Maintenance work is currently required.",
     low_quantity: "Quantity is below the preferred operating level.",
     disposed: "Asset has been removed from active operations.",
-    inactive: "Asset is not currently active.",
   };
   return insights[condition || "healthy"] || insights.healthy;
 }
@@ -196,17 +212,19 @@ function getQuantityHealth(asset) {
   const quantity = Number(asset.current_quantity || 0);
   const minimum = Number(asset.minimum_quantity || 0);
   const condition = asset.condition || "healthy";
-  if (condition === "disposed" || condition === "inactive") return { label: "Inactive", tone: "neutral", dot: "bg-slate-400", text: "text-slate-600", bg: "bg-slate-100", border: "border-slate-200" };
-  if (condition === "missing" || quantity <= 0) return { label: "Out", tone: "danger", dot: "bg-rose-500", text: "text-rose-700", bg: "bg-rose-50", border: "border-rose-100" };
+  if (condition === "disposed") return { label: "Disposed", tone: "neutral", dot: "bg-slate-400", text: "text-slate-600", bg: "bg-slate-100", border: "border-slate-200" };
+  if (condition === "missing" || quantity <= 0) return { label: "Missing", tone: "danger", dot: "bg-rose-800", text: "text-rose-800", bg: "bg-rose-50", border: "border-rose-100" };
   if (condition === "damaged") return { label: "Damaged", tone: "danger", dot: "bg-red-500", text: "text-red-700", bg: "bg-red-50", border: "border-red-100" };
   if (condition === "under_maintenance") return { label: "Maintenance", tone: "info", dot: "bg-blue-500", text: "text-blue-700", bg: "bg-blue-50", border: "border-blue-100" };
-  if (condition === "needs_review") return { label: "Review", tone: "warning", dot: "bg-orange-500", text: "text-orange-700", bg: "bg-orange-50", border: "border-orange-100" };
-  if (condition === "low_quantity" || (minimum > 0 && quantity <= minimum)) return { label: "Low", tone: "warning", dot: "bg-amber-500", text: "text-amber-700", bg: "bg-amber-50", border: "border-amber-100" };
+  if (condition === "needs_attention") return { label: "Attention", tone: "warning", dot: "bg-amber-500", text: "text-amber-700", bg: "bg-amber-50", border: "border-amber-100" };
+  if (condition === "low_quantity" || (minimum > 0 && quantity <= minimum)) return { label: "Low", tone: "warning", dot: "bg-orange-500", text: "text-orange-700", bg: "bg-orange-50", border: "border-orange-100" };
   return { label: "Good", tone: "success", dot: "bg-emerald-500", text: "text-emerald-700", bg: "bg-emerald-50", border: "border-emerald-100" };
 }
 
 function assetNeedsAttention(asset) {
-  return (asset.condition || "healthy") !== "healthy" ||
+  const condition = normalizeAssetCondition(asset.condition);
+  if (condition === "disposed" || asset.status === "archived") return false;
+  return condition !== "healthy" ||
     Number(asset.current_quantity || 0) <= 0 ||
     (Number(asset.minimum_quantity || 0) > 0 && Number(asset.current_quantity || 0) <= Number(asset.minimum_quantity || 0));
 }
@@ -1223,7 +1241,7 @@ function InspectionModal({ outletId, categories, assets, draftInspection, onClos
   const missingRows = enrichedRows.filter((row) => row.diff < 0 || row.condition_status === "missing");
   const extraRows = enrichedRows.filter((row) => row.diff > 0);
   const damagedRows = enrichedRows.filter((row) => row.condition_status === "damaged");
-  const warningRows = enrichedRows.filter((row) => ["needs_review", "low_quantity", "under_maintenance"].includes(row.condition_status));
+  const warningRows = enrichedRows.filter((row) => ["needs_attention", "low_quantity", "under_maintenance"].includes(row.condition_status));
   const pendingEvidenceRows = enrichedRows.filter((row) => row.needsEvidence && !row.evidenceComplete);
   const matchedRows = enrichedRows.filter((row) => row.diff === 0 && row.condition_status === "healthy");
   const criticalRows = enrichedRows.filter((row) => ["damaged", "missing"].includes(row.condition_status));
@@ -1960,17 +1978,20 @@ export default function AssetTrackingPage({ store, ui, auth }) {
 
   const filteredAssets = useMemo(() => assets
     .filter((asset) => categoryFilter === "all" || asset.category_id === categoryFilter)
-    .filter((asset) => statusFilter === "all" || (asset.condition || "healthy") === statusFilter)
+    .filter((asset) => statusFilter === "all" || normalizeAssetCondition(asset.condition) === statusFilter)
     .filter((asset) => {
       if (quickFilter === "all") return true;
       if (quickFilter === "attention") return assetNeedsAttention(asset);
+      if (quickFilter === "needs_attention") return normalizeAssetCondition(asset.condition) === "needs_attention";
+      if (quickFilter === "scheduled_maintenance") return (maintenanceByAsset.get(asset.id) || []).some((record) => record.status === "scheduled");
       if (quickFilter === "maintenance_due") return assetSignalsById.get(asset.id)?.maintenanceDue === true;
+      if (quickFilter === "under_maintenance") return normalizeAssetCondition(asset.condition) === "under_maintenance" || (maintenanceByAsset.get(asset.id) || []).some((record) => record.status === "in_progress");
       if (quickFilter === "overdue") return assetSignalsById.get(asset.id)?.overdue === true;
-      if (quickFilter === "low_quantity") return (asset.condition || "healthy") === "low_quantity" || (Number(asset.minimum_quantity || 0) > 0 && Number(asset.current_quantity || 0) <= Number(asset.minimum_quantity || 0));
-      if (quickFilter === "missing") return (asset.condition || "healthy") === "missing" || Number(asset.current_quantity || 0) <= 0;
+      if (quickFilter === "low_quantity") return normalizeAssetCondition(asset.condition) === "low_quantity" || (Number(asset.minimum_quantity || 0) > 0 && Number(asset.current_quantity || 0) <= Number(asset.minimum_quantity || 0));
+      if (quickFilter === "missing") return normalizeAssetCondition(asset.condition) === "missing" || Number(asset.current_quantity || 0) <= 0;
       if (quickFilter === "high_variance") return assetSignalsById.get(asset.id)?.highVariance === true;
       if (quickFilter === "no_photo") return !asset.image_url && !asset.thumbnail_url;
-      if (quickFilter === "inspected_today") {
+      if (quickFilter === "inspected_today" || quickFilter === "inspection_completion") {
         const latest = asset.last_inspection_at || inspections.find((inspection) => (inspection.items || []).some((item) => item.asset_id === asset.id))?.inspection_date;
         return formatRelativeDate(latest) === "Today";
       }
@@ -1980,7 +2001,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       const search = query.trim().toLowerCase();
       if (!search) return true;
       return [asset.name, asset.category_name, asset.remark].some((value) => String(value || "").toLowerCase().includes(search));
-    }), [assetSignalsById, assets, categoryFilter, inspections, query, quickFilter, statusFilter]);
+    }), [assetSignalsById, assets, categoryFilter, inspections, maintenanceByAsset, query, quickFilter, statusFilter]);
 
   const groupedAssets = useMemo(() => {
     const groups = new Map();
@@ -2014,31 +2035,33 @@ export default function AssetTrackingPage({ store, ui, auth }) {
   }, [filteredAssets, inspections]);
 
   const operationalKpis = useMemo(() => {
-    const scheduledMaintenance = maintenanceRecords.filter((record) => record.status === "scheduled").length;
+    const operationalAssets = filteredAssets.filter((asset) => normalizeAssetCondition(asset.condition) !== "disposed" && asset.status !== "archived");
+    const operationalAssetIds = new Set(operationalAssets.map((asset) => asset.id));
+    const scheduledMaintenance = maintenanceRecords.filter((record) => record.status === "scheduled" && operationalAssetIds.has(record.asset_id)).length;
     const activeMaintenanceAssetIds = new Set(maintenanceRecords
       .filter((record) => record.status === "in_progress")
       .map((record) => record.asset_id));
-    const underMaintenance = filteredAssets.filter((asset) => (asset.condition || "healthy") === "under_maintenance" || activeMaintenanceAssetIds.has(asset.id)).length;
-    const missingLowQuantity = filteredAssets.filter((asset) => {
+    const underMaintenance = operationalAssets.filter((asset) => normalizeAssetCondition(asset.condition) === "under_maintenance" || activeMaintenanceAssetIds.has(asset.id)).length;
+    const missingLowQuantity = operationalAssets.filter((asset) => {
       const quantity = Number(asset.current_quantity || 0);
       const minimum = Number(asset.minimum_quantity || 0);
-      const condition = asset.condition || "healthy";
+      const condition = normalizeAssetCondition(asset.condition);
       return condition === "missing" || condition === "low_quantity" || quantity <= 0 || (minimum > 0 && quantity <= minimum);
     }).length;
-    const needsAttention = filteredAssets.filter((asset) => assetNeedsAttention(asset) || assetSignalsById.get(asset.id)?.overdue).length;
+    const needsAttention = operationalAssets.filter((asset) => normalizeAssetCondition(asset.condition) === "needs_attention").length;
     const inspectedTodayAssetIds = new Set();
     inspections
       .filter((inspection) => formatRelativeDate(inspection.inspection_date) === "Today")
       .forEach((inspection) => {
         (inspection.items || []).forEach((item) => inspectedTodayAssetIds.add(item.asset_id));
       });
-    const recentlyInspected = filteredAssets.filter((asset) => inspectedTodayAssetIds.has(asset.id) || formatRelativeDate(asset.last_inspection_at) === "Today").length;
-    const inspectionCompletion = filteredAssets.length ? Math.round((recentlyInspected / filteredAssets.length) * 100) : 0;
-    const missingAssets = filteredAssets.filter((asset) => (asset.condition || "healthy") === "missing" || Number(asset.current_quantity || 0) <= 0).length;
-    const lowQuantity = filteredAssets.filter((asset) => {
+    const recentlyInspected = operationalAssets.filter((asset) => inspectedTodayAssetIds.has(asset.id) || formatRelativeDate(asset.last_inspection_at) === "Today").length;
+    const inspectionCompletion = operationalAssets.length ? Math.round((recentlyInspected / operationalAssets.length) * 100) : 0;
+    const missingAssets = operationalAssets.filter((asset) => normalizeAssetCondition(asset.condition) === "missing" || Number(asset.current_quantity || 0) <= 0).length;
+    const lowQuantity = operationalAssets.filter((asset) => {
       const quantity = Number(asset.current_quantity || 0);
       const minimum = Number(asset.minimum_quantity || 0);
-      return (asset.condition || "healthy") === "low_quantity" || (minimum > 0 && quantity <= minimum);
+      return normalizeAssetCondition(asset.condition) === "low_quantity" || (minimum > 0 && quantity <= minimum);
     }).length;
     return { scheduledMaintenance, underMaintenance, missingLowQuantity, needsAttention, recentlyInspected, inspectionCompletion, missingAssets, lowQuantity };
   }, [assetSignalsById, filteredAssets, inspections, maintenanceRecords]);
@@ -2291,6 +2314,10 @@ export default function AssetTrackingPage({ store, ui, auth }) {
     (isDraftInspection(inspection) && (inspection.draft_data?.rows || []).some((row) => row.asset_id === detailAsset.id))
   )) : [];
   const draftInspections = inspections.filter(isDraftInspection);
+  function applyOperationalFilter(filterValue) {
+    setStatusFilter("all");
+    setQuickFilter((current) => current === filterValue ? "all" : filterValue);
+  }
 
   return (
     <div className="space-y-4">
@@ -2317,7 +2344,9 @@ export default function AssetTrackingPage({ store, ui, auth }) {
         </div>
         <div className="mt-4 flex flex-wrap gap-2">
           {[
-            ["attention", "Needs Attention"],
+            ["needs_attention", "Needs Attention"],
+            ["scheduled_maintenance", "Scheduled Maintenance"],
+            ["under_maintenance", "Under Maintenance"],
             ["maintenance_due", "Maintenance Due"],
             ["overdue", "Overdue"],
             ["inspected_today", "Recently Inspected"],
@@ -2330,13 +2359,20 @@ export default function AssetTrackingPage({ store, ui, auth }) {
               key={value}
               className={`rounded-full border px-3 py-1.5 text-xs font-black transition ${quickFilter === value ? "border-primary bg-primary/10 text-primary" : "border-border bg-white text-text-secondary hover:border-primary/30 hover:text-primary"}`}
               type="button"
-              onClick={() => setQuickFilter((current) => current === value ? "all" : value)}
+              onClick={() => applyOperationalFilter(value)}
             >
               {label}
             </button>
           ))}
           {quickFilter !== "all" ? <button className="rounded-full px-3 py-1.5 text-xs font-black text-text-muted hover:text-text-primary" type="button" onClick={() => setQuickFilter("all")}>Clear filter</button> : null}
         </div>
+        {quickFilter !== "all" ? (
+          <div className="mt-3 flex flex-wrap items-center gap-2 rounded-2xl border border-primary/15 bg-primary/5 px-3 py-2 text-xs font-bold text-text-secondary">
+            <span>Viewing:</span>
+            <span className="font-black text-primary">{quickFilterLabels[quickFilter] || "Filtered Assets"} assets</span>
+            <button className="ml-auto text-xs font-black text-text-muted hover:text-text-primary" type="button" onClick={() => setQuickFilter("all")}>Clear Filter</button>
+          </div>
+        ) : null}
       </Card>
 
       {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{error}</div> : null}
@@ -2434,21 +2470,29 @@ export default function AssetTrackingPage({ store, ui, auth }) {
           <Card title="Asset Operations Summary" description="Current asset workflow signals.">
             <div className="grid gap-1.5">
               {[
-                ["Under Maintenance", operationalKpis.underMaintenance, "Active repair work", "bg-blue-50 text-blue-700 border-blue-100"],
-                ["Needs Attention", operationalKpis.needsAttention, "Condition or quantity review", "bg-amber-50 text-amber-700 border-amber-100"],
-                ["Low Quantity", operationalKpis.lowQuantity, "At or below minimum level", "bg-orange-50 text-orange-700 border-orange-100"],
-                ["Recently Inspected", operationalKpis.recentlyInspected, "Checked today", "bg-emerald-50 text-emerald-700 border-emerald-100"],
-                ["Missing Asset", operationalKpis.missingAssets, "Unavailable or zero quantity", "bg-rose-50 text-rose-700 border-rose-100"],
-                ["Inspection Completion", `${operationalKpis.inspectionCompletion}%`, "Today across visible assets", "bg-slate-50 text-slate-700 border-slate-200"],
-              ].map(([label, value, helper, className]) => (
-                <div key={label} className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 ${className}`}>
+                ["Scheduled Maintenance", operationalKpis.scheduledMaintenance, "Upcoming service tasks", "scheduled_maintenance", "bg-cyan-50 text-cyan-700 border-cyan-100"],
+                ["Under Maintenance", operationalKpis.underMaintenance, "Active repair work", "under_maintenance", "bg-blue-50 text-blue-700 border-blue-100"],
+                ["Needs Attention", operationalKpis.needsAttention, "Minor issue needs follow-up", "needs_attention", "bg-amber-50 text-amber-700 border-amber-100"],
+                ["Low Quantity", operationalKpis.lowQuantity, "At or below minimum level", "low_quantity", "bg-orange-50 text-orange-700 border-orange-100"],
+                ["Recently Inspected", operationalKpis.recentlyInspected, "Checked today", "inspected_today", "bg-emerald-50 text-emerald-700 border-emerald-100"],
+                ["Missing Asset", operationalKpis.missingAssets, "Unavailable or zero quantity", "missing", "bg-rose-50 text-rose-700 border-rose-100"],
+                ["Inspection Completion", `${operationalKpis.inspectionCompletion}%`, "Today across visible assets", "inspection_completion", "bg-slate-50 text-slate-700 border-slate-200"],
+              ].map(([label, value, helper, filterValue, className]) => {
+                const active = quickFilter === filterValue;
+                return (
+                <button
+                  key={label}
+                  className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition hover:-translate-y-0.5 hover:shadow-sm ${className} ${active ? "ring-2 ring-primary/25 shadow-sm" : ""}`}
+                  type="button"
+                  onClick={() => applyOperationalFilter(filterValue)}
+                >
                   <div className="min-w-0">
                     <div className="text-xs font-black text-current">{label}</div>
                     <div className="mt-0.5 truncate text-[11px] font-semibold opacity-75">{helper}</div>
                   </div>
                   <div className="shrink-0 text-lg font-black">{value}</div>
-                </div>
-              ))}
+                </button>
+              );})}
             </div>
           </Card>
         </div>
