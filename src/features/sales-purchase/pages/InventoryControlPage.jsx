@@ -12,6 +12,7 @@ import {
   Download,
   FileText,
   GripVertical,
+  Plus,
   PackageCheck,
   PackagePlus,
   RefreshCw,
