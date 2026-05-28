@@ -77,16 +77,51 @@ create index if not exists inventory_item_outlets_outlet_idx on public.inventory
 create unique index if not exists inventory_item_outlets_unique_idx
   on public.inventory_item_outlets (inventory_item_id, outlet_id);
 
+create table if not exists public.inventory_stock_check_group_categories (
+  id uuid primary key default gen_random_uuid(),
+  group_id uuid not null,
+  category_id uuid references public.inventory_categories(id) on delete cascade,
+  created_at timestamptz not null default now()
+);
+
+create index if not exists inventory_stock_check_group_categories_group_idx
+  on public.inventory_stock_check_group_categories (group_id);
+create index if not exists inventory_stock_check_group_categories_category_idx
+  on public.inventory_stock_check_group_categories (category_id);
+create unique index if not exists inventory_stock_check_group_categories_unique_idx
+  on public.inventory_stock_check_group_categories (group_id, category_id);
+
+create table if not exists public.inventory_item_outlet_suppliers (
+  id uuid primary key default gen_random_uuid(),
+  inventory_item_outlet_id uuid references public.inventory_item_outlets(id) on delete cascade,
+  supplier_id uuid references public.suppliers(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
+create index if not exists inventory_item_outlet_suppliers_config_idx
+  on public.inventory_item_outlet_suppliers (inventory_item_outlet_id);
+create index if not exists inventory_item_outlet_suppliers_supplier_idx
+  on public.inventory_item_outlet_suppliers (supplier_id);
+create unique index if not exists inventory_item_outlet_suppliers_unique_idx
+  on public.inventory_item_outlet_suppliers (inventory_item_outlet_id, supplier_id);
+
 grant select, insert, update, delete on table public.inventory_categories to authenticated;
 grant select, insert, update, delete on table public.inventory_items to authenticated;
 grant select, insert, update, delete on table public.inventory_item_outlets to authenticated;
+grant select, insert, update, delete on table public.inventory_stock_check_group_categories to authenticated;
+grant select, insert, update, delete on table public.inventory_item_outlet_suppliers to authenticated;
 revoke all on table public.inventory_categories from anon;
 revoke all on table public.inventory_items from anon;
 revoke all on table public.inventory_item_outlets from anon;
+revoke all on table public.inventory_stock_check_group_categories from anon;
+revoke all on table public.inventory_item_outlet_suppliers from anon;
 
 alter table public.inventory_categories enable row level security;
 alter table public.inventory_items enable row level security;
 alter table public.inventory_item_outlets enable row level security;
+alter table public.inventory_stock_check_group_categories enable row level security;
+alter table public.inventory_item_outlet_suppliers enable row level security;
 
 drop policy if exists "inventory category viewers can view categories" on public.inventory_categories;
 create policy "inventory category viewers can view categories"
@@ -199,4 +234,176 @@ using (
     or public.current_user_has_permission('inventory_control.manage_master')
   )
   and public.current_user_can_access_outlet(outlet_id)
+);
+
+drop policy if exists "inventory stock group category viewers can view links" on public.inventory_stock_check_group_categories;
+create policy "inventory stock group category viewers can view links"
+on public.inventory_stock_check_group_categories for select to authenticated
+using (
+  public.current_user_has_permission('inventory_groups.view')
+  or public.current_user_has_permission('inventory_stock_check.view')
+  or public.current_user_has_permission('inventory_control.view')
+);
+
+drop policy if exists "inventory stock group category managers can create links" on public.inventory_stock_check_group_categories;
+create policy "inventory stock group category managers can create links"
+on public.inventory_stock_check_group_categories for insert to authenticated
+with check (
+  public.current_user_has_permission('inventory_groups.create')
+  or public.current_user_has_permission('inventory_groups.edit')
+  or public.current_user_has_permission('inventory_control.manage_groups')
+);
+
+drop policy if exists "inventory stock group category managers can update links" on public.inventory_stock_check_group_categories;
+create policy "inventory stock group category managers can update links"
+on public.inventory_stock_check_group_categories for update to authenticated
+using (
+  public.current_user_has_permission('inventory_groups.edit')
+  or public.current_user_has_permission('inventory_control.manage_groups')
+)
+with check (
+  public.current_user_has_permission('inventory_groups.edit')
+  or public.current_user_has_permission('inventory_control.manage_groups')
+);
+
+drop policy if exists "inventory stock group category managers can delete links" on public.inventory_stock_check_group_categories;
+create policy "inventory stock group category managers can delete links"
+on public.inventory_stock_check_group_categories for delete to authenticated
+using (
+  public.current_user_has_permission('inventory_groups.delete')
+  or public.current_user_has_permission('inventory_groups.edit')
+  or public.current_user_has_permission('inventory_control.manage_groups')
+);
+
+drop policy if exists "inventory outlet supplier viewers can view links" on public.inventory_item_outlet_suppliers;
+create policy "inventory outlet supplier viewers can view links"
+on public.inventory_item_outlet_suppliers for select to authenticated
+using (
+  (
+    public.current_user_has_permission('inventory_par_levels.view')
+    or public.current_user_has_permission('inventory_master.view')
+    or public.current_user_has_permission('inventory_control.view')
+  )
+  and exists (
+    select 1
+    from public.inventory_item_outlets iio
+    where iio.id = inventory_item_outlet_suppliers.inventory_item_outlet_id
+      and public.current_user_can_access_outlet(iio.outlet_id)
+  )
+);
+
+drop policy if exists "inventory outlet supplier managers can create links" on public.inventory_item_outlet_suppliers;
+create policy "inventory outlet supplier managers can create links"
+on public.inventory_item_outlet_suppliers for insert to authenticated
+with check (
+  (
+    public.current_user_has_permission('inventory_par_levels.edit')
+    or public.current_user_has_permission('inventory_master.edit')
+    or public.current_user_has_permission('inventory_control.manage_master')
+  )
+  and exists (
+    select 1
+    from public.inventory_item_outlets iio
+    join public.supplier_outlets so on so.outlet_id = iio.outlet_id
+    where iio.id = inventory_item_outlet_suppliers.inventory_item_outlet_id
+      and so.supplier_id = inventory_item_outlet_suppliers.supplier_id
+      and public.current_user_can_access_outlet(iio.outlet_id)
+  )
+);
+
+drop policy if exists "inventory outlet supplier managers can update links" on public.inventory_item_outlet_suppliers;
+create policy "inventory outlet supplier managers can update links"
+on public.inventory_item_outlet_suppliers for update to authenticated
+using (
+  (
+    public.current_user_has_permission('inventory_par_levels.edit')
+    or public.current_user_has_permission('inventory_master.edit')
+    or public.current_user_has_permission('inventory_control.manage_master')
+  )
+  and exists (
+    select 1
+    from public.inventory_item_outlets iio
+    where iio.id = inventory_item_outlet_suppliers.inventory_item_outlet_id
+      and public.current_user_can_access_outlet(iio.outlet_id)
+  )
+)
+with check (
+  (
+    public.current_user_has_permission('inventory_par_levels.edit')
+    or public.current_user_has_permission('inventory_master.edit')
+    or public.current_user_has_permission('inventory_control.manage_master')
+  )
+  and exists (
+    select 1
+    from public.inventory_item_outlets iio
+    join public.supplier_outlets so on so.outlet_id = iio.outlet_id
+    where iio.id = inventory_item_outlet_suppliers.inventory_item_outlet_id
+      and so.supplier_id = inventory_item_outlet_suppliers.supplier_id
+      and public.current_user_can_access_outlet(iio.outlet_id)
+  )
+);
+
+drop policy if exists "inventory outlet supplier managers can delete links" on public.inventory_item_outlet_suppliers;
+create policy "inventory outlet supplier managers can delete links"
+on public.inventory_item_outlet_suppliers for delete to authenticated
+using (
+  (
+    public.current_user_has_permission('inventory_par_levels.edit')
+    or public.current_user_has_permission('inventory_master.edit')
+    or public.current_user_has_permission('inventory_control.manage_master')
+  )
+  and exists (
+    select 1
+    from public.inventory_item_outlets iio
+    where iio.id = inventory_item_outlet_suppliers.inventory_item_outlet_id
+      and public.current_user_can_access_outlet(iio.outlet_id)
+  )
+);
+
+insert into storage.buckets (id, name, public)
+values ('inventory-item-photos', 'inventory-item-photos', true)
+on conflict (id) do update
+set public = excluded.public;
+
+drop policy if exists "inventory viewers can view item photos" on storage.objects;
+create policy "inventory viewers can view item photos"
+on storage.objects for select to authenticated
+using (
+  bucket_id = 'inventory-item-photos'
+  and (
+    public.current_user_has_permission('inventory_master.view')
+    or public.current_user_has_permission('inventory_control.view')
+  )
+);
+
+drop policy if exists "inventory editors can upload item photos" on storage.objects;
+create policy "inventory editors can upload item photos"
+on storage.objects for insert to authenticated
+with check (
+  bucket_id = 'inventory-item-photos'
+  and (
+    public.current_user_has_permission('inventory_master.create')
+    or public.current_user_has_permission('inventory_master.edit')
+    or public.current_user_has_permission('inventory_control.manage_master')
+  )
+);
+
+drop policy if exists "inventory editors can update item photos" on storage.objects;
+create policy "inventory editors can update item photos"
+on storage.objects for update to authenticated
+using (
+  bucket_id = 'inventory-item-photos'
+  and (
+    public.current_user_has_permission('inventory_master.create')
+    or public.current_user_has_permission('inventory_master.edit')
+    or public.current_user_has_permission('inventory_control.manage_master')
+  )
+)
+with check (
+  bucket_id = 'inventory-item-photos'
+  and (
+    public.current_user_has_permission('inventory_master.create')
+    or public.current_user_has_permission('inventory_master.edit')
+    or public.current_user_has_permission('inventory_control.manage_master')
+  )
 );

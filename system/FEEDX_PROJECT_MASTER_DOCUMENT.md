@@ -1811,7 +1811,7 @@ Master Inventory fields:
 - unit
 - photo_url
 - description
-- inventory_type
+- inventory_type (backend compatibility only; not user-facing in current Add/Edit Item UI)
 - default_supplier_id
 - status
 - created_by
@@ -1833,7 +1833,18 @@ Master Inventory UI:
 - Category order controls display order in inventory filters and item forms.
 - Inventory Category Settings supports Add Category, Edit Category, Archive/Deactivate, and Delete when existing protection rules allow.
 - Category management access is controlled by inventory_categories.view/create/edit/delete.
-- The Master Inventory table columns are Item, Category, SKU Code, Unit, Linked Outlets, Status, and Actions.
+- Category is the main user-facing classification for inventory items.
+- Inventory Type is no longer exposed in Add/Edit Item.
+- Item Photo is uploaded from the device, not entered as a raw URL.
+- Item photos are saved to `inventory_items.photo_url` through the Supabase Storage bucket `inventory-item-photos`.
+- If storage is not configured yet, the form must show a clear fallback message instead of blocking item editing.
+- The Master Inventory list defaults to Group by Category.
+- Category group headers show category name, item count, and collapse/expand control.
+- Collapsed category state may be remembered for the current browser session.
+- A Group by control supports Category and None.
+- When grouped by Category, the Category column is hidden because category is represented by the group header.
+- When grouping is None, the table columns are Item, Category, SKU Code, Unit, Linked Outlets, Status, and Actions.
+- Search, outlet filter, category filter, and status filter apply before grouping; empty groups are hidden.
 - The Master Inventory table does not show Low Stock or Par Level columns because those values are outlet-specific.
 - Linked Outlets displays a compact count such as `3 outlets`.
 - Clicking the Linked Outlets count opens a FloatingLayer popover with outlet names, outlet codes, active/inactive link status, and key outlet stock settings.
@@ -1842,15 +1853,47 @@ Master Inventory UI:
 - Add/Edit Item does not show outlet-by-outlet Par Level, Low Stock Threshold, or Reorder Qty inputs.
 - Non-protected roles can only link items to outlets they can access.
 
+Master Inventory import/export:
+
+- Import supports CSV and XLSX.
+- Required import columns are Item Name, Category, and Unit.
+- Optional import columns are SKU Code, Description, Default Supplier, Status, Linked Outlets, and Photo URL.
+- Linked Outlets accepts outlet names or outlet codes separated by commas.
+- Import validates rows before commit and shows a preview of create, update, and failed rows.
+- Category matching uses normalized category name.
+- Outlet matching uses normalized outlet code first, then normalized outlet name.
+- Supplier matching uses normalized supplier name.
+- Import upserts inventory items by SKU Code when present; otherwise by normalized Item Name.
+- Import upserts `inventory_item_outlets` links for valid linked outlets.
+- Import does not create categories, outlets, or suppliers automatically.
+- Import does not set Par Levels, Low Stock Thresholds, or Reorder Quantities.
+- Failed rows may be skipped while valid rows are imported.
+- Import template download is available from the import workflow.
+- Export supports the current filtered Master Inventory view as CSV.
+- Export columns are Item Name, SKU Code, Category, Unit, Description, Default Supplier, Status, Linked Outlets, Created At, and Updated At.
+- Export filename format is `feedx-master-inventory-YYYY-MM-DD.csv`.
+- Import requires inventory_master.create or inventory_master.edit permission.
+- Export requires inventory_master.export permission.
+
 Par Level Setup:
 
 - Route: `#inventory_par_levels`
 - Sidebar: Inventory Control > Par Levels
 - Purpose: bulk manage outlet-specific minimum stock levels.
 - Par Level means the minimum quantity an outlet should keep for an item.
-- Outlet View columns: Item, Category, Unit, Par Level, Storage Location, Active.
+- Outlet View groups items by Category by default.
+- Outlet View supports Group by Category and None.
+- Category group headers show category name, item count, and collapse/expand control.
+- Search, category filter, status filter, and outlet filter apply before grouping; empty groups are hidden.
+- When grouped by Category, Outlet View columns are Item, Unit, Par Level, Storage Location, Suppliers, and Active.
+- When grouping is None, Outlet View columns are Item, Category, Unit, Par Level, Storage Location, Suppliers, and Active.
 - Matrix View rows are items and columns are outlets.
 - Users can update par levels without opening each item.
+- Each outlet-item configuration can assign one or more suppliers.
+- Supplier assignment is outlet-specific and must only show active suppliers linked to the selected outlet through `supplier_outlets`.
+- Supplier multi-select uses FloatingLayer and must not be clipped by cards or tables.
+- Par Levels export includes Item Name, SKU Code, Category, Unit, Outlet, Par Level, Storage Location, Active, and Suppliers.
+- Exported suppliers are comma-separated supplier names.
 - Low stock logic is `current_stock < inventory_item_outlets.par_level`.
 
 Inventory item status:
@@ -1906,13 +1949,15 @@ Rules:
 - Stock Check variance is `par_level - actual_count_quantity`.
 - Low stock alerts compare outlet current stock against `inventory_item_outlets.par_level`.
 - Outlet selectors and item pickers must respect role outlet access.
-- Stock Check Groups can only select items linked to the selected outlet.
+- Stock Check Groups link inventory categories, not individual inventory items.
+- Stock Check generation dynamically loads active items from the selected categories that are linked to the group outlet through active `inventory_item_outlets` rows.
+- New active items added to a linked category automatically appear in the relevant stock check group for linked outlets.
 
 Stock Check Groups:
 
 Purpose:
 
-Each outlet groups linked inventory items into operational check lists.
+Each outlet groups inventory categories into operational check lists. Items are generated automatically from active outlet-linked inventory items in those categories.
 
 Group fields:
 
@@ -1920,6 +1965,7 @@ Group fields:
 - outlet_id
 - group_name
 - description
+- category_ids
 - check_frequency
 - check_days
 - monthly_rule
@@ -1935,10 +1981,8 @@ Group fields:
 
 Frequency options:
 
-- Daily
-- Weekly
 - Monthly
-- Custom Days
+- Custom
 
 Custom days:
 
@@ -3179,8 +3223,10 @@ Inventory Control tables:
 - inventory_categories
 - inventory_items
 - inventory_item_outlets (`inventory_item_id`, `outlet_id`, `par_level`, `storage_location`, `is_active`)
+- inventory_item_outlet_suppliers (`inventory_item_outlet_id`, `supplier_id`)
 - inventory_stock_check_groups
-- inventory_stock_check_group_items
+- inventory_stock_check_group_categories
+- inventory_stock_check_group_items (legacy compatibility only; not used by the current group editing workflow)
 - inventory_stock_checks
 - inventory_stock_check_items
 - inventory_stock_requests
@@ -3531,11 +3577,13 @@ Open Inventory Control > Stock Check
 
 Rules:
 
-- Daily groups are due every day.
-- Weekly groups are due on configured weekdays.
-- Monthly groups are due by configured monthly rule.
-- Custom Days groups are due only on selected days.
-- Groups can only contain inventory items linked to the selected outlet.
+- Monthly groups are due by configured monthly rule such as 1st day, 15th day, or last day of month.
+- Custom groups are due only on selected weekdays.
+- Daily and Weekly frequencies are removed from the current scope.
+- Groups select categories, not manual item lists.
+- Stock Check rows are generated from active inventory items where `category_id` is in the group category list, item status is active, and `inventory_item_outlets.outlet_id` matches the group outlet with `is_active = true`.
+- Legacy item-link data may be retained for compatibility, but it must not drive new group editing workflows.
+- If possible, legacy item-linked groups should infer category links from their existing items.
 
 ### 12.11 Stock Request and Purchase Order
 

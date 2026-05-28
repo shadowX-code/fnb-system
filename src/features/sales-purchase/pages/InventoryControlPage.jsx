@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import {
   AlertTriangle,
   ArrowRight,
@@ -31,6 +31,7 @@ import Badge from "../../../components/ui/Badge.jsx";
 import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
+import { supabase } from "../../../lib/supabase.ts";
 import { canExport, canImport, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 
 const STORAGE_KEY = "feedx.inventoryControl.v1";
@@ -86,9 +87,8 @@ const pageMeta = {
 
 const categoryPresets = ["Raw Material", "Beverage", "Packaging", "Cleaning", "Frozen", "Dry Goods", "Kitchen Supply", "Retail Item"];
 const units = ["kg", "g", "pcs", "box", "pack", "bottle", "carton", "litre"];
-const itemTypes = ["Ingredient", "Packaging", "Consumable", "Retail Item", "Operating Supply"];
 const statuses = ["active", "inactive", "archived"];
-const frequencies = ["daily", "weekly", "monthly", "custom"];
+const frequencies = ["custom", "monthly"];
 const shifts = ["Opening", "Mid", "Closing", "Any Shift"];
 const weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const movementTypes = ["purchase", "transfer_in", "transfer_out", "waste", "adjustment", "staff_meal", "production_usage", "return"];
@@ -112,6 +112,25 @@ function toCurrency(value) {
   return `RM${Number(value || 0).toLocaleString("en-MY", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
+function canonical(value = "") {
+  return String(value).trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function csvEscape(value) {
+  const text = String(value ?? "");
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function downloadTextFile(filename, text, type = "text/csv;charset=utf-8") {
+  const blob = new Blob([text], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
 function formatDate(value) {
   if (!value) return "-";
   return new Date(value).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" });
@@ -131,18 +150,23 @@ function statusTone(status) {
 
 function frequencyLabel(group) {
   if (group.frequency === "custom") return (group.checkDays || []).join(", ") || "Custom";
-  if (group.frequency === "weekly") return `Weekly · ${(group.checkDays || [])[0] || "Not set"}`;
-  if (group.frequency === "monthly") return "Monthly";
-  return "Daily";
+  if (group.frequency === "monthly") {
+    if (group.monthDay === "last") return "Monthly · Last day";
+    return `Monthly · Day ${group.monthDay || 1}`;
+  }
+  return "Custom";
 }
 
 function isGroupDue(group, date) {
   if (group.status !== "active") return false;
   const day = weekdayName(date);
-  if (group.frequency === "daily") return true;
-  if (group.frequency === "weekly") return (group.checkDays || []).includes(day);
   if (group.frequency === "custom") return (group.checkDays || []).includes(day);
-  if (group.frequency === "monthly") return new Date(date).getDate() === Number(group.monthDay || 1);
+  if (group.frequency === "monthly") {
+    const target = new Date(date);
+    const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+    const configuredDay = group.monthDay === "last" ? lastDay : Math.min(Number(group.monthDay || 1), lastDay);
+    return target.getDate() === configuredDay;
+  }
   return false;
 }
 
@@ -171,6 +195,177 @@ function latestActualCount(checks = [], itemId, outletId) {
   return Number(rows[0]?.actualCount ?? Number.POSITIVE_INFINITY);
 }
 
+function groupCategoryIds(group = {}, items = []) {
+  const directIds = group.categoryIds || group.category_ids || [];
+  if (directIds.length) return uniqueIds(directIds);
+  const itemIds = group.itemIds || group.item_ids || [];
+  if (!itemIds.length) return [];
+  const categoryIds = itemIds
+    .map((itemId) => items.find((item) => item.id === itemId)?.categoryId)
+    .filter(Boolean);
+  return uniqueIds(categoryIds);
+}
+
+function itemHasActiveOutletLink(item = {}, outletId) {
+  const configs = item.outletConfigs || [];
+  if (configs.length) return configs.some((config) => config.outletId === outletId && config.isActive !== false);
+  return (item.linkedOutletIds || []).includes(outletId);
+}
+
+function stockCheckItemsForGroup(group = {}, items = []) {
+  const selectedCategories = new Set(groupCategoryIds(group, items));
+  if (!selectedCategories.size) return [];
+  return items
+    .filter((item) => item.status === "active")
+    .filter((item) => selectedCategories.has(item.categoryId))
+    .filter((item) => itemHasActiveOutletLink(item, group.outletId))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
+function readFileAsDataUrl(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result || "");
+    reader.onerror = () => reject(new Error("Unable to read image. Please try another file."));
+    reader.readAsDataURL(file);
+  });
+}
+
+function parseCsvLine(line = "") {
+  const cells = [];
+  let current = "";
+  let quoted = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const next = line[index + 1];
+    if (char === '"' && quoted && next === '"') {
+      current += '"';
+      index += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (char === "," && !quoted) {
+      cells.push(current.trim());
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  cells.push(current.trim());
+  return cells;
+}
+
+function parseCsv(text) {
+  const lines = text.split(/\r?\n/).filter((line) => line.trim());
+  const headers = parseCsvLine(lines[0] || "");
+  const rows = lines.slice(1).map((line, index) => {
+    const cells = parseCsvLine(line);
+    return headers.reduce((record, header, cellIndex) => ({ ...record, [header]: cells[cellIndex] ?? "" }), { __row: index + 2 });
+  });
+  return { headers, rows };
+}
+
+function readUInt16(view, offset) {
+  return view.getUint16(offset, true);
+}
+
+function readUInt32(view, offset) {
+  return view.getUint32(offset, true);
+}
+
+function columnIndex(cellRef = "") {
+  const letters = String(cellRef).match(/[A-Z]+/i)?.[0] ?? "A";
+  return [...letters.toUpperCase()].reduce((total, char) => total * 26 + char.charCodeAt(0) - 64, 0) - 1;
+}
+
+async function inflateRaw(bytes) {
+  if (!("DecompressionStream" in window)) {
+    throw new Error("XLSX parsing requires browser ZIP support. Please use CSV in this browser.");
+  }
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function unzipXlsx(buffer) {
+  const view = new DataView(buffer);
+  let eocdOffset = -1;
+  for (let offset = view.byteLength - 22; offset >= Math.max(0, view.byteLength - 66000); offset -= 1) {
+    if (readUInt32(view, offset) === 0x06054b50) {
+      eocdOffset = offset;
+      break;
+    }
+  }
+  if (eocdOffset === -1) throw new Error("Unable to read XLSX workbook.");
+  const entryCount = readUInt16(view, eocdOffset + 10);
+  let centralOffset = readUInt32(view, eocdOffset + 16);
+  const files = {};
+  const decoder = new TextDecoder();
+
+  for (let index = 0; index < entryCount; index += 1) {
+    if (readUInt32(view, centralOffset) !== 0x02014b50) break;
+    const method = readUInt16(view, centralOffset + 10);
+    const compressedSize = readUInt32(view, centralOffset + 20);
+    const fileNameLength = readUInt16(view, centralOffset + 28);
+    const extraLength = readUInt16(view, centralOffset + 30);
+    const commentLength = readUInt16(view, centralOffset + 32);
+    const localOffset = readUInt32(view, centralOffset + 42);
+    const name = decoder.decode(new Uint8Array(buffer, centralOffset + 46, fileNameLength));
+    const localNameLength = readUInt16(view, localOffset + 26);
+    const localExtraLength = readUInt16(view, localOffset + 28);
+    const dataOffset = localOffset + 30 + localNameLength + localExtraLength;
+    const compressed = new Uint8Array(buffer, dataOffset, compressedSize);
+    const bytes = method === 0 ? compressed : method === 8 ? await inflateRaw(compressed) : null;
+    if (bytes) files[name] = decoder.decode(bytes);
+    centralOffset += 46 + fileNameLength + extraLength + commentLength;
+  }
+  return files;
+}
+
+function textFromXlsxCell(cell, sharedStrings) {
+  const type = cell.getAttribute("t");
+  if (type === "s") {
+    const index = Number(cell.querySelector("v")?.textContent ?? -1);
+    return sharedStrings[index] ?? "";
+  }
+  if (type === "inlineStr") return [...cell.querySelectorAll("t")].map((item) => item.textContent ?? "").join("");
+  return cell.querySelector("v")?.textContent ?? "";
+}
+
+async function parseXlsx(file) {
+  const files = await unzipXlsx(await file.arrayBuffer());
+  const parser = new DOMParser();
+  const sharedStringsXml = files["xl/sharedStrings.xml"];
+  const sharedStrings = sharedStringsXml
+    ? [...parser.parseFromString(sharedStringsXml, "application/xml").querySelectorAll("si")].map((node) => [...node.querySelectorAll("t")].map((item) => item.textContent ?? "").join(""))
+    : [];
+  const sheetName = Object.keys(files).find((name) => /^xl\/worksheets\/sheet\d+\.xml$/.test(name));
+  if (!sheetName) throw new Error("No worksheet found in XLSX file.");
+  const sheet = parser.parseFromString(files[sheetName], "application/xml");
+  const rawRows = [...sheet.querySelectorAll("sheetData row")].map((rowNode) => {
+    const values = [];
+    [...rowNode.querySelectorAll("c")].forEach((cell) => {
+      values[columnIndex(cell.getAttribute("r"))] = textFromXlsxCell(cell, sharedStrings);
+    });
+    return values;
+  }).filter((row) => row.some((cell) => String(cell ?? "").trim()));
+  const headers = rawRows[0]?.map((cell) => String(cell ?? "").trim()) ?? [];
+  const rows = rawRows.slice(1).map((row, index) => headers.reduce((record, header, cellIndex) => ({ ...record, [header]: row[cellIndex] ?? "" }), { __row: index + 2 }));
+  return { headers, rows };
+}
+
+async function uploadInventoryItemPhoto(file, itemId = "draft") {
+  const extension = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
+  const path = `${itemId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
+  const { data, error } = await supabase.storage
+    .from("inventory-item-photos")
+    .upload(path, file, {
+      contentType: file.type || `image/${extension}`,
+      upsert: true,
+    });
+  if (error) throw error;
+  const { data: publicUrlData } = supabase.storage.from("inventory-item-photos").getPublicUrl(data.path);
+  return publicUrlData.publicUrl;
+}
+
 function uniqueIds(values = []) {
   return [...new Set(values.filter(Boolean))];
 }
@@ -191,6 +386,7 @@ function buildOutletConfig(item = {}, outletId, existing = {}) {
     outletId,
     parLevel,
     storageLocation: existing.storageLocation ?? "",
+    supplierIds: uniqueIds(existing.supplierIds || existing.supplier_ids || []),
     isActive: existing.isActive !== false,
     createdAt: existing.createdAt || item.createdAt || "",
     updatedAt: existing.updatedAt || item.updatedAt || "",
@@ -202,6 +398,7 @@ function normalizeInventoryItem(item = {}) {
   const existingConfigs = new Map((item.outletConfigs || []).map((config) => [config.outletId, config]));
   return {
     ...item,
+    photo: item.photo ?? item.photo_url ?? "",
     linkedOutletIds,
     outletConfigs: linkedOutletIds.map((outletId) => buildOutletConfig(item, outletId, existingConfigs.get(outletId))),
   };
@@ -313,8 +510,9 @@ function defaultData(outlets = [], suppliers = []) {
       outletId: firstOutlet.id,
       name: "Kitchen Daily",
       description: "Closing count for core kitchen stock.",
+      categoryIds: ["inv_cat_1", "inv_cat_5"],
       itemIds: ["item_sambal", "item_chicken"],
-      frequency: "daily",
+      frequency: "custom",
       checkDays: weekdays,
       monthDay: 1,
       shift: "Closing",
@@ -326,9 +524,10 @@ function defaultData(outlets = [], suppliers = []) {
       id: "group_packaging_weekly",
       outletId: firstOutlet.id,
       name: "Packaging Check",
-      description: "Weekly packaging stock check.",
+      description: "Packaging stock check.",
+      categoryIds: ["inv_cat_3"],
       itemIds: ["item_cups"],
-      frequency: "weekly",
+      frequency: "custom",
       checkDays: [weekdayName()],
       monthDay: 1,
       shift: "Opening",
@@ -516,6 +715,360 @@ function LinkedOutletsSummary({ item, outlets, onConfigure }) {
   );
 }
 
+function SupplierAssignmentPicker({ suppliers, outletId, selectedIds = [], onSave }) {
+  const anchorRef = useRef(null);
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const [draftIds, setDraftIds] = useState(selectedIds);
+  const selected = new Set(draftIds);
+  const outletSuppliers = useMemo(() => suppliers
+    .filter((supplier) => supplier.status === "active" || supplier.is_active === true)
+    .filter((supplier) => (supplier.outletIds || supplier.assignedOutletIds || []).includes(outletId))
+    .filter((supplier) => !query.trim() || supplier.name.toLowerCase().includes(query.trim().toLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name)), [suppliers, outletId, query]);
+  const selectedSuppliers = suppliers.filter((supplier) => selectedIds.includes(supplier.id));
+  const label = selectedSuppliers.length === 0
+    ? "No supplier"
+    : selectedSuppliers.length === 1
+      ? selectedSuppliers[0].name
+      : `${selectedSuppliers.length} suppliers`;
+
+  useEffect(() => {
+    if (open) setDraftIds(selectedIds);
+  }, [open, selectedIds]);
+
+  return (
+    <>
+      <button
+        ref={anchorRef}
+        className="inline-flex h-8 max-w-[180px] items-center gap-1 rounded-full border border-border bg-white px-2.5 type-caption font-bold text-text-primary transition hover:border-primary/30 hover:text-primary"
+        type="button"
+        onClick={() => setOpen(true)}
+      >
+        <span className="truncate">{label}</span>
+        <ChevronDown size={13} className="shrink-0 text-text-muted" />
+      </button>
+      <FloatingLayer open={open} onOpenChange={setOpen} anchorRef={anchorRef} align="start" minWidth={280} estimatedHeight={340}>
+        <div className="space-y-2">
+          <div className="px-1">
+            <div className="type-caption font-bold text-text-primary">Assign suppliers</div>
+            <div className="type-micro text-text-muted">Only suppliers linked to this outlet are shown.</div>
+          </div>
+          <input
+            className="control h-8 w-full text-[12px]"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search suppliers"
+          />
+          {draftIds.length ? (
+            <div className="flex flex-wrap gap-1">
+              {suppliers.filter((supplier) => draftIds.includes(supplier.id)).map((supplier) => (
+                <span key={supplier.id} className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-bold text-primary">{supplier.name}</span>
+              ))}
+            </div>
+          ) : null}
+          <div className="max-h-52 space-y-1 overflow-y-auto pr-1">
+            {outletSuppliers.length ? outletSuppliers.map((supplier) => {
+              const checked = selected.has(supplier.id);
+              return (
+                <label key={supplier.id} className="flex cursor-pointer items-center gap-2 rounded-xl px-2 py-1.5 transition hover:bg-primary/5">
+                  <input
+                    type="checkbox"
+                    checked={checked}
+                    onChange={(event) => {
+                      const next = new Set(draftIds);
+                      if (event.target.checked) next.add(supplier.id);
+                      else next.delete(supplier.id);
+                      setDraftIds([...next]);
+                    }}
+                  />
+                  <span className="min-w-0 flex-1 truncate type-body-sm font-semibold text-text-primary">{supplier.name}</span>
+                </label>
+              );
+            }) : (
+              <div className="rounded-xl bg-slate-50 px-3 py-2 type-caption font-semibold text-text-secondary">
+                No active suppliers linked to this outlet.
+              </div>
+            )}
+          </div>
+          <div className="flex justify-end gap-2 border-t border-border pt-2">
+            <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setOpen(false)}>Cancel</button>
+            <button className="btn-primary h-8 px-2.5 text-xs" type="button" onClick={() => { onSave(draftIds); setOpen(false); }}>Save</button>
+          </div>
+        </div>
+      </FloatingLayer>
+    </>
+  );
+}
+
+function ItemPhotoPicker({ value, itemId, onChange }) {
+  const [uploading, setUploading] = useState(false);
+  const [error, setError] = useState("");
+
+  async function handleFile(file) {
+    setError("");
+    if (!file) return;
+    if (!file.type.startsWith("image/")) {
+      setError("Please upload a PNG, JPG or WebP image.");
+      return;
+    }
+    if (file.size > 2 * 1024 * 1024) {
+      setError("Please use an image below 2MB.");
+      return;
+    }
+
+    setUploading(true);
+    try {
+      const preview = await readFileAsDataUrl(file);
+      onChange(preview);
+      try {
+        const publicUrl = await uploadInventoryItemPhoto(file, itemId || "draft");
+        onChange(publicUrl);
+      } catch (uploadError) {
+        console.warn("[InventoryControl] Item photo upload failed", uploadError);
+        setError("Photo preview is shown, but upload storage is not ready. Please check the inventory-item-photos bucket.");
+      }
+    } catch (readError) {
+      setError(readError.message || "Unable to read image. Please try another file.");
+    } finally {
+      setUploading(false);
+    }
+  }
+
+  return (
+    <div>
+      <div className="mb-1 type-caption font-semibold text-text-secondary">Item Photo</div>
+      <div className="rounded-2xl border border-border bg-slate-50/70 p-3">
+        {value ? (
+          <div className="flex items-center gap-3">
+            <img className="h-20 w-20 rounded-2xl border border-border object-cover" src={value} alt="Item preview" />
+            <div className="min-w-0 flex-1">
+              <div className="type-body-sm font-bold text-text-primary">Photo selected</div>
+              <div className="type-caption text-text-secondary">{uploading ? "Uploading to inventory-item-photos..." : "Thumbnail appears in Master Inventory."}</div>
+              <div className="mt-2 flex flex-wrap gap-2">
+                <label className="btn-secondary h-8 cursor-pointer px-3 text-xs">
+                  Replace photo
+                  <input className="sr-only" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handleFile(event.target.files?.[0])} />
+                </label>
+                <button className="btn-secondary h-8 px-3 text-xs text-rose-600" type="button" onClick={() => { setError(""); onChange(""); }}>Remove</button>
+              </div>
+            </div>
+          </div>
+        ) : (
+          <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface px-4 py-5 text-center transition hover:border-primary/40 hover:bg-primary/5">
+            <Upload size={18} className="text-primary" />
+            <span className="mt-2 type-body-sm font-bold text-text-primary">{uploading ? "Uploading..." : "Upload item photo"}</span>
+            <span className="mt-0.5 type-caption text-text-muted">PNG/JPG/WebP</span>
+            <input className="sr-only" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handleFile(event.target.files?.[0])} />
+          </label>
+        )}
+        {error ? <div className="mt-2 type-caption font-semibold text-amber-700">{error}</div> : null}
+      </div>
+    </div>
+  );
+}
+
+const inventoryImportColumns = ["Item Name", "SKU Code", "Category", "Unit", "Description", "Default Supplier", "Status", "Linked Outlets", "Photo URL"];
+
+function readImportValue(row, aliases) {
+  const entries = Object.entries(row);
+  for (const alias of aliases) {
+    const found = entries.find(([key]) => canonical(key) === canonical(alias));
+    if (found) return String(found[1] ?? "").trim();
+  }
+  return "";
+}
+
+function buildInventoryImportPreview(rows, { categories, outlets, suppliers, items }) {
+  const categoryByName = new Map(categories.map((category) => [canonical(category.name), category]));
+  const outletByKey = new Map(outlets.flatMap((outlet) => [
+    [canonical(outlet.code || outlet.shortCode || outlet.short_code || ""), outlet],
+    [canonical(outlet.name), outlet],
+  ]).filter(([key]) => key));
+  const supplierByName = new Map(suppliers.map((supplier) => [canonical(supplier.name), supplier]));
+  const existingBySku = new Map(items.filter((item) => item.sku).map((item) => [canonical(item.sku), item]));
+  const existingByName = new Map(items.map((item) => [canonical(item.name), item]));
+  const seenSkus = new Map();
+  const seenNamesWithoutSku = new Map();
+
+  return rows.map((row) => {
+    const name = readImportValue(row, ["Item Name", "Name", "Item"]);
+    const sku = readImportValue(row, ["SKU Code", "SKU"]);
+    const categoryName = readImportValue(row, ["Category"]);
+    const unit = readImportValue(row, ["Unit"]);
+    const description = readImportValue(row, ["Description"]);
+    const supplierName = readImportValue(row, ["Default Supplier", "Supplier"]);
+    const status = (readImportValue(row, ["Status"]) || "active").toLowerCase();
+    const linkedOutletText = readImportValue(row, ["Linked Outlets", "Outlets"]);
+    const photo = readImportValue(row, ["Photo URL", "Photo", "Photo Url"]);
+    const errors = [];
+    const warnings = [];
+
+    if (!name) errors.push("Missing Item Name");
+    if (!categoryName) errors.push("Missing Category");
+    const category = categoryByName.get(canonical(categoryName));
+    if (categoryName && !category) errors.push("Unknown Category");
+    if (!unit) errors.push("Missing Unit");
+    if (unit && !units.map(canonical).includes(canonical(unit))) errors.push("Invalid Unit");
+    if (!["active", "inactive", "archived"].includes(status)) errors.push("Invalid Status");
+
+    const skuKey = canonical(sku);
+    const nameKey = canonical(name);
+    if (skuKey) {
+      if (seenSkus.has(skuKey)) errors.push("Duplicate SKU in file");
+      seenSkus.set(skuKey, row.__row);
+    } else if (nameKey) {
+      if (seenNamesWithoutSku.has(nameKey)) errors.push("Duplicate item name without SKU");
+      seenNamesWithoutSku.set(nameKey, row.__row);
+    }
+
+    const linkedOutlets = linkedOutletText
+      ? linkedOutletText.split(",").map((entry) => entry.trim()).filter(Boolean).map((entry) => {
+        const outlet = outletByKey.get(canonical(entry));
+        if (!outlet) errors.push(`Unknown Outlet: ${entry}`);
+        return outlet;
+      }).filter(Boolean)
+      : [];
+    const supplier = supplierName ? supplierByName.get(canonical(supplierName)) : null;
+    if (supplierName && !supplier) errors.push("Unknown Supplier");
+    const existing = skuKey ? existingBySku.get(skuKey) : existingByName.get(nameKey);
+
+    return {
+      rowNumber: row.__row,
+      source: row,
+      action: existing ? "update" : "create",
+      errors,
+      warnings,
+      item: {
+        id: existing?.id || "",
+        name,
+        sku,
+        categoryId: category?.id || "",
+        unit,
+        description,
+        defaultSupplierId: supplier?.id || existing?.defaultSupplierId || "",
+        status,
+        photo: photo || existing?.photo || existing?.photo_url || "",
+        linkedOutletIds: linkedOutlets.length ? linkedOutlets.map((outlet) => outlet.id) : existing?.linkedOutletIds || [],
+      },
+    };
+  });
+}
+
+function InventoryImportModal({ categories, outlets, suppliers, items, onClose, onImport }) {
+  const [fileName, setFileName] = useState("");
+  const [preview, setPreview] = useState([]);
+  const [error, setError] = useState("");
+  const [complete, setComplete] = useState(null);
+  const validRows = preview.filter((row) => !row.errors.length);
+  const failedRows = preview.filter((row) => row.errors.length);
+
+  async function handleFile(file) {
+    setError("");
+    setComplete(null);
+    setPreview([]);
+    if (!file) return;
+    const extension = file.name.split(".").pop()?.toLowerCase();
+    if (!["csv", "xlsx"].includes(extension)) {
+      setError("Please upload CSV or XLSX only.");
+      return;
+    }
+    try {
+      setFileName(file.name);
+      const parsed = extension === "xlsx" ? await parseXlsx(file) : parseCsv(await file.text());
+      const built = buildInventoryImportPreview(parsed.rows, { categories, outlets, suppliers, items });
+      setPreview(built);
+    } catch (parseError) {
+      setError(parseError.message || "Unable to parse import file.");
+    }
+  }
+
+  function downloadTemplate() {
+    const sampleCategory = categories[0]?.name || "Raw Material";
+    const sampleOutlet = outlets[0]?.name || "Friends Corner";
+    const text = [
+      inventoryImportColumns.join(","),
+      ["Sambal Sauce", "RAW-SAM-001", sampleCategory, "kg", "House sambal batch", suppliers[0]?.name || "", "active", sampleOutlet, ""].map(csvEscape).join(","),
+    ].join("\n");
+    downloadTextFile("feedx-master-inventory-template.csv", text);
+  }
+
+  function confirmImport() {
+    const result = onImport(validRows);
+    setComplete(result);
+  }
+
+  return (
+    <Modal
+      title="Import Master Inventory"
+      description="Upload CSV or XLSX, validate rows, preview changes, then import valid rows."
+      size="xl"
+      onClose={onClose}
+      footer={(
+        <>
+          <button className="btn-secondary" type="button" onClick={onClose}>Close</button>
+          <button className="btn-primary" type="button" disabled={!validRows.length || Boolean(complete)} onClick={confirmImport}>Confirm Import</button>
+        </>
+      )}
+    >
+      <div className="space-y-4">
+        <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
+          <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-6 text-center transition hover:bg-primary/10">
+            <Upload size={20} className="text-primary" />
+            <span className="mt-2 type-body-sm font-bold text-text-primary">{fileName || "Upload CSV or XLSX"}</span>
+            <span className="type-caption text-text-secondary">Required: Item Name, Category, Unit</span>
+            <input className="sr-only" type="file" accept=".csv,.xlsx" onChange={(event) => handleFile(event.target.files?.[0])} />
+          </label>
+          <button className="btn-secondary" type="button" onClick={downloadTemplate}><Download size={15} /> Download Template</button>
+        </div>
+        {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 type-body-sm font-semibold text-rose-700">{error}</div> : null}
+        {preview.length ? (
+          <>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <MetricCard label="Rows" value={preview.length} helper="Parsed from file" />
+              <MetricCard label="Valid" value={validRows.length} helper="Ready to import" tone="success" />
+              <MetricCard label="Failed" value={failedRows.length} helper="Can be skipped" tone={failedRows.length ? "danger" : "success"} />
+            </div>
+            <div className="overflow-x-auto rounded-2xl border border-border">
+              <table className="w-full min-w-[900px] text-left">
+                <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
+                  <tr>
+                    <th className="px-3 py-2">Row</th>
+                    <th>Action</th>
+                    <th>Item</th>
+                    <th>Category</th>
+                    <th>Unit</th>
+                    <th>Linked Outlets</th>
+                    <th>Validation</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border text-[13px]">
+                  {preview.slice(0, 80).map((row) => (
+                    <tr key={row.rowNumber} className={row.errors.length ? "bg-rose-50/50" : "bg-white"}>
+                      <td className="px-3 py-2 font-mono text-xs">{row.rowNumber}</td>
+                      <td><Badge tone={row.action === "create" ? "success" : "info"}>{toTitle(row.action)}</Badge></td>
+                      <td className="font-bold text-text-primary">{row.item.name || "-"}</td>
+                      <td>{categoryByIdName(categories, row.item.categoryId)}</td>
+                      <td>{row.item.unit || "-"}</td>
+                      <td>{row.item.linkedOutletIds.length} outlet{row.item.linkedOutletIds.length === 1 ? "" : "s"}</td>
+                      <td className={row.errors.length ? "text-rose-700" : "text-emerald-700"}>{row.errors.length ? row.errors.join("; ") : "Ready"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {complete ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 type-body-sm font-semibold text-emerald-700">Import complete: {complete.created} created · {complete.updated} updated · {failedRows.length} skipped.</div> : null}
+          </>
+        ) : null}
+      </div>
+    </Modal>
+  );
+}
+
+function categoryByIdName(categories, categoryId) {
+  return categories.find((category) => category.id === categoryId)?.name || "Uncategorized";
+}
+
 function InventoryItemModal({ item, categories, outlets, suppliers, onClose, onSave }) {
   const initialItem = normalizeInventoryItem(item ?? {
     id: "",
@@ -525,7 +1078,7 @@ function InventoryItemModal({ item, categories, outlets, suppliers, onClose, onS
     unit: "kg",
     photo: "",
     description: "",
-    inventoryType: "Ingredient",
+    inventoryType: item?.inventoryType ?? "",
     defaultSupplierId: "",
     status: "active",
     linkedOutletIds: outlets[0]?.id ? [outlets[0].id] : [],
@@ -576,10 +1129,11 @@ function InventoryItemModal({ item, categories, outlets, suppliers, onClose, onS
         <Field label="SKU Code" value={form.sku} onChange={(value) => update("sku", value)} placeholder="RAW-SAM-001" />
         <SelectField label="Category" value={form.categoryId} options={categories.map((category) => ({ value: category.id, label: category.name }))} onChange={(value) => update("categoryId", value)} searchable required />
         <SelectField label="Unit" value={form.unit} options={units.map((unit) => ({ value: unit, label: unit }))} onChange={(value) => update("unit", value)} />
-        <SelectField label="Inventory Type" value={form.inventoryType} options={itemTypes.map((type) => ({ value: type, label: type }))} onChange={(value) => update("inventoryType", value)} />
         <SelectField label="Default Supplier" value={form.defaultSupplierId} placeholder="Optional" options={[{ value: "", label: "No default supplier" }, ...suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))]} onChange={(value) => update("defaultSupplierId", value)} searchable />
         <SelectField label="Status" value={form.status} options={statuses.map((status) => ({ value: status, label: toTitle(status) }))} onChange={(value) => update("status", value)} />
-        <Field label="Photo / Icon URL" value={form.photo} onChange={(value) => update("photo", value)} placeholder="Optional image URL" />
+        <div className="md:col-span-2">
+          <ItemPhotoPicker value={form.photo} itemId={form.id || form.sku || "draft"} onChange={(value) => update("photo", value)} />
+        </div>
         <div className="md:col-span-2">
           <TextArea label="Description" value={form.description} onChange={(value) => update("description", value)} placeholder="Short operational description." />
         </div>
@@ -704,22 +1258,40 @@ function CategorySettingsModal({ categories, itemCounts, canAdd, canEdit, canDel
 }
 
 function GroupModal({ group, outlets, items, categories, onClose, onSave }) {
-  const [form, setForm] = useState(group ?? {
+  const initialGroup = group ? {
+    ...group,
+    categoryIds: groupCategoryIds(group, items),
+    frequency: frequencies.includes(group.frequency) ? group.frequency : "custom",
+    checkDays: group.checkDays?.length ? group.checkDays : [weekdayName()],
+  } : {
     id: "",
     outletId: outlets[0]?.id ?? "",
     name: "",
     description: "",
+    categoryIds: [],
     itemIds: [],
-    frequency: "daily",
+    frequency: "custom",
     checkDays: [weekdayName()],
     monthDay: 1,
     shift: "Closing",
     assignedStaff: "",
     status: "active",
     lastChecked: "",
-  });
-  const allowedItems = useMemo(() => items.filter((item) => (item.linkedOutletIds || []).includes(form.outletId) && item.status === "active"), [items, form.outletId]);
-  const selected = new Set(form.itemIds || []);
+  };
+  const [form, setForm] = useState(initialGroup);
+  const selected = new Set(form.categoryIds || []);
+  const categoryCounts = useMemo(() => {
+    const counts = new Map();
+    items
+      .filter((item) => item.status === "active")
+      .filter((item) => itemHasActiveOutletLink(item, form.outletId))
+      .forEach((item) => counts.set(item.categoryId, (counts.get(item.categoryId) || 0) + 1));
+    return counts;
+  }, [items, form.outletId]);
+  const allowedCategories = useMemo(() => categories
+    .filter((category) => category.status !== "archived")
+    .filter((category) => (categoryCounts.get(category.id) || 0) > 0 || selected.has(category.id)),
+  [categories, categoryCounts, selected]);
 
   function update(key, value) {
     setForm((current) => ({ ...current, [key]: value }));
@@ -728,13 +1300,13 @@ function GroupModal({ group, outlets, items, categories, onClose, onSave }) {
   return (
     <Modal
       title={group ? "Edit Stock Check Group" : "Add Stock Check Group"}
-      description="Group only the items this outlet actually needs to count for the selected frequency."
+      description="Group the categories this outlet needs to count for the selected schedule."
       size="xl"
       onClose={onClose}
       footer={(
         <>
           <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="button" disabled={!form.name.trim() || !form.outletId || !form.itemIds.length} onClick={() => onSave({ ...form, id: form.id || makeId("group") })}>Save Group</button>
+          <button className="btn-primary" type="button" disabled={!form.name.trim() || !form.outletId || !form.categoryIds.length} onClick={() => onSave({ ...form, id: form.id || makeId("group"), itemIds: [] })}>Save Group</button>
         </>
       )}
     >
@@ -747,8 +1319,22 @@ function GroupModal({ group, outlets, items, categories, onClose, onSave }) {
             <SelectField label="Check Frequency" value={form.frequency} options={frequencies.map((frequency) => ({ value: frequency, label: toTitle(frequency) }))} onChange={(value) => update("frequency", value)} />
             <SelectField label="Shift" value={form.shift} options={shifts.map((shift) => ({ value: shift, label: shift }))} onChange={(value) => update("shift", value)} />
           </div>
-          {form.frequency === "monthly" ? <Field label="Monthly Check Day" type="number" value={form.monthDay} onChange={(value) => update("monthDay", Number(value || 1))} /> : null}
-          {["weekly", "custom"].includes(form.frequency) ? (
+          {form.frequency === "monthly" ? (
+            <SelectField
+              label="Monthly Rule"
+              value={String(form.monthDay || 1)}
+              options={[
+                ...Array.from({ length: 28 }, (_, index) => {
+                  const day = index + 1;
+                  const suffix = day === 1 ? "st" : day === 2 ? "nd" : day === 3 ? "rd" : "th";
+                  return { value: String(day), label: `${day}${suffix} day of month` };
+                }),
+                { value: "last", label: "Last day of month" },
+              ]}
+              onChange={(value) => update("monthDay", value === "last" ? "last" : Number(value))}
+            />
+          ) : null}
+          {form.frequency === "custom" ? (
             <div className="rounded-2xl border border-border p-2">
               <div className="mb-2 type-caption font-semibold text-text-secondary">Check Days</div>
               <div className="flex flex-wrap gap-2">
@@ -778,35 +1364,35 @@ function GroupModal({ group, outlets, items, categories, onClose, onSave }) {
         <div className="rounded-2xl border border-border bg-slate-50/70 p-3">
           <div className="mb-3 flex items-center justify-between">
             <div>
-              <div className="type-title font-bold text-text-primary">Linked Items</div>
-              <div className="type-caption text-text-secondary">Only inventory linked to the selected outlet is available.</div>
+              <div className="type-title font-bold text-text-primary">Linked Categories</div>
+              <div className="type-caption text-text-secondary">Items are loaded automatically from the selected categories for this outlet.</div>
             </div>
             <Badge tone="info">{selected.size} selected</Badge>
           </div>
           <div className="max-h-[420px] space-y-2 overflow-y-auto pr-1">
-            {allowedItems.length ? allowedItems.map((item) => {
-              const category = categories.find((entry) => entry.id === item.categoryId);
-              const active = selected.has(item.id);
+            {allowedCategories.length ? allowedCategories.map((category) => {
+              const active = selected.has(category.id);
+              const linkedCount = categoryCounts.get(category.id) || 0;
               return (
                 <button
-                  key={item.id}
+                  key={category.id}
                   className={`flex w-full items-start justify-between gap-3 rounded-2xl border p-3 text-left transition ${active ? "border-primary/40 bg-white shadow-sm" : "border-border bg-white/70 hover:border-slate-300"}`}
                   type="button"
                   onClick={() => {
                     const next = new Set(selected);
-                    if (next.has(item.id)) next.delete(item.id);
-                    else next.add(item.id);
-                    update("itemIds", [...next]);
+                    if (next.has(category.id)) next.delete(category.id);
+                    else next.add(category.id);
+                    update("categoryIds", [...next]);
                   }}
                 >
                   <span>
-                    <span className="block type-body-sm font-bold text-text-primary">{item.name}</span>
-                    <span className="mt-1 block type-caption text-text-secondary">{category?.name ?? "Uncategorized"} · Par {parLevelForOutlet(item, form.outletId)} {item.unit}</span>
+                    <span className="block type-body-sm font-bold text-text-primary">{category.name}</span>
+                    <span className="mt-1 block type-caption text-text-secondary">{linkedCount} linked active item{linkedCount === 1 ? "" : "s"} for {outlets.find((outlet) => outlet.id === form.outletId)?.name || "selected outlet"}</span>
                   </span>
                   {active ? <CheckCircle2 className="text-primary" size={18} /> : null}
                 </button>
               );
-            }) : <EmptyState title="No linked items" description="Link inventory items to this outlet before adding them to a stock check group." />}
+            }) : <EmptyState title="No linked categories" description="Only categories with active items linked to this outlet are shown." />}
           </div>
         </div>
       </div>
@@ -993,7 +1579,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [query, setQuery] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("active");
+  const [masterGroupBy, setMasterGroupBy] = useState("category");
+  const [collapsedCategoryIds, setCollapsedCategoryIds] = useState(() => new Set());
   const [parLevelView, setParLevelView] = useState("outlet");
+  const [parLevelGroupBy, setParLevelGroupBy] = useState("category");
+  const [collapsedParCategoryIds, setCollapsedParCategoryIds] = useState(() => new Set());
   const [parLevelOutletId, setParLevelOutletId] = useState(outlets[0]?.id ?? "");
   const [date, setDate] = useState(todayInput());
   const [modal, setModal] = useState(null);
@@ -1048,6 +1638,16 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     const matchesStatus = statusFilter === "all" || item.status === statusFilter;
     return matchesOutlet && matchesQuery && matchesCategory && matchesStatus;
   }), [data.items, selectedOutletId, query, categoryFilter, statusFilter]);
+  const visibleItemGroups = useMemo(() => {
+    const groups = new Map();
+    visibleItems.forEach((item) => {
+      const category = categoryById.get(item.categoryId);
+      const key = item.categoryId || "uncategorized";
+      if (!groups.has(key)) groups.set(key, { id: key, category, items: [] });
+      groups.get(key).items.push(item);
+    });
+    return [...groups.values()].sort((a, b) => Number(a.category?.sortOrder ?? 9999) - Number(b.category?.sortOrder ?? 9999) || (a.category?.name || "Uncategorized").localeCompare(b.category?.name || "Uncategorized"));
+  }, [visibleItems, categoryById]);
 
   const selectedOutletIds = selectedOutletId === "all" ? outlets.map((outlet) => outlet.id) : [selectedOutletId];
   const scopedGroups = data.groups.filter((group) => selectedOutletIds.includes(group.outletId));
@@ -1079,9 +1679,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       setCheckRows(draft.rows.map((row) => ({ itemId: row.itemId, actualCount: row.actualCount, status: row.status ?? "normal", notes: row.notes ?? "", na: Boolean(row.na) })));
       return;
     }
-    const items = activeCheckGroup.itemIds.map((id) => itemById.get(id)).filter(Boolean);
+    const items = stockCheckItemsForGroup(activeCheckGroup, data.items);
     setCheckRows(items.map((item) => ({ itemId: item.id, actualCount: parLevelForOutlet(item, activeCheckGroup.outletId), status: "normal", notes: "", na: false })));
-  }, [activeCheckGroupId, activeCheckGroup, data.checks, date, itemById]);
+  }, [activeCheckGroupId, activeCheckGroup, data.checks, data.items, date]);
 
   function notify(title, message = "", tone = "success") {
     ui?.notify?.({ title, message, tone });
@@ -1094,7 +1694,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }
 
   function saveItem(item) {
-    const normalizedItem = normalizeInventoryItem(item);
+    const normalizedItem = normalizeInventoryItem({ ...item, photo_url: item.photo ?? item.photo_url ?? "" });
     setData((current) => ({
       ...current,
       items: current.items.some((entry) => entry.id === normalizedItem.id)
@@ -1154,6 +1754,112 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     notify("Inventory category deleted");
   }
 
+  function importInventoryRows(rows) {
+    let created = 0;
+    let updated = 0;
+    setData((current) => {
+      let nextItems = [...current.items];
+      rows.forEach((row) => {
+        const incoming = row.item;
+        const existingIndex = nextItems.findIndex((item) => (
+          incoming.sku ? canonical(item.sku) === canonical(incoming.sku) : canonical(item.name) === canonical(incoming.name)
+        ));
+        const existing = existingIndex >= 0 ? nextItems[existingIndex] : null;
+        const mergedLinkedIds = uniqueIds([...(existing?.linkedOutletIds || []), ...(incoming.linkedOutletIds || [])]);
+        const existingConfigs = new Map((existing?.outletConfigs || []).map((config) => [config.outletId, config]));
+        const nextItem = normalizeInventoryItem({
+          ...(existing || {}),
+          ...incoming,
+          id: existing?.id || makeId("item"),
+          linkedOutletIds: mergedLinkedIds,
+          outletConfigs: mergedLinkedIds.map((outletId) => buildOutletConfig(existing || incoming, outletId, existingConfigs.get(outletId))),
+        });
+        if (existingIndex >= 0) {
+          updated += 1;
+          nextItems = nextItems.map((item, index) => index === existingIndex ? nextItem : item);
+        } else {
+          created += 1;
+          nextItems = [nextItem, ...nextItems];
+        }
+      });
+      return { ...current, items: nextItems };
+    });
+    notify("Master inventory imported", `${created} created · ${updated} updated.`);
+    return { created, updated };
+  }
+
+  function exportMasterInventory() {
+    const rows = visibleItems.map((item) => {
+      const category = categoryById.get(item.categoryId);
+      const supplier = suppliers.find((entry) => entry.id === item.defaultSupplierId);
+      const linkedOutlets = (item.linkedOutletIds || []).map((id) => {
+        const outlet = outletById.get(id);
+        const code = outlet?.code || outlet?.shortCode || outlet?.short_code;
+        return [outlet?.name, code ? `(${code})` : ""].filter(Boolean).join(" ");
+      }).filter(Boolean).join(", ");
+      return {
+        "Item Name": item.name,
+        "SKU Code": item.sku,
+        Category: category?.name || "",
+        Unit: item.unit,
+        Description: item.description,
+        "Default Supplier": supplier?.name || "",
+        Status: item.status,
+        "Linked Outlets": linkedOutlets,
+        "Created At": item.createdAt || "",
+        "Updated At": item.updatedAt || "",
+      };
+    });
+    const columns = ["Item Name", "SKU Code", "Category", "Unit", "Description", "Default Supplier", "Status", "Linked Outlets", "Created At", "Updated At"];
+    const csv = [columns.join(","), ...rows.map((row) => columns.map((column) => csvEscape(row[column])).join(","))].join("\n");
+    downloadTextFile(`feedx-master-inventory-${todayInput()}.csv`, csv);
+    notify("Master inventory exported successfully", `${rows.length} item${rows.length === 1 ? "" : "s"} exported.`);
+  }
+
+  function supplierNamesForConfig(config = {}) {
+    return (config.supplierIds || [])
+      .map((id) => suppliers.find((supplier) => supplier.id === id)?.name)
+      .filter(Boolean)
+      .join(", ");
+  }
+
+  function exportParLevels() {
+    const activeOutletId = parLevelOutletId || outlets[0]?.id || "";
+    const scopedOutlets = parLevelView === "outlet"
+      ? outlets.filter((outlet) => outlet.id === activeOutletId)
+      : outlets;
+    const rows = [];
+    data.items
+      .filter((item) => {
+        const matchesQuery = !query.trim() || `${item.name} ${item.sku}`.toLowerCase().includes(query.trim().toLowerCase());
+        const matchesCategory = categoryFilter === "all" || item.categoryId === categoryFilter;
+        const matchesStatus = statusFilter === "all" || item.status === statusFilter;
+        return matchesQuery && matchesCategory && matchesStatus;
+      })
+      .forEach((item) => {
+        const category = categoryById.get(item.categoryId);
+        scopedOutlets.forEach((outlet) => {
+          if (!item.linkedOutletIds?.includes(outlet.id)) return;
+          const config = outletConfigForItem(item, outlet.id);
+          rows.push({
+            "Item Name": item.name,
+            "SKU Code": item.sku,
+            Category: category?.name || "",
+            Unit: item.unit,
+            Outlet: outlet.name,
+            "Par Level": config.parLevel,
+            "Storage Location": config.storageLocation,
+            Active: config.isActive !== false ? "Active" : "Inactive",
+            Suppliers: supplierNamesForConfig(config),
+          });
+        });
+      });
+    const columns = ["Item Name", "SKU Code", "Category", "Unit", "Outlet", "Par Level", "Storage Location", "Active", "Suppliers"];
+    const csv = [columns.join(","), ...rows.map((row) => columns.map((column) => csvEscape(row[column])).join(","))].join("\n");
+    downloadTextFile(`feedx-par-levels-${todayInput()}.csv`, csv);
+    notify("Par levels exported successfully", `${rows.length} outlet item config${rows.length === 1 ? "" : "s"} exported.`);
+  }
+
   function saveParLevelConfig(itemId, outletId, patch) {
     setData((current) => ({
       ...current,
@@ -1172,11 +1878,17 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }
 
   function saveGroup(group) {
+    const normalizedGroup = {
+      ...group,
+      categoryIds: groupCategoryIds(group, data.items),
+      frequency: frequencies.includes(group.frequency) ? group.frequency : "custom",
+      itemIds: [],
+    };
     setData((current) => ({
       ...current,
       groups: current.groups.some((entry) => entry.id === group.id)
-        ? current.groups.map((entry) => entry.id === group.id ? group : entry)
-        : [group, ...current.groups],
+        ? current.groups.map((entry) => entry.id === group.id ? normalizedGroup : entry)
+        : [normalizedGroup, ...current.groups],
     }));
     setModal(null);
     notify("Stock check group saved");
@@ -1423,15 +2135,18 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         <div className="grid gap-4 xl:grid-cols-2">
           <SectionCard title="Stock Check Groups Summary" description="Frequency-based group schedule across selected outlets.">
             <div className="space-y-2">
-              {scopedGroups.slice(0, 6).map((group) => (
-                <div key={group.id} className="flex items-center justify-between rounded-2xl border border-border px-3 py-2.5">
-                  <div>
-                    <div className="type-body-sm font-bold text-text-primary">{group.name}</div>
-                    <div className="type-caption text-text-secondary">{outletById.get(group.outletId)?.name} · {group.itemIds.length} items · {frequencyLabel(group)}</div>
+              {scopedGroups.slice(0, 6).map((group) => {
+                const itemCount = stockCheckItemsForGroup(group, data.items).length;
+                return (
+                  <div key={group.id} className="flex items-center justify-between rounded-2xl border border-border px-3 py-2.5">
+                    <div>
+                      <div className="type-body-sm font-bold text-text-primary">{group.name}</div>
+                      <div className="type-caption text-text-secondary">{outletById.get(group.outletId)?.name} · {itemCount} items · {frequencyLabel(group)}</div>
+                    </div>
+                    <Badge tone={statusTone(dueStatus(group, data.checks, date).toLowerCase())}>{dueStatus(group, data.checks, date)}</Badge>
                   </div>
-                  <Badge tone={statusTone(dueStatus(group, data.checks, date).toLowerCase())}>{dueStatus(group, data.checks, date)}</Badge>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </SectionCard>
           <SectionCard title="Recent Movements" description="Latest inventory audit trail.">
@@ -1458,9 +2173,51 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }
 
   function renderMasterInventory() {
+    const renderItemRow = (item) => {
+      const category = categoryById.get(item.categoryId);
+      const photo = item.photo || item.photo_url;
+      return (
+        <tr key={item.id} className="transition hover:bg-primary/5">
+          <td className="py-3">
+            <div className="flex items-center gap-3">
+              <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-primary/10 text-sm font-bold text-primary">
+                {photo ? <img src={photo} alt="" className="h-full w-full object-cover" /> : item.name.slice(0, 2).toUpperCase()}
+              </div>
+              <div>
+                <div className="font-bold text-text-primary">{item.name}</div>
+                <div className="type-caption text-text-secondary">{item.description || category?.name || "Inventory item"}</div>
+              </div>
+            </div>
+          </td>
+          {masterGroupBy === "none" ? <td>{category?.name ?? "Uncategorized"}</td> : null}
+          <td className="font-mono text-xs text-text-secondary">{item.sku || "-"}</td>
+          <td>{item.unit}</td>
+          <td>
+            <LinkedOutletsSummary item={item} outlets={outlets} onConfigure={() => { if (requirePermission(can.manageMaster, "manage par levels")) ui?.navigate?.("inventory_par_levels"); }} />
+          </td>
+          <td><Badge tone={statusTone(item.status)}>{toTitle(item.status)}</Badge></td>
+          <td>
+            <div className="flex justify-end gap-2">
+              <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.manageMaster, "edit inventory items") && setModal({ type: "item", item })}>Edit</button>
+              <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.manageMaster, "archive inventory items") && archiveItem(item.id)}>Archive</button>
+            </div>
+          </td>
+        </tr>
+      );
+    };
+
     return (
       <div className="space-y-4">
         {renderFilters()}
+        <div className="flex items-center justify-end">
+          <SelectField
+            label="Group by"
+            value={masterGroupBy}
+            options={[{ value: "category", label: "Category" }, { value: "none", label: "None" }]}
+            onChange={setMasterGroupBy}
+            className="w-44"
+          />
+        </div>
           <SectionCard
           title="Inventory Items"
           description="Global item definitions. Outlet par levels are managed in Par Level Setup."
@@ -1471,7 +2228,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                 <thead className="text-[11px] uppercase tracking-wide text-text-muted">
                   <tr className="border-b border-border">
                     <th className="py-2">Item</th>
-                    <th>Category</th>
+                    {masterGroupBy === "none" ? <th>Category</th> : null}
                     <th>SKU Code</th>
                     <th>Unit</th>
                     <th>Linked Outlets</th>
@@ -1480,37 +2237,31 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border text-[13px]">
-                  {visibleItems.map((item) => {
-                    const category = categoryById.get(item.categoryId);
+                  {masterGroupBy === "category" ? visibleItemGroups.map((group) => {
+                    const collapsed = collapsedCategoryIds.has(group.id);
                     return (
-                      <tr key={item.id} className="transition hover:bg-primary/5">
-                        <td className="py-3">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-primary/10 text-sm font-bold text-primary">
-                              {item.photo ? <img src={item.photo} alt="" className="h-full w-full object-cover" /> : item.name.slice(0, 2).toUpperCase()}
-                            </div>
-                            <div>
-                              <div className="font-bold text-text-primary">{item.name}</div>
-                              <div className="type-caption text-text-secondary">{item.description || item.inventoryType}</div>
-                            </div>
-                          </div>
-                        </td>
-                        <td>{category?.name ?? "Uncategorized"}</td>
-                        <td className="font-mono text-xs text-text-secondary">{item.sku || "-"}</td>
-                        <td>{item.unit}</td>
-                        <td>
-                          <LinkedOutletsSummary item={item} outlets={outlets} onConfigure={() => { if (requirePermission(can.manageMaster, "manage par levels")) ui?.navigate?.("inventory_par_levels"); }} />
-                        </td>
-                        <td><Badge tone={statusTone(item.status)}>{toTitle(item.status)}</Badge></td>
-                        <td>
-                          <div className="flex justify-end gap-2">
-                            <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.manageMaster, "edit inventory items") && setModal({ type: "item", item })}>Edit</button>
-                            <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.manageMaster, "archive inventory items") && archiveItem(item.id)}>Archive</button>
-                          </div>
-                        </td>
-                      </tr>
+                      <Fragment key={group.id}>
+                        <tr key={`${group.id}-header`} className="bg-slate-50">
+                          <td className="py-2" colSpan={6}>
+                            <button
+                              className="flex w-full items-center justify-between rounded-xl px-2 py-1 text-left transition hover:bg-primary/5"
+                              type="button"
+                              onClick={() => setCollapsedCategoryIds((current) => {
+                                const next = new Set(current);
+                                if (next.has(group.id)) next.delete(group.id);
+                                else next.add(group.id);
+                                return next;
+                              })}
+                            >
+                              <span className="type-body-sm font-black text-text-primary">{group.category?.name || "Uncategorized"} <span className="font-semibold text-text-secondary">· {group.items.length} item{group.items.length === 1 ? "" : "s"}</span></span>
+                              <ChevronDown className={`text-text-muted transition ${collapsed ? "-rotate-90" : ""}`} size={16} />
+                            </button>
+                          </td>
+                        </tr>
+                        {collapsed ? null : group.items.map(renderItemRow)}
+                      </Fragment>
                     );
-                  })}
+                  }) : visibleItems.map(renderItemRow)}
                 </tbody>
               </table>
             </div>
@@ -1522,13 +2273,72 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   function renderParLevels() {
     const activeOutletId = parLevelOutletId || outlets[0]?.id || "";
-    const outletScopedItems = data.items.filter((item) => item.status === "active" && item.linkedOutletIds?.includes(activeOutletId));
+    const outletScopedItems = data.items.filter((item) => {
+      const matchesOutlet = item.linkedOutletIds?.includes(activeOutletId);
+      const matchesQuery = !query.trim() || `${item.name} ${item.sku}`.toLowerCase().includes(query.trim().toLowerCase());
+      const matchesCategory = categoryFilter === "all" || item.categoryId === categoryFilter;
+      const matchesStatus = statusFilter === "all" || item.status === statusFilter;
+      return matchesOutlet && matchesQuery && matchesCategory && matchesStatus;
+    });
     const parItems = data.items.filter((item) => {
       const matchesQuery = !query.trim() || `${item.name} ${item.sku}`.toLowerCase().includes(query.trim().toLowerCase());
       const matchesCategory = categoryFilter === "all" || item.categoryId === categoryFilter;
       const matchesStatus = statusFilter === "all" || item.status === statusFilter;
       return matchesQuery && matchesCategory && matchesStatus;
     });
+    const parItemGroups = [...outletScopedItems.reduce((groups, item) => {
+      const category = categoryById.get(item.categoryId);
+      const key = item.categoryId || "uncategorized";
+      if (!groups.has(key)) groups.set(key, { id: key, category, items: [] });
+      groups.get(key).items.push(item);
+      return groups;
+    }, new Map()).values()].sort((a, b) => Number(a.category?.sortOrder ?? 9999) - Number(b.category?.sortOrder ?? 9999) || (a.category?.name || "Uncategorized").localeCompare(b.category?.name || "Uncategorized"));
+
+    const renderParRow = (item) => {
+      const category = categoryById.get(item.categoryId);
+      const config = outletConfigForItem(item, activeOutletId);
+      return (
+        <tr key={item.id} className="transition hover:bg-primary/5">
+          <td className="py-3 font-bold text-text-primary">{item.name}</td>
+          {parLevelGroupBy === "none" ? <td>{category?.name ?? "Uncategorized"}</td> : null}
+          <td>{item.unit}</td>
+          <td>
+            <input
+              className="control h-8 w-28 text-[13px]"
+              type="number"
+              value={config.parLevel}
+              onChange={(event) => saveParLevelConfig(item.id, activeOutletId, { parLevel: Number(event.target.value || 0) })}
+            />
+          </td>
+          <td>
+            <input
+              className="control h-8 min-w-44 text-[13px]"
+              value={config.storageLocation}
+              onChange={(event) => saveParLevelConfig(item.id, activeOutletId, { storageLocation: event.target.value })}
+              placeholder="Optional"
+            />
+          </td>
+          <td>
+            <SupplierAssignmentPicker
+              suppliers={suppliers}
+              outletId={activeOutletId}
+              selectedIds={config.supplierIds}
+              onSave={(supplierIds) => saveParLevelConfig(item.id, activeOutletId, { supplierIds })}
+            />
+          </td>
+          <td>
+            <label className="inline-flex items-center gap-2 type-caption font-semibold text-text-secondary">
+              <input
+                type="checkbox"
+                checked={config.isActive !== false}
+                onChange={(event) => saveParLevelConfig(item.id, activeOutletId, { isActive: event.target.checked })}
+              />
+              Active
+            </label>
+          </td>
+        </tr>
+      );
+    };
 
     return (
       <div className="space-y-4">
@@ -1558,6 +2368,15 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               </div>
             </label>
           </div>
+          {parLevelView === "outlet" ? (
+            <SelectField
+              label="Group by"
+              value={parLevelGroupBy}
+              options={[{ value: "category", label: "Category" }, { value: "none", label: "None" }]}
+              onChange={setParLevelGroupBy}
+              className="lg:w-44"
+            />
+          ) : null}
           <div className="inline-flex rounded-xl border border-border bg-slate-50 p-1">
             {[
               ["outlet", "Outlet View"],
@@ -1582,55 +2401,44 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           >
             {outletScopedItems.length ? (
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[820px] text-left">
+                <table className="w-full min-w-[960px] text-left">
                   <thead className="text-[11px] uppercase tracking-wide text-text-muted">
                     <tr className="border-b border-border">
                       <th className="py-2">Item</th>
-                      <th>Category</th>
+                      {parLevelGroupBy === "none" ? <th>Category</th> : null}
                       <th>Unit</th>
                       <th>Par Level</th>
                       <th>Storage Location</th>
+                      <th>Suppliers</th>
                       <th>Active</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border text-[13px]">
-                    {outletScopedItems.map((item) => {
-                      const category = categoryById.get(item.categoryId);
-                      const config = outletConfigForItem(item, activeOutletId);
+                    {parLevelGroupBy === "category" ? parItemGroups.map((group) => {
+                      const collapsed = collapsedParCategoryIds.has(group.id);
                       return (
-                        <tr key={item.id} className="transition hover:bg-primary/5">
-                          <td className="py-3 font-bold text-text-primary">{item.name}</td>
-                          <td>{category?.name ?? "Uncategorized"}</td>
-                          <td>{item.unit}</td>
-                          <td>
-                            <input
-                              className="control h-8 w-28 text-[13px]"
-                              type="number"
-                              value={config.parLevel}
-                              onChange={(event) => saveParLevelConfig(item.id, activeOutletId, { parLevel: Number(event.target.value || 0) })}
-                            />
-                          </td>
-                          <td>
-                            <input
-                              className="control h-8 min-w-44 text-[13px]"
-                              value={config.storageLocation}
-                              onChange={(event) => saveParLevelConfig(item.id, activeOutletId, { storageLocation: event.target.value })}
-                              placeholder="Optional"
-                            />
-                          </td>
-                          <td>
-                            <label className="inline-flex items-center gap-2 type-caption font-semibold text-text-secondary">
-                              <input
-                                type="checkbox"
-                                checked={config.isActive !== false}
-                                onChange={(event) => saveParLevelConfig(item.id, activeOutletId, { isActive: event.target.checked })}
-                              />
-                              Active
-                            </label>
-                          </td>
-                        </tr>
+                        <Fragment key={group.id}>
+                          <tr className="bg-slate-50">
+                            <td className="py-2" colSpan={6}>
+                              <button
+                                className="flex w-full items-center justify-between rounded-xl px-2 py-1 text-left transition hover:bg-primary/5"
+                                type="button"
+                                onClick={() => setCollapsedParCategoryIds((current) => {
+                                  const next = new Set(current);
+                                  if (next.has(group.id)) next.delete(group.id);
+                                  else next.add(group.id);
+                                  return next;
+                                })}
+                              >
+                                <span className="type-body-sm font-black text-text-primary">{group.category?.name || "Uncategorized"} <span className="font-semibold text-text-secondary">· {group.items.length} item{group.items.length === 1 ? "" : "s"}</span></span>
+                                <ChevronDown className={`text-text-muted transition ${collapsed ? "-rotate-90" : ""}`} size={16} />
+                              </button>
+                            </td>
+                          </tr>
+                          {collapsed ? null : group.items.map(renderParRow)}
+                        </Fragment>
                       );
-                    })}
+                    }) : outletScopedItems.map(renderParRow)}
                   </tbody>
                 </table>
               </div>
@@ -1690,35 +2498,40 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     return (
       <SectionCard
         title="Stock Check Groups"
-        description="Configure outlet-level count groups and frequency. Daily Stock Check only shows groups that are due."
+        description="Configure outlet-level category groups and schedules. Stock Check only shows groups that are due."
         action={<button className="btn-primary" type="button" onClick={() => requirePermission(can.manageGroups, "manage stock check groups") && setModal({ type: "group" })}><PackagePlus size={15} /> Add Group</button>}
       >
         {data.groups.length ? (
           <div className="grid gap-3 xl:grid-cols-2">
-            {data.groups.filter((group) => selectedOutletId === "all" || group.outletId === selectedOutletId).map((group) => (
-              <div key={group.id} className="rounded-2xl border border-border bg-white p-4 transition hover:border-primary/25 hover:shadow-sm">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <div className="type-title font-bold text-text-primary">{group.name}</div>
-                    <div className="mt-1 type-caption text-text-secondary">{outletById.get(group.outletId)?.name} · {group.itemIds.length} items · {group.shift}</div>
+            {data.groups.filter((group) => selectedOutletId === "all" || group.outletId === selectedOutletId).map((group) => {
+              const categoryIds = groupCategoryIds(group, data.items);
+              const itemCount = stockCheckItemsForGroup(group, data.items).length;
+              const categoryNames = categoryIds.map((id) => categoryById.get(id)?.name).filter(Boolean).join(", ") || "No categories";
+              return (
+                <div key={group.id} className="rounded-2xl border border-border bg-white p-4 transition hover:border-primary/25 hover:shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="type-title font-bold text-text-primary">{group.name}</div>
+                      <div className="mt-1 type-caption text-text-secondary">{outletById.get(group.outletId)?.name} · {categoryIds.length} categories · {itemCount} items · {group.shift}</div>
+                    </div>
+                    <Badge tone={statusTone(dueStatus(group, data.checks, date).toLowerCase())}>{dueStatus(group, data.checks, date)}</Badge>
                   </div>
-                  <Badge tone={statusTone(dueStatus(group, data.checks, date).toLowerCase())}>{dueStatus(group, data.checks, date)}</Badge>
+                  <p className="mt-3 type-body-sm text-text-secondary">{group.description || "No description provided."}</p>
+                  <div className="mt-2 type-caption font-semibold text-text-secondary">Categories: <span className="text-text-primary">{categoryNames}</span></div>
+                  <div className="mt-3 flex flex-wrap gap-2">
+                    <MiniPill tone="info">{frequencyLabel(group)}</MiniPill>
+                    <MiniPill tone={statusTone(group.status)}>{toTitle(group.status)}</MiniPill>
+                    <MiniPill>Last checked {group.lastChecked ? formatDate(group.lastChecked) : "never"}</MiniPill>
+                  </div>
+                  <div className="mt-4 flex justify-end gap-2">
+                    <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.manageGroups, "edit stock check groups") && setModal({ type: "group", group })}>Edit</button>
+                    <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.manageGroups, "duplicate stock check groups") && setModal({ type: "group", group: { ...group, id: "", name: `${group.name} Copy`, categoryIds } })}>Duplicate</button>
+                  </div>
                 </div>
-                <p className="mt-3 type-body-sm text-text-secondary">{group.description || "No description provided."}</p>
-                <div className="mt-3 flex flex-wrap gap-2">
-                  <MiniPill tone="info">{frequencyLabel(group)}</MiniPill>
-                  <MiniPill tone={statusTone(group.status)}>{toTitle(group.status)}</MiniPill>
-                  <MiniPill>Last checked {group.lastChecked ? formatDate(group.lastChecked) : "never"}</MiniPill>
-                </div>
-                <div className="mt-4 flex justify-end gap-2">
-                  <button className="btn-secondary h-8 px-2.5 text-xs" type="button">View Items</button>
-                  <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.manageGroups, "edit stock check groups") && setModal({ type: "group", group })}>Edit</button>
-                  <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.manageGroups, "duplicate stock check groups") && setModal({ type: "group", group: { ...group, id: "", name: `${group.name} Copy` } })}>Duplicate</button>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
-        ) : <EmptyState title="Set up stock check groups so outlets know what to count." description="Groups decide which inventory items appear in daily, weekly or custom checks." />}
+        ) : <EmptyState title="Set up stock check groups so outlets know what to count." description="Groups decide which inventory categories appear in custom or monthly checks." />}
       </SectionCard>
     );
   }
@@ -1814,12 +2627,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               {dueGroups.map((group) => {
                 const status = dueStatus(group, data.checks, date);
                 const hasDraft = data.checks.some((check) => check.groupId === group.id && check.date === date && check.status === "draft");
+                const itemCount = stockCheckItemsForGroup(group, data.items).length;
                 return (
                   <div key={group.id} className="rounded-2xl border border-border bg-white p-4 transition hover:border-primary/30 hover:shadow-sm">
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="type-title font-bold text-text-primary">{group.name}</div>
-                        <div className="type-caption text-text-secondary">{outletById.get(group.outletId)?.name} · {group.itemIds.length} items</div>
+                        <div className="type-caption text-text-secondary">{outletById.get(group.outletId)?.name} · {itemCount} items</div>
                       </div>
                       <Badge tone={statusTone(status.toLowerCase())}>{status}</Badge>
                     </div>
@@ -2033,10 +2847,10 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     if (activeTab === "master") {
       return (
         <>
-          <button className="btn-secondary" type="button" onClick={() => requirePermission(can.import, "import inventory")}>
+          <button className="btn-secondary" type="button" onClick={() => requirePermission(can.manageMaster, "import master inventory") && setModal({ type: "inventory-import" })}>
             <Upload size={15} /> Import
           </button>
-          <button className="btn-secondary" type="button" onClick={() => requirePermission(can.export, "export inventory")}>
+          <button className="btn-secondary" type="button" onClick={() => requirePermission(can.export, "export inventory") && exportMasterInventory()}>
             <Download size={15} /> Export
           </button>
           <button className="btn-secondary" type="button" onClick={() => requirePermission(can.viewCategories, "view inventory categories") && setModal({ type: "category-settings" })}>
@@ -2050,7 +2864,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     }
     if (activeTab === "par-levels") {
       return (
-        <button className="btn-secondary" type="button" onClick={() => requirePermission(can.export, "export par levels")}>
+        <button className="btn-secondary" type="button" onClick={() => requirePermission(can.export, "export par levels") && exportParLevels()}>
           <Download size={15} /> Export
         </button>
       );
@@ -2102,6 +2916,16 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       {renderActiveTab()}
 
       {modal?.type === "item" ? <InventoryItemModal item={modal.item} categories={sortedCategories} outlets={outlets} suppliers={suppliers} onClose={() => setModal(null)} onSave={saveItem} /> : null}
+      {modal?.type === "inventory-import" ? (
+        <InventoryImportModal
+          categories={sortedCategories}
+          outlets={outlets}
+          suppliers={suppliers}
+          items={data.items}
+          onClose={() => setModal(null)}
+          onImport={importInventoryRows}
+        />
+      ) : null}
       {modal?.type === "category-settings" ? (
         <CategorySettingsModal
           categories={sortedCategories}
