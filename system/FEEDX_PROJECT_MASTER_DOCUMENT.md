@@ -2007,8 +2007,9 @@ Daily Stock Check workflow:
 2. Count items.
 3. Review variance.
 4. Submit stock check.
-5. If shortages exist, review Purchase Suggestions.
-6. Create Draft POs only after user confirmation.
+5. Return to Stock Check list.
+6. Completed check card shows Review Purchase Suggestions when shortages exist and the user has permission.
+7. Create Draft POs only after user review and confirmation.
 
 Stock check statuses:
 
@@ -2038,7 +2039,9 @@ Shortage rule:
 
 - If variance > 0, the item is considered a shortage.
 - Stock Check submission must not directly create submitted Purchase Orders.
-- Stock Check submission may generate Purchase Suggestions grouped by supplier.
+- Stock Check submission only completes the check and returns the user to the Stock Check list.
+- Purchase Suggestions are accessed from completed Stock Check cards.
+- Purchase Suggestions are generated from submitted check rows when the user clicks Review Purchase Suggestions.
 - Purchase Suggestions are reviewed before creating Draft POs.
 - Suggested order quantity defaults to shortage quantity and remains editable.
 - Users may exclude suggested items, add remarks, or change supplier.

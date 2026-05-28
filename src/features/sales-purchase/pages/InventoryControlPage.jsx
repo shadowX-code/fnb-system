@@ -2033,7 +2033,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       rows,
       submittedAt: status === "submitted" ? new Date().toISOString() : "",
     };
-    const suggestions = status === "submitted" ? buildPurchaseSuggestions(record) : [];
     const shortageMovements = rows
       .filter((row) => row.variance !== 0)
       .map((row) => ({
@@ -2055,8 +2054,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     }));
     setActiveCheckGroupId(null);
     if (status === "submitted") {
-      setModal({ type: "stock-check-complete", stockCheck: record, suggestions });
-      notify("Stock check submitted", suggestions.length ? "Review purchase suggestions before creating Draft POs." : "No shortage items found.");
+      notify("Stock check completed", "Review purchase suggestions from the completed check card if shortages exist.");
     } else {
       notify("Stock check draft saved");
     }
@@ -2135,6 +2133,21 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           supplierChoices,
         };
       });
+  }
+
+  function latestCheckForGroup(groupId) {
+    return [...data.checks]
+      .filter((check) => check.groupId === groupId && check.date === date)
+      .sort((a, b) => new Date(b.submittedAt || b.updatedAt || b.date || 0) - new Date(a.submittedAt || a.updatedAt || a.date || 0))[0] || null;
+  }
+
+  function openPurchaseSuggestionsForCheck(check) {
+    const suggestions = buildPurchaseSuggestions(check);
+    if (!suggestions.length) {
+      setModal({ type: "check-result", stockCheck: check, suggestions });
+      return;
+    }
+    setModal({ type: "purchase-suggestions", stockCheck: check, suggestions });
   }
 
   function createDraftPurchaseOrders(stockCheck, suggestionRows) {
@@ -2826,6 +2839,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                 const status = dueStatus(group, data.checks, date);
                 const hasDraft = data.checks.some((check) => check.groupId === group.id && check.date === date && check.status === "draft");
                 const itemCount = stockCheckItemsForGroup(group, data.items).length;
+                const latestCheck = latestCheckForGroup(group.id);
+                const suggestions = latestCheck ? buildPurchaseSuggestions(latestCheck) : [];
+                const canReviewSuggestions = can.generatePo || can.reviewCheck;
                 return (
                   <div key={group.id} className="rounded-2xl border border-border bg-white p-4 transition hover:border-primary/30 hover:shadow-sm">
                     <div className="flex items-start justify-between gap-3">
@@ -2839,9 +2855,25 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                       <div>Frequency: <span className="font-semibold text-text-primary">{frequencyLabel(group)}</span></div>
                       <div>Last checked: <span className="font-semibold text-text-primary">{group.lastChecked ? formatDate(group.lastChecked) : "Never"}</span></div>
                     </div>
-                    <button className="btn-primary mt-4 w-full" type="button" disabled={status === "Completed"} onClick={() => requirePermission(can.createCheck, "start stock checks") && setActiveCheckGroupId(group.id)}>
-                      {hasDraft ? "Continue Draft" : "Start Check"}
-                    </button>
+                    <div className="mt-4 space-y-2">
+                      {status === "Completed" ? (
+                        <>
+                          <button
+                            className="btn-primary w-full"
+                            type="button"
+                            disabled={!suggestions.length || !canReviewSuggestions}
+                            onClick={() => requirePermission(canReviewSuggestions, "review purchase suggestions") && openPurchaseSuggestionsForCheck(latestCheck)}
+                          >
+                            {suggestions.length ? "Review Purchase Suggestions" : "No purchase suggestion"}
+                          </button>
+                          <button className="btn-secondary w-full" type="button" onClick={() => setModal({ type: "check-result", stockCheck: latestCheck, suggestions })}>View Result</button>
+                        </>
+                      ) : (
+                        <button className="btn-primary w-full" type="button" onClick={() => requirePermission(can.createCheck, "start stock checks") && setActiveCheckGroupId(group.id)}>
+                          {hasDraft ? "Continue Check" : "Start Check"}
+                        </button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
@@ -3164,33 +3196,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       {modal?.type === "request" ? <RequestModal outlets={outlets} items={data.items} categories={sortedCategories} suppliers={suppliers} onClose={() => setModal(null)} onSave={saveRequest} /> : null}
       {modal?.type === "movement" ? <MovementModal outlets={outlets} items={data.items} onClose={() => setModal(null)} onSave={saveMovement} /> : null}
       {modal?.type === "waste" ? <WasteModal outlets={outlets} items={data.items} onClose={() => setModal(null)} onSave={saveWaste} /> : null}
-      {modal?.type === "stock-check-complete" ? (
-        <Modal
-          title="Stock Check Completed"
-          description={modal.suggestions.length ? "Shortage items were found. Review purchase suggestions before creating Draft POs." : "No shortage items found."}
-          onClose={() => setModal(null)}
-          footer={(
-            <>
-              <button className="btn-secondary" type="button" onClick={() => setModal(null)}>{modal.suggestions.length ? "Finish Only" : "Done"}</button>
-              {modal.suggestions.length ? (
-                <button className="btn-primary" type="button" onClick={() => setModal({ type: "purchase-suggestions", stockCheck: modal.stockCheck, suggestions: modal.suggestions })}>
-                  Review Purchase Suggestions
-                </button>
-              ) : null}
-            </>
-          )}
-        >
-          {modal.suggestions.length ? (
-            <div className="grid gap-3 sm:grid-cols-3">
-              <MetricCard label="Shortage Items" value={modal.suggestions.length} helper="Variance above zero" tone="warning" />
-              <MetricCard label="Supplier Count" value={new Set(modal.suggestions.flatMap((row) => row.supplierChoices.map((supplier) => supplier.id))).size || "Unassigned"} helper="Suggested grouping" tone="info" />
-              <MetricCard label="Estimated Draft PO" value={new Set(modal.suggestions.map((row) => row.supplierChoices[0]?.id || "unassigned")).size} helper="Before final review" tone="success" />
-            </div>
-          ) : (
-            <EmptyState title="No shortage items found." description="All counted quantities are at or above par level." />
-          )}
-        </Modal>
-      ) : null}
       {modal?.type === "purchase-suggestions" ? (
         <PurchaseSuggestionsModal
           suggestions={modal.suggestions}
@@ -3199,6 +3204,46 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           onClose={() => setModal(null)}
           onCreateDraftPo={(rows) => createDraftPurchaseOrders(modal.stockCheck, rows)}
         />
+      ) : null}
+      {modal?.type === "check-result" ? (
+        <Modal
+          title="Stock Check Result"
+          description={`${outletById.get(modal.stockCheck?.outletId)?.name || "Outlet"} · ${formatDate(modal.stockCheck?.date)} · ${modal.suggestions?.length || 0} shortage item${modal.suggestions?.length === 1 ? "" : "s"}`}
+          size="xl"
+          onClose={() => setModal(null)}
+          footer={<button className="btn-secondary" type="button" onClick={() => setModal(null)}>Close</button>}
+        >
+          <div className="overflow-x-auto rounded-2xl border border-border">
+            <table className="w-full min-w-[760px] text-left">
+              <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
+                <tr>
+                  <th className="px-3 py-2">Item</th>
+                  <th>Par Level</th>
+                  <th>Actual</th>
+                  <th>Variance</th>
+                  <th>Status</th>
+                  <th>Notes</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border text-[13px]">
+                {(modal.stockCheck?.rows || []).map((row) => {
+                  const item = itemById.get(row.itemId);
+                  const result = varianceStatus(row.expectedQty, row.actualCount);
+                  return (
+                    <tr key={row.id || row.itemId}>
+                      <td className="px-3 py-2 font-bold text-text-primary">{item?.name || "Inventory item"}</td>
+                      <td>{row.expectedQty}</td>
+                      <td>{row.actualCount}</td>
+                      <td>{row.variance}</td>
+                      <td><Badge tone={result.tone}>{result.label}</Badge></td>
+                      <td>{row.notes || "-"}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Modal>
       ) : null}
       {modal?.type === "po-detail" ? (
         <Modal
