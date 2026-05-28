@@ -142,8 +142,8 @@ function weekdayName(value = todayInput()) {
 
 function statusTone(status) {
   if (["active", "normal", "completed", "submitted", "reviewed", "locked", "delivered"].includes(status)) return "success";
-  if (["draft", "due today", "scheduled", "partial approved", "partial delivery"].includes(status)) return "warning";
-  if (["critical", "shortage", "overdue", "rejected", "archived"].includes(status)) return "danger";
+  if (["draft", "due today", "scheduled", "partial approved", "partial delivery", "partial_delivered"].includes(status)) return "warning";
+  if (["critical", "shortage", "overdue", "rejected", "archived", "cancelled"].includes(status)) return "danger";
   if (["excess", "sent", "confirmed", "ordered", "packing"].includes(status)) return "info";
   return "neutral";
 }
@@ -1570,6 +1570,119 @@ function WasteModal({ outlets, items, onClose, onSave }) {
   );
 }
 
+function PurchaseSuggestionsModal({ suggestions, suppliers, outlet, onClose, onCreateDraftPo }) {
+  const [rows, setRows] = useState(suggestions.map((row) => ({
+    ...row,
+    include: true,
+    selectedSupplierId: row.supplierChoices[0]?.id || "",
+    suggestedOrderQty: row.shortageQty,
+    remark: "",
+  })));
+  const includedRows = rows.filter((row) => row.include && Number(row.suggestedOrderQty || 0) > 0);
+  const validRows = includedRows.filter((row) => row.selectedSupplierId);
+  const groupedRows = includedRows.reduce((groups, row) => {
+    const key = row.selectedSupplierId || "unassigned";
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(row);
+    return groups;
+  }, new Map());
+
+  function updateRow(id, patch) {
+    setRows((current) => current.map((row) => row.id === id ? { ...row, ...patch } : row));
+  }
+
+  return (
+    <Modal
+      title="Purchase Suggestions"
+      description="Review shortage items before creating Draft POs. Stock checks suggest ordering; they do not auto-submit purchase orders."
+      size="xl"
+      onClose={onClose}
+      footer={(
+        <>
+          <button className="btn-secondary" type="button" onClick={onClose}>Finish Only</button>
+          <button className="btn-primary" type="button" disabled={!validRows.length || validRows.length !== includedRows.length} onClick={() => onCreateDraftPo(validRows)}>
+            Create Draft PO
+          </button>
+        </>
+      )}
+    >
+      <div className="space-y-4">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <MetricCard label="Shortage Items" value={suggestions.length} helper={outlet?.name || "Selected outlet"} tone="warning" />
+          <MetricCard label="Supplier Groups" value={groupedRows.size} helper="Based on selected suppliers" tone="info" />
+          <MetricCard label="Ready for Draft PO" value={validRows.length} helper="Included items with supplier" tone={validRows.length === includedRows.length ? "success" : "warning"} />
+        </div>
+        {[...groupedRows.entries()].map(([supplierId, groupRows]) => {
+          const supplier = suppliers.find((entry) => entry.id === supplierId);
+          return (
+            <div key={supplierId} className="rounded-2xl border border-border bg-white p-3">
+              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <div className="type-title font-bold text-text-primary">{supplier?.name || "Unassigned Supplier"}</div>
+                  <div className="type-caption text-text-secondary">{outlet?.name || "Outlet"} · {groupRows.length} item{groupRows.length === 1 ? "" : "s"}</div>
+                </div>
+                <Badge tone={supplier ? "info" : "warning"}>{supplier ? "Suggested PO" : "Supplier required"}</Badge>
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[980px] text-left">
+                  <thead className="text-[11px] uppercase tracking-wide text-text-muted">
+                    <tr className="border-b border-border">
+                      <th className="py-2">Include</th>
+                      <th>Item</th>
+                      <th>Par</th>
+                      <th>Actual</th>
+                      <th>Shortage</th>
+                      <th>Order Qty</th>
+                      <th>Supplier</th>
+                      <th>Remark</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border text-[13px]">
+                    {groupRows.map((row) => (
+                      <tr key={row.id}>
+                        <td className="py-2">
+                          <input type="checkbox" checked={row.include} onChange={(event) => updateRow(row.id, { include: event.target.checked })} />
+                        </td>
+                        <td>
+                          <div className="font-bold text-text-primary">{row.itemName}</div>
+                          <div className="type-caption text-text-secondary">{row.categoryName} · {row.unit}</div>
+                        </td>
+                        <td>{row.parLevel}</td>
+                        <td>{row.actualCount}</td>
+                        <td className="font-bold text-amber-700">{row.shortageQty}</td>
+                        <td>
+                          <input className="control h-8 w-24 text-[13px]" type="number" min="0" value={row.suggestedOrderQty} onChange={(event) => updateRow(row.id, { suggestedOrderQty: Number(event.target.value || 0) })} />
+                        </td>
+                        <td>
+                          <SelectField
+                            value={row.selectedSupplierId}
+                            placeholder="Choose supplier"
+                            options={[{ value: "", label: "Choose supplier" }, ...row.supplierChoices.map((supplier) => ({ value: supplier.id, label: supplier.name }))]}
+                            onChange={(value) => updateRow(row.id, { selectedSupplierId: value })}
+                            searchable
+                          />
+                        </td>
+                        <td>
+                          <input className="control h-8 min-w-44 text-[13px]" value={row.remark} onChange={(event) => updateRow(row.id, { remark: event.target.value })} placeholder="Optional" />
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })}
+        {includedRows.length !== validRows.length ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 type-body-sm font-semibold text-amber-800">
+            Choose a supplier for unassigned items before creating Draft POs.
+          </div>
+        ) : null}
+      </div>
+    </Modal>
+  );
+}
+
 function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const outlets = store?.outlets ?? [];
   const suppliers = store?.suppliers ?? [];
@@ -1908,7 +2021,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       const item = itemById.get(row.itemId);
       const expectedQty = parLevelForOutlet(item, activeCheckGroup.outletId);
       const variance = row.na ? 0 : Number(expectedQty || 0) - Number(row.actualCount || 0);
-      return { ...row, expectedQty, variance };
+      return { ...row, id: row.id || makeId("check_item"), expectedQty, variance, unit: item?.unit || "" };
     });
     const record = {
       id: makeId("check"),
@@ -1920,6 +2033,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       rows,
       submittedAt: status === "submitted" ? new Date().toISOString() : "",
     };
+    const suggestions = status === "submitted" ? buildPurchaseSuggestions(record) : [];
     const shortageMovements = rows
       .filter((row) => row.variance !== 0)
       .map((row) => ({
@@ -1940,7 +2054,12 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       movements: status === "submitted" ? [...shortageMovements, ...current.movements] : current.movements,
     }));
     setActiveCheckGroupId(null);
-    notify(status === "draft" ? "Stock check draft saved" : "Stock check submitted", status === "submitted" ? "Variance movements were recorded for review." : "");
+    if (status === "submitted") {
+      setModal({ type: "stock-check-complete", stockCheck: record, suggestions });
+      notify("Stock check submitted", suggestions.length ? "Review purchase suggestions before creating Draft POs." : "No shortage items found.");
+    } else {
+      notify("Stock check draft saved");
+    }
   }
 
   function saveRequest(request) {
@@ -1969,9 +2088,14 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       id: makeId("po"),
       poNo: `PO-${Date.now().toString().slice(-6)}-${ordersSuffix(supplierId)}`,
       supplierId,
+      outletId: request.outletId,
       outletIds: [request.outletId],
       requestIds: [request.id],
       status: "draft",
+      sourceType: "stock_request",
+      sourceStockCheckId: "",
+      createdAt: new Date().toISOString(),
+      submittedAt: "",
       eta: "",
       lines,
     }));
@@ -1985,6 +2109,80 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   function ordersSuffix(value) {
     return String(value || "GEN").slice(-3).toUpperCase();
+  }
+
+  function buildPurchaseSuggestions(record) {
+    return (record.rows || [])
+      .filter((row) => Number(row.variance || 0) > 0 && !row.na)
+      .map((row) => {
+        const item = itemById.get(row.itemId);
+        const config = outletConfigForItem(item, record.outletId);
+        const supplierChoices = suppliers
+          .filter((supplier) => (config.supplierIds || []).includes(supplier.id))
+          .filter((supplier) => supplier.status === "active" || supplier.is_active === true)
+          .filter((supplier) => (supplier.outletIds || supplier.assignedOutletIds || []).includes(record.outletId));
+        return {
+          id: row.id || makeId("suggest"),
+          stockCheckId: record.id,
+          stockCheckItemId: row.id,
+          itemId: row.itemId,
+          itemName: item?.name || "Inventory item",
+          categoryName: categoryById.get(item?.categoryId)?.name || "Uncategorized",
+          unit: item?.unit || row.unit || "",
+          parLevel: row.expectedQty,
+          actualCount: row.actualCount,
+          shortageQty: Number(row.variance || 0),
+          supplierChoices,
+        };
+      });
+  }
+
+  function createDraftPurchaseOrders(stockCheck, suggestionRows) {
+    if (!requirePermission(can.generatePo, "create draft purchase orders")) return;
+    const supplierGroups = suggestionRows.reduce((groups, row) => {
+      if (!row.selectedSupplierId || Number(row.suggestedOrderQty || 0) <= 0) return groups;
+      if (!groups.has(row.selectedSupplierId)) groups.set(row.selectedSupplierId, []);
+      groups.get(row.selectedSupplierId).push(row);
+      return groups;
+    }, new Map());
+    const createdAt = new Date().toISOString();
+    const orders = [...supplierGroups.entries()].map(([supplierId, rows]) => ({
+      id: makeId("po"),
+      poNo: `PO-${Date.now().toString().slice(-6)}-${ordersSuffix(supplierId)}`,
+      supplierId,
+      outletId: stockCheck.outletId,
+      outletIds: [stockCheck.outletId],
+      requestIds: [],
+      status: "draft",
+      sourceType: "stock_check",
+      sourceStockCheckId: stockCheck.id,
+      createdAt,
+      submittedAt: "",
+      eta: "",
+      lines: rows.map((row) => ({
+        id: makeId("po_item"),
+        itemId: row.itemId,
+        requestedQty: Number(row.suggestedOrderQty || 0),
+        unit: row.unit,
+        remark: row.remark || "",
+        sourceStockCheckItemId: row.stockCheckItemId,
+      })),
+    }));
+    setData((current) => ({
+      ...current,
+      checks: current.checks.map((check) => check.id === stockCheck.id ? { ...check, generatedPoIds: orders.map((order) => order.id) } : check),
+      orders: [...orders, ...current.orders],
+    }));
+    setModal(null);
+    notify("Draft PO created", `${orders.length} draft PO${orders.length === 1 ? "" : "s"} ready for review.`);
+  }
+
+  function updatePurchaseOrderStatus(orderId, status) {
+    setData((current) => ({
+      ...current,
+      orders: current.orders.map((order) => order.id === orderId ? { ...order, status, submittedAt: status === "submitted" ? new Date().toISOString() : order.submittedAt } : order),
+    }));
+    notify("PO status updated", toTitle(status));
   }
 
   function saveMovement(movement) {
@@ -2687,32 +2885,51 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   function renderOrders() {
     return (
-      <SectionCard title="Purchase Orders" description="Approved requests become supplier grouped purchase orders.">
+      <SectionCard title="Purchase Orders" description="Draft POs can be created from reviewed stock check suggestions or approved stock requests.">
         {data.orders.length ? (
-          <div className="grid gap-3 xl:grid-cols-2">
-            {data.orders.map((order) => {
-              const supplier = suppliers.find((entry) => entry.id === order.supplierId);
-              const total = order.lines.reduce((sum, line) => sum + Number(line.requestedQty || 0) * 8, 0);
-              return (
-                <div key={order.id} className="rounded-2xl border border-border p-4">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <div className="type-title font-bold text-text-primary">{supplier?.name ?? "Unassigned Supplier"}</div>
-                      <div className="type-caption text-text-secondary">{order.poNo} · {order.lines.length} items · {toCurrency(total)}</div>
-                    </div>
-                    <Badge tone={statusTone(order.status)}>{toTitle(order.status)}</Badge>
-                  </div>
-                  <div className="mt-4 flex items-center gap-2 type-caption font-semibold text-text-secondary">
-                    {["Draft", "Sent", "Confirmed", "Packing", "Delivered"].map((stage, index) => (
-                      <span key={stage} className="flex items-center gap-2">
-                        <span className={`rounded-full px-2 py-1 ${index === 0 ? "bg-primary/10 text-primary" : "bg-slate-100"}`}>{stage}</span>
-                        {index < 4 ? <ArrowRight size={12} /> : null}
-                      </span>
-                    ))}
-                  </div>
-                </div>
-              );
-            })}
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[980px] text-left">
+              <thead className="text-[11px] uppercase tracking-wide text-text-muted">
+                <tr className="border-b border-border">
+                  <th className="py-2">PO No.</th>
+                  <th>Supplier</th>
+                  <th>Outlet</th>
+                  <th>Items</th>
+                  <th>Total Qty</th>
+                  <th>Status</th>
+                  <th>Source</th>
+                  <th>Created Date</th>
+                  <th className="text-right">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border text-[13px]">
+                {data.orders.map((order) => {
+                  const supplier = suppliers.find((entry) => entry.id === order.supplierId);
+                  const outlet = outletById.get(order.outletId || order.outletIds?.[0]);
+                  const totalQty = order.lines.reduce((sum, line) => sum + Number(line.requestedQty || 0), 0);
+                  return (
+                    <tr key={order.id} className="transition hover:bg-primary/5">
+                      <td className="py-3 font-mono text-xs font-bold text-text-primary">{order.poNo}</td>
+                      <td className="font-semibold text-text-primary">{supplier?.name ?? "Unassigned Supplier"}</td>
+                      <td>{outlet?.name ?? "Outlet"}</td>
+                      <td>{order.lines.length}</td>
+                      <td>{totalQty}</td>
+                      <td><Badge tone={statusTone(order.status)}>{toTitle(order.status)}</Badge></td>
+                      <td>{order.sourceType === "stock_check" ? "Stock Check" : "Stock Request"}</td>
+                      <td>{formatDate(order.createdAt || order.submittedAt || todayInput())}</td>
+                      <td>
+                        <div className="flex justify-end gap-2">
+                          <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setModal({ type: "po-detail", order })}>View</button>
+                          <button className="btn-secondary h-8 px-2.5 text-xs" type="button" disabled={order.status !== "draft"} onClick={() => setModal({ type: "po-detail", order, edit: true })}>Edit</button>
+                          {order.status === "draft" ? <button className="btn-primary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.managePo, "submit purchase orders") && updatePurchaseOrderStatus(order.id, "submitted")}>Submit</button> : null}
+                          {order.status !== "completed" ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.managePo, "update purchase order status") && updatePurchaseOrderStatus(order.id, order.status === "submitted" ? "confirmed" : order.status === "confirmed" ? "partial_delivered" : order.status === "partial_delivered" ? "delivered" : "completed")}>Update Status</button> : null}
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
         ) : <EmptyState title="No purchase orders yet." description="Convert approved stock requests into supplier purchase orders." />}
       </SectionCard>
@@ -2947,6 +3164,90 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       {modal?.type === "request" ? <RequestModal outlets={outlets} items={data.items} categories={sortedCategories} suppliers={suppliers} onClose={() => setModal(null)} onSave={saveRequest} /> : null}
       {modal?.type === "movement" ? <MovementModal outlets={outlets} items={data.items} onClose={() => setModal(null)} onSave={saveMovement} /> : null}
       {modal?.type === "waste" ? <WasteModal outlets={outlets} items={data.items} onClose={() => setModal(null)} onSave={saveWaste} /> : null}
+      {modal?.type === "stock-check-complete" ? (
+        <Modal
+          title="Stock Check Completed"
+          description={modal.suggestions.length ? "Shortage items were found. Review purchase suggestions before creating Draft POs." : "No shortage items found."}
+          onClose={() => setModal(null)}
+          footer={(
+            <>
+              <button className="btn-secondary" type="button" onClick={() => setModal(null)}>{modal.suggestions.length ? "Finish Only" : "Done"}</button>
+              {modal.suggestions.length ? (
+                <button className="btn-primary" type="button" onClick={() => setModal({ type: "purchase-suggestions", stockCheck: modal.stockCheck, suggestions: modal.suggestions })}>
+                  Review Purchase Suggestions
+                </button>
+              ) : null}
+            </>
+          )}
+        >
+          {modal.suggestions.length ? (
+            <div className="grid gap-3 sm:grid-cols-3">
+              <MetricCard label="Shortage Items" value={modal.suggestions.length} helper="Variance above zero" tone="warning" />
+              <MetricCard label="Supplier Count" value={new Set(modal.suggestions.flatMap((row) => row.supplierChoices.map((supplier) => supplier.id))).size || "Unassigned"} helper="Suggested grouping" tone="info" />
+              <MetricCard label="Estimated Draft PO" value={new Set(modal.suggestions.map((row) => row.supplierChoices[0]?.id || "unassigned")).size} helper="Before final review" tone="success" />
+            </div>
+          ) : (
+            <EmptyState title="No shortage items found." description="All counted quantities are at or above par level." />
+          )}
+        </Modal>
+      ) : null}
+      {modal?.type === "purchase-suggestions" ? (
+        <PurchaseSuggestionsModal
+          suggestions={modal.suggestions}
+          suppliers={suppliers}
+          outlet={outletById.get(modal.stockCheck.outletId)}
+          onClose={() => setModal(null)}
+          onCreateDraftPo={(rows) => createDraftPurchaseOrders(modal.stockCheck, rows)}
+        />
+      ) : null}
+      {modal?.type === "po-detail" ? (
+        <Modal
+          title={modal.edit ? "Edit Draft PO" : "View Purchase Order"}
+          description={`${modal.order.poNo} · ${modal.order.sourceType === "stock_check" ? "Source: Stock Check" : "Source: Stock Request"}`}
+          size="xl"
+          onClose={() => setModal(null)}
+          footer={<button className="btn-secondary" type="button" onClick={() => setModal(null)}>Close</button>}
+        >
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-4">
+              <MetricCard label="Supplier" value={suppliers.find((supplier) => supplier.id === modal.order.supplierId)?.name || "Unassigned"} helper={outletById.get(modal.order.outletId || modal.order.outletIds?.[0])?.name || "Outlet"} />
+              <MetricCard label="Status" value={toTitle(modal.order.status)} helper="PO workflow" tone={statusTone(modal.order.status)} />
+              <MetricCard label="Items" value={modal.order.lines.length} helper="PO lines" />
+              <MetricCard label="Source Check" value={modal.order.sourceStockCheckId ? "Linked" : "None"} helper={modal.order.sourceStockCheckId || "No stock check"} tone={modal.order.sourceStockCheckId ? "info" : "neutral"} />
+            </div>
+            <div className="overflow-x-auto rounded-2xl border border-border">
+              <table className="w-full min-w-[720px] text-left">
+                <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
+                  <tr>
+                    <th className="px-3 py-2">Item</th>
+                    <th>Order Qty</th>
+                    <th>Unit</th>
+                    <th>Remark</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border text-[13px]">
+                  {modal.order.lines.map((line) => {
+                    const item = itemById.get(line.itemId);
+                    return (
+                      <tr key={line.id || line.itemId}>
+                        <td className="px-3 py-2 font-bold text-text-primary">{item?.name || "Inventory item"}</td>
+                        <td>{line.requestedQty}</td>
+                        <td>{line.unit || item?.unit || ""}</td>
+                        <td>{line.remark || "-"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            <div className="flex flex-wrap items-center gap-2 type-caption font-semibold text-text-secondary">
+              {["Draft", "Submitted", "Confirmed", "Partial Delivered", "Delivered", "Completed"].map((stage) => (
+                <span key={stage} className={`rounded-full px-2 py-1 ${toTitle(modal.order.status) === stage ? "bg-primary/10 text-primary" : "bg-slate-100 text-text-secondary"}`}>{stage}</span>
+              ))}
+            </div>
+          </div>
+        </Modal>
+      ) : null}
     </div>
   );
 }

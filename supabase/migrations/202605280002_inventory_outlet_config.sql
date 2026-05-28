@@ -106,22 +106,92 @@ create index if not exists inventory_item_outlet_suppliers_supplier_idx
 create unique index if not exists inventory_item_outlet_suppliers_unique_idx
   on public.inventory_item_outlet_suppliers (inventory_item_outlet_id, supplier_id);
 
+create table if not exists public.inventory_stock_checks (
+  id uuid primary key default gen_random_uuid()
+);
+
+alter table public.inventory_stock_checks
+  add column if not exists outlet_id uuid references public.outlets(id) on delete set null,
+  add column if not exists group_id uuid,
+  add column if not exists status text not null default 'draft',
+  add column if not exists submitted_at timestamptz,
+  add column if not exists reviewed_at timestamptz,
+  add column if not exists created_by uuid references auth.users(id) on delete set null,
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
+
+create table if not exists public.inventory_stock_check_items (
+  id uuid primary key default gen_random_uuid()
+);
+
+alter table public.inventory_stock_check_items
+  add column if not exists stock_check_id uuid references public.inventory_stock_checks(id) on delete cascade,
+  add column if not exists item_id uuid references public.inventory_items(id) on delete set null,
+  add column if not exists par_level_quantity numeric(14,3) not null default 0,
+  add column if not exists actual_count_quantity numeric(14,3) not null default 0,
+  add column if not exists variance numeric(14,3) not null default 0,
+  add column if not exists unit text,
+  add column if not exists status text,
+  add column if not exists notes text,
+  add column if not exists created_at timestamptz not null default now();
+
+create table if not exists public.inventory_purchase_orders (
+  id uuid primary key default gen_random_uuid()
+);
+
+alter table public.inventory_purchase_orders
+  add column if not exists po_no text,
+  add column if not exists outlet_id uuid references public.outlets(id) on delete set null,
+  add column if not exists supplier_id uuid references public.suppliers(id) on delete set null,
+  add column if not exists status text not null default 'draft',
+  add column if not exists source_type text,
+  add column if not exists source_stock_check_id uuid references public.inventory_stock_checks(id) on delete set null,
+  add column if not exists created_by uuid references auth.users(id) on delete set null,
+  add column if not exists submitted_at timestamptz,
+  add column if not exists created_at timestamptz not null default now(),
+  add column if not exists updated_at timestamptz not null default now();
+
+create table if not exists public.inventory_purchase_order_items (
+  id uuid primary key default gen_random_uuid()
+);
+
+alter table public.inventory_purchase_order_items
+  add column if not exists purchase_order_id uuid references public.inventory_purchase_orders(id) on delete cascade,
+  add column if not exists item_id uuid references public.inventory_items(id) on delete set null,
+  add column if not exists requested_qty numeric(14,3) not null default 0,
+  add column if not exists unit text,
+  add column if not exists remark text,
+  add column if not exists source_stock_check_item_id uuid references public.inventory_stock_check_items(id) on delete set null,
+  add column if not exists created_at timestamptz not null default now();
+
 grant select, insert, update, delete on table public.inventory_categories to authenticated;
 grant select, insert, update, delete on table public.inventory_items to authenticated;
 grant select, insert, update, delete on table public.inventory_item_outlets to authenticated;
 grant select, insert, update, delete on table public.inventory_stock_check_group_categories to authenticated;
 grant select, insert, update, delete on table public.inventory_item_outlet_suppliers to authenticated;
+grant select, insert, update, delete on table public.inventory_stock_checks to authenticated;
+grant select, insert, update, delete on table public.inventory_stock_check_items to authenticated;
+grant select, insert, update, delete on table public.inventory_purchase_orders to authenticated;
+grant select, insert, update, delete on table public.inventory_purchase_order_items to authenticated;
 revoke all on table public.inventory_categories from anon;
 revoke all on table public.inventory_items from anon;
 revoke all on table public.inventory_item_outlets from anon;
 revoke all on table public.inventory_stock_check_group_categories from anon;
 revoke all on table public.inventory_item_outlet_suppliers from anon;
+revoke all on table public.inventory_stock_checks from anon;
+revoke all on table public.inventory_stock_check_items from anon;
+revoke all on table public.inventory_purchase_orders from anon;
+revoke all on table public.inventory_purchase_order_items from anon;
 
 alter table public.inventory_categories enable row level security;
 alter table public.inventory_items enable row level security;
 alter table public.inventory_item_outlets enable row level security;
 alter table public.inventory_stock_check_group_categories enable row level security;
 alter table public.inventory_item_outlet_suppliers enable row level security;
+alter table public.inventory_stock_checks enable row level security;
+alter table public.inventory_stock_check_items enable row level security;
+alter table public.inventory_purchase_orders enable row level security;
+alter table public.inventory_purchase_order_items enable row level security;
 
 drop policy if exists "inventory category viewers can view categories" on public.inventory_categories;
 create policy "inventory category viewers can view categories"
@@ -357,6 +427,84 @@ using (
     from public.inventory_item_outlets iio
     where iio.id = inventory_item_outlet_suppliers.inventory_item_outlet_id
       and public.current_user_can_access_outlet(iio.outlet_id)
+  )
+);
+
+drop policy if exists "inventory stock checks scoped access" on public.inventory_stock_checks;
+create policy "inventory stock checks scoped access"
+on public.inventory_stock_checks for all to authenticated
+using (
+  (
+    public.current_user_has_permission('inventory_stock_check.view')
+    or public.current_user_has_permission('inventory_stock_check.create')
+    or public.current_user_has_permission('inventory_stock_check.edit')
+    or public.current_user_has_permission('inventory_control.view')
+  )
+  and public.current_user_can_access_outlet(outlet_id)
+)
+with check (
+  (
+    public.current_user_has_permission('inventory_stock_check.create')
+    or public.current_user_has_permission('inventory_stock_check.edit')
+    or public.current_user_has_permission('inventory_control.create')
+  )
+  and public.current_user_can_access_outlet(outlet_id)
+);
+
+drop policy if exists "inventory stock check items scoped access" on public.inventory_stock_check_items;
+create policy "inventory stock check items scoped access"
+on public.inventory_stock_check_items for all to authenticated
+using (
+  exists (
+    select 1 from public.inventory_stock_checks sc
+    where sc.id = inventory_stock_check_items.stock_check_id
+      and public.current_user_can_access_outlet(sc.outlet_id)
+  )
+)
+with check (
+  exists (
+    select 1 from public.inventory_stock_checks sc
+    where sc.id = inventory_stock_check_items.stock_check_id
+      and public.current_user_can_access_outlet(sc.outlet_id)
+  )
+);
+
+drop policy if exists "inventory purchase orders scoped access" on public.inventory_purchase_orders;
+create policy "inventory purchase orders scoped access"
+on public.inventory_purchase_orders for all to authenticated
+using (
+  (
+    public.current_user_has_permission('inventory_orders.view')
+    or public.current_user_has_permission('inventory_orders.create')
+    or public.current_user_has_permission('inventory_orders.edit')
+    or public.current_user_has_permission('inventory_control.view')
+  )
+  and public.current_user_can_access_outlet(outlet_id)
+)
+with check (
+  (
+    public.current_user_has_permission('inventory_orders.create')
+    or public.current_user_has_permission('inventory_orders.edit')
+    or public.current_user_has_permission('inventory_control.manage')
+  )
+  and public.current_user_can_access_outlet(outlet_id)
+);
+
+drop policy if exists "inventory purchase order items scoped access" on public.inventory_purchase_order_items;
+create policy "inventory purchase order items scoped access"
+on public.inventory_purchase_order_items for all to authenticated
+using (
+  exists (
+    select 1 from public.inventory_purchase_orders po
+    where po.id = inventory_purchase_order_items.purchase_order_id
+      and public.current_user_can_access_outlet(po.outlet_id)
+  )
+)
+with check (
+  exists (
+    select 1 from public.inventory_purchase_orders po
+    where po.id = inventory_purchase_order_items.purchase_order_id
+      and public.current_user_can_access_outlet(po.outlet_id)
   )
 );
 

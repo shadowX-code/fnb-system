@@ -2007,6 +2007,8 @@ Daily Stock Check workflow:
 2. Count items.
 3. Review variance.
 4. Submit stock check.
+5. If shortages exist, review Purchase Suggestions.
+6. Create Draft POs only after user confirmation.
 
 Stock check statuses:
 
@@ -2031,6 +2033,19 @@ Variance rule:
 ```text
 variance = par_level_quantity - actual_count_quantity
 ```
+
+Shortage rule:
+
+- If variance > 0, the item is considered a shortage.
+- Stock Check submission must not directly create submitted Purchase Orders.
+- Stock Check submission may generate Purchase Suggestions grouped by supplier.
+- Purchase Suggestions are reviewed before creating Draft POs.
+- Suggested order quantity defaults to shortage quantity and remains editable.
+- Users may exclude suggested items, add remarks, or change supplier.
+- Supplier choices must come from suppliers linked to the selected outlet and assigned to the outlet-item configuration.
+- Items without an assigned supplier are grouped under Unassigned Supplier and require supplier selection before Draft PO creation.
+- Created POs use `source_type = stock_check` and reference `source_stock_check_id`.
+- PO submission is manual and separate from Stock Check completion.
 
 Variance statuses:
 
@@ -2086,23 +2101,28 @@ Purchase Orders:
 
 Purpose:
 
-Convert approved stock requests into supplier orders.
+Convert reviewed stock check purchase suggestions or approved stock requests into supplier orders.
 
 PO statuses:
 
 - Draft
-- Sent
+- Submitted
 - Confirmed
-- Packing
+- Partial Delivered
 - Delivered
-- Partial Delivery
 - Completed
+- Cancelled
 
 Rules:
 
-- Purchase Orders can group requested items by supplier.
-- PO detail shows item, outlet breakdown, quantity, unit cost, total cost, ETA, and delivery status.
-- Delivery tracker uses timeline stages: Sent → Confirmed → Packing → Delivered.
+- Stock Check generated POs are created as Draft only.
+- One Draft PO is created per supplier per outlet per stock check confirmation.
+- Draft POs include only included suggestion rows with order quantity greater than zero.
+- Purchase Orders track source type and source stock check when generated from Stock Check.
+- PO detail shows supplier, outlet, source stock check, item rows, order quantity, unit, remark, and status timeline.
+- Status workflow: Draft → Submitted → Confirmed → Partial Delivered → Delivered → Completed.
+- Cancelled is allowed where business rules permit.
+- Edit is primarily allowed in Draft status.
 
 Inventory Movements:
 
