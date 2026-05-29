@@ -1739,7 +1739,7 @@ Core rules:
 
 - Master Inventory is the source of truth for inventory items.
 - Master Inventory must load from shared Supabase tables (`inventory_items`, `inventory_item_outlets`, `inventory_categories`, and `inventory_uoms`) so desktop and mobile sessions use the same source of truth.
-- Browser local storage may be used only as a fallback/cache when remote loading fails; it must not be treated as canonical inventory master data.
+- Browser local storage/session storage must not be used as the authoritative Master Inventory item list. Master Inventory should refetch from Supabase on page load and may only use in-memory fallback data if remote loading fails.
 - Master Inventory defines global item identity only.
 - Inventory Categories is managed through Master Inventory > Category Settings.
 - Inventory Categories does not appear as a standalone sidebar page.
@@ -1881,7 +1881,7 @@ Master Inventory UI:
 - Linked Outlets displays compact outlet codes for the first few outlets plus a `+X` more indicator.
 - Clicking the Linked Outlets display opens a FloatingLayer popover with outlet names, outlet codes, linked status, and key outlet stock settings.
 - Linked outlet labels must be normalized before rendering so all browsers use the same outlet shape: `code`, `outlet_code`, `shortCode`, `short_code`, or `abbreviation` for the display code, and `name`, `outlet_name`, or `outletName` for the display name.
-- Master Inventory local cache must be versioned; stale browser cache with old outlet shapes should be ignored or cleared so linked outlet chips do not fall back to generic `Outlet` labels.
+- Master Inventory browser cache must be cleared or versioned out during loading; stale browser-specific cache must not cause Chrome/Safari item count or linked outlet label mismatches.
 - Item rows use photo thumbnails when available and standardized category fallback icons when no photo exists.
 - Add/Edit Item keeps master item fields separate from outlet-level par management.
 - Add/Edit Item shows linked outlets and a note that par levels are managed in Par Level Setup.
