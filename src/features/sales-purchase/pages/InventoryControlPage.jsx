@@ -1072,15 +1072,15 @@ function defaultData(outlets = [], suppliers = []) {
 function useInventoryData(outlets, suppliers) {
   const [data, setData] = useState(() => {
     clearInventoryBrowserCache();
-    return normalizeInventoryData(null, outlets, suppliers);
+    return normalizeInventoryData({ categories: [], items: [], uoms: [] }, outlets, suppliers, { allowEmptyMaster: true });
   });
   const [meta, setMeta] = useState({ dataSource: "fallback", lastFetchedAt: "", rawItemsCount: 0, normalizedItemsCount: 0, outletLinkCount: 0, fallbackActive: true });
 
   useEffect(() => {
     if (!outlets.length) return;
     setData((current) => {
-      if (current.items?.length || current.groups?.length) return normalizeInventoryData(current, outlets, suppliers, { allowEmptyMaster: meta.dataSource === "supabase" });
-      return normalizeInventoryData(null, outlets, suppliers);
+      if (current.items?.length || current.groups?.length) return normalizeInventoryData(current, outlets, suppliers, { allowEmptyMaster: true });
+      return normalizeInventoryData({ categories: [], items: [], uoms: [] }, outlets, suppliers, { allowEmptyMaster: true });
     });
   }, [outlets, suppliers, meta.dataSource]);
 

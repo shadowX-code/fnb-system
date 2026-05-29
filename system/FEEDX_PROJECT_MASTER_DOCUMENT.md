@@ -1743,6 +1743,8 @@ Core rules:
 - Master Inventory fetches must start from `inventory_items` and avoid inner joins that require category, UOM, outlet link, or photo metadata to exist.
 - Missing metadata is handled as display fallback only: category = `Uncategorized`, UOM = `-`, photo = fallback icon, linked outlets = `No outlets linked`.
 - Browser local storage/session storage must not be used as the authoritative Master Inventory item list. Master Inventory should refetch from Supabase on page load and may only use in-memory fallback data if remote loading fails.
+- Staging/demo Inventory Control master data is seeded in Supabase migrations, not browser-local state.
+- The authenticated app must not rely on fallback/demo inventory items for Master Inventory. Fallback demo inventory may exist only as development scaffolding and must not mask remote Supabase data problems.
 - Master Inventory defines global item identity only.
 - Inventory Categories is managed through Master Inventory > Category Settings.
 - Inventory Categories does not appear as a standalone sidebar page.
@@ -1889,6 +1891,7 @@ Master Inventory UI:
 - Linked outlet labels must be normalized before rendering so all browsers use the same outlet shape: `code`, `outlet_code`, `shortCode`, `short_code`, or `abbreviation` for the display code, and `name`, `outlet_name`, or `outletName` for the display name.
 - Master Inventory browser cache must be cleared or versioned out during loading; stale browser-specific cache must not cause Chrome/Safari item count or linked outlet label mismatches.
 - Item rows use photo thumbnails when available and standardized category fallback icons when no photo exists.
+- Baseline staging seed data includes Raw Material, Packaging, Frozen, Beverage, Cleaning, Dry Goods, Kitchen Supply, and Retail Item categories plus Sambal Sauce, Takeaway Cup 12oz, and Frozen Chicken Cut master items with outlet links and par levels.
 - Add/Edit Item keeps master item fields separate from outlet-level par management.
 - Add/Edit Item shows linked outlets and a note that par levels are managed in Par Level Setup.
 - Add/Edit Item does not show outlet-by-outlet Par Level, Low Stock Threshold, or Reorder Qty inputs.
