@@ -13,7 +13,7 @@ import { getPermissionGroups, permissionActionLabels, permissionActionOrder } fr
 import { roleService } from "../../../services/roleService.js";
 import { formatDateTime } from "../../../lib/dateTime.js";
 import { normalizeRoleOutletAccess } from "../utils/roleAccess.js";
-import { canCreate, canDelete, canEdit, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { canCreate, canDelete, canEdit, getAccessibleOutletIds, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { isProtectedRoleName } from "../../../auth/rbac.js";
 
 const roleMeta = {
@@ -475,7 +475,7 @@ function AddRoleModal({ onClose, onSubmit, ui, outlets }) {
   );
 }
 
-function RoleDetailModal({ role, onClose, onEditRole, outlets, canEditRole }) {
+function RoleDetailModal({ role, onClose, onEditRole, outlets, canEditRole, editDisabledReason }) {
   const [assignedUsersOpen, setAssignedUsersOpen] = useState(false);
   const [assignedUserSearch, setAssignedUserSearch] = useState("");
   const permissions = new Set(role.permissions ?? []);
@@ -512,8 +512,8 @@ function RoleDetailModal({ role, onClose, onEditRole, outlets, canEditRole }) {
           <div className="text-xs font-semibold text-text-secondary">Read-only role view · {permissions.size} permissions enabled</div>
           <div className="flex gap-2">
             <button className="btn-secondary" type="button" onClick={onClose}>Close</button>
-            {isProtectedRole || !canEditRole ? (
-              <button className="btn-primary cursor-not-allowed opacity-60" type="button" disabled title="Protected roles cannot be edited.">Edit Role</button>
+            {editDisabledReason || !canEditRole ? (
+              <button className="btn-primary cursor-not-allowed opacity-60" type="button" disabled title={editDisabledReason || "You do not have permission to edit roles."}>Edit Role</button>
             ) : (
               <button className="btn-primary" type="button" onClick={onEditRole}>Edit Role</button>
             )}
@@ -702,6 +702,8 @@ export default function RolesPage({ ui, store, auth }) {
   const canCreateRole = canCreate(auth, "roles");
   const canEditRole = canEdit(auth, "roles");
   const canDeleteRole = canDelete(auth, "roles");
+  const currentRoleId = auth?.profile?.role_id ?? auth?.profile?.role?.id ?? "";
+  const isProtectedUser = Boolean(auth?.isProtectedRole);
   const editorOutlets = useMemo(
     () => (store?.outlets?.length ? store.outlets.map((outlet) => ({ id: outlet.id, name: outlet.name })) : roleEditorOutlets),
     [store?.outlets],
@@ -747,11 +749,54 @@ export default function RolesPage({ ui, store, auth }) {
     setActionMenuRoleId(null);
   }
 
+  function getRoleEditBlockReason(role) {
+    if (!role) return "";
+    if (!canEditRole) return "You do not have permission to edit roles.";
+    if (isProtectedUser) return "";
+    if (isProtectedRoleName(role.name) || role.is_system_role) return "Protected roles cannot be edited.";
+    if (role.id && role.id === currentRoleId) return "You cannot edit your own role permissions.";
+    return "";
+  }
+
+  function validateRoleSave(role) {
+    if (!isProtectedUser) {
+      if (role.id && role.id === currentRoleId) {
+        ui.notify({ title: "Unable to update role", message: "You cannot edit your own role permissions.", tone: "error" });
+        return false;
+      }
+      if (isProtectedRoleName(role.name) || role.is_system_role) {
+        ui.notify({ title: "Protected role", message: "Owner and admin roles cannot be edited by custom roles.", tone: "error" });
+        return false;
+      }
+      if (role.outletAccess === "all") {
+        ui.notify({ title: "Outlet access restricted", message: "Only owner/admin can grant All Outlets access.", tone: "error" });
+        return false;
+      }
+      const accessibleOutletIds = getAccessibleOutletIds(auth);
+      const inaccessibleOutletIds = (role.selectedOutletIds ?? []).filter((outletId) => !accessibleOutletIds?.has(String(outletId)));
+      if (inaccessibleOutletIds.length) {
+        ui.notify({ title: "Outlet access restricted", message: "You can only assign outlets within your own outlet scope.", tone: "error" });
+        return false;
+      }
+      const unavailablePermissions = (role.permissions ?? []).filter((code) => !auth?.hasPermission?.(code));
+      if (unavailablePermissions.length) {
+        ui.notify({
+          title: "Permission scope restricted",
+          message: `You cannot assign permissions you do not have: ${unavailablePermissions.slice(0, 4).join(", ")}${unavailablePermissions.length > 4 ? "..." : ""}`,
+          tone: "error",
+        });
+        return false;
+      }
+    }
+    return true;
+  }
+
   async function addRole(role) {
     if (!canCreateRole) {
       notifyPermissionDenied(ui, "create roles");
       return;
     }
+    if (!validateRoleSave(role)) return;
     try {
       const saved = await roleService.saveRole(role);
       setRoles((current) => [saved, ...current]);
@@ -768,6 +813,7 @@ export default function RolesPage({ ui, store, auth }) {
       notifyPermissionDenied(ui, "edit roles");
       return;
     }
+    if (!validateRoleSave(patch)) return;
     try {
       const saved = await roleService.saveRole(patch);
       setRoles((current) => current.map((role) => (role.id === saved.id ? { ...role, ...saved } : role)));
@@ -784,7 +830,23 @@ export default function RolesPage({ ui, store, auth }) {
       notifyPermissionDenied(ui, "edit roles");
       return;
     }
+    const blockReason = getRoleEditBlockReason(role);
+    if (blockReason) {
+      ui.notify({ title: "Unable to update role", message: blockReason, tone: "error" });
+      return;
+    }
     setDisableRoleRequest(role);
+    setActionMenuRoleId(null);
+  }
+
+  function openEditRole(role) {
+    const blockReason = getRoleEditBlockReason(role);
+    if (blockReason) {
+      ui.notify({ title: "Unable to edit role", message: blockReason, tone: "error" });
+      setActionMenuRoleId(null);
+      return;
+    }
+    setEditRole(role);
     setActionMenuRoleId(null);
   }
 
@@ -956,13 +1018,13 @@ export default function RolesPage({ ui, store, auth }) {
               <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { setSelectedRole(row); setActionMenuRoleId(null); }}>
                 <Eye size={14} /> View Permissions
               </button>
-              {canEditRole ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { setEditRole(row); setActionMenuRoleId(null); }}>
+              {canEditRole ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" title={getRoleEditBlockReason(row) || "Edit Role"} onClick={() => openEditRole(row)}>
                 <Shield size={14} /> Edit Role
               </button> : null}
               {canCreateRole ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => duplicateRole(row)}>
                 <Copy size={14} /> Duplicate Role
               </button> : null}
-              {canEditRole ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold text-amber-700 hover:bg-amber-50" type="button" onClick={() => disableRole(row)}>
+              {canEditRole ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold text-amber-700 hover:bg-amber-50" type="button" title={getRoleEditBlockReason(row) || "Disable Role"} onClick={() => disableRole(row)}>
                 <ShieldAlert size={14} /> Disable Role
               </button> : null}
               {canDeleteRole ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold text-rose-700 hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-40" disabled={isProtectedRoleName(row.name)} type="button" onClick={() => deleteRole(row)}>
@@ -1029,6 +1091,7 @@ export default function RolesPage({ ui, store, auth }) {
           }}
           outlets={editorOutlets}
           canEditRole={canEditRole}
+          editDisabledReason={getRoleEditBlockReason(selectedRole)}
         />
       ) : null}
 

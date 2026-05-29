@@ -12,7 +12,7 @@ import usePeriodFilters from "../hooks/usePeriodFilters.js";
 import { getCategoryName, sumAmount, toCurrency } from "../utils/analytics.js";
 import { formatSupplierName, supplierService } from "../../../services/supplierService.js";
 import Modal from "../../../components/feedback/Modal.jsx";
-import { canCreate, canDelete, canEdit, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { canCreate, canDelete, canEdit, getAccessibleOutletOptions, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 
 function purchasePeriodLabel(period) {
   if (!period?.month || !period?.year) return "—";
@@ -348,13 +348,10 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
         <SelectField
           label="Outlet"
           value={outletFilter}
-          placeholder="All Outlets"
+          placeholder={getAccessibleOutletOptions(auth, activeOutlets)[0]?.label ?? "All Outlets"}
           className="min-w-56"
           searchable
-          options={[
-            { value: "all", label: "All Outlets" },
-            ...activeOutlets.map((outlet) => ({ value: outlet.id, label: outlet.name })),
-          ]}
+          options={getAccessibleOutletOptions(auth, activeOutlets)}
           onChange={(nextValue) => setOutletFilter(nextValue || "all")}
         />
         <MonthSelector value={filters.month} onChange={filters.setMonth} />

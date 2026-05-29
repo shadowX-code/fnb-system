@@ -474,7 +474,7 @@ function InsightPanel({ warningCells, topSuppliers, biggestIncrease, stableSuppl
   );
 }
 
-export default function PurchaseComparisonPage({ store, setStore, ui }) {
+export default function PurchaseComparisonPage({ store, setStore, ui, auth }) {
   const filters = usePeriodFilters(store);
   const [viewMode, setViewMode] = useState("Category");
   const [compareWith, setCompareWith] = useState("3-Month Average");
@@ -963,7 +963,7 @@ export default function PurchaseComparisonPage({ store, setStore, ui }) {
       />
 
       <FilterBar compact className="py-2">
-        <OutletSelector outlets={store.outlets.filter((outlet) => outlet.status === "active")} value={filters.outletId} onChange={filters.setOutletId} />
+        <OutletSelector outlets={store.outlets.filter((outlet) => outlet.status === "active")} value={filters.outletId} onChange={filters.setOutletId} auth={auth} />
         <YearSelector value={filters.year} onChange={filters.setYear} />
         <FieldLabel label="View Mode">
           <SelectField value={viewMode} options={["Category", "Supplier", "Full"].map((item) => ({ value: item, label: item }))} onChange={setViewMode} />

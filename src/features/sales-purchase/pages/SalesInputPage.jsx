@@ -656,6 +656,7 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
 
       <PeriodFilterBar
         store={store}
+        auth={auth}
         filters={{
           ...filters,
           setOutletId: (value) => {

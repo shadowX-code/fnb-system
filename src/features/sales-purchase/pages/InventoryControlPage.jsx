@@ -34,7 +34,7 @@ import SelectField from "../../../components/forms/SelectField.jsx";
 import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import { supabase } from "../../../lib/supabase.ts";
-import { hasPermission, isProtectedRole, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { getAccessibleOutletOptions, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 
 const STORAGE_KEY = "feedx.inventoryControl.v1";
 
@@ -2419,13 +2419,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   useEffect(() => {
     if (!["groups", "waste", "recipes"].includes(activeTab)) return;
     if (!outlets.length) return;
-    const canViewAllOutlets = isProtectedRole(auth);
     if (selectedOutletId !== "all" && !outlets.some((outlet) => outlet.id === selectedOutletId)) {
-      setSelectedOutletId(canViewAllOutlets ? "all" : outlets[0].id);
-      return;
-    }
-    if (!canViewAllOutlets && selectedOutletId === "all") {
-      setSelectedOutletId(outlets[0].id);
+      setSelectedOutletId("all");
     }
   }, [activeTab, auth, outlets, selectedOutletId]);
 
@@ -3363,12 +3358,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }
 
   function renderFilters() {
+    const outletOptions = getAccessibleOutletOptions(auth, outlets);
     return (
       <div className="card flex flex-col gap-3 p-3 lg:flex-row lg:items-end">
         <SelectField
           label="Outlet"
           value={selectedOutletId}
-          options={[{ value: "all", label: "All Outlets" }, ...outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))]}
+          options={outletOptions}
           onChange={setSelectedOutletId}
           searchable
           className="lg:w-64"
@@ -3847,11 +3843,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }
 
   function renderGroups() {
-    const canViewAllOutlets = isProtectedRole(auth);
-    const outletOptions = [
-      ...(canViewAllOutlets ? [{ value: "all", label: "All Outlets" }] : []),
-      ...outlets.map((outlet) => ({ value: outlet.id, label: outlet.name })),
-    ];
+    const outletOptions = getAccessibleOutletOptions(auth, outlets);
     const filteredGroups = data.groups.filter((group) => {
       const outlet = outletById.get(group.outletId);
       const categoryIds = groupCategoryIds(group, data.items);
@@ -4099,7 +4091,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     return (
       <div className="space-y-4">
         <div className="card flex flex-col gap-3 p-3 md:flex-row md:items-end">
-          <SelectField label="Outlet" value={selectedOutletId} options={[{ value: "all", label: "All Outlets" }, ...outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))]} onChange={setSelectedOutletId} searchable className="md:w-64" />
+          <SelectField label="Outlet" value={selectedOutletId} options={getAccessibleOutletOptions(auth, outlets)} onChange={setSelectedOutletId} searchable className="md:w-64" />
           <DatePickerField label="Date" value={date} onChange={setDate} />
           <SelectField label="Shift" value="all" options={[{ value: "all", label: "All Shifts" }, ...shifts.map((shift) => ({ value: shift, label: shift }))]} onChange={() => {}} className="md:w-48" />
         </div>
@@ -4250,7 +4242,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     return (
       <SectionCard title="Purchase Orders" description="Draft POs are created from reviewed stock check suggestions or manual purchase planning.">
         <div className="mb-4 grid gap-3 lg:grid-cols-6">
-          <SelectField label="Outlet" value={poFilters.outletId} options={[{ value: "all", label: "All Outlets" }, ...outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))]} onChange={(value) => updateFilter("outletId", value)} searchable />
+          <SelectField label="Outlet" value={poFilters.outletId} options={getAccessibleOutletOptions(auth, outlets)} onChange={(value) => updateFilter("outletId", value)} searchable />
           <SelectField label="Supplier" value={poFilters.supplierId} options={[{ value: "all", label: "All Suppliers" }, ...suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))]} onChange={(value) => updateFilter("supplierId", value)} searchable />
           <SelectField label="Status" value={poFilters.status} options={[{ value: "all", label: "All Status" }, ...poStatuses.map((status) => ({ value: status, label: poStatusLabel(status) }))]} onChange={(value) => updateFilter("status", value)} />
           <SelectField label="Source" value={poFilters.source} options={[{ value: "all", label: "All Sources" }, ...poSources.map((source) => ({ value: source, label: poSourceLabel(source) }))]} onChange={(value) => updateFilter("source", value)} />
@@ -4367,11 +4359,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     if (!can.viewWaste) {
       return <EmptyState title="Permission required" description="You do not have permission to view Waste & Variance." />;
     }
-    const canViewAllOutlets = isProtectedRole(auth);
-    const outletOptions = [
-      ...(canViewAllOutlets ? [{ value: "all", label: "All Outlets" }] : []),
-      ...outlets.map((outlet) => ({ value: outlet.id, label: outlet.name })),
-    ];
+    const outletOptions = getAccessibleOutletOptions(auth, outlets);
     const filteredWaste = data.waste.filter((row) => {
       const item = itemById.get(row.itemId);
       const category = categoryById.get(item?.categoryId);
@@ -4487,11 +4475,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     if (!can.viewRecipes) {
       return <EmptyState title="Permission required" description="You do not have permission to view Recipes & Usage." />;
     }
-    const canViewAllOutlets = isProtectedRole(auth);
-    const outletOptions = [
-      ...(canViewAllOutlets ? [{ value: "all", label: "All Outlets" }] : []),
-      ...outlets.map((outlet) => ({ value: outlet.id, label: outlet.name })),
-    ];
+    const outletOptions = getAccessibleOutletOptions(auth, outlets);
     const updateRecipeFilter = (key, value) => setRecipeFilters((current) => ({ ...current, [key]: value }));
     const filteredRecipes = data.recipes.filter((recipe) => {
       const outlet = outletById.get(recipe.outletId);

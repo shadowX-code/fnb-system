@@ -1,4 +1,5 @@
 import { months } from "../../features/sales-purchase/data/mockData.js";
+import { getAccessibleOutletOptions } from "../../utils/accessControl.js";
 import SelectField from "./SelectField.jsx";
 
 export function FieldLabel({ label, children }) {
@@ -10,16 +11,16 @@ export function FieldLabel({ label, children }) {
   );
 }
 
-export function OutletSelector({ outlets, value, onChange }) {
+export function OutletSelector({ outlets, value, onChange, auth, includeAll = true }) {
   return (
     <SelectField
       label="Outlet"
       value={value}
       disabled={!outlets.length && !value}
-      placeholder="All Outlets"
+      placeholder={auth ? getAccessibleOutletOptions(auth, outlets, { includeAll: true })[0]?.label : "All Outlets"}
       className="min-w-52"
       searchable
-      options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))}
+      options={getAccessibleOutletOptions(auth, outlets, { includeAll })}
       onChange={onChange}
     />
   );

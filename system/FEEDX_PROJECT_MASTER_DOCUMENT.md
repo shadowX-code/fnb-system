@@ -253,7 +253,7 @@ Protected role access rule:
 - They bypass permission matrix checks for current and future modules.
 - They do not depend on `role_permissions` rows for access.
 - Role Management must display all registry permissions as enabled for protected roles.
-- Protected roles cannot be deleted or edited directly.
+- Protected roles cannot be edited by custom roles. Owner/admin can manage role records as protected administrators.
 
 ### 4.5 SST Tax Configuration
 
@@ -2808,6 +2808,16 @@ Outlet Access:
 - All Outlets
 - Selected Outlets
 
+Outlet filter behavior:
+
+- Outlet access controls which outlets a role can see.
+- Outlet filters control the current view within that visible outlet scope.
+- `All Outlets` means access to every current outlet and every future outlet.
+- Roles with `All Outlets` must see `All Outlets` plus each individual accessible outlet in outlet filters.
+- `Selected Outlets` means access only to specifically selected outlets; future outlets are not included automatically.
+- Roles with `Selected Outlets` must see `All Accessible Outlets` plus only the outlets assigned to that role.
+- If all current outlets are selected under `Selected Outlets`, the role still does not receive future outlets automatically.
+
 Display:
 
 - Actual outlet chips for selected outlets.
@@ -3171,12 +3181,20 @@ Rules:
 - No automatic full permissions fallback for normal roles.
 - Protected roles (`owner`, `admin`) bypass permission checks and always return true.
 - Protected roles can access all outlets automatically.
-- Non-protected roles can only access outlets assigned through `role_outlets`.
+- Non-protected roles with `All Outlets` access can see every current outlet and automatically inherit future outlets.
+- Non-protected roles with `Selected Outlets` access can only see outlets assigned through `role_outlets`.
+- Users with `roles.edit` can edit non-protected roles only.
+- Non-protected users cannot edit their own role permissions.
+- Non-protected users cannot grant permissions they do not already have.
+- Non-protected users cannot assign outlets outside their own accessible outlet scope.
+- Only owner/admin can grant All Outlets access, which includes future outlets.
 - Outlet selectors must use the centralized accessible-outlet helper, not the full outlet list.
+- Outlet filters must always include an aggregate option plus individual visible outlets: `All Outlets` for all-outlet roles, or `All Accessible Outlets` for selected-outlet roles.
+- All-outlet users must be able to filter down to a specific outlet; the aggregate option must not be the only visible option.
 - Outlet data is cached once during app bootstrap and accessible outlets are derived locally from the cached outlet list plus the current role outlet scope.
 - Outlet dropdowns must render immediately from cached/bootstrap outlet state and must not replace the selected value with blocking loading text while background filtering refreshes.
 - Outlet-scoped pages and services must filter data by accessible outlet IDs.
-- If the selected outlet is no longer accessible, the UI resets to the first accessible outlet or shows a no-access state.
+- If the selected outlet is no longer accessible, the UI resets to `all`, the first accessible outlet, or shows a no-access state depending on the workflow.
 - Sidebar visibility follows view permission.
 - Add button follows create permission.
 - Edit/save follows edit permission.
@@ -3209,7 +3227,7 @@ Supplier outlet assignment:
 - Each supplier must be assigned to one or more accessible outlets through `supplier_outlets`.
 - Supplier forms use the wording `Used By Outlets` / `Assigned Outlets`.
 - Non-protected roles can only assign suppliers to outlets in their role outlet scope.
-- Supplier Directory outlet filters include `All Outlets` at the top. For protected roles this means all active outlets; for custom roles this means only outlets accessible through the role outlet scope.
+- Supplier Directory outlet filters include `All Outlets` or `All Accessible Outlets` at the top, followed by individual visible outlets.
 - When Supplier Directory is filtered to `All Outlets`, it shows suppliers linked to any accessible outlet and outlet usage counts only include accessible outlets.
 - Supplier Directory must wait for auth, role outlet scope, and accessible outlet state before showing empty results. If suppliers are not present after outlet scope becomes ready, the page triggers its own supplier fetch instead of relying on browser focus.
 - Purchase Input supplier dropdowns only show active suppliers assigned to the selected outlet.

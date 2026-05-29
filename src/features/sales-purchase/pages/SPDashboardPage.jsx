@@ -52,7 +52,7 @@ function ChartSkeleton({ title, description }) {
   );
 }
 
-export default function SPDashboardPage({ store }) {
+export default function SPDashboardPage({ store, auth }) {
   const filters = usePeriodFilters(store);
   const [selectedAlert, setSelectedAlert] = useState(null);
   const [isLoading, setIsLoading] = useState(false);
@@ -205,6 +205,7 @@ export default function SPDashboardPage({ store }) {
       <PeriodFilterBar
         store={store}
         filters={filters}
+        auth={auth}
         compact
       />
 

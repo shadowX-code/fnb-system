@@ -9,7 +9,7 @@ import TrendChart from "../../../components/charts/TrendChart.jsx";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import { months } from "../data/mockData.js";
 import { getSalesBreakdown, percentageChange, sumAmount, toCurrency, toPercent } from "../utils/analytics.js";
-import { canExport, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { canExport, getAccessibleOutletOptions, notifyPermissionDenied } from "../../../utils/accessControl.js";
 
 function defaultYear(store) {
   const years = [...store.salesRecords, ...store.purchaseRecords, ...(store.operatingExpenses ?? [])]
@@ -383,7 +383,7 @@ export default function OutletPnlPage({ store, ui, auth }) {
           label="Outlet"
           value={outletId}
           className="min-w-56"
-          options={[{ value: "all", label: "All Outlets" }, ...store.outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))]}
+          options={getAccessibleOutletOptions(auth, store.outlets)}
           onChange={setOutletId}
           searchable
         />

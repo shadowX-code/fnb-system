@@ -14,7 +14,7 @@ import { months } from "../data/mockData.js";
 import { salesChannelService } from "../../../services/salesChannelService.js";
 import { purchaseCategoryService } from "../../../services/purchaseCategoryService.js";
 import { outletTaxConfigService } from "../../../services/outletTaxConfigService.js";
-import { canCreate, canDelete, canEdit, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { canCreate, canDelete, canEdit, getAccessibleOutletOptions, notifyPermissionDenied } from "../../../utils/accessControl.js";
 
 function purchasePeriodLabel(period) {
   if (!period?.month || !period?.year) return "No purchase records yet";
@@ -669,10 +669,10 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
         action={isTax ? (
           <SelectField
             value={taxOutletFilter === "all" ? "" : taxOutletFilter}
-            placeholder="All Outlets"
+            placeholder={getAccessibleOutletOptions(auth, store.outlets)[0]?.label ?? "All Outlets"}
             className="w-44"
             searchable
-            options={store.outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))}
+            options={getAccessibleOutletOptions(auth, store.outlets)}
             onChange={(nextValue) => setTaxOutletFilter(nextValue || "all")}
           />
         ) : null}

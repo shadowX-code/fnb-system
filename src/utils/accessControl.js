@@ -6,8 +6,21 @@ export function isProtectedRole(auth) {
   return Boolean(auth?.isProtectedRole);
 }
 
+export function hasAllOutletAccess(auth) {
+  if (isProtectedRole(auth)) return true;
+  const profile = auth?.profile ?? {};
+  const roleId = profile.role_id ?? profile.role?.id ?? auth?.roleId;
+  const outletIds =
+    profile.role_outlet_ids ??
+    profile.roleOutletIds ??
+    auth?.roleOutletIds ??
+    auth?.accessibleOutletIds ??
+    [];
+  return Boolean(roleId) && outletIds.length === 0;
+}
+
 export function getAccessibleOutletIds(auth) {
-  if (isProtectedRole(auth)) return null;
+  if (hasAllOutletAccess(auth)) return null;
   const outletIds =
     auth?.profile?.role_outlet_ids ??
     auth?.profile?.roleOutletIds ??
@@ -18,7 +31,7 @@ export function getAccessibleOutletIds(auth) {
 }
 
 export function getAccessibleOutlets(auth, outlets = []) {
-  if (isProtectedRole(auth)) return outlets;
+  if (hasAllOutletAccess(auth)) return outlets;
   const outletIds = getAccessibleOutletIds(auth);
   if (!outletIds?.size) return [];
   return outlets.filter((outlet) => outletIds.has(String(outlet.id)));
@@ -26,12 +39,22 @@ export function getAccessibleOutlets(auth, outlets = []) {
 
 export function canAccessOutlet(auth, outletId) {
   if (!outletId) return false;
-  if (isProtectedRole(auth)) return true;
-  return getAccessibleOutletIds(auth).has(String(outletId));
+  const outletIds = getAccessibleOutletIds(auth);
+  if (outletIds === null) return true;
+  return outletIds.has(String(outletId));
+}
+
+export function getAccessibleOutletOptions(auth, outlets = [], { includeAll = true } = {}) {
+  const accessibleOutlets = getAccessibleOutlets(auth, outlets);
+  const allLabel = !auth || hasAllOutletAccess(auth) ? "All Outlets" : "All Accessible Outlets";
+  return [
+    ...(includeAll ? [{ value: "all", label: allLabel }] : []),
+    ...accessibleOutlets.map((outlet) => ({ value: outlet.id, label: outlet.name })),
+  ];
 }
 
 export function filterOutletScopedRows(auth, rows = []) {
-  if (isProtectedRole(auth)) return rows;
+  if (hasAllOutletAccess(auth)) return rows;
   const outletIds = getAccessibleOutletIds(auth);
   if (!outletIds.size) return [];
   return rows.filter((row) => !row?.outlet_id || outletIds.has(String(row.outlet_id)));

@@ -85,7 +85,7 @@ function EmptyState({ hasData }) {
   );
 }
 
-export default function AlertsInsightsPage({ store, ui }) {
+export default function AlertsInsightsPage({ store, ui, auth }) {
   const filters = usePeriodFilters(store);
   const [severity, setSeverity] = useState("all");
   const [typeFilter, setTypeFilter] = useState("all");
@@ -142,6 +142,7 @@ export default function AlertsInsightsPage({ store, ui }) {
       <PeriodFilterBar
         store={store}
         filters={filters}
+        auth={auth}
         compact
         actions={
           <>

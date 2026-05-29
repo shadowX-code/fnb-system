@@ -444,7 +444,7 @@ function SalesMatrix({ rows, visibleMonths, selectedMonth, compareWith, compareL
   );
 }
 
-export default function SalesComparisonPage({ store, setStore, ui }) {
+export default function SalesComparisonPage({ store, setStore, ui, auth }) {
   const filters = usePeriodFilters(store);
   const [compareWith, setCompareWith] = useState("Previous Year");
   const [viewMode, setViewMode] = useState("Summary");
@@ -649,7 +649,7 @@ export default function SalesComparisonPage({ store, setStore, ui }) {
       />
 
       <FilterBar compact>
-        <OutletSelector outlets={store.outlets.filter((outlet) => outlet.status === "active")} value={filters.outletId} onChange={filters.setOutletId} />
+        <OutletSelector outlets={store.outlets.filter((outlet) => outlet.status === "active")} value={filters.outletId} onChange={filters.setOutletId} auth={auth} />
         <YearSelector value={filters.year} onChange={filters.setYear} />
         <FieldLabel label="Compare With">
           <SelectField value={compareWith} options={["Previous Year", "Previous Month", "3-Month Average"].map((item) => ({ value: item, label: item }))} onChange={setCompareWith} />

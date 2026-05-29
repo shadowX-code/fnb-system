@@ -815,7 +815,7 @@ export default function PurchaseInputPage({ store, setStore, ui, auth, masterDat
         }
       />
       <FilterBar compact>
-        <OutletSelector outlets={store.outlets} value={filters.outletId} onChange={filters.setOutletId} />
+        <OutletSelector outlets={store.outlets} value={filters.outletId} onChange={filters.setOutletId} auth={auth} />
         <MonthSelector value={filters.month} onChange={filters.setMonth} />
         <YearSelector value={filters.year} onChange={filters.setYear} />
         <FieldLabel label="Category">

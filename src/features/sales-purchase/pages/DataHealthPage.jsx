@@ -164,7 +164,7 @@ export default function DataHealthPage({ store, setStore, ui, auth }) {
         }
       />
 
-      <PeriodFilterBar store={store} filters={filters} compact />
+      <PeriodFilterBar store={store} filters={filters} auth={auth} compact />
 
       {!hasAnyData ? (
         <div className="rounded-2xl border border-dashed border-border bg-slate-50 p-6 text-sm text-text-secondary">

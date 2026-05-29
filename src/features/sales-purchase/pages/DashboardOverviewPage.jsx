@@ -35,6 +35,7 @@ import {
   toCurrency,
   toPercent,
 } from "../utils/analytics.js";
+import { getAccessibleOutletOptions } from "../../../utils/accessControl.js";
 
 const cogsTarget = 35;
 const outletColors = ["#16a34a", "#0ea5e9", "#f59e0b", "#8b5cf6", "#ef4444", "#14b8a6"];
@@ -653,8 +654,9 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
                 value={selectedOutletId}
                 onChange={(event) => setSelectedOutletId(event.target.value)}
               >
-                <option value="all">All Outlets</option>
-                {activeOutlets.map((outlet) => <option key={outlet.id} value={outlet.id}>{outlet.name}</option>)}
+                {getAccessibleOutletOptions(auth, activeOutlets).map((option) => (
+                  <option key={option.value} value={option.value}>{option.label}</option>
+                ))}
               </select>
             </label>
             <label className="block">

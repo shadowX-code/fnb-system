@@ -12,7 +12,7 @@ import PageHeader from "../../../components/layout/PageHeader.jsx";
 import TrendChart from "../../../components/charts/TrendChart.jsx";
 import { months } from "../data/mockData.js";
 import { monthLabel, percentageChange, toCurrency, toPercent } from "../utils/analytics.js";
-import { canExport, canManage, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { canExport, canManage, getAccessibleOutletOptions, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { productAnalyticsService } from "../../../services/productAnalyticsService.js";
 
 const productColumnAliases = {
@@ -968,7 +968,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
           label="Outlet"
           value={outletId}
           searchable
-          options={[{ value: "all", label: "All Outlets" }, ...activeOutlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))]}
+          options={getAccessibleOutletOptions(auth, activeOutlets)}
           onChange={setOutletId}
         />
         <MonthSelector value={month} onChange={setMonth} />
