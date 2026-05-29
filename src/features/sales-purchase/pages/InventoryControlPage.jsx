@@ -86,7 +86,16 @@ const pageMeta = {
 };
 
 const categoryPresets = ["Raw Material", "Beverage", "Packaging", "Cleaning", "Frozen", "Dry Goods", "Kitchen Supply", "Retail Item"];
-const units = ["kg", "g", "pcs", "box", "pack", "bottle", "carton", "litre"];
+const defaultUoms = [
+  { id: "uom_kg", code: "kg", displayName: "Kilogram", uomType: "Weight", isActive: true, sortOrder: 1 },
+  { id: "uom_g", code: "g", displayName: "Gram", uomType: "Weight", isActive: true, sortOrder: 2 },
+  { id: "uom_pcs", code: "pcs", displayName: "Pieces", uomType: "Count", isActive: true, sortOrder: 3 },
+  { id: "uom_box", code: "box", displayName: "Box", uomType: "Packaging", isActive: true, sortOrder: 4 },
+  { id: "uom_pack", code: "pack", displayName: "Pack", uomType: "Packaging", isActive: true, sortOrder: 5 },
+  { id: "uom_bottle", code: "bottle", displayName: "Bottle", uomType: "Volume", isActive: true, sortOrder: 6 },
+  { id: "uom_carton", code: "carton", displayName: "Carton", uomType: "Packaging", isActive: true, sortOrder: 7 },
+  { id: "uom_litre", code: "litre", displayName: "Litre", uomType: "Volume", isActive: true, sortOrder: 8 },
+];
 const statuses = ["active", "inactive", "archived"];
 const frequencies = ["custom", "monthly"];
 const shifts = ["Opening", "Mid", "Closing", "Any Shift"];
@@ -443,6 +452,26 @@ function normalizeInventoryItem(item = {}) {
   };
 }
 
+function normalizeUom(uom = {}) {
+  const code = String(uom.code ?? uom.uom_code ?? "").trim();
+  return {
+    id: uom.id || makeId("uom"),
+    code,
+    displayName: uom.displayName ?? uom.display_name ?? code,
+    uomType: uom.uomType ?? uom.uom_type ?? "General",
+    isActive: uom.isActive ?? uom.is_active ?? uom.status !== "inactive",
+    sortOrder: Number(uom.sortOrder ?? uom.sort_order ?? 0),
+    createdAt: uom.createdAt ?? uom.created_at ?? "",
+    updatedAt: uom.updatedAt ?? uom.updated_at ?? "",
+  };
+}
+
+function uomOptionLabel(uom = {}) {
+  return uom.displayName && canonical(uom.displayName) !== canonical(uom.code)
+    ? `${uom.code} · ${uom.displayName}`
+    : uom.code;
+}
+
 function outletConfigForItem(item = {}, outletId) {
   if (!outletId) return buildOutletConfig(item, "");
   const existing = (item.outletConfigs || []).find((config) => config.outletId === outletId);
@@ -484,6 +513,7 @@ function normalizeInventoryData(raw, outlets = [], suppliers = []) {
     ...fallback,
     ...source,
     categories: source.categories?.length ? source.categories : fallback.categories,
+    uoms: (source.uoms?.length ? source.uoms : fallback.uoms).map(normalizeUom),
     items: (source.items?.length ? source.items : fallback.items).map(normalizeInventoryItem),
     groups: source.groups ?? fallback.groups,
     checks: source.checks ?? [],
@@ -596,6 +626,7 @@ function defaultData(outlets = [], suppliers = []) {
   ];
   return {
     categories: categoryRows,
+    uoms: defaultUoms.map(normalizeUom),
     items: items.map(normalizeInventoryItem),
     groups,
     checks: [],
@@ -1011,8 +1042,9 @@ function readImportValue(row, aliases) {
   return "";
 }
 
-function buildInventoryImportPreview(rows, { categories, outlets, items }) {
+function buildInventoryImportPreview(rows, { categories, outlets, items, uoms }) {
   const categoryByName = new Map(categories.map((category) => [canonical(category.name), category]));
+  const uomByCode = new Map(uoms.map((uom) => [canonical(uom.code), uom]));
   const outletByCode = new Map(outlets.flatMap((outlet) => [
     [canonical(outlet.code || ""), outlet],
     [canonical(outlet.shortCode || ""), outlet],
@@ -1039,7 +1071,8 @@ function buildInventoryImportPreview(rows, { categories, outlets, items }) {
     const category = categoryByName.get(canonical(categoryName));
     if (categoryName && !category) errors.push("Unknown Category");
     if (!unit) errors.push("Missing UOM");
-    if (unit && !units.map(canonical).includes(canonical(unit))) errors.push("Unknown UOM");
+    const uom = unit ? uomByCode.get(canonical(unit)) : null;
+    if (unit && !uom) errors.push("Unknown UOM");
     if (!["active", "inactive", "archived"].includes(status)) errors.push("Invalid Status");
 
     const skuKey = canonical(sku);
@@ -1073,7 +1106,7 @@ function buildInventoryImportPreview(rows, { categories, outlets, items }) {
         name,
         sku,
         categoryId: category?.id || "",
-        unit,
+        unit: uom?.code || unit,
         description,
         defaultSupplierId: existing?.defaultSupplierId || "",
         status,
@@ -1085,7 +1118,7 @@ function buildInventoryImportPreview(rows, { categories, outlets, items }) {
   });
 }
 
-function InventoryImportModal({ categories, outlets, items, onClose, onImport }) {
+function InventoryImportModal({ categories, outlets, items, uoms, onClose, onImport }) {
   const [fileName, setFileName] = useState("");
   const [preview, setPreview] = useState([]);
   const [error, setError] = useState("");
@@ -1106,7 +1139,7 @@ function InventoryImportModal({ categories, outlets, items, onClose, onImport })
     try {
       setFileName(file.name);
       const parsed = extension === "xlsx" ? await parseXlsx(file) : parseCsv(await file.text());
-      const built = buildInventoryImportPreview(parsed.rows, { categories, outlets, items });
+      const built = buildInventoryImportPreview(parsed.rows, { categories, outlets, items, uoms });
       setPreview(built);
     } catch (parseError) {
       setError(parseError.message || "Unable to parse import file.");
@@ -1197,13 +1230,115 @@ function categoryByIdName(categories, categoryId) {
   return categories.find((category) => category.id === categoryId)?.name || "Uncategorized";
 }
 
-function InventoryItemModal({ item, categories, outlets, onClose, onSave }) {
+function UomModal({ uom, onClose, onSave }) {
+  const [form, setForm] = useState(() => normalizeUom(uom ?? {
+    id: "",
+    code: "",
+    displayName: "",
+    uomType: "General",
+    isActive: true,
+    sortOrder: 1,
+  }));
+  const [touched, setTouched] = useState(false);
+  const invalid = touched && (!form.code.trim() || !form.displayName.trim() || !form.uomType.trim());
+  const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+
+  return (
+    <Modal
+      title={uom ? "Edit UOM" : "Add New UOM"}
+      description="Manage units of measure used by master inventory items and imports."
+      onClose={onClose}
+      footer={(
+        <>
+          <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
+          <button
+            className="btn-primary"
+            type="button"
+            onClick={() => {
+              setTouched(true);
+              if (!form.code.trim() || !form.displayName.trim() || !form.uomType.trim()) return;
+              onSave(normalizeUom({
+                ...form,
+                id: form.id || makeId("uom"),
+                code: form.code.trim(),
+                displayName: form.displayName.trim(),
+                uomType: form.uomType.trim(),
+                updatedAt: new Date().toISOString(),
+                createdAt: form.createdAt || new Date().toISOString(),
+              }));
+            }}
+          >
+            Save
+          </button>
+        </>
+      )}
+    >
+      <div className="grid gap-3 md:grid-cols-2">
+        <Field label="UOM Code" value={form.code} required onChange={(value) => update("code", value)} placeholder="kg" />
+        <Field label="Display Name" value={form.displayName} required onChange={(value) => update("displayName", value)} placeholder="Kilogram" />
+        <Field label="UOM Type" value={form.uomType} required onChange={(value) => update("uomType", value)} placeholder="Weight" />
+        <Field label="Sort Order" type="number" value={form.sortOrder} onChange={(value) => update("sortOrder", Number(value || 0))} />
+        <SelectField label="Status" value={form.isActive ? "active" : "inactive"} options={[{ value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }]} onChange={(value) => update("isActive", value === "active")} />
+        {invalid ? <div className="md:col-span-2 type-caption font-semibold text-rose-600">UOM code, display name and type are required.</div> : null}
+      </div>
+    </Modal>
+  );
+}
+
+function UomSettingsModal({ uoms, canAdd, canEdit, canDelete, requirePermission, onAdd, onEdit, onArchive, onDelete, onClose }) {
+  return (
+    <Modal
+      title="Inventory UOM Settings"
+      description="Manage units of measure used by master inventory items, stock checks and imports."
+      size="lg"
+      onClose={onClose}
+      footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}
+    >
+      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="type-caption text-text-secondary">{uoms.length} configured UOM{uoms.length === 1 ? "" : "s"}</div>
+          <div className="type-caption text-text-muted">Only active UOMs appear in item forms and import validation.</div>
+        </div>
+        <button className="btn-primary h-8 px-3 text-xs" type="button" onClick={() => requirePermission(canAdd, "add UOM") && onAdd()}>
+          <PackagePlus size={14} /> Add UOM
+        </button>
+      </div>
+      {uoms.length ? (
+        <div className="overflow-hidden rounded-2xl border border-border bg-surface">
+          {uoms.map((uom) => (
+            <div key={uom.id} className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-3 py-2.5 last:border-b-0 hover:bg-primary/5">
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <div className="truncate type-body-sm font-bold text-text-primary">{uom.code}</div>
+                  <Badge tone={uom.isActive ? "success" : "neutral"}>{uom.isActive ? "Active" : "Inactive"}</Badge>
+                </div>
+                <div className="mt-0.5 truncate type-caption text-text-secondary">{uom.displayName || "No display name"} · {uom.uomType || "General"}</div>
+                <div className="mt-1 type-caption font-semibold text-text-muted">Sort {uom.sortOrder || 0}</div>
+              </div>
+              <div className="flex items-center justify-end gap-2">
+                <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(canEdit, "edit UOM") && onEdit(uom)}>Edit</button>
+                <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(canEdit, "archive UOM") && onArchive(uom)}>{uom.isActive ? "Archive" : "Activate"}</button>
+                <button className="icon-btn h-8 w-8 text-rose-600" type="button" onClick={() => requirePermission(canDelete, "delete UOM") && onDelete(uom)} title="Delete UOM">
+                  <Trash2 size={14} />
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyState title="Create your first UOM." description="UOMs control the item form dropdown and Master Inventory import validation." />
+      )}
+    </Modal>
+  );
+}
+
+function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onAddUom, onClose, onSave }) {
   const initialItem = normalizeInventoryItem(item ?? {
     id: "",
     name: "",
     sku: "",
     categoryId: categories[0]?.id ?? "",
-    unit: "kg",
+    unit: uoms.find((uom) => uom.isActive)?.code || "kg",
     photo: "",
     description: "",
     inventoryType: item?.inventoryType ?? "",
@@ -1212,6 +1347,7 @@ function InventoryItemModal({ item, categories, outlets, onClose, onSave }) {
     linkedOutletIds: outlets[0]?.id ? [outlets[0].id] : [],
   });
   const [form, setForm] = useState(initialItem);
+  const [quickUomOpen, setQuickUomOpen] = useState(false);
   const [touched, setTouched] = useState(false);
   const invalid = touched && (!form.name.trim() || !form.categoryId || !form.unit || !form.linkedOutletIds?.length);
 
@@ -1256,7 +1392,17 @@ function InventoryItemModal({ item, categories, outlets, onClose, onSave }) {
         <Field label="Item Name" value={form.name} required onChange={(value) => update("name", value)} placeholder="Sambal Sauce" />
         <Field label="SKU Code" value={form.sku} onChange={(value) => update("sku", value)} placeholder="RAW-SAM-001" />
         <SelectField label="Category" value={form.categoryId} options={categories.map((category) => ({ value: category.id, label: category.name }))} onChange={(value) => update("categoryId", value)} searchable required />
-        <SelectField label="UOM" value={form.unit} options={units.map((unit) => ({ value: unit, label: unit }))} onChange={(value) => update("unit", value)} />
+        <SelectField
+          label="UOM"
+          value={form.unit}
+          options={uoms.filter((uom) => uom.isActive).map((uom) => ({ value: uom.code, label: uomOptionLabel(uom) }))}
+          onChange={(value) => update("unit", value)}
+          footerAction={(
+            <button className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-[13px] font-bold text-primary transition hover:bg-primary/5 disabled:cursor-not-allowed disabled:text-text-muted" type="button" disabled={!canCreateUom} onClick={() => setQuickUomOpen(true)}>
+              <Plus size={14} /> Add New UOM
+            </button>
+          )}
+        />
         <SelectField label="Status" value={form.status} options={statuses.map((status) => ({ value: status, label: toTitle(status) }))} onChange={(value) => update("status", value)} />
         <div className="md:col-span-2">
           <ItemPhotoPicker value={form.photo} itemId={form.id || form.sku || "draft"} onChange={(value) => update("photo", value)} />
@@ -1272,6 +1418,16 @@ function InventoryItemModal({ item, categories, outlets, onClose, onSave }) {
           {invalid ? <div className="mt-2 type-caption font-semibold text-rose-600">Item name, category, UOM and at least one linked outlet are required.</div> : null}
         </div>
       </div>
+      {quickUomOpen ? (
+        <UomModal
+          onClose={() => setQuickUomOpen(false)}
+          onSave={(nextUom) => {
+            const saved = onAddUom(nextUom);
+            update("unit", saved.code);
+            setQuickUomOpen(false);
+          }}
+        />
+      ) : null}
     </Modal>
   );
 }
@@ -2433,6 +2589,10 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     createCategory: hasPermission(auth, "inventory_categories.create"),
     editCategory: hasPermission(auth, "inventory_categories.edit"),
     deleteCategory: hasPermission(auth, "inventory_categories.delete"),
+    viewUoms: hasPermission(auth, "inventory_uoms.view") || hasPermission(auth, "inventory_master.view"),
+    createUom: hasPermission(auth, "inventory_uoms.create"),
+    editUom: hasPermission(auth, "inventory_uoms.edit"),
+    deleteUom: hasPermission(auth, "inventory_uoms.delete"),
     manageGroups: hasPermission(auth, "inventory_groups.create") || hasPermission(auth, "inventory_groups.edit"),
     createCheck: hasPermission(auth, "inventory_stock_check.create") || hasPermission(auth, "inventory_stock_check.audit"),
     editCheck: hasPermission(auth, "inventory_stock_check.edit"),
@@ -2459,6 +2619,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   const sortedCategories = useMemo(() => [...data.categories].sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0) || a.name.localeCompare(b.name)), [data.categories]);
   const categoryById = useMemo(() => new Map(data.categories.map((category) => [category.id, category])), [data.categories]);
+  const sortedUoms = useMemo(() => [...(data.uoms || [])].map(normalizeUom).sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0) || a.code.localeCompare(b.code)), [data.uoms]);
   const itemCountByCategory = useMemo(() => {
     const counts = new Map();
     data.items.forEach((item) => counts.set(item.categoryId, (counts.get(item.categoryId) || 0) + 1));
@@ -2553,6 +2714,44 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     notify("Inventory category saved");
   }
 
+  function saveUom(uom) {
+    const normalized = normalizeUom({
+      ...uom,
+      code: String(uom.code || "").trim(),
+      displayName: String(uom.displayName || "").trim(),
+      uomType: String(uom.uomType || "").trim(),
+      updatedAt: new Date().toISOString(),
+      createdAt: uom.createdAt || new Date().toISOString(),
+    });
+    const shouldReturnToSettings = modal?.returnToSettings;
+    setData((current) => ({
+      ...current,
+      uoms: current.uoms?.some((entry) => entry.id === normalized.id)
+        ? current.uoms.map((entry) => entry.id === normalized.id ? normalized : entry)
+        : [...(current.uoms || []), { ...normalized, sortOrder: normalized.sortOrder || ((current.uoms?.length || 0) + 1) }],
+    }));
+    setModal(shouldReturnToSettings ? { type: "uom-settings" } : null);
+    notify("Inventory UOM saved", normalized.code);
+    return normalized;
+  }
+
+  function saveQuickUom(uom) {
+    const normalized = normalizeUom({
+      ...uom,
+      code: String(uom.code || "").trim(),
+      displayName: String(uom.displayName || "").trim(),
+      uomType: String(uom.uomType || "").trim(),
+      updatedAt: new Date().toISOString(),
+      createdAt: uom.createdAt || new Date().toISOString(),
+    });
+    setData((current) => ({
+      ...current,
+      uoms: [...(current.uoms || []), { ...normalized, sortOrder: normalized.sortOrder || ((current.uoms?.length || 0) + 1) }],
+    }));
+    notify("Inventory UOM saved", normalized.code);
+    return normalized;
+  }
+
   function sortCategories(draggedId, targetId) {
     setData((current) => {
       const ordered = [...current.categories].sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0) || a.name.localeCompare(b.name));
@@ -2589,6 +2788,24 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       categories: current.categories.filter((entry) => entry.id !== category.id),
     }));
     notify("Inventory category deleted");
+  }
+
+  function archiveUom(uom) {
+    setData((current) => ({
+      ...current,
+      uoms: (current.uoms || []).map((entry) => entry.id === uom.id ? { ...entry, isActive: !entry.isActive, updatedAt: new Date().toISOString() } : entry),
+    }));
+    notify(uom.isActive ? "Inventory UOM archived" : "Inventory UOM activated", uom.code);
+  }
+
+  function deleteUom(uom) {
+    const inUse = data.items.some((item) => canonical(item.unit) === canonical(uom.code));
+    if (inUse) {
+      notify("Unable to delete UOM", "This UOM is used by inventory items.", "warning");
+      return;
+    }
+    setData((current) => ({ ...current, uoms: (current.uoms || []).filter((entry) => entry.id !== uom.id) }));
+    notify("Inventory UOM deleted", uom.code);
   }
 
   function importInventoryRows(rows) {
@@ -4592,6 +4809,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           <button className="btn-secondary" type="button" onClick={() => requirePermission(can.viewCategories, "view inventory categories") && setModal({ type: "category-settings" })}>
             Category Settings
           </button>
+          <button className="btn-secondary" type="button" onClick={() => requirePermission(can.viewUoms, "view inventory UOM settings") && setModal({ type: "uom-settings" })}>
+            UOM Settings
+          </button>
           <button className="btn-primary" type="button" onClick={() => requirePermission(can.createMaster, "add inventory items") && setModal({ type: "item" })}>
             <PackagePlus size={15} /> Add Item
           </button>
@@ -4651,12 +4871,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
       {renderActiveTab()}
 
-      {modal?.type === "item" ? <InventoryItemModal item={modal.item} categories={sortedCategories} outlets={outlets} onClose={() => setModal(null)} onSave={saveItem} /> : null}
+      {modal?.type === "item" ? <InventoryItemModal item={modal.item} categories={sortedCategories} outlets={outlets} uoms={sortedUoms} canCreateUom={can.createUom} onAddUom={saveQuickUom} onClose={() => setModal(null)} onSave={saveItem} /> : null}
       {modal?.type === "inventory-import" ? (
         <InventoryImportModal
           categories={sortedCategories}
           outlets={outlets}
           items={data.items}
+          uoms={sortedUoms}
           onClose={() => setModal(null)}
           onImport={importInventoryRows}
         />
@@ -4678,6 +4899,21 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         />
       ) : null}
       {modal?.type === "category" ? <CategoryModal category={modal.category} onClose={() => setModal(null)} onSave={saveCategory} /> : null}
+      {modal?.type === "uom-settings" ? (
+        <UomSettingsModal
+          uoms={sortedUoms}
+          canAdd={can.createUom}
+          canEdit={can.editUom}
+          canDelete={can.deleteUom}
+          requirePermission={requirePermission}
+          onClose={() => setModal(null)}
+          onAdd={() => setModal({ type: "uom", returnToSettings: true })}
+          onEdit={(uom) => setModal({ type: "uom", uom, returnToSettings: true })}
+          onArchive={archiveUom}
+          onDelete={deleteUom}
+        />
+      ) : null}
+      {modal?.type === "uom" ? <UomModal uom={modal.uom} onClose={() => setModal(modal.returnToSettings ? { type: "uom-settings" } : null)} onSave={saveUom} /> : null}
       {modal?.type === "group" ? <GroupModal group={modal.group} outletId={modal.outletId || selectedOutletId} outlets={outlets} items={data.items} categories={sortedCategories} onClose={() => setModal(null)} onSave={saveGroup} /> : null}
       {modal?.type === "audit-stock-check" ? <AuditStockCheckModal outlets={outlets} categories={sortedCategories} items={data.items} onClose={() => setModal(null)} onStart={startAuditStockCheck} /> : null}
       {modal?.type === "skip-check-row" ? <SkipReasonModal itemName={modal.itemName} onClose={() => setModal(null)} onSave={(reason) => skipCheckRow(modal.rowIndex, reason)} /> : null}

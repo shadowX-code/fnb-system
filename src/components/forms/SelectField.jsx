@@ -15,6 +15,7 @@ export default function SelectField({
   searchable = false,
   className = "",
   buttonClassName = "",
+  footerAction = null,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -110,6 +111,7 @@ export default function SelectField({
               <div className="rounded-xl border border-dashed border-border px-3 py-4 text-center text-xs font-semibold text-text-muted">No options found</div>
             )}
           </div>
+          {footerAction ? <div className="mt-2 border-t border-border pt-2">{footerAction}</div> : null}
       </FloatingLayer>
     </div>
   );

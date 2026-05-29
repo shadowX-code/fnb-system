@@ -188,6 +188,7 @@ Inventory Control registry entries:
 inventory_dashboard     INVENTORY_CONTROL   Dashboard              #inventory_dashboard
 inventory_master        INVENTORY_CONTROL   Master Inventory       #inventory_master
 inventory_categories    INVENTORY_CONTROL   Inventory Categories   internal only, sidebar false
+inventory_uoms          INVENTORY_CONTROL   Inventory UOMs         internal only, sidebar false
 inventory_par_levels    INVENTORY_CONTROL   Par Levels             #inventory_par_levels
 inventory_groups        INVENTORY_CONTROL   Stock Check Groups     #inventory_groups
 inventory_stock_check   INVENTORY_CONTROL   Stock Check            #inventory_stock_check
@@ -1779,6 +1780,10 @@ Inventory Control permissions:
 - inventory_categories.create
 - inventory_categories.edit
 - inventory_categories.delete
+- inventory_uoms.view
+- inventory_uoms.create
+- inventory_uoms.edit
+- inventory_uoms.delete
 - inventory_par_levels.view
 - inventory_par_levels.edit
 - inventory_par_levels.export
@@ -1839,6 +1844,7 @@ Master Inventory UI:
 - Filter by category, status, and outlet.
 - Page header actions include Import, Export, Category Settings, and Add Item.
 - Category Settings opens `Inventory Category Settings`.
+- UOM Settings opens `Inventory UOM Settings`.
 - Inventory Category Settings uses a compact sortable list view, not large cards.
 - Category rows show drag handle, category name, description, linked item count, status badge, and actions.
 - Dragging category rows updates `inventory_categories.sort_order`.
@@ -1849,6 +1855,9 @@ Master Inventory UI:
 - Inventory Type is no longer exposed in Add/Edit Item.
 - Default Supplier is no longer exposed in Add/Edit Item because supplier assignment is outlet-specific and managed in Par Levels / outlet-item supplier configuration.
 - The master item unit field is displayed as UOM in Master Inventory UI.
+- Master Inventory UOM values are managed by users in Master Inventory > UOM Settings.
+- UOM dropdowns load from `inventory_uoms`, and the Add/Edit Item UOM dropdown includes `+ Add New UOM` for quick creation.
+- Saving a new UOM refreshes the UOM list and auto-selects the newly created UOM in the item form.
 - Item Photo is uploaded from the device, not entered as a raw URL.
 - Item photos are saved to `inventory_items.photo_url` through the Supabase Storage bucket `inventory-item-photos`.
 - If storage is not configured yet, the form must show a clear fallback message instead of blocking item editing.
@@ -1890,6 +1899,20 @@ Master Inventory import/export:
 - Export filename format is `feedx-master-inventory-YYYY-MM-DD.csv`.
 - Import requires inventory_master.create or inventory_master.edit permission.
 - Export requires inventory_master.export permission.
+
+Inventory UOM data model:
+
+- Table: `inventory_uoms`
+- Fields: id, code, display_name, uom_type, is_active, sort_order, created_at, updated_at.
+- Active UOMs appear in item forms and import validation.
+- Inactive UOMs remain available historically but should not be suggested for new items.
+
+Inventory UOM permissions:
+
+- inventory_uoms.view
+- inventory_uoms.create
+- inventory_uoms.edit
+- inventory_uoms.delete
 
 Par Level Setup:
 
@@ -3054,6 +3077,13 @@ Inventory Categories:
 - inventory_categories.create
 - inventory_categories.edit
 - inventory_categories.delete
+
+Inventory UOMs:
+
+- inventory_uoms.view
+- inventory_uoms.create
+- inventory_uoms.edit
+- inventory_uoms.delete
 
 Par Levels:
 

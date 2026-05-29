@@ -272,6 +272,15 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, create: true, edit: true, delete: true },
   },
   {
+    id: "inventory_uoms",
+    section: "Inventory Control",
+    label: "Inventory UOMs",
+    route: "/inventory/uoms",
+    icon: "settings",
+    sidebar: false,
+    permissions: { view: true, create: true, edit: true, delete: true },
+  },
+  {
     id: "inventory_par_levels",
     section: "Inventory Control",
     label: "Par Levels",
