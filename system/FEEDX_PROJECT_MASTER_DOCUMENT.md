@@ -1898,6 +1898,10 @@ Master Inventory UI:
 - Add/Edit Item keeps master item fields separate from outlet-level par management.
 - Add/Edit Item shows linked outlets and a note that par levels are managed in Par Level Setup.
 - Add/Edit Item does not show outlet-by-outlet Par Level, Low Stock Threshold, or Reorder Qty inputs.
+- Add/Edit Item save is remote-first: show success only after `inventory_items` and `inventory_item_outlets` are persisted and refetched from Supabase.
+- Linked outlet rows are stored in `inventory_item_outlets` using `inventory_item_id` and `outlet_id`; outlet codes are display/import inputs only and are not stored as the link key.
+- New linked outlet rows may have `par_level = null` until configured in Par Levels.
+- Editing Linked Outlets may add or remove `inventory_item_outlets` rows and requires `inventory_master.edit` or equivalent outlet-scoped permission.
 - Non-protected roles can only link items to outlets they can access.
 
 Master Inventory import/export:

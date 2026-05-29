@@ -829,6 +829,7 @@ async function loadRemoteInventoryMaster() {
 
 async function persistRemoteInventoryItem(item, userId) {
   const normalized = normalizeInventoryItem(item);
+  const mode = isUuid(normalized.id) ? "edit" : "create";
   const itemPayload = {
     item_name: normalized.name,
     sku_code: normalized.sku || null,
@@ -841,15 +842,46 @@ async function persistRemoteInventoryItem(item, userId) {
     status: normalized.status || "active",
     updated_by: userId || null,
   };
-  if (isUuid(normalized.id)) itemPayload.id = normalized.id;
-  else itemPayload.created_by = userId || null;
+  const debug = {
+    mode,
+    payload: itemPayload,
+    itemInsertResult: null,
+    itemUpdateResult: null,
+    outletLinksPayload: [],
+    outletLinksResult: null,
+    outletDeleteResult: null,
+    error: null,
+  };
 
-  const { data: savedItem, error: itemError } = await supabase
-    .from("inventory_items")
-    .upsert(itemPayload)
-    .select("*")
-    .single();
-  if (itemError) throw itemError;
+  let savedItem = null;
+  if (mode === "edit") {
+    const result = await supabase
+      .from("inventory_items")
+      .update(itemPayload)
+      .eq("id", normalized.id)
+      .select("*")
+      .single();
+    debug.itemUpdateResult = { data: result.data, error: result.error };
+    if (result.error) {
+      debug.error = result.error;
+      console.log("[InventorySaveDebug]", debug);
+      throw result.error;
+    }
+    savedItem = result.data;
+  } else {
+    const result = await supabase
+      .from("inventory_items")
+      .insert({ ...itemPayload, created_by: userId || null })
+      .select("*")
+      .single();
+    debug.itemInsertResult = { data: result.data, error: result.error };
+    if (result.error) {
+      debug.error = result.error;
+      console.log("[InventorySaveDebug]", debug);
+      throw result.error;
+    }
+    savedItem = result.data;
+  }
 
   const remoteItemId = savedItem.id;
   const linkedOutletIds = uniqueIds(normalized.linkedOutletIds || []);
@@ -865,19 +897,51 @@ async function persistRemoteInventoryItem(item, userId) {
         is_active: true,
       };
     });
+  debug.outletLinksPayload = configRows;
+
+  let deleteQuery = supabase
+    .from("inventory_item_outlets")
+    .delete()
+    .eq("inventory_item_id", remoteItemId);
+  if (linkedOutletIds.length) deleteQuery = deleteQuery.not("outlet_id", "in", `(${linkedOutletIds.join(",")})`);
+  const deleteResult = await deleteQuery;
+  debug.outletDeleteResult = { data: deleteResult.data || null, error: deleteResult.error };
+  if (deleteResult.error) {
+    const error = new Error("Item saved, but outlet links failed.");
+    error.cause = deleteResult.error;
+    error.partialItemSaved = true;
+    error.debug = debug;
+    debug.error = deleteResult.error;
+    console.log("[InventorySaveDebug]", debug);
+    throw error;
+  }
 
   if (configRows.length) {
-    const { error: configError } = await supabase
+    const configResult = await supabase
       .from("inventory_item_outlets")
       .upsert(configRows, { onConflict: "inventory_item_id,outlet_id" });
-    if (configError) throw configError;
+    debug.outletLinksResult = { data: configResult.data || null, error: configResult.error };
+    if (configResult.error) {
+      const error = new Error("Item saved, but outlet links failed.");
+      error.cause = configResult.error;
+      error.partialItemSaved = true;
+      error.debug = debug;
+      debug.error = configResult.error;
+      console.log("[InventorySaveDebug]", debug);
+      throw error;
+    }
   }
 
   const { data: savedConfigs, error: configsError } = await supabase
     .from("inventory_item_outlets")
-    .select("*")
+    .select("*, outlets:outlet_id(*)")
     .eq("inventory_item_id", remoteItemId);
-  if (configsError) throw configsError;
+  if (configsError) {
+    debug.error = configsError;
+    console.log("[InventorySaveDebug]", debug);
+    throw configsError;
+  }
+  console.log("[InventorySaveDebug]", debug);
   return mapRemoteInventoryItem(savedItem, savedConfigs || []);
 }
 
@@ -3360,14 +3424,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   async function saveItem(item) {
     const normalizedItem = normalizeInventoryItem({ ...item, photo_url: item.photo ?? item.photo_url ?? "" });
-    setData((current) => ({
-      ...current,
-      items: current.items.some((entry) => entry.id === normalizedItem.id)
-        ? current.items.map((entry) => entry.id === normalizedItem.id ? normalizedItem : entry)
-        : [normalizedItem, ...current.items],
-    }));
-    setModal(null);
-    notify("Inventory item saved");
     try {
       const remoteItem = await persistRemoteInventoryItem(normalizedItem, auth?.user?.id);
       setData((current) => ({
@@ -3376,9 +3432,18 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           ? current.items.map((entry) => (entry.id === normalizedItem.id || entry.id === remoteItem.id ? remoteItem : entry))
           : [remoteItem, ...current.items],
       }));
+      await refreshInventory();
+      setModal(null);
+      notify("Inventory item saved");
     } catch (error) {
-      console.warn("[InventoryControl] Unable to sync inventory item to Supabase.", error);
-      notify("Inventory item saved locally", "Remote sync failed. Refresh after connection or permission is restored.", "warning");
+      console.warn("[InventoryControl] Unable to save inventory item to Supabase.", error);
+      if (error?.debug) console.log("[InventorySaveDebug]", error.debug);
+      await refreshInventory();
+      if (error?.partialItemSaved) {
+        notify("Item saved, but outlet links failed", error.cause?.message || error.message || "Please check outlet access and try again.", "warning");
+      } else {
+        notify("Unable to save inventory item", error.message || "Please try again.", "error");
+      }
     }
   }
 
