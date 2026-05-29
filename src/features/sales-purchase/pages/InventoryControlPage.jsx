@@ -115,8 +115,35 @@ const poSources = ["stock_check", "manual"];
 const auditTypes = ["Month-End Closing", "Full Stock Audit", "Spot Check", "Category Audit", "Custom Audit"];
 const recipeMenuCategories = ["Main Dish", "Beverage", "Side Dish", "Sauce", "Dessert", "Prep Item", "Combo", "Other"];
 
+function toDateInputValue(value) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function todayInput() {
-  return new Date().toISOString().slice(0, 10);
+  return toDateInputValue(new Date());
+}
+
+function normalizeBusinessDate(value, fallback = todayInput()) {
+  if (value instanceof Date) return toDateInputValue(value) || fallback;
+  const raw = String(value || "").trim();
+  if (!raw) return fallback;
+  const isoDate = raw.match(/^(\d{4}-\d{2}-\d{2})/);
+  if (isoDate) return isoDate[1];
+  return toDateInputValue(raw) || fallback;
+}
+
+function businessDateToTimestamp(value) {
+  return `${normalizeBusinessDate(value)}T12:00:00.000Z`;
+}
+
+function businessDateToLocalDate(value) {
+  const [year, month, day] = normalizeBusinessDate(value).split("-").map(Number);
+  return new Date(year, month - 1, day);
 }
 
 function makeId(prefix) {
@@ -243,7 +270,7 @@ function employeeDisplayName(employee = {}) {
 }
 
 function weekdayName(value = todayInput()) {
-  return new Date(value).toLocaleDateString("en-MY", { weekday: "long" });
+  return businessDateToLocalDate(value).toLocaleDateString("en-MY", { weekday: "long" });
 }
 
 function statusTone(status) {
@@ -280,7 +307,7 @@ function isGroupDue(group, date) {
   const day = weekdayName(date);
   if (group.frequency === "custom") return (group.checkDays || []).includes(day);
   if (group.frequency === "monthly") {
-    const target = new Date(date);
+    const target = businessDateToLocalDate(date);
     const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
     const configuredDay = group.monthDay === "last" ? lastDay : Math.min(Number(group.monthDay || 1), lastDay);
     return target.getDate() === configuredDay;
@@ -322,8 +349,8 @@ function draftCheckForGroupRun(group = {}, checks = [], date, shiftFilter = "all
 function dueStatus(group, checks, date, shiftFilter = "all") {
   if (submittedCheckForGroupRun(group, checks, date, shiftFilter)) return "Completed";
   if (isGroupDue(group, date)) return "Due Today";
-  const lastChecked = group.lastChecked ? new Date(group.lastChecked) : null;
-  if (lastChecked && new Date(date) - lastChecked > 1000 * 60 * 60 * 24 * 8) return "Overdue";
+  const lastChecked = group.lastChecked ? businessDateToLocalDate(group.lastChecked) : null;
+  if (lastChecked && businessDateToLocalDate(date) - lastChecked > 1000 * 60 * 60 * 24 * 8) return "Overdue";
   return "Not Due";
 }
 
@@ -840,7 +867,7 @@ function mapRemoteStockCheckItem(row = {}) {
 
 function mapRemoteStockCheck(row = {}, rows = []) {
   const checkType = row.stock_check_type || row.check_type || "scheduled";
-  const checkDate = row.check_date || (row.created_at ? String(row.created_at).slice(0, 10) : todayInput());
+  const checkDate = normalizeBusinessDate(row.check_date || row.created_at);
   const mappedRows = rows.map(mapRemoteStockCheckItem);
   const categoryIds = row.audit_category_ids?.length
     ? uniqueIds(row.audit_category_ids)
@@ -924,7 +951,7 @@ function mapRemotePurchaseReceipt(row = {}, items = []) {
 function mapRemoteInventoryMovement(row = {}) {
   return {
     id: row.id,
-    date: row.created_at ? String(row.created_at).slice(0, 10) : todayInput(),
+    date: normalizeBusinessDate(row.movement_date || row.created_at),
     dateTime: row.created_at || "",
     itemId: row.inventory_item_id || row.item_id || "",
     type: String(row.movement_type || "purchase").toLowerCase(),
@@ -943,7 +970,7 @@ function mapRemoteInventoryMovement(row = {}) {
 function mapRemoteWasteRecord(row = {}) {
   return {
     id: row.id,
-    date: row.waste_date || (row.created_at ? String(row.created_at).slice(0, 10) : todayInput()),
+    date: normalizeBusinessDate(row.waste_date || row.created_at),
     itemId: row.inventory_item_id || "",
     outletId: row.outlet_id || "",
     wasteType: row.waste_type || "Unknown",
@@ -1471,7 +1498,7 @@ async function persistRemoteStockCheckGroup(group) {
       assignedStaff: group.assignedStaff || "",
     },
     status: group.status || "active",
-    last_checked_at: group.lastCheckedAt || (group.lastChecked ? new Date(`${group.lastChecked}T00:00:00`).toISOString() : null),
+    last_checked_at: group.lastCheckedAt || (group.lastChecked ? businessDateToTimestamp(group.lastChecked) : null),
     updated_at: new Date().toISOString(),
   };
   if (!payload.name) throw new Error("Group name is required.");
@@ -1529,7 +1556,7 @@ async function archiveRemoteStockCheckGroup(groupId) {
 async function persistRemoteStockCheck(activeGroup, rows = [], status = "draft", userId, employeeId) {
   if (!activeGroup) throw new Error("Stock check is not active.");
   const isAudit = activeGroup.stockCheckType === "audit";
-  const checkDate = activeGroup.date || todayInput();
+  const checkDate = normalizeBusinessDate(activeGroup.date);
   const existingId = isUuid(activeGroup.existingCheckId) ? activeGroup.existingCheckId : (isUuid(activeGroup.id) && isAudit ? activeGroup.id : "");
   const submittedAt = status === "submitted" ? new Date().toISOString() : null;
   const payload = {
@@ -2002,7 +2029,7 @@ async function persistRemotePurchaseOrderReceive(order = {}, rows = [], receiptR
 async function persistRemoteInventoryMovement(movement = {}, userId) {
   if (!isUuid(movement.outletId)) throw new Error("Outlet is required.");
   if (!isUuid(movement.itemId)) throw new Error("Inventory item is required.");
-  const timestamp = movement.date ? new Date(`${movement.date}T00:00:00`).toISOString() : new Date().toISOString();
+  const timestamp = movement.date ? businessDateToTimestamp(movement.date) : new Date().toISOString();
   const payload = {
     outlet_id: movement.outletId,
     inventory_item_id: movement.itemId,
@@ -2032,7 +2059,7 @@ async function persistRemoteWasteRecord(waste = {}, userId) {
   if (!isUuid(waste.itemId)) throw new Error("Inventory item is required.");
   const quantity = Number(waste.quantity || 0);
   if (!Number.isFinite(quantity) || quantity <= 0) throw new Error("Waste quantity must be greater than zero.");
-  const wasteDate = waste.date || waste.wasteDate || todayInput();
+  const wasteDate = normalizeBusinessDate(waste.date || waste.wasteDate);
   const timestamp = new Date().toISOString();
   const wastePayload = {
     outlet_id: waste.outletId,

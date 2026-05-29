@@ -1995,6 +1995,19 @@ Persistence priorities:
 - P1: Add UOM drag sort persistence if sortable UOM ordering becomes part of the UI.
 - P2: Complete RBAC smoke testing with All-outlet and Selected-outlet custom roles before broader rollout.
 
+Inventory Control business date rules:
+
+- Business dates must be explicit and must not be inferred from the browser/system clock when the user has selected an operational date.
+- FeedX normalizes Inventory Control business dates to `YYYY-MM-DD` with `normalizeBusinessDate()`.
+- Stock Check and Audit Stock Check persist `inventory_stock_checks.check_date` from the selected check/audit date.
+- Scheduled Stock Check completion cards match submitted checks by `group_id`, `outlet_id`, and normalized `check_date`; group names and system date are not valid matching keys.
+- Waste records persist `inventory_waste_records.waste_date` from the selected Waste Date.
+- Manual Inventory Movements persist the selected Movement Date by converting the normalized business date to a stable midday timestamp for `inventory_movements.created_at`, preventing UTC midnight date rollback in Malaysia.
+- Waste-generated inventory movements use the same selected waste business date as the source waste record.
+- Purchase receiving uses the receive transaction timestamp as the receipt business timestamp because the current receive workflow has no separate receive-date picker. If a Receive Date field is added later, it must be normalized with `normalizeBusinessDate()` before writing receipts and purchase movements.
+- `new Date()` and `Date.now()` are allowed only for technical timestamps, generated IDs/file paths, display formatting, sorting, and audit fields such as `created_at`, `updated_at`, `submitted_at`, `received_at`, `completed_at`, and `cancelled_at`.
+- Export filenames may use the local current date from `todayInput()`, but operational records must use the selected business date when one exists.
+
 Inventory UOM data model:
 
 - Table: `inventory_uoms`
