@@ -288,9 +288,36 @@ function isGroupDue(group, date) {
   return false;
 }
 
+function sameStockCheckDate(left, right) {
+  return String(left || "").slice(0, 10) === String(right || "").slice(0, 10);
+}
+
+function sameStockCheckShift(left, right) {
+  return String(left || "").trim().toLowerCase() === String(right || "").trim().toLowerCase();
+}
+
+function checkMatchesGroupRun(check = {}, group = {}, date) {
+  return check.stockCheckType !== "audit"
+    && check.groupId === group.id
+    && check.outletId === group.outletId
+    && sameStockCheckDate(check.date, date)
+    && sameStockCheckShift(check.shift, group.shift);
+}
+
+function submittedCheckForGroupRun(group = {}, checks = [], date) {
+  return checks
+    .filter((check) => checkMatchesGroupRun(check, group, date) && ["submitted", "reviewed", "locked"].includes(check.status))
+    .sort((a, b) => new Date(b.submittedAt || b.updatedAt || b.date || 0) - new Date(a.submittedAt || a.updatedAt || a.date || 0))[0] || null;
+}
+
+function draftCheckForGroupRun(group = {}, checks = [], date) {
+  return checks
+    .filter((check) => checkMatchesGroupRun(check, group, date) && check.status === "draft")
+    .sort((a, b) => new Date(b.updatedAt || b.createdAt || b.date || 0) - new Date(a.updatedAt || a.createdAt || a.date || 0))[0] || null;
+}
+
 function dueStatus(group, checks, date) {
-  const completed = checks.some((check) => check.groupId === group.id && check.date === date && ["submitted", "reviewed", "locked"].includes(check.status));
-  if (completed) return "Completed";
+  if (submittedCheckForGroupRun(group, checks, date)) return "Completed";
   if (isGroupDue(group, date)) return "Due Today";
   const lastChecked = group.lastChecked ? new Date(group.lastChecked) : null;
   if (lastChecked && new Date(date) - lastChecked > 1000 * 60 * 60 * 24 * 8) return "Overdue";
@@ -2378,6 +2405,7 @@ function useInventoryData(outlets, suppliers) {
         movements: remote.movements,
         waste: remote.waste,
         recipes: remote.recipes,
+        people: remote.people,
       }, outlets, suppliers, { allowEmptyMaster: true }));
       setMeta({
         dataSource: "supabase",
@@ -5201,7 +5229,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }
 
   async function startScheduledStockCheck(group) {
-    const existingDraft = data.checks.find((check) => check.groupId === group.id && check.date === date && check.status === "draft");
+    const existingDraft = draftCheckForGroupRun(group, data.checks, date);
     if (existingDraft) {
       setActiveAuditCheck(null);
       setActiveCheckGroupId(group.id);
@@ -5344,7 +5372,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         return;
       }
     }
-    const existingDraft = isAudit ? null : data.checks.find((check) => check.groupId === activeCheckGroup.id && check.date === (activeCheckGroup.date || date) && check.status === "draft");
+    const existingDraft = isAudit ? null : draftCheckForGroupRun(activeCheckGroup, data.checks, activeCheckGroup.date || date);
     const persistGroup = {
       ...activeCheckGroup,
       existingCheckId: activeCheckGroup.existingCheckId || existingDraft?.id || "",
@@ -5352,15 +5380,28 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     const rows = buildStockCheckRowsForGroup(persistGroup);
     try {
       const savedCheck = await persistRemoteStockCheck(persistGroup, rows, status, auth?.user?.id, auth?.profile?.id);
+      const refreshedInventory = status === "submitted" ? await refreshInventory() : null;
       setData((current) => ({
         ...current,
+        ...(refreshedInventory ? {
+          categories: refreshedInventory.categories,
+          items: refreshedInventory.items,
+          uoms: refreshedInventory.uoms,
+          groups: refreshedInventory.groups,
+          checks: refreshedInventory.checks,
+          orders: refreshedInventory.orders,
+          movements: refreshedInventory.movements,
+          waste: refreshedInventory.waste,
+          recipes: refreshedInventory.recipes,
+          people: refreshedInventory.people,
+        } : {}),
         checks: [
           savedCheck,
-          ...current.checks.filter((check) => check.id !== savedCheck.id && !(check.groupId === activeCheckGroup.id && check.date === (activeCheckGroup.date || date) && check.status === "draft")),
+          ...(refreshedInventory?.checks || current.checks).filter((check) => check.id !== savedCheck.id && !(!isAudit && checkMatchesGroupRun(check, activeCheckGroup, activeCheckGroup.date || date) && check.status === "draft")),
         ],
-        groups: isAudit ? current.groups : current.groups.map((group) => group.id === activeCheckGroup.id && status !== "draft" ? { ...group, lastChecked: savedCheck.date, lastCheckedAt: savedCheck.submittedAt || new Date().toISOString() } : group),
+        groups: isAudit ? (refreshedInventory?.groups || current.groups) : (refreshedInventory?.groups || current.groups).map((group) => group.id === activeCheckGroup.id && status !== "draft" ? { ...group, lastChecked: savedCheck.date, lastCheckedAt: savedCheck.submittedAt || new Date().toISOString() } : group),
       }));
-      await refreshInventory();
+      if (!refreshedInventory) await refreshInventory();
       setActiveCheckGroupId(null);
       setActiveAuditCheck(null);
       if (status === "submitted") {
@@ -5412,9 +5453,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     ));
   }
 
-  function latestCheckForGroup(groupId) {
+  function latestCheckForGroup(group) {
     return [...data.checks]
-      .filter((check) => check.groupId === groupId && check.date === date)
+      .filter((check) => checkMatchesGroupRun(check, group, date))
       .sort((a, b) => new Date(b.submittedAt || b.updatedAt || b.date || 0) - new Date(a.submittedAt || a.updatedAt || a.date || 0))[0] || null;
   }
 
@@ -6751,12 +6792,24 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             <div className="grid gap-3 xl:grid-cols-3">
               {dueGroups.map((group) => {
                 const status = dueStatus(group, data.checks, date);
-                const hasDraft = data.checks.some((check) => check.groupId === group.id && check.date === date && check.status === "draft");
+                const submittedCheck = submittedCheckForGroupRun(group, data.checks, date);
+                const draftCheck = draftCheckForGroupRun(group, data.checks, date);
+                const hasDraft = Boolean(draftCheck);
                 const itemCount = stockCheckItemsForGroup(group, data.items).length;
-                const latestCheck = latestCheckForGroup(group.id);
+                const latestCheck = submittedCheck || latestCheckForGroup(group);
                 const suggestions = latestCheck ? buildPurchaseSuggestions(latestCheck) : [];
                 const linkedOrders = latestCheck ? linkedPurchaseOrdersForStockCheck(latestCheck.id) : [];
                 const canReviewSuggestions = can.generatePo || can.reviewCheck;
+                debugLog("[StockCheckDueDebug]", {
+                  groupId: group.id,
+                  groupName: group.name,
+                  outletId: group.outletId,
+                  shift: group.shift,
+                  checkDate: date,
+                  submittedCheckId: submittedCheck?.id || "",
+                  isDue: isGroupDue(group, date),
+                  cardState: status === "Completed" ? "completed" : hasDraft ? "draft" : "start",
+                });
                 return (
                   <div key={group.id} className="rounded-2xl border border-border bg-white p-4 transition hover:border-primary/30 hover:shadow-sm">
                     <div className="flex items-start justify-between gap-3">
