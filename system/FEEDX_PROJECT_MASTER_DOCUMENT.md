@@ -2178,12 +2178,12 @@ Daily Stock Check workflow:
 2. Start Check creates or resumes a Supabase draft for the same outlet, group, date, and shift.
 3. Count items and preserve actual count, notes, variance, and row status in `inventory_stock_check_items`.
 4. Save Draft writes `inventory_stock_checks.status = draft` and replaces the item snapshot rows.
-5. Submit Stock Check writes the final item snapshot, sets `inventory_stock_checks.status = submitted`, sets `submitted_at`, records `submitted_by`, and updates the group `last_checked_at`.
+5. Submit Stock Check writes the final item snapshot to the exact active draft/check row, preserves the selected check date, sets `inventory_stock_checks.status = submitted`, sets `submitted_at`, records `submitted_by`, and updates the group `last_checked_at`.
 6. Return to Stock Check list.
 7. Completed check card shows Review Purchase Suggestions when shortages exist and the user has permission.
 8. Create Draft POs only after user review and confirmation.
 9. Stock Check entry headers show the group, outlet, shift/date, started-by identity, and the latest draft/submission timestamp.
-10. Scheduled check card completion is matched from submitted scheduled checks by `group_id`, `outlet_id`, and `check_date`. The Shift filter defaults to All Shifts, so completed matching does not require `shift` unless a specific shift filter is selected.
+10. Scheduled check card completion is matched from submitted scheduled checks by `group_id`, `outlet_id`, and `check_date`. The Shift filter defaults to All Shifts, so completed matching does not require `shift` unless a specific shift filter is selected. Group names are never used for completion matching.
 
 Audit Stock Check workflow:
 

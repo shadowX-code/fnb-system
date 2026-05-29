@@ -812,7 +812,7 @@ function mapRemoteStockCheckGroup(row = {}, categoryIds = []) {
     shift: row.shift || "Closing",
     assignedStaff: schedule.assignedStaff || row.assigned_staff || "",
     status: row.status || "active",
-    lastChecked: lastCheckedAt ? String(lastCheckedAt).slice(0, 10) : "",
+    lastChecked: lastCheckedAt || "",
     lastCheckedAt,
     createdAt: row.created_at || "",
     updatedAt: row.updated_at || "",
@@ -4386,6 +4386,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const parLevelGridRef = useRef(null);
   const parLevelMatrixRef = useRef(null);
   const [activeCheckGroupId, setActiveCheckGroupId] = useState(null);
+  const [activeScheduledCheckId, setActiveScheduledCheckId] = useState(null);
   const [activeAuditCheck, setActiveAuditCheck] = useState(null);
   const [checkRows, setCheckRows] = useState([]);
   const [checkSearch, setCheckSearch] = useState("");
@@ -4578,16 +4579,18 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   useEffect(() => {
     if (!activeCheckGroup) return;
-    const draft = activeCheckGroup.existingCheckId
-      ? data.checks.find((check) => check.id === activeCheckGroup.existingCheckId)
-      : data.checks.find((check) => check.groupId === activeCheckGroup.id && check.date === date && check.status === "draft");
+    const draft = activeScheduledCheckId
+      ? data.checks.find((check) => check.id === activeScheduledCheckId)
+      : activeCheckGroup.existingCheckId
+        ? data.checks.find((check) => check.id === activeCheckGroup.existingCheckId)
+        : draftCheckForGroupRun(activeCheckGroup, data.checks, activeCheckGroup.date || date, stockCheckShiftFilter);
     if (draft?.rows?.length) {
       setCheckRows(draft.rows.map((row) => ({ itemId: row.itemId, actualCount: row.actualCount, status: row.status ?? "normal", notes: row.notes ?? "", na: Boolean(row.na), skipped: Boolean(row.skipped), skipReason: row.skipReason ?? "" })));
       return;
     }
     const items = stockCheckItemsForGroup(activeCheckGroup, data.items);
     setCheckRows(items.map((item) => ({ itemId: item.id, actualCount: parLevelForOutlet(item, activeCheckGroup.outletId), status: "normal", notes: "", na: false, skipped: false, skipReason: "" })));
-  }, [activeCheckGroupId, activeAuditCheck, activeCheckGroup, data.checks, data.items, date]);
+  }, [activeCheckGroupId, activeScheduledCheckId, activeAuditCheck, activeCheckGroup, data.checks, data.items, date, stockCheckShiftFilter]);
 
   function notify(title, message = "", tone = "success") {
     ui?.notify?.({ title, message, tone });
@@ -5249,6 +5252,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     const existingDraft = draftCheckForGroupRun(group, data.checks, date, stockCheckShiftFilter);
     if (existingDraft) {
       setActiveAuditCheck(null);
+      setActiveScheduledCheckId(existingDraft.id);
       setActiveCheckGroupId(group.id);
       return;
     }
@@ -5258,6 +5262,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       setData((current) => ({ ...current, checks: [savedCheck, ...current.checks.filter((check) => check.id !== savedCheck.id)] }));
       await refreshInventory();
       setActiveAuditCheck(null);
+      setActiveScheduledCheckId(savedCheck.id);
       setActiveCheckGroupId(group.id);
     } catch (error) {
       console.warn("[InventoryControl] Unable to start scheduled stock check.", error);
@@ -5293,6 +5298,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       setSelectedOutletId(form.outletId);
       setDate(form.date);
       setActiveCheckGroupId(null);
+      setActiveScheduledCheckId(null);
       setActiveAuditCheck({ ...auditGroup, id: savedCheck.id, existingCheckId: savedCheck.id });
       setModal(null);
     } catch (error) {
@@ -5306,6 +5312,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     setSelectedOutletId(check.outletId);
     setDate(check.date || todayInput());
     setActiveCheckGroupId(null);
+    setActiveScheduledCheckId(null);
     setActiveAuditCheck({
       id: check.id,
       existingCheckId: check.id,
@@ -5389,10 +5396,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         return;
       }
     }
-    const existingDraft = isAudit ? null : draftCheckForGroupRun(activeCheckGroup, data.checks, activeCheckGroup.date || date, stockCheckShiftFilter);
+    const existingDraft = isAudit ? null : activeScheduledCheckId
+      ? data.checks.find((check) => check.id === activeScheduledCheckId)
+      : draftCheckForGroupRun(activeCheckGroup, data.checks, activeCheckGroup.date || date, stockCheckShiftFilter);
     const persistGroup = {
       ...activeCheckGroup,
-      existingCheckId: activeCheckGroup.existingCheckId || existingDraft?.id || "",
+      date: activeCheckGroup.date || date,
+      existingCheckId: activeCheckGroup.existingCheckId || existingDraft?.id || activeScheduledCheckId || "",
     };
     const rows = buildStockCheckRowsForGroup(persistGroup);
     try {
@@ -5435,6 +5445,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       }));
       if (!refreshedInventory) await refreshInventory();
       setActiveCheckGroupId(null);
+      setActiveScheduledCheckId(null);
       setActiveAuditCheck(null);
       if (status === "submitted") {
         notify(isAudit ? "Audit stock check completed" : "Stock check completed", isAudit ? "Audit result saved without purchase suggestions." : "Review purchase suggestions from the completed check card if shortages exist.");
@@ -6635,9 +6646,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
     if (activeCheckGroup) {
       const isAudit = activeCheckGroup.stockCheckType === "audit";
-      const activePersistedCheck = activeCheckGroup.existingCheckId
+      const activePersistedCheck = activeScheduledCheckId
+        ? data.checks.find((check) => check.id === activeScheduledCheckId)
+        : activeCheckGroup.existingCheckId
         ? data.checks.find((check) => check.id === activeCheckGroup.existingCheckId)
-        : data.checks.find((check) => check.groupId === activeCheckGroup.id && check.date === (activeCheckGroup.date || date) && check.status === "draft");
+        : draftCheckForGroupRun(activeCheckGroup, data.checks, activeCheckGroup.date || date, stockCheckShiftFilter);
       const startedByName = activePersistedCheck?.createdBy ? actorNameByAuthUserId(activePersistedCheck.createdBy) : currentCheckerName;
       const submittedByName = activePersistedCheck?.submittedBy ? actorNameByEmployeeId(activePersistedCheck.submittedBy) : "";
       const draftSavedAt = activePersistedCheck?.updatedAt || activePersistedCheck?.createdAt || "";
@@ -6717,7 +6730,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           <SectionCard
             title={activeCheckGroup.name}
             description={`${outletById.get(activeCheckGroup.outletId)?.name} · ${isAudit ? activeCheckGroup.auditType : activeCheckGroup.shift} · ${formatDate(activeCheckGroup.date || date)}`}
-            action={<button className="btn-secondary" type="button" onClick={() => { setActiveCheckGroupId(null); setActiveAuditCheck(null); }}>Back to Due Checks</button>}
+            action={<button className="btn-secondary" type="button" onClick={() => { setActiveCheckGroupId(null); setActiveScheduledCheckId(null); setActiveAuditCheck(null); }}>Back to Due Checks</button>}
           >
             <div className="mb-3 grid gap-2 rounded-2xl border border-border bg-slate-50 p-3 md:grid-cols-3">
               <div>
@@ -6858,6 +6871,14 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                       <div>Frequency: <span className="font-semibold text-text-primary">{frequencyLabel(group)}</span></div>
                       <div>Last checked: <span className="font-semibold text-text-primary">{group.lastChecked ? formatDate(group.lastChecked) : "Never"}</span></div>
                     </div>
+                    {import.meta.env.DEV ? (
+                      <div className="mt-3 rounded-xl border border-dashed border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-semibold leading-relaxed text-amber-800">
+                        <div>groupId: {group.id}</div>
+                        <div>matchedCheckId: {submittedCheck?.id || "-"}</div>
+                        <div>checkDate: {date}</div>
+                        <div>status: {status}</div>
+                      </div>
+                    ) : null}
                     <div className="mt-4 space-y-2">
                       {status === "Completed" ? (
                         <>
