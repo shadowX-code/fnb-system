@@ -1502,9 +1502,9 @@ async function persistRemoteStockCheck(activeGroup, rows = [], status = "draft",
     notes: activeGroup.notes || null,
     status,
     submitted_at: submittedAt,
-    submitted_by: status === "submitted" && isUuid(employeeId) ? employeeId : null,
     updated_at: new Date().toISOString(),
   };
+  if (status === "submitted" && isUuid(employeeId)) payload.submitted_by = employeeId;
   if (!payload.outlet_id) throw new Error("Outlet is required.");
   if (!isAudit && !payload.group_id) throw new Error("Stock check group is required.");
 
@@ -6591,8 +6591,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         const parLevel = parLevelForOutlet(item, activeCheckGroup.outletId);
         const result = row.skipped ? { label: "Skipped", tone: "neutral", variance: 0 } : varianceStatus(parLevel, row.actualCount);
         return (
-          <tr key={row.itemId} className="align-top">
-            <td className="py-3">
+          <tr key={row.itemId} className="align-middle">
+            <td className="py-4">
               <div className="flex min-w-[220px] items-center gap-3">
                 <InventoryItemThumbnail item={item} category={category} onPreview={setPhotoPreview} />
                 <div className="min-w-0">
@@ -6603,8 +6603,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                 </div>
               </div>
             </td>
-            <td>{parLevel}</td>
-            <td>
+            <td className="py-4 align-middle">{parLevel}</td>
+            <td className="py-4 align-middle">
               <div className="flex items-center gap-1">
                 <button className="icon-btn h-8 w-8" type="button" disabled={row.skipped} onClick={() => setCheckRows((current) => current.map((entry, rowIndex) => rowIndex === index ? { ...entry, actualCount: Math.max(0, Number(entry.actualCount || 0) - 1), na: false } : entry))}>-</button>
                 <input className="control h-8 w-20 text-center text-[13px]" type="number" min="0" disabled={row.skipped} value={row.actualCount ?? ""} placeholder="Qty" onFocus={selectInputText} onChange={(event) => setCheckRows((current) => current.map((entry, rowIndex) => rowIndex === index ? { ...entry, actualCount: parseNonNegativeNumber(event.target.value), na: false } : entry))} />
@@ -6623,12 +6623,12 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                 </div>
               ) : <div className="mt-2 type-caption font-semibold text-text-muted">Skipped: {row.skipReason}</div>}
             </td>
-            <td className="font-semibold">{row.skipped ? "Skipped" : row.na ? "NA" : result.variance}</td>
-            <td>{item?.unit}</td>
-            <td><Badge tone={row.skipped ? "neutral" : row.na ? "neutral" : result.tone}>{row.skipped ? "Skipped" : row.na ? "NA" : result.label}</Badge></td>
-            <td><input className="control h-8 w-full text-[13px]" value={row.notes} onChange={(event) => setCheckRows((current) => current.map((entry, rowIndex) => rowIndex === index ? { ...entry, notes: event.target.value } : entry))} placeholder="Optional note" /></td>
+            <td className="py-4 align-middle font-semibold">{row.skipped ? "Skipped" : row.na ? "NA" : result.variance}</td>
+            <td className="py-4 align-middle">{item?.unit}</td>
+            <td className="py-4 align-middle"><Badge tone={row.skipped ? "neutral" : row.na ? "neutral" : result.tone}>{row.skipped ? "Skipped" : row.na ? "NA" : result.label}</Badge></td>
+            <td className="py-4 align-middle"><input className="control h-8 w-full text-[13px]" value={row.notes} onChange={(event) => setCheckRows((current) => current.map((entry, rowIndex) => rowIndex === index ? { ...entry, notes: event.target.value } : entry))} placeholder="Optional note" /></td>
             {isAudit ? (
-              <td>
+              <td className="py-4 align-middle">
                 {row.skipped ? (
                   <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => unskipCheckRow(index)}>Unskip</button>
                 ) : (
