@@ -36,7 +36,7 @@ import SelectField from "../../../components/forms/SelectField.jsx";
 import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import { supabase } from "../../../lib/supabase.ts";
-import { getAccessibleOutletOptions, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { getAccessibleOutletOptions, getAccessibleOutlets, hasAllOutletAccess, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 
 const STORAGE_KEY = "feedx.inventoryControl.v2";
 const LEGACY_STORAGE_KEYS = ["feedx.inventoryControl.v1"];
@@ -630,7 +630,7 @@ function normalizeInventoryItem(item = {}) {
   const categoryName = item.categoryName ?? item.category_name ?? categoryRecord.name ?? "";
   const categoryCode = item.categoryCode ?? item.category_code ?? categoryRecord.code ?? categoryRecord.category_code ?? "";
   const uomCode = item.uomCode ?? item.uom_code ?? item.unit ?? uomRecord.code ?? "";
-  const photoUrl = item.photo_url ?? item.photoUrl ?? item.image_url ?? item.item_photo_url ?? item.photo ?? "";
+  const photoUrl = item.photo_url ?? item.photoUrl ?? item.image_url ?? item.item_photo_url ?? item.photo ?? item.image ?? "";
   const description = item.description ?? "";
   const status = String(item.status ?? "active").toLowerCase();
   const createdAt = item.createdAt ?? item.created_at ?? "";
@@ -706,7 +706,8 @@ function mapRemoteUom(row = {}) {
   });
 }
 
-function mapRemoteInventoryItem(row = {}, configs = []) {
+function mapRemoteInventoryItem(row = {}, configs = [], categoryById = new Map()) {
+  const category = categoryById.get(row.category_id) || row.inventory_categories || row.category || {};
   const linkedOutlets = configs
     .map((config) => normalizeOutletRecord(config.outlets || config.outlet || { id: config.outlet_id }))
     .filter((outlet) => outlet.id);
@@ -723,13 +724,13 @@ function mapRemoteInventoryItem(row = {}, configs = []) {
   }));
   return normalizeInventoryItem({
     id: row.id,
-    name: row.item_name || "Inventory item",
-    sku: row.sku_code || "",
+    name: row.item_name || row.name || "Inventory item",
+    sku: row.sku_code || row.sku || "",
     categoryId: row.category_id || "",
-    categoryName: row.category_name || row.inventory_categories?.name || row.category?.name || "",
-    categoryCode: row.category_code || row.inventory_categories?.code || row.category?.code || "",
-    unit: row.unit || "",
-    photo: row.photo_url || row.image_url || row.item_photo_url || "",
+    categoryName: row.category_name || category?.name || "",
+    categoryCode: row.category_code || category?.code || category?.category_code || "",
+    unit: row.uom_code || row.unit || row.uom || "",
+    photo: row.photo_url || row.image_url || row.item_photo_url || row.photo || row.image || "",
     description: row.description || "",
     inventoryType: row.inventory_type || "",
     defaultSupplierId: row.default_supplier_id || "",
@@ -743,35 +744,57 @@ function mapRemoteInventoryItem(row = {}, configs = []) {
 }
 
 async function loadRemoteInventoryMaster() {
-  const [categoriesResult, uomsResult] = await Promise.all([
+  const itemsResult = await supabase.from("inventory_items").select("*").order("created_at", { ascending: false });
+  if (itemsResult.error) throw itemsResult.error;
+
+  const [categoriesResult, uomsResult, itemOutletsResult] = await Promise.all([
     supabase.from("inventory_categories").select("*").order("sort_order", { ascending: true }),
     supabase.from("inventory_uoms").select("*").order("sort_order", { ascending: true }),
+    supabase.from("inventory_item_outlets").select("*, outlets:outlet_id(*)"),
   ]);
-  let itemsResult = await supabase.from("inventory_items").select("*, inventory_categories:category_id(*)").order("created_at", { ascending: false });
-  if (itemsResult.error) {
-    console.warn("[InventoryControl] Inventory category join unavailable. Falling back to plain inventory_items query.", itemsResult.error);
-    itemsResult = await supabase.from("inventory_items").select("*").order("created_at", { ascending: false });
-  }
-  let itemOutletsResult = await supabase.from("inventory_item_outlets").select("*, outlets:outlet_id(*)");
+  if (categoriesResult.error) console.warn("[InventoryControl] Inventory categories metadata unavailable. Items will still render.", categoriesResult.error);
+  if (uomsResult.error) console.warn("[InventoryControl] Inventory UOM metadata unavailable. Items will still render.", uomsResult.error);
+
+  let itemOutletRows = itemOutletsResult.data || [];
   if (itemOutletsResult.error) {
     console.warn("[InventoryControl] Outlet join unavailable. Falling back to plain inventory_item_outlets query.", itemOutletsResult.error);
-    itemOutletsResult = await supabase.from("inventory_item_outlets").select("*");
+    const fallbackItemOutletsResult = await supabase.from("inventory_item_outlets").select("*");
+    if (fallbackItemOutletsResult.error) {
+      console.warn("[InventoryControl] Inventory outlet links unavailable. Items will still render without outlet chips.", fallbackItemOutletsResult.error);
+    } else {
+      itemOutletRows = fallbackItemOutletsResult.data || [];
+    }
   }
-  const firstError = categoriesResult.error || itemsResult.error || itemOutletsResult.error || uomsResult.error;
-  if (firstError) throw firstError;
 
+  const categories = (categoriesResult.data || []).map(mapRemoteCategory);
+  const categoryById = new Map(categories.map((category) => [category.id, category]));
   const configsByItem = new Map();
-  (itemOutletsResult.data || []).forEach((config) => {
+  itemOutletRows.forEach((config) => {
     const list = configsByItem.get(config.inventory_item_id) || [];
     list.push(config);
     configsByItem.set(config.inventory_item_id, list);
   });
   const itemRows = itemsResult.data || [];
-  const normalizedItems = itemRows.map((item) => mapRemoteInventoryItem(item, configsByItem.get(item.id) || []));
+  const normalizedItems = itemRows.map((item) => mapRemoteInventoryItem(item, configsByItem.get(item.id) || [], categoryById));
+  const activeItems = normalizedItems.filter((item) => String(item.status || "").toLowerCase() === "active");
 
   console.log("[InventoryFetchRaw]", {
-    itemRows,
-    itemCount: itemRows?.length,
+    itemRows: itemRows.map((row) => ({
+      id: row.id,
+      name: row.item_name || row.name,
+      status: row.status,
+      category_id: row.category_id,
+      uom_code: row.uom_code,
+      unit: row.unit,
+      photo_url: row.photo_url,
+      image_url: row.image_url,
+      item_photo_url: row.item_photo_url,
+      photo: row.photo,
+      image: row.image,
+      created_by: row.created_by,
+      archived_at: row.archived_at,
+    })),
+    itemCount: itemRows.length,
     error: itemsResult.error || null,
   });
   console.table(normalizedItems.map((item) => ({
@@ -784,12 +807,23 @@ async function loadRemoteInventoryMaster() {
     status: item.status,
     outlets: item.linked_outlets?.map(outletDisplayCode).join(","),
   })));
+  console.log("[InventoryMissingAnalysis]", {
+    allInventoryItemsCount: itemRows.length,
+    allInventoryItemNames: itemRows.map((item) => item.item_name || item.name || item.id),
+    afterStatusFilterCount: activeItems.length,
+    afterStatusFilterNames: activeItems.map((item) => item.name),
+    afterJoinMappingCount: normalizedItems.length,
+    afterJoinMappingNames: normalizedItems.map((item) => item.name),
+    missingExpectedItems: ["HHHHHHHHHH", "Test", "Sambal Sauce", "Takeaway Cup 12oz", "Frozen Chicken Cut"].filter((name) => !normalizedItems.some((item) => item.name === name)),
+  });
 
   return {
-    categories: (categoriesResult.data || []).map(mapRemoteCategory),
+    categories,
     items: normalizedItems,
     uoms: (uomsResult.data || []).map(mapRemoteUom),
     rawItemCount: itemRows.length,
+    outletLinkCount: itemOutletRows.length,
+    fallbackActive: false,
   };
 }
 
@@ -1040,7 +1074,7 @@ function useInventoryData(outlets, suppliers) {
     clearInventoryBrowserCache();
     return normalizeInventoryData(null, outlets, suppliers);
   });
-  const [meta, setMeta] = useState({ dataSource: "fallback", lastFetchedAt: "", rawItemsCount: 0, normalizedItemsCount: 0 });
+  const [meta, setMeta] = useState({ dataSource: "fallback", lastFetchedAt: "", rawItemsCount: 0, normalizedItemsCount: 0, outletLinkCount: 0, fallbackActive: true });
 
   useEffect(() => {
     if (!outlets.length) return;
@@ -1056,35 +1090,24 @@ function useInventoryData(outlets, suppliers) {
     try {
       const remote = await loadRemoteInventoryMaster();
       const fetchedAt = new Date().toISOString();
-      let keptCurrentItems = false;
-      setData((current) => {
-        const currentItems = current.items || [];
-        keptCurrentItems = remote.items.length > 0 && currentItems.length > remote.items.length;
-        if (keptCurrentItems) {
-          console.warn("[InventoryControl] Remote inventory returned fewer items than current state. Keeping current item set until fetch/RLS is corrected.", {
-            currentItems: currentItems.length,
-            remoteItems: remote.items.length,
-            remoteItemNames: remote.items.map((item) => item.name),
-            currentItemNames: currentItems.map((item) => item.name),
-          });
-        }
-        return normalizeInventoryData({
-          ...current,
-          categories: remote.categories.length ? remote.categories : current.categories,
-          items: keptCurrentItems ? currentItems : remote.items,
-          uoms: remote.uoms.length ? remote.uoms : current.uoms,
-        }, outlets, suppliers, { allowEmptyMaster: !keptCurrentItems });
-      });
+      setData((current) => normalizeInventoryData({
+        ...current,
+        categories: remote.categories,
+        items: remote.items,
+        uoms: remote.uoms,
+      }, outlets, suppliers, { allowEmptyMaster: true }));
       setMeta({
-        dataSource: keptCurrentItems ? "supabase_partial_kept_current" : "supabase",
+        dataSource: "supabase",
         lastFetchedAt: fetchedAt,
         rawItemsCount: remote.rawItemCount ?? remote.items.length,
         normalizedItemsCount: remote.items.length,
+        outletLinkCount: remote.outletLinkCount ?? 0,
+        fallbackActive: Boolean(remote.fallbackActive),
       });
       return remote;
     } catch (error) {
       console.warn("[InventoryControl] Unable to load remote master inventory. Keeping in-memory fallback data.", error);
-      setMeta((current) => ({ ...current, dataSource: "remote_error", lastFetchedAt: current.lastFetchedAt || "" }));
+      setMeta((current) => ({ ...current, dataSource: "remote_error", lastFetchedAt: current.lastFetchedAt || "", fallbackActive: true }));
       return null;
     }
   }, [outlets, suppliers]);
@@ -3168,9 +3191,14 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }, [data.items]);
   const outletById = useMemo(() => new Map(outlets.map((outlet) => [outlet.id, outlet])), [outlets]);
   const itemById = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items]);
+  const accessibleOutletIds = useMemo(() => getAccessibleOutlets(auth, outlets).map((outlet) => outlet.id), [auth, outlets]);
+  const canSeeAllMasterItems = selectedOutletId === "all" && hasAllOutletAccess(auth);
 
   const visibleItems = useMemo(() => data.items.filter((item) => {
-    const matchesOutlet = selectedOutletId === "all" || item.linkedOutletIds?.includes(selectedOutletId);
+    const linkedOutletIds = item.linkedOutletIds || [];
+    const matchesOutlet = selectedOutletId === "all"
+      ? (canSeeAllMasterItems || linkedOutletIds.some((outletId) => accessibleOutletIds.includes(outletId)))
+      : linkedOutletIds.includes(selectedOutletId);
     const matchesQuery = !query.trim() || `${item.name} ${item.sku}`.toLowerCase().includes(query.trim().toLowerCase());
     const itemCategory = categoryForItem(item, categoryById);
     const selectedCategory = categoryById.get(categoryFilter);
@@ -3179,7 +3207,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     const selectedStatus = String(statusFilter || "all").toLowerCase();
     const matchesStatus = selectedStatus === "all" || itemStatus === selectedStatus;
     return matchesOutlet && matchesQuery && matchesCategory && matchesStatus;
-  }), [data.items, selectedOutletId, query, categoryFilter, categoryById, statusFilter]);
+  }), [data.items, selectedOutletId, canSeeAllMasterItems, accessibleOutletIds, query, categoryFilter, categoryById, statusFilter]);
   useEffect(() => {
     if (activeTab !== "master") return;
     console.log("[InventoryFilterDebug]", {
@@ -3191,7 +3219,17 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       afterFilterCount: visibleItems.length,
       visibleNames: visibleItems.map((item) => item.name),
     });
-  }, [activeTab, categoryFilter, data.items.length, query, selectedOutletId, statusFilter, visibleItems]);
+    console.log("[InventoryMissingAnalysis]", {
+      allInventoryItemsCount: inventoryMeta.rawItemsCount || data.items.length,
+      allInventoryItemNames: data.items.map((item) => item.name),
+      afterStatusFilterCount: data.items.filter((item) => String(item.status || "").toLowerCase() === "active").length,
+      afterStatusFilterNames: data.items.filter((item) => String(item.status || "").toLowerCase() === "active").map((item) => item.name),
+      afterJoinMappingCount: inventoryMeta.normalizedItemsCount || data.items.length,
+      afterJoinMappingNames: data.items.map((item) => item.name),
+      finalVisibleCount: visibleItems.length,
+      finalVisibleNames: visibleItems.map((item) => item.name),
+    });
+  }, [activeTab, categoryFilter, data.items, inventoryMeta.normalizedItemsCount, inventoryMeta.rawItemsCount, query, selectedOutletId, statusFilter, visibleItems]);
   const visibleItemGroups = useMemo(() => {
     const groups = new Map();
     visibleItems.forEach((item) => {
@@ -4600,7 +4638,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           ) : <EmptyState title="No inventory items match your filters" description="Adjust search, outlet, category or status filters to view more inventory items." />}
         </SectionCard>
         <div className="rounded-2xl border border-dashed border-border bg-slate-50/80 px-3 py-2 type-caption font-semibold text-text-secondary">
-          Raw Items: {inventoryMeta.rawItemsCount || 0} · Normalized Items: {inventoryMeta.normalizedItemsCount || data.items.length} · Visible Items: {visibleItems.length} · Categories: {data.categories.length} · UOMs: {data.uoms.length} · Outlet Links: {data.items.reduce((count, item) => count + (item.linkedOutletIds?.length || 0), 0)} · Build: {import.meta.env.VITE_APP_VERSION || import.meta.env.MODE} · Source: {inventoryMeta.dataSource}{inventoryMeta.lastFetchedAt ? ` · ${formatDate(inventoryMeta.lastFetchedAt)}` : ""}
+          Remote Rows: {inventoryMeta.rawItemsCount || 0} · Normalized Rows: {inventoryMeta.normalizedItemsCount || data.items.length} · Visible Rows: {visibleItems.length} · Categories: {data.categories.length} · UOMs: {data.uoms.length} · Outlet Links: {inventoryMeta.outletLinkCount || 0} · Fallback Active: {inventoryMeta.fallbackActive ? "true" : "false"} · Build: {import.meta.env.VITE_APP_VERSION || import.meta.env.MODE} · Source: {inventoryMeta.dataSource}{inventoryMeta.lastFetchedAt ? ` · ${formatDate(inventoryMeta.lastFetchedAt)}` : ""}
         </div>
       </div>
     );

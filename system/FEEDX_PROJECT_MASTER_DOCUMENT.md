@@ -1739,6 +1739,9 @@ Core rules:
 
 - Master Inventory is the source of truth for inventory items.
 - Master Inventory must load from shared Supabase tables (`inventory_items`, `inventory_item_outlets`, `inventory_categories`, and `inventory_uoms`) so desktop and mobile sessions use the same source of truth.
+- `inventory_items` is the authoritative Master Inventory source. Category, UOM, outlet link, supplier, and photo data are optional metadata and must never remove an item from the Master Inventory list when missing or unreadable.
+- Master Inventory fetches must start from `inventory_items` and avoid inner joins that require category, UOM, outlet link, or photo metadata to exist.
+- Missing metadata is handled as display fallback only: category = `Uncategorized`, UOM = `-`, photo = fallback icon, linked outlets = `No outlets linked`.
 - Browser local storage/session storage must not be used as the authoritative Master Inventory item list. Master Inventory should refetch from Supabase on page load and may only use in-memory fallback data if remote loading fails.
 - Master Inventory defines global item identity only.
 - Inventory Categories is managed through Master Inventory > Category Settings.
@@ -1874,6 +1877,9 @@ Master Inventory UI:
 - When grouped by Category, the Category column is hidden because category is represented by the group header.
 - When grouping is None, the table columns are Item, Category, SKU Code, UOM, Linked Outlets, Status, and Actions.
 - Search, outlet filter, category filter, and status filter apply before grouping; empty groups are hidden.
+- For roles with `outlet_access_type = all`, the `All Outlets` filter shows all active master inventory items and must not filter items out because they have no linked outlet rows.
+- For a specific selected outlet, Master Inventory shows only items linked to that outlet.
+- For selected-outlet roles using `All Accessible Outlets`, Master Inventory shows only items linked to outlets within the user's accessible outlet scope.
 - Desktop and mobile Master Inventory views must render from the same filtered `visibleItems` collection. Mobile must not apply separate hidden filters, recency limits, created-by filters, photo filters, or outlet-only query limits.
 - Mobile Master Inventory uses compact cards instead of a wide table to avoid horizontal clipping while preserving item photo/icon, item name, category, SKU, UOM, linked outlets, status, and actions.
 - The Master Inventory table does not show Low Stock or Par Level columns because those values are outlet-specific.
