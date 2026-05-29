@@ -75,13 +75,9 @@ const pageMeta = {
     title: "Stock Check",
     description: "Complete scheduled inventory checks by outlet and group.",
   },
-  requests: {
-    title: "Stock Requests",
-    description: "Review and manage replenishment requests from outlets.",
-  },
   orders: {
     title: "Purchase Orders",
-    description: "Convert approved requests into supplier purchase orders.",
+    description: "Create draft POs from reviewed stock check suggestions or manual purchase planning.",
   },
   movements: {
     title: "Inventory Movements",
@@ -125,6 +121,14 @@ function todayInput() {
 
 function makeId(prefix) {
   return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function debugLog(...args) {
+  if (import.meta.env.DEV) console.log(...args);
+}
+
+function debugTable(...args) {
+  if (import.meta.env.DEV) console.table(...args);
 }
 
 function toTitle(value = "") {
@@ -767,23 +771,230 @@ function mapRemoteStockCheckGroup(row = {}, categoryIds = []) {
   };
 }
 
+function mapRemoteStockCheckItem(row = {}) {
+  return {
+    id: row.id,
+    itemId: row.item_id || "",
+    categoryId: row.category_id || "",
+    expectedQty: row.par_level_quantity === null || row.par_level_quantity === undefined ? "" : Number(row.par_level_quantity),
+    actualCount: row.actual_count_quantity === null || row.actual_count_quantity === undefined ? "" : Number(row.actual_count_quantity),
+    variance: row.variance === null || row.variance === undefined ? 0 : Number(row.variance),
+    unit: row.unit || "",
+    status: row.skipped ? "skipped" : (row.status || "normal"),
+    notes: row.notes || "",
+    skipped: Boolean(row.skipped),
+    skipReason: row.skip_reason || "",
+    na: row.status === "na",
+    createdAt: row.created_at || "",
+    updatedAt: row.updated_at || row.created_at || "",
+  };
+}
+
+function mapRemoteStockCheck(row = {}, rows = []) {
+  const checkType = row.stock_check_type || row.check_type || "scheduled";
+  const checkDate = row.check_date || (row.created_at ? String(row.created_at).slice(0, 10) : todayInput());
+  const mappedRows = rows.map(mapRemoteStockCheckItem);
+  const categoryIds = row.audit_category_ids?.length
+    ? uniqueIds(row.audit_category_ids)
+    : uniqueIds(mappedRows.map((item) => item.categoryId).filter(Boolean));
+  return {
+    id: row.id,
+    groupId: row.group_id || "",
+    outletId: row.outlet_id || "",
+    date: checkDate,
+    shift: row.shift || "",
+    stockCheckType: checkType,
+    auditType: row.audit_type || "",
+    auditName: row.audit_name || row.check_name || "",
+    auditCategoryIds: categoryIds,
+    checkName: row.check_name || "",
+    notes: row.notes || "",
+    categoryIds,
+    status: row.status || "draft",
+    rows: mappedRows,
+    submittedAt: row.submitted_at || "",
+    reviewedAt: row.reviewed_at || "",
+    createdAt: row.created_at || "",
+    updatedAt: row.updated_at || "",
+  };
+}
+
+function mapRemotePurchaseOrderItem(row = {}) {
+  return {
+    id: row.id,
+    itemId: row.item_id || "",
+    requestedQty: row.requested_qty === null || row.requested_qty === undefined ? 0 : Number(row.requested_qty),
+    receivedQty: row.received_qty === null || row.received_qty === undefined ? 0 : Number(row.received_qty),
+    unit: row.unit || "",
+    remark: row.remark || "",
+    sourceStockCheckItemId: row.source_stock_check_item_id || "",
+    createdAt: row.created_at || "",
+    updatedAt: row.updated_at || "",
+  };
+}
+
+function mapRemotePurchaseReceiptItem(row = {}) {
+  return {
+    id: row.id,
+    receiptId: row.receipt_id || "",
+    purchaseOrderItemId: row.purchase_order_item_id || "",
+    itemId: row.item_id || "",
+    receivedQty: row.received_qty === null || row.received_qty === undefined ? 0 : Number(row.received_qty),
+    unit: row.unit || "",
+    remark: row.remark || "",
+    createdAt: row.created_at || "",
+  };
+}
+
+function mapRemotePurchaseReceipt(row = {}, items = []) {
+  return {
+    id: row.id,
+    purchaseOrderId: row.purchase_order_id || "",
+    outletId: row.outlet_id || "",
+    supplierId: row.supplier_id || "",
+    receivedBy: row.received_by || "",
+    receivedAt: row.received_at || row.created_at || "",
+    remark: row.remark || "",
+    createdAt: row.created_at || "",
+    items: items.map(mapRemotePurchaseReceiptItem),
+  };
+}
+
+function mapRemoteInventoryMovement(row = {}) {
+  return {
+    id: row.id,
+    date: row.created_at ? String(row.created_at).slice(0, 10) : todayInput(),
+    dateTime: row.created_at || "",
+    itemId: row.inventory_item_id || row.item_id || "",
+    type: String(row.movement_type || "purchase").toLowerCase(),
+    movementType: row.movement_type || "Purchase",
+    quantity: row.quantity === null || row.quantity === undefined ? 0 : Number(row.quantity),
+    unit: row.unit || "",
+    outletId: row.outlet_id || "",
+    user: row.created_by || "Unknown user",
+    reference: row.reference_no || "",
+    referenceType: row.reference_type || "",
+    referenceId: row.reference_id || "",
+    notes: row.notes || "",
+  };
+}
+
+function mapRemoteWasteRecord(row = {}) {
+  return {
+    id: row.id,
+    date: row.waste_date || (row.created_at ? String(row.created_at).slice(0, 10) : todayInput()),
+    itemId: row.inventory_item_id || "",
+    outletId: row.outlet_id || "",
+    wasteType: row.waste_type || "Unknown",
+    quantity: row.quantity === null || row.quantity === undefined ? 0 : Number(row.quantity),
+    unit: row.unit || "",
+    notes: row.notes || "",
+    photoUrl: row.photo_url || "",
+    photo_url: row.photo_url || "",
+    user: row.created_by || "Unknown user",
+    recordedBy: row.created_by || "Unknown user",
+    createdAt: row.created_at || "",
+    updatedAt: row.updated_at || row.created_at || "",
+    value: 0,
+  };
+}
+
+function mapRemoteRecipeItem(row = {}) {
+  return {
+    id: row.id,
+    itemId: row.inventory_item_id || "",
+    quantityUsed: row.quantity_used === null || row.quantity_used === undefined ? 0 : Number(row.quantity_used),
+    unit: row.unit || "",
+    wastagePercent: row.wastage_percent === null || row.wastage_percent === undefined ? 0 : Number(row.wastage_percent),
+    remark: row.remark || "",
+    createdAt: row.created_at || "",
+    updatedAt: row.updated_at || row.created_at || "",
+  };
+}
+
+function mapRemoteRecipe(row = {}, items = []) {
+  return {
+    id: row.id,
+    outletId: row.outlet_id || "",
+    recipeName: row.recipe_name || "Recipe",
+    menuCategory: row.menu_category || "",
+    servingSize: row.serving_size === null || row.serving_size === undefined ? "" : String(Number(row.serving_size)),
+    status: row.status || "active",
+    notes: row.notes || "",
+    createdBy: row.created_by || "",
+    createdAt: row.created_at || "",
+    updatedAt: row.updated_at || row.created_at || "",
+    ingredients: items.map(mapRemoteRecipeItem),
+  };
+}
+
+function mapRemotePurchaseOrder(row = {}, lines = [], receipts = []) {
+  return {
+    id: row.id,
+    poNo: row.po_no || "PO",
+    supplierId: row.supplier_id || "",
+    outletId: row.outlet_id || "",
+    outletIds: row.outlet_id ? [row.outlet_id] : [],
+    requestIds: row.source_stock_request_id ? [row.source_stock_request_id] : [],
+    status: row.status || "draft",
+    sourceType: row.source_type || "manual",
+    sourceStockCheckId: row.source_stock_check_id || row.source_check_id || "",
+    sourceStockRequestId: row.source_stock_request_id || "",
+    createdBy: row.created_by || "",
+    createdAt: row.created_at || "",
+    updatedAt: row.updated_at || "",
+    submittedAt: row.submitted_at || "",
+    confirmedAt: row.confirmed_at || "",
+    completedAt: row.completed_at || "",
+    cancelledAt: row.cancelled_at || "",
+    cancellationReason: row.cancellation_reason || "",
+    completionType: row.completion_type || "",
+    completionReason: row.completion_reason || "",
+    unfulfilledQty: Number(row.unfulfilled_qty || 0),
+    lines: lines.map(mapRemotePurchaseOrderItem),
+    receipts: receipts.map((receipt) => mapRemotePurchaseReceipt(receipt, receipt.items || [])),
+  };
+}
+
 async function loadRemoteInventoryMaster() {
   const itemsResult = await supabase.from("inventory_items").select("*").order("created_at", { ascending: false });
   if (itemsResult.error) throw itemsResult.error;
 
-  const [categoriesResult, uomsResult, itemOutletsResult, itemOutletSuppliersResult, stockGroupsResult, stockGroupCategoriesResult] = await Promise.all([
+  const [categoriesResult, uomsResult, itemOutletsResult, itemOutletSuppliersResult, stockGroupsResult, stockGroupCategoriesResult, stockChecksResult, stockCheckItemsResult, purchaseOrdersResult, purchaseOrderItemsResult, purchaseReceiptsResult, purchaseReceiptItemsResult, movementsResult, wasteResult, recipesResult, recipeItemsResult] = await Promise.all([
     supabase.from("inventory_categories").select("*").order("sort_order", { ascending: true }),
     supabase.from("inventory_uoms").select("*").order("sort_order", { ascending: true }),
     supabase.from("inventory_item_outlets").select("*, outlets:outlet_id(*)"),
     supabase.from("inventory_item_outlet_suppliers").select("*"),
     supabase.from("inventory_stock_check_groups").select("*").order("created_at", { ascending: false }),
     supabase.from("inventory_stock_check_group_categories").select("*"),
+    supabase.from("inventory_stock_checks").select("*").order("created_at", { ascending: false }),
+    supabase.from("inventory_stock_check_items").select("*").order("created_at", { ascending: true }),
+    supabase.from("inventory_purchase_orders").select("*").order("created_at", { ascending: false }),
+    supabase.from("inventory_purchase_order_items").select("*").order("created_at", { ascending: true }),
+    supabase.from("inventory_purchase_receipts").select("*").order("received_at", { ascending: false }),
+    supabase.from("inventory_purchase_receipt_items").select("*").order("created_at", { ascending: true }),
+    supabase.from("inventory_movements").select("*").order("created_at", { ascending: false }),
+    supabase.from("inventory_waste_records").select("*").order("waste_date", { ascending: false }).order("created_at", { ascending: false }),
+    supabase.from("inventory_recipes").select("*").order("created_at", { ascending: false }),
+    supabase.from("inventory_recipe_items").select("*").order("created_at", { ascending: true }),
   ]);
   if (categoriesResult.error) console.warn("[InventoryControl] Inventory categories metadata unavailable. Items will still render.", categoriesResult.error);
   if (uomsResult.error) console.warn("[InventoryControl] Inventory UOM metadata unavailable. Items will still render.", uomsResult.error);
   if (itemOutletSuppliersResult.error) console.warn("[InventoryControl] Inventory outlet supplier links unavailable. Items will still render without supplier assignments.", itemOutletSuppliersResult.error);
   if (stockGroupsResult.error) console.warn("[InventoryControl] Stock check groups unavailable. Groups will render empty until persistence is configured.", stockGroupsResult.error);
   if (stockGroupCategoriesResult.error) console.warn("[InventoryControl] Stock check group category links unavailable.", stockGroupCategoriesResult.error);
+  if (stockChecksResult.error) console.warn("[InventoryControl] Stock checks unavailable. Drafts and results will render empty until persistence is configured.", stockChecksResult.error);
+  if (stockCheckItemsResult.error) console.warn("[InventoryControl] Stock check item rows unavailable.", stockCheckItemsResult.error);
+  if (purchaseOrdersResult.error) console.warn("[InventoryControl] Purchase orders unavailable. Draft POs will render empty until persistence is configured.", purchaseOrdersResult.error);
+  if (purchaseOrderItemsResult.error) console.warn("[InventoryControl] Purchase order items unavailable.", purchaseOrderItemsResult.error);
+  if (purchaseReceiptsResult.error) console.warn("[InventoryControl] Purchase receipts unavailable. Receiving history will render empty until persistence is configured.", purchaseReceiptsResult.error);
+  if (purchaseReceiptItemsResult.error) console.warn("[InventoryControl] Purchase receipt items unavailable.", purchaseReceiptItemsResult.error);
+  if (movementsResult.error) console.warn("[InventoryControl] Inventory movements unavailable. Movement history will render empty until persistence is configured.", movementsResult.error);
+  if (wasteResult.error) console.warn("[InventoryControl] Waste records unavailable. Waste & Variance will render empty until persistence is configured.", wasteResult.error);
+  if (recipesResult.error) console.warn("[InventoryControl] Recipes unavailable. Recipes & Usage will render empty until persistence is configured.", recipesResult.error);
+  if (recipeItemsResult.error) console.warn("[InventoryControl] Recipe ingredients unavailable.", recipeItemsResult.error);
+  debugLog("[WasteFetchDebug]", { result: { data: wasteResult.data || [], error: wasteResult.error }, error: wasteResult.error });
+  debugLog("[RecipeFetchDebug]", { result: { recipes: recipesResult.data || [], items: recipeItemsResult.data || [], recipeError: recipesResult.error, itemError: recipeItemsResult.error } });
 
   let itemOutletRows = itemOutletsResult.data || [];
   if (itemOutletsResult.error) {
@@ -820,8 +1031,41 @@ async function loadRemoteInventoryMaster() {
     categoryIdsByGroupId.set(link.group_id, uniqueIds(list));
   });
   const groups = (stockGroupsResult.data || []).map((group) => mapRemoteStockCheckGroup(group, categoryIdsByGroupId.get(group.id) || []));
+  const checkItemsByCheckId = new Map();
+  (stockCheckItemsResult.data || []).forEach((row) => {
+    const list = checkItemsByCheckId.get(row.stock_check_id) || [];
+    list.push(row);
+    checkItemsByCheckId.set(row.stock_check_id, list);
+  });
+  const checks = (stockChecksResult.data || []).map((check) => mapRemoteStockCheck(check, checkItemsByCheckId.get(check.id) || []));
+  const purchaseItemsByOrderId = new Map();
+  (purchaseOrderItemsResult.data || []).forEach((row) => {
+    const list = purchaseItemsByOrderId.get(row.purchase_order_id) || [];
+    list.push(row);
+    purchaseItemsByOrderId.set(row.purchase_order_id, list);
+  });
+  const receiptItemsByReceiptId = new Map();
+  (purchaseReceiptItemsResult.data || []).forEach((row) => {
+    const list = receiptItemsByReceiptId.get(row.receipt_id) || [];
+    list.push(row);
+    receiptItemsByReceiptId.set(row.receipt_id, list);
+  });
+  const receiptsByOrderId = new Map();
+  (purchaseReceiptsResult.data || []).forEach((receipt) => {
+    const list = receiptsByOrderId.get(receipt.purchase_order_id) || [];
+    list.push({ ...receipt, items: receiptItemsByReceiptId.get(receipt.id) || [] });
+    receiptsByOrderId.set(receipt.purchase_order_id, list);
+  });
+  const orders = (purchaseOrdersResult.data || []).map((order) => mapRemotePurchaseOrder(order, purchaseItemsByOrderId.get(order.id) || [], receiptsByOrderId.get(order.id) || []));
+  const recipeItemsByRecipeId = new Map();
+  (recipeItemsResult.data || []).forEach((row) => {
+    const list = recipeItemsByRecipeId.get(row.recipe_id) || [];
+    list.push(row);
+    recipeItemsByRecipeId.set(row.recipe_id, list);
+  });
+  const recipes = (recipesResult.data || []).map((recipe) => mapRemoteRecipe(recipe, recipeItemsByRecipeId.get(recipe.id) || []));
 
-  console.log("[InventoryFetchRaw]", {
+  debugLog("[InventoryFetchRaw]", {
     itemRows: itemRows.map((row) => ({
       id: row.id,
       name: row.item_name || row.name,
@@ -840,7 +1084,7 @@ async function loadRemoteInventoryMaster() {
     itemCount: itemRows.length,
     error: itemsResult.error || null,
   });
-  console.table(normalizedItems.map((item) => ({
+  debugTable(normalizedItems.map((item) => ({
     id: item.id,
     name: item.name,
     category_id: item.category_id,
@@ -850,7 +1094,7 @@ async function loadRemoteInventoryMaster() {
     status: item.status,
     outlets: item.linked_outlets?.map(outletDisplayCode).join(","),
   })));
-  console.log("[InventoryMissingAnalysis]", {
+  debugLog("[InventoryMissingAnalysis]", {
     allInventoryItemsCount: itemRows.length,
     allInventoryItemNames: itemRows.map((item) => item.item_name || item.name || item.id),
     afterStatusFilterCount: activeItems.length,
@@ -865,6 +1109,11 @@ async function loadRemoteInventoryMaster() {
     items: normalizedItems,
     uoms: (uomsResult.data || []).map(mapRemoteUom),
     groups,
+    checks,
+    orders,
+    movements: (movementsResult.data || []).map(mapRemoteInventoryMovement),
+    waste: (wasteResult.data || []).map(mapRemoteWasteRecord),
+    recipes,
     rawItemCount: itemRows.length,
     outletLinkCount: itemOutletRows.length,
     fallbackActive: false,
@@ -908,7 +1157,7 @@ async function persistRemoteInventoryItem(item, userId) {
     debug.itemUpdateResult = { data: result.data, error: result.error };
     if (result.error) {
       debug.error = result.error;
-      console.log("[InventorySaveDebug]", debug);
+      debugLog("[InventorySaveDebug]", debug);
       throw result.error;
     }
     savedItem = result.data;
@@ -921,7 +1170,7 @@ async function persistRemoteInventoryItem(item, userId) {
     debug.itemInsertResult = { data: result.data, error: result.error };
     if (result.error) {
       debug.error = result.error;
-      console.log("[InventorySaveDebug]", debug);
+      debugLog("[InventorySaveDebug]", debug);
       throw result.error;
     }
     savedItem = result.data;
@@ -956,7 +1205,7 @@ async function persistRemoteInventoryItem(item, userId) {
     error.partialItemSaved = true;
     error.debug = debug;
     debug.error = deleteResult.error;
-    console.log("[InventorySaveDebug]", debug);
+    debugLog("[InventorySaveDebug]", debug);
     throw error;
   }
 
@@ -971,7 +1220,7 @@ async function persistRemoteInventoryItem(item, userId) {
       error.partialItemSaved = true;
       error.debug = debug;
       debug.error = configResult.error;
-      console.log("[InventorySaveDebug]", debug);
+      debugLog("[InventorySaveDebug]", debug);
       throw error;
     }
   }
@@ -982,10 +1231,10 @@ async function persistRemoteInventoryItem(item, userId) {
     .eq("inventory_item_id", remoteItemId);
   if (configsError) {
     debug.error = configsError;
-    console.log("[InventorySaveDebug]", debug);
+    debugLog("[InventorySaveDebug]", debug);
     throw configsError;
   }
-  console.log("[InventorySaveDebug]", debug);
+  debugLog("[InventorySaveDebug]", debug);
   return mapRemoteInventoryItem(savedItem, savedConfigs || []);
 }
 
@@ -1048,7 +1297,7 @@ async function persistRemoteInventoryUom(uom) {
       .eq("id", normalized.id)
       .select("*")
       .single();
-    console.log("[UomSaveDebug]", { action: "update", payload, result: { data: result.data, error: result.error }, error: result.error });
+    debugLog("[UomSaveDebug]", { action: "update", payload, result: { data: result.data, error: result.error }, error: result.error });
     if (result.error) throw result.error;
     return mapRemoteUom(result.data);
   }
@@ -1058,7 +1307,7 @@ async function persistRemoteInventoryUom(uom) {
     .insert(payload)
     .select("*")
     .single();
-  console.log("[UomSaveDebug]", { action: "create", payload, result: { data: result.data, error: result.error }, error: result.error });
+  debugLog("[UomSaveDebug]", { action: "create", payload, result: { data: result.data, error: result.error }, error: result.error });
   if (result.error) throw result.error;
   return mapRemoteUom(result.data);
 }
@@ -1094,7 +1343,7 @@ async function persistRemoteParLevelConfig(item, outletId, patch) {
     .upsert(payload, { onConflict: "inventory_item_id,outlet_id" })
     .select("*")
     .single();
-  console.log("[ParLevelSaveDebug]", { action: "upsert-config", itemId: normalized.id, outletId, payload, result: { data: configResult.data, error: configResult.error }, error: configResult.error });
+  debugLog("[ParLevelSaveDebug]", { action: "upsert-config", itemId: normalized.id, outletId, payload, result: { data: configResult.data, error: configResult.error }, error: configResult.error });
   if (configResult.error) throw configResult.error;
 
   if (Object.prototype.hasOwnProperty.call(patch, "supplierIds")) {
@@ -1103,7 +1352,7 @@ async function persistRemoteParLevelConfig(item, outletId, patch) {
       .from("inventory_item_outlet_suppliers")
       .delete()
       .eq("inventory_item_outlet_id", configResult.data.id);
-    console.log("[ParLevelSaveDebug]", { action: "delete-suppliers", itemId: normalized.id, outletId, payload: { supplierIds }, result: { data: deleteResult.data || null, error: deleteResult.error }, error: deleteResult.error });
+    debugLog("[ParLevelSaveDebug]", { action: "delete-suppliers", itemId: normalized.id, outletId, payload: { supplierIds }, result: { data: deleteResult.data || null, error: deleteResult.error }, error: deleteResult.error });
     if (deleteResult.error) throw deleteResult.error;
     if (supplierIds.length) {
       const supplierPayload = supplierIds.map((supplierId) => ({
@@ -1114,7 +1363,7 @@ async function persistRemoteParLevelConfig(item, outletId, patch) {
       const supplierResult = await supabase
         .from("inventory_item_outlet_suppliers")
         .insert(supplierPayload);
-      console.log("[ParLevelSaveDebug]", { action: "insert-suppliers", itemId: normalized.id, outletId, payload: supplierPayload, result: { data: supplierResult.data || null, error: supplierResult.error }, error: supplierResult.error });
+      debugLog("[ParLevelSaveDebug]", { action: "insert-suppliers", itemId: normalized.id, outletId, payload: supplierPayload, result: { data: supplierResult.data || null, error: supplierResult.error }, error: supplierResult.error });
       if (supplierResult.error) throw supplierResult.error;
     }
   }
@@ -1164,7 +1413,7 @@ async function persistRemoteStockCheckGroup(group) {
       .insert(payload)
       .select("*")
       .single();
-  console.log("[StockCheckGroupSaveDebug]", { action: mode, payload, categoryIds, result: { data: groupResult.data, error: groupResult.error }, error: groupResult.error });
+  debugLog("[StockCheckGroupSaveDebug]", { action: mode, payload, categoryIds, result: { data: groupResult.data, error: groupResult.error }, error: groupResult.error });
   if (groupResult.error) throw groupResult.error;
 
   const groupId = groupResult.data.id;
@@ -1172,7 +1421,7 @@ async function persistRemoteStockCheckGroup(group) {
     .from("inventory_stock_check_group_categories")
     .delete()
     .eq("group_id", groupId);
-  console.log("[StockCheckGroupSaveDebug]", { action: "delete-category-links", groupId, result: { data: deleteResult.data || null, error: deleteResult.error }, error: deleteResult.error });
+  debugLog("[StockCheckGroupSaveDebug]", { action: "delete-category-links", groupId, result: { data: deleteResult.data || null, error: deleteResult.error }, error: deleteResult.error });
   if (deleteResult.error) throw deleteResult.error;
 
   if (categoryIds.length) {
@@ -1180,7 +1429,7 @@ async function persistRemoteStockCheckGroup(group) {
     const linkResult = await supabase
       .from("inventory_stock_check_group_categories")
       .insert(linkPayload);
-    console.log("[StockCheckGroupSaveDebug]", { action: "insert-category-links", groupId, payload: linkPayload, result: { data: linkResult.data || null, error: linkResult.error }, error: linkResult.error });
+    debugLog("[StockCheckGroupSaveDebug]", { action: "insert-category-links", groupId, payload: linkPayload, result: { data: linkResult.data || null, error: linkResult.error }, error: linkResult.error });
     if (linkResult.error) throw linkResult.error;
   }
 
@@ -1195,9 +1444,662 @@ async function archiveRemoteStockCheckGroup(groupId) {
     .eq("id", groupId)
     .select("*")
     .single();
-  console.log("[StockCheckGroupSaveDebug]", { action: "archive", groupId, result: { data: result.data, error: result.error }, error: result.error });
+  debugLog("[StockCheckGroupSaveDebug]", { action: "archive", groupId, result: { data: result.data, error: result.error }, error: result.error });
   if (result.error) throw result.error;
   return mapRemoteStockCheckGroup(result.data);
+}
+
+async function persistRemoteStockCheck(activeGroup, rows = [], status = "draft", userId) {
+  if (!activeGroup) throw new Error("Stock check is not active.");
+  const isAudit = activeGroup.stockCheckType === "audit";
+  const checkDate = activeGroup.date || todayInput();
+  const existingId = isUuid(activeGroup.existingCheckId) ? activeGroup.existingCheckId : (isUuid(activeGroup.id) && isAudit ? activeGroup.id : "");
+  const payload = {
+    outlet_id: isUuid(activeGroup.outletId) ? activeGroup.outletId : null,
+    group_id: isAudit ? null : (isUuid(activeGroup.id) ? activeGroup.id : null),
+    stock_check_type: isAudit ? "audit" : "scheduled",
+    check_name: isAudit ? (activeGroup.auditName || activeGroup.name || "Audit Stock Check") : (activeGroup.name || "Stock Check"),
+    shift: activeGroup.shift || (isAudit ? "Audit" : null),
+    check_date: checkDate,
+    audit_type: isAudit ? (activeGroup.auditType || "Custom Audit") : null,
+    audit_name: isAudit ? (activeGroup.auditName || activeGroup.name || "Audit Stock Check") : null,
+    audit_category_ids: isAudit ? uniqueIds(activeGroup.categoryIds || activeGroup.auditCategoryIds || []) : [],
+    notes: activeGroup.notes || null,
+    status,
+    submitted_at: status === "submitted" ? new Date().toISOString() : null,
+    updated_at: new Date().toISOString(),
+  };
+  if (!payload.outlet_id) throw new Error("Outlet is required.");
+  if (!isAudit && !payload.group_id) throw new Error("Stock check group is required.");
+
+  const action = status === "submitted" ? "submit" : "save-draft";
+  const logLabel = isAudit ? "[AuditStockCheckDebug]" : status === "submitted" ? "[StockCheckSubmitDebug]" : "[StockCheckSaveDebug]";
+  const debug = { action, payload, rows, checkResult: null, deleteItemsResult: null, insertItemsResult: null, groupUpdateResult: null, error: null };
+
+  const checkResult = existingId
+    ? await supabase
+      .from("inventory_stock_checks")
+      .update(payload)
+      .eq("id", existingId)
+      .select("*")
+      .single()
+    : await supabase
+      .from("inventory_stock_checks")
+      .insert({ ...payload, created_by: userId || null })
+      .select("*")
+      .single();
+  debug.checkResult = { data: checkResult.data, error: checkResult.error };
+  if (checkResult.error) {
+    debug.error = checkResult.error;
+    debugLog(logLabel, debug);
+    throw checkResult.error;
+  }
+
+  const checkId = checkResult.data.id;
+  const deleteItemsResult = await supabase
+    .from("inventory_stock_check_items")
+    .delete()
+    .eq("stock_check_id", checkId);
+  debug.deleteItemsResult = { data: deleteItemsResult.data || null, error: deleteItemsResult.error };
+  if (deleteItemsResult.error) {
+    debug.error = deleteItemsResult.error;
+    debugLog(logLabel, debug);
+    throw deleteItemsResult.error;
+  }
+
+  const itemPayload = rows.map((row) => {
+    const actualMissing = row.actualCount === "" || row.actualCount === null || row.actualCount === undefined;
+    return {
+      stock_check_id: checkId,
+      item_id: isUuid(row.itemId) ? row.itemId : null,
+      category_id: isUuid(row.categoryId) ? row.categoryId : null,
+      par_level_quantity: row.expectedQty === "" || row.expectedQty === null || row.expectedQty === undefined ? null : Number(row.expectedQty),
+      actual_count_quantity: row.skipped || actualMissing ? null : Number(row.actualCount),
+      variance: row.skipped || row.na ? null : Number(row.variance || 0),
+      unit: row.unit || null,
+      status: row.skipped ? "skipped" : (row.na ? "na" : row.status || "normal"),
+      notes: row.notes || null,
+      skipped: Boolean(row.skipped),
+      skip_reason: row.skipped ? (row.skipReason || null) : null,
+      updated_at: new Date().toISOString(),
+    };
+  });
+
+  if (itemPayload.length) {
+    const insertItemsResult = await supabase
+      .from("inventory_stock_check_items")
+      .insert(itemPayload)
+      .select("*");
+    debug.insertItemsResult = { data: insertItemsResult.data, error: insertItemsResult.error };
+    if (insertItemsResult.error) {
+      debug.error = insertItemsResult.error;
+      debugLog(logLabel, debug);
+      throw insertItemsResult.error;
+    }
+  } else {
+    debug.insertItemsResult = { data: [], error: null };
+  }
+
+  if (!isAudit && status === "submitted") {
+    const groupUpdateResult = await supabase
+      .from("inventory_stock_check_groups")
+      .update({ last_checked_at: checkResult.data.submitted_at || new Date().toISOString(), updated_at: new Date().toISOString() })
+      .eq("id", payload.group_id);
+    debug.groupUpdateResult = { data: groupUpdateResult.data || null, error: groupUpdateResult.error };
+    if (groupUpdateResult.error) {
+      debug.error = groupUpdateResult.error;
+      debugLog(logLabel, debug);
+      throw groupUpdateResult.error;
+    }
+  }
+
+  debugLog(logLabel, debug);
+  const savedItemsResult = await supabase
+    .from("inventory_stock_check_items")
+    .select("*")
+    .eq("stock_check_id", checkId)
+    .order("created_at", { ascending: true });
+  if (savedItemsResult.error) throw savedItemsResult.error;
+  return mapRemoteStockCheck(checkResult.data, savedItemsResult.data || []);
+}
+
+async function fetchRemotePurchaseOrdersForStockCheck(stockCheckId) {
+  if (!isUuid(stockCheckId)) return [];
+  const ordersResult = await supabase
+    .from("inventory_purchase_orders")
+    .select("*")
+    .eq("source_type", "stock_check")
+    .eq("source_stock_check_id", stockCheckId)
+    .neq("status", "cancelled")
+    .order("created_at", { ascending: false });
+  debugLog("[PurchaseSuggestionDebug]", { action: "fetch-linked-orders", stockCheckId, result: { data: ordersResult.data, error: ordersResult.error }, error: ordersResult.error });
+  if (ordersResult.error) throw ordersResult.error;
+  const orderIds = (ordersResult.data || []).map((order) => order.id);
+  if (!orderIds.length) return [];
+  const itemsResult = await supabase
+    .from("inventory_purchase_order_items")
+    .select("*")
+    .in("purchase_order_id", orderIds)
+    .order("created_at", { ascending: true });
+  debugLog("[PurchaseSuggestionDebug]", { action: "fetch-linked-order-items", stockCheckId, orderIds, result: { data: itemsResult.data, error: itemsResult.error }, error: itemsResult.error });
+  if (itemsResult.error) throw itemsResult.error;
+  const itemsByOrderId = new Map();
+  (itemsResult.data || []).forEach((row) => {
+    const list = itemsByOrderId.get(row.purchase_order_id) || [];
+    list.push(row);
+    itemsByOrderId.set(row.purchase_order_id, list);
+  });
+  return (ordersResult.data || []).map((order) => mapRemotePurchaseOrder(order, itemsByOrderId.get(order.id) || []));
+}
+
+async function persistRemoteDraftPurchaseOrders(stockCheck, suggestionRows = [], userId) {
+  if (!isUuid(stockCheck?.id)) throw new Error("Stock check must be saved before creating Draft PO.");
+  if (stockCheck.stockCheckType !== "scheduled" || stockCheck.status !== "submitted") {
+    throw new Error("Purchase Suggestions are only available for submitted scheduled stock checks.");
+  }
+  const includedRows = suggestionRows.filter((row) => Number(row.suggestedOrderQty || 0) > 0 && row.include !== false);
+  if (!includedRows.length) throw new Error("No included shortage items to create Draft PO.");
+  const missingSupplier = includedRows.find((row) => !isUuid(row.selectedSupplierId));
+  if (missingSupplier) throw new Error("Choose a supplier for every included item before creating Draft PO.");
+
+  const existingOrders = await fetchRemotePurchaseOrdersForStockCheck(stockCheck.id);
+  if (existingOrders.length) {
+    const error = new Error("Draft PO already created for this stock check.");
+    error.existingOrders = existingOrders;
+    throw error;
+  }
+
+  const stockCheckItemIds = uniqueIds(includedRows.map((row) => row.stockCheckItemId).filter(isUuid));
+  if (stockCheckItemIds.length) {
+    const duplicateItemsResult = await supabase
+      .from("inventory_purchase_order_items")
+      .select("id, source_stock_check_item_id, purchase_order_id")
+      .in("source_stock_check_item_id", stockCheckItemIds);
+    debugLog("[CreateDraftPODebug]", { action: "duplicate-item-check", stockCheckId: stockCheck.id, stockCheckItemIds, result: { data: duplicateItemsResult.data, error: duplicateItemsResult.error }, error: duplicateItemsResult.error });
+    if (duplicateItemsResult.error) throw duplicateItemsResult.error;
+    const duplicateOrderIds = uniqueIds((duplicateItemsResult.data || []).map((row) => row.purchase_order_id).filter(isUuid));
+    if (duplicateOrderIds.length) {
+      const duplicateOrdersResult = await supabase
+        .from("inventory_purchase_orders")
+        .select("*")
+        .in("id", duplicateOrderIds)
+        .neq("status", "cancelled");
+      debugLog("[CreateDraftPODebug]", { action: "duplicate-order-check", stockCheckId: stockCheck.id, duplicateOrderIds, result: { data: duplicateOrdersResult.data, error: duplicateOrdersResult.error }, error: duplicateOrdersResult.error });
+      if (duplicateOrdersResult.error) throw duplicateOrdersResult.error;
+      if ((duplicateOrdersResult.data || []).length) {
+        const error = new Error("Draft PO already created for this stock check.");
+        error.existingOrders = existingOrders;
+        throw error;
+      }
+    }
+  }
+
+  const supplierGroups = includedRows.reduce((groups, row) => {
+    if (!groups.has(row.selectedSupplierId)) groups.set(row.selectedSupplierId, []);
+    groups.get(row.selectedSupplierId).push(row);
+    return groups;
+  }, new Map());
+  const createdOrders = [];
+  const createdAt = new Date().toISOString();
+
+  for (const [supplierId, rows] of supplierGroups.entries()) {
+    const poNo = `PO-${Date.now().toString().slice(-6)}-${ordersSuffix(supplierId)}`;
+    const orderPayload = {
+      po_no: poNo,
+      outlet_id: stockCheck.outletId,
+      supplier_id: supplierId,
+      status: "draft",
+      source_type: "stock_check",
+      source_stock_check_id: stockCheck.id,
+      created_by: userId || null,
+      created_at: createdAt,
+      updated_at: createdAt,
+    };
+    const orderResult = await supabase
+      .from("inventory_purchase_orders")
+      .insert(orderPayload)
+      .select("*")
+      .single();
+    debugLog("[CreateDraftPODebug]", { action: "insert-order", stockCheckId: stockCheck.id, payload: orderPayload, result: { data: orderResult.data, error: orderResult.error }, error: orderResult.error });
+    if (orderResult.error) throw orderResult.error;
+
+    const itemPayload = rows.map((row) => ({
+      purchase_order_id: orderResult.data.id,
+      item_id: isUuid(row.itemId) ? row.itemId : null,
+      requested_qty: Number(row.suggestedOrderQty || 0),
+      received_qty: 0,
+      unit: row.unit || null,
+      remark: row.remark || null,
+      source_stock_check_item_id: isUuid(row.stockCheckItemId) ? row.stockCheckItemId : null,
+      created_at: createdAt,
+      updated_at: createdAt,
+    }));
+    const itemsResult = await supabase
+      .from("inventory_purchase_order_items")
+      .insert(itemPayload)
+      .select("*");
+    debugLog("[CreateDraftPODebug]", { action: "insert-order-items", stockCheckId: stockCheck.id, poNo, payload: itemPayload, result: { data: itemsResult.data, error: itemsResult.error }, error: itemsResult.error });
+    if (itemsResult.error) throw itemsResult.error;
+    createdOrders.push(mapRemotePurchaseOrder(orderResult.data, itemsResult.data || []));
+  }
+
+  debugLog("[CreateDraftPODebug]", { action: "created-draft-pos", stockCheckId: stockCheck.id, createdOrders, error: null });
+  return createdOrders;
+}
+
+async function fetchRemotePurchaseOrder(orderId) {
+  if (!isUuid(orderId)) throw new Error("Valid purchase order is required.");
+  const [orderResult, itemsResult, receiptsResult, receiptItemsResult] = await Promise.all([
+    supabase.from("inventory_purchase_orders").select("*").eq("id", orderId).single(),
+    supabase.from("inventory_purchase_order_items").select("*").eq("purchase_order_id", orderId).order("created_at", { ascending: true }),
+    supabase.from("inventory_purchase_receipts").select("*").eq("purchase_order_id", orderId).order("received_at", { ascending: false }),
+    supabase.from("inventory_purchase_receipt_items").select("*").order("created_at", { ascending: true }),
+  ]);
+  if (orderResult.error) throw orderResult.error;
+  if (itemsResult.error) throw itemsResult.error;
+  if (receiptsResult.error) throw receiptsResult.error;
+  if (receiptItemsResult.error) throw receiptItemsResult.error;
+  const receiptIds = new Set((receiptsResult.data || []).map((receipt) => receipt.id));
+  const receiptItemsByReceiptId = new Map();
+  (receiptItemsResult.data || [])
+    .filter((row) => receiptIds.has(row.receipt_id))
+    .forEach((row) => {
+      const list = receiptItemsByReceiptId.get(row.receipt_id) || [];
+      list.push(row);
+      receiptItemsByReceiptId.set(row.receipt_id, list);
+    });
+  const receipts = (receiptsResult.data || []).map((receipt) => ({ ...receipt, items: receiptItemsByReceiptId.get(receipt.id) || [] }));
+  return mapRemotePurchaseOrder(orderResult.data, itemsResult.data || [], receipts);
+}
+
+async function persistRemotePurchaseOrderStatus(orderId, status) {
+  if (!isUuid(orderId)) throw new Error("Valid purchase order is required.");
+  const timestamp = new Date().toISOString();
+  const payload = { status, updated_at: timestamp };
+  if (status === "submitted") payload.submitted_at = timestamp;
+  if (status === "supplier_confirmed") payload.confirmed_at = timestamp;
+  const result = await supabase
+    .from("inventory_purchase_orders")
+    .update(payload)
+    .eq("id", orderId)
+    .select("*")
+    .single();
+  debugLog("[POSubmitDebug]", { action: "update-status", orderId, status, payload, result: { data: result.data, error: result.error }, error: result.error });
+  if (result.error) throw result.error;
+  return fetchRemotePurchaseOrder(orderId);
+}
+
+async function persistRemotePurchaseOrderEdit(order = {}) {
+  if (!isUuid(order.id)) throw new Error("Valid purchase order is required.");
+  if (order.status !== "draft") throw new Error("Only Draft purchase orders can be edited.");
+  const timestamp = new Date().toISOString();
+  const orderPayload = {
+    supplier_id: isUuid(order.supplierId) ? order.supplierId : null,
+    updated_at: timestamp,
+  };
+  const orderResult = await supabase
+    .from("inventory_purchase_orders")
+    .update(orderPayload)
+    .eq("id", order.id)
+    .eq("status", "draft")
+    .select("*")
+    .single();
+  debugLog("[POSubmitDebug]", { action: "edit-order", orderId: order.id, payload: orderPayload, result: { data: orderResult.data, error: orderResult.error }, error: orderResult.error });
+  if (orderResult.error) throw orderResult.error;
+
+  const deleteResult = await supabase
+    .from("inventory_purchase_order_items")
+    .delete()
+    .eq("purchase_order_id", order.id);
+  debugLog("[POSubmitDebug]", { action: "replace-order-items-delete", orderId: order.id, result: { data: deleteResult.data || null, error: deleteResult.error }, error: deleteResult.error });
+  if (deleteResult.error) throw deleteResult.error;
+
+  const itemPayload = (order.lines || [])
+    .filter((line) => isUuid(line.itemId) && Number(line.requestedQty || 0) > 0)
+    .map((line) => ({
+      purchase_order_id: order.id,
+      item_id: line.itemId,
+      requested_qty: Number(line.requestedQty || 0),
+      received_qty: 0,
+      unit: line.unit || null,
+      remark: line.remark || null,
+      source_stock_check_item_id: isUuid(line.sourceStockCheckItemId) ? line.sourceStockCheckItemId : null,
+      created_at: line.createdAt || timestamp,
+      updated_at: timestamp,
+    }));
+  if (!itemPayload.length) throw new Error("Purchase order requires at least one item.");
+  const itemsResult = await supabase
+    .from("inventory_purchase_order_items")
+    .insert(itemPayload)
+    .select("*");
+  debugLog("[POSubmitDebug]", { action: "replace-order-items-insert", orderId: order.id, payload: itemPayload, result: { data: itemsResult.data, error: itemsResult.error }, error: itemsResult.error });
+  if (itemsResult.error) throw itemsResult.error;
+  return mapRemotePurchaseOrder(orderResult.data, itemsResult.data || [], []);
+}
+
+async function persistRemotePurchaseOrderCancel(order = {}, reason = "") {
+  if (!isUuid(order.id)) throw new Error("Valid purchase order is required.");
+  const hasReceived = receivedQty(order) > 0;
+  const cancellableStatus = ["draft", "submitted", "supplier_confirmed"].includes(order.status);
+  if (!cancellableStatus || hasReceived) throw new Error("PO cannot be cancelled after receiving has started.");
+  const timestamp = new Date().toISOString();
+  const payload = {
+    status: "cancelled",
+    cancellation_reason: reason,
+    cancelled_at: timestamp,
+    updated_at: timestamp,
+  };
+  const result = await supabase
+    .from("inventory_purchase_orders")
+    .update(payload)
+    .eq("id", order.id)
+    .select("*")
+    .single();
+  debugLog("[POCancelDebug]", { action: "cancel-po", orderId: order.id, payload, result: { data: result.data, error: result.error }, error: result.error });
+  if (result.error) throw result.error;
+  return fetchRemotePurchaseOrder(order.id);
+}
+
+async function persistRemotePurchaseOrderComplete(order = {}, reason = "") {
+  if (!isUuid(order.id)) throw new Error("Valid purchase order is required.");
+  if (!["partial_received", "fully_received"].includes(order.status)) throw new Error("Only received purchase orders can be completed.");
+  const progress = poProgress(order);
+  const remaining = Math.max(0, progress.ordered - progress.received);
+  const completionType = remaining > 0 ? "partial" : "full";
+  if (completionType === "partial" && !String(reason || "").trim()) throw new Error("Completion reason is required for partially fulfilled POs.");
+  const timestamp = new Date().toISOString();
+  const payload = {
+    status: "completed",
+    completed_at: timestamp,
+    completion_type: completionType,
+    completion_reason: reason || null,
+    unfulfilled_qty: remaining,
+    updated_at: timestamp,
+  };
+  const result = await supabase
+    .from("inventory_purchase_orders")
+    .update(payload)
+    .eq("id", order.id)
+    .select("*")
+    .single();
+  debugLog("[POCompleteDebug]", { action: "complete-po", orderId: order.id, payload, result: { data: result.data, error: result.error }, error: result.error });
+  if (result.error) throw result.error;
+  return fetchRemotePurchaseOrder(order.id);
+}
+
+async function persistRemotePurchaseOrderReceive(order = {}, rows = [], receiptRemark = "", userId) {
+  if (!isUuid(order.id)) throw new Error("Valid purchase order is required.");
+  if (["cancelled", "completed"].includes(order.status)) throw new Error("Cannot receive a Cancelled or Completed PO.");
+  const receivedRows = rows.filter((row) => Number(row.receiveNowQty || 0) > 0);
+  if (!receivedRows.length) throw new Error("Enter received quantity for at least one item.");
+  const invalidRow = receivedRows.find((row) => Number(row.receiveNowQty || 0) < 0 || Number(row.receiveNowQty || 0) > remainingQty(row));
+  if (invalidRow) throw new Error("Receive quantity cannot exceed remaining quantity.");
+  const receivedAt = new Date().toISOString();
+  const receiptPayload = {
+    purchase_order_id: order.id,
+    outlet_id: order.outletId || order.outletIds?.[0] || null,
+    supplier_id: order.supplierId || null,
+    received_by: userId || null,
+    received_at: receivedAt,
+    remark: receiptRemark || null,
+    created_at: receivedAt,
+  };
+  const receiptResult = await supabase
+    .from("inventory_purchase_receipts")
+    .insert(receiptPayload)
+    .select("*")
+    .single();
+  debugLog("[POReceiveDebug]", { action: "insert-receipt", orderId: order.id, payload: receiptPayload, result: { data: receiptResult.data, error: receiptResult.error }, error: receiptResult.error });
+  if (receiptResult.error) throw receiptResult.error;
+
+  const receiptItemsPayload = receivedRows.map((row) => ({
+    receipt_id: receiptResult.data.id,
+    purchase_order_item_id: isUuid(row.id) ? row.id : null,
+    item_id: isUuid(row.itemId) ? row.itemId : null,
+    received_qty: Number(row.receiveNowQty || 0),
+    unit: row.unit || null,
+    remark: row.receiveRemark || null,
+    created_at: receivedAt,
+  }));
+  const receiptItemsResult = await supabase
+    .from("inventory_purchase_receipt_items")
+    .insert(receiptItemsPayload)
+    .select("*");
+  debugLog("[POReceiveDebug]", { action: "insert-receipt-items", orderId: order.id, payload: receiptItemsPayload, result: { data: receiptItemsResult.data, error: receiptItemsResult.error }, error: receiptItemsResult.error });
+  if (receiptItemsResult.error) throw receiptItemsResult.error;
+
+  for (const row of receivedRows) {
+    const nextReceivedQty = Number(row.receivedQty || 0) + Number(row.receiveNowQty || 0);
+    const itemResult = await supabase
+      .from("inventory_purchase_order_items")
+      .update({ received_qty: nextReceivedQty, updated_at: receivedAt })
+      .eq("id", row.id)
+      .select("*")
+      .single();
+    debugLog("[POReceiveDebug]", { action: "update-order-item-received", orderId: order.id, itemId: row.id, nextReceivedQty, result: { data: itemResult.data, error: itemResult.error }, error: itemResult.error });
+    if (itemResult.error) throw itemResult.error;
+  }
+
+  const nextLines = (order.lines || []).map((line) => {
+    const received = receivedRows.find((row) => (row.id || row.itemId) === (line.id || line.itemId));
+    return received ? { ...line, receivedQty: Number(line.receivedQty || 0) + Number(received.receiveNowQty || 0) } : line;
+  });
+  const nextStatus = nextLines.every((line) => remainingQty(line) <= 0) ? "fully_received" : "partial_received";
+  const orderResult = await supabase
+    .from("inventory_purchase_orders")
+    .update({ status: nextStatus, updated_at: receivedAt })
+    .eq("id", order.id)
+    .select("*")
+    .single();
+  debugLog("[POReceiveDebug]", { action: "update-order-status", orderId: order.id, nextStatus, result: { data: orderResult.data, error: orderResult.error }, error: orderResult.error });
+  if (orderResult.error) throw orderResult.error;
+
+  const movementPayload = receivedRows.map((row) => ({
+    outlet_id: order.outletId || order.outletIds?.[0] || null,
+    inventory_item_id: isUuid(row.itemId) ? row.itemId : null,
+    movement_type: "Purchase",
+    quantity: Number(row.receiveNowQty || 0),
+    unit: row.unit || null,
+    reference_type: "purchase_order",
+    reference_id: order.id,
+    reference_no: order.poNo,
+    notes: row.receiveRemark || receiptRemark || "Purchase receive",
+    created_by: userId || null,
+    created_at: receivedAt,
+  }));
+  const movementResult = await supabase
+    .from("inventory_movements")
+    .insert(movementPayload)
+    .select("*");
+  debugLog("[POReceiveDebug]", { action: "insert-movements", orderId: order.id, payload: movementPayload, result: { data: movementResult.data, error: movementResult.error }, error: movementResult.error });
+  if (movementResult.error) throw movementResult.error;
+
+  return {
+    order: await fetchRemotePurchaseOrder(order.id),
+    movements: (movementResult.data || []).map(mapRemoteInventoryMovement),
+  };
+}
+
+async function persistRemoteInventoryMovement(movement = {}, userId) {
+  if (!isUuid(movement.outletId)) throw new Error("Outlet is required.");
+  if (!isUuid(movement.itemId)) throw new Error("Inventory item is required.");
+  const timestamp = movement.date ? new Date(`${movement.date}T00:00:00`).toISOString() : new Date().toISOString();
+  const payload = {
+    outlet_id: movement.outletId,
+    inventory_item_id: movement.itemId,
+    movement_type: toTitle(movement.type || movement.movementType || "adjustment"),
+    quantity: Number(movement.quantity || 0),
+    unit: movement.unit || null,
+    reference_type: movement.referenceType || "manual",
+    reference_id: isUuid(movement.referenceId) ? movement.referenceId : null,
+    reference_no: movement.reference || movement.referenceNo || null,
+    notes: movement.notes || null,
+    created_by: userId || null,
+    created_at: timestamp,
+  };
+  if (!Number.isFinite(payload.quantity) || payload.quantity === 0) throw new Error("Quantity is required.");
+  const result = await supabase
+    .from("inventory_movements")
+    .insert(payload)
+    .select("*")
+    .single();
+  debugLog("[InventoryMovementDebug]", { action: "insert-movement", payload, result: { data: result.data, error: result.error }, error: result.error });
+  if (result.error) throw result.error;
+  return mapRemoteInventoryMovement(result.data);
+}
+
+async function persistRemoteWasteRecord(waste = {}, userId) {
+  if (!isUuid(waste.outletId)) throw new Error("Outlet is required.");
+  if (!isUuid(waste.itemId)) throw new Error("Inventory item is required.");
+  const quantity = Number(waste.quantity || 0);
+  if (!Number.isFinite(quantity) || quantity <= 0) throw new Error("Waste quantity must be greater than zero.");
+  const wasteDate = waste.date || waste.wasteDate || todayInput();
+  const timestamp = new Date().toISOString();
+  const wastePayload = {
+    outlet_id: waste.outletId,
+    inventory_item_id: waste.itemId,
+    waste_type: waste.wasteType || "Unknown",
+    quantity,
+    unit: waste.unit || null,
+    waste_date: wasteDate,
+    notes: waste.notes || null,
+    photo_url: /^https?:\/\//i.test(String(waste.photoUrl || waste.photo_url || "")) ? (waste.photoUrl || waste.photo_url) : null,
+    created_by: userId || null,
+    updated_at: timestamp,
+  };
+  const wasteResult = await supabase
+    .from("inventory_waste_records")
+    .insert(wastePayload)
+    .select("*")
+    .single();
+  debugLog("[WasteSaveDebug]", { action: "insert-waste", payload: wastePayload, result: { data: wasteResult.data, error: wasteResult.error }, error: wasteResult.error });
+  if (wasteResult.error) throw wasteResult.error;
+
+  const shortRef = `WASTE-${String(wasteResult.data.id).slice(0, 8).toUpperCase()}`;
+  try {
+    const movement = await persistRemoteInventoryMovement({
+      outletId: waste.outletId,
+      itemId: waste.itemId,
+      type: "waste",
+      quantity: -Math.abs(quantity),
+      unit: waste.unit || null,
+      referenceType: "waste",
+      referenceId: wasteResult.data.id,
+      reference: shortRef,
+      notes: waste.notes || waste.wasteType || "Waste recorded",
+      date: wasteDate,
+    }, userId);
+    debugLog("[WasteSaveDebug]", { action: "insert-waste-movement", wasteRecordId: wasteResult.data.id, movement, error: null });
+    return { waste: mapRemoteWasteRecord(wasteResult.data), movement };
+  } catch (error) {
+    debugLog("[WasteSaveDebug]", { action: "insert-waste-movement", wasteRecordId: wasteResult.data.id, movement: null, error });
+    const wrapped = new Error("Waste saved, but inventory movement failed.");
+    wrapped.cause = error;
+    wrapped.partialWasteSaved = true;
+    wrapped.waste = mapRemoteWasteRecord(wasteResult.data);
+    throw wrapped;
+  }
+}
+
+async function persistRemoteRecipe(recipe = {}, userId) {
+  if (!isUuid(recipe.outletId)) throw new Error("Outlet is required.");
+  const recipeName = String(recipe.recipeName || recipe.recipe_name || "").trim();
+  if (!recipeName) throw new Error("Recipe name is required.");
+  const ingredients = (recipe.ingredients || recipe.items || []).map((line) => {
+    const quantityUsed = Number(line.quantityUsed ?? line.quantity_used ?? 0);
+    const wastagePercent = Number(line.wastagePercent ?? line.wastage_percent ?? 0);
+    return {
+      id: line.id,
+      inventory_item_id: line.itemId || line.inventory_item_id || "",
+      quantity_used: quantityUsed,
+      unit: line.unit || null,
+      wastage_percent: Number.isFinite(wastagePercent) ? wastagePercent : 0,
+      remark: line.remark || null,
+    };
+  });
+  if (!ingredients.length) throw new Error("At least one ingredient is required.");
+  if (ingredients.some((line) => !isUuid(line.inventory_item_id))) throw new Error("Every ingredient needs an inventory item.");
+  if (ingredients.some((line) => !Number.isFinite(line.quantity_used) || line.quantity_used <= 0)) throw new Error("Quantity used must be greater than zero.");
+  if (ingredients.some((line) => !Number.isFinite(line.wastage_percent) || line.wastage_percent < 0)) throw new Error("Wastage percentage cannot be negative.");
+
+  const servingSize = Number(recipe.servingSize ?? recipe.serving_size ?? "");
+  const recipePayload = {
+    outlet_id: recipe.outletId,
+    recipe_name: recipeName,
+    menu_category: recipe.menuCategory || recipe.menu_category || null,
+    serving_size: Number.isFinite(servingSize) && servingSize >= 0 ? servingSize : null,
+    status: recipe.status || "active",
+    notes: recipe.notes || null,
+    updated_at: new Date().toISOString(),
+  };
+  const mode = isUuid(recipe.id) ? "edit" : "create";
+  const debug = { action: mode, payload: recipePayload, ingredientPayload: ingredients, recipeResult: null, deleteItemsResult: null, insertItemsResult: null, error: null };
+  const recipeResult = mode === "edit"
+    ? await supabase
+      .from("inventory_recipes")
+      .update(recipePayload)
+      .eq("id", recipe.id)
+      .select("*")
+      .single()
+    : await supabase
+      .from("inventory_recipes")
+      .insert({ ...recipePayload, created_by: userId || null })
+      .select("*")
+      .single();
+  debug.recipeResult = { data: recipeResult.data, error: recipeResult.error };
+  if (recipeResult.error) {
+    debug.error = recipeResult.error;
+    debugLog("[RecipeSaveDebug]", debug);
+    throw recipeResult.error;
+  }
+
+  const recipeId = recipeResult.data.id;
+  const deleteItemsResult = await supabase
+    .from("inventory_recipe_items")
+    .delete()
+    .eq("recipe_id", recipeId);
+  debug.deleteItemsResult = { data: deleteItemsResult.data || null, error: deleteItemsResult.error };
+  if (deleteItemsResult.error) {
+    debug.error = deleteItemsResult.error;
+    debugLog("[RecipeSaveDebug]", debug);
+    throw deleteItemsResult.error;
+  }
+
+  const itemPayload = ingredients.map((line) => ({
+    recipe_id: recipeId,
+    inventory_item_id: line.inventory_item_id,
+    quantity_used: line.quantity_used,
+    unit: line.unit,
+    wastage_percent: line.wastage_percent,
+    remark: line.remark,
+    updated_at: new Date().toISOString(),
+  }));
+  const insertItemsResult = await supabase
+    .from("inventory_recipe_items")
+    .insert(itemPayload)
+    .select("*");
+  debug.insertItemsResult = { data: insertItemsResult.data, error: insertItemsResult.error };
+  if (insertItemsResult.error) {
+    debug.error = insertItemsResult.error;
+    debugLog("[RecipeSaveDebug]", debug);
+    throw insertItemsResult.error;
+  }
+
+  debugLog("[RecipeSaveDebug]", debug);
+  return mapRemoteRecipe(recipeResult.data, insertItemsResult.data || []);
+}
+
+async function archiveRemoteRecipe(recipeId) {
+  if (!isUuid(recipeId)) throw new Error("Recipe is required.");
+  const result = await supabase
+    .from("inventory_recipes")
+    .update({ status: "inactive", updated_at: new Date().toISOString() })
+    .eq("id", recipeId)
+    .select("*")
+    .single();
+  debugLog("[RecipeSaveDebug]", { action: "archive", recipeId, result: { data: result.data, error: result.error }, error: result.error });
+  if (result.error) throw result.error;
+  return mapRemoteRecipe(result.data, []);
 }
 
 function uomOptionLabel(uom = {}) {
@@ -1221,6 +2123,10 @@ function parLevelForOutlet(item = {}, outletId) {
   return outletConfigForItem(item, outletId).parLevel;
 }
 
+function ordersSuffix(value) {
+  return String(value || "GEN").slice(-3).toUpperCase();
+}
+
 function orderedQty(order = {}) {
   return (order.lines || []).reduce((sum, line) => sum + Number(line.requestedQty || 0), 0);
 }
@@ -1241,7 +2147,7 @@ function poProgress(order = {}) {
 }
 
 function normalizeInventoryData(raw, outlets = [], suppliers = [], options = {}) {
-  const fallback = defaultData(outlets, suppliers);
+  const fallback = import.meta.env.DEV ? defaultData(outlets, suppliers) : emptyInventoryData();
   const source = raw || fallback;
   const allowEmptyMaster = Boolean(options.allowEmptyMaster);
   const categories = allowEmptyMaster ? (source.categories ?? []) : (source.categories?.length ? source.categories : fallback.categories);
@@ -1257,9 +2163,24 @@ function normalizeInventoryData(raw, outlets = [], suppliers = [], options = {})
     checks: source.checks ?? [],
     requests: source.requests ?? [],
     orders: source.orders ?? [],
-    movements: source.movements ?? fallback.movements,
+    movements: source.movements ?? [],
     waste: source.waste ?? [],
     recipes: source.recipes ?? [],
+  };
+}
+
+function emptyInventoryData() {
+  return {
+    categories: [],
+    uoms: [],
+    items: [],
+    groups: [],
+    checks: [],
+    requests: [],
+    orders: [],
+    movements: [],
+    waste: [],
+    recipes: [],
   };
 }
 
@@ -1415,6 +2336,11 @@ function useInventoryData(outlets, suppliers) {
         items: remote.items,
         uoms: remote.uoms,
         groups: remote.groups,
+        checks: remote.checks,
+        orders: remote.orders,
+        movements: remote.movements,
+        waste: remote.waste,
+        recipes: remote.recipes,
       }, outlets, suppliers, { allowEmptyMaster: true }));
       setMeta({
         dataSource: "supabase",
@@ -1540,7 +2466,7 @@ function LinkedOutletsSummary({ item, outlets, onConfigure }) {
 
   useEffect(() => {
     if (!import.meta.env.DEV) return;
-    console.log("[OutletChipDebug]", {
+    debugLog("[OutletChipDebug]", {
       browser: navigator.userAgent,
       linkedOutletsRaw,
       mappedOutletLabels,
@@ -1850,12 +2776,9 @@ function readImportValue(row, aliases) {
 function buildInventoryImportPreview(rows, { categories, outlets, items, uoms }) {
   const categoryByName = new Map(categories.map((category) => [canonical(category.name), category]));
   const uomByCode = new Map(uoms.map((uom) => [canonical(uom.code), uom]));
-  const outletByCode = new Map(outlets.flatMap((outlet) => {
+  const outletByCode = new Map(outlets.map((outlet) => {
     const normalized = normalizeOutletRecord(outlet);
-    return [
-      [canonical(normalized.code || ""), normalized],
-      [canonical(normalized.name || ""), normalized],
-    ];
+    return [canonical(normalized.code || ""), normalized];
   }).filter(([key]) => key));
   const existingBySku = new Map(items.filter((item) => item.sku).map((item) => [canonical(item.sku), item]));
   const existingByName = new Map(items.map((item) => [canonical(item.name), item]));
@@ -1905,7 +2828,7 @@ function buildInventoryImportPreview(rows, { categories, outlets, items, uoms })
     return {
       rowNumber: row.__row,
       source: row,
-      action: existing ? "update" : "create",
+      action: errors.length ? "error" : existing ? "update" : "create",
       errors,
       warnings,
       item: {
@@ -1930,6 +2853,7 @@ function InventoryImportModal({ categories, outlets, items, uoms, onClose, onImp
   const [preview, setPreview] = useState([]);
   const [error, setError] = useState("");
   const [complete, setComplete] = useState(null);
+  const [isImporting, setIsImporting] = useState(false);
   const validRows = preview.filter((row) => !row.errors.length);
   const failedRows = preview.filter((row) => row.errors.length);
 
@@ -1961,9 +2885,17 @@ function InventoryImportModal({ categories, outlets, items, uoms, onClose, onImp
     downloadTextFile("feedx-master-inventory-template.csv", text);
   }
 
-  function confirmImport() {
-    const result = onImport(validRows);
-    setComplete(result);
+  async function confirmImport() {
+    setError("");
+    setIsImporting(true);
+    try {
+      const result = await onImport(preview);
+      setComplete(result);
+    } catch (importError) {
+      setError(importError.message || "Unable to import master inventory.");
+    } finally {
+      setIsImporting(false);
+    }
   }
 
   return (
@@ -1975,7 +2907,7 @@ function InventoryImportModal({ categories, outlets, items, uoms, onClose, onImp
       footer={(
         <>
           <button className="btn-secondary" type="button" onClick={onClose}>Close</button>
-          <button className="btn-primary" type="button" disabled={!validRows.length || Boolean(complete)} onClick={confirmImport}>Confirm Import</button>
+          <button className="btn-primary" type="button" disabled={!validRows.length || Boolean(complete) || isImporting} onClick={confirmImport}>{isImporting ? "Importing..." : "Confirm Import"}</button>
         </>
       )}
     >
@@ -2014,7 +2946,7 @@ function InventoryImportModal({ categories, outlets, items, uoms, onClose, onImp
                   {preview.slice(0, 80).map((row) => (
                     <tr key={row.rowNumber} className={row.errors.length ? "bg-rose-50/50" : "bg-white"}>
                       <td className="px-3 py-2 font-mono text-xs">{row.rowNumber}</td>
-                      <td><Badge tone={row.action === "create" ? "success" : "info"}>{toTitle(row.action)}</Badge></td>
+                      <td><Badge tone={row.action === "error" ? "danger" : row.action === "create" ? "success" : "info"}>{row.action === "error" ? "Error" : toTitle(row.action)}</Badge></td>
                       <td className="font-bold text-text-primary">{row.item.name || "-"}</td>
                       <td>{categoryByIdName(categories, row.item.categoryId)}</td>
                       <td>{row.item.unit || "-"}</td>
@@ -2025,7 +2957,12 @@ function InventoryImportModal({ categories, outlets, items, uoms, onClose, onImp
                 </tbody>
               </table>
             </div>
-            {complete ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 type-body-sm font-semibold text-emerald-700">Import complete: {complete.created} created · {complete.updated} updated · {failedRows.length} skipped.</div> : null}
+            {complete ? (
+              <div className={`rounded-2xl border p-3 type-body-sm font-semibold ${complete.failed ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                Import complete: {complete.created} created · {complete.updated} updated · {complete.skipped} skipped · {complete.failed} failed.
+                {complete.failures?.length ? <div className="mt-1 font-medium">{complete.failures.slice(0, 3).map((failure) => `Row ${failure.rowNumber}: ${failure.message}`).join(" · ")}</div> : null}
+              </div>
+            ) : null}
           </>
         ) : null}
       </div>
@@ -2620,101 +3557,6 @@ function SkipReasonModal({ itemName, onClose, onSave }) {
   );
 }
 
-function RequestModal({ outlets, items, categories, suppliers, onClose, onSave }) {
-  const [outletId, setOutletId] = useState(outlets[0]?.id ?? "");
-  const outletItems = items.filter((item) => item.linkedOutletIds?.includes(outletId) && item.status === "active");
-  const [lines, setLines] = useState([]);
-  const itemById = new Map(items.map((item) => [item.id, item]));
-
-  function addLine(item) {
-    const suggestedQty = Math.max(1, Number(parLevelForOutlet(item, outletId) || 0));
-    setLines((current) => [...current, { itemId: item.id, currentQty: 0, suggestedQty, requestedQty: suggestedQty, priority: "Normal", notes: "" }]);
-  }
-
-  return (
-    <Modal
-      title="Create Stock Request"
-      description="Draft a replenishment request from low stock or operational needs."
-      size="xl"
-      onClose={onClose}
-      footer={(
-        <>
-          <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-          <button
-            className="btn-primary"
-            type="button"
-            disabled={!outletId || !lines.length}
-            onClick={() => onSave({
-              id: makeId("req"),
-              requestNo: `REQ-${Date.now().toString().slice(-6)}`,
-              outletId,
-              date: todayInput(),
-              requestedBy: "Current User",
-              status: "draft",
-              lines,
-            })}
-          >
-            Save Request
-          </button>
-        </>
-      )}
-    >
-      <div className="grid gap-4 lg:grid-cols-[0.8fr_1.2fr]">
-        <div className="space-y-3">
-          <SelectField label="Outlet" value={outletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={setOutletId} searchable />
-          <div className="rounded-2xl border border-border p-3">
-            <div className="mb-2 type-caption font-semibold text-text-secondary">Available Items</div>
-            <div className="max-h-72 space-y-2 overflow-y-auto">
-              {outletItems.map((item) => {
-                const category = categories.find((entry) => entry.id === item.categoryId);
-                return (
-                  <button key={item.id} className="flex w-full items-center justify-between rounded-xl border border-border px-3 py-2 text-left transition hover:border-primary/30 hover:bg-primary/5" type="button" onClick={() => addLine(item)}>
-                    <span>
-                      <span className="block type-body-sm font-bold text-text-primary">{item.name}</span>
-                      <span className="type-caption text-text-secondary">{category?.name ?? "Uncategorized"} · Par {parLevelForOutlet(item, outletId)} {item.unit}</span>
-                    </span>
-                    <PackagePlus size={16} className="text-primary" />
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </div>
-        <div className="rounded-2xl border border-border bg-slate-50/70 p-3">
-          <div className="mb-3 flex items-center justify-between">
-            <div className="type-title font-bold text-text-primary">Request Detail</div>
-            <Badge tone={lines.length ? "success" : "neutral"}>{lines.length} items</Badge>
-          </div>
-          {lines.length ? (
-            <div className="space-y-2">
-              {lines.map((line, index) => {
-                const item = itemById.get(line.itemId);
-                const supplier = suppliers.find((entry) => entry.id === item?.defaultSupplierId);
-                return (
-                  <div key={`${line.itemId}-${index}`} className="rounded-2xl border border-border bg-white p-3">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="type-body-sm font-bold text-text-primary">{item?.name}</div>
-                        <div className="type-caption text-text-secondary">{supplier?.name ?? "No supplier"} · Suggested {line.suggestedQty} {item?.unit}</div>
-                      </div>
-                      <button className="icon-btn" type="button" onClick={() => setLines((current) => current.filter((_, lineIndex) => lineIndex !== index))}><Trash2 size={14} /></button>
-                    </div>
-                    <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                      <Field label="Current Qty" type="number" value={line.currentQty} onChange={(value) => setLines((current) => current.map((entry, lineIndex) => lineIndex === index ? { ...entry, currentQty: parseNonNegativeNumber(value) } : entry))} />
-                      <Field label="Requested Qty" type="number" value={line.requestedQty} onChange={(value) => setLines((current) => current.map((entry, lineIndex) => lineIndex === index ? { ...entry, requestedQty: parseNonNegativeNumber(value) } : entry))} />
-                      <SelectField label="Priority" value={line.priority} options={["Low", "Normal", "High", "Urgent"].map((priority) => ({ value: priority, label: priority }))} onChange={(value) => setLines((current) => current.map((entry, lineIndex) => lineIndex === index ? { ...entry, priority: value } : entry))} />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          ) : <EmptyState title="No request items yet" description="Add low stock or replenishment items from the outlet-linked inventory list." />}
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
 function MovementModal({ outlets, items, onClose, onSave }) {
   const [form, setForm] = useState({
     id: "",
@@ -2764,6 +3606,7 @@ function WasteModal({ outlet, items, onClose, onSave }) {
     notes: "",
   });
   const [photoError, setPhotoError] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
   const selectedItem = items.find((item) => item.id === form.itemId);
   const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
 
@@ -2782,6 +3625,15 @@ function WasteModal({ outlet, items, onClose, onSave }) {
     }
   }
 
+  async function handleSave() {
+    setIsSaving(true);
+    try {
+      await onSave({ ...form, unit: selectedItem?.unit || selectedItem?.uom_code || "" });
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
   return (
     <Modal
       title="Record Waste"
@@ -2790,7 +3642,7 @@ function WasteModal({ outlet, items, onClose, onSave }) {
       footer={(
         <>
           <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="button" disabled={!form.itemId || !form.outletId || !Number(form.quantity)} onClick={() => onSave({ ...form, id: makeId("waste"), value: 0 })}>Save Waste</button>
+          <button className="btn-primary" type="button" disabled={isSaving || !form.itemId || !form.outletId || Number(form.quantity) <= 0} onClick={handleSave}>{isSaving ? "Saving..." : "Save Waste"}</button>
         </>
       )}
     >
@@ -2832,12 +3684,13 @@ function WasteModal({ outlet, items, onClose, onSave }) {
 }
 
 function RecipeModal({ recipe, outlets, items, onClose, onSave }) {
+  const [isSaving, setIsSaving] = useState(false);
   const [form, setForm] = useState(() => ({
     id: recipe?.id || "",
     outletId: recipe?.outletId || outlets[0]?.id || "",
     recipeName: recipe?.recipeName || recipe?.recipe_name || "",
     menuCategory: recipe?.menuCategory || recipe?.menu_category || recipeMenuCategories[0],
-    servingSize: recipe?.servingSize || recipe?.serving_size || "1 portion",
+    servingSize: recipe?.servingSize || recipe?.serving_size || "1",
     status: recipe?.status || "active",
     notes: recipe?.notes || "",
     ingredients: (recipe?.ingredients || recipe?.items || []).map((line) => ({
@@ -2882,6 +3735,15 @@ function RecipeModal({ recipe, outlets, items, onClose, onSave }) {
   };
   const removeIngredient = (id) => setForm((current) => ({ ...current, ingredients: current.ingredients.filter((line) => line.id !== id) }));
   const invalid = !form.recipeName.trim() || !form.outletId || !form.ingredients.length || form.ingredients.some((line) => !line.itemId || Number(line.quantityUsed || 0) <= 0);
+  const handleSave = async () => {
+    if (invalid || isSaving) return;
+    setIsSaving(true);
+    try {
+      await onSave({ ...form });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
     <Modal
@@ -2892,7 +3754,7 @@ function RecipeModal({ recipe, outlets, items, onClose, onSave }) {
       footer={(
         <>
           <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="button" disabled={invalid} onClick={() => onSave({ ...form, id: form.id || makeId("recipe") })}>Save Recipe</button>
+          <button className="btn-primary" type="button" disabled={invalid || isSaving} onClick={handleSave}>{isSaving ? "Saving..." : "Save Recipe"}</button>
         </>
       )}
     >
@@ -2902,7 +3764,7 @@ function RecipeModal({ recipe, outlets, items, onClose, onSave }) {
           <SelectField label="Outlet" value={form.outletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={(value) => update("outletId", value)} searchable />
           <SelectField label="Menu Category" value={form.menuCategory} options={recipeMenuCategories.map((category) => ({ value: category, label: category }))} onChange={(value) => update("menuCategory", value)} />
           <SelectField label="Status" value={form.status} options={statuses.map((status) => ({ value: status, label: toTitle(status) }))} onChange={(value) => update("status", value)} />
-          <Field label="Serving Size / Yield" value={form.servingSize} onChange={(value) => update("servingSize", value)} placeholder="1 portion" />
+          <Field label="Serving Size / Yield" value={form.servingSize} onChange={(value) => update("servingSize", value)} placeholder="1" />
           <div className="rounded-2xl border border-primary/15 bg-primary/5 p-3 type-caption text-text-secondary">
             Ingredient selector only shows active inventory items linked to the selected outlet.
           </div>
@@ -3433,6 +4295,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [parLevelSaveState, setParLevelSaveState] = useState("saved");
   const [uomWriteStatus, setUomWriteStatus] = useState("Not written");
   const [poFilters, setPoFilters] = useState({ outletId: "all", supplierId: "all", status: "all", source: "all", search: "", from: "", to: "" });
+  const [movementFilters, setMovementFilters] = useState({ outletId: "all", movementType: "all", search: "", from: "", to: "" });
   const [wasteFilters, setWasteFilters] = useState({ wasteType: "all", from: "", to: "", search: "" });
   const [recipeFilters, setRecipeFilters] = useState({ category: "all", status: "active", search: "" });
   const [date, setDate] = useState(todayInput());
@@ -3485,8 +4348,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     createCheck: hasPermission(auth, "inventory_stock_check.create") || hasPermission(auth, "inventory_stock_check.audit"),
     editCheck: hasPermission(auth, "inventory_stock_check.edit"),
     reviewCheck: hasPermission(auth, "inventory_stock_check.review"),
-    createRequest: hasPermission(auth, "inventory_requests.create"),
-    approveRequest: hasPermission(auth, "inventory_requests.approve"),
     viewPo: hasPermission(auth, "inventory_orders.view"),
     generatePo: hasPermission(auth, "inventory_orders.create"),
     editPo: hasPermission(auth, "inventory_orders.edit"),
@@ -3501,7 +4362,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     viewWaste: hasPermission(auth, "inventory_waste.view"),
     viewInsights: hasPermission(auth, "inventory_dashboard.view"),
     viewRecipes: hasPermission(auth, "inventory_recipes.view"),
-    manageRecipes: hasPermission(auth, "inventory_recipes.create") || hasPermission(auth, "inventory_recipes.edit") || hasPermission(auth, "inventory_recipes.manage"),
+    manageRecipes: hasPermission(auth, "inventory_recipes.manage"),
     exportRecipes: hasPermission(auth, "inventory_recipes.export"),
   }), [auth]);
 
@@ -3536,7 +4397,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }), [data.items, selectedOutletId, canSeeAllMasterItems, accessibleOutletIds, query, categoryFilter, categoryById, statusFilter]);
   useEffect(() => {
     if (activeTab !== "master") return;
-    console.log("[InventoryFilterDebug]", {
+    debugLog("[InventoryFilterDebug]", {
       outletFilter: selectedOutletId,
       categoryFilter,
       statusFilter,
@@ -3545,7 +4406,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       afterFilterCount: visibleItems.length,
       visibleNames: visibleItems.map((item) => item.name),
     });
-    console.log("[InventoryMissingAnalysis]", {
+    debugLog("[InventoryMissingAnalysis]", {
       allInventoryItemsCount: inventoryMeta.rawItemsCount || data.items.length,
       allInventoryItemNames: data.items.map((item) => item.name),
       afterStatusFilterCount: data.items.filter((item) => String(item.status || "").toLowerCase() === "active").length,
@@ -3570,9 +4431,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   useEffect(() => {
     if (activeTab !== "master") return;
     const itemNames = visibleItems.map((item) => item.name);
-    console.log("[InventoryDesktopItems]", itemNames);
-    console.log("[InventoryMobileItems]", itemNames);
-    console.log("[SafariInventoryDebug]", {
+    debugLog("[InventoryDesktopItems]", itemNames);
+    debugLog("[InventoryMobileItems]", itemNames);
+    debugLog("[SafariInventoryDebug]", {
       browser: navigator.userAgent,
       build: import.meta.env.VITE_APP_VERSION || import.meta.env.MODE,
       userEmail: auth?.user?.email || auth?.profile?.email || "",
@@ -3589,7 +4450,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       dataSource: inventoryMeta.dataSource,
       lastFetchedAt: inventoryMeta.lastFetchedAt,
     });
-    console.table(visibleItems.map((item) => ({
+    debugTable(visibleItems.map((item) => ({
       name: item.name,
       category: categoryForItem(item, categoryById)?.name || item.category_name || "Uncategorized",
       uom: item.uom_code || item.unit,
@@ -3658,7 +4519,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       notify("Inventory item saved");
     } catch (error) {
       console.warn("[InventoryControl] Unable to save inventory item to Supabase.", error);
-      if (error?.debug) console.log("[InventorySaveDebug]", error.debug);
+      if (error?.debug) debugLog("[InventorySaveDebug]", error.debug);
       await refreshInventory();
       if (error?.partialItemSaved) {
         notify("Item saved, but outlet links failed", error.cause?.message || error.message || "Please check outlet access and try again.", "warning");
@@ -3680,7 +4541,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     };
     try {
       const savedCategory = await persistRemoteInventoryCategory(normalized);
-      console.log("[CategoryActionDebug]", {
+      debugLog("[CategoryActionDebug]", {
         action: isUuid(category.id) ? "edit" : "create",
         categoryId: savedCategory.id,
         categoryName: savedCategory.name,
@@ -3699,7 +4560,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       notify("Inventory category saved");
     } catch (error) {
       console.warn("[InventoryControl] Unable to save inventory category.", error);
-      console.log("[CategoryActionDebug]", {
+      debugLog("[CategoryActionDebug]", {
         action: isUuid(category.id) ? "edit" : "create",
         categoryId: category.id,
         categoryName: category.name,
@@ -3737,7 +4598,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       return savedUom;
     } catch (error) {
       console.warn("[InventoryControl] Unable to save UOM.", error);
-      console.log("[UomSaveDebug]", { action: isUuid(normalized.id) ? "update" : "create", payload: normalized, result: null, error });
+      debugLog("[UomSaveDebug]", { action: isUuid(normalized.id) ? "update" : "create", payload: normalized, result: null, error });
       setUomWriteStatus(`Failed: ${error.message || "Unable to save"}`);
       notify("Unable to save UOM", error.message || "Please try again.", "error");
       return null;
@@ -3768,7 +4629,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       return savedUom;
     } catch (error) {
       console.warn("[InventoryControl] Unable to save quick UOM.", error);
-      console.log("[UomSaveDebug]", { action: "create", payload: normalized, result: null, error });
+      debugLog("[UomSaveDebug]", { action: "create", payload: normalized, result: null, error });
       setUomWriteStatus(`Failed: ${error.message || "Unable to save"}`);
       notify("Unable to save UOM", error.message || "Please try again.", "error");
       return null;
@@ -3814,7 +4675,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   async function archiveCategory(category) {
     try {
       const savedCategory = await persistRemoteInventoryCategory({ ...category, status: "inactive" });
-      console.log("[CategoryActionDebug]", {
+      debugLog("[CategoryActionDebug]", {
         action: "archive",
         categoryId: category.id,
         categoryName: category.name,
@@ -3830,7 +4691,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       notify("Inventory category archived");
     } catch (error) {
       console.warn("[InventoryControl] Unable to archive inventory category.", error);
-      console.log("[CategoryActionDebug]", {
+      debugLog("[CategoryActionDebug]", {
         action: "archive",
         categoryId: category.id,
         categoryName: category.name,
@@ -3846,7 +4707,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     try {
       const linkedItemCount = await countRemoteInventoryItemsForCategory(category.id);
       if (linkedItemCount > 0) {
-        console.log("[CategoryActionDebug]", {
+        debugLog("[CategoryActionDebug]", {
           action: "delete",
           categoryId: category.id,
           categoryName: category.name,
@@ -3862,7 +4723,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         .delete()
         .eq("id", category.id);
       if (error) throw error;
-      console.log("[CategoryActionDebug]", {
+      debugLog("[CategoryActionDebug]", {
         action: "delete",
         categoryId: category.id,
         categoryName: category.name,
@@ -3878,7 +4739,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       notify("Inventory category deleted");
     } catch (error) {
       console.warn("[InventoryControl] Unable to delete inventory category.", error);
-      console.log("[CategoryActionDebug]", {
+      debugLog("[CategoryActionDebug]", {
         action: "delete",
         categoryId: category.id,
         categoryName: category.name,
@@ -3904,7 +4765,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       notify(uom.isActive ? "Inventory UOM archived" : "Inventory UOM activated", savedUom.code);
     } catch (error) {
       console.warn("[InventoryControl] Unable to archive UOM.", error);
-      console.log("[UomSaveDebug]", { action, payload: uom, result: null, error });
+      debugLog("[UomSaveDebug]", { action, payload: uom, result: null, error });
       setUomWriteStatus(`Failed: ${error.message || "Unable to update"}`);
       notify("Unable to update UOM", error.message || "Please try again.", "error");
     }
@@ -3915,7 +4776,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       setUomWriteStatus("Deleting");
       const linkedItemCount = await countRemoteInventoryItemsForUom(uom.code);
       if (linkedItemCount > 0) {
-        console.log("[UomSaveDebug]", { action: "delete", payload: uom, result: "blocked", linkedItemCount, error: null });
+        debugLog("[UomSaveDebug]", { action: "delete", payload: uom, result: "blocked", linkedItemCount, error: null });
         setUomWriteStatus(`Blocked: ${uom.code} is used`);
         notify("Cannot delete this UOM", `Cannot delete this UOM because it is used by ${linkedItemCount} inventory item${linkedItemCount === 1 ? "" : "s"}. Archive it instead.`, "warning");
         return;
@@ -3924,7 +4785,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         .from("inventory_uoms")
         .delete()
         .eq("id", uom.id);
-      console.log("[UomSaveDebug]", { action: "delete", payload: uom, result: { data: result.data || null, error: result.error }, error: result.error });
+      debugLog("[UomSaveDebug]", { action: "delete", payload: uom, result: { data: result.data || null, error: result.error }, error: result.error });
       if (result.error) throw result.error;
       setData((current) => ({ ...current, uoms: (current.uoms || []).filter((entry) => entry.id !== uom.id) }));
       await refreshInventory();
@@ -3932,44 +4793,76 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       notify("Inventory UOM deleted", uom.code);
     } catch (error) {
       console.warn("[InventoryControl] Unable to delete UOM.", error);
-      console.log("[UomSaveDebug]", { action: "delete", payload: uom, result: null, error });
+      debugLog("[UomSaveDebug]", { action: "delete", payload: uom, result: null, error });
       setUomWriteStatus(`Failed: ${error.message || "Unable to delete"}`);
       notify("Unable to delete UOM", error.message || "Please try again.", "error");
     }
   }
 
-  function importInventoryRows(rows) {
+  async function importInventoryRows(previewRows) {
+    const validRows = previewRows.filter((row) => !row.errors.length);
+    const invalidRows = previewRows.filter((row) => row.errors.length);
     let created = 0;
     let updated = 0;
-    setData((current) => {
-      let nextItems = [...current.items];
-      rows.forEach((row) => {
-        const incoming = row.item;
-        const existingIndex = nextItems.findIndex((item) => (
-          incoming.sku ? canonical(item.sku) === canonical(incoming.sku) : canonical(item.name) === canonical(incoming.name)
-        ));
-        const existing = existingIndex >= 0 ? nextItems[existingIndex] : null;
-        const mergedLinkedIds = uniqueIds([...(existing?.linkedOutletIds || []), ...(incoming.linkedOutletIds || [])]);
-        const existingConfigs = new Map((existing?.outletConfigs || []).map((config) => [config.outletId, config]));
-        const nextItem = normalizeInventoryItem({
-          ...(existing || {}),
-          ...incoming,
-          id: existing?.id || makeId("item"),
-          linkedOutletIds: mergedLinkedIds,
-          outletConfigs: mergedLinkedIds.map((outletId) => buildOutletConfig(existing || incoming, outletId, existingConfigs.get(outletId))),
-        });
-        if (existingIndex >= 0) {
-          updated += 1;
-          nextItems = nextItems.map((item, index) => index === existingIndex ? nextItem : item);
-        } else {
-          created += 1;
-          nextItems = [nextItem, ...nextItems];
-        }
+    const failures = [];
+
+    for (const row of validRows) {
+      const incoming = row.item;
+      const existing = data.items.find((item) => (
+        incoming.sku ? canonical(item.sku) === canonical(incoming.sku) : canonical(item.name) === canonical(incoming.name)
+      )) || null;
+      const linkedOutletIds = uniqueIds(incoming.linkedOutletIds || []);
+      const existingConfigs = new Map((existing?.outletConfigs || []).map((config) => [config.outletId, config]));
+      const remoteItem = normalizeInventoryItem({
+        ...(existing || {}),
+        ...incoming,
+        id: existing?.id || incoming.id || "",
+        photo: existing?.photo || existing?.photo_url || incoming.photo || "",
+        photo_url: existing?.photo_url || existing?.photo || incoming.photo || "",
+        linkedOutletIds,
+        outletConfigs: linkedOutletIds.map((outletId) => buildOutletConfig(existing || incoming, outletId, existingConfigs.get(outletId))),
       });
-      return { ...current, items: nextItems };
-    });
-    notify("Master inventory imported", `${created} created · ${updated} updated.`);
-    return { created, updated };
+
+      try {
+        const result = await persistRemoteInventoryItem(remoteItem, auth?.user?.id);
+        debugLog("[InventoryImportDebug]", {
+          rowNumber: row.rowNumber,
+          action: row.action,
+          item: remoteItem.name,
+          linkedOutletIds,
+          result,
+          error: null,
+        });
+        if (row.action === "update" || existing) updated += 1;
+        else created += 1;
+      } catch (error) {
+        console.warn("[InventoryControl] Unable to import inventory row.", error);
+        debugLog("[InventoryImportDebug]", {
+          rowNumber: row.rowNumber,
+          action: row.action,
+          item: remoteItem.name,
+          linkedOutletIds,
+          result: null,
+          error,
+        });
+        failures.push({ rowNumber: row.rowNumber, message: error?.cause?.message || error?.message || "Remote save failed" });
+      }
+    }
+
+    await refreshInventory();
+    const result = {
+      created,
+      updated,
+      skipped: invalidRows.length,
+      failed: failures.length,
+      failures,
+    };
+    if (failures.length) {
+      notify("Master inventory import completed with errors", `${created} created · ${updated} updated · ${invalidRows.length} skipped · ${failures.length} failed.`, "warning");
+    } else {
+      notify("Master inventory imported", `${created} created · ${updated} updated · ${invalidRows.length} skipped.`);
+    }
+    return result;
   }
 
   function exportMasterInventory() {
@@ -4157,7 +5050,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       setParLevelSaveState("saved");
     } catch (error) {
       console.warn("[InventoryControl] Unable to save Par Level config.", error);
-      console.log("[ParLevelSaveDebug]", { action: "save", itemId, outletId, payload: patch, result: null, error });
+      debugLog("[ParLevelSaveDebug]", { action: "save", itemId, outletId, payload: patch, result: null, error });
       setParLevelSaveState("error");
       notify("Unable to save Par Level", error.message || "Please try again.", "error");
     }
@@ -4183,7 +5076,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       notify("Stock check group saved");
     } catch (error) {
       console.warn("[InventoryControl] Unable to save stock check group.", error);
-      console.log("[StockCheckGroupSaveDebug]", { action: isUuid(group.id) ? "edit" : "create", payload: normalizedGroup, result: null, error });
+      debugLog("[StockCheckGroupSaveDebug]", { action: isUuid(group.id) ? "edit" : "create", payload: normalizedGroup, result: null, error });
       notify("Unable to save stock check group", error.message || "Please try again.", "error");
     }
   }
@@ -4218,12 +5111,67 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       notify("Stock check group archived");
     } catch (error) {
       console.warn("[InventoryControl] Unable to archive stock check group.", error);
-      console.log("[StockCheckGroupSaveDebug]", { action: "archive", groupId, result: null, error });
+      debugLog("[StockCheckGroupSaveDebug]", { action: "archive", groupId, result: null, error });
       notify("Unable to archive stock check group", error.message || "Please try again.", "error");
     }
   }
 
-  function startAuditStockCheck(form) {
+  function buildStockCheckRowsForGroup(group, sourceRows = checkRows) {
+    return sourceRows.map((row) => {
+      const item = itemById.get(row.itemId);
+      const expectedQty = parLevelForOutlet(item, group.outletId);
+      const skipped = Boolean(row.skipped);
+      const actualMissing = row.actualCount === "" || row.actualCount === null || row.actualCount === undefined;
+      const variance = skipped || row.na || actualMissing ? 0 : Number(expectedQty || 0) - Number(row.actualCount || 0);
+      return {
+        ...row,
+        itemId: row.itemId,
+        categoryId: row.categoryId || item?.categoryId || "",
+        skipped,
+        status: skipped ? "skipped" : row.na ? "na" : row.status ?? "normal",
+        id: row.id || makeId("check_item"),
+        expectedQty,
+        variance,
+        unit: item?.unit || "",
+      };
+    });
+  }
+
+  function initialStockCheckRowsForGroup(group) {
+    return stockCheckItemsForGroup(group, data.items).map((item) => ({
+      itemId: item.id,
+      categoryId: item.categoryId,
+      actualCount: parLevelForOutlet(item, group.outletId),
+      status: "normal",
+      notes: "",
+      na: false,
+      skipped: false,
+      skipReason: "",
+    }));
+  }
+
+  async function startScheduledStockCheck(group) {
+    const existingDraft = data.checks.find((check) => check.groupId === group.id && check.date === date && check.status === "draft");
+    if (existingDraft) {
+      setActiveAuditCheck(null);
+      setActiveCheckGroupId(group.id);
+      return;
+    }
+    try {
+      const initialRows = initialStockCheckRowsForGroup({ ...group, date });
+      const savedCheck = await persistRemoteStockCheck({ ...group, date, existingCheckId: "" }, buildStockCheckRowsForGroup({ ...group, date }, initialRows), "draft", auth?.user?.id);
+      setData((current) => ({ ...current, checks: [savedCheck, ...current.checks.filter((check) => check.id !== savedCheck.id)] }));
+      await refreshInventory();
+      setActiveAuditCheck(null);
+      setActiveCheckGroupId(group.id);
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to start scheduled stock check.", error);
+      debugLog("[StockCheckSaveDebug]", { action: "start-scheduled", groupId: group.id, error });
+      notify("Unable to start stock check", error.message || "Please try again.", "error");
+    }
+  }
+
+  async function startAuditStockCheck(form) {
     const auditGroup = {
       id: makeId("audit_group"),
       outletId: form.outletId,
@@ -4242,11 +5190,21 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       date: form.date,
       notes: form.notes,
     };
-    setSelectedOutletId(form.outletId);
-    setDate(form.date);
-    setActiveCheckGroupId(null);
-    setActiveAuditCheck(auditGroup);
-    setModal(null);
+    try {
+      const initialRows = initialStockCheckRowsForGroup(auditGroup);
+      const savedCheck = await persistRemoteStockCheck(auditGroup, buildStockCheckRowsForGroup(auditGroup, initialRows), "draft", auth?.user?.id);
+      setData((current) => ({ ...current, checks: [savedCheck, ...current.checks.filter((check) => check.id !== savedCheck.id)] }));
+      await refreshInventory();
+      setSelectedOutletId(form.outletId);
+      setDate(form.date);
+      setActiveCheckGroupId(null);
+      setActiveAuditCheck({ ...auditGroup, id: savedCheck.id, existingCheckId: savedCheck.id });
+      setModal(null);
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to start audit stock check.", error);
+      debugLog("[AuditStockCheckDebug]", { action: "start-audit", form, error });
+      notify("Unable to start audit stock check", error.message || "Please try again.", "error");
+    }
   }
 
   function continueAuditStockCheck(check) {
@@ -4307,7 +5265,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         .eq("id", itemId)
         .select("*")
         .single();
-      console.log("[InventorySaveDebug]", { mode: "archive", payload: { itemId }, itemUpdateResult: { data: result.data, error: result.error }, error: result.error });
+      debugLog("[InventorySaveDebug]", { mode: "archive", payload: { itemId }, itemUpdateResult: { data: result.data, error: result.error }, error: result.error });
       if (result.error) throw result.error;
       setData((current) => ({
         ...current,
@@ -4317,135 +5275,64 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       notify("Inventory item archived");
     } catch (error) {
       console.warn("[InventoryControl] Unable to sync archived inventory item.", error);
-      console.log("[InventorySaveDebug]", { mode: "archive", payload: { itemId }, itemUpdateResult: null, error });
+      debugLog("[InventorySaveDebug]", { mode: "archive", payload: { itemId }, itemUpdateResult: null, error });
       notify("Unable to archive inventory item", error.message || "Please try again.", "error");
     }
   }
 
-  function saveStockCheck(status) {
+  async function saveStockCheck(status) {
     if (!activeCheckGroup) return;
     const isAudit = activeCheckGroup.stockCheckType === "audit";
-    if (isAudit && status === "submitted") {
+    if (status === "submitted") {
       const invalidRows = checkRows.filter((row) => {
         const countMissing = row.actualCount === "" || row.actualCount === null || row.actualCount === undefined;
         const negative = Number(row.actualCount || 0) < 0;
-        return row.skipped ? !row.skipReason?.trim() : countMissing || negative;
+        return row.skipped ? (isAudit && !row.skipReason?.trim()) : countMissing || negative;
       });
       if (invalidRows.length) {
-        notify("Audit check incomplete", "Every item must have a valid count or be skipped with a reason.", "warning");
+        notify(isAudit ? "Audit check incomplete" : "Stock check incomplete", isAudit ? "Every item must have a valid count or be skipped with a reason." : "Every item must have a valid non-negative count.", "warning");
         return;
       }
     }
-    const rows = checkRows.map((row) => {
-      const item = itemById.get(row.itemId);
-      const expectedQty = parLevelForOutlet(item, activeCheckGroup.outletId);
-      const skipped = Boolean(row.skipped);
-      const variance = skipped || row.na ? 0 : Number(expectedQty || 0) - Number(row.actualCount || 0);
-      return { ...row, skipped, status: skipped ? "skipped" : row.status ?? "normal", id: row.id || makeId("check_item"), expectedQty, variance, unit: item?.unit || "" };
-    });
-    const recordId = activeCheckGroup.existingCheckId || makeId("check");
-    const record = {
-      id: recordId,
-      groupId: isAudit ? "" : activeCheckGroup.id,
-      outletId: activeCheckGroup.outletId,
-      date: activeCheckGroup.date || date,
-      shift: activeCheckGroup.shift,
-      stockCheckType: isAudit ? "audit" : "scheduled",
-      auditType: activeCheckGroup.auditType || "",
-      auditName: activeCheckGroup.auditName || "",
-      auditCategoryIds: activeCheckGroup.categoryIds || [],
-      notes: activeCheckGroup.notes || "",
-      categoryIds: activeCheckGroup.categoryIds || [],
-      status,
-      rows,
-      submittedAt: status === "submitted" ? new Date().toISOString() : "",
+    const existingDraft = isAudit ? null : data.checks.find((check) => check.groupId === activeCheckGroup.id && check.date === (activeCheckGroup.date || date) && check.status === "draft");
+    const persistGroup = {
+      ...activeCheckGroup,
+      existingCheckId: activeCheckGroup.existingCheckId || existingDraft?.id || "",
     };
-    const shortageMovements = rows
-      .filter((row) => !row.skipped && row.variance !== 0)
-      .map((row) => ({
-        id: makeId("move"),
-        date: activeCheckGroup.date || date,
-        itemId: row.itemId,
-        type: "adjustment",
-        quantity: -row.variance,
-        outletId: activeCheckGroup.outletId,
-        user: "Current User",
-        reference: record.id,
-        notes: "Stock check variance adjustment",
+    const rows = buildStockCheckRowsForGroup(persistGroup);
+    try {
+      const savedCheck = await persistRemoteStockCheck(persistGroup, rows, status, auth?.user?.id);
+      setData((current) => ({
+        ...current,
+        checks: [
+          savedCheck,
+          ...current.checks.filter((check) => check.id !== savedCheck.id && !(check.groupId === activeCheckGroup.id && check.date === (activeCheckGroup.date || date) && check.status === "draft")),
+        ],
+        groups: isAudit ? current.groups : current.groups.map((group) => group.id === activeCheckGroup.id && status !== "draft" ? { ...group, lastChecked: savedCheck.date, lastCheckedAt: savedCheck.submittedAt || new Date().toISOString() } : group),
       }));
-    setData((current) => ({
-      ...current,
-      checks: [
-        record,
-        ...current.checks.filter((check) => check.id !== recordId && !(check.groupId === activeCheckGroup.id && check.date === (activeCheckGroup.date || date) && check.status === "draft")),
-      ],
-      groups: isAudit ? current.groups : current.groups.map((group) => group.id === activeCheckGroup.id && status !== "draft" ? { ...group, lastChecked: date } : group),
-      movements: status === "submitted" ? [...shortageMovements, ...current.movements] : current.movements,
-    }));
-    setActiveCheckGroupId(null);
-    setActiveAuditCheck(null);
-    if (status === "submitted") {
-      notify(isAudit ? "Audit stock check completed" : "Stock check completed", isAudit ? "Audit result saved without purchase suggestions." : "Review purchase suggestions from the completed check card if shortages exist.");
-    } else {
-      notify("Stock check draft saved");
+      await refreshInventory();
+      setActiveCheckGroupId(null);
+      setActiveAuditCheck(null);
+      if (status === "submitted") {
+        notify(isAudit ? "Audit stock check completed" : "Stock check completed", isAudit ? "Audit result saved without purchase suggestions." : "Review purchase suggestions from the completed check card if shortages exist.");
+      } else {
+        notify("Stock check draft saved");
+      }
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to save stock check.", error);
+      debugLog(isAudit ? "[AuditStockCheckDebug]" : status === "submitted" ? "[StockCheckSubmitDebug]" : "[StockCheckSaveDebug]", { action: status, activeCheckGroup, rows, error });
+      notify(status === "submitted" ? "Unable to submit stock check" : "Unable to save stock check draft", error.message || "Please try again.", "error");
     }
   }
 
-  function saveRequest(request) {
-    setData((current) => ({ ...current, requests: [request, ...current.requests] }));
-    setModal(null);
-    notify("Stock request saved");
-  }
-
-  function approveRequest(requestId) {
-    setData((current) => ({
-      ...current,
-      requests: current.requests.map((request) => request.id === requestId ? { ...request, status: "approved" } : request),
-    }));
-    notify("Request approved");
-  }
-
-  function convertRequestToPo(request) {
-    const supplierGroups = new Map();
-    request.lines.forEach((line) => {
-      const item = itemById.get(line.itemId);
-      const supplierId = item?.defaultSupplierId || "unassigned";
-      if (!supplierGroups.has(supplierId)) supplierGroups.set(supplierId, []);
-      supplierGroups.get(supplierId).push(line);
-    });
-    const orders = [...supplierGroups.entries()].map(([supplierId, lines]) => ({
-      id: makeId("po"),
-      poNo: `PO-${Date.now().toString().slice(-6)}-${ordersSuffix(supplierId)}`,
-      supplierId,
-      outletId: request.outletId,
-      outletIds: [request.outletId],
-      requestIds: [request.id],
-      status: "draft",
-      sourceType: "stock_request",
-      sourceStockCheckId: "",
-      createdAt: new Date().toISOString(),
-      submittedAt: "",
-      eta: "",
-      lines: lines.map((line) => ({ ...line, receivedQty: Number(line.receivedQty || 0) })),
-    }));
-    setData((current) => ({
-      ...current,
-      requests: current.requests.map((entry) => entry.id === request.id ? { ...entry, status: "ordered" } : entry),
-      orders: [...orders, ...current.orders],
-    }));
-    notify("Purchase order drafted", `${orders.length} supplier order${orders.length === 1 ? "" : "s"} created.`);
-  }
-
-  function ordersSuffix(value) {
-    return String(value || "GEN").slice(-3).toUpperCase();
-  }
-
   function buildPurchaseSuggestions(record) {
+    if (!record || record.stockCheckType !== "scheduled" || record.status !== "submitted") return [];
     return (record.rows || [])
-      .filter((row) => Number(row.variance || 0) > 0 && !row.na)
+      .filter((row) => !row.skipped && !row.na && Number(row.actualCount || 0) < Number(row.expectedQty || 0))
       .map((row) => {
         const item = itemById.get(row.itemId);
         const config = outletConfigForItem(item, record.outletId);
+        const shortageQty = Math.max(0, Number(row.expectedQty || 0) - Number(row.actualCount || 0));
         const supplierChoices = suppliers
           .filter((supplier) => (config.supplierIds || []).includes(supplier.id))
           .filter((supplier) => supplier.status === "active" || supplier.is_active === true)
@@ -4460,7 +5347,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           unit: item?.unit || row.unit || "",
           parLevel: row.expectedQty,
           actualCount: row.actualCount,
-          shortageQty: Number(row.variance || 0),
+          shortageQty,
           supplierChoices,
         };
       });
@@ -4481,253 +5368,229 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       .sort((a, b) => new Date(b.submittedAt || b.updatedAt || b.date || 0) - new Date(a.submittedAt || a.updatedAt || a.date || 0))[0] || null;
   }
 
-  function openPurchaseSuggestionsForCheck(check) {
-    const suggestions = buildPurchaseSuggestions(check);
-    const existingOrders = linkedPurchaseOrdersForStockCheck(check?.id);
-    if (!suggestions.length && !existingOrders.length) {
-      setModal({ type: "check-result", stockCheck: check, suggestions });
+  async function openPurchaseSuggestionsForCheck(check) {
+    if (!check || check.stockCheckType !== "scheduled" || check.status !== "submitted") {
+      setModal({ type: "check-result", stockCheck: check, suggestions: [], isAudit: check?.stockCheckType === "audit" });
       return;
     }
-    setModal({ type: "purchase-suggestions", stockCheck: check, suggestions, existingOrders });
+    const suggestions = buildPurchaseSuggestions(check);
+    try {
+      const existingOrders = await fetchRemotePurchaseOrdersForStockCheck(check.id);
+      setData((current) => ({
+        ...current,
+        orders: [
+          ...existingOrders,
+          ...current.orders.filter((order) => !existingOrders.some((entry) => entry.id === order.id)),
+        ],
+      }));
+      if (!suggestions.length && !existingOrders.length) {
+        setModal({ type: "check-result", stockCheck: check, suggestions });
+        return;
+      }
+      setModal({ type: "purchase-suggestions", stockCheck: check, suggestions, existingOrders });
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to load purchase suggestions.", error);
+      debugLog("[PurchaseSuggestionDebug]", { action: "open-suggestions", stockCheckId: check.id, error });
+      notify("Unable to load purchase suggestions", error.message || "Please try again.", "error");
+    }
   }
 
-  function createDraftPurchaseOrders(stockCheck, suggestionRows) {
+  async function createDraftPurchaseOrders(stockCheck, suggestionRows) {
     if (!requirePermission(can.generatePo, "create draft purchase orders")) return;
-    const existingOrders = linkedPurchaseOrdersForStockCheck(stockCheck?.id);
-    if (existingOrders.length) {
-      setModal({ type: "purchase-suggestions", stockCheck, suggestions: buildPurchaseSuggestions(stockCheck), existingOrders });
-      notify("Draft PO already created", "Open the linked purchase order instead of creating another.", "warning");
-      return;
-    }
-    const supplierGroups = suggestionRows.reduce((groups, row) => {
-      if (!row.selectedSupplierId || Number(row.suggestedOrderQty || 0) <= 0) return groups;
-      if (!groups.has(row.selectedSupplierId)) groups.set(row.selectedSupplierId, []);
-      groups.get(row.selectedSupplierId).push(row);
-      return groups;
-    }, new Map());
-    const createdAt = new Date().toISOString();
-    const orders = [...supplierGroups.entries()].map(([supplierId, rows]) => ({
-      id: makeId("po"),
-      poNo: `PO-${Date.now().toString().slice(-6)}-${ordersSuffix(supplierId)}`,
-      supplierId,
-      outletId: stockCheck.outletId,
-      outletIds: [stockCheck.outletId],
-      requestIds: [],
-      status: "draft",
-      sourceType: "stock_check",
-      sourceStockCheckId: stockCheck.id,
-      createdAt,
-      submittedAt: "",
-      eta: "",
-      lines: rows.map((row) => ({
-        id: makeId("po_item"),
-        itemId: row.itemId,
-        requestedQty: Number(row.suggestedOrderQty || 0),
-        receivedQty: 0,
-        unit: row.unit,
-        remark: row.remark || "",
-        sourceStockCheckItemId: row.stockCheckItemId,
-      })),
-    }));
-    setData((current) => {
-      const currentExistingOrders = current.orders.filter((order) => (
-        (order.sourceType || "") === "stock_check"
-        && order.sourceStockCheckId === stockCheck.id
-        && order.status !== "cancelled"
-      ));
-      if (currentExistingOrders.length) {
-        return current;
-      }
-      return {
+    try {
+      const orders = await persistRemoteDraftPurchaseOrders(stockCheck, suggestionRows, auth?.user?.id);
+      setData((current) => ({
         ...current,
         checks: current.checks.map((check) => check.id === stockCheck.id ? { ...check, generatedPoIds: orders.map((order) => order.id) } : check),
-        orders: [...orders, ...current.orders],
-      };
-    });
-    setModal(null);
-    notify("Draft PO created", `${orders.length} draft PO${orders.length === 1 ? "" : "s"} ready for review.`);
-  }
-
-  function updatePurchaseOrderStatus(orderId, status) {
-    const timestamp = new Date().toISOString();
-    setData((current) => ({
-      ...current,
-      orders: current.orders.map((order) => order.id === orderId ? {
-        ...order,
-        status,
-        submittedAt: status === "submitted" ? timestamp : order.submittedAt,
-        confirmedAt: status === "supplier_confirmed" ? timestamp : order.confirmedAt,
-        completedAt: status === "completed" ? timestamp : order.completedAt,
-        updatedAt: timestamp,
-      } : order),
-    }));
-    notify("PO status updated", poStatusLabel(status));
-  }
-
-  function savePurchaseOrder(order) {
-    setData((current) => ({
-      ...current,
-      orders: current.orders.map((entry) => entry.id === order.id ? { ...order, updatedAt: new Date().toISOString() } : entry),
-    }));
-    setModal(null);
-    notify("Draft PO saved");
-  }
-
-  function cancelPurchaseOrder(order, reason) {
-    const hasReceived = receivedQty(order) > 0;
-    const cancellableStatus = ["draft", "submitted", "supplier_confirmed"].includes(order.status);
-    if (!cancellableStatus || hasReceived) {
-      notify("Cannot cancel received PO", "Use Complete PO to close partially fulfilled orders after receiving has started.", "warning");
-      return;
+        orders: [
+          ...orders,
+          ...current.orders.filter((order) => !orders.some((entry) => entry.id === order.id)),
+        ],
+      }));
+      await refreshInventory();
+      setModal({ type: "purchase-suggestions", stockCheck, suggestions: buildPurchaseSuggestions(stockCheck), existingOrders: orders });
+      notify("Draft PO created", `${orders.length} draft PO${orders.length === 1 ? "" : "s"} ready for review.`);
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to create Draft PO.", error);
+      debugLog("[CreateDraftPODebug]", { action: "create-draft-po", stockCheckId: stockCheck?.id, suggestionRows, error });
+      const existingOrders = error?.existingOrders?.length ? error.existingOrders : linkedPurchaseOrdersForStockCheck(stockCheck?.id);
+      if (existingOrders.length) {
+        setModal({ type: "purchase-suggestions", stockCheck, suggestions: buildPurchaseSuggestions(stockCheck), existingOrders });
+      }
+      notify("Unable to create Draft PO", error.message || "Please try again.", "error");
     }
-    setData((current) => ({
-      ...current,
-      orders: current.orders.map((entry) => entry.id === order.id ? {
-        ...entry,
-        status: "cancelled",
-        cancellationReason: reason,
-        cancelledAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString(),
-      } : entry),
-    }));
-    setModal(null);
-    notify("Purchase order cancelled");
   }
 
-  function completePurchaseOrder(order, reason = "") {
-    const timestamp = new Date().toISOString();
-    const progress = poProgress(order);
-    const remaining = Math.max(0, progress.ordered - progress.received);
-    const completionType = remaining > 0 ? "partial" : "full";
-    setData((current) => ({
-      ...current,
-      orders: current.orders.map((entry) => entry.id === order.id ? {
-        ...entry,
-        status: "completed",
-        completedAt: timestamp,
-        completionType,
-        completionReason: reason,
-        unfulfilledQty: remaining,
-        updatedAt: timestamp,
-      } : entry),
-    }));
-    setModal(null);
-    notify("Purchase order completed", completionType === "partial" ? "Remaining quantity marked as unfulfilled." : "PO closed as fully fulfilled.");
+  async function updatePurchaseOrderStatus(orderId, status) {
+    try {
+      const updatedOrder = await persistRemotePurchaseOrderStatus(orderId, status);
+      setData((current) => ({
+        ...current,
+        orders: current.orders.map((order) => order.id === orderId ? updatedOrder : order),
+      }));
+      await refreshInventory();
+      notify("PO status updated", poStatusLabel(status));
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to update PO status.", error);
+      debugLog("[POSubmitDebug]", { action: "update-status", orderId, status, error });
+      notify("Unable to update PO", error.message || "Please try again.", "error");
+    }
   }
 
-  function receivePurchaseOrder(order, rows, receiptRemark) {
-    if (["cancelled", "completed"].includes(order.status)) return;
-    const receivedRows = rows.filter((row) => Number(row.receiveNowQty || 0) > 0);
-    if (!receivedRows.length) return;
-    const receiptId = makeId("receipt");
-    const receivedAt = new Date().toISOString();
-    const nextLines = (order.lines || []).map((line) => {
-      const received = receivedRows.find((row) => (row.id || row.itemId) === (line.id || line.itemId));
-      return received ? { ...line, receivedQty: Number(line.receivedQty || 0) + Number(received.receiveNowQty || 0) } : line;
-    });
-    const nextStatus = nextLines.every((line) => remainingQty(line) <= 0) ? "fully_received" : "partial_received";
-    const movements = receivedRows.map((row) => ({
-      id: makeId("move"),
-      date: todayInput(),
-      dateTime: receivedAt,
-      itemId: row.itemId,
-      type: "purchase",
-      movementType: "Purchase",
-      quantity: Number(row.receiveNowQty || 0),
-      unit: row.unit,
-      outletId: order.outletId || order.outletIds?.[0],
-      user: "Current User",
-      reference: order.poNo,
-      notes: row.receiveRemark || receiptRemark || "Purchase receive",
-    }));
-    const receipt = {
-      id: receiptId,
-      purchaseOrderId: order.id,
-      outletId: order.outletId || order.outletIds?.[0],
-      supplierId: order.supplierId,
-      receivedBy: "Current User",
-      receivedAt,
-      remark: receiptRemark,
-      items: receivedRows.map((row) => ({
-        id: makeId("receipt_item"),
-        purchaseOrderItemId: row.id,
-        itemId: row.itemId,
-        receivedQty: Number(row.receiveNowQty || 0),
-        unit: row.unit,
-        remark: row.receiveRemark || "",
-      })),
-    };
-    setData((current) => ({
-      ...current,
-      orders: current.orders.map((entry) => entry.id === order.id ? {
-        ...entry,
-        lines: nextLines,
-        status: nextStatus,
-        receipts: [receipt, ...(entry.receipts || [])],
-        updatedAt: receivedAt,
-      } : entry),
-      movements: [...movements, ...current.movements],
-    }));
-    setModal(null);
-    notify(nextStatus === "fully_received" ? "PO fully received" : "PO partially received", "Inventory movement records were created.");
+  async function savePurchaseOrder(order) {
+    try {
+      const updatedOrder = await persistRemotePurchaseOrderEdit(order);
+      setData((current) => ({
+        ...current,
+        orders: current.orders.map((entry) => entry.id === order.id ? updatedOrder : entry),
+      }));
+      await refreshInventory();
+      setModal(null);
+      notify("Draft PO saved");
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to save Draft PO.", error);
+      debugLog("[POSubmitDebug]", { action: "save-draft-po", orderId: order?.id, order, error });
+      notify("Unable to save Draft PO", error.message || "Please try again.", "error");
+    }
   }
 
-  function saveMovement(movement) {
-    setData((current) => ({ ...current, movements: [movement, ...current.movements] }));
-    setModal(null);
-    notify("Inventory movement recorded");
+  async function cancelPurchaseOrder(order, reason) {
+    try {
+      const updatedOrder = await persistRemotePurchaseOrderCancel(order, reason);
+      setData((current) => ({
+        ...current,
+        orders: current.orders.map((entry) => entry.id === order.id ? updatedOrder : entry),
+      }));
+      await refreshInventory();
+      setModal(null);
+      notify("Purchase order cancelled");
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to cancel PO.", error);
+      debugLog("[POCancelDebug]", { action: "cancel-po", orderId: order?.id, reason, error });
+      notify("Unable to cancel PO", error.message || "Please try again.", "error");
+    }
   }
 
-  function saveWaste(waste) {
-    const movement = {
-      id: makeId("move"),
-      date: waste.date,
-      itemId: waste.itemId,
-      type: "waste",
-      quantity: -Math.abs(Number(waste.quantity || 0)),
-      outletId: waste.outletId,
-      user: "Current User",
-      reference: waste.id,
-      notes: waste.notes || waste.wasteType,
-    };
-    setData((current) => ({ ...current, waste: [waste, ...current.waste], movements: [movement, ...current.movements] }));
-    setModal(null);
-    notify("Waste recorded", "A waste movement was added to the inventory audit trail.");
+  async function completePurchaseOrder(order, reason = "") {
+    try {
+      const updatedOrder = await persistRemotePurchaseOrderComplete(order, reason);
+      setData((current) => ({
+        ...current,
+        orders: current.orders.map((entry) => entry.id === order.id ? updatedOrder : entry),
+      }));
+      await refreshInventory();
+      setModal(null);
+      notify("Purchase order completed", updatedOrder.completionType === "partial" ? "Remaining quantity marked as unfulfilled." : "PO closed as fully fulfilled.");
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to complete PO.", error);
+      debugLog("[POCompleteDebug]", { action: "complete-po", orderId: order?.id, reason, error });
+      notify("Unable to complete PO", error.message || "Please try again.", "error");
+    }
   }
 
-  function saveRecipe(recipe) {
-    const normalized = {
-      ...recipe,
-      recipeName: recipe.recipeName.trim(),
-      servingSize: recipe.servingSize || "1 portion",
-      ingredients: (recipe.ingredients || []).map((line) => {
-        const item = itemById.get(line.itemId);
-        return {
-          ...line,
-          id: line.id || makeId("recipe_item"),
-          unit: line.unit || item?.unit || "",
-          quantityUsed: Number(line.quantityUsed || 0),
-          wastagePercent: Number(line.wastagePercent || 0),
-        };
-      }),
-      updatedAt: new Date().toISOString(),
-      createdAt: recipe.createdAt || new Date().toISOString(),
-    };
-    setData((current) => ({
-      ...current,
-      recipes: [normalized, ...current.recipes.filter((entry) => entry.id !== normalized.id)],
-    }));
-    setModal(null);
-    notify("Recipe saved");
+  async function receivePurchaseOrder(order, rows, receiptRemark) {
+    try {
+      const result = await persistRemotePurchaseOrderReceive(order, rows, receiptRemark, auth?.user?.id);
+      setData((current) => ({
+        ...current,
+        orders: current.orders.map((entry) => entry.id === order.id ? result.order : entry),
+        movements: [...result.movements, ...current.movements.filter((movement) => !result.movements.some((entry) => entry.id === movement.id))],
+      }));
+      await refreshInventory();
+      setModal(null);
+      notify(result.order.status === "fully_received" ? "PO fully received" : "PO partially received", "Inventory movement records were created.");
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to receive PO.", error);
+      debugLog("[POReceiveDebug]", { action: "receive-po", orderId: order?.id, rows, receiptRemark, error });
+      notify("Unable to receive PO", error.message || "Please try again.", "error");
+    }
   }
 
-  function archiveRecipe(recipeId) {
+  async function saveMovement(movement) {
+    try {
+      const selectedItem = itemById.get(movement.itemId);
+      const savedMovement = await persistRemoteInventoryMovement({ ...movement, unit: movement.unit || selectedItem?.unit || "" }, auth?.user?.id);
+      setData((current) => ({ ...current, movements: [savedMovement, ...current.movements.filter((entry) => entry.id !== savedMovement.id)] }));
+      await refreshInventory();
+      setModal(null);
+      notify("Inventory movement recorded");
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to save inventory movement.", error);
+      debugLog("[InventoryMovementDebug]", { action: "save-movement", movement, error });
+      notify("Unable to save movement", error.message || "Please try again.", "error");
+    }
+  }
+
+  async function saveWaste(waste) {
+    try {
+      const result = await persistRemoteWasteRecord(waste, auth?.user?.id);
+      setData((current) => ({
+        ...current,
+        waste: [result.waste, ...current.waste.filter((entry) => entry.id !== result.waste.id)],
+        movements: [result.movement, ...current.movements.filter((entry) => entry.id !== result.movement.id)],
+      }));
+      await refreshInventory();
+      setModal(null);
+      notify("Waste recorded", "A waste movement was added to the inventory audit trail.");
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to save waste record.", error);
+      debugLog("[WasteSaveDebug]", { action: "save-waste", payload: waste, error });
+      await refreshInventory();
+      if (error?.partialWasteSaved) {
+        notify("Waste saved, but movement failed", error.cause?.message || error.message || "Please check Inventory Movements permissions.", "warning");
+      } else {
+        notify("Unable to record waste", error.message || "Please try again.", "error");
+      }
+    }
+  }
+
+  async function saveRecipe(recipe) {
+    try {
+      const normalized = {
+        ...recipe,
+        recipeName: String(recipe.recipeName || "").trim(),
+        ingredients: (recipe.ingredients || []).map((line) => {
+          const item = itemById.get(line.itemId);
+          return {
+            ...line,
+            unit: line.unit || item?.unit || "",
+            quantityUsed: Number(line.quantityUsed || 0),
+            wastagePercent: Number(line.wastagePercent || 0),
+          };
+        }),
+      };
+      const savedRecipe = await persistRemoteRecipe(normalized, auth?.user?.id);
+      setData((current) => ({
+        ...current,
+        recipes: [savedRecipe, ...current.recipes.filter((entry) => entry.id !== savedRecipe.id)],
+      }));
+      await refreshInventory();
+      setModal(null);
+      notify("Recipe saved");
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to save recipe.", error);
+      debugLog("[RecipeSaveDebug]", { action: "save-recipe", payload: recipe, error });
+      await refreshInventory();
+      notify("Unable to save recipe", error.message || "Please try again.", "error");
+      throw error;
+    }
+  }
+
+  async function archiveRecipe(recipeId) {
     if (!requirePermission(can.manageRecipes, "archive recipes")) return;
-    setData((current) => ({
-      ...current,
-      recipes: current.recipes.map((recipe) => recipe.id === recipeId ? { ...recipe, status: "archived", updatedAt: new Date().toISOString() } : recipe),
-    }));
-    notify("Recipe archived");
+    try {
+      const archivedRecipe = await archiveRemoteRecipe(recipeId);
+      setData((current) => ({
+        ...current,
+        recipes: current.recipes.map((recipe) => recipe.id === recipeId ? { ...recipe, ...archivedRecipe, ingredients: recipe.ingredients || [] } : recipe),
+      }));
+      await refreshInventory();
+      notify("Recipe archived");
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to archive recipe.", error);
+      debugLog("[RecipeSaveDebug]", { action: "archive-recipe", recipeId, error });
+      notify("Unable to archive recipe", error.message || "Please try again.", "error");
+    }
   }
 
   function exportRecipes() {
@@ -4862,7 +5725,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             </div>
           </SectionCard>
 
-          <SectionCard title="Smart Alerts" description="AI-style operational signals from stock checks, requests and movements.">
+          <SectionCard title="Smart Alerts" description="AI-style operational signals from stock checks, orders and movements.">
             {can.viewInsights && alerts.length ? (
               <div className="space-y-2">
                 {alerts.map((alert) => (
@@ -5167,9 +6030,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             </>
           ) : <EmptyState title="No inventory items match your filters" description="Adjust search, outlet, category or status filters to view more inventory items." />}
         </SectionCard>
-        <div className="rounded-2xl border border-dashed border-border bg-slate-50/80 px-3 py-2 type-caption font-semibold text-text-secondary">
-          Remote Rows: {inventoryMeta.rawItemsCount || 0} · Normalized Rows: {inventoryMeta.normalizedItemsCount || data.items.length} · Visible Rows: {visibleItems.length} · Categories: {data.categories.length} · UOMs: {data.uoms.length} · Outlet Links: {inventoryMeta.outletLinkCount || 0} · Fallback Active: {inventoryMeta.fallbackActive ? "true" : "false"} · Build: {import.meta.env.VITE_APP_VERSION || import.meta.env.MODE} · Source: {inventoryMeta.dataSource}{inventoryMeta.lastFetchedAt ? ` · ${formatDate(inventoryMeta.lastFetchedAt)}` : ""}
-        </div>
+        {import.meta.env.DEV ? (
+          <div className="rounded-2xl border border-dashed border-border bg-slate-50/80 px-3 py-2 type-caption font-semibold text-text-secondary">
+            Remote Rows: {inventoryMeta.rawItemsCount || 0} · Normalized Rows: {inventoryMeta.normalizedItemsCount || data.items.length} · Visible Rows: {visibleItems.length} · Categories: {data.categories.length} · UOMs: {data.uoms.length} · Outlet Links: {inventoryMeta.outletLinkCount || 0} · Fallback Active: {inventoryMeta.fallbackActive ? "true" : "false"} · Build: {import.meta.env.VITE_APP_VERSION || import.meta.env.MODE} · Source: {inventoryMeta.dataSource}{inventoryMeta.lastFetchedAt ? ` · ${formatDate(inventoryMeta.lastFetchedAt)}` : ""}
+          </div>
+        ) : null}
       </div>
     );
   }
@@ -5845,7 +6710,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                           <button className="btn-secondary w-full" type="button" onClick={() => setModal({ type: "check-result", stockCheck: latestCheck, suggestions })}>View Result</button>
                         </>
                       ) : (
-                        <button className="btn-primary w-full" type="button" onClick={() => requirePermission(can.createCheck, "start stock checks") && setActiveCheckGroupId(group.id)}>
+                        <button className="btn-primary w-full" type="button" onClick={() => requirePermission(can.createCheck, "start stock checks") && startScheduledStockCheck(group)}>
                           {hasDraft ? "Continue Check" : "Start Check"}
                         </button>
                       )}
@@ -5894,31 +6759,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   function renderRequests() {
     return (
-      <SectionCard
-        title="Stock Requests"
-        description="Outlet replenishment requests can be drafted, submitted, approved and converted to purchase orders."
-        action={<button className="btn-primary" type="button" onClick={() => requirePermission(can.createRequest, "create stock requests") && setModal({ type: "request" })}><PackagePlus size={15} /> New Request</button>}
-      >
-        {data.requests.length ? (
-          <div className="space-y-3">
-            {data.requests.filter((request) => selectedOutletId === "all" || request.outletId === selectedOutletId).map((request) => (
-              <div key={request.id} className="rounded-2xl border border-border p-4">
-                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                  <div>
-                    <div className="type-title font-bold text-text-primary">{request.requestNo}</div>
-                    <div className="type-caption text-text-secondary">{outletById.get(request.outletId)?.name} · {formatDate(request.date)} · {request.lines.length} items</div>
-                  </div>
-                  <div className="flex flex-wrap gap-2">
-                    <Badge tone={statusTone(request.status)}>{toTitle(request.status)}</Badge>
-                    <button className="btn-secondary h-8 px-2.5 text-xs" type="button" disabled={request.status !== "draft"} onClick={() => setData((current) => ({ ...current, requests: current.requests.map((entry) => entry.id === request.id ? { ...entry, status: "submitted" } : entry) }))}>Submit</button>
-                    <button className="btn-secondary h-8 px-2.5 text-xs" type="button" disabled={!["submitted", "draft"].includes(request.status)} onClick={() => requirePermission(can.approveRequest, "approve stock requests") && approveRequest(request.id)}>Approve</button>
-                    <button className="btn-primary h-8 px-2.5 text-xs" type="button" disabled={!["approved", "partial approved"].includes(request.status)} onClick={() => requirePermission(can.generatePo, "generate purchase orders") && convertRequestToPo(request)}>Convert to PO</button>
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : <EmptyState title="No stock requests submitted yet." description="Create a request from low stock items or outlet replenishment needs." />}
+      <SectionCard title="Feature not available in current version" description="Stock Requests are deferred from the current Inventory Control MVP.">
+        <EmptyState
+          title="Stock Requests are deferred"
+          description="Use scheduled Stock Check purchase suggestions or manual purchase planning in Purchase Orders for the current MVP."
+        />
       </SectionCard>
     );
   }
@@ -6024,45 +6869,74 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }
 
   function renderMovements() {
+    const movementTypesForFilter = uniqueIds(data.movements.map((movement) => movement.movementType || movement.type).filter(Boolean));
+    const updateMovementFilter = (key, value) => setMovementFilters((current) => ({ ...current, [key]: value }));
+    const filteredMovements = data.movements.filter((movement) => {
+      const item = itemById.get(movement.itemId);
+      const movementDate = String(movement.dateTime || movement.date || "").slice(0, 10);
+      const searchText = `${item?.name || ""} ${movement.reference || ""} ${movement.notes || ""} ${movement.movementType || movement.type || ""}`.toLowerCase();
+      const matchesOutlet = movementFilters.outletId === "all" || movement.outletId === movementFilters.outletId;
+      const matchesType = movementFilters.movementType === "all" || canonical(movement.movementType || movement.type) === canonical(movementFilters.movementType);
+      const matchesSearch = !movementFilters.search.trim() || searchText.includes(movementFilters.search.trim().toLowerCase());
+      const matchesFrom = !movementFilters.from || !movementDate || movementDate >= movementFilters.from;
+      const matchesTo = !movementFilters.to || !movementDate || movementDate <= movementFilters.to;
+      return matchesOutlet && matchesType && matchesSearch && matchesFrom && matchesTo;
+    });
     return (
       <SectionCard
         title="Inventory Movements"
         description="All purchase, transfer, waste, adjustment and production usage movements."
         action={<button className="btn-primary" type="button" onClick={() => requirePermission(can.recordMovement, "record inventory movements") && setModal({ type: "movement" })}><RefreshCw size={15} /> Record Movement</button>}
       >
-        {data.movements.length ? (
+        <div className="mb-4 grid gap-3 lg:grid-cols-5">
+          <SelectField label="Outlet" value={movementFilters.outletId} options={getAccessibleOutletOptions(auth, outlets)} onChange={(value) => updateMovementFilter("outletId", value)} searchable />
+          <SelectField label="Movement Type" value={movementFilters.movementType} options={[{ value: "all", label: "All Types" }, ...movementTypesForFilter.map((type) => ({ value: type, label: toTitle(type) }))]} onChange={(value) => updateMovementFilter("movementType", value)} />
+          <DatePickerField label="From" value={movementFilters.from} onChange={(value) => updateMovementFilter("from", value)} />
+          <DatePickerField label="To" value={movementFilters.to} onChange={(value) => updateMovementFilter("to", value)} />
+          <label>
+            <div className="mb-1 type-caption font-semibold text-text-secondary">Search Item / Reference</div>
+            <input className="control h-9 w-full text-[13px]" value={movementFilters.search} onChange={(event) => updateMovementFilter("search", event.target.value)} placeholder="Search item, PO no, notes" />
+          </label>
+        </div>
+        {filteredMovements.length ? (
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-left">
+            <table className="w-full min-w-[1080px] text-left">
               <thead className="text-[11px] uppercase tracking-wide text-text-muted">
                 <tr className="border-b border-border">
                   <th className="py-2">Date & Time</th>
+                  <th>Outlet</th>
                   <th>Item</th>
                   <th>Movement Type</th>
                   <th>Qty</th>
-                  <th>Outlet</th>
-                  <th>User</th>
-                  <th>Reference</th>
+                  <th>UOM</th>
+                  <th>Reference No.</th>
+                  <th>Notes</th>
+                  <th>Created By</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border text-[13px]">
-                {data.movements.filter((movement) => selectedOutletId === "all" || movement.outletId === selectedOutletId).map((movement) => {
+                {filteredMovements.map((movement) => {
                   const item = itemById.get(movement.itemId);
+                  const type = movement.movementType || movement.type || "movement";
+                  const typeKey = String(type).toLowerCase();
                   return (
                     <tr key={movement.id}>
-                      <td className="py-3">{formatDate(movement.date)}</td>
+                      <td className="py-3">{formatDate(movement.dateTime || movement.date)}</td>
+                      <td>{outletById.get(movement.outletId)?.name ?? "Unknown outlet"}</td>
                       <td className="font-bold text-text-primary">{item?.name ?? "Inventory item"}</td>
-                      <td><Badge tone={movement.type === "waste" ? "danger" : movement.type.includes("transfer") ? "info" : movement.type === "adjustment" ? "warning" : "success"}>{toTitle(movement.type)}</Badge></td>
-                      <td>{Number(movement.quantity) > 0 ? "+" : ""}{movement.quantity} {item?.unit}</td>
-                      <td>{outletById.get(movement.outletId)?.name ?? "-"}</td>
-                      <td>{movement.user}</td>
+                      <td><Badge tone={typeKey === "waste" ? "danger" : typeKey.includes("transfer") ? "info" : typeKey === "adjustment" ? "warning" : "success"}>{toTitle(type)}</Badge></td>
+                      <td className="font-semibold text-text-primary">{Number(movement.quantity) > 0 ? "+" : ""}{movement.quantity}</td>
+                      <td>{movement.unit || item?.unit || "-"}</td>
                       <td>{movement.reference || "-"}</td>
+                      <td>{movement.notes || "-"}</td>
+                      <td>{movement.user || "Unknown user"}</td>
                     </tr>
                   );
                 })}
               </tbody>
             </table>
           </div>
-        ) : <EmptyState title="Inventory movement history will appear here." description="Record purchase, transfer, waste and adjustment movements." />}
+        ) : <EmptyState title="No inventory movements found." description={data.movements.length ? "Adjust filters to see more movement records." : "Purchase receiving and manual movements will appear here after they are saved to Supabase."} />}
       </SectionCard>
     );
   }
@@ -6083,7 +6957,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       const matchesSearch = !wasteFilters.search.trim() || searchText.includes(wasteFilters.search.trim().toLowerCase());
       return matchesOutlet && matchesType && matchesFrom && matchesTo && matchesSearch;
     });
-    const wasteValue = filteredWaste.reduce((sum, row) => sum + Number(row.value || 0), 0);
+    const totalWasteQuantity = filteredWaste.reduce((sum, row) => sum + Number(row.quantity || 0), 0);
     const typeCounts = wasteTypes.map((type) => ({
       type,
       count: filteredWaste.filter((row) => row.wasteType === type).length,
@@ -6115,7 +6989,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           </label>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="Waste Value" value={toCurrency(wasteValue)} helper="Recorded waste value" tone={wasteValue ? "warning" : "success"} />
+          <MetricCard label="Waste Quantity" value={totalWasteQuantity} helper="Total recorded quantity" tone={totalWasteQuantity ? "warning" : "success"} />
           <MetricCard label="Waste Records" value={filteredWaste.length} helper="Matching current filters" tone={filteredWaste.length ? "warning" : "success"} />
           <MetricCard label={selectedOutletId === "all" ? "Highest Waste Category" : "Highest Waste Item"} value={selectedOutletId === "all" ? topCategory : topItem} helper="Based on quantity recorded" />
           <MetricCard label="Unexplained Loss %" value="0%" helper="No unexplained loss logged" />
@@ -6165,7 +7039,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                       <td className="font-bold text-text-primary">{item?.name ?? "Inventory item"}</td>
                       <td>{category?.name || "Uncategorized"}</td>
                       <td><Badge tone="warning">{row.wasteType}</Badge></td>
-                      <td className="font-semibold">{row.quantity} {item?.unit}</td>
+                      <td className="font-semibold">{row.quantity} {row.unit || item?.unit}</td>
                       <td>{outletById.get(row.outletId)?.name || "Outlet"}</td>
                       <td>{row.user || row.recordedBy || "Current User"}</td>
                       <td className="max-w-52 truncate">{row.notes || "-"}</td>
@@ -6243,7 +7117,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                         <div className="flex justify-end gap-2">
                           <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setModal({ type: "recipe-detail", recipe })}>View</button>
                           <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.manageRecipes, "edit recipes") && setModal({ type: "recipe", recipe })}>Edit</button>
-                          {recipe.status !== "archived" ? <button className="btn-secondary h-8 px-2.5 text-xs text-rose-700" type="button" onClick={() => archiveRecipe(recipe.id)}>Archive</button> : null}
+                          {recipe.status === "active" ? <button className="btn-secondary h-8 px-2.5 text-xs text-rose-700" type="button" onClick={() => archiveRecipe(recipe.id)}>Archive</button> : null}
                         </div>
                       </td>
                     </tr>
@@ -6321,9 +7195,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     if (activeTab === "stock-check") {
       return <button className="btn-primary" type="button" onClick={() => requirePermission(can.createCheck, "create audit stock checks") && setModal({ type: "audit-stock-check" })}><ClipboardCheck size={15} /> Audit Stock Check</button>;
     }
-    if (activeTab === "requests") {
-      return <button className="btn-primary" type="button" onClick={() => requirePermission(can.createRequest, "create stock requests") && setModal({ type: "request" })}><PackagePlus size={15} /> New Request</button>;
-    }
+    if (activeTab === "requests") return null;
     if (activeTab === "orders") {
       return <button className="btn-secondary" type="button" onClick={() => requirePermission(can.exportPo, "export purchase orders") && exportPurchaseOrders()}><Download size={15} /> Export</button>;
     }
@@ -6410,7 +7282,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       {modal?.type === "group" ? <GroupModal group={modal.group} outletId={modal.outletId || selectedOutletId} outlets={outlets} items={data.items} categories={sortedCategories} onClose={() => setModal(null)} onSave={saveGroup} /> : null}
       {modal?.type === "audit-stock-check" ? <AuditStockCheckModal outlets={outlets} categories={sortedCategories} items={data.items} onClose={() => setModal(null)} onStart={startAuditStockCheck} /> : null}
       {modal?.type === "skip-check-row" ? <SkipReasonModal itemName={modal.itemName} onClose={() => setModal(null)} onSave={(reason) => skipCheckRow(modal.rowIndex, reason)} /> : null}
-      {modal?.type === "request" ? <RequestModal outlets={outlets} items={data.items} categories={sortedCategories} suppliers={suppliers} onClose={() => setModal(null)} onSave={saveRequest} /> : null}
       {modal?.type === "movement" ? <MovementModal outlets={outlets} items={data.items} onClose={() => setModal(null)} onSave={saveMovement} /> : null}
       {modal?.type === "waste" ? (
         <WasteModal

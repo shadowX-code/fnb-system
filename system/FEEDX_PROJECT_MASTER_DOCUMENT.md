@@ -192,7 +192,7 @@ inventory_uoms          INVENTORY_CONTROL   Inventory UOMs         internal only
 inventory_par_levels    INVENTORY_CONTROL   Par Levels             #inventory_par_levels
 inventory_groups        INVENTORY_CONTROL   Stock Check Groups     #inventory_groups
 inventory_stock_check   INVENTORY_CONTROL   Stock Check            #inventory_stock_check
-inventory_requests      INVENTORY_CONTROL   Stock Requests         legacy/internal only, sidebar false
+inventory_requests      INVENTORY_CONTROL   Stock Requests         deferred, route disabled, sidebar false
 inventory_orders        INVENTORY_CONTROL   Purchase Orders        #inventory_orders
 inventory_movements     INVENTORY_CONTROL   Inventory Movements    #inventory_movements
 inventory_waste         INVENTORY_CONTROL   Waste & Variance       #inventory_waste
@@ -1924,6 +1924,8 @@ Master Inventory import/export:
 - Unknown Category, UOM, or Outlet Code values show validation errors in the preview and must not be silently imported.
 - Import upserts inventory items by SKU Code when present; otherwise by normalized Item Name.
 - Import upserts `inventory_item_outlets` links for valid linked outlets.
+- Import writes to Supabase through the same remote-first `inventory_items` and `inventory_item_outlets` persistence path as Add/Edit Item.
+- Import success is shown only after Supabase confirms the item and linked outlet writes; local-only import mutations are not allowed in the authenticated app.
 - Import does not create categories, UOM values, outlets, or suppliers automatically.
 - Import does not import supplier assignment data.
 - Import does not set Par Levels, Low Stock Thresholds, or Reorder Quantities.
@@ -1937,29 +1939,51 @@ Master Inventory import/export:
 
 Inventory Control persistence audit:
 
-Status as of 29 May 2026:
+Status as of 30 May 2026:
 
 - Source file audited: `src/features/sales-purchase/pages/InventoryControlPage.jsx`.
-- Linked Supabase schema contains: `inventory_items`, `inventory_categories`, `inventory_uoms`, `inventory_item_outlets`, `inventory_item_outlet_suppliers`, `inventory_stock_check_groups`, `inventory_stock_check_group_categories`, `inventory_stock_checks`, `inventory_stock_check_items`, `inventory_purchase_orders`, `inventory_purchase_order_items`, `inventory_purchase_receipts`, and `inventory_purchase_receipt_items`.
-- Linked Supabase schema does not currently contain: `inventory_movements`, `waste_records` / `inventory_waste_records`, `inventory_recipes`, or `inventory_recipe_items`.
-- Master Inventory item create/edit/archive and linked outlet saves are Supabase-backed, but import is still local-only and must be migrated before production use.
+- Linked Supabase schema contains: `inventory_items`, `inventory_categories`, `inventory_uoms`, `inventory_item_outlets`, `inventory_item_outlet_suppliers`, `inventory_stock_check_groups`, `inventory_stock_check_group_categories`, `inventory_stock_checks`, `inventory_stock_check_items`, `inventory_purchase_orders`, `inventory_purchase_order_items`, `inventory_purchase_receipts`, `inventory_purchase_receipt_items`, `inventory_movements`, `inventory_waste_records`, `inventory_recipes`, and `inventory_recipe_items`.
+- All current Inventory Control persistence tables exist in linked staging Supabase.
+- P0-2 browser verification passed on 29 May 2026: scheduled Stock Check draft/save/refresh/resume/submit/View Result and Audit Stock Check draft/save/refresh/resume/submit/View Audit Result persisted through Supabase. Audit results did not expose Purchase Suggestions.
+- P0-3 browser verification passed on 29 May 2026: submitted scheduled Stock Check shortage rows opened in Purchase Suggestions, supplier-backed Draft PO creation persisted through Supabase, the Draft PO and item rows remained after refresh in Purchase Orders, the source Stock Check changed to View Draft PO / duplicate-prevention state, and Audit Stock Check records did not expose Purchase Suggestions.
+- P0-4 browser verification passed on 29 May 2026 for the core PO workflow: Draft PO edit persisted, Submit Order persisted after refresh, Partial Receive created receipt rows and an `inventory_movements` Purchase row, the Partial Received PO could not be cancelled, Complete PO closed a partial PO with completion reason, Completed/Cancelled states remained read-only after refresh, and PO detail showed receiving history from Supabase.
+- Full Receive browser verification passed on 29 May 2026: fresh PO `PO-180719-A7E` was submitted, Fill Remaining set all received quantities, Confirm Receive changed the order to Fully Received, refresh preserved Fully Received, Complete PO closed it as a fully fulfilled completed PO, refresh preserved Completed, receiving history showed the full quantity, and `inventory_movements` contained only the actual received quantities.
+- P1-A completed on 29 May 2026: Master Inventory Import is Supabase-backed, validates Category/UOM/Outlet Codes before commit, imports valid rows only, and writes through the same Add/Edit Item persistence path.
+- P1-A code path reverified on 30 May 2026: Import confirmation does not use local-only persistence; each valid preview row calls `persistRemoteInventoryItem()`, which writes `inventory_items` and `inventory_item_outlets`. Invalid Category/UOM/Outlet Code rows remain preview errors and are skipped/blocked before Supabase writes.
+- P1-B completed on 29 May 2026: Waste & Variance records are Supabase-backed through `inventory_waste_records`; Record Waste writes a matching `inventory_movements` row with `reference_type = waste`, refresh preserves the waste record, and the Waste Records table reads from Supabase.
+- P1-C completed on 29 May 2026: Recipes & Usage is Supabase-backed through `inventory_recipes` and `inventory_recipe_items`; Add/Edit replaces ingredient rows transaction-style at the app layer, Archive sets recipe status to inactive, refresh preserves recipe data, and the active recipe list reads from Supabase.
+- Master Inventory item create/edit/archive, import, and linked outlet saves are Supabase-backed.
 - Inventory Categories create/edit/archive/delete and drag sort are Supabase-backed.
 - Inventory UOM create/edit/archive/delete is Supabase-backed; UOM drag sorting is not implemented in the current UI.
 - Par Levels update Par Level, Storage Location, and Suppliers through Supabase-backed `inventory_item_outlets` and `inventory_item_outlet_suppliers`.
 - Stock Check Groups create/edit/duplicate/archive are Supabase-backed through `inventory_stock_check_groups` and `inventory_stock_check_group_categories`.
-- Stock Check draft, submit, audit, generated variance movements, and review history are local-only even though `inventory_stock_checks` and `inventory_stock_check_items` tables exist.
-- Purchase Suggestions create Draft PO is local-only even though purchase order tables exist.
-- Purchase Orders submit, edit, receive, partial receive, complete, and cancel are local-only even though purchase order and receipt tables exist.
-- Inventory Movements create is local-only and the expected persistence table is missing from the linked schema.
-- Waste & Variance create waste record is local-only and the expected persistence table is missing from the linked schema.
-- Recipes & Usage create/edit/archive and ingredient mapping are local-only and recipe tables are missing from the linked schema.
+- Scheduled Stock Check start/draft/submit/result and Audit Stock Check start/draft/submit/result are Supabase-backed through `inventory_stock_checks` and `inventory_stock_check_items`.
+- Generated variance movements are not created by Stock Check submit in the current P0-2 implementation; Stock Check persistence stores the audit/count snapshot and variance result only.
+- Purchase Suggestions to Draft PO creation is Supabase-backed through `inventory_purchase_orders` and `inventory_purchase_order_items`.
+- Purchase Orders submit, edit Draft PO, receive, partial receive, complete, and cancel are Supabase-backed through `inventory_purchase_orders`, `inventory_purchase_order_items`, `inventory_purchase_receipts`, `inventory_purchase_receipt_items`, and `inventory_movements`.
+- Inventory Movements created from Purchase Receive are Supabase-backed. Manual Inventory Movements entry is also Supabase-backed through `inventory_movements`.
+- Inventory Control P0 UAT completed on 29 May 2026. Report: `FEEDX_INVENTORY_UAT_REPORT.md`.
+- Waste & Variance create waste record is Supabase-backed through `inventory_waste_records` and creates a Waste movement row in `inventory_movements`.
+- Recipes & Usage create/edit/archive and ingredient mapping are Supabase-backed through `inventory_recipes` and `inventory_recipe_items`.
+- Production Readiness Cleanup Phase 1 completed on 30 May 2026:
+  - Result: Full Green MVP for the current active Inventory Control workflow.
+  - Risk level: Low for current MVP scope.
+  - Active pages verified as Supabase-backed: Inventory Dashboard, Master Inventory, Category Settings, UOM Settings, Par Levels, Stock Check Groups, Stock Check, Purchase Orders, Inventory Movements, Waste & Variance, and Recipes & Usage.
+  - No active Inventory Control page should create operational records from browser-local arrays.
+  - Category and UOM fallback/demo lists are not used as authenticated staging source of truth; authenticated inventory data is loaded from Supabase.
+  - `defaultData()` is development-only scaffolding and is hard-gated behind `import.meta.env.DEV`; authenticated staging/production inventory state must not merge fallback operational rows.
+  - Legacy Stock Requests is out of current MVP scope. The `#inventory_requests` route is removed from the active route registry/sidebar navigation, the local request modal/action path is not rendered, and manual access falls back to a clean unavailable/deferred state or dashboard routing.
+  - Visible inventory diagnostics and persistence debug logs are development-gated with `import.meta.env.DEV`.
 
 Persistence priorities:
 
-- P0: Add/migrate Stock Check draft/submit/audit persistence, Purchase Suggestions to Draft PO persistence, Purchase Order workflow persistence, Inventory Movements persistence, Waste record persistence, and Recipes persistence. These currently lose data after refresh.
-- P1: Replace Master Inventory import local mutation with the same remote-first `inventory_items` / `inventory_item_outlets` persistence used by Add/Edit Item.
+- P0: Completed for the core workflow covering Stock Check Groups, Stock Check, Purchase Suggestions, Purchase Orders, receiving, and Inventory Movements.
+- P1-A: Completed for Master Inventory Import remote persistence.
+- P1-B: Completed for Waste & Variance remote persistence.
+- P1-C: Completed for Recipes & Usage remote persistence.
+- Stock Requests remains deferred/out of current MVP scope and must stay hidden until it is either Supabase-backed or intentionally reintroduced.
 - P1: Add UOM drag sort persistence if sortable UOM ordering becomes part of the UI.
-- P2: Remove or clearly label any remaining development diagnostics after persistence is verified.
+- P2: Complete RBAC smoke testing with All-outlet and Selected-outlet custom roles before broader rollout.
 
 Inventory UOM data model:
 
@@ -2141,12 +2165,13 @@ Due status:
 Daily Stock Check workflow:
 
 1. Select outlet and stock check group.
-2. Count items.
-3. Review variance.
-4. Submit stock check.
-5. Return to Stock Check list.
-6. Completed check card shows Review Purchase Suggestions when shortages exist and the user has permission.
-7. Create Draft POs only after user review and confirmation.
+2. Start Check creates or resumes a Supabase draft for the same outlet, group, date, and shift.
+3. Count items and preserve actual count, notes, variance, and row status in `inventory_stock_check_items`.
+4. Save Draft writes `inventory_stock_checks.status = draft` and replaces the item snapshot rows.
+5. Submit Stock Check writes the final item snapshot, sets `inventory_stock_checks.status = submitted`, sets `submitted_at`, and updates the group `last_checked_at`.
+6. Return to Stock Check list.
+7. Completed check card shows Review Purchase Suggestions when shortages exist and the user has permission.
+8. Create Draft POs only after user review and confirmation.
 
 Audit Stock Check workflow:
 
@@ -2161,6 +2186,7 @@ Audit Stock Check workflow:
 - Audit checks can be saved as Draft and continued later with audit metadata, selected categories, generated items, counts, notes, skipped items, and skip reasons preserved.
 - Audit checks calculate variance against outlet par level and create stock check history/result records.
 - Audit checks use `stock_check_type = audit` and may omit `stock_check_group_id`.
+- Audit drafts and submitted audit results are persisted in `inventory_stock_checks` and `inventory_stock_check_items`.
 - Audit Stock Check does not generate Purchase Suggestions, Draft PO, or ordering workflows.
 - Submitted audit result cards show View Audit Result only. Draft audit cards show Continue Audit.
 
@@ -2173,6 +2199,7 @@ Stock check statuses:
 
 Stock check item fields:
 
+- stock_check_id
 - item_id
 - category_id
 - item photo thumbnail from `inventory_items.photo_url` / item photo field
@@ -2182,6 +2209,8 @@ Stock check item fields:
 - unit
 - status
 - notes
+- skipped
+- skip_reason
 
 Stock check item display:
 
@@ -2203,17 +2232,19 @@ Shortage rule:
 - Stock Check submission must not directly create submitted Purchase Orders.
 - Stock Check submission only completes the check and returns the user to the Stock Check list.
 - Purchase Suggestions are accessed from completed scheduled Stock Check cards only.
-- Purchase Suggestions are generated from submitted scheduled check rows when the user clicks Review Purchase Suggestions.
+- Purchase Suggestions are generated from submitted scheduled check rows when the user clicks Review Purchase Suggestions; audit stock checks never generate suggestions.
 - Purchase Suggestions are reviewed before creating Draft POs.
 - Purchase Suggestions modal does not include a Finish Only action; users either create Draft PO or close the modal.
 - One completed scheduled Stock Check can generate Draft PO records only once.
 - Existing non-cancelled Purchase Orders with `source_type = stock_check` and `source_stock_check_id = current stock_check_id` block duplicate Draft PO creation.
+- Existing non-cancelled Purchase Order Items with `source_stock_check_item_id` matching the submitted check item also block duplicate Draft PO creation.
 - Once Draft PO is created, the completed Stock Check card shows View Draft PO / linked PO access instead of allowing another Draft PO creation.
 - Suggested order quantity defaults to shortage quantity and remains editable.
 - Users may exclude suggested items, add remarks, or change supplier.
 - Supplier choices must come from suppliers linked to the selected outlet and assigned to the outlet-item configuration.
 - Items without an assigned supplier are grouped under Unassigned Supplier and require supplier selection before Draft PO creation.
 - Created POs use `source_type = stock_check` and reference `source_stock_check_id`.
+- Created PO item rows reference `source_stock_check_item_id` for duplicate prevention and audit traceability.
 - PO submission is manual and separate from Stock Check completion.
 
 Variance statuses:
@@ -2236,6 +2267,7 @@ Daily Stock Check UI:
 Stock Requests:
 
 - Removed from the current Inventory Control sidebar scope.
+- Route `#inventory_requests` is disabled in the current MVP route registry.
 - Legacy database tables and code/data may remain for compatibility.
 - Current ordering flow uses reviewed scheduled Stock Check suggestions or manual purchase planning.
 
@@ -2336,6 +2368,11 @@ Page behavior:
 - Waste dashboard metrics, Waste Types, Waste Records, and operational insights respond to outlet, waste type, date range, and search filters.
 - Waste Records are outlet-scoped and should show Date, Item, Category, Waste Type, Qty, Outlet, Recorded By, Notes, Evidence, and Actions.
 - Record Waste item picker only shows active inventory items linked to the selected outlet.
+- Record Waste writes to `inventory_waste_records` and succeeds only after Supabase confirms the insert.
+- After a waste record is saved, FeedX creates an `inventory_movements` row with `movement_type = Waste`, `reference_type = waste`, `reference_id = inventory_waste_records.id`, and a `WASTE-XXXXXXXX` reference number.
+- Waste movement quantity follows the current inventory movement convention: waste is stored as a negative quantity because it reduces stock.
+- Photo evidence is optional; `photo_url` may remain null until the evidence upload flow is enabled.
+- Waste metrics currently use record count and quantity only; cost/value analysis is deferred until item costing exists.
 
 Waste types:
 
@@ -2349,7 +2386,7 @@ Waste types:
 
 Waste & Variance sections:
 
-- Waste Value
+- Waste Quantity
 - Waste Records
 - Highest Waste Category or Highest Waste Item depending on outlet scope
 - Unexplained Loss %
@@ -2419,6 +2456,11 @@ Rules:
 - Recipe ingredient selectors only show active inventory items linked to the selected outlet.
 - Multiple ingredients are supported per recipe.
 - Unit follows the selected inventory item unit.
+- Add Recipe writes to `inventory_recipes` and `inventory_recipe_items`; success is shown only after Supabase confirms the recipe and ingredient rows.
+- Edit Recipe updates the recipe row and replaces its ingredient snapshot rows in `inventory_recipe_items`.
+- Archive Recipe sets `inventory_recipes.status = inactive`; inactive recipes are hidden from the default Active filter but remain available for audit/history when filtering by status.
+- Quantity Used must be greater than zero and Wastage % must be zero or greater.
+- Recipe management actions require `inventory_recipes.manage`; view and export use `inventory_recipes.view` and `inventory_recipes.export`.
 - Recipes & Usage supports Add Recipe, View, Edit, Archive, Export, outlet/category/status/search filters, and empty state action.
 - Usage estimation foundation: `product_sales_quantity × recipe_ingredient_quantity = estimated_inventory_usage`.
 - Full POS/product sales integration is future scope; current page prepares the BOM structure.
@@ -3525,8 +3567,8 @@ Inventory Control tables:
 - inventory_stock_check_groups
 - inventory_stock_check_group_categories
 - inventory_stock_check_group_items (legacy compatibility only; not used by the current group editing workflow)
-- inventory_stock_checks (`stock_check_type` = `scheduled` or `audit`; audit rows may store `audit_type`, `audit_name`, `audit_category_ids`, and `notes`)
-- inventory_stock_check_items (supports counted rows plus `skipped` and `skip_reason` for audit workflows)
+- inventory_stock_checks (`stock_check_type` = `scheduled` or `audit`; stores `check_name`, `shift`, `check_date`, `status`, `submitted_at`; audit rows may store `audit_type`, `audit_name`, `audit_category_ids`, and `notes`)
+- inventory_stock_check_items (snapshot rows for counted stock check items; supports `category_id`, `par_level_quantity`, `actual_count_quantity`, `variance`, `notes`, `skipped`, and `skip_reason`)
 - inventory_stock_requests
 - inventory_stock_request_items
 - inventory_purchase_orders

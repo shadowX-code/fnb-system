@@ -172,12 +172,6 @@ const routeDetails = {
     permission: "inventory_stock_check.view",
     props: { initialTab: "stock-check" },
   },
-  inventory_requests: {
-    description: "Review and manage replenishment requests from outlets.",
-    component: InventoryControlPage,
-    permission: "inventory_orders.view",
-    props: { initialTab: "requests" },
-  },
   inventory_orders: {
     description: "Create draft POs from reviewed stock check suggestions or manual purchase planning.",
     component: InventoryControlPage,
