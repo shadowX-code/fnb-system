@@ -1862,7 +1862,9 @@ Master Inventory UI:
 - Item photos are saved to `inventory_items.photo_url` through the Supabase Storage bucket `inventory-item-photos`.
 - If storage is not configured yet, the form must show a clear fallback message instead of blocking item editing.
 - The Master Inventory list defaults to Group by Category.
+- Master Inventory shows a compact KPI summary strip above the list: Total Items, Categories, Active Items, and Outlets Linked.
 - Category group headers show category name, item count, and collapse/expand control.
+- Category group headers also show category fallback icon and linked outlet count for faster scanning.
 - Collapsed category state may be remembered for the current browser session.
 - A Group by control supports Category and None.
 - When grouped by Category, the Category column is hidden because category is represented by the group header.
@@ -1870,7 +1872,9 @@ Master Inventory UI:
 - Search, outlet filter, category filter, and status filter apply before grouping; empty groups are hidden.
 - The Master Inventory table does not show Low Stock or Par Level columns because those values are outlet-specific.
 - Linked Outlets displays a compact count such as `3 outlets`.
-- Clicking the Linked Outlets count opens a FloatingLayer popover with outlet names, outlet codes, active/inactive link status, and key outlet stock settings.
+- Linked Outlets displays compact outlet codes for the first few outlets plus a `+X` more indicator.
+- Clicking the Linked Outlets display opens a FloatingLayer popover with outlet names, outlet codes, active/inactive link status, and key outlet stock settings.
+- Item rows use photo thumbnails when available and standardized category fallback icons when no photo exists.
 - Add/Edit Item keeps master item fields separate from outlet-level par management.
 - Add/Edit Item shows linked outlets and a note that par levels are managed in Par Level Setup.
 - Add/Edit Item does not show outlet-by-outlet Par Level, Low Stock Threshold, or Reorder Qty inputs.

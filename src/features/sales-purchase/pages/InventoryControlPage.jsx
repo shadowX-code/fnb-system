@@ -12,6 +12,7 @@ import {
   Download,
   FileText,
   GripVertical,
+  MoreHorizontal,
   Plus,
   PackageCheck,
   PackagePlus,
@@ -30,6 +31,7 @@ import Modal from "../../../components/feedback/Modal.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
+import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
@@ -713,6 +715,16 @@ function MiniPill({ tone = "neutral", children }) {
   return <Badge tone={tone}>{children}</Badge>;
 }
 
+function InventoryCategoryIcon({ category, size = "md" }) {
+  const initial = (category?.name || "Inventory").slice(0, 1).toUpperCase();
+  const sizeClass = size === "sm" ? "h-10 w-10 text-sm" : "h-11 w-11 text-base";
+  return (
+    <div className={`${sizeClass} grid shrink-0 place-items-center rounded-2xl border border-primary/15 bg-primary/10 font-black text-primary shadow-sm`}>
+      {initial}
+    </div>
+  );
+}
+
 function MultiOutletPicker({ outlets, selectedIds, onChange }) {
   const selected = new Set(selectedIds || []);
   return (
@@ -748,15 +760,23 @@ function LinkedOutletsSummary({ item, outlets, onConfigure }) {
   const outletById = useMemo(() => new Map(outlets.map((outlet) => [outlet.id, outlet])), [outlets]);
   const configs = normalizeInventoryItem(item).outletConfigs || [];
   const activeCount = configs.filter((config) => config.isActive !== false).length;
+  const visibleCodes = configs.slice(0, 3).map((config) => {
+    const outlet = outletById.get(config.outletId);
+    return outlet?.code || outlet?.shortCode || outlet?.short_code || outlet?.name || "Outlet";
+  });
+  const hiddenCount = Math.max(0, configs.length - visibleCodes.length);
 
   return (
     <div ref={anchorRef} className="inline-flex">
       <button
-        className="inline-flex items-center gap-1.5 rounded-full border border-border bg-surface px-2.5 py-1 type-caption font-bold text-text-primary transition hover:border-primary/30 hover:text-primary"
+        className="inline-flex max-w-[220px] items-center gap-1.5 rounded-full border border-border bg-surface px-2.5 py-1 type-caption font-bold text-text-primary transition hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
         type="button"
         onClick={() => setOpen((current) => !current)}
       >
-        {configs.length} outlet{configs.length === 1 ? "" : "s"}
+        {visibleCodes.length ? visibleCodes.map((code) => (
+          <span key={code} className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-black text-text-secondary">{code}</span>
+        )) : <span>No outlets</span>}
+        {hiddenCount ? <span className="text-text-muted">+{hiddenCount}</span> : null}
         <ChevronDown size={13} />
       </button>
       <FloatingLayer open={open} onOpenChange={setOpen} anchorRef={anchorRef} align="start" width={320} estimatedHeight={280} className="p-0">
@@ -2552,6 +2572,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [recipeFilters, setRecipeFilters] = useState({ category: "all", status: "active", search: "" });
   const [date, setDate] = useState(todayInput());
   const [modal, setModal] = useState(null);
+  const [masterActionMenuItemId, setMasterActionMenuItemId] = useState(null);
   const [activeCheckGroupId, setActiveCheckGroupId] = useState(null);
   const [activeAuditCheck, setActiveAuditCheck] = useState(null);
   const [checkRows, setCheckRows] = useState([]);
@@ -3743,16 +3764,25 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }
 
   function renderMasterInventory() {
+    const masterSummary = {
+      totalItems: data.items.length,
+      categories: new Set(data.items.map((item) => item.categoryId).filter(Boolean)).size,
+      activeItems: data.items.filter((item) => item.status === "active").length,
+      outletsLinked: new Set(data.items.flatMap((item) => item.linkedOutletIds || [])).size,
+    };
+
     const renderItemRow = (item) => {
       const category = categoryById.get(item.categoryId);
       const photo = item.photo || item.photo_url;
       return (
         <tr key={item.id} className="transition hover:bg-primary/5">
-          <td className="py-3">
+          <td className="py-3.5">
             <div className="flex items-center gap-3">
-              <div className="flex h-11 w-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-primary/10 text-sm font-bold text-primary">
-                {photo ? <img src={photo} alt="" className="h-full w-full object-cover" /> : item.name.slice(0, 2).toUpperCase()}
-              </div>
+              {photo ? (
+                <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border bg-slate-50 shadow-sm">
+                  <img src={photo} alt="" className="h-full w-full object-cover" />
+                </div>
+              ) : <InventoryCategoryIcon category={category} />}
               <div>
                 <div className="font-bold text-text-primary">{item.name}</div>
                 <div className="type-caption text-text-secondary">{item.description || category?.name || "Inventory item"}</div>
@@ -3767,9 +3797,26 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           </td>
           <td><Badge tone={statusTone(item.status)}>{toTitle(item.status)}</Badge></td>
           <td>
-            <div className="flex justify-end gap-2">
+            <div className="flex justify-end gap-2" onClick={(event) => event.stopPropagation()}>
               <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.editMaster, "edit inventory items") && setModal({ type: "item", item })}>Edit</button>
-              <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.deleteMaster, "archive inventory items") && archiveItem(item.id)}>Archive</button>
+              <ActionMenu
+                open={masterActionMenuItemId === item.id}
+                onOpenChange={(nextOpen) => setMasterActionMenuItemId(nextOpen ? item.id : null)}
+                width={212}
+                ariaLabel="Inventory item actions"
+                trigger={({ toggle, ariaLabel }) => (
+                  <button className="icon-btn h-8 w-8" type="button" aria-label={ariaLabel} onClick={toggle}>
+                    <MoreHorizontal size={15} />
+                  </button>
+                )}
+              >
+                <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { setMasterActionMenuItemId(null); ui?.navigate?.("inventory_par_levels"); }}>
+                  <PackageCheck size={14} /> View Par Levels
+                </button>
+                <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold text-rose-700 hover:bg-rose-50" type="button" onClick={() => { setMasterActionMenuItemId(null); requirePermission(can.deleteMaster, "archive inventory items") && archiveItem(item.id); }}>
+                  <Trash2 size={14} /> Archive
+                </button>
+              </ActionMenu>
             </div>
           </td>
         </tr>
@@ -3778,17 +3825,35 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
     return (
       <div className="space-y-4">
-        {renderFilters()}
-        <div className="flex items-center justify-end">
-          <SelectField
-            label="Group by"
-            value={masterGroupBy}
-            options={[{ value: "category", label: "Category" }, { value: "none", label: "None" }]}
-            onChange={setMasterGroupBy}
-            className="w-44"
-          />
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard icon={Boxes} label="Total Items" value={masterSummary.totalItems} helper="Master records" size="compact" />
+          <MetricCard icon={ClipboardList} label="Categories" value={masterSummary.categories} helper="In current list" size="compact" />
+          <MetricCard icon={CheckCircle2} label="Active Items" value={masterSummary.activeItems} helper="Available for operations" tone="success" size="compact" />
+          <MetricCard icon={Warehouse} label="Outlets Linked" value={masterSummary.outletsLinked} helper="Unique outlet links" tone="info" size="compact" />
         </div>
-          <SectionCard
+
+        <div className="card grid gap-3 p-3 xl:grid-cols-[1.15fr_220px_180px_170px] xl:items-end">
+          <label className="min-w-0">
+            <div className="mb-1 type-caption font-semibold text-text-secondary">Search item</div>
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
+              <input className="control h-9 w-full pl-9 text-[13px]" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search item name or SKU" />
+            </div>
+          </label>
+          <SelectField label="Outlet" value={selectedOutletId} options={getAccessibleOutletOptions(auth, outlets)} onChange={setSelectedOutletId} searchable />
+          <SelectField label="Category" value={categoryFilter} options={[{ value: "all", label: "All Categories" }, ...sortedCategories.map((category) => ({ value: category.id, label: category.name }))]} onChange={setCategoryFilter} searchable />
+          <SelectField label="Status" value={statusFilter} options={[{ value: "all", label: "All Status" }, ...statuses.map((status) => ({ value: status, label: toTitle(status) }))]} onChange={setStatusFilter} />
+          <div className="xl:col-start-4">
+            <SelectField
+              label="Group by"
+              value={masterGroupBy}
+              options={[{ value: "category", label: "Category" }, { value: "none", label: "None" }]}
+              onChange={setMasterGroupBy}
+            />
+          </div>
+        </div>
+
+        <SectionCard
           title="Inventory Items"
           description="Global item definitions. Outlet par levels are managed in Par Level Setup."
         >
@@ -3811,10 +3876,10 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                     const collapsed = collapsedCategoryIds.has(group.id);
                     return (
                       <Fragment key={group.id}>
-                        <tr key={`${group.id}-header`} className="bg-slate-50">
+                        <tr key={`${group.id}-header`} className="bg-primary/5">
                           <td className="py-2" colSpan={6}>
                             <button
-                              className="flex w-full items-center justify-between rounded-xl px-2 py-1 text-left transition hover:bg-primary/5"
+                              className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left transition hover:bg-primary/8"
                               type="button"
                               onClick={() => setCollapsedCategoryIds((current) => {
                                 const next = new Set(current);
@@ -3823,8 +3888,16 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                                 return next;
                               })}
                             >
-                              <span className="type-body-sm font-black text-text-primary">{group.category?.name || "Uncategorized"} <span className="font-semibold text-text-secondary">· {group.items.length} item{group.items.length === 1 ? "" : "s"}</span></span>
-                              <ChevronDown className={`text-text-muted transition ${collapsed ? "-rotate-90" : ""}`} size={16} />
+                              <span className="flex min-w-0 items-center gap-3">
+                                <InventoryCategoryIcon category={group.category} size="sm" />
+                                <span className="min-w-0">
+                                  <span className="block type-body-sm font-black text-text-primary">{group.category?.name || "Uncategorized"}</span>
+                                  <span className="type-caption font-semibold text-text-secondary">
+                                    {group.items.length} item{group.items.length === 1 ? "" : "s"} · {new Set(group.items.flatMap((item) => item.linkedOutletIds || [])).size} outlets linked
+                                  </span>
+                                </span>
+                              </span>
+                              <ChevronDown className={`shrink-0 text-text-muted transition ${collapsed ? "-rotate-90" : ""}`} size={16} />
                             </button>
                           </td>
                         </tr>
@@ -3835,7 +3908,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                 </tbody>
               </table>
             </div>
-          ) : <EmptyState title="Create your first inventory item to start stock tracking." description="Inventory items can be linked to one or multiple outlets." />}
+          ) : <EmptyState title="No inventory items match your filters" description="Adjust search, outlet, category or status filters to view more inventory items." />}
         </SectionCard>
       </div>
     );
