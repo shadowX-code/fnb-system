@@ -881,6 +881,46 @@ async function persistRemoteInventoryItem(item, userId) {
   return mapRemoteInventoryItem(savedItem, savedConfigs || []);
 }
 
+async function persistRemoteInventoryCategory(category) {
+  const payload = {
+    name: String(category.name || "").trim(),
+    description: String(category.description || "").trim() || null,
+    sort_order: Number(category.sortOrder ?? category.sort_order ?? 0) || 0,
+    status: category.status || "active",
+    updated_at: new Date().toISOString(),
+  };
+  if (!payload.name) throw new Error("Category name is required.");
+
+  if (isUuid(category.id)) {
+    const { data, error } = await supabase
+      .from("inventory_categories")
+      .update(payload)
+      .eq("id", category.id)
+      .select("*")
+      .single();
+    if (error) throw error;
+    return mapRemoteCategory(data);
+  }
+
+  const { data, error } = await supabase
+    .from("inventory_categories")
+    .insert(payload)
+    .select("*")
+    .single();
+  if (error) throw error;
+  return mapRemoteCategory(data);
+}
+
+async function countRemoteInventoryItemsForCategory(categoryId) {
+  if (!isUuid(categoryId)) return 0;
+  const { count, error } = await supabase
+    .from("inventory_items")
+    .select("id", { count: "exact", head: true })
+    .eq("category_id", categoryId);
+  if (error) throw error;
+  return count || 0;
+}
+
 function uomOptionLabel(uom = {}) {
   return uom.displayName && canonical(uom.displayName) !== canonical(uom.code)
     ? `${uom.code} · ${uom.displayName}`
@@ -3182,6 +3222,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }), [auth]);
 
   const sortedCategories = useMemo(() => [...data.categories].sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0) || a.name.localeCompare(b.name)), [data.categories]);
+  const sortedActiveCategories = useMemo(() => sortedCategories.filter((category) => String(category.status || "active").toLowerCase() === "active"), [sortedCategories]);
   const categoryById = useMemo(() => new Map(data.categories.map((category) => [category.id, category])), [data.categories]);
   const sortedUoms = useMemo(() => [...(data.uoms || [])].map(normalizeUom).sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0) || a.code.localeCompare(b.code)), [data.uoms]);
   const itemCountByCategory = useMemo(() => {
@@ -3341,15 +3382,47 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     }
   }
 
-  function saveCategory(category) {
-    setData((current) => ({
-      ...current,
-      categories: current.categories.some((entry) => entry.id === category.id)
-        ? current.categories.map((entry) => entry.id === category.id ? category : entry)
-        : [...current.categories, { ...category, sortOrder: current.categories.length ? Math.max(...current.categories.map((entry) => Number(entry.sortOrder || 0))) + 1 : 1 }],
-    }));
-    setModal(modal?.returnToSettings ? { type: "category-settings" } : null);
-    notify("Inventory category saved");
+  async function saveCategory(category) {
+    const shouldReturnToSettings = modal?.returnToSettings;
+    const normalized = {
+      ...category,
+      name: String(category.name || "").trim(),
+      description: String(category.description || "").trim(),
+      sortOrder: Number(category.sortOrder ?? category.sort_order ?? 0)
+        || (data.categories.length ? Math.max(...data.categories.map((entry) => Number(entry.sortOrder || 0))) + 1 : 1),
+      status: category.status || "active",
+    };
+    try {
+      const savedCategory = await persistRemoteInventoryCategory(normalized);
+      console.log("[CategoryActionDebug]", {
+        action: isUuid(category.id) ? "edit" : "create",
+        categoryId: savedCategory.id,
+        categoryName: savedCategory.name,
+        linkedItemCount: itemCountByCategory.get(savedCategory.id) || 0,
+        supabaseResult: savedCategory,
+        error: null,
+      });
+      setData((current) => ({
+        ...current,
+        categories: current.categories.some((entry) => entry.id === savedCategory.id)
+          ? current.categories.map((entry) => entry.id === savedCategory.id ? savedCategory : entry)
+          : [...current.categories, savedCategory],
+      }));
+      await refreshInventory();
+      setModal(shouldReturnToSettings ? { type: "category-settings" } : null);
+      notify("Inventory category saved");
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to save inventory category.", error);
+      console.log("[CategoryActionDebug]", {
+        action: isUuid(category.id) ? "edit" : "create",
+        categoryId: category.id,
+        categoryName: category.name,
+        linkedItemCount: itemCountByCategory.get(category.id) || 0,
+        supabaseResult: null,
+        error,
+      });
+      notify("Unable to save category", error.message || "Please try again.", "error");
+    }
   }
 
   function saveUom(uom) {
@@ -3390,7 +3463,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     return normalized;
   }
 
-  function sortCategories(draggedId, targetId) {
+  async function sortCategories(draggedId, targetId) {
+    let sortedCategories = [];
     setData((current) => {
       const ordered = [...current.categories].sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0) || a.name.localeCompare(b.name));
       const fromIndex = ordered.findIndex((category) => category.id === draggedId);
@@ -3399,33 +3473,109 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       const [moved] = ordered.splice(fromIndex, 1);
       ordered.splice(toIndex, 0, moved);
       const sorted = ordered.map((category, index) => ({ ...category, sortOrder: index + 1 }));
+      sortedCategories = sorted;
       const byId = new Map(sorted.map((category) => [category.id, category]));
       return {
         ...current,
         categories: current.categories.map((category) => byId.get(category.id) || category),
       };
     });
-    notify("Category order updated");
-  }
-
-  function archiveCategory(category) {
-    setData((current) => ({
-      ...current,
-      categories: current.categories.map((entry) => entry.id === category.id ? { ...entry, status: "archived" } : entry),
-    }));
-    notify("Inventory category archived");
-  }
-
-  function deleteCategory(category) {
-    if ((itemCountByCategory.get(category.id) || 0) > 0) {
-      notify("Category is linked to inventory items", "Archive it instead to preserve item history.", "warning");
-      return;
+    try {
+      const results = await Promise.all(sortedCategories
+        .filter((category) => isUuid(category.id))
+        .map((category) => supabase
+          .from("inventory_categories")
+          .update({ sort_order: category.sortOrder, updated_at: new Date().toISOString() })
+          .eq("id", category.id)
+        ));
+      const sortError = results.find((result) => result.error)?.error;
+      if (sortError) throw sortError;
+      await refreshInventory();
+      notify("Category order updated");
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to persist category order.", error);
+      notify("Unable to update category order", error.message || "Please try again.", "error");
+      await refreshInventory();
     }
-    setData((current) => ({
-      ...current,
-      categories: current.categories.filter((entry) => entry.id !== category.id),
-    }));
-    notify("Inventory category deleted");
+  }
+
+  async function archiveCategory(category) {
+    try {
+      const savedCategory = await persistRemoteInventoryCategory({ ...category, status: "inactive" });
+      console.log("[CategoryActionDebug]", {
+        action: "archive",
+        categoryId: category.id,
+        categoryName: category.name,
+        linkedItemCount: itemCountByCategory.get(category.id) || 0,
+        supabaseResult: savedCategory,
+        error: null,
+      });
+      setData((current) => ({
+        ...current,
+        categories: current.categories.map((entry) => entry.id === category.id ? savedCategory : entry),
+      }));
+      await refreshInventory();
+      notify("Inventory category archived");
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to archive inventory category.", error);
+      console.log("[CategoryActionDebug]", {
+        action: "archive",
+        categoryId: category.id,
+        categoryName: category.name,
+        linkedItemCount: itemCountByCategory.get(category.id) || 0,
+        supabaseResult: null,
+        error,
+      });
+      notify("Unable to archive category", error.message || "Please try again.", "error");
+    }
+  }
+
+  async function deleteCategory(category) {
+    try {
+      const linkedItemCount = await countRemoteInventoryItemsForCategory(category.id);
+      if (linkedItemCount > 0) {
+        console.log("[CategoryActionDebug]", {
+          action: "delete",
+          categoryId: category.id,
+          categoryName: category.name,
+          linkedItemCount,
+          supabaseResult: "blocked",
+          error: null,
+        });
+        notify("Cannot delete this category", `Cannot delete this category because it is used by ${linkedItemCount} inventory item${linkedItemCount === 1 ? "" : "s"}. Archive it or reassign items first.`, "warning");
+        return;
+      }
+      const { error } = await supabase
+        .from("inventory_categories")
+        .delete()
+        .eq("id", category.id);
+      if (error) throw error;
+      console.log("[CategoryActionDebug]", {
+        action: "delete",
+        categoryId: category.id,
+        categoryName: category.name,
+        linkedItemCount,
+        supabaseResult: "deleted",
+        error: null,
+      });
+      setData((current) => ({
+        ...current,
+        categories: current.categories.filter((entry) => entry.id !== category.id),
+      }));
+      await refreshInventory();
+      notify("Inventory category deleted");
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to delete inventory category.", error);
+      console.log("[CategoryActionDebug]", {
+        action: "delete",
+        categoryId: category.id,
+        categoryName: category.name,
+        linkedItemCount: itemCountByCategory.get(category.id) || 0,
+        supabaseResult: null,
+        error,
+      });
+      notify("Unable to delete category", error.message || "Please try again.", "error");
+    }
   }
 
   function archiveUom(uom) {
@@ -5842,7 +5992,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       ) : null}
       {modal?.type === "category-settings" ? (
         <CategorySettingsModal
-          categories={sortedCategories}
+          categories={sortedActiveCategories}
           itemCounts={itemCountByCategory}
           canAdd={can.createCategory}
           canEdit={can.editCategory}

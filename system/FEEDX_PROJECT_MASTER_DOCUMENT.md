@@ -1855,10 +1855,13 @@ Master Inventory UI:
 - Category Settings opens `Inventory Category Settings`.
 - UOM Settings opens `Inventory UOM Settings`.
 - Inventory Category Settings uses a compact sortable list view, not large cards.
+- Inventory Category Settings shows active categories by default.
 - Category rows show drag handle, category name, description, linked item count, status badge, and actions.
 - Dragging category rows updates `inventory_categories.sort_order`.
 - Category order controls display order in inventory filters and item forms.
 - Inventory Category Settings supports Add Category, Edit Category, Archive/Deactivate, and Delete when existing protection rules allow.
+- Archive is a soft delete and persists `inventory_categories.status = inactive`.
+- Delete is a hard delete and is allowed only when the category has zero linked `inventory_items`; if linked items exist, the UI must block deletion with a clear reassignment/archive message.
 - Category management access is controlled by inventory_categories.view/create/edit/delete.
 - Category is the main user-facing classification for inventory items.
 - Inventory Type is no longer exposed in Add/Edit Item.
