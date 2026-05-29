@@ -769,23 +769,21 @@ async function loadRemoteInventoryMaster() {
   const itemRows = itemsResult.data || [];
   const normalizedItems = itemRows.map((item) => mapRemoteInventoryItem(item, configsByItem.get(item.id) || []));
 
-  if (import.meta.env.DEV) {
-    console.log("[InventoryFetchRaw]", {
-      itemRows,
-      itemCount: itemRows?.length,
-      error: itemsResult.error || null,
-    });
-    console.table(normalizedItems.map((item) => ({
-      id: item.id,
-      name: item.name,
-      category_id: item.category_id,
-      category_name: item.category_name,
-      uom: item.uom_code,
-      photo: item.photo_url,
-      status: item.status,
-      outlets: item.linked_outlets?.map(outletDisplayCode).join(","),
-    })));
-  }
+  console.log("[InventoryFetchRaw]", {
+    itemRows,
+    itemCount: itemRows?.length,
+    error: itemsResult.error || null,
+  });
+  console.table(normalizedItems.map((item) => ({
+    id: item.id,
+    name: item.name,
+    category_id: item.category_id,
+    category_name: item.category_name,
+    uom: item.uom_code,
+    photo: item.photo_url,
+    status: item.status,
+    outlets: item.linked_outlets?.map(outletDisplayCode).join(","),
+  })));
 
   return {
     categories: (categoriesResult.data || []).map(mapRemoteCategory),
@@ -1058,13 +1056,31 @@ function useInventoryData(outlets, suppliers) {
     try {
       const remote = await loadRemoteInventoryMaster();
       const fetchedAt = new Date().toISOString();
-      setData((current) => normalizeInventoryData({
-        ...current,
-        categories: remote.categories,
-        items: remote.items,
-        uoms: remote.uoms,
-      }, outlets, suppliers, { allowEmptyMaster: true }));
-      setMeta({ dataSource: "supabase", lastFetchedAt: fetchedAt, rawItemsCount: remote.rawItemCount ?? remote.items.length, normalizedItemsCount: remote.items.length });
+      let keptCurrentItems = false;
+      setData((current) => {
+        const currentItems = current.items || [];
+        keptCurrentItems = remote.items.length > 0 && currentItems.length > remote.items.length;
+        if (keptCurrentItems) {
+          console.warn("[InventoryControl] Remote inventory returned fewer items than current state. Keeping current item set until fetch/RLS is corrected.", {
+            currentItems: currentItems.length,
+            remoteItems: remote.items.length,
+            remoteItemNames: remote.items.map((item) => item.name),
+            currentItemNames: currentItems.map((item) => item.name),
+          });
+        }
+        return normalizeInventoryData({
+          ...current,
+          categories: remote.categories.length ? remote.categories : current.categories,
+          items: keptCurrentItems ? currentItems : remote.items,
+          uoms: remote.uoms.length ? remote.uoms : current.uoms,
+        }, outlets, suppliers, { allowEmptyMaster: !keptCurrentItems });
+      });
+      setMeta({
+        dataSource: keptCurrentItems ? "supabase_partial_kept_current" : "supabase",
+        lastFetchedAt: fetchedAt,
+        rawItemsCount: remote.rawItemCount ?? remote.items.length,
+        normalizedItemsCount: remote.items.length,
+      });
       return remote;
     } catch (error) {
       console.warn("[InventoryControl] Unable to load remote master inventory. Keeping in-memory fallback data.", error);
@@ -3165,7 +3181,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     return matchesOutlet && matchesQuery && matchesCategory && matchesStatus;
   }), [data.items, selectedOutletId, query, categoryFilter, categoryById, statusFilter]);
   useEffect(() => {
-    if (!import.meta.env.DEV || activeTab !== "master") return;
+    if (activeTab !== "master") return;
     console.log("[InventoryFilterDebug]", {
       outletFilter: selectedOutletId,
       categoryFilter,
@@ -3188,7 +3204,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }, [visibleItems, categoryById]);
 
   useEffect(() => {
-    if (!import.meta.env.DEV || activeTab !== "master") return;
+    if (activeTab !== "master") return;
     const itemNames = visibleItems.map((item) => item.name);
     console.log("[InventoryDesktopItems]", itemNames);
     console.log("[InventoryMobileItems]", itemNames);
@@ -4583,11 +4599,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             </>
           ) : <EmptyState title="No inventory items match your filters" description="Adjust search, outlet, category or status filters to view more inventory items." />}
         </SectionCard>
-        {import.meta.env.DEV ? (
-          <div className="rounded-2xl border border-dashed border-border bg-slate-50/80 px-3 py-2 type-caption font-semibold text-text-secondary">
-            Raw: {inventoryMeta.rawItemsCount || 0} / Normalized: {inventoryMeta.normalizedItemsCount || data.items.length} / Visible: {visibleItems.length} · Source: {inventoryMeta.dataSource}{inventoryMeta.lastFetchedAt ? ` · ${formatDate(inventoryMeta.lastFetchedAt)}` : ""}
-          </div>
-        ) : null}
+        <div className="rounded-2xl border border-dashed border-border bg-slate-50/80 px-3 py-2 type-caption font-semibold text-text-secondary">
+          Raw Items: {inventoryMeta.rawItemsCount || 0} · Normalized Items: {inventoryMeta.normalizedItemsCount || data.items.length} · Visible Items: {visibleItems.length} · Categories: {data.categories.length} · UOMs: {data.uoms.length} · Outlet Links: {data.items.reduce((count, item) => count + (item.linkedOutletIds?.length || 0), 0)} · Build: {import.meta.env.VITE_APP_VERSION || import.meta.env.MODE} · Source: {inventoryMeta.dataSource}{inventoryMeta.lastFetchedAt ? ` · ${formatDate(inventoryMeta.lastFetchedAt)}` : ""}
+        </div>
       </div>
     );
   }
