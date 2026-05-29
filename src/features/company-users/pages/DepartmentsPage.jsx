@@ -201,7 +201,7 @@ export default function DepartmentsPage({ ui, auth }) {
     const usage = departmentUsage.get(department.name);
     if ((usage?.activePositions ?? 0) || (usage?.activeUsers ?? 0)) return;
     try {
-      await departmentService.deleteDepartment(department.id);
+      await departmentService.deleteDepartment(department);
       setDepartments((current) => current.filter((item) => item.id !== department.id));
       ui.notify({ title: "Department deleted", message: department.name });
     } catch (deleteError) {

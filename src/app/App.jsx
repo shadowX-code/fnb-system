@@ -144,8 +144,8 @@ function routePermissionAllowed(auth, permission) {
 }
 
 const BOOTSTRAP_LOADS = [
-  { key: "outlets", label: "Outlets", table: "outlets", operation: "SELECT", permission: "outlets.view OR dashboard.view OR outlet_pnl.view OR outlet_duty_roster.view OR operating_expenses.view OR duty_roster.view OR inventory_control.view" },
-  { key: "suppliers", label: "Suppliers", table: "suppliers", operation: "SELECT", permission: "suppliers.view OR purchase_input.view OR purchase_comparison.view OR data_import.view OR inventory_control.view" },
+  { key: "outlets", label: "Outlets", table: "outlets", operation: "SELECT", permission: "outlets.view OR dashboard.view OR outlet_pnl.view OR outlet_duty_roster.view OR operating_expenses.view OR duty_roster.view OR employees.view OR employees.create OR employees.edit OR inventory_dashboard.view OR inventory_master.view OR inventory_par_levels.view OR inventory_groups.view OR inventory_stock_check.view OR inventory_orders.view OR inventory_movements.view OR inventory_waste.view OR inventory_recipes.view" },
+  { key: "suppliers", label: "Suppliers", table: "suppliers", operation: "SELECT", permission: "suppliers.view OR purchase_input.view OR purchase_comparison.view OR data_import.view OR inventory_master.view OR inventory_par_levels.view OR inventory_orders.view" },
   { key: "purchaseCategories", label: "Purchase Categories", table: "purchase_categories", operation: "SELECT", permission: "purchase_categories.view OR purchase_input.view OR purchase_comparison.view OR data_import.view" },
   { key: "salesChannels", label: "Sales Channels", table: "sales_channels", operation: "SELECT", permission: "sales_channels.view OR sales_input.view OR sales_comparison.view OR data_import.view OR outlet_pnl.view" },
   { key: "outletTaxConfigs", label: "Tax Settings", table: "outlet_tax_configs", operation: "SELECT", permission: "tax_settings.view OR sales_input.view OR dashboard.view" },

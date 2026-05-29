@@ -233,6 +233,15 @@ function formatDate(value) {
   return new Date(value).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" });
 }
 
+function formatDateTimeCompact(value) {
+  if (!value) return "-";
+  return new Date(value).toLocaleString("en-MY", { day: "numeric", month: "short", year: "numeric", hour: "numeric", minute: "2-digit" });
+}
+
+function employeeDisplayName(employee = {}) {
+  return employee.nickname || employee.full_name || employee.fullName || employee.name || employee.email || "Unknown user";
+}
+
 function weekdayName(value = todayInput()) {
   return new Date(value).toLocaleDateString("en-MY", { weekday: "long" });
 }
@@ -293,6 +302,15 @@ function varianceStatus(parLevel, count) {
   if (variance <= 0) return { label: variance < 0 ? "Excess" : "Normal", tone: variance < 0 ? "info" : "success", variance };
   if (variance >= Math.max(3, Number(parLevel || 0) * 0.35)) return { label: "Critical", tone: "danger", variance };
   return { label: "Shortage", tone: "warning", variance };
+}
+
+function stockCheckResultStatus(row = {}) {
+  if (row.skipped) return { label: "Skipped", tone: "neutral" };
+  if (row.na) return { label: "NA", tone: "neutral" };
+  const variance = Number(row.variance || 0);
+  if (variance > 0) return { label: "Shortage", tone: "warning" };
+  if (variance < 0) return { label: "Excess", tone: "info" };
+  return { label: "Normal", tone: "success" };
 }
 
 function latestActualCount(checks = [], itemId, outletId) {
@@ -812,10 +830,23 @@ function mapRemoteStockCheck(row = {}, rows = []) {
     categoryIds,
     status: row.status || "draft",
     rows: mappedRows,
+    createdBy: row.created_by || "",
+    submittedBy: row.submitted_by || "",
     submittedAt: row.submitted_at || "",
     reviewedAt: row.reviewed_at || "",
     createdAt: row.created_at || "",
     updatedAt: row.updated_at || "",
+  };
+}
+
+function mapRemoteEmployeeLite(row = {}) {
+  return {
+    id: row.id || "",
+    authUserId: row.auth_user_id || "",
+    fullName: row.full_name || row.name || "",
+    nickname: row.nickname || "",
+    email: row.email || "",
+    name: employeeDisplayName(row),
   };
 }
 
@@ -960,7 +991,7 @@ async function loadRemoteInventoryMaster() {
   const itemsResult = await supabase.from("inventory_items").select("*").order("created_at", { ascending: false });
   if (itemsResult.error) throw itemsResult.error;
 
-  const [categoriesResult, uomsResult, itemOutletsResult, itemOutletSuppliersResult, stockGroupsResult, stockGroupCategoriesResult, stockChecksResult, stockCheckItemsResult, purchaseOrdersResult, purchaseOrderItemsResult, purchaseReceiptsResult, purchaseReceiptItemsResult, movementsResult, wasteResult, recipesResult, recipeItemsResult] = await Promise.all([
+  const [categoriesResult, uomsResult, itemOutletsResult, itemOutletSuppliersResult, stockGroupsResult, stockGroupCategoriesResult, stockChecksResult, stockCheckItemsResult, purchaseOrdersResult, purchaseOrderItemsResult, purchaseReceiptsResult, purchaseReceiptItemsResult, movementsResult, wasteResult, recipesResult, recipeItemsResult, employeesResult] = await Promise.all([
     supabase.from("inventory_categories").select("*").order("sort_order", { ascending: true }),
     supabase.from("inventory_uoms").select("*").order("sort_order", { ascending: true }),
     supabase.from("inventory_item_outlets").select("*, outlets:outlet_id(*)"),
@@ -977,6 +1008,7 @@ async function loadRemoteInventoryMaster() {
     supabase.from("inventory_waste_records").select("*").order("waste_date", { ascending: false }).order("created_at", { ascending: false }),
     supabase.from("inventory_recipes").select("*").order("created_at", { ascending: false }),
     supabase.from("inventory_recipe_items").select("*").order("created_at", { ascending: true }),
+    supabase.from("employees").select("id, auth_user_id, full_name, nickname, email"),
   ]);
   if (categoriesResult.error) console.warn("[InventoryControl] Inventory categories metadata unavailable. Items will still render.", categoriesResult.error);
   if (uomsResult.error) console.warn("[InventoryControl] Inventory UOM metadata unavailable. Items will still render.", uomsResult.error);
@@ -993,6 +1025,7 @@ async function loadRemoteInventoryMaster() {
   if (wasteResult.error) console.warn("[InventoryControl] Waste records unavailable. Waste & Variance will render empty until persistence is configured.", wasteResult.error);
   if (recipesResult.error) console.warn("[InventoryControl] Recipes unavailable. Recipes & Usage will render empty until persistence is configured.", recipesResult.error);
   if (recipeItemsResult.error) console.warn("[InventoryControl] Recipe ingredients unavailable.", recipeItemsResult.error);
+  if (employeesResult.error) console.warn("[InventoryControl] Employee names unavailable. Stock checks will show fallback checker names.", employeesResult.error);
   debugLog("[WasteFetchDebug]", { result: { data: wasteResult.data || [], error: wasteResult.error }, error: wasteResult.error });
   debugLog("[RecipeFetchDebug]", { result: { recipes: recipesResult.data || [], items: recipeItemsResult.data || [], recipeError: recipesResult.error, itemError: recipeItemsResult.error } });
 
@@ -1114,6 +1147,7 @@ async function loadRemoteInventoryMaster() {
     movements: (movementsResult.data || []).map(mapRemoteInventoryMovement),
     waste: (wasteResult.data || []).map(mapRemoteWasteRecord),
     recipes,
+    people: (employeesResult.data || []).map(mapRemoteEmployeeLite),
     rawItemCount: itemRows.length,
     outletLinkCount: itemOutletRows.length,
     fallbackActive: false,
@@ -1449,11 +1483,12 @@ async function archiveRemoteStockCheckGroup(groupId) {
   return mapRemoteStockCheckGroup(result.data);
 }
 
-async function persistRemoteStockCheck(activeGroup, rows = [], status = "draft", userId) {
+async function persistRemoteStockCheck(activeGroup, rows = [], status = "draft", userId, employeeId) {
   if (!activeGroup) throw new Error("Stock check is not active.");
   const isAudit = activeGroup.stockCheckType === "audit";
   const checkDate = activeGroup.date || todayInput();
   const existingId = isUuid(activeGroup.existingCheckId) ? activeGroup.existingCheckId : (isUuid(activeGroup.id) && isAudit ? activeGroup.id : "");
+  const submittedAt = status === "submitted" ? new Date().toISOString() : null;
   const payload = {
     outlet_id: isUuid(activeGroup.outletId) ? activeGroup.outletId : null,
     group_id: isAudit ? null : (isUuid(activeGroup.id) ? activeGroup.id : null),
@@ -1466,7 +1501,8 @@ async function persistRemoteStockCheck(activeGroup, rows = [], status = "draft",
     audit_category_ids: isAudit ? uniqueIds(activeGroup.categoryIds || activeGroup.auditCategoryIds || []) : [],
     notes: activeGroup.notes || null,
     status,
-    submitted_at: status === "submitted" ? new Date().toISOString() : null,
+    submitted_at: submittedAt,
+    submitted_by: status === "submitted" && isUuid(employeeId) ? employeeId : null,
     updated_at: new Date().toISOString(),
   };
   if (!payload.outlet_id) throw new Error("Outlet is required.");
@@ -2181,6 +2217,7 @@ function emptyInventoryData() {
     movements: [],
     waste: [],
     recipes: [],
+    people: [],
   };
 }
 
@@ -4378,8 +4415,21 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }, [data.items]);
   const outletById = useMemo(() => new Map(outlets.map((outlet) => [outlet.id, outlet])), [outlets]);
   const itemById = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items]);
+  const peopleById = useMemo(() => new Map((data.people || []).map((person) => [person.id, person])), [data.people]);
+  const peopleByAuthId = useMemo(() => new Map((data.people || []).filter((person) => person.authUserId).map((person) => [person.authUserId, person])), [data.people]);
   const accessibleOutletIds = useMemo(() => getAccessibleOutlets(auth, outlets).map((outlet) => outlet.id), [auth, outlets]);
   const canSeeAllMasterItems = selectedOutletId === "all" && hasAllOutletAccess(auth);
+  const currentCheckerName = employeeDisplayName(auth?.profile || { email: auth?.user?.email, name: auth?.user?.email });
+  const actorNameByEmployeeId = (employeeId) => {
+    if (!employeeId) return "Unknown user";
+    if (employeeId === auth?.profile?.id) return currentCheckerName;
+    return peopleById.get(employeeId)?.name || "Unknown user";
+  };
+  const actorNameByAuthUserId = (authUserId) => {
+    if (!authUserId) return "Unknown user";
+    if (authUserId === auth?.user?.id) return currentCheckerName;
+    return peopleByAuthId.get(authUserId)?.name || "Unknown user";
+  };
 
   const visibleItems = useMemo(() => data.items.filter((item) => {
     const linkedOutletIds = item.linkedOutletIds || [];
@@ -5159,7 +5209,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     }
     try {
       const initialRows = initialStockCheckRowsForGroup({ ...group, date });
-      const savedCheck = await persistRemoteStockCheck({ ...group, date, existingCheckId: "" }, buildStockCheckRowsForGroup({ ...group, date }, initialRows), "draft", auth?.user?.id);
+      const savedCheck = await persistRemoteStockCheck({ ...group, date, existingCheckId: "" }, buildStockCheckRowsForGroup({ ...group, date }, initialRows), "draft", auth?.user?.id, auth?.profile?.id);
       setData((current) => ({ ...current, checks: [savedCheck, ...current.checks.filter((check) => check.id !== savedCheck.id)] }));
       await refreshInventory();
       setActiveAuditCheck(null);
@@ -5192,7 +5242,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     };
     try {
       const initialRows = initialStockCheckRowsForGroup(auditGroup);
-      const savedCheck = await persistRemoteStockCheck(auditGroup, buildStockCheckRowsForGroup(auditGroup, initialRows), "draft", auth?.user?.id);
+      const savedCheck = await persistRemoteStockCheck(auditGroup, buildStockCheckRowsForGroup(auditGroup, initialRows), "draft", auth?.user?.id, auth?.profile?.id);
       setData((current) => ({ ...current, checks: [savedCheck, ...current.checks.filter((check) => check.id !== savedCheck.id)] }));
       await refreshInventory();
       setSelectedOutletId(form.outletId);
@@ -5301,7 +5351,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     };
     const rows = buildStockCheckRowsForGroup(persistGroup);
     try {
-      const savedCheck = await persistRemoteStockCheck(persistGroup, rows, status, auth?.user?.id);
+      const savedCheck = await persistRemoteStockCheck(persistGroup, rows, status, auth?.user?.id, auth?.profile?.id);
       setData((current) => ({
         ...current,
         checks: [
@@ -6512,6 +6562,12 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
     if (activeCheckGroup) {
       const isAudit = activeCheckGroup.stockCheckType === "audit";
+      const activePersistedCheck = activeCheckGroup.existingCheckId
+        ? data.checks.find((check) => check.id === activeCheckGroup.existingCheckId)
+        : data.checks.find((check) => check.groupId === activeCheckGroup.id && check.date === (activeCheckGroup.date || date) && check.status === "draft");
+      const startedByName = activePersistedCheck?.createdBy ? actorNameByAuthUserId(activePersistedCheck.createdBy) : currentCheckerName;
+      const submittedByName = activePersistedCheck?.submittedBy ? actorNameByEmployeeId(activePersistedCheck.submittedBy) : "";
+      const draftSavedAt = activePersistedCheck?.updatedAt || activePersistedCheck?.createdAt || "";
       const checkRowsWithIndex = checkRows.map((row, index) => ({ ...row, rowIndex: index })).filter((row) => {
         if (!checkSearch.trim()) return true;
         const item = itemById.get(row.itemId);
@@ -6590,6 +6646,24 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             description={`${outletById.get(activeCheckGroup.outletId)?.name} · ${isAudit ? activeCheckGroup.auditType : activeCheckGroup.shift} · ${formatDate(activeCheckGroup.date || date)}`}
             action={<button className="btn-secondary" type="button" onClick={() => { setActiveCheckGroupId(null); setActiveAuditCheck(null); }}>Back to Due Checks</button>}
           >
+            <div className="mb-3 grid gap-2 rounded-2xl border border-border bg-slate-50 p-3 md:grid-cols-3">
+              <div>
+                <div className="type-micro font-black uppercase text-text-muted">Checked by</div>
+                <div className="type-body-sm font-bold text-text-primary">{currentCheckerName}</div>
+              </div>
+              <div>
+                <div className="type-micro font-black uppercase text-text-muted">Started by</div>
+                <div className="type-body-sm font-bold text-text-primary">{startedByName}</div>
+              </div>
+              <div>
+                <div className="type-micro font-black uppercase text-text-muted">{activePersistedCheck?.status === "submitted" ? "Submitted" : "Draft saved"}</div>
+                <div className="type-body-sm font-bold text-text-primary">
+                  {activePersistedCheck?.status === "submitted"
+                    ? `${submittedByName || "Unknown user"} · ${formatDateTimeCompact(activePersistedCheck.submittedAt)}`
+                    : (draftSavedAt ? formatDateTimeCompact(draftSavedAt) : "Not saved yet")}
+                </div>
+              </div>
+            </div>
             {isAudit ? (
               <div className="mb-3 flex flex-col gap-2 rounded-2xl border border-border bg-slate-50 p-3 md:flex-row md:items-center md:justify-between">
                 <div>
@@ -6609,10 +6683,10 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                 <thead className="text-[11px] uppercase tracking-wide text-text-muted">
                   <tr className="border-b border-border">
                     <th className="py-2">Item</th>
-                    <th>Par Level</th>
-                    <th>Actual Count</th>
+                    <th>Par</th>
+                    <th>Actual</th>
                     <th>Variance</th>
-                    <th>Unit</th>
+                    <th>UOM</th>
                     <th>Status</th>
                     <th>Notes</th>
                     {isAudit ? <th>Skip</th> : null}
@@ -7335,59 +7409,107 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           onViewPurchaseOrder={(order) => setModal({ type: "po-detail", order })}
         />
       ) : null}
-      {modal?.type === "check-result" ? (
-        <Modal
-          title={modal.isAudit || modal.stockCheck?.stockCheckType === "audit" ? "Audit Stock Check Result" : "Stock Check Result"}
-          description={`${outletById.get(modal.stockCheck?.outletId)?.name || "Outlet"} · ${formatDate(modal.stockCheck?.date)} · ${modal.isAudit || modal.stockCheck?.stockCheckType === "audit" ? (modal.stockCheck?.auditType || "Audit") : `${modal.suggestions?.length || 0} shortage item${modal.suggestions?.length === 1 ? "" : "s"}`}`}
-          size="xl"
-          onClose={() => setModal(null)}
-          footer={<button className="btn-secondary" type="button" onClick={() => setModal(null)}>Close</button>}
-        >
-          <div className="overflow-x-auto rounded-2xl border border-border">
-            <table className="w-full min-w-[760px] text-left">
-              <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
-                <tr>
-                  <th className="px-3 py-2">Item</th>
-                  <th>Par Level</th>
-                  <th>Actual</th>
-                  <th>Variance</th>
-                  <th>Status</th>
-                  <th>Notes</th>
-                  <th>Skip Reason</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border text-[13px]">
-                {(modal.stockCheck?.rows || []).map((row) => {
-                  const item = itemById.get(row.itemId);
-                  const category = categoryById.get(item?.categoryId);
-                  const result = row.skipped ? { label: "Skipped", tone: "neutral" } : varianceStatus(row.expectedQty, row.actualCount);
-                  return (
-                    <tr key={row.id || row.itemId}>
-                      <td className="px-3 py-2">
-                        <div className="flex min-w-[220px] items-center gap-3">
-                          <InventoryItemThumbnail item={item} category={category} onPreview={setPhotoPreview} size="sm" />
-                          <div className="min-w-0">
-                            <div className="font-bold text-text-primary">{item?.name || "Inventory item"}</div>
-                            <div className="type-caption text-text-secondary">
-                              {category?.name ?? "Uncategorized"}{item?.sku ? ` · ${item.sku}` : ""}
+      {modal?.type === "check-result" ? (() => {
+        const stockCheck = modal.stockCheck || {};
+        const isAuditResult = modal.isAudit || stockCheck.stockCheckType === "audit";
+        const rows = stockCheck.rows || [];
+        const summary = rows.reduce((acc, row) => {
+          const result = stockCheckResultStatus(row);
+          acc.total += 1;
+          if (result.label === "Normal") acc.normal += 1;
+          if (result.label === "Shortage") acc.shortage += 1;
+          if (result.label === "Excess") acc.excess += 1;
+          if (result.label === "Skipped") acc.skipped += 1;
+          return acc;
+        }, { total: 0, normal: 0, shortage: 0, excess: 0, skipped: 0 });
+        const submittedByName = stockCheck.submittedBy ? actorNameByEmployeeId(stockCheck.submittedBy) : "Unknown user";
+        const outletName = outletById.get(stockCheck.outletId)?.name || "Outlet";
+        const shiftLabel = isAuditResult ? (stockCheck.auditType || "Audit") : (stockCheck.shift || "Stock Check");
+        return (
+          <Modal
+            title={isAuditResult ? "Audit Stock Check Result" : "Stock Check Result"}
+            description={`${outletName} · ${formatDate(stockCheck.date)} · ${shiftLabel}`}
+            size="xl"
+            onClose={() => setModal(null)}
+            footer={<button className="btn-secondary" type="button" onClick={() => setModal(null)}>Close</button>}
+          >
+            <div className="mb-4 rounded-2xl border border-border bg-slate-50 p-4">
+              <div className="grid gap-3 md:grid-cols-2">
+                <div>
+                  <div className="type-caption font-black uppercase text-text-muted">Checked by</div>
+                  <div className="type-section-title font-black text-text-primary">{submittedByName}</div>
+                </div>
+                <div>
+                  <div className="type-caption font-black uppercase text-text-muted">Submitted at</div>
+                  <div className="type-section-title font-black text-text-primary">{formatDateTimeCompact(stockCheck.submittedAt)}</div>
+                </div>
+              </div>
+              <div className="mt-3 grid grid-cols-2 gap-2 md:grid-cols-5">
+                {[
+                  ["Total Items", summary.total, "neutral"],
+                  ["Normal", summary.normal, "success"],
+                  ["Shortage", summary.shortage, "warning"],
+                  ["Excess", summary.excess, "info"],
+                  ["Skipped", summary.skipped, "neutral"],
+                ].map(([label, value, tone]) => (
+                  <div key={label} className="rounded-xl border border-border bg-white p-3">
+                    <div className="type-micro font-black uppercase text-text-muted">{label}</div>
+                    <div className="mt-1 flex items-center justify-between">
+                      <span className="type-metric font-black text-text-primary">{value}</span>
+                      <Badge tone={tone}>{label}</Badge>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="overflow-x-auto rounded-2xl border border-border">
+              <table className="w-full min-w-[820px] text-left">
+                <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
+                  <tr>
+                    <th className="px-3 py-2">Item</th>
+                    <th>Par</th>
+                    <th>Actual</th>
+                    <th>Variance</th>
+                    <th>UOM</th>
+                    <th>Status</th>
+                    <th>Notes</th>
+                    <th>Skip Reason</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border text-[13px]">
+                  {rows.map((row) => {
+                    const item = itemById.get(row.itemId);
+                    const category = categoryById.get(item?.categoryId);
+                    const result = stockCheckResultStatus(row);
+                    return (
+                      <tr key={row.id || row.itemId}>
+                        <td className="px-3 py-2">
+                          <div className="flex min-w-[240px] items-center gap-3">
+                            <InventoryItemThumbnail item={item} category={category} onPreview={setPhotoPreview} size="sm" />
+                            <div className="min-w-0">
+                              <div className="font-bold text-text-primary">{item?.name || "Inventory item"}</div>
+                              <div className="type-caption text-text-secondary">
+                                {category?.name ?? "Uncategorized"}{item?.sku ? ` · ${item.sku}` : ""}
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      </td>
-                      <td>{row.expectedQty}</td>
-                      <td>{row.skipped ? "Skipped" : row.actualCount}</td>
-                      <td>{row.skipped ? "Skipped" : row.variance}</td>
-                      <td><Badge tone={result.tone}>{result.label}</Badge></td>
-                      <td>{row.notes || "-"}</td>
-                      <td>{row.skipReason || "-"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </Modal>
-      ) : null}
+                        </td>
+                        <td>{row.expectedQty || "-"}</td>
+                        <td>{row.skipped ? "Skipped" : row.actualCount}</td>
+                        <td>{row.skipped ? "Skipped" : row.variance}</td>
+                        <td>{row.unit || item?.unit || "-"}</td>
+                        <td><Badge tone={result.tone}>{result.label}</Badge></td>
+                        <td className="max-w-[220px] whitespace-pre-wrap py-2 pr-3 text-text-secondary">{row.notes || "-"}</td>
+                        <td className="max-w-[220px] whitespace-pre-wrap py-2 pr-3 text-text-secondary">{row.skipReason || "-"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </Modal>
+        );
+      })() : null}
       {modal?.type === "po-detail" ? (() => {
         const order = modal.order;
         const progress = poProgress(order);

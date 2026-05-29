@@ -19,10 +19,10 @@ import { jobPositionService } from "../../../services/jobPositionService.js";
 import { roleService } from "../../../services/roleService.js";
 import { formatDateTime } from "../../../lib/dateTime.js";
 import { normalizeRoleOutletAccess } from "../utils/roleAccess.js";
-import { canCreate, canEdit, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { canCreate, canEdit, getAccessibleOutlets, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 
 const fallbackRoleOptions = ["owner", "admin", "manager", "supervisor", "cashier", "kitchen", "purchaser", "finance", "hr", "staff"];
-const fallbackWorkplaceOptions = ["All Outlets", "Hola Ipoh Bangsar", "Hola TTDI", "Hola Mont Kiara", "Hola Subang"];
+const fallbackWorkplaceOptions = ["Hola Ipoh Bangsar", "Hola TTDI", "Hola Mont Kiara", "Hola Subang"];
 
 function createEmptyUser() {
   return {
@@ -441,6 +441,8 @@ function UserFormModal({
           ? formatMalaysiaIc(current.ic_no)
           : current.ic_no;
       const nextDetectedBirthday = isMalaysiaNationality(nextNationality) ? extractMalaysiaIcBirthday(nextIc) : null;
+      const nextPosition = key === "position" ? value : current.position;
+      const matchedPosition = key === "position" ? activeJobPositions.find((position) => position.name === value) : null;
       return {
         ...current,
         [key]:
@@ -452,6 +454,7 @@ function UserFormModal({
         ...(key === "nationality" && isMalaysiaNationality(value) ? { ic_no: nextIc, contact: formatMalaysiaContact(current.contact) } : {}),
         ...((key === "ic_no" || key === "nationality") && nextDetectedBirthday && !current.birthday ? { birthday: nextDetectedBirthday } : {}),
         ...(key === "full_name" && !current.bank_account_name ? { bank_account_name: value } : {}),
+        ...(key === "position" ? { department: matchedPosition?.department || (nextPosition ? current.department : "") } : {}),
         ...(key === "employment_status" && value !== "resigned" ? { resigned_date: "" } : {}),
         ...(key === "enable_system_login" && !value ? { email: "", role: "", role_id: "", access_state: EMPLOYEE_ACCESS_STATE.NO_ACCESS, is_active: false, email_verified: false } : {}),
         ...(key === "enable_system_login" && value ? { access_state: hasSystemLogin(current) ? getAccessState(current) : EMPLOYEE_ACCESS_STATE.NOT_SENT, is_active: getAccessState(current) === EMPLOYEE_ACCESS_STATE.ACTIVE } : {}),
@@ -893,8 +896,12 @@ export default function UsersPage({ ui, store, auth }) {
   const canResetPassword = hasPermission(auth, "employees.reset_password");
   const roleOptions = useMemo(() => (roleRecords.length ? roleRecords.map((role) => role.name) : fallbackRoleOptions), [roleRecords]);
   const workplaceOptions = useMemo(
-    () => ["All Outlets", ...(store?.outlets ?? []).map((outlet) => outlet.name)].filter(Boolean),
-    [store?.outlets],
+    () => {
+      const accessibleOutlets = getAccessibleOutlets(auth, store?.outlets ?? []);
+      const outletNames = accessibleOutlets.map((outlet) => outlet.name).filter(Boolean);
+      return outletNames.length ? outletNames : fallbackWorkplaceOptions;
+    },
+    [auth, store?.outlets],
   );
 
   useEffect(() => {
@@ -1094,6 +1101,8 @@ export default function UsersPage({ ui, store, auth }) {
       const shouldSendLoginSetup = Boolean(user.send_login_setup);
       const payload = { ...user };
       delete payload.send_login_setup;
+      const selectedPosition = jobPositions.find((position) => position.name === payload.position);
+      payload.department = selectedPosition?.department || payload.department || null;
       let saved = await employeeService.saveEmployee(payload);
       if (shouldSendLoginSetup) {
         const setupResult = await sendLoginSetupForUser(saved);

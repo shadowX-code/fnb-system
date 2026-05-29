@@ -192,7 +192,6 @@ inventory_uoms          INVENTORY_CONTROL   Inventory UOMs         internal only
 inventory_par_levels    INVENTORY_CONTROL   Par Levels             #inventory_par_levels
 inventory_groups        INVENTORY_CONTROL   Stock Check Groups     #inventory_groups
 inventory_stock_check   INVENTORY_CONTROL   Stock Check            #inventory_stock_check
-inventory_requests      INVENTORY_CONTROL   Stock Requests         deferred, route disabled, sidebar false
 inventory_orders        INVENTORY_CONTROL   Purchase Orders        #inventory_orders
 inventory_movements     INVENTORY_CONTROL   Inventory Movements    #inventory_movements
 inventory_waste         INVENTORY_CONTROL   Waste & Variance       #inventory_waste
@@ -1775,7 +1774,7 @@ Inventory Control permissions:
 - The `permissions` table must contain the canonical child permission keys below; role save/load must use these exact keys.
 - Role save should sync missing canonical permission catalog rows before writing `role_permissions` so newly introduced module keys do not revert to Off.
 - Role save must filter out legacy parent `inventory_control.*` keys from active payloads so old duplicate parent permissions are not reintroduced.
-- Stock Requests permissions are legacy/internal only and must not appear in the active Role Management matrix.
+- Stock Requests permissions are deferred legacy/internal only and must not appear in the active Role Management matrix, module registry, sidebar, or route list.
 - Non-view actions require view through the permission matrix dependency rule.
 
 - inventory_dashboard.view
@@ -1827,6 +1826,17 @@ Inventory Control permissions:
 - inventory_recipes.delete
 - inventory_recipes.manage
 - inventory_recipes.export
+
+RBAC verification status:
+
+- RBAC Full Verification completed on 30 May 2026. Report: `FEEDX_RBAC_VERIFICATION_REPORT.md`.
+- Result: Pass with live-role UAT caveat.
+- Stock Requests was removed from the active module registry during verification so it cannot appear in generated permission groups or the permission catalog for new role saves.
+- Inventory Control bootstrap context now checks active child Inventory permissions instead of legacy `inventory_control.view`, so Inventory-only roles can load outlet and supplier context required for filters and scoped workflows.
+- Sidebar visibility and direct route access derive from the module registry and route permissions.
+- Role edit entry points use canonical `roles_permissions.*` checks with legacy alias support for older `roles.*` rows.
+- Custom role editing rules remain: no own-role edit, no protected owner/admin edit, no permission grants beyond the current user's own permissions, and no outlet assignments outside the current user's accessible outlets.
+- Remaining RBAC technical debt: older Supabase RLS migrations still contain legacy `inventory_control.*` fallback clauses. Active Role Management no longer grants these keys, but a cleanup migration should remove the fallback paths after confirming no production role rows depend on them.
 
 Master Inventory fields:
 
@@ -2168,10 +2178,11 @@ Daily Stock Check workflow:
 2. Start Check creates or resumes a Supabase draft for the same outlet, group, date, and shift.
 3. Count items and preserve actual count, notes, variance, and row status in `inventory_stock_check_items`.
 4. Save Draft writes `inventory_stock_checks.status = draft` and replaces the item snapshot rows.
-5. Submit Stock Check writes the final item snapshot, sets `inventory_stock_checks.status = submitted`, sets `submitted_at`, and updates the group `last_checked_at`.
+5. Submit Stock Check writes the final item snapshot, sets `inventory_stock_checks.status = submitted`, sets `submitted_at`, records `submitted_by`, and updates the group `last_checked_at`.
 6. Return to Stock Check list.
 7. Completed check card shows Review Purchase Suggestions when shortages exist and the user has permission.
 8. Create Draft POs only after user review and confirmation.
+9. Stock Check entry headers show the group, outlet, shift/date, started-by identity, and the latest draft/submission timestamp.
 
 Audit Stock Check workflow:
 
@@ -2187,6 +2198,7 @@ Audit Stock Check workflow:
 - Audit checks calculate variance against outlet par level and create stock check history/result records.
 - Audit checks use `stock_check_type = audit` and may omit `stock_check_group_id`.
 - Audit drafts and submitted audit results are persisted in `inventory_stock_checks` and `inventory_stock_check_items`.
+- Audit submissions also record `submitted_by` and `submitted_at` so audit results show who completed the count.
 - Audit Stock Check does not generate Purchase Suggestions, Draft PO, or ordering workflows.
 - Submitted audit result cards show View Audit Result only. Draft audit cards show Continue Audit.
 
@@ -2259,9 +2271,12 @@ Daily Stock Check UI:
 - Header: Daily Stock Check
 - Subtitle: Fast inventory counting workflow.
 - Filters: Outlet, Date, Shift, Group, Category, Search Item.
+- Active counting form includes a compact info bar for checked-by, started-by, and draft/submission status.
 - Actual count input uses quantity stepper controls.
 - Quick count buttons: Full, Half, Empty, NA.
 - Sticky bottom bar shows items checked, critical items, Save Draft, and Submit Stock Check.
+- Result modals show checked-by/submitted-at, total items, Normal, Shortage, Excess, and Skipped counts above the item table.
+- Result item rows show photo/fallback, category, SKU, UOM, notes, skip reason, and semantic status badges.
 - Mobile uses card layout instead of a dense table.
 
 Stock Requests:
@@ -2778,6 +2793,10 @@ Rules:
 - Send Login Setup changes state to invited.
 - Successful password setup changes state to active.
 - Disabled access changes state to disabled.
+- Employee workplace must be a real outlet assignment, not `All Outlets`.
+- People users with selected-outlet roles may only view, create, or update employees whose workplace matches an accessible outlet.
+- Current implementation stores workplace as text and RLS maps `employees.workplace` to `outlets.name` or `outlets.code`; future schema cleanup should migrate this to `employees.outlet_id`.
+- Employee department is derived from the selected Job Position during save so position and department do not drift.
 
 Employee form sections:
 
@@ -2839,6 +2858,7 @@ Rules:
 - Owner position is not protected here.
 - All positions can be deleted if active_employee_count = 0.
 - If active_employee_count > 0, prevent delete.
+- Archive/inactive status is preferred when a position has historical usage.
 
 Delete message:
 
@@ -2905,6 +2925,12 @@ Removed for MVP:
 Future TODO:
 
 Reintroduce module dependency mapping when HR/KPI/Payroll modules are implemented.
+
+Rules:
+
+- Departments are global People master data.
+- Archive/inactive status is preferred when a department has linked positions or employees.
+- Hard delete is allowed only when the department has no active linked positions and no active non-resigned employees linked directly or through positions.
 
 ---
 
@@ -2991,6 +3017,18 @@ Permission UI:
 - Wide permission matrix.
 - Rows follow actual sidebar features.
 - Columns follow available actions.
+
+People UAT status:
+
+- People Module UAT & Stabilization completed on 30 May 2026. Report: `FEEDX_PEOPLE_UAT_REPORT.md`.
+- Result: Production Ready Candidate with live-account UAT caveat.
+- Verified/stabilized modules: Employees, Job Positions, Departments, Roles & Permissions, and Employee Login Access.
+- Critical fixes from the pass:
+  - Employee workplace options are restricted to accessible real outlets.
+  - Employee RLS is outlet-scoped by mapping workplace text to outlet name/code until a future `employees.outlet_id` migration.
+  - Department hard delete blocks active linked positions and active employees.
+  - Employee department is derived from the selected job position before save.
+- Remaining People technical debt: migrate employee outlet assignment from `workplace` text to `outlet_id` and run live UAT with Owner/Admin, custom all-outlet, custom selected-outlet, and limited outlet staff roles.
 
 ---
 
@@ -3567,7 +3605,7 @@ Inventory Control tables:
 - inventory_stock_check_groups
 - inventory_stock_check_group_categories
 - inventory_stock_check_group_items (legacy compatibility only; not used by the current group editing workflow)
-- inventory_stock_checks (`stock_check_type` = `scheduled` or `audit`; stores `check_name`, `shift`, `check_date`, `status`, `submitted_at`; audit rows may store `audit_type`, `audit_name`, `audit_category_ids`, and `notes`)
+- inventory_stock_checks (`stock_check_type` = `scheduled` or `audit`; stores `check_name`, `shift`, `check_date`, `status`, `created_by`, `submitted_by`, and `submitted_at`; audit rows may store `audit_type`, `audit_name`, `audit_category_ids`, and `notes`)
 - inventory_stock_check_items (snapshot rows for counted stock check items; supports `category_id`, `par_level_quantity`, `actual_count_quantity`, `variance`, `notes`, `skipped`, and `skip_reason`)
 - inventory_stock_requests
 - inventory_stock_request_items
@@ -3647,7 +3685,7 @@ Examples:
 - outlet_tax_configs readable by tax_settings.view, sales_input.view, dashboard.view where needed.
 - asset_categories readable by asset_tracking.view.
 - inventory_categories readable by related Inventory Control view/manage permissions.
-- inventory_items readable by inventory_master.view, inventory_stock_check.view, inventory_requests.view, inventory_orders.view, inventory_movements.view, inventory_waste.view, and inventory_recipes.view where needed.
+- inventory_items readable by inventory_master.view, inventory_stock_check.view, inventory_orders.view, inventory_movements.view, inventory_waste.view, and inventory_recipes.view where needed.
 
 Transaction records:
 
