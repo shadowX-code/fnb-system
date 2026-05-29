@@ -11,6 +11,7 @@ import {
   Copy,
   Download,
   FileText,
+  Folder,
   GripVertical,
   MoreHorizontal,
   Plus,
@@ -706,7 +707,7 @@ function mapRemoteUom(row = {}) {
   });
 }
 
-function mapRemoteInventoryItem(row = {}, configs = [], categoryById = new Map()) {
+function mapRemoteInventoryItem(row = {}, configs = [], categoryById = new Map(), supplierIdsByConfigId = new Map()) {
   const category = categoryById.get(row.category_id) || row.inventory_categories || row.category || {};
   const linkedOutlets = configs
     .map((config) => normalizeOutletRecord(config.outlets || config.outlet || { id: config.outlet_id }))
@@ -717,7 +718,7 @@ function mapRemoteInventoryItem(row = {}, configs = [], categoryById = new Map()
     outletId: config.outlet_id,
     parLevel: config.par_level === null || config.par_level === undefined ? "" : Number(config.par_level),
     storageLocation: config.storage_location || "",
-    supplierIds: [],
+    supplierIds: supplierIdsByConfigId.get(config.id) || [],
     isActive: config.is_active !== false,
     createdAt: config.created_at || "",
     updatedAt: config.updated_at || "",
@@ -747,13 +748,15 @@ async function loadRemoteInventoryMaster() {
   const itemsResult = await supabase.from("inventory_items").select("*").order("created_at", { ascending: false });
   if (itemsResult.error) throw itemsResult.error;
 
-  const [categoriesResult, uomsResult, itemOutletsResult] = await Promise.all([
+  const [categoriesResult, uomsResult, itemOutletsResult, itemOutletSuppliersResult] = await Promise.all([
     supabase.from("inventory_categories").select("*").order("sort_order", { ascending: true }),
     supabase.from("inventory_uoms").select("*").order("sort_order", { ascending: true }),
     supabase.from("inventory_item_outlets").select("*, outlets:outlet_id(*)"),
+    supabase.from("inventory_item_outlet_suppliers").select("*"),
   ]);
   if (categoriesResult.error) console.warn("[InventoryControl] Inventory categories metadata unavailable. Items will still render.", categoriesResult.error);
   if (uomsResult.error) console.warn("[InventoryControl] Inventory UOM metadata unavailable. Items will still render.", uomsResult.error);
+  if (itemOutletSuppliersResult.error) console.warn("[InventoryControl] Inventory outlet supplier links unavailable. Items will still render without supplier assignments.", itemOutletSuppliersResult.error);
 
   let itemOutletRows = itemOutletsResult.data || [];
   if (itemOutletsResult.error) {
@@ -768,6 +771,12 @@ async function loadRemoteInventoryMaster() {
 
   const categories = (categoriesResult.data || []).map(mapRemoteCategory);
   const categoryById = new Map(categories.map((category) => [category.id, category]));
+  const supplierIdsByConfigId = new Map();
+  (itemOutletSuppliersResult.data || []).forEach((link) => {
+    const list = supplierIdsByConfigId.get(link.inventory_item_outlet_id) || [];
+    if (link.supplier_id) list.push(link.supplier_id);
+    supplierIdsByConfigId.set(link.inventory_item_outlet_id, uniqueIds(list));
+  });
   const configsByItem = new Map();
   itemOutletRows.forEach((config) => {
     const list = configsByItem.get(config.inventory_item_id) || [];
@@ -775,7 +784,7 @@ async function loadRemoteInventoryMaster() {
     configsByItem.set(config.inventory_item_id, list);
   });
   const itemRows = itemsResult.data || [];
-  const normalizedItems = itemRows.map((item) => mapRemoteInventoryItem(item, configsByItem.get(item.id) || [], categoryById));
+  const normalizedItems = itemRows.map((item) => mapRemoteInventoryItem(item, configsByItem.get(item.id) || [], categoryById, supplierIdsByConfigId));
   const activeItems = normalizedItems.filter((item) => String(item.status || "").toLowerCase() === "active");
 
   console.log("[InventoryFetchRaw]", {
@@ -983,6 +992,106 @@ async function countRemoteInventoryItemsForCategory(categoryId) {
     .eq("category_id", categoryId);
   if (error) throw error;
   return count || 0;
+}
+
+async function persistRemoteInventoryUom(uom) {
+  const normalized = normalizeUom(uom);
+  const payload = {
+    code: String(normalized.code || "").trim(),
+    display_name: String(normalized.displayName || "").trim(),
+    uom_type: String(normalized.uomType || "").trim() || "General",
+    is_active: Boolean(normalized.isActive),
+    sort_order: Number(normalized.sortOrder ?? 0) || 0,
+    updated_at: new Date().toISOString(),
+  };
+  if (!payload.code || !payload.display_name || !payload.uom_type) throw new Error("UOM code, display name and type are required.");
+
+  if (isUuid(normalized.id)) {
+    const result = await supabase
+      .from("inventory_uoms")
+      .update(payload)
+      .eq("id", normalized.id)
+      .select("*")
+      .single();
+    console.log("[UomSaveDebug]", { action: "update", payload, result: { data: result.data, error: result.error }, error: result.error });
+    if (result.error) throw result.error;
+    return mapRemoteUom(result.data);
+  }
+
+  const result = await supabase
+    .from("inventory_uoms")
+    .insert(payload)
+    .select("*")
+    .single();
+  console.log("[UomSaveDebug]", { action: "create", payload, result: { data: result.data, error: result.error }, error: result.error });
+  if (result.error) throw result.error;
+  return mapRemoteUom(result.data);
+}
+
+async function countRemoteInventoryItemsForUom(code) {
+  const rawCode = String(code || "").trim();
+  if (!rawCode) return 0;
+  const { data, error } = await supabase
+    .from("inventory_items")
+    .select("id, unit");
+  if (error) throw error;
+  return (data || []).filter((item) => canonical(item.unit) === canonical(rawCode)).length;
+}
+
+async function persistRemoteParLevelConfig(item, outletId, patch) {
+  const normalized = normalizeInventoryItem(item);
+  if (!isUuid(normalized.id) || !isUuid(outletId)) throw new Error("Valid item and outlet are required.");
+  const existing = outletConfigForItem(normalized, outletId);
+  const payload = {
+    inventory_item_id: normalized.id,
+    outlet_id: outletId,
+    par_level: Object.prototype.hasOwnProperty.call(patch, "parLevel")
+      ? (patch.parLevel === "" || patch.parLevel === null || patch.parLevel === undefined ? null : Number(patch.parLevel))
+      : (existing.parLevel === "" || existing.parLevel === null || existing.parLevel === undefined ? null : Number(existing.parLevel)),
+    storage_location: Object.prototype.hasOwnProperty.call(patch, "storageLocation") ? (patch.storageLocation || null) : (existing.storageLocation || null),
+    is_active: true,
+    updated_at: new Date().toISOString(),
+  };
+  if (payload.par_level !== null && (!Number.isFinite(payload.par_level) || payload.par_level < 0)) throw new Error("Par Level must be a non-negative number.");
+
+  const configResult = await supabase
+    .from("inventory_item_outlets")
+    .upsert(payload, { onConflict: "inventory_item_id,outlet_id" })
+    .select("*")
+    .single();
+  console.log("[ParLevelSaveDebug]", { action: "upsert-config", itemId: normalized.id, outletId, payload, result: { data: configResult.data, error: configResult.error }, error: configResult.error });
+  if (configResult.error) throw configResult.error;
+
+  if (Object.prototype.hasOwnProperty.call(patch, "supplierIds")) {
+    const supplierIds = uniqueIds(patch.supplierIds || []).filter(isUuid);
+    const deleteResult = await supabase
+      .from("inventory_item_outlet_suppliers")
+      .delete()
+      .eq("inventory_item_outlet_id", configResult.data.id);
+    console.log("[ParLevelSaveDebug]", { action: "delete-suppliers", itemId: normalized.id, outletId, payload: { supplierIds }, result: { data: deleteResult.data || null, error: deleteResult.error }, error: deleteResult.error });
+    if (deleteResult.error) throw deleteResult.error;
+    if (supplierIds.length) {
+      const supplierPayload = supplierIds.map((supplierId) => ({
+        inventory_item_outlet_id: configResult.data.id,
+        supplier_id: supplierId,
+        updated_at: new Date().toISOString(),
+      }));
+      const supplierResult = await supabase
+        .from("inventory_item_outlet_suppliers")
+        .insert(supplierPayload);
+      console.log("[ParLevelSaveDebug]", { action: "insert-suppliers", itemId: normalized.id, outletId, payload: supplierPayload, result: { data: supplierResult.data || null, error: supplierResult.error }, error: supplierResult.error });
+      if (supplierResult.error) throw supplierResult.error;
+    }
+  }
+
+  return {
+    ...buildOutletConfig(normalized, outletId, existing),
+    id: configResult.data.id,
+    parLevel: configResult.data.par_level === null || configResult.data.par_level === undefined ? "" : Number(configResult.data.par_level),
+    storageLocation: configResult.data.storage_location || "",
+    supplierIds: Object.prototype.hasOwnProperty.call(patch, "supplierIds") ? uniqueIds(patch.supplierIds || []) : existing.supplierIds,
+    updatedAt: configResult.data.updated_at || new Date().toISOString(),
+  };
 }
 
 function uomOptionLabel(uom = {}) {
@@ -1891,7 +2000,7 @@ function UomModal({ uom, onClose, onSave }) {
   );
 }
 
-function UomSettingsModal({ uoms, canAdd, canEdit, canDelete, requirePermission, onAdd, onEdit, onArchive, onDelete, onClose }) {
+function UomSettingsModal({ uoms, remoteRows, visibleRows, lastWriteStatus, canAdd, canEdit, canDelete, requirePermission, onAdd, onEdit, onArchive, onDelete, onClose }) {
   return (
     <Modal
       title="Inventory UOM Settings"
@@ -1904,6 +2013,7 @@ function UomSettingsModal({ uoms, canAdd, canEdit, canDelete, requirePermission,
         <div>
           <div className="type-caption text-text-secondary">{uoms.length} configured UOM{uoms.length === 1 ? "" : "s"}</div>
           <div className="type-caption text-text-muted">Only active UOMs appear in item forms and import validation.</div>
+          <div className="mt-1 type-caption font-semibold text-text-muted">Remote UOM Rows: {remoteRows} · Visible UOM Rows: {visibleRows} · Last Write Status: {lastWriteStatus}</div>
         </div>
         <button className="btn-primary h-8 px-3 text-xs" type="button" onClick={() => requirePermission(canAdd, "add UOM") && onAdd()}>
           <PackagePlus size={14} /> Add UOM
@@ -2036,9 +2146,11 @@ function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onA
         <UomModal
           onClose={() => setQuickUomOpen(false)}
           onSave={(nextUom) => {
-            const saved = onAddUom(nextUom);
-            update("unit", saved.code);
-            setQuickUomOpen(false);
+            Promise.resolve(onAddUom(nextUom)).then((saved) => {
+              if (!saved?.code) return;
+              update("unit", saved.code);
+              setQuickUomOpen(false);
+            });
           }}
         />
       ) : null}
@@ -3212,6 +3324,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [collapsedParCategoryIds, setCollapsedParCategoryIds] = useState(() => new Set());
   const [parLevelOutletId, setParLevelOutletId] = useState(outlets[0]?.id ?? "");
   const [parLevelSaveState, setParLevelSaveState] = useState("saved");
+  const [uomWriteStatus, setUomWriteStatus] = useState("Not written");
   const [poFilters, setPoFilters] = useState({ outletId: "all", supplierId: "all", status: "all", source: "all", search: "", from: "", to: "" });
   const [wasteFilters, setWasteFilters] = useState({ wasteType: "all", from: "", to: "", search: "" });
   const [recipeFilters, setRecipeFilters] = useState({ category: "all", status: "active", search: "" });
@@ -3289,6 +3402,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const sortedActiveCategories = useMemo(() => sortedCategories.filter((category) => String(category.status || "active").toLowerCase() === "active"), [sortedCategories]);
   const categoryById = useMemo(() => new Map(data.categories.map((category) => [category.id, category])), [data.categories]);
   const sortedUoms = useMemo(() => [...(data.uoms || [])].map(normalizeUom).sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0) || a.code.localeCompare(b.code)), [data.uoms]);
+  const sortedActiveUoms = useMemo(() => sortedUoms.filter((uom) => uom.isActive), [sortedUoms]);
   const itemCountByCategory = useMemo(() => {
     const counts = new Map();
     data.items.forEach((item) => counts.set(item.categoryId, (counts.get(item.categoryId) || 0) + 1));
@@ -3490,7 +3604,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     }
   }
 
-  function saveUom(uom) {
+  async function saveUom(uom) {
     const normalized = normalizeUom({
       ...uom,
       code: String(uom.code || "").trim(),
@@ -3500,18 +3614,30 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       createdAt: uom.createdAt || new Date().toISOString(),
     });
     const shouldReturnToSettings = modal?.returnToSettings;
-    setData((current) => ({
-      ...current,
-      uoms: current.uoms?.some((entry) => entry.id === normalized.id)
-        ? current.uoms.map((entry) => entry.id === normalized.id ? normalized : entry)
-        : [...(current.uoms || []), { ...normalized, sortOrder: normalized.sortOrder || ((current.uoms?.length || 0) + 1) }],
-    }));
-    setModal(shouldReturnToSettings ? { type: "uom-settings" } : null);
-    notify("Inventory UOM saved", normalized.code);
-    return normalized;
+    try {
+      setUomWriteStatus("Saving");
+      const savedUom = await persistRemoteInventoryUom(normalized);
+      setData((current) => ({
+        ...current,
+        uoms: current.uoms?.some((entry) => entry.id === savedUom.id)
+          ? current.uoms.map((entry) => entry.id === savedUom.id ? savedUom : entry)
+          : [...(current.uoms || []), savedUom],
+      }));
+      await refreshInventory();
+      setUomWriteStatus(`Saved ${savedUom.code}`);
+      setModal(shouldReturnToSettings ? { type: "uom-settings" } : null);
+      notify("Inventory UOM saved", savedUom.code);
+      return savedUom;
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to save UOM.", error);
+      console.log("[UomSaveDebug]", { action: isUuid(normalized.id) ? "update" : "create", payload: normalized, result: null, error });
+      setUomWriteStatus(`Failed: ${error.message || "Unable to save"}`);
+      notify("Unable to save UOM", error.message || "Please try again.", "error");
+      return null;
+    }
   }
 
-  function saveQuickUom(uom) {
+  async function saveQuickUom(uom) {
     const normalized = normalizeUom({
       ...uom,
       code: String(uom.code || "").trim(),
@@ -3520,12 +3646,26 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       updatedAt: new Date().toISOString(),
       createdAt: uom.createdAt || new Date().toISOString(),
     });
-    setData((current) => ({
-      ...current,
-      uoms: [...(current.uoms || []), { ...normalized, sortOrder: normalized.sortOrder || ((current.uoms?.length || 0) + 1) }],
-    }));
-    notify("Inventory UOM saved", normalized.code);
-    return normalized;
+    try {
+      setUomWriteStatus("Saving");
+      const savedUom = await persistRemoteInventoryUom(normalized);
+      setData((current) => ({
+        ...current,
+        uoms: current.uoms?.some((entry) => entry.id === savedUom.id)
+          ? current.uoms.map((entry) => entry.id === savedUom.id ? savedUom : entry)
+          : [...(current.uoms || []), savedUom],
+      }));
+      await refreshInventory();
+      setUomWriteStatus(`Saved ${savedUom.code}`);
+      notify("Inventory UOM saved", savedUom.code);
+      return savedUom;
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to save quick UOM.", error);
+      console.log("[UomSaveDebug]", { action: "create", payload: normalized, result: null, error });
+      setUomWriteStatus(`Failed: ${error.message || "Unable to save"}`);
+      notify("Unable to save UOM", error.message || "Please try again.", "error");
+      return null;
+    }
   }
 
   async function sortCategories(draggedId, targetId) {
@@ -3643,22 +3783,52 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     }
   }
 
-  function archiveUom(uom) {
-    setData((current) => ({
-      ...current,
-      uoms: (current.uoms || []).map((entry) => entry.id === uom.id ? { ...entry, isActive: !entry.isActive, updatedAt: new Date().toISOString() } : entry),
-    }));
-    notify(uom.isActive ? "Inventory UOM archived" : "Inventory UOM activated", uom.code);
+  async function archiveUom(uom) {
+    const action = uom.isActive ? "archive" : "activate";
+    try {
+      setUomWriteStatus(action === "archive" ? "Archiving" : "Activating");
+      const savedUom = await persistRemoteInventoryUom({ ...uom, isActive: !uom.isActive });
+      setData((current) => ({
+        ...current,
+        uoms: (current.uoms || []).map((entry) => entry.id === savedUom.id ? savedUom : entry),
+      }));
+      await refreshInventory();
+      setUomWriteStatus(`${action === "archive" ? "Archived" : "Activated"} ${savedUom.code}`);
+      notify(uom.isActive ? "Inventory UOM archived" : "Inventory UOM activated", savedUom.code);
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to archive UOM.", error);
+      console.log("[UomSaveDebug]", { action, payload: uom, result: null, error });
+      setUomWriteStatus(`Failed: ${error.message || "Unable to update"}`);
+      notify("Unable to update UOM", error.message || "Please try again.", "error");
+    }
   }
 
-  function deleteUom(uom) {
-    const inUse = data.items.some((item) => canonical(item.unit) === canonical(uom.code));
-    if (inUse) {
-      notify("Unable to delete UOM", "This UOM is used by inventory items.", "warning");
-      return;
+  async function deleteUom(uom) {
+    try {
+      setUomWriteStatus("Deleting");
+      const linkedItemCount = await countRemoteInventoryItemsForUom(uom.code);
+      if (linkedItemCount > 0) {
+        console.log("[UomSaveDebug]", { action: "delete", payload: uom, result: "blocked", linkedItemCount, error: null });
+        setUomWriteStatus(`Blocked: ${uom.code} is used`);
+        notify("Cannot delete this UOM", `Cannot delete this UOM because it is used by ${linkedItemCount} inventory item${linkedItemCount === 1 ? "" : "s"}. Archive it instead.`, "warning");
+        return;
+      }
+      const result = await supabase
+        .from("inventory_uoms")
+        .delete()
+        .eq("id", uom.id);
+      console.log("[UomSaveDebug]", { action: "delete", payload: uom, result: { data: result.data || null, error: result.error }, error: result.error });
+      if (result.error) throw result.error;
+      setData((current) => ({ ...current, uoms: (current.uoms || []).filter((entry) => entry.id !== uom.id) }));
+      await refreshInventory();
+      setUomWriteStatus(`Deleted ${uom.code}`);
+      notify("Inventory UOM deleted", uom.code);
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to delete UOM.", error);
+      console.log("[UomSaveDebug]", { action: "delete", payload: uom, result: null, error });
+      setUomWriteStatus(`Failed: ${error.message || "Unable to delete"}`);
+      notify("Unable to delete UOM", error.message || "Please try again.", "error");
     }
-    setData((current) => ({ ...current, uoms: (current.uoms || []).filter((entry) => entry.id !== uom.id) }));
-    notify("Inventory UOM deleted", uom.code);
   }
 
   function importInventoryRows(rows) {
@@ -3856,23 +4026,34 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     }
   }
 
-  function saveParLevelConfig(itemId, outletId, patch) {
+  async function saveParLevelConfig(itemId, outletId, patch) {
+    const item = data.items.find((entry) => entry.id === itemId);
+    if (!item) {
+      notify("Unable to save Par Level", "Inventory item was not found.", "error");
+      return;
+    }
     setParLevelSaveState("saving");
-    setData((current) => ({
-      ...current,
-      items: current.items.map((item) => {
-        if (item.id !== itemId) return item;
-        const normalized = normalizeInventoryItem(item);
-        const linkedOutletIds = uniqueIds(normalized.linkedOutletIds);
-        const existing = new Map((normalized.outletConfigs || []).map((config) => [config.outletId, config]));
-        const outletConfigs = linkedOutletIds.map((id) => {
-          const config = buildOutletConfig({ ...normalized, linkedOutletIds }, id, existing.get(id));
-          return id === outletId ? { ...config, ...patch, updatedAt: new Date().toISOString() } : config;
-        });
-        return normalizeInventoryItem({ ...normalized, linkedOutletIds, outletConfigs });
-      }),
-    }));
-    window.setTimeout(() => setParLevelSaveState("saved"), 250);
+    try {
+      const savedConfig = await persistRemoteParLevelConfig(item, outletId, patch);
+      setData((current) => ({
+        ...current,
+        items: current.items.map((entry) => {
+          if (entry.id !== itemId) return entry;
+          const normalized = normalizeInventoryItem(entry);
+          const linkedOutletIds = uniqueIds(normalized.linkedOutletIds);
+          const existing = new Map((normalized.outletConfigs || []).map((config) => [config.outletId, config]));
+          existing.set(outletId, savedConfig);
+          const outletConfigs = linkedOutletIds.map((id) => buildOutletConfig({ ...normalized, linkedOutletIds }, id, existing.get(id)));
+          return normalizeInventoryItem({ ...normalized, linkedOutletIds, outletConfigs });
+        }),
+      }));
+      setParLevelSaveState("saved");
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to save Par Level config.", error);
+      console.log("[ParLevelSaveDebug]", { action: "save", itemId, outletId, payload: patch, result: null, error });
+      setParLevelSaveState("error");
+      notify("Unable to save Par Level", error.message || "Please try again.", "error");
+    }
   }
 
   function saveGroup(group) {
@@ -3992,18 +4173,29 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }
 
   async function archiveItem(itemId) {
-    setData((current) => ({
-      ...current,
-      items: current.items.map((item) => item.id === itemId ? { ...item, status: "archived" } : item),
-    }));
-    notify("Inventory item archived");
-    if (!isUuid(itemId)) return;
+    if (!isUuid(itemId)) {
+      notify("Unable to archive inventory item", "This item has not been saved to Supabase yet.", "error");
+      return;
+    }
     try {
-      const { error } = await supabase.from("inventory_items").update({ status: "archived", updated_by: auth?.user?.id || null }).eq("id", itemId);
-      if (error) throw error;
+      const result = await supabase
+        .from("inventory_items")
+        .update({ status: "archived", updated_by: auth?.user?.id || null })
+        .eq("id", itemId)
+        .select("*")
+        .single();
+      console.log("[InventorySaveDebug]", { mode: "archive", payload: { itemId }, itemUpdateResult: { data: result.data, error: result.error }, error: result.error });
+      if (result.error) throw result.error;
+      setData((current) => ({
+        ...current,
+        items: current.items.map((item) => item.id === itemId ? { ...item, status: "archived", updatedAt: result.data?.updated_at || new Date().toISOString() } : item),
+      }));
+      await refreshInventory();
+      notify("Inventory item archived");
     } catch (error) {
       console.warn("[InventoryControl] Unable to sync archived inventory item.", error);
-      notify("Inventory item archived locally", "Remote sync failed. Please try again later.", "warning");
+      console.log("[InventorySaveDebug]", { mode: "archive", payload: { itemId }, itemUpdateResult: null, error });
+      notify("Unable to archive inventory item", error.message || "Please try again.", "error");
     }
   }
 
@@ -4776,7 +4968,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                 return (
                   <div key={group.id} className="space-y-2">
                     <button
-                      className="flex w-full items-center justify-between rounded-2xl border border-primary/10 bg-primary/5 px-3 py-2 text-left"
+                      className="flex min-h-14 w-full items-center justify-between rounded-2xl border border-primary/10 bg-primary/5 px-4 py-3 text-left transition hover:bg-primary/8"
                       type="button"
                       onClick={() => setCollapsedCategoryIds((current) => {
                         const next = new Set(current);
@@ -4785,10 +4977,10 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                         return next;
                       })}
                     >
-                      <span className="flex min-w-0 items-center gap-3">
-                        <InventoryCategoryIcon category={group.category} size="sm" />
+                      <span className="flex min-w-0 items-center gap-2.5">
+                        <Folder className="shrink-0 text-primary" size={18} strokeWidth={2.2} />
                         <span className="min-w-0">
-                          <span className="block type-body-sm font-black text-text-primary">{group.category?.name || "Uncategorized"}</span>
+                          <span className="block text-[15px] font-black leading-tight text-text-primary">{group.category?.name || "Uncategorized"}</span>
                           <span className="type-caption font-semibold text-text-secondary">{group.items.length} item{group.items.length === 1 ? "" : "s"} · {new Set(group.items.flatMap((item) => item.linkedOutletIds || [])).size} outlets linked</span>
                         </span>
                       </span>
@@ -4818,9 +5010,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                     return (
                       <Fragment key={group.id}>
                         <tr key={`${group.id}-header`} className="bg-primary/5">
-                          <td className="py-2" colSpan={6}>
+                          <td className="py-2.5" colSpan={6}>
                             <button
-                              className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left transition hover:bg-primary/8"
+                              className="flex min-h-14 w-full items-center justify-between rounded-2xl border border-primary/10 bg-primary/5 px-4 py-3 text-left transition hover:bg-primary/8"
                               type="button"
                               onClick={() => setCollapsedCategoryIds((current) => {
                                 const next = new Set(current);
@@ -4829,10 +5021,10 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                                 return next;
                               })}
                             >
-                              <span className="flex min-w-0 items-center gap-3">
-                                <InventoryCategoryIcon category={group.category} size="sm" />
+                              <span className="flex min-w-0 items-center gap-2.5">
+                                <Folder className="shrink-0 text-primary" size={18} strokeWidth={2.2} />
                                 <span className="min-w-0">
-                                  <span className="block type-body-sm font-black text-text-primary">{group.category?.name || "Uncategorized"}</span>
+                                  <span className="block text-[15px] font-black leading-tight text-text-primary">{group.category?.name || "Uncategorized"}</span>
                                   <span className="type-caption font-semibold text-text-secondary">
                                     {group.items.length} item{group.items.length === 1 ? "" : "s"} · {new Set(group.items.flatMap((item) => item.linkedOutletIds || [])).size} outlets linked
                                   </span>
@@ -5071,7 +5263,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             />
           ) : null}
           <div className="flex min-w-[92px] justify-end">
-            <Badge tone={parLevelSaveState === "saving" ? "info" : "success"}>{parLevelSaveState === "saving" ? "Saving..." : "Saved"}</Badge>
+            <Badge tone={parLevelSaveState === "saving" ? "info" : parLevelSaveState === "error" ? "danger" : "success"}>
+              {parLevelSaveState === "saving" ? "Saving..." : parLevelSaveState === "error" ? "Save failed" : "Saved"}
+            </Badge>
           </div>
           <div className="inline-flex rounded-xl border border-border bg-slate-50 p-1">
             {[
@@ -6074,7 +6268,10 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       {modal?.type === "category" ? <CategoryModal category={modal.category} onClose={() => setModal(null)} onSave={saveCategory} /> : null}
       {modal?.type === "uom-settings" ? (
         <UomSettingsModal
-          uoms={sortedUoms}
+          uoms={sortedActiveUoms}
+          remoteRows={sortedUoms.length}
+          visibleRows={sortedActiveUoms.length}
+          lastWriteStatus={uomWriteStatus}
           canAdd={can.createUom}
           canEdit={can.editUom}
           canDelete={can.deleteUom}

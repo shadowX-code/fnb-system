@@ -1870,13 +1870,18 @@ Master Inventory UI:
 - Master Inventory UOM values are managed by users in Master Inventory > UOM Settings.
 - UOM dropdowns load from `inventory_uoms`, and the Add/Edit Item UOM dropdown includes `+ Add New UOM` for quick creation.
 - Saving a new UOM refreshes the UOM list and auto-selects the newly created UOM in the item form.
+- Inventory UOM Settings is remote-first: create, edit, archive, delete, and sort actions must persist to `inventory_uoms` before showing success.
+- UOM archive is a soft deactivation using `inventory_uoms.is_active = false`; inactive UOMs are hidden from active item form suggestions after refresh.
+- UOM hard delete is allowed only when no `inventory_items` rows use that UOM code; used UOMs must be blocked with a clear archive/reassign message.
+- Inventory settings must not show local-only success messages. If Supabase write fails, the UI must show an error and keep/refetch the remote truth.
 - Item Photo is uploaded from the device, not entered as a raw URL.
 - Item photos are saved to `inventory_items.photo_url` through the Supabase Storage bucket `inventory-item-photos`.
 - If storage is not configured yet, the form must show a clear fallback message instead of blocking item editing.
 - The Master Inventory list defaults to Group by Category.
 - Master Inventory shows a compact KPI summary strip above the list: Total Items, Categories, Active Items, and Outlets Linked.
 - Category group headers show category name, item count, and collapse/expand control.
-- Category group headers also show category fallback icon and linked outlet count for faster scanning.
+- Category group headers use a section-style light green background, larger title type, linked outlet count, and one generic folder icon for every category.
+- Category group headers must not use circular letter/avatar icons; circular fallback avatars are reserved for inventory item rows only.
 - Collapsed category state may be remembered for the current browser session.
 - A Group by control supports Category and None.
 - When grouped by Category, the Category column is hidden because category is represented by the group header.
@@ -1899,6 +1904,7 @@ Master Inventory UI:
 - Add/Edit Item shows linked outlets and a note that par levels are managed in Par Level Setup.
 - Add/Edit Item does not show outlet-by-outlet Par Level, Low Stock Threshold, or Reorder Qty inputs.
 - Add/Edit Item save is remote-first: show success only after `inventory_items` and `inventory_item_outlets` are persisted and refetched from Supabase.
+- Item archive/delete actions are remote-first and must not mutate the visible item list before Supabase confirms the write.
 - Linked outlet rows are stored in `inventory_item_outlets` using `inventory_item_id` and `outlet_id`; outlet codes are display/import inputs only and are not stored as the link key.
 - New linked outlet rows may have `par_level = null` until configured in Par Levels.
 - Editing Linked Outlets may add or remove `inventory_item_outlets` rows and requires `inventory_master.edit` or equivalent outlet-scoped permission.
@@ -1934,6 +1940,7 @@ Inventory UOM data model:
 - Fields: id, code, display_name, uom_type, is_active, sort_order, created_at, updated_at.
 - Active UOMs appear in item forms and import validation.
 - Inactive UOMs remain available historically but should not be suggested for new items.
+- UOM Settings may show development diagnostics for Remote UOM Rows, Visible UOM Rows, and Last Write Status while persistence issues are being verified.
 
 Inventory UOM permissions:
 
@@ -1971,7 +1978,8 @@ Par Level Setup:
 - Each outlet-item configuration can assign one or more suppliers.
 - Supplier assignment is outlet-specific and must only show active suppliers linked to the selected outlet through `supplier_outlets`.
 - Supplier multi-select uses FloatingLayer and must not be clipped by cards or tables.
-- Par Levels uses an autosave interaction with clear Saved/Saving feedback.
+- Par Levels uses a remote-first autosave interaction with clear Saved/Saving/Save failed feedback.
+- Par Level, Storage Location, and outlet-item supplier assignment persist to `inventory_item_outlets` and `inventory_item_outlet_suppliers`; local UI state is updated only after Supabase confirms the write.
 - New Par Level values are blank until configured; unset Par Level is treated as null/empty in the UI, not displayed as `0`.
 - Par Levels supports spreadsheet-style data entry in Outlet View: Enter moves to the next visible row, Shift+Enter moves to the previous visible row, Arrow Up/Down moves between visible rows, and Arrow Left/Right moves between editable fields in the same row sequence.
 - Spreadsheet navigation only targets visible editable rows; collapsed category groups are skipped.
