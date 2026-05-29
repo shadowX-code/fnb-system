@@ -31,12 +31,18 @@ export default function SelectField({
     if (!isOpen) setQuery("");
   }, [isOpen]);
 
-  function selectOption(option) {
-    if (option.disabled) return;
-    onChange(option.value);
+  function closeSelect() {
     setIsOpen(false);
     setQuery("");
   }
+
+  function selectOption(option) {
+    if (option.disabled) return;
+    onChange(option.value);
+    closeSelect();
+  }
+
+  const footerContent = typeof footerAction === "function" ? footerAction({ close: closeSelect }) : footerAction;
 
   return (
     <div className={`relative min-w-0 ${className}`} ref={containerRef}>
@@ -111,7 +117,7 @@ export default function SelectField({
               <div className="rounded-xl border border-dashed border-border px-3 py-4 text-center text-xs font-semibold text-text-muted">No options found</div>
             )}
           </div>
-          {footerAction ? <div className="mt-2 border-t border-border pt-2">{footerAction}</div> : null}
+          {footerContent ? <div className="mt-2 border-t border-border pt-2">{footerContent}</div> : null}
       </FloatingLayer>
     </div>
   );

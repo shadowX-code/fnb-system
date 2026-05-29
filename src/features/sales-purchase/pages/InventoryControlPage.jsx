@@ -1417,8 +1417,16 @@ function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onA
           value={form.unit}
           options={uoms.filter((uom) => uom.isActive).map((uom) => ({ value: uom.code, label: uomOptionLabel(uom) }))}
           onChange={(value) => update("unit", value)}
-          footerAction={(
-            <button className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-[13px] font-bold text-primary transition hover:bg-primary/5 disabled:cursor-not-allowed disabled:text-text-muted" type="button" disabled={!canCreateUom} onClick={() => setQuickUomOpen(true)}>
+          footerAction={({ close }) => (
+            <button
+              className="flex w-full items-center gap-2 rounded-xl px-2.5 py-1.5 text-left text-[13px] font-bold text-primary transition hover:bg-primary/5 disabled:cursor-not-allowed disabled:text-text-muted"
+              type="button"
+              disabled={!canCreateUom}
+              onClick={() => {
+                close();
+                window.requestAnimationFrame(() => setQuickUomOpen(true));
+              }}
+            >
               <Plus size={14} /> Add New UOM
             </button>
           )}
