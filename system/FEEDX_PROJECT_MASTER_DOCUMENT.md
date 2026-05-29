@@ -1743,7 +1743,9 @@ Core rules:
 - Inventory Categories does not appear as a standalone sidebar page.
 - One inventory item can be linked to multiple outlets.
 - Not every outlet uses every inventory item.
-- Par Level, Storage Location, and outlet link active state are outlet-specific and live on `inventory_item_outlets`.
+- Master Inventory > Linked Outlets controls whether an item participates in an outlet.
+- Par Levels manages outlet-specific stock configuration only: Par Level, Storage Location, and Suppliers.
+- Par Levels must not expose or control outlet active state.
 - Par Level is the only outlet-specific minimum stock setting in the current scope.
 - Low Stock Threshold and Reorder Qty are deferred and must not appear in current UI workflows.
 - Stock Check Groups belong to one outlet.
@@ -1873,7 +1875,7 @@ Master Inventory UI:
 - The Master Inventory table does not show Low Stock or Par Level columns because those values are outlet-specific.
 - Linked Outlets displays a compact count such as `3 outlets`.
 - Linked Outlets displays compact outlet codes for the first few outlets plus a `+X` more indicator.
-- Clicking the Linked Outlets display opens a FloatingLayer popover with outlet names, outlet codes, active/inactive link status, and key outlet stock settings.
+- Clicking the Linked Outlets display opens a FloatingLayer popover with outlet names, outlet codes, linked status, and key outlet stock settings.
 - Item rows use photo thumbnails when available and standardized category fallback icons when no photo exists.
 - Add/Edit Item keeps master item fields separate from outlet-level par management.
 - Add/Edit Item shows linked outlets and a note that par levels are managed in Par Level Setup.
@@ -1924,20 +1926,29 @@ Par Level Setup:
 - Sidebar: Inventory Control > Par Levels
 - Purpose: bulk manage outlet-specific minimum stock levels.
 - Par Level means the minimum quantity an outlet should keep for an item.
+- Par Levels does not create items, archive items, activate/deactivate outlet participation, or decide whether an item belongs to an outlet.
+- If an item is linked to the outlet from Master Inventory, it appears in Par Levels, Stock Check, and Purchase Suggestions.
+- If an item is not linked to the outlet from Master Inventory, it is hidden from Par Levels, Stock Check, and Purchase Suggestions.
 - Outlet View groups items by Category by default.
 - Outlet View supports Group by Category and None.
-- Category group headers show category name, item count, and collapse/expand control.
-- Search, category filter, status filter, and outlet filter apply before grouping; empty groups are hidden.
-- When grouped by Category, Outlet View columns are Item, Unit, Par Level, Storage Location, Suppliers, and Active.
-- When grouping is None, Outlet View columns are Item, Category, Unit, Par Level, Storage Location, Suppliers, and Active.
+- Category group headers show category fallback icon, category name, item count, and collapse/expand control.
+- Search, category filter, and outlet filter apply before grouping; empty groups are hidden.
+- When grouped by Category, Outlet View columns are Item, UOM, Par Level, Storage Location, and Suppliers.
+- When grouping is None, Outlet View columns are Item, UOM, Par Level, Storage Location, and Suppliers.
 - Matrix View rows are items and columns are outlets.
 - Users can update par levels without opening each item.
 - Each outlet-item configuration can assign one or more suppliers.
 - Supplier assignment is outlet-specific and must only show active suppliers linked to the selected outlet through `supplier_outlets`.
 - Supplier multi-select uses FloatingLayer and must not be clipped by cards or tables.
-- Par Levels export includes Item Name, SKU Code, Category, Unit, Outlet, Par Level, Storage Location, Active, and Suppliers.
+- Par Levels uses an autosave interaction with clear Saved/Saving feedback.
+- New Par Level values are blank until configured; unset Par Level is treated as null/empty in the UI, not displayed as `0`.
+- Par Levels supports spreadsheet-style data entry in Outlet View: Enter moves to the next visible row, Shift+Enter moves to the previous visible row, Arrow Up/Down moves between visible rows, and Arrow Left/Right moves between editable fields in the same row sequence.
+- Spreadsheet navigation only targets visible editable rows; collapsed category groups are skipped.
+- Par Levels export includes Item Name, SKU Code, Category, UOM, Outlet, Par Level, Storage Location, and Suppliers.
 - Exported suppliers are comma-separated supplier names.
 - Low stock logic is `current_stock < inventory_item_outlets.par_level`.
+- Numeric inventory inputs use select-on-focus behavior so existing values can be overwritten in one action.
+- Numeric inventory fields must allow empty values while editing, prevent negative values, and avoid defaulting unset values to `0`.
 
 Inventory item status:
 
@@ -1979,7 +1990,7 @@ Inventory items are linked to outlets through an item-outlet relation table.
 - outlet_id
 - par_level
 - storage_location
-- is_active
+- is_active (legacy/internal only; current Par Levels UI and stock check logic must not use this to control outlet participation)
 - created_at
 - updated_at
 
@@ -1993,7 +2004,7 @@ Rules:
 - Low stock alerts compare outlet current stock against `inventory_item_outlets.par_level`.
 - Outlet selectors and item pickers must respect role outlet access.
 - Stock Check Groups link inventory categories, not individual inventory items.
-- Stock Check generation dynamically loads active items from the selected categories that are linked to the group outlet through active `inventory_item_outlets` rows.
+- Stock Check generation dynamically loads active items from the selected categories that are linked to the group outlet through Master Inventory linked outlets.
 - New active items added to a linked category automatically appear in the relevant stock check group for linked outlets.
 
 Stock Check Groups:
@@ -3794,7 +3805,7 @@ Rules:
 - Custom groups are due only on selected weekdays.
 - Daily and Weekly frequencies are removed from the current scope.
 - Groups select categories, not manual item lists.
-- Stock Check rows are generated from active inventory items where `category_id` is in the group category list, item status is active, and `inventory_item_outlets.outlet_id` matches the group outlet with `is_active = true`.
+- Stock Check rows are generated from active inventory items where `category_id` is in the group category list and the item is linked to the group outlet from Master Inventory.
 - Legacy item-link data may be retained for compatibility, but it must not drive new group editing workflows.
 - If possible, legacy item-linked groups should infer category links from their existing items.
 

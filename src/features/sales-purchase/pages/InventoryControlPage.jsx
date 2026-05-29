@@ -248,8 +248,6 @@ function groupCategoryIds(group = {}, items = []) {
 }
 
 function itemHasActiveOutletLink(item = {}, outletId) {
-  const configs = item.outletConfigs || [];
-  if (configs.length) return configs.some((config) => config.outletId === outletId && config.isActive !== false);
   return (item.linkedOutletIds || []).includes(outletId);
 }
 
@@ -420,6 +418,51 @@ function uniqueIds(values = []) {
   return [...new Set(values.filter(Boolean))];
 }
 
+function selectInputText(event) {
+  if (!event.target.value) return;
+  event.target.select?.();
+}
+
+function parseNonNegativeNumber(value) {
+  if (value === "" || value === null || value === undefined) return "";
+  const parsed = Number(value);
+  if (!Number.isFinite(parsed)) return "";
+  return Math.max(0, parsed);
+}
+
+function focusEditableGridInput(gridRef, currentRow, currentField, direction) {
+  const fields = ["par", "storage"];
+  const visibleInputs = [...(gridRef.current?.querySelectorAll("[data-grid-row][data-grid-field]") || [])]
+    .filter((input) => !input.disabled && input.offsetParent !== null)
+    .map((input) => ({
+      input,
+      row: Number(input.dataset.gridRow),
+      field: input.dataset.gridField,
+      fieldIndex: fields.indexOf(input.dataset.gridField),
+    }))
+    .filter((entry) => Number.isFinite(entry.row) && entry.fieldIndex >= 0)
+    .sort((a, b) => a.row - b.row || a.fieldIndex - b.fieldIndex);
+  if (!visibleInputs.length) return;
+
+  const currentIndex = visibleInputs.findIndex((entry) => entry.row === currentRow && entry.field === currentField);
+  let nextIndex = currentIndex;
+  if (direction === "next-row") nextIndex = visibleInputs.findIndex((entry) => entry.row > currentRow && entry.field === currentField);
+  if (direction === "previous-row") {
+    for (let index = visibleInputs.length - 1; index >= 0; index -= 1) {
+      if (visibleInputs[index].row < currentRow && visibleInputs[index].field === currentField) {
+        nextIndex = index;
+        break;
+      }
+    }
+  }
+  if (direction === "right") nextIndex = Math.min(visibleInputs.length - 1, currentIndex + 1);
+  if (direction === "left") nextIndex = Math.max(0, currentIndex - 1);
+  if (nextIndex < 0 || nextIndex === currentIndex) return;
+  const target = visibleInputs[nextIndex]?.input;
+  target?.focus?.();
+  target?.select?.();
+}
+
 function getLinkedOutletIds(item = {}) {
   return uniqueIds([
     ...(item.linkedOutletIds || []),
@@ -428,8 +471,8 @@ function getLinkedOutletIds(item = {}) {
 }
 
 function buildOutletConfig(item = {}, outletId, existing = {}) {
-  const fallbackPar = Number(item.parLevel || 0);
-  const parLevel = Number(existing.parLevel ?? fallbackPar);
+  const rawParLevel = existing.parLevel ?? item.parLevel ?? null;
+  const parLevel = rawParLevel === "" || rawParLevel === null || rawParLevel === undefined ? "" : Number(rawParLevel);
   return {
     id: existing.id || `${item.id || "draft"}_${outletId}`,
     inventoryItemId: existing.inventoryItemId || item.id || "",
@@ -482,7 +525,7 @@ function outletConfigForItem(item = {}, outletId) {
 
 function outletConfigsForScope(item = {}, outletIds = []) {
   const allowed = new Set(outletIds);
-  return (normalizeInventoryItem(item).outletConfigs || []).filter((config) => (!outletIds.length || allowed.has(config.outletId)) && config.isActive !== false);
+  return (normalizeInventoryItem(item).outletConfigs || []).filter((config) => (!outletIds.length || allowed.has(config.outletId)));
 }
 
 function parLevelForOutlet(item = {}, outletId) {
@@ -686,8 +729,10 @@ function Field({ label, value, onChange, type = "text", placeholder, required = 
       <input
         className="control h-9 w-full text-[13px]"
         type={type}
+        min={type === "number" ? 0 : undefined}
         value={value ?? ""}
         placeholder={placeholder}
+        onFocus={type === "number" ? selectInputText : undefined}
         onChange={(event) => onChange(event.target.value)}
       />
     </label>
@@ -759,7 +804,6 @@ function LinkedOutletsSummary({ item, outlets, onConfigure }) {
   const anchorRef = useRef(null);
   const outletById = useMemo(() => new Map(outlets.map((outlet) => [outlet.id, outlet])), [outlets]);
   const configs = normalizeInventoryItem(item).outletConfigs || [];
-  const activeCount = configs.filter((config) => config.isActive !== false).length;
   const visibleCodes = configs.slice(0, 3).map((config) => {
     const outlet = outletById.get(config.outletId);
     return outlet?.code || outlet?.shortCode || outlet?.short_code || outlet?.name || "Outlet";
@@ -784,7 +828,7 @@ function LinkedOutletsSummary({ item, outlets, onConfigure }) {
           <div className="mb-2 flex items-center justify-between">
             <div>
               <div className="type-body-sm font-bold text-text-primary">Linked Outlets</div>
-              <div className="type-caption text-text-secondary">{activeCount} active configuration{activeCount === 1 ? "" : "s"}</div>
+              <div className="type-caption text-text-secondary">{configs.length} linked outlet{configs.length === 1 ? "" : "s"}</div>
             </div>
             <Badge tone="info">{item.unit}</Badge>
           </div>
@@ -798,10 +842,10 @@ function LinkedOutletsSummary({ item, outlets, onConfigure }) {
                       <div className="type-body-sm font-bold text-text-primary">{outlet?.name ?? "Unknown outlet"}</div>
                       <div className="type-caption text-text-secondary">{outlet?.code || outlet?.shortCode || outlet?.short_code || "No outlet code"}</div>
                     </div>
-                    <Badge tone={config.isActive === false ? "neutral" : "success"}>{config.isActive === false ? "Inactive link" : "Active"}</Badge>
+                    <Badge tone="success">Linked</Badge>
                   </div>
                   <div className="mt-2 grid grid-cols-2 gap-2 type-caption text-text-secondary">
-                    <span>Par <strong className="text-text-primary">{config.parLevel}</strong></span>
+                    <span>Par <strong className="text-text-primary">{config.parLevel === "" || config.parLevel === null || config.parLevel === undefined ? "Not set" : config.parLevel}</strong></span>
                     <span>{config.storageLocation || "No location"}</span>
                   </div>
                 </div>
@@ -1895,8 +1939,8 @@ function RequestModal({ outlets, items, categories, suppliers, onClose, onSave }
                       <button className="icon-btn" type="button" onClick={() => setLines((current) => current.filter((_, lineIndex) => lineIndex !== index))}><Trash2 size={14} /></button>
                     </div>
                     <div className="mt-3 grid gap-2 sm:grid-cols-3">
-                      <Field label="Current Qty" type="number" value={line.currentQty} onChange={(value) => setLines((current) => current.map((entry, lineIndex) => lineIndex === index ? { ...entry, currentQty: Number(value || 0) } : entry))} />
-                      <Field label="Requested Qty" type="number" value={line.requestedQty} onChange={(value) => setLines((current) => current.map((entry, lineIndex) => lineIndex === index ? { ...entry, requestedQty: Number(value || 0) } : entry))} />
+                      <Field label="Current Qty" type="number" value={line.currentQty} onChange={(value) => setLines((current) => current.map((entry, lineIndex) => lineIndex === index ? { ...entry, currentQty: parseNonNegativeNumber(value) } : entry))} />
+                      <Field label="Requested Qty" type="number" value={line.requestedQty} onChange={(value) => setLines((current) => current.map((entry, lineIndex) => lineIndex === index ? { ...entry, requestedQty: parseNonNegativeNumber(value) } : entry))} />
                       <SelectField label="Priority" value={line.priority} options={["Low", "Normal", "High", "Urgent"].map((priority) => ({ value: priority, label: priority }))} onChange={(value) => setLines((current) => current.map((entry, lineIndex) => lineIndex === index ? { ...entry, priority: value } : entry))} />
                     </div>
                   </div>
@@ -1916,7 +1960,7 @@ function MovementModal({ outlets, items, onClose, onSave }) {
     date: todayInput(),
     itemId: items[0]?.id ?? "",
     type: "adjustment",
-    quantity: 0,
+    quantity: "",
     outletId: outlets[0]?.id ?? "",
     user: "Current User",
     reference: "",
@@ -1939,7 +1983,7 @@ function MovementModal({ outlets, items, onClose, onSave }) {
         <SelectField label="Item" value={form.itemId} options={items.map((item) => ({ value: item.id, label: item.name }))} onChange={(value) => update("itemId", value)} searchable />
         <SelectField label="Outlet" value={form.outletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={(value) => update("outletId", value)} searchable />
         <SelectField label="Movement Type" value={form.type} options={movementTypes.map((type) => ({ value: type, label: toTitle(type) }))} onChange={(value) => update("type", value)} />
-        <Field label="Quantity" type="number" value={form.quantity} onChange={(value) => update("quantity", Number(value || 0))} />
+        <Field label="Quantity" type="number" value={form.quantity} placeholder="Enter quantity" onChange={(value) => update("quantity", parseNonNegativeNumber(value))} />
         <Field label="Reference" value={form.reference} onChange={(value) => update("reference", value)} />
         <TextArea label="Notes" value={form.notes} onChange={(value) => update("notes", value)} />
       </div>
@@ -1954,7 +1998,7 @@ function WasteModal({ outlet, items, onClose, onSave }) {
     itemId: items[0]?.id ?? "",
     outletId: outlet?.id ?? "",
     wasteType: "Spoilage",
-    quantity: 0,
+    quantity: "",
     photoUrl: "",
     notes: "",
   });
@@ -1997,7 +2041,7 @@ function WasteModal({ outlet, items, onClose, onSave }) {
         <SelectField label="Item" value={form.itemId} options={items.map((item) => ({ value: item.id, label: item.name }))} onChange={(value) => update("itemId", value)} searchable />
         <SelectField label="Waste Type" value={form.wasteType} options={wasteTypes.map((type) => ({ value: type, label: type }))} onChange={(value) => update("wasteType", value)} />
         <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Quantity" type="number" value={form.quantity} onChange={(value) => update("quantity", Number(value || 0))} />
+          <Field label="Quantity" type="number" value={form.quantity} placeholder="Enter quantity" onChange={(value) => update("quantity", parseNonNegativeNumber(value))} />
           <label className="block">
             <div className="mb-1 type-caption font-semibold text-text-secondary">Unit</div>
             <div className="control flex h-9 items-center text-[13px] font-semibold text-text-secondary">{selectedItem?.unit || "Unit"}</div>
@@ -2122,12 +2166,12 @@ function RecipeModal({ recipe, outlets, items, onClose, onSave }) {
                 return (
                   <div key={line.id} className="grid gap-2 rounded-2xl border border-border bg-slate-50/70 p-2 lg:grid-cols-[1.4fr_110px_80px_110px_1fr_auto] lg:items-end">
                     <SelectField label="Inventory Item" value={line.itemId} options={availableItems.map((entry) => ({ value: entry.id, label: entry.name }))} onChange={(value) => updateIngredient(line.id, { itemId: value })} searchable />
-                    <Field label="Qty Used" type="number" value={line.quantityUsed} onChange={(value) => updateIngredient(line.id, { quantityUsed: Number(value || 0) })} />
+                    <Field label="Qty Used" type="number" value={line.quantityUsed} onChange={(value) => updateIngredient(line.id, { quantityUsed: parseNonNegativeNumber(value) })} />
                     <label>
                       <div className="mb-1 type-caption font-semibold text-text-secondary">Unit</div>
                       <div className="control flex h-9 items-center text-[13px] font-semibold text-text-secondary">{item?.unit || line.unit || "-"}</div>
                     </label>
-                    <Field label="Wastage %" type="number" value={line.wastagePercent} onChange={(value) => updateIngredient(line.id, { wastagePercent: Number(value || 0) })} />
+                    <Field label="Wastage %" type="number" value={line.wastagePercent} onChange={(value) => updateIngredient(line.id, { wastagePercent: parseNonNegativeNumber(value) })} />
                     <Field label="Remark" value={line.remark} onChange={(value) => updateIngredient(line.id, { remark: value })} placeholder="Optional" />
                     <button className="btn-secondary h-9 px-3 text-xs text-rose-700" type="button" onClick={() => removeIngredient(line.id)}>Remove</button>
                   </div>
@@ -2318,7 +2362,7 @@ function PurchaseSuggestionsModal({ suggestions, suppliers, outlet, existingOrde
                         <td>{row.actualCount}</td>
                         <td className="font-bold text-amber-700">{row.shortageQty}</td>
                         <td>
-                          <input className="control h-8 w-24 text-[13px]" type="number" min="0" value={row.suggestedOrderQty} onChange={(event) => updateRow(row.id, { suggestedOrderQty: Number(event.target.value || 0) })} />
+                          <input className="control h-8 w-24 text-[13px]" type="number" min="0" value={row.suggestedOrderQty ?? ""} placeholder="Qty" onFocus={selectInputText} onChange={(event) => updateRow(row.id, { suggestedOrderQty: parseNonNegativeNumber(event.target.value) })} />
                         </td>
                         <td>
                           <SelectField
@@ -2392,7 +2436,7 @@ function PurchaseOrderEditModal({ order, suppliers, items, onClose, onSave }) {
                   const nextItem = items.find((entry) => entry.id === value);
                   updateLine(index, { itemId: value, unit: nextItem?.unit || line.unit });
                 }} searchable disabled={form.status !== "draft"} />
-                <Field label="Order Qty" type="number" value={line.requestedQty} onChange={(value) => updateLine(index, { requestedQty: Number(value || 0) })} />
+                <Field label="Order Qty" type="number" value={line.requestedQty} placeholder="Enter quantity" onChange={(value) => updateLine(index, { requestedQty: parseNonNegativeNumber(value) })} />
                 <Field label="Remark" value={line.remark || ""} onChange={(value) => updateLine(index, { remark: value })} />
                 <button className="btn-secondary h-9 px-2.5 text-xs" type="button" disabled={form.status !== "draft"} onClick={() => setForm((current) => ({ ...current, lines: current.lines.filter((_, lineIndex) => lineIndex !== index) }))}>Remove</button>
                 <div className="type-caption text-text-secondary md:col-span-4">Unit: <span className="font-bold text-text-primary">{line.unit || item?.unit || "-"}</span></div>
@@ -2408,7 +2452,7 @@ function PurchaseOrderEditModal({ order, suppliers, items, onClose, onSave }) {
 
 function ReceiveInventoryModal({ order, supplier, outlet, items, onClose, onReceive }) {
   const [remark, setRemark] = useState("");
-  const [rows, setRows] = useState((order.lines || []).map((line) => ({ ...line, receiveNowQty: 0, receiveRemark: "" })));
+  const [rows, setRows] = useState((order.lines || []).map((line) => ({ ...line, receiveNowQty: "", receiveRemark: "" })));
   const receivable = rows.filter((row) => remainingQty(row) > 0);
   const hasValidQty = rows.some((row) => Number(row.receiveNowQty || 0) > 0);
   const invalid = rows.some((row) => Number(row.receiveNowQty || 0) < 0 || Number(row.receiveNowQty || 0) > remainingQty(row));
@@ -2450,7 +2494,7 @@ function ReceiveInventoryModal({ order, supplier, outlet, items, onClose, onRece
                     <td>{row.requestedQty}</td>
                     <td>{row.receivedQty || 0}</td>
                     <td>{remainingQty(row)}</td>
-                    <td><input className="control h-8 w-24 text-[13px]" type="number" min="0" max={remainingQty(row)} disabled={remainingQty(row) <= 0} value={row.receiveNowQty} onChange={(event) => updateRow(row.id || row.itemId, { receiveNowQty: Number(event.target.value || 0) })} /></td>
+                    <td><input className="control h-8 w-24 text-[13px]" type="number" min="0" max={remainingQty(row)} disabled={remainingQty(row) <= 0} value={row.receiveNowQty ?? ""} placeholder="Qty" onFocus={selectInputText} onChange={(event) => updateRow(row.id || row.itemId, { receiveNowQty: parseNonNegativeNumber(event.target.value) })} /></td>
                     <td>{row.unit || item?.unit || ""}</td>
                     <td><input className="control h-8 min-w-40 text-[13px]" value={row.receiveRemark} onChange={(event) => updateRow(row.id || row.itemId, { receiveRemark: event.target.value })} placeholder="Optional" /></td>
                   </tr>
@@ -2575,12 +2619,14 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [parLevelGroupBy, setParLevelGroupBy] = useState("category");
   const [collapsedParCategoryIds, setCollapsedParCategoryIds] = useState(() => new Set());
   const [parLevelOutletId, setParLevelOutletId] = useState(outlets[0]?.id ?? "");
+  const [parLevelSaveState, setParLevelSaveState] = useState("saved");
   const [poFilters, setPoFilters] = useState({ outletId: "all", supplierId: "all", status: "all", source: "all", search: "", from: "", to: "" });
   const [wasteFilters, setWasteFilters] = useState({ wasteType: "all", from: "", to: "", search: "" });
   const [recipeFilters, setRecipeFilters] = useState({ category: "all", status: "active", search: "" });
   const [date, setDate] = useState(todayInput());
   const [modal, setModal] = useState(null);
   const [masterActionMenuItemId, setMasterActionMenuItemId] = useState(null);
+  const parLevelGridRef = useRef(null);
   const [activeCheckGroupId, setActiveCheckGroupId] = useState(null);
   const [activeAuditCheck, setActiveAuditCheck] = useState(null);
   const [checkRows, setCheckRows] = useState([]);
@@ -2913,8 +2959,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       .filter((item) => {
         const matchesQuery = !query.trim() || `${item.name} ${item.sku}`.toLowerCase().includes(query.trim().toLowerCase());
         const matchesCategory = categoryFilter === "all" || item.categoryId === categoryFilter;
-        const matchesStatus = statusFilter === "all" || item.status === statusFilter;
-        return matchesQuery && matchesCategory && matchesStatus;
+        return matchesQuery && matchesCategory;
       })
       .forEach((item) => {
         const category = categoryById.get(item.categoryId);
@@ -2929,12 +2974,12 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             Outlet: outlet.name,
             "Par Level": config.parLevel,
             "Storage Location": config.storageLocation,
-            Active: config.isActive !== false ? "Active" : "Inactive",
             Suppliers: supplierNamesForConfig(config),
           });
         });
       });
-    const columns = ["Item Name", "SKU Code", "Category", "Unit", "Outlet", "Par Level", "Storage Location", "Active", "Suppliers"];
+    const columns = ["Item Name", "SKU Code", "Category", "UOM", "Outlet", "Par Level", "Storage Location", "Suppliers"];
+    rows.forEach((row) => { row.UOM = row.Unit; delete row.Unit; });
     const csv = [columns.join(","), ...rows.map((row) => columns.map((column) => csvEscape(row[column])).join(","))].join("\n");
     downloadTextFile(`feedx-par-levels-${todayInput()}.csv`, csv);
     notify("Par levels exported successfully", `${rows.length} outlet item config${rows.length === 1 ? "" : "s"} exported.`);
@@ -3034,12 +3079,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }
 
   function saveParLevelConfig(itemId, outletId, patch) {
+    setParLevelSaveState("saving");
     setData((current) => ({
       ...current,
       items: current.items.map((item) => {
         if (item.id !== itemId) return item;
         const normalized = normalizeInventoryItem(item);
-        const linkedOutletIds = uniqueIds([...normalized.linkedOutletIds, outletId]);
+        const linkedOutletIds = uniqueIds(normalized.linkedOutletIds);
         const existing = new Map((normalized.outletConfigs || []).map((config) => [config.outletId, config]));
         const outletConfigs = linkedOutletIds.map((id) => {
           const config = buildOutletConfig({ ...normalized, linkedOutletIds }, id, existing.get(id));
@@ -3048,6 +3094,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         return normalizeInventoryItem({ ...normalized, linkedOutletIds, outletConfigs });
       }),
     }));
+    window.setTimeout(() => setParLevelSaveState("saved"), 250);
   }
 
   function saveGroup(group) {
@@ -3928,14 +3975,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       const matchesOutlet = item.linkedOutletIds?.includes(activeOutletId);
       const matchesQuery = !query.trim() || `${item.name} ${item.sku}`.toLowerCase().includes(query.trim().toLowerCase());
       const matchesCategory = categoryFilter === "all" || item.categoryId === categoryFilter;
-      const matchesStatus = statusFilter === "all" || item.status === statusFilter;
-      return matchesOutlet && matchesQuery && matchesCategory && matchesStatus;
+      return matchesOutlet && matchesQuery && matchesCategory;
     });
     const parItems = data.items.filter((item) => {
+      const hasLinkedOutlet = item.linkedOutletIds?.length;
       const matchesQuery = !query.trim() || `${item.name} ${item.sku}`.toLowerCase().includes(query.trim().toLowerCase());
       const matchesCategory = categoryFilter === "all" || item.categoryId === categoryFilter;
-      const matchesStatus = statusFilter === "all" || item.status === statusFilter;
-      return matchesQuery && matchesCategory && matchesStatus;
+      return hasLinkedOutlet && matchesQuery && matchesCategory;
     });
     const parItemGroups = [...outletScopedItems.reduce((groups, item) => {
       const category = categoryById.get(item.categoryId);
@@ -3944,27 +3990,77 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       groups.get(key).items.push(item);
       return groups;
     }, new Map()).values()].sort((a, b) => Number(a.category?.sortOrder ?? 9999) - Number(b.category?.sortOrder ?? 9999) || (a.category?.name || "Uncategorized").localeCompare(b.category?.name || "Uncategorized"));
+    const visibleParItems = parLevelGroupBy === "category"
+      ? parItemGroups.flatMap((group) => collapsedParCategoryIds.has(group.id) ? [] : group.items)
+      : outletScopedItems;
+    const visibleParRowIndex = new Map(visibleParItems.map((item, index) => [item.id, index]));
+
+    function handleParGridKeyDown(event, itemId, field) {
+      const rowIndex = visibleParRowIndex.get(itemId);
+      if (rowIndex === undefined) return;
+      const keyMap = {
+        Enter: event.shiftKey ? "previous-row" : "next-row",
+        ArrowDown: "next-row",
+        ArrowUp: "previous-row",
+        ArrowRight: "right",
+        ArrowLeft: "left",
+      };
+      const direction = keyMap[event.key];
+      if (!direction) return;
+      event.preventDefault();
+      focusEditableGridInput(parLevelGridRef, rowIndex, field, direction);
+    }
 
     const renderParRow = (item) => {
       const category = categoryById.get(item.categoryId);
       const config = outletConfigForItem(item, activeOutletId);
+      const photo = item.photo || item.photo_url;
+      const rowIndex = visibleParRowIndex.get(item.id) ?? -1;
       return (
         <tr key={item.id} className="transition hover:bg-primary/5">
-          <td className="py-3 font-bold text-text-primary">{item.name}</td>
-          {parLevelGroupBy === "none" ? <td>{category?.name ?? "Uncategorized"}</td> : null}
-          <td>{item.unit}</td>
+          <td className="py-3.5">
+            <div className="flex items-center gap-3">
+              {photo ? (
+                <button
+                  className="h-11 w-11 shrink-0 overflow-hidden rounded-2xl border border-border bg-slate-50 transition hover:border-primary/40 hover:shadow-sm"
+                  type="button"
+                  onClick={() => setPhotoPreview({ src: photo, title: item.name })}
+                  aria-label={`View photo for ${item.name}`}
+                >
+                  <img className="h-full w-full object-cover" src={photo} alt={item.name} />
+                </button>
+              ) : (
+                <InventoryCategoryIcon category={category} size="sm" />
+              )}
+              <div className="min-w-0">
+                <div className="truncate font-bold text-text-primary">{item.name}</div>
+                <div className="truncate type-caption text-text-secondary">{item.sku || "No SKU"} · {category?.name ?? "Uncategorized"}</div>
+              </div>
+            </div>
+          </td>
+          <td className="font-semibold text-text-secondary">{item.unit}</td>
           <td>
             <input
               className="control h-8 w-28 text-[13px]"
               type="number"
-              value={config.parLevel}
-              onChange={(event) => saveParLevelConfig(item.id, activeOutletId, { parLevel: Number(event.target.value || 0) })}
+              min="0"
+              value={config.parLevel ?? ""}
+              placeholder="Enter quantity"
+              data-grid-row={rowIndex}
+              data-grid-field="par"
+              onFocus={selectInputText}
+              onKeyDown={(event) => handleParGridKeyDown(event, item.id, "par")}
+              onChange={(event) => saveParLevelConfig(item.id, activeOutletId, { parLevel: parseNonNegativeNumber(event.target.value) })}
             />
           </td>
           <td>
             <input
               className="control h-8 min-w-44 text-[13px]"
               value={config.storageLocation}
+              data-grid-row={rowIndex}
+              data-grid-field="storage"
+              onFocus={selectInputText}
+              onKeyDown={(event) => handleParGridKeyDown(event, item.id, "storage")}
               onChange={(event) => saveParLevelConfig(item.id, activeOutletId, { storageLocation: event.target.value })}
               placeholder="Optional"
             />
@@ -3976,16 +4072,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               selectedIds={config.supplierIds}
               onSave={(supplierIds) => saveParLevelConfig(item.id, activeOutletId, { supplierIds })}
             />
-          </td>
-          <td>
-            <label className="inline-flex items-center gap-2 type-caption font-semibold text-text-secondary">
-              <input
-                type="checkbox"
-                checked={config.isActive !== false}
-                onChange={(event) => saveParLevelConfig(item.id, activeOutletId, { isActive: event.target.checked })}
-              />
-              Active
-            </label>
           </td>
         </tr>
       );
@@ -4028,6 +4114,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               className="lg:w-44"
             />
           ) : null}
+          <div className="flex min-w-[92px] justify-end">
+            <Badge tone={parLevelSaveState === "saving" ? "info" : "success"}>{parLevelSaveState === "saving" ? "Saving..." : "Saved"}</Badge>
+          </div>
           <div className="inline-flex rounded-xl border border-border bg-slate-50 p-1">
             {[
               ["outlet", "Outlet View"],
@@ -4051,17 +4140,15 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             description="Set the minimum quantity this outlet should keep for each linked item."
           >
             {outletScopedItems.length ? (
-              <div className="overflow-x-auto">
+              <div className="overflow-x-auto" ref={parLevelGridRef}>
                 <table className="w-full min-w-[960px] text-left">
                   <thead className="text-[11px] uppercase tracking-wide text-text-muted">
                     <tr className="border-b border-border">
                       <th className="py-2">Item</th>
-                      {parLevelGroupBy === "none" ? <th>Category</th> : null}
-                      <th>Unit</th>
+                      <th>UOM</th>
                       <th>Par Level</th>
                       <th>Storage Location</th>
                       <th>Suppliers</th>
-                      <th>Active</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-border text-[13px]">
@@ -4069,10 +4156,10 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                       const collapsed = collapsedParCategoryIds.has(group.id);
                       return (
                         <Fragment key={group.id}>
-                          <tr className="bg-slate-50">
-                            <td className="py-2" colSpan={6}>
+                          <tr className="bg-primary/5">
+                            <td className="py-2" colSpan={5}>
                               <button
-                                className="flex w-full items-center justify-between rounded-xl px-2 py-1 text-left transition hover:bg-primary/5"
+                                className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left transition hover:bg-primary/8"
                                 type="button"
                                 onClick={() => setCollapsedParCategoryIds((current) => {
                                   const next = new Set(current);
@@ -4081,7 +4168,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                                   return next;
                                 })}
                               >
-                                <span className="type-body-sm font-black text-text-primary">{group.category?.name || "Uncategorized"} <span className="font-semibold text-text-secondary">· {group.items.length} item{group.items.length === 1 ? "" : "s"}</span></span>
+                                <span className="flex items-center gap-3">
+                                  <InventoryCategoryIcon category={group.category} size="sm" />
+                                  <span>
+                                    <span className="block type-body-sm font-black text-text-primary">{group.category?.name || "Uncategorized"}</span>
+                                    <span className="block type-caption font-semibold text-text-secondary">{group.items.length} item{group.items.length === 1 ? "" : "s"}</span>
+                                  </span>
+                                </span>
                                 <ChevronDown className={`text-text-muted transition ${collapsed ? "-rotate-90" : ""}`} size={16} />
                               </button>
                             </td>
@@ -4103,7 +4196,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                   <thead className="text-[11px] uppercase tracking-wide text-text-muted">
                     <tr className="border-b border-border">
                       <th className="py-2">Item</th>
-                      <th>Unit</th>
+                      <th>UOM</th>
                       {outlets.map((outlet) => <th key={outlet.id}>{outlet.name}</th>)}
                     </tr>
                   </thead>
@@ -4124,8 +4217,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                                 <input
                                   className="control h-8 w-24 text-[13px]"
                                   type="number"
-                                  value={config.parLevel}
-                                  onChange={(event) => saveParLevelConfig(item.id, outlet.id, { parLevel: Number(event.target.value || 0) })}
+                                  min="0"
+                                  value={config.parLevel ?? ""}
+                                  placeholder="Not set"
+                                  onFocus={selectInputText}
+                                  onChange={(event) => saveParLevelConfig(item.id, outlet.id, { parLevel: parseNonNegativeNumber(event.target.value) })}
                                 />
                               ) : (
                                 <span className="type-caption text-text-muted">Not linked</span>
@@ -4277,7 +4373,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             <td>
               <div className="flex items-center gap-1">
                 <button className="icon-btn h-8 w-8" type="button" disabled={row.skipped} onClick={() => setCheckRows((current) => current.map((entry, rowIndex) => rowIndex === index ? { ...entry, actualCount: Math.max(0, Number(entry.actualCount || 0) - 1), na: false } : entry))}>-</button>
-                <input className="control h-8 w-20 text-center text-[13px]" type="number" min="0" disabled={row.skipped} value={row.actualCount} onChange={(event) => setCheckRows((current) => current.map((entry, rowIndex) => rowIndex === index ? { ...entry, actualCount: event.target.value === "" ? "" : Number(event.target.value || 0), na: false } : entry))} />
+                <input className="control h-8 w-20 text-center text-[13px]" type="number" min="0" disabled={row.skipped} value={row.actualCount ?? ""} placeholder="Qty" onFocus={selectInputText} onChange={(event) => setCheckRows((current) => current.map((entry, rowIndex) => rowIndex === index ? { ...entry, actualCount: parseNonNegativeNumber(event.target.value), na: false } : entry))} />
                 <button className="icon-btn h-8 w-8" type="button" disabled={row.skipped} onClick={() => setCheckRows((current) => current.map((entry, rowIndex) => rowIndex === index ? { ...entry, actualCount: Number(entry.actualCount || 0) + 1, na: false } : entry))}>+</button>
               </div>
               {!row.skipped ? (
