@@ -243,8 +243,9 @@ function ThemeMenu({ themeChoice, resolvedTheme, onThemeChange, onLogout }) {
         <button
           className="pointer-events-auto flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text-secondary transition hover:bg-slate-50 hover:text-text-primary"
           type="button"
+          onPointerDown={(event) => event.stopPropagation()}
           onMouseDown={(event) => event.stopPropagation()}
-          onClick={onLogout}
+          onClick={(event) => onLogout(event, "top")}
         >
           <LogOut size={15} />
           Sign Out
@@ -497,8 +498,9 @@ function SidebarProfilePopover({ auth, onViewProfile, onChangePassword, onSignOu
         <button
           className="pointer-events-auto flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-rose-600 transition hover:bg-rose-50"
           type="button"
+          onPointerDown={(event) => event.stopPropagation()}
           onMouseDown={(event) => event.stopPropagation()}
-          onClick={onSignOut}
+          onClick={(event) => onSignOut(event, "sidebar")}
         >
           <LogOut size={15} />
           Sign Out
@@ -635,11 +637,11 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
     onNotify?.({ title: "Password changed", message: "Your FeedX login password was updated." });
   }
 
-  async function handleSignOutClick(event) {
-    event.preventDefault();
-    event.stopPropagation();
+  async function handleSignOutClick(event, source = "top") {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
     try {
-      console.log("[FeedX] Sign out clicked");
+      console.log(source === "sidebar" ? "[FeedX] Sidebar sign out clicked" : "[FeedX] Sign out clicked");
       await supabase.auth.signOut();
       setProfileMenuOpen(false);
       setSidebarProfileOpen(false);
