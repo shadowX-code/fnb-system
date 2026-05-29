@@ -1880,8 +1880,9 @@ Master Inventory UI:
 - The Master Inventory list defaults to Group by Category.
 - Master Inventory shows a compact KPI summary strip above the list: Total Items, Categories, Active Items, and Outlets Linked.
 - Category group headers show category name, item count, and collapse/expand control.
-- Category group headers use a section-style light green background, larger title type, linked outlet count, and one generic folder icon for every category.
+- Category group headers use a section-style light green background, larger title type, grouped metadata, and one generic folder icon for every category.
 - Category group headers must not use circular letter/avatar icons; circular fallback avatars are reserved for inventory item rows only.
+- The Category Folder Style rule applies consistently across Master Inventory, Par Level Outlet View, and Par Level Matrix View.
 - Collapsed category state may be remembered for the current browser session.
 - A Group by control supports Category and None.
 - When grouped by Category, the Category column is hidden because category is represented by the group header.
@@ -1934,6 +1935,32 @@ Master Inventory import/export:
 - Import requires inventory_master.create or inventory_master.edit permission.
 - Export requires inventory_master.export permission.
 
+Inventory Control persistence audit:
+
+Status as of 29 May 2026:
+
+- Source file audited: `src/features/sales-purchase/pages/InventoryControlPage.jsx`.
+- Linked Supabase schema contains: `inventory_items`, `inventory_categories`, `inventory_uoms`, `inventory_item_outlets`, `inventory_item_outlet_suppliers`, `inventory_stock_check_groups`, `inventory_stock_check_group_categories`, `inventory_stock_checks`, `inventory_stock_check_items`, `inventory_purchase_orders`, `inventory_purchase_order_items`, `inventory_purchase_receipts`, and `inventory_purchase_receipt_items`.
+- Linked Supabase schema does not currently contain: `inventory_movements`, `waste_records` / `inventory_waste_records`, `inventory_recipes`, or `inventory_recipe_items`.
+- Master Inventory item create/edit/archive and linked outlet saves are Supabase-backed, but import is still local-only and must be migrated before production use.
+- Inventory Categories create/edit/archive/delete and drag sort are Supabase-backed.
+- Inventory UOM create/edit/archive/delete is Supabase-backed; UOM drag sorting is not implemented in the current UI.
+- Par Levels update Par Level, Storage Location, and Suppliers through Supabase-backed `inventory_item_outlets` and `inventory_item_outlet_suppliers`.
+- Stock Check Groups create/edit/duplicate/archive are Supabase-backed through `inventory_stock_check_groups` and `inventory_stock_check_group_categories`.
+- Stock Check draft, submit, audit, generated variance movements, and review history are local-only even though `inventory_stock_checks` and `inventory_stock_check_items` tables exist.
+- Purchase Suggestions create Draft PO is local-only even though purchase order tables exist.
+- Purchase Orders submit, edit, receive, partial receive, complete, and cancel are local-only even though purchase order and receipt tables exist.
+- Inventory Movements create is local-only and the expected persistence table is missing from the linked schema.
+- Waste & Variance create waste record is local-only and the expected persistence table is missing from the linked schema.
+- Recipes & Usage create/edit/archive and ingredient mapping are local-only and recipe tables are missing from the linked schema.
+
+Persistence priorities:
+
+- P0: Add/migrate Stock Check draft/submit/audit persistence, Purchase Suggestions to Draft PO persistence, Purchase Order workflow persistence, Inventory Movements persistence, Waste record persistence, and Recipes persistence. These currently lose data after refresh.
+- P1: Replace Master Inventory import local mutation with the same remote-first `inventory_items` / `inventory_item_outlets` persistence used by Add/Edit Item.
+- P1: Add UOM drag sort persistence if sortable UOM ordering becomes part of the UI.
+- P2: Remove or clearly label any remaining development diagnostics after persistence is verified.
+
 Inventory UOM data model:
 
 - Table: `inventory_uoms`
@@ -1961,6 +1988,7 @@ Par Level Setup:
 - Outlet View groups items by Category by default.
 - Outlet View supports Group by Category and None.
 - Category group headers show category fallback icon, category name, item count, and collapse/expand control.
+- Category group headers use the Inventory Control Folder Style: generic folder icon, section-style light green background, and no circular category avatar.
 - Search, category filter, and outlet filter apply before grouping; empty groups are hidden.
 - When grouped by Category, Outlet View columns are Item, UOM, Par Level, Storage Location, and Suppliers.
 - When grouping is None, Outlet View columns are Item, UOM, Par Level, Storage Location, and Suppliers.
@@ -2069,21 +2097,24 @@ Group fields:
 
 - id
 - outlet_id
-- group_name
+- name
 - description
-- category_ids
-- check_frequency
-- check_days
-- monthly_rule
 - shift
-- assigned_staff_id
+- frequency_type
+- frequency_days
+- schedule_config
 - status
 - last_checked_at
-- next_check_at
-- created_by
-- updated_by
 - created_at
 - updated_at
+
+Group category links:
+
+- Table: `inventory_stock_check_group_categories`
+- Fields: id, group_id, category_id, created_at.
+- Add/Edit/Duplicate writes the group row first, then replaces linked category rows.
+- Archive updates `inventory_stock_check_groups.status = inactive` and preserves the historical group record.
+- Stock Check Groups must never show success until Supabase confirms both the group row and category links.
 
 Frequency options:
 

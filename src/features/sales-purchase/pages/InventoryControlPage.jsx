@@ -744,19 +744,46 @@ function mapRemoteInventoryItem(row = {}, configs = [], categoryById = new Map()
   });
 }
 
+function mapRemoteStockCheckGroup(row = {}, categoryIds = []) {
+  const schedule = row.schedule_config || {};
+  const lastCheckedAt = row.last_checked_at || row.lastCheckedAt || "";
+  return {
+    id: row.id,
+    outletId: row.outlet_id || row.outletId || "",
+    name: row.name || "Stock Check Group",
+    description: row.description || "",
+    categoryIds: uniqueIds(categoryIds),
+    itemIds: [],
+    frequency: row.frequency_type || row.frequency || "custom",
+    checkDays: Array.isArray(row.frequency_days) ? row.frequency_days : (schedule.checkDays || []),
+    monthDay: schedule.monthDay || row.month_day || 1,
+    shift: row.shift || "Closing",
+    assignedStaff: schedule.assignedStaff || row.assigned_staff || "",
+    status: row.status || "active",
+    lastChecked: lastCheckedAt ? String(lastCheckedAt).slice(0, 10) : "",
+    lastCheckedAt,
+    createdAt: row.created_at || "",
+    updatedAt: row.updated_at || "",
+  };
+}
+
 async function loadRemoteInventoryMaster() {
   const itemsResult = await supabase.from("inventory_items").select("*").order("created_at", { ascending: false });
   if (itemsResult.error) throw itemsResult.error;
 
-  const [categoriesResult, uomsResult, itemOutletsResult, itemOutletSuppliersResult] = await Promise.all([
+  const [categoriesResult, uomsResult, itemOutletsResult, itemOutletSuppliersResult, stockGroupsResult, stockGroupCategoriesResult] = await Promise.all([
     supabase.from("inventory_categories").select("*").order("sort_order", { ascending: true }),
     supabase.from("inventory_uoms").select("*").order("sort_order", { ascending: true }),
     supabase.from("inventory_item_outlets").select("*, outlets:outlet_id(*)"),
     supabase.from("inventory_item_outlet_suppliers").select("*"),
+    supabase.from("inventory_stock_check_groups").select("*").order("created_at", { ascending: false }),
+    supabase.from("inventory_stock_check_group_categories").select("*"),
   ]);
   if (categoriesResult.error) console.warn("[InventoryControl] Inventory categories metadata unavailable. Items will still render.", categoriesResult.error);
   if (uomsResult.error) console.warn("[InventoryControl] Inventory UOM metadata unavailable. Items will still render.", uomsResult.error);
   if (itemOutletSuppliersResult.error) console.warn("[InventoryControl] Inventory outlet supplier links unavailable. Items will still render without supplier assignments.", itemOutletSuppliersResult.error);
+  if (stockGroupsResult.error) console.warn("[InventoryControl] Stock check groups unavailable. Groups will render empty until persistence is configured.", stockGroupsResult.error);
+  if (stockGroupCategoriesResult.error) console.warn("[InventoryControl] Stock check group category links unavailable.", stockGroupCategoriesResult.error);
 
   let itemOutletRows = itemOutletsResult.data || [];
   if (itemOutletsResult.error) {
@@ -786,6 +813,13 @@ async function loadRemoteInventoryMaster() {
   const itemRows = itemsResult.data || [];
   const normalizedItems = itemRows.map((item) => mapRemoteInventoryItem(item, configsByItem.get(item.id) || [], categoryById, supplierIdsByConfigId));
   const activeItems = normalizedItems.filter((item) => String(item.status || "").toLowerCase() === "active");
+  const categoryIdsByGroupId = new Map();
+  (stockGroupCategoriesResult.data || []).forEach((link) => {
+    const list = categoryIdsByGroupId.get(link.group_id) || [];
+    if (link.category_id) list.push(link.category_id);
+    categoryIdsByGroupId.set(link.group_id, uniqueIds(list));
+  });
+  const groups = (stockGroupsResult.data || []).map((group) => mapRemoteStockCheckGroup(group, categoryIdsByGroupId.get(group.id) || []));
 
   console.log("[InventoryFetchRaw]", {
     itemRows: itemRows.map((row) => ({
@@ -830,6 +864,7 @@ async function loadRemoteInventoryMaster() {
     categories,
     items: normalizedItems,
     uoms: (uomsResult.data || []).map(mapRemoteUom),
+    groups,
     rawItemCount: itemRows.length,
     outletLinkCount: itemOutletRows.length,
     fallbackActive: false,
@@ -1094,6 +1129,77 @@ async function persistRemoteParLevelConfig(item, outletId, patch) {
   };
 }
 
+async function persistRemoteStockCheckGroup(group) {
+  const categoryIds = uniqueIds(groupCategoryIds(group, []));
+  const frequency = frequencies.includes(group.frequency) ? group.frequency : "custom";
+  const payload = {
+    outlet_id: isUuid(group.outletId) ? group.outletId : null,
+    name: String(group.name || "").trim(),
+    description: String(group.description || "").trim() || null,
+    shift: group.shift || "Closing",
+    frequency_type: frequency,
+    frequency_days: frequency === "custom" ? (group.checkDays || []) : [],
+    schedule_config: {
+      monthDay: group.monthDay || 1,
+      checkDays: frequency === "custom" ? (group.checkDays || []) : [],
+      assignedStaff: group.assignedStaff || "",
+    },
+    status: group.status || "active",
+    last_checked_at: group.lastCheckedAt || (group.lastChecked ? new Date(`${group.lastChecked}T00:00:00`).toISOString() : null),
+    updated_at: new Date().toISOString(),
+  };
+  if (!payload.name) throw new Error("Group name is required.");
+  if (!payload.outlet_id) throw new Error("Outlet is required.");
+
+  const mode = isUuid(group.id) ? "edit" : "create";
+  const groupResult = mode === "edit"
+    ? await supabase
+      .from("inventory_stock_check_groups")
+      .update(payload)
+      .eq("id", group.id)
+      .select("*")
+      .single()
+    : await supabase
+      .from("inventory_stock_check_groups")
+      .insert(payload)
+      .select("*")
+      .single();
+  console.log("[StockCheckGroupSaveDebug]", { action: mode, payload, categoryIds, result: { data: groupResult.data, error: groupResult.error }, error: groupResult.error });
+  if (groupResult.error) throw groupResult.error;
+
+  const groupId = groupResult.data.id;
+  const deleteResult = await supabase
+    .from("inventory_stock_check_group_categories")
+    .delete()
+    .eq("group_id", groupId);
+  console.log("[StockCheckGroupSaveDebug]", { action: "delete-category-links", groupId, result: { data: deleteResult.data || null, error: deleteResult.error }, error: deleteResult.error });
+  if (deleteResult.error) throw deleteResult.error;
+
+  if (categoryIds.length) {
+    const linkPayload = categoryIds.map((categoryId) => ({ group_id: groupId, category_id: categoryId }));
+    const linkResult = await supabase
+      .from("inventory_stock_check_group_categories")
+      .insert(linkPayload);
+    console.log("[StockCheckGroupSaveDebug]", { action: "insert-category-links", groupId, payload: linkPayload, result: { data: linkResult.data || null, error: linkResult.error }, error: linkResult.error });
+    if (linkResult.error) throw linkResult.error;
+  }
+
+  return mapRemoteStockCheckGroup(groupResult.data, categoryIds);
+}
+
+async function archiveRemoteStockCheckGroup(groupId) {
+  if (!isUuid(groupId)) throw new Error("This stock check group has not been saved to Supabase yet.");
+  const result = await supabase
+    .from("inventory_stock_check_groups")
+    .update({ status: "inactive", updated_at: new Date().toISOString() })
+    .eq("id", groupId)
+    .select("*")
+    .single();
+  console.log("[StockCheckGroupSaveDebug]", { action: "archive", groupId, result: { data: result.data, error: result.error }, error: result.error });
+  if (result.error) throw result.error;
+  return mapRemoteStockCheckGroup(result.data);
+}
+
 function uomOptionLabel(uom = {}) {
   return uom.displayName && canonical(uom.displayName) !== canonical(uom.code)
     ? `${uom.code} · ${uom.displayName}`
@@ -1147,7 +1253,7 @@ function normalizeInventoryData(raw, outlets = [], suppliers = [], options = {})
     categories,
     uoms: uoms.map(normalizeUom),
     items: items.map(normalizeInventoryItem),
-    groups: source.groups ?? fallback.groups,
+    groups: allowEmptyMaster ? (source.groups ?? []) : (source.groups ?? fallback.groups),
     checks: source.checks ?? [],
     requests: source.requests ?? [],
     orders: source.orders ?? [],
@@ -1308,6 +1414,7 @@ function useInventoryData(outlets, suppliers) {
         categories: remote.categories,
         items: remote.items,
         uoms: remote.uoms,
+        groups: remote.groups,
       }, outlets, suppliers, { allowEmptyMaster: true }));
       setMeta({
         dataSource: "supabase",
@@ -4056,21 +4163,29 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     }
   }
 
-  function saveGroup(group) {
+  async function saveGroup(group) {
     const normalizedGroup = {
       ...group,
       categoryIds: groupCategoryIds(group, data.items),
       frequency: frequencies.includes(group.frequency) ? group.frequency : "custom",
       itemIds: [],
     };
-    setData((current) => ({
-      ...current,
-      groups: current.groups.some((entry) => entry.id === group.id)
-        ? current.groups.map((entry) => entry.id === group.id ? normalizedGroup : entry)
-        : [normalizedGroup, ...current.groups],
-    }));
-    setModal(null);
-    notify("Stock check group saved");
+    try {
+      const savedGroup = await persistRemoteStockCheckGroup(normalizedGroup);
+      setData((current) => ({
+        ...current,
+        groups: current.groups.some((entry) => entry.id === normalizedGroup.id || entry.id === savedGroup.id)
+          ? current.groups.map((entry) => (entry.id === normalizedGroup.id || entry.id === savedGroup.id ? savedGroup : entry))
+          : [savedGroup, ...current.groups],
+      }));
+      await refreshInventory();
+      setModal(null);
+      notify("Stock check group saved");
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to save stock check group.", error);
+      console.log("[StockCheckGroupSaveDebug]", { action: isUuid(group.id) ? "edit" : "create", payload: normalizedGroup, result: null, error });
+      notify("Unable to save stock check group", error.message || "Please try again.", "error");
+    }
   }
 
   function openCreateGroup() {
@@ -4091,13 +4206,21 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     setModal({ type: "waste", outletId: selectedOutletId });
   }
 
-  function archiveGroup(groupId) {
+  async function archiveGroup(groupId) {
     if (!requirePermission(can.manageGroups, "archive stock check groups")) return;
-    setData((current) => ({
-      ...current,
-      groups: current.groups.map((group) => group.id === groupId ? { ...group, status: "archived" } : group),
-    }));
-    notify("Stock check group archived");
+    try {
+      const savedGroup = await archiveRemoteStockCheckGroup(groupId);
+      setData((current) => ({
+        ...current,
+        groups: current.groups.map((group) => group.id === groupId ? savedGroup : group),
+      }));
+      await refreshInventory();
+      notify("Stock check group archived");
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to archive stock check group.", error);
+      console.log("[StockCheckGroupSaveDebug]", { action: "archive", groupId, result: null, error });
+      notify("Unable to archive stock check group", error.message || "Please try again.", "error");
+    }
   }
 
   function startAuditStockCheck(form) {
@@ -5307,9 +5430,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                       return (
                         <Fragment key={group.id}>
                           <tr className="bg-primary/5">
-                            <td className="py-2" colSpan={5}>
+                            <td className="py-2.5" colSpan={5}>
                               <button
-                                className="flex w-full items-center justify-between rounded-2xl px-3 py-2 text-left transition hover:bg-primary/8"
+                                className="flex min-h-14 w-full items-center justify-between rounded-2xl border border-primary/10 bg-primary/5 px-4 py-3 text-left transition hover:bg-primary/8"
                                 type="button"
                                 onClick={() => setCollapsedParCategoryIds((current) => {
                                   const next = new Set(current);
@@ -5318,10 +5441,10 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                                   return next;
                                 })}
                               >
-                                <span className="flex items-center gap-3">
-                                  <InventoryCategoryIcon category={group.category} size="sm" />
-                                  <span>
-                                    <span className="block type-body-sm font-black text-text-primary">{group.category?.name || "Uncategorized"}</span>
+                                <span className="flex min-w-0 items-center gap-2.5">
+                                  <Folder className="shrink-0 text-primary" size={18} strokeWidth={2.2} />
+                                  <span className="min-w-0">
+                                    <span className="block text-[15px] font-black leading-tight text-text-primary">{group.category?.name || "Uncategorized"}</span>
                                     <span className="block type-caption font-semibold text-text-secondary">{group.items.length} item{group.items.length === 1 ? "" : "s"}</span>
                                   </span>
                                 </span>
@@ -5368,16 +5491,16 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                       {matrixItemGroups.map((group) => (
                         <Fragment key={group.id}>
                           <tr className="bg-primary/5">
-                            <td className="sticky left-0 z-10 border-b border-border bg-primary/5 px-3 py-2" colSpan={2}>
-                              <div className="flex items-center gap-2">
-                                <InventoryCategoryIcon category={group.category} size="sm" />
-                                <div>
-                                  <div className="type-body-sm font-black text-text-primary">{group.category?.name || "Uncategorized"}</div>
+                            <td className="sticky left-0 z-10 border-b border-border bg-primary/5 px-3 py-2.5" colSpan={2}>
+                              <div className="flex min-h-14 items-center gap-2.5 rounded-2xl border border-primary/10 bg-primary/5 px-4 py-3">
+                                <Folder className="shrink-0 text-primary" size={18} strokeWidth={2.2} />
+                                <div className="min-w-0">
+                                  <div className="text-[15px] font-black leading-tight text-text-primary">{group.category?.name || "Uncategorized"}</div>
                                   <div className="type-caption font-semibold text-text-secondary">{group.items.length} item{group.items.length === 1 ? "" : "s"}</div>
                                 </div>
                               </div>
                             </td>
-                            <td className="border-b border-border bg-primary/5 px-3 py-2" colSpan={matrixOutlets.length} />
+                            <td className="border-b border-border bg-primary/5 px-3 py-2.5" colSpan={matrixOutlets.length} />
                           </tr>
                           {group.items.map((item) => {
                             const rowIndex = visibleMatrixRowIndex.get(item.id) ?? -1;
@@ -5503,7 +5626,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                     <div className="flex flex-wrap justify-end gap-2">
                       <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.manageGroups, "edit stock check groups") && setModal({ type: "group", group })}>Edit</button>
                       <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.manageGroups, "duplicate stock check groups") && setModal({ type: "group", outletId: group.outletId, group: { ...group, id: "", name: `${group.name} Copy`, categoryIds } })}>Duplicate</button>
-                      {group.status !== "archived" ? <button className="btn-secondary h-8 px-2.5 text-xs text-rose-700" type="button" onClick={() => archiveGroup(group.id)}>Archive</button> : null}
+                      {group.status === "active" ? <button className="btn-secondary h-8 px-2.5 text-xs text-rose-700" type="button" onClick={() => archiveGroup(group.id)}>Archive</button> : null}
                     </div>
                   </div>
                 </div>
