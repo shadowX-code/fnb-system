@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, Copy, Eye, MoreHorizontal, Plus, Search, Shield, ShieldAlert, Trash2 } from "lucide-react";
+import { Check, Copy, Eye, Lock, MoreHorizontal, Plus, Search, Shield, ShieldAlert, Trash2 } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import Card from "../../../components/ui/Card.jsx";
@@ -171,7 +171,7 @@ function RoleAccessLayout({ title, description, notice, actions, footer, onClose
   );
 }
 
-function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets = roleEditorOutlets, readOnly = false }) {
+function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets = roleEditorOutlets, auth, readOnly = false }) {
   const [errors, setErrors] = useState({});
   const [values, setValues] = useState(() => ({
     name: role?.name ?? "",
@@ -185,6 +185,14 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
   const isEdit = mode === "edit";
   const isProtectedRole = isProtectedRoleName(role?.name);
   const allCurrentOutletsSelected = outlets.length > 0 && outlets.every((outlet) => values.selectedOutletIds.includes(outlet.id));
+  const currentUserCanModifyEveryPermission = Boolean(auth?.isProtectedRole);
+  const outOfScopePermissionCodes = useMemo(() => {
+    if (!isEdit || currentUserCanModifyEveryPermission) return new Set();
+    return new Set(
+      [...values.selectedPermissions].filter((code) => roleEditorPermissionCodeSet.has(code) && !hasPermission(auth, code)),
+    );
+  }, [auth, currentUserCanModifyEveryPermission, isEdit, values.selectedPermissions]);
+  const hasOutOfScopePermissions = outOfScopePermissionCodes.size > 0;
 
   function markChanged(patch) {
     setValues((current) => ({ ...current, ...patch }));
@@ -193,6 +201,10 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
 
   function cellEnabled(cell) {
     return cell.codes.every((code) => values.selectedPermissions.has(code));
+  }
+
+  function cellLocked(cell) {
+    return cell.codes.some((code) => outOfScopePermissionCodes.has(code));
   }
 
   function toggleOutlet(outletId) {
@@ -212,18 +224,22 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
 
   function toggleMatrixCell(module, actionKey, cell) {
     if (readOnly) return;
+    if (cellLocked(cell)) return;
     setValues((current) => {
       const next = new Set(current.selectedPermissions);
       const currentlyEnabled = cell.codes.every((code) => next.has(code));
       const viewCodes = module.actions.view?.codes ?? [];
+      const editableModuleCodes = new Set(getRoleEditorModuleCodes(module).filter((code) => !outOfScopePermissionCodes.has(code)));
+      const editableViewCodes = viewCodes.filter((code) => !outOfScopePermissionCodes.has(code));
+      const editableCellCodes = cell.codes.filter((code) => !outOfScopePermissionCodes.has(code));
 
       if (actionKey === "view" && currentlyEnabled) {
-        getRoleEditorModuleCodes(module).forEach((code) => next.delete(code));
+        editableModuleCodes.forEach((code) => next.delete(code));
       } else if (currentlyEnabled) {
-        cell.codes.forEach((code) => next.delete(code));
+        editableCellCodes.forEach((code) => next.delete(code));
       } else {
-        if (actionKey !== "view") viewCodes.forEach((code) => next.add(code));
-        cell.codes.forEach((code) => next.add(code));
+        if (actionKey !== "view") editableViewCodes.forEach((code) => next.add(code));
+        editableCellCodes.forEach((code) => next.add(code));
       }
       return { ...current, selectedPermissions: next };
     });
@@ -417,6 +433,12 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
                   </div>
                   {hasChanges ? <Badge tone="warning">Unsaved changes</Badge> : null}
                 </div>
+                {hasOutOfScopePermissions ? (
+                  <div className="mt-3 flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-800">
+                    <Lock size={14} className="mt-0.5 shrink-0" />
+                    <span>This role contains permissions outside your own access scope. These permissions can be viewed but not modified.</span>
+                  </div>
+                ) : null}
               </div>
 
               <div className="overflow-x-auto">
@@ -449,15 +471,23 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
                                 );
                               }
                               const enabled = cellEnabled(cell);
+                              const locked = cellLocked(cell);
                               return (
                                 <td key={`${module.key}-${action.key}`} className="border-b border-border px-2 py-3 text-center">
                                   <button
-                                    className={`mx-auto flex min-h-9 w-full max-w-[128px] items-center justify-center rounded-xl border px-2 text-xs font-bold transition ${enabled ? "border-primary bg-primary text-white shadow-sm" : "border-border bg-slate-50 text-text-secondary hover:border-primary/30 hover:bg-primary/5 hover:text-primary"} disabled:cursor-not-allowed disabled:opacity-60`}
+                                    className={`mx-auto flex min-h-9 w-full max-w-[128px] items-center justify-center gap-1.5 rounded-xl border px-2 text-xs font-bold transition ${
+                                      locked
+                                        ? "border-slate-200 bg-slate-100 text-text-muted"
+                                        : enabled
+                                          ? "border-primary bg-primary text-white shadow-sm"
+                                          : "border-border bg-slate-50 text-text-secondary hover:border-primary/30 hover:bg-primary/5 hover:text-primary"
+                                    } disabled:cursor-not-allowed disabled:opacity-70`}
                                     type="button"
-                                    disabled={readOnly}
-                                    title={cell.label}
+                                    disabled={readOnly || locked}
+                                    title={locked ? "You cannot modify permissions you do not personally have." : cell.label}
                                     onClick={() => toggleMatrixCell(module, action.key, cell)}
                                   >
+                                    {locked ? <Lock size={12} /> : null}
                                     {enabled ? "Enabled" : "Off"}
                                   </button>
                                   <div className="mt-1 text-[10px] font-medium leading-4 text-text-muted">{cell.label}</div>
@@ -488,7 +518,7 @@ function getAssignedUsersForRole(role) {
   return [...directUsers, ...fallbackUsers].slice(0, role.assignedUsers);
 }
 
-function AddRoleModal({ onClose, onSubmit, ui, outlets }) {
+function AddRoleModal({ onClose, onSubmit, ui, outlets, auth }) {
   function submitRole(role) {
     onSubmit({
       ...role,
@@ -496,7 +526,7 @@ function AddRoleModal({ onClose, onSubmit, ui, outlets }) {
     });
   }
   return (
-    <RoleEditorModal mode="create" onClose={onClose} onSubmit={submitRole} ui={ui} outlets={outlets} />
+    <RoleEditorModal mode="create" onClose={onClose} onSubmit={submitRole} ui={ui} outlets={outlets} auth={auth} />
   );
 }
 
@@ -1181,7 +1211,7 @@ export default function RolesPage({ ui, store, auth }) {
         />
       ) : null}
 
-      {addRoleOpen ? <AddRoleModal ui={ui} onClose={() => setAddRoleOpen(false)} onSubmit={addRole} outlets={editorOutlets} /> : null}
+      {addRoleOpen ? <AddRoleModal ui={ui} auth={auth} onClose={() => setAddRoleOpen(false)} onSubmit={addRole} outlets={editorOutlets} /> : null}
       {editRole ? (
         <RoleEditorModal
           mode="edit"
@@ -1190,6 +1220,7 @@ export default function RolesPage({ ui, store, auth }) {
           onSubmit={saveRoleEdits}
           ui={ui}
           outlets={editorOutlets}
+          auth={auth}
         />
       ) : null}
       {disableRoleRequest ? (
