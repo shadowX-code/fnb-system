@@ -1753,11 +1753,17 @@ Core rules:
 - Draft stock checks can be continued later.
 - Submitted stock checks can be reviewed.
 - Reviewed or locked stock checks cannot be edited except by users with the required permission.
-- Stock requests can be generated from low-stock items.
-- Purchase Orders can combine approved requests by supplier.
+- Stock Requests are removed from current active sidebar and permission matrix scope.
+- Purchase Orders are created from reviewed scheduled Stock Check suggestions or manual purchase planning.
 - Every inventory movement creates an audit trail.
 
 Inventory Control permissions:
+
+- Inventory Control is a sidebar section / workspace grouping only.
+- Inventory Control must not own operational permission rows such as create, edit, manage, import, export, record, generate, or approve.
+- Inventory permissions live on child modules only.
+- Stock Requests permissions are legacy/internal only and must not appear in the active Role Management matrix.
+- Non-view actions require view through the permission matrix dependency rule.
 
 - inventory_dashboard.view
 - inventory_master.view
@@ -1781,23 +1787,29 @@ Inventory Control permissions:
 - inventory_stock_check.create
 - inventory_stock_check.edit
 - inventory_stock_check.review
-- inventory_stock_check.lock
-- inventory_requests.view
-- inventory_requests.create
-- inventory_requests.edit
-- inventory_requests.approve
+- inventory_stock_check.audit
+- inventory_stock_check.export
 - inventory_orders.view
 - inventory_orders.create
 - inventory_orders.edit
-- inventory_orders.manage
+- inventory_orders.submit
+- inventory_orders.receive
+- inventory_orders.complete
+- inventory_orders.cancel
+- inventory_orders.export
 - inventory_movements.view
 - inventory_movements.create
+- inventory_movements.export
 - inventory_waste.view
 - inventory_waste.create
 - inventory_waste.manage
-- inventory_insights.view
+- inventory_waste.export
 - inventory_recipes.view
+- inventory_recipes.create
+- inventory_recipes.edit
+- inventory_recipes.delete
 - inventory_recipes.manage
+- inventory_recipes.export
 
 Master Inventory fields:
 
@@ -3014,6 +3026,7 @@ Master Inventory:
 - inventory_master.create
 - inventory_master.edit
 - inventory_master.delete
+- inventory_master.import
 - inventory_master.export
 
 Inventory Categories:
@@ -3042,38 +3055,41 @@ Stock Check:
 - inventory_stock_check.create
 - inventory_stock_check.edit
 - inventory_stock_check.review
-- inventory_stock_check.lock
-
-Stock Requests (legacy/internal only):
-
-- inventory_requests.view
-- inventory_requests.create
-- inventory_requests.edit
-- inventory_requests.approve
+- inventory_stock_check.audit
+- inventory_stock_check.export
 
 Purchase Orders:
 
 - inventory_orders.view
 - inventory_orders.create
 - inventory_orders.edit
-- inventory_orders.manage
+- inventory_orders.submit
+- inventory_orders.receive
+- inventory_orders.complete
+- inventory_orders.cancel
+- inventory_orders.export
 
 Inventory Movements:
 
 - inventory_movements.view
 - inventory_movements.create
+- inventory_movements.export
 
 Waste & Variance:
 
 - inventory_waste.view
 - inventory_waste.create
 - inventory_waste.manage
-- inventory_insights.view
+- inventory_waste.export
 
 Recipes & Usage:
 
 - inventory_recipes.view
+- inventory_recipes.create
+- inventory_recipes.edit
+- inventory_recipes.delete
 - inventory_recipes.manage
+- inventory_recipes.export
 
 Outlets:
 

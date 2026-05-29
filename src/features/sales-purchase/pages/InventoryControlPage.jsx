@@ -34,11 +34,9 @@ import SelectField from "../../../components/forms/SelectField.jsx";
 import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import { supabase } from "../../../lib/supabase.ts";
-import { canExport, canImport, hasPermission, isProtectedRole, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { hasPermission, isProtectedRole, notifyPermissionDenied } from "../../../utils/accessControl.js";
 
 const STORAGE_KEY = "feedx.inventoryControl.v1";
-
-const INVENTORY_MODULE = "inventory_control";
 
 const pageMeta = {
   dashboard: {
@@ -2432,28 +2430,28 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }, [activeTab, auth, outlets, selectedOutletId]);
 
   const can = useMemo(() => ({
-    import: canImport(auth, INVENTORY_MODULE) || hasPermission(auth, "inventory_master.import"),
-    export: canExport(auth, INVENTORY_MODULE) || hasPermission(auth, "inventory_master.export") || hasPermission(auth, "inventory_orders.export") || hasPermission(auth, "inventory_movements.export") || hasPermission(auth, "inventory_waste.export"),
-    manageMaster: hasPermission(auth, "inventory_master.create") || hasPermission(auth, "inventory_master.edit") || hasPermission(auth, "inventory_control.manage_master") || hasPermission(auth, "inventory_control.manage"),
-    viewCategories: hasPermission(auth, "inventory_categories.view") || hasPermission(auth, "inventory_master.view") || hasPermission(auth, "inventory_control.view"),
-    createCategory: hasPermission(auth, "inventory_categories.create") || hasPermission(auth, "inventory_control.manage_categories") || hasPermission(auth, "inventory_control.manage"),
-    editCategory: hasPermission(auth, "inventory_categories.edit") || hasPermission(auth, "inventory_control.manage_categories") || hasPermission(auth, "inventory_control.manage"),
-    deleteCategory: hasPermission(auth, "inventory_categories.delete") || hasPermission(auth, "inventory_control.manage_categories") || hasPermission(auth, "inventory_control.manage"),
-    manageGroups: hasPermission(auth, "inventory_groups.create") || hasPermission(auth, "inventory_groups.edit") || hasPermission(auth, "inventory_control.manage_groups") || hasPermission(auth, "inventory_control.manage"),
-    createCheck: hasPermission(auth, "inventory_stock_check.create") || hasPermission(auth, "inventory_control.create_stock_check") || hasPermission(auth, "inventory_control.create"),
-    editCheck: hasPermission(auth, "inventory_stock_check.edit") || hasPermission(auth, "inventory_control.edit_stock_check") || hasPermission(auth, "inventory_control.edit"),
-    reviewCheck: hasPermission(auth, "inventory_stock_check.approve") || hasPermission(auth, "inventory_control.review_stock_check") || hasPermission(auth, "inventory_control.approve"),
-    createRequest: hasPermission(auth, "inventory_requests.create") || hasPermission(auth, "inventory_control.create_request") || hasPermission(auth, "inventory_control.create"),
-    approveRequest: hasPermission(auth, "inventory_requests.approve") || hasPermission(auth, "inventory_control.approve_request") || hasPermission(auth, "inventory_control.approve"),
-    viewPo: hasPermission(auth, "inventory_orders.view") || hasPermission(auth, "inventory_control.view"),
-    generatePo: hasPermission(auth, "inventory_orders.create") || hasPermission(auth, "inventory_control.generate_purchase_order") || hasPermission(auth, "inventory_control.manage"),
-    managePo: hasPermission(auth, "inventory_orders.edit") || hasPermission(auth, "inventory_control.manage_purchase_orders") || hasPermission(auth, "inventory_control.manage"),
-    recordMovement: hasPermission(auth, "inventory_movements.create") || hasPermission(auth, "inventory_control.record_movement") || hasPermission(auth, "inventory_control.manage"),
-    recordWaste: hasPermission(auth, "inventory_waste.create") || hasPermission(auth, "inventory_control.record_waste") || hasPermission(auth, "inventory_control.manage"),
-    viewWaste: hasPermission(auth, "inventory_waste.view") || hasPermission(auth, "inventory_control.view_waste") || hasPermission(auth, "inventory_control.view"),
-    viewInsights: hasPermission(auth, "inventory_dashboard.view") || hasPermission(auth, "inventory_control.view_insights") || hasPermission(auth, "inventory_control.view"),
-    viewRecipes: hasPermission(auth, "inventory_recipes.view") || hasPermission(auth, "inventory_control.view_recipes") || hasPermission(auth, "inventory_control.view"),
-    manageRecipes: hasPermission(auth, "inventory_recipes.create") || hasPermission(auth, "inventory_recipes.edit") || hasPermission(auth, "inventory_control.manage_recipes") || hasPermission(auth, "inventory_control.manage"),
+    import: hasPermission(auth, "inventory_master.import"),
+    export: hasPermission(auth, "inventory_master.export") || hasPermission(auth, "inventory_orders.export") || hasPermission(auth, "inventory_movements.export") || hasPermission(auth, "inventory_waste.export") || hasPermission(auth, "inventory_recipes.export"),
+    manageMaster: hasPermission(auth, "inventory_master.create") || hasPermission(auth, "inventory_master.edit"),
+    viewCategories: hasPermission(auth, "inventory_categories.view") || hasPermission(auth, "inventory_master.view"),
+    createCategory: hasPermission(auth, "inventory_categories.create"),
+    editCategory: hasPermission(auth, "inventory_categories.edit"),
+    deleteCategory: hasPermission(auth, "inventory_categories.delete"),
+    manageGroups: hasPermission(auth, "inventory_groups.create") || hasPermission(auth, "inventory_groups.edit"),
+    createCheck: hasPermission(auth, "inventory_stock_check.create") || hasPermission(auth, "inventory_stock_check.audit"),
+    editCheck: hasPermission(auth, "inventory_stock_check.edit"),
+    reviewCheck: hasPermission(auth, "inventory_stock_check.review"),
+    createRequest: hasPermission(auth, "inventory_requests.create"),
+    approveRequest: hasPermission(auth, "inventory_requests.approve"),
+    viewPo: hasPermission(auth, "inventory_orders.view"),
+    generatePo: hasPermission(auth, "inventory_orders.create"),
+    managePo: hasPermission(auth, "inventory_orders.edit") || hasPermission(auth, "inventory_orders.submit") || hasPermission(auth, "inventory_orders.receive") || hasPermission(auth, "inventory_orders.complete") || hasPermission(auth, "inventory_orders.cancel"),
+    recordMovement: hasPermission(auth, "inventory_movements.create"),
+    recordWaste: hasPermission(auth, "inventory_waste.create") || hasPermission(auth, "inventory_waste.manage"),
+    viewWaste: hasPermission(auth, "inventory_waste.view"),
+    viewInsights: hasPermission(auth, "inventory_dashboard.view"),
+    viewRecipes: hasPermission(auth, "inventory_recipes.view"),
+    manageRecipes: hasPermission(auth, "inventory_recipes.create") || hasPermission(auth, "inventory_recipes.edit") || hasPermission(auth, "inventory_recipes.manage"),
   }), [auth]);
 
   const sortedCategories = useMemo(() => [...data.categories].sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0) || a.name.localeCompare(b.name)), [data.categories]);

@@ -9,22 +9,12 @@ export type ModuleAction =
   | "import"
   | "upload"
   | "manage"
-  | "manage_master"
-  | "manage_categories"
-  | "manage_groups"
-  | "create_stock_check"
-  | "edit_stock_check"
-  | "review_stock_check"
-  | "lock_stock_check"
-  | "create_request"
-  | "approve_request"
-  | "generate_purchase_order"
-  | "manage_purchase_orders"
-  | "record_movement"
-  | "record_waste"
-  | "view_waste"
-  | "view_insights"
-  | "manage_recipes"
+  | "review"
+  | "audit"
+  | "submit"
+  | "receive"
+  | "complete"
+  | "cancel"
   | "enable_login"
   | "reset_password";
 
@@ -47,23 +37,13 @@ export const permissionActionOrder: ModuleAction[] = [
   "enable_login",
   "reset_password",
   "approve",
+  "review",
+  "audit",
+  "submit",
+  "receive",
+  "complete",
+  "cancel",
   "manage",
-  "manage_master",
-  "manage_categories",
-  "manage_groups",
-  "create_stock_check",
-  "edit_stock_check",
-  "review_stock_check",
-  "lock_stock_check",
-  "create_request",
-  "approve_request",
-  "generate_purchase_order",
-  "manage_purchase_orders",
-  "record_movement",
-  "record_waste",
-  "view_waste",
-  "view_insights",
-  "manage_recipes",
   "import",
   "upload",
   "export",
@@ -78,23 +58,13 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   enable_login: "Enable Login",
   reset_password: "Reset Password",
   approve: "Approve",
+  review: "Review",
+  audit: "Audit",
+  submit: "Submit",
+  receive: "Receive",
+  complete: "Complete",
+  cancel: "Cancel",
   manage: "Manage",
-  manage_master: "Manage Master Inventory",
-  manage_categories: "Manage Inventory Categories",
-  manage_groups: "Manage Stock Check Groups",
-  create_stock_check: "Create Stock Check",
-  edit_stock_check: "Edit Stock Check",
-  review_stock_check: "Review Stock Check",
-  lock_stock_check: "Lock Stock Check",
-  create_request: "Create Stock Request",
-  approve_request: "Approve Stock Request",
-  generate_purchase_order: "Generate Purchase Order",
-  manage_purchase_orders: "Manage Purchase Orders",
-  record_movement: "Record Inventory Movement",
-  record_waste: "Record Waste",
-  view_waste: "View Waste & Variance",
-  view_insights: "View AI Inventory Insights",
-  manage_recipes: "Manage Recipes & Usage",
   import: "Import",
   upload: "Upload",
   export: "Export",
@@ -275,39 +245,6 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, create: true, edit: true, delete: true, manage: true, export: true },
   },
   {
-    id: "inventory_control",
-    section: "Inventory Control",
-    label: "Inventory Control",
-    route: "/operations/inventory-control",
-    icon: "inventory-control",
-    sidebar: false,
-    permissions: {
-      view: true,
-      create: true,
-      edit: true,
-      delete: true,
-      manage: true,
-      import: true,
-      export: true,
-      manage_master: true,
-      manage_categories: true,
-      manage_groups: true,
-      create_stock_check: true,
-      edit_stock_check: true,
-      review_stock_check: true,
-      lock_stock_check: true,
-      create_request: true,
-      approve_request: true,
-      generate_purchase_order: true,
-      manage_purchase_orders: true,
-      record_movement: true,
-      record_waste: true,
-      view_waste: true,
-      view_insights: true,
-      manage_recipes: true,
-    },
-  },
-  {
     id: "inventory_dashboard",
     section: "Inventory Control",
     label: "Dashboard",
@@ -359,7 +296,7 @@ export const moduleRegistry: AppModule[] = [
     route: "/inventory/stock-check",
     icon: "inventory-stock-check",
     sidebar: true,
-    permissions: { view: true, create: true, edit: true, approve: true },
+    permissions: { view: true, create: true, edit: true, review: true, audit: true, export: true },
   },
   {
     id: "inventory_requests",
@@ -368,7 +305,7 @@ export const moduleRegistry: AppModule[] = [
     route: "/inventory/requests",
     icon: "inventory-requests",
     sidebar: false,
-    permissions: { view: true, create: true, edit: true, approve: true },
+    permissions: {},
   },
   {
     id: "inventory_orders",
@@ -377,7 +314,7 @@ export const moduleRegistry: AppModule[] = [
     route: "/inventory/purchase-orders",
     icon: "inventory-orders",
     sidebar: true,
-    permissions: { view: true, create: true, edit: true, approve: true, export: true },
+    permissions: { view: true, create: true, edit: true, submit: true, receive: true, complete: true, cancel: true, export: true },
   },
   {
     id: "inventory_movements",
@@ -386,7 +323,7 @@ export const moduleRegistry: AppModule[] = [
     route: "/inventory/movements",
     icon: "inventory-movements",
     sidebar: true,
-    permissions: { view: true, create: true, edit: true, export: true },
+    permissions: { view: true, create: true, export: true },
   },
   {
     id: "inventory_waste",
@@ -395,7 +332,7 @@ export const moduleRegistry: AppModule[] = [
     route: "/inventory/waste",
     icon: "inventory-waste",
     sidebar: true,
-    permissions: { view: true, create: true, edit: true, export: true },
+    permissions: { view: true, create: true, manage: true, export: true },
   },
   {
     id: "inventory_recipes",
@@ -404,7 +341,7 @@ export const moduleRegistry: AppModule[] = [
     route: "/inventory/recipes",
     icon: "inventory-recipes",
     sidebar: true,
-    permissions: { view: true, create: true, edit: true, delete: true },
+    permissions: { view: true, create: true, edit: true, delete: true, manage: true, export: true },
   },
   {
     id: "outlets",
@@ -505,7 +442,7 @@ export function getPermissionGroups() {
         action,
         {
           label: `${permissionActionLabels[action]} ${module.label}`,
-          codes: [permissionCode(module.id, action)],
+          codes: action === "view" ? [permissionCode(module.id, action)] : [permissionCode(module.id, "view"), permissionCode(module.id, action)],
         },
       ]),
     );
