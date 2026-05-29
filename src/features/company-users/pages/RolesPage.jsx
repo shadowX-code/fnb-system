@@ -30,6 +30,7 @@ const roleMeta = {
 };
 
 const roleEditorGroups = getPermissionGroups();
+const roleEditorPermissionCodeSet = new Set(defaultPermissions.map((permission) => permission.code));
 
 const roleEditorActions = permissionActionOrder.map((action) => ({
   key: action,
@@ -153,7 +154,7 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
     outletAccess: getRoleOutletAccessMode(role ?? {}),
     selectedOutletIds: role?.selectedOutletIds ?? [],
     is_active: role?.is_active ?? true,
-    selectedPermissions: new Set(role?.permissions ?? []),
+    selectedPermissions: new Set((role?.permissions ?? []).filter((code) => roleEditorPermissionCodeSet.has(code))),
   }));
   const [hasChanges, setHasChanges] = useState(false);
   const isEdit = mode === "edit";
@@ -229,7 +230,7 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
       });
       if (!confirmed) return;
     }
-    const nextPermissions = [...values.selectedPermissions];
+    const nextPermissions = [...values.selectedPermissions].filter((code) => roleEditorPermissionCodeSet.has(code));
     const modules = [...new Set(nextPermissions.map((code) => defaultPermissions.find((permission) => permission.code === code)?.module).filter(Boolean))];
     onSubmit({
       ...(role?.id ? { id: role.id } : {}),

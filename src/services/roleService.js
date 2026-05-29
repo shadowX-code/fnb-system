@@ -8,6 +8,7 @@ import { isProtectedRoleName } from "../auth/rbac.js";
 const registryPermissionCodes = moduleRegistry.flatMap((module) =>
   enabledActions(module).map((action) => permissionCode(module.id, action)),
 );
+const registryPermissionCodeSet = new Set(registryPermissionCodes);
 
 const registryModuleLabels = moduleRegistry.map((module) => module.label);
 
@@ -98,13 +99,19 @@ export const roleService = {
 
     throwSupabaseError("roles.save", roleError);
 
-    const permissionCodes = role.permissions ?? [];
+    const permissionCodes = [...new Set((role.permissions ?? []).filter((code) => registryPermissionCodeSet.has(code)))];
     const { data: permissions, error: permissionError } = await supabase
       .from("permissions")
       .select("id,code,module")
       .in("code", permissionCodes.length ? permissionCodes : ["__none__"]);
 
     throwSupabaseError("roles.permissions_lookup", permissionError);
+
+    const foundPermissionCodes = new Set((permissions ?? []).map((permission) => permission.code));
+    const missingPermissionCodes = permissionCodes.filter((code) => !foundPermissionCodes.has(code));
+    if (missingPermissionCodes.length) {
+      throw new Error(`Permission setup is missing: ${missingPermissionCodes.join(", ")}. Please run the latest RBAC setup update.`);
+    }
 
     await supabase.from("role_permissions").delete().eq("role_id", savedRole.id);
     if ((permissions ?? []).length) {

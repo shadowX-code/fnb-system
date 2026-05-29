@@ -624,6 +624,25 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
     onNotify?.({ title: "Password changed", message: "Your FeedX login password was updated." });
   }
 
+  async function handleSignOut(event) {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    setNotificationsOpen(false);
+    setProfileMenuOpen(false);
+    setSidebarProfileOpen(false);
+    setMobileSidebarOpen(false);
+    try {
+      await onLogout?.();
+    } catch (error) {
+      console.error("Unable to sign out", error);
+      onNotify?.({
+        title: "Unable to sign out",
+        message: error?.message || "Please try again.",
+        tone: "error",
+      });
+    }
+  }
+
   const sidebarContent = (isMobile = false) => (
     <>
       <div className="flex h-14 items-center gap-2.5 px-4">
@@ -754,8 +773,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
               setChangePasswordOpen(true);
             }}
             onSignOut={() => {
-              setSidebarProfileOpen(false);
-              onLogout();
+              handleSignOut();
             }}
           />
         </FloatingLayer>
@@ -873,7 +891,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
                     setThemeChoice(nextTheme);
                     setProfileMenuOpen(false);
                   }}
-                  onLogout={onLogout}
+                  onLogout={handleSignOut}
                 />
               </FloatingLayer>
             </div>
