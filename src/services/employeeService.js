@@ -60,6 +60,12 @@ export const employeeService = {
     }
 
     const enableSystemLogin = Boolean(employee.enable_system_login);
+    if (enableSystemLogin && !roleId) {
+      throw new Error("Role is required when system login is enabled.");
+    }
+    if (import.meta.env.DEV) {
+      console.info("Saving employee role_id:", roleId);
+    }
     const accessState = normalizeEmployeeAccessState(
       employee.access_state ?? (enableSystemLogin ? EMPLOYEE_ACCESS_STATE.NOT_SENT : EMPLOYEE_ACCESS_STATE.NO_ACCESS),
       enableSystemLogin,

@@ -36,6 +36,7 @@ function createEmptyUser() {
     gender: "",
     birthday: "",
     role: "staff",
+    role_id: "",
     position: "",
     workplace: "",
     outlet_access: [],
@@ -452,11 +453,27 @@ function UserFormModal({
         ...((key === "ic_no" || key === "nationality") && nextDetectedBirthday && !current.birthday ? { birthday: nextDetectedBirthday } : {}),
         ...(key === "full_name" && !current.bank_account_name ? { bank_account_name: value } : {}),
         ...(key === "employment_status" && value !== "resigned" ? { resigned_date: "" } : {}),
-        ...(key === "enable_system_login" && !value ? { email: "", role: "", access_state: EMPLOYEE_ACCESS_STATE.NO_ACCESS, is_active: false, email_verified: false } : {}),
+        ...(key === "enable_system_login" && !value ? { email: "", role: "", role_id: "", access_state: EMPLOYEE_ACCESS_STATE.NO_ACCESS, is_active: false, email_verified: false } : {}),
         ...(key === "enable_system_login" && value ? { access_state: hasSystemLogin(current) ? getAccessState(current) : EMPLOYEE_ACCESS_STATE.NOT_SENT, is_active: getAccessState(current) === EMPLOYEE_ACCESS_STATE.ACTIVE } : {}),
       };
     });
     setTouchedFields((current) => (current[key] ? current : { ...current, [key]: true }));
+  }
+
+  function updateRole(nextRoleName) {
+    const selectedRole = roleRecords.find((role) => role.name === nextRoleName);
+    setErrors((current) => {
+      if (!current.role) return current;
+      const next = { ...current };
+      delete next.role;
+      return next;
+    });
+    setValues((current) => ({
+      ...current,
+      role: nextRoleName,
+      role_id: selectedRole?.id ?? "",
+    }));
+    setTouchedFields((current) => (current.role ? current : { ...current, role: true }));
   }
 
   function resolveSavedAccessStatus() {
@@ -807,7 +824,7 @@ function UserFormModal({
                   buttonClassName={visibleError("role") ? "border-rose-200" : ""}
                   searchable
                   options={roleOptions.map((role) => ({ value: role, label: role }))}
-                  onChange={(nextValue) => updateValue("role", nextValue)}
+                  onChange={updateRole}
                 />
               </FormField>
               <div className="rounded-xl border border-border bg-surface px-3 py-2.5">
@@ -1091,10 +1108,20 @@ export default function UsersPage({ ui, store, auth }) {
           };
         }
       }
-      setUsers((current) => {
-        const exists = current.some((item) => item.id === saved.id);
-        return exists ? current.map((item) => (item.id === saved.id ? saved : item)) : [saved, ...current];
-      });
+      try {
+        const refreshedUsers = await employeeService.listEmployees();
+        saved = refreshedUsers.find((item) => item.id === saved.id) ?? saved;
+        setUsers(refreshedUsers);
+      } catch (refreshError) {
+        console.warn("Employee saved, but refresh failed", refreshError);
+        setUsers((current) => {
+          const exists = current.some((item) => item.id === saved.id);
+          return exists ? current.map((item) => (item.id === saved.id ? saved : item)) : [saved, ...current];
+        });
+      }
+      if (saved.auth_user_id && saved.auth_user_id === auth?.user?.id) {
+        await auth?.refreshContext?.();
+      }
       setSelectedUser(null);
       setFormState(null);
       ui.notify({ title: "Employee saved successfully.", message: saved.email || saved.full_name });

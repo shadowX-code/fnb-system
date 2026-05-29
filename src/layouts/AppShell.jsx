@@ -6,6 +6,7 @@ import FloatingLayer from "../components/ui/FloatingLayer.jsx";
 import { EMPLOYEE_ACCESS_STATE, EMPLOYEE_ACCESS_STATE_LABEL } from "../constants/employeeAccessStates.js";
 import { buildAlerts, getPreviousPeriod, getSupplierName, percentageChange, toPercent } from "../features/sales-purchase/utils/analytics.js";
 import { formatDateTime } from "../lib/dateTime.js";
+import { supabase } from "../lib/supabase";
 
 const iconMap = {
   dashboard: BarChart3,
@@ -239,9 +240,14 @@ function ThemeMenu({ themeChoice, resolvedTheme, onThemeChange, onLogout }) {
         })}
       </div>
       <div className="mt-2 border-t border-border pt-2">
-        <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text-secondary transition hover:bg-slate-50 hover:text-text-primary" type="button" onClick={onLogout}>
+        <button
+          className="pointer-events-auto flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text-secondary transition hover:bg-slate-50 hover:text-text-primary"
+          type="button"
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={onLogout}
+        >
           <LogOut size={15} />
-          Logout
+          Sign Out
         </button>
       </div>
     </div>
@@ -488,7 +494,12 @@ function SidebarProfilePopover({ auth, onViewProfile, onChangePassword, onSignOu
           <KeyRound size={15} />
           Change Password
         </button>
-        <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-rose-600 transition hover:bg-rose-50" type="button" onClick={onSignOut}>
+        <button
+          className="pointer-events-auto flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-rose-600 transition hover:bg-rose-50"
+          type="button"
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={onSignOut}
+        >
           <LogOut size={15} />
           Sign Out
         </button>
@@ -624,22 +635,20 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
     onNotify?.({ title: "Password changed", message: "Your FeedX login password was updated." });
   }
 
-  async function handleSignOut(event) {
-    event?.preventDefault?.();
-    event?.stopPropagation?.();
-    setNotificationsOpen(false);
-    setProfileMenuOpen(false);
-    setSidebarProfileOpen(false);
-    setMobileSidebarOpen(false);
+  async function handleSignOutClick(event) {
+    event.preventDefault();
+    event.stopPropagation();
     try {
-      await onLogout?.();
+      console.log("[FeedX] Sign out clicked");
+      await supabase.auth.signOut();
+      setProfileMenuOpen(false);
+      setSidebarProfileOpen(false);
+      setNotificationsOpen(false);
+      setMobileSidebarOpen(false);
+      window.location.href = "/login";
     } catch (error) {
-      console.error("Unable to sign out", error);
-      onNotify?.({
-        title: "Unable to sign out",
-        message: error?.message || "Please try again.",
-        tone: "error",
-      });
+      console.error("[FeedX] Sign out failed", error);
+      alert("Sign out failed. Please try again.");
     }
   }
 
@@ -772,9 +781,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
               setMobileSidebarOpen(false);
               setChangePasswordOpen(true);
             }}
-            onSignOut={() => {
-              handleSignOut();
-            }}
+            onSignOut={handleSignOutClick}
           />
         </FloatingLayer>
       </div>
@@ -891,7 +898,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
                     setThemeChoice(nextTheme);
                     setProfileMenuOpen(false);
                   }}
-                  onLogout={handleSignOut}
+                  onLogout={handleSignOutClick}
                 />
               </FloatingLayer>
             </div>

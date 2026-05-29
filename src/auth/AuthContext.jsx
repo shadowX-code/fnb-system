@@ -166,6 +166,11 @@ export function AuthProvider({ children }) {
     await loadContext(null);
   }
 
+  async function refreshContext() {
+    const nextSession = await authService.getSession();
+    await loadContext(nextSession);
+  }
+
   async function changePassword({ currentPassword, newPassword }) {
     if (!user?.email) throw new Error("Current login email is not available.");
     setError("");
@@ -191,6 +196,7 @@ export function AuthProvider({ children }) {
       error,
       signIn,
       signOut,
+      refreshContext,
       changePassword,
       resetPassword: authService.resetPassword,
       completePasswordSetup,
