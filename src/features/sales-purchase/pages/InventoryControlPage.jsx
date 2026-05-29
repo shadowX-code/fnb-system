@@ -766,11 +766,32 @@ async function loadRemoteInventoryMaster() {
     list.push(config);
     configsByItem.set(config.inventory_item_id, list);
   });
+  const itemRows = itemsResult.data || [];
+  const normalizedItems = itemRows.map((item) => mapRemoteInventoryItem(item, configsByItem.get(item.id) || []));
+
+  if (import.meta.env.DEV) {
+    console.log("[InventoryFetchRaw]", {
+      itemRows,
+      itemCount: itemRows?.length,
+      error: itemsResult.error || null,
+    });
+    console.table(normalizedItems.map((item) => ({
+      id: item.id,
+      name: item.name,
+      category_id: item.category_id,
+      category_name: item.category_name,
+      uom: item.uom_code,
+      photo: item.photo_url,
+      status: item.status,
+      outlets: item.linked_outlets?.map(outletDisplayCode).join(","),
+    })));
+  }
 
   return {
     categories: (categoriesResult.data || []).map(mapRemoteCategory),
-    items: (itemsResult.data || []).map((item) => mapRemoteInventoryItem(item, configsByItem.get(item.id) || [])),
+    items: normalizedItems,
     uoms: (uomsResult.data || []).map(mapRemoteUom),
+    rawItemCount: itemRows.length,
   };
 }
 
@@ -1021,7 +1042,7 @@ function useInventoryData(outlets, suppliers) {
     clearInventoryBrowserCache();
     return normalizeInventoryData(null, outlets, suppliers);
   });
-  const [meta, setMeta] = useState({ dataSource: "fallback", lastFetchedAt: "" });
+  const [meta, setMeta] = useState({ dataSource: "fallback", lastFetchedAt: "", rawItemsCount: 0, normalizedItemsCount: 0 });
 
   useEffect(() => {
     if (!outlets.length) return;
@@ -1043,7 +1064,7 @@ function useInventoryData(outlets, suppliers) {
         items: remote.items,
         uoms: remote.uoms,
       }, outlets, suppliers, { allowEmptyMaster: true }));
-      setMeta({ dataSource: "supabase", lastFetchedAt: fetchedAt });
+      setMeta({ dataSource: "supabase", lastFetchedAt: fetchedAt, rawItemsCount: remote.rawItemCount ?? remote.items.length, normalizedItemsCount: remote.items.length });
       return remote;
     } catch (error) {
       console.warn("[InventoryControl] Unable to load remote master inventory. Keeping in-memory fallback data.", error);
@@ -3143,6 +3164,18 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     const matchesStatus = selectedStatus === "all" || itemStatus === selectedStatus;
     return matchesOutlet && matchesQuery && matchesCategory && matchesStatus;
   }), [data.items, selectedOutletId, query, categoryFilter, categoryById, statusFilter]);
+  useEffect(() => {
+    if (!import.meta.env.DEV || activeTab !== "master") return;
+    console.log("[InventoryFilterDebug]", {
+      outletFilter: selectedOutletId,
+      categoryFilter,
+      statusFilter,
+      searchTerm: query,
+      beforeFilterCount: data.items.length,
+      afterFilterCount: visibleItems.length,
+      visibleNames: visibleItems.map((item) => item.name),
+    });
+  }, [activeTab, categoryFilter, data.items.length, query, selectedOutletId, statusFilter, visibleItems]);
   const visibleItemGroups = useMemo(() => {
     const groups = new Map();
     visibleItems.forEach((item) => {
@@ -4550,6 +4583,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             </>
           ) : <EmptyState title="No inventory items match your filters" description="Adjust search, outlet, category or status filters to view more inventory items." />}
         </SectionCard>
+        {import.meta.env.DEV ? (
+          <div className="rounded-2xl border border-dashed border-border bg-slate-50/80 px-3 py-2 type-caption font-semibold text-text-secondary">
+            Raw: {inventoryMeta.rawItemsCount || 0} / Normalized: {inventoryMeta.normalizedItemsCount || data.items.length} / Visible: {visibleItems.length} · Source: {inventoryMeta.dataSource}{inventoryMeta.lastFetchedAt ? ` · ${formatDate(inventoryMeta.lastFetchedAt)}` : ""}
+          </div>
+        ) : null}
       </div>
     );
   }
