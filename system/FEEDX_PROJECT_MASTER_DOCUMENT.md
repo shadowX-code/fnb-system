@@ -2203,6 +2203,10 @@ Rules:
 - Purchase Orders track source type and source stock check when generated from Stock Check.
 - Stock is not updated when a PO is submitted.
 - Receiving inventory requires explicit received quantity confirmation.
+- Receive Inventory modal is optimized for high-speed entry: numeric spinners are hidden, values auto-select on focus, Enter moves to the next Receive Now field, and Shift+Enter moves to the previous field.
+- Receive Inventory supports row-level Fill and header-level Fill Remaining actions.
+- Receive Inventory shows row balance, row receive status, and footer totals for Total Ordered, Receiving Now, and Receiving Status.
+- Receipt Remark remains available; delivery order/invoice attachments are planned for a future receiving step.
 - Receiving creates inventory movement rows with movement type Purchase.
 - Receiving updates `inventory_purchase_order_items.received_qty` cumulatively.
 - Inventory movement rows are created only for actual received quantities, never for unreceived or unfulfilled quantities.
