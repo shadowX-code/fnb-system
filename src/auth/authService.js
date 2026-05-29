@@ -2,6 +2,14 @@ import { supabase } from "../lib/supabase";
 import { EMPLOYEE_ACCESS_STATE, normalizeEmployeeAccessState } from "../constants/employeeAccessStates";
 import { isProtectedRoleName } from "./rbac.js";
 
+const roleSelectWithOutletAccess = "*, role:roles(id,name,description,outlet_access_type)";
+const roleSelectFallback = "*, role:roles(id,name,description)";
+
+function isMissingOutletAccessColumnError(error) {
+  const message = String(error?.message ?? error?.details ?? "");
+  return message.includes("outlet_access_type") || message.includes("Could not find") || error?.code === "PGRST200" || error?.code === "PGRST204";
+}
+
 function normalizeContextProfile(profile, source) {
   const enableSystemLogin = Boolean(profile.enable_system_login ?? profile.email ?? profile.role_id);
   const accessState = normalizeEmployeeAccessState(profile.access_state, enableSystemLogin);
@@ -18,12 +26,17 @@ async function loadEmployeeProfile(user) {
   const filters = [`auth_user_id.eq.${user.id}`, `id.eq.${user.id}`];
   if (email) filters.push(`email.eq.${email}`);
 
-  const { data, error } = await supabase
+  const queryProfile = (select) => supabase
     .from("employees")
-    .select("*, role:roles(id,name,description,outlet_access_type)")
+    .select(select)
     .or(filters.join(","))
     .maybeSingle();
 
+  let { data, error } = await queryProfile(roleSelectWithOutletAccess);
+  if (error && isMissingOutletAccessColumnError(error)) {
+    console.warn("[FeedX auth] Falling back to role profile without outlet_access_type. Apply the latest RBAC migration to enable explicit outlet scope.");
+    ({ data, error } = await queryProfile(roleSelectFallback));
+  }
   if (error) throw error;
   return data ? normalizeContextProfile(data, "employees") : null;
 }
@@ -32,7 +45,7 @@ async function activateEmployeeProfile(profile, user) {
   if (!profile?.enable_system_login || profile.access_state === EMPLOYEE_ACCESS_STATE.NO_ACCESS) return profile;
   if (profile.access_state === EMPLOYEE_ACCESS_STATE.DISABLED) return profile;
 
-  const { data, error } = await supabase
+  const queryProfile = (select) => supabase
     .from("employees")
     .update({
       auth_user_id: user.id,
@@ -43,9 +56,14 @@ async function activateEmployeeProfile(profile, user) {
       updated_at: new Date().toISOString(),
     })
     .eq("id", profile.id)
-    .select("*, role:roles(id,name,description,outlet_access_type)")
+    .select(select)
     .single();
 
+  let { data, error } = await queryProfile(roleSelectWithOutletAccess);
+  if (error && isMissingOutletAccessColumnError(error)) {
+    console.warn("[FeedX auth] Falling back to activation profile without outlet_access_type.");
+    ({ data, error } = await queryProfile(roleSelectFallback));
+  }
   if (error) {
     console.error("Unable to activate employee login", error);
     return profile;
@@ -55,12 +73,17 @@ async function activateEmployeeProfile(profile, user) {
 }
 
 async function loadLegacyUserProfile(user) {
-  const { data, error } = await supabase
+  const queryProfile = (select) => supabase
     .from("user_profiles")
-    .select("*, role:roles(id,name,description,outlet_access_type)")
+    .select(select)
     .eq("id", user.id)
     .maybeSingle();
 
+  let { data, error } = await queryProfile(roleSelectWithOutletAccess);
+  if (error && isMissingOutletAccessColumnError(error)) {
+    console.warn("[FeedX auth] Falling back to legacy profile without outlet_access_type.");
+    ({ data, error } = await queryProfile(roleSelectFallback));
+  }
   if (error) throw error;
   return data ? normalizeContextProfile(data, "user_profiles") : null;
 }
@@ -162,13 +185,25 @@ export const authService = {
     const permissions = (rows ?? []).map((row) => row.permission?.code).filter(Boolean);
     const roleName = profile.role?.name ?? "unassigned";
     const roleOutletAccessType = String(profile.role?.outlet_access_type || "").toLowerCase();
-    const roleHasAllOutletAccess = isProtectedRoleName(roleName) || ["all", "all_outlets"].includes(roleOutletAccessType);
-    const roleOutletIds = roleHasAllOutletAccess ? [] : await loadRoleOutletIds(profile.role_id);
+    let roleOutletIds = [];
+    let outletScopeError = "";
+    if (!isProtectedRoleName(roleName) && !["all", "all_outlets"].includes(roleOutletAccessType)) {
+      try {
+        roleOutletIds = await loadRoleOutletIds(profile.role_id);
+      } catch (error) {
+        console.error("Unable to load outlet scope. Continuing with no selected outlets.", error);
+        outletScopeError = "Unable to load outlet scope.";
+      }
+    }
+    const roleHasAllOutletAccess = isProtectedRoleName(roleName)
+      || ["all", "all_outlets"].includes(roleOutletAccessType)
+      || (!["selected", "selected_outlets"].includes(roleOutletAccessType) && roleOutletIds.length === 0);
     const profileWithScope = {
       ...profile,
       role_name: roleName,
       role_outlet_access_type: roleHasAllOutletAccess ? "all" : "selected",
       role_outlet_ids: roleOutletIds,
+      role_outlet_scope_error: outletScopeError,
       role: profile.role ? { ...profile.role, outlet_access_type: roleHasAllOutletAccess ? "all" : "selected", outlet_ids: roleOutletIds } : profile.role,
     };
 

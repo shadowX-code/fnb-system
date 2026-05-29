@@ -3151,10 +3151,16 @@ Departments:
 
 Roles:
 
-- roles.view
-- roles.create
-- roles.edit
-- roles.delete
+- roles_permissions.view
+- roles_permissions.create
+- roles_permissions.edit
+- roles_permissions.delete
+
+Legacy compatibility:
+
+- Older deployments may still contain `roles.view`, `roles.create`, `roles.edit`, and `roles.delete`.
+- The UI may support these as temporary aliases only.
+- New RBAC work should use `roles_permissions.*` as the canonical permission keys.
 
 Audit Logs:
 
@@ -3185,7 +3191,7 @@ Rules:
 - Protected roles can access all outlets automatically.
 - Non-protected roles with `All Outlets` access can see every current outlet and automatically inherit future outlets.
 - Non-protected roles with `Selected Outlets` access can only see outlets assigned through `role_outlets`.
-- Users with `roles.edit` can edit non-protected roles only.
+- Users with `roles_permissions.edit` can edit non-protected roles only.
 - Non-protected users cannot edit their own role permissions.
 - Non-protected users cannot grant permissions they do not already have.
 - Non-protected users cannot assign outlets outside their own accessible outlet scope.
@@ -3207,6 +3213,18 @@ Rules:
 - Export follows export permission.
 - Before every write, client checks permission.
 - RLS remains final backend protection and must enforce both module permission and outlet scope.
+
+RBAC action mapping:
+
+- Every visible UI action must check the exact permission key for that module and action.
+- Create buttons check `*.create`.
+- Edit buttons check `*.edit`.
+- Delete/archive buttons check `*.delete` or `*.deactivate` when the registry defines deactivate.
+- Import buttons check `*.import`.
+- Export buttons check `*.export`.
+- Workflow buttons check their exact keys, for example `inventory_orders.submit`, `inventory_orders.receive`, `inventory_orders.complete`, `inventory_orders.cancel`, `inventory_stock_check.audit`, and `inventory_stock_check.review`.
+- Do not use hardcoded owner/admin checks for ordinary module actions.
+- Protected-role and own-role restrictions apply only to Role Management unless a module explicitly defines a safety rule.
 
 Outlet scope applies to:
 

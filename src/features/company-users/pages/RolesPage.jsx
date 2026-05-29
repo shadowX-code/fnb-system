@@ -13,7 +13,7 @@ import { getPermissionGroups, permissionActionLabels, permissionActionOrder } fr
 import { roleService } from "../../../services/roleService.js";
 import { formatDateTime } from "../../../lib/dateTime.js";
 import { normalizeRoleOutletAccess } from "../utils/roleAccess.js";
-import { canCreate, canDelete, canEdit, getAccessibleOutletIds, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { canEdit, getAccessibleOutletIds, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { isProtectedRoleName, normalizeRoleName } from "../../../auth/rbac.js";
 
 const roleMeta = {
@@ -475,7 +475,7 @@ function AddRoleModal({ onClose, onSubmit, ui, outlets }) {
   );
 }
 
-function RoleDetailModal({ role, onClose, onEditRole, outlets, canEditRole, editDisabledReason }) {
+function RoleDetailModal({ role, onClose, onEditRole, outlets, canEditRole, editDisabledReason, editDebug }) {
   const [assignedUsersOpen, setAssignedUsersOpen] = useState(false);
   const [assignedUserSearch, setAssignedUserSearch] = useState("");
   const permissions = new Set(role.permissions ?? []);
@@ -501,6 +501,11 @@ function RoleDetailModal({ role, onClose, onEditRole, outlets, canEditRole, edit
     return Object.values(module.actions).filter((cell) => cell.codes.some((code) => permissions.has(code))).length;
   }
 
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    console.log("[RoleDebug] Edit Role button", editDebug);
+  }, [editDebug]);
+
   return (
     <RoleAccessLayout
       title="View Role"
@@ -518,6 +523,11 @@ function RoleDetailModal({ role, onClose, onEditRole, outlets, canEditRole, edit
               <button className="btn-primary" type="button" onClick={onEditRole}>Edit Role</button>
             )}
           </div>
+          {editDisabledReason || !canEditRole ? (
+            <div className="basis-full text-right text-[11px] font-semibold text-amber-700">
+              {editDisabledReason || "You do not have permission to edit this role."}
+            </div>
+          ) : null}
         </div>
       )}
     >
@@ -699,13 +709,13 @@ export default function RolesPage({ ui, store, auth }) {
   const [addRoleOpen, setAddRoleOpen] = useState(false);
   const [editRole, setEditRole] = useState(null);
   const [disableRoleRequest, setDisableRoleRequest] = useState(null);
-  const canCreateRole = canCreate(auth, "roles");
   const currentRoleName = normalizeRoleName(auth?.profile?.role_name ?? auth?.profile?.role?.name);
   const isOwnerUser = currentRoleName === "owner";
   const isAdminUser = currentRoleName === "admin";
   const isProtectedUser = isOwnerUser || isAdminUser || Boolean(auth?.isProtectedRole);
-  const canEditRole = isProtectedUser || Boolean(auth?.hasAnyPermission?.(["roles_permissions.edit", "roles.edit"]) || auth?.hasPermission?.("roles_permissions.edit") || canEdit(auth, "roles"));
-  const canDeleteRole = canDelete(auth, "roles");
+  const canCreateRole = isProtectedUser || hasPermission(auth, "roles_permissions.create");
+  const canEditRole = isProtectedUser || hasPermission(auth, "roles_permissions.edit");
+  const canDeleteRole = isProtectedUser || hasPermission(auth, "roles_permissions.delete");
   const currentRoleId = auth?.profile?.role_id ?? auth?.profile?.role?.id ?? "";
   const editorOutlets = useMemo(
     () => (store?.outlets?.length ? store.outlets.map((outlet) => ({ id: outlet.id, name: outlet.name })) : roleEditorOutlets),
@@ -764,9 +774,25 @@ export default function RolesPage({ ui, store, auth }) {
       if (targetIsOwner) return "Protected roles cannot be edited.";
       return "";
     }
-    if (targetIsProtected) return "Protected roles cannot be edited.";
     if (role.id && role.id === currentRoleId) return "You cannot edit your own role permissions.";
+    if (targetIsProtected) return "Protected roles cannot be edited.";
     return "";
+  }
+
+  function getRoleEditDebug(role) {
+    const disableReason = getRoleEditBlockReason(role);
+    return {
+      currentUserRole: currentRoleName,
+      currentUserRoleId: currentRoleId,
+      targetRole: role?.name,
+      targetRoleId: role?.id,
+      targetIsProtected: Boolean(role?.is_protected || role?.is_system_role || isProtectedRoleName(role?.name)),
+      isOwnRole: Boolean(currentRoleId && role?.id === currentRoleId),
+      hasEditPermission: hasPermission(auth, "roles_permissions.edit"),
+      legacyHasEditPermission: canEdit(auth, "roles"),
+      disableReason,
+      canEditRole,
+    };
   }
 
   function validateRoleSave(role) {
@@ -1110,6 +1136,7 @@ export default function RolesPage({ ui, store, auth }) {
           outlets={editorOutlets}
           canEditRole={canEditRole}
           editDisabledReason={getRoleEditBlockReason(selectedRole)}
+          editDebug={getRoleEditDebug(selectedRole)}
         />
       ) : null}
 

@@ -1,5 +1,17 @@
+const permissionAliases = {
+  "roles_permissions.view": ["roles.view"],
+  "roles_permissions.create": ["roles.create"],
+  "roles_permissions.edit": ["roles.edit"],
+  "roles_permissions.delete": ["roles.delete"],
+  "roles.view": ["roles_permissions.view"],
+  "roles.create": ["roles_permissions.create"],
+  "roles.edit": ["roles_permissions.edit"],
+  "roles.delete": ["roles_permissions.delete"],
+};
+
 export function hasPermission(auth, code) {
-  return Boolean(auth?.hasPermission?.(code));
+  if (auth?.hasPermission?.(code)) return true;
+  return (permissionAliases[code] ?? []).some((alias) => auth?.hasPermission?.(alias));
 }
 
 export function isProtectedRole(auth) {

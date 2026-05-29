@@ -2425,9 +2425,15 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }, [activeTab, auth, outlets, selectedOutletId]);
 
   const can = useMemo(() => ({
-    import: hasPermission(auth, "inventory_master.import"),
-    export: hasPermission(auth, "inventory_master.export") || hasPermission(auth, "inventory_orders.export") || hasPermission(auth, "inventory_movements.export") || hasPermission(auth, "inventory_waste.export") || hasPermission(auth, "inventory_recipes.export"),
+    importMaster: hasPermission(auth, "inventory_master.import"),
+    exportMaster: hasPermission(auth, "inventory_master.export"),
+    createMaster: hasPermission(auth, "inventory_master.create"),
+    editMaster: hasPermission(auth, "inventory_master.edit"),
+    deleteMaster: hasPermission(auth, "inventory_master.delete"),
+    export: hasPermission(auth, "inventory_master.export") || hasPermission(auth, "inventory_par_levels.export") || hasPermission(auth, "inventory_stock_check.export") || hasPermission(auth, "inventory_orders.export") || hasPermission(auth, "inventory_movements.export") || hasPermission(auth, "inventory_waste.export") || hasPermission(auth, "inventory_recipes.export"),
     manageMaster: hasPermission(auth, "inventory_master.create") || hasPermission(auth, "inventory_master.edit"),
+    editParLevels: hasPermission(auth, "inventory_par_levels.edit"),
+    exportParLevels: hasPermission(auth, "inventory_par_levels.export"),
     viewCategories: hasPermission(auth, "inventory_categories.view") || hasPermission(auth, "inventory_master.view"),
     createCategory: hasPermission(auth, "inventory_categories.create"),
     editCategory: hasPermission(auth, "inventory_categories.edit"),
@@ -2440,6 +2446,12 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     approveRequest: hasPermission(auth, "inventory_requests.approve"),
     viewPo: hasPermission(auth, "inventory_orders.view"),
     generatePo: hasPermission(auth, "inventory_orders.create"),
+    editPo: hasPermission(auth, "inventory_orders.edit"),
+    submitPo: hasPermission(auth, "inventory_orders.submit"),
+    receivePo: hasPermission(auth, "inventory_orders.receive"),
+    completePo: hasPermission(auth, "inventory_orders.complete"),
+    cancelPo: hasPermission(auth, "inventory_orders.cancel"),
+    exportPo: hasPermission(auth, "inventory_orders.export"),
     managePo: hasPermission(auth, "inventory_orders.edit") || hasPermission(auth, "inventory_orders.submit") || hasPermission(auth, "inventory_orders.receive") || hasPermission(auth, "inventory_orders.complete") || hasPermission(auth, "inventory_orders.cancel"),
     recordMovement: hasPermission(auth, "inventory_movements.create"),
     recordWaste: hasPermission(auth, "inventory_waste.create") || hasPermission(auth, "inventory_waste.manage"),
@@ -2447,6 +2459,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     viewInsights: hasPermission(auth, "inventory_dashboard.view"),
     viewRecipes: hasPermission(auth, "inventory_recipes.view"),
     manageRecipes: hasPermission(auth, "inventory_recipes.create") || hasPermission(auth, "inventory_recipes.edit") || hasPermission(auth, "inventory_recipes.manage"),
+    exportRecipes: hasPermission(auth, "inventory_recipes.export"),
   }), [auth]);
 
   const sortedCategories = useMemo(() => [...data.categories].sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0) || a.name.localeCompare(b.name)), [data.categories]);
@@ -3332,7 +3345,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }
 
   function exportRecipes() {
-    if (!requirePermission(can.export, "export recipes")) return;
+    if (!requirePermission(can.exportRecipes, "export recipes")) return;
     const rows = data.recipes.filter((recipe) => {
       const searchText = `${recipe.recipeName || ""} ${recipe.menuCategory || ""} ${outletById.get(recipe.outletId)?.name || ""}`.toLowerCase();
       return (selectedOutletId === "all" || recipe.outletId === selectedOutletId)
@@ -3541,13 +3554,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           <td className="font-mono text-xs text-text-secondary">{item.sku || "-"}</td>
           <td>{item.unit}</td>
           <td>
-            <LinkedOutletsSummary item={item} outlets={outlets} onConfigure={() => { if (requirePermission(can.manageMaster, "manage par levels")) ui?.navigate?.("inventory_par_levels"); }} />
+            <LinkedOutletsSummary item={item} outlets={outlets} onConfigure={() => { if (requirePermission(can.editParLevels, "manage par levels")) ui?.navigate?.("inventory_par_levels"); }} />
           </td>
           <td><Badge tone={statusTone(item.status)}>{toTitle(item.status)}</Badge></td>
           <td>
             <div className="flex justify-end gap-2">
-              <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.manageMaster, "edit inventory items") && setModal({ type: "item", item })}>Edit</button>
-              <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.manageMaster, "archive inventory items") && archiveItem(item.id)}>Archive</button>
+              <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.editMaster, "edit inventory items") && setModal({ type: "item", item })}>Edit</button>
+              <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.deleteMaster, "archive inventory items") && archiveItem(item.id)}>Archive</button>
             </div>
           </td>
         </tr>
@@ -4232,10 +4245,10 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     });
     const updateFilter = (key, value) => setPoFilters((current) => ({ ...current, [key]: value }));
     const primaryAction = (order) => {
-      if (order.status === "draft") return { label: "Submit Order", tone: "primary", action: () => requirePermission(can.managePo, "submit purchase orders") && updatePurchaseOrderStatus(order.id, "submitted") };
-      if (["submitted", "supplier_confirmed"].includes(order.status)) return { label: "Receive", tone: "primary", action: () => requirePermission(can.managePo, "receive inventory") && setModal({ type: "po-receive", order }) };
-      if (order.status === "partial_received") return { label: "Receive More", tone: "primary", action: () => requirePermission(can.managePo, "receive inventory") && setModal({ type: "po-receive", order }) };
-      if (order.status === "fully_received") return { label: "Complete PO", tone: "primary", action: () => requirePermission(can.managePo, "complete purchase orders") && setModal({ type: "po-complete", order }) };
+      if (order.status === "draft") return { label: "Submit Order", tone: "primary", action: () => requirePermission(can.submitPo, "submit purchase orders") && updatePurchaseOrderStatus(order.id, "submitted") };
+      if (["submitted", "supplier_confirmed"].includes(order.status)) return { label: "Receive", tone: "primary", action: () => requirePermission(can.receivePo, "receive inventory") && setModal({ type: "po-receive", order }) };
+      if (order.status === "partial_received") return { label: "Receive More", tone: "primary", action: () => requirePermission(can.receivePo, "receive inventory") && setModal({ type: "po-receive", order }) };
+      if (order.status === "fully_received") return { label: "Complete PO", tone: "primary", action: () => requirePermission(can.completePo, "complete purchase orders") && setModal({ type: "po-complete", order }) };
       return { label: "View", tone: "secondary", action: () => setModal({ type: "po-detail", order }) };
     };
 
@@ -4294,10 +4307,10 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                           <button className={action.tone === "primary" ? "btn-primary h-8 px-2.5 text-xs" : "btn-secondary h-8 px-2.5 text-xs"} type="button" onClick={action.action}>{action.label}</button>
                           {action.label !== "View" ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setModal({ type: "po-detail", order })}>View</button> : null}
                           <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => copyPurchaseOrderText(order)}><Copy size={13} /> Copy Text</button>
-                          {order.status === "draft" ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setModal({ type: "po-edit", order })}>Edit</button> : null}
-                          {order.status === "submitted" ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.managePo, "mark supplier confirmed") && updatePurchaseOrderStatus(order.id, "supplier_confirmed")}>Mark Confirmed</button> : null}
-                          {order.status === "partial_received" ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.managePo, "complete purchase orders") && setModal({ type: "po-complete", order })}>Complete PO</button> : null}
-                          {canCancelOrder ? <button className="btn-secondary h-8 px-2.5 text-xs text-rose-700" type="button" onClick={() => requirePermission(can.managePo, "cancel purchase orders") && setModal({ type: "po-cancel", order })}>Cancel</button> : null}
+                          {order.status === "draft" ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.editPo, "edit purchase orders") && setModal({ type: "po-edit", order })}>Edit</button> : null}
+                          {order.status === "submitted" ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.submitPo, "mark supplier confirmed") && updatePurchaseOrderStatus(order.id, "supplier_confirmed")}>Mark Confirmed</button> : null}
+                          {order.status === "partial_received" ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.completePo, "complete purchase orders") && setModal({ type: "po-complete", order })}>Complete PO</button> : null}
+                          {canCancelOrder ? <button className="btn-secondary h-8 px-2.5 text-xs text-rose-700" type="button" onClick={() => requirePermission(can.cancelPo, "cancel purchase orders") && setModal({ type: "po-cancel", order })}>Cancel</button> : null}
                         </div>
                       </td>
                     </tr>
@@ -4578,16 +4591,16 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     if (activeTab === "master") {
       return (
         <>
-          <button className="btn-secondary" type="button" onClick={() => requirePermission(can.manageMaster, "import master inventory") && setModal({ type: "inventory-import" })}>
+          <button className="btn-secondary" type="button" onClick={() => requirePermission(can.importMaster, "import master inventory") && setModal({ type: "inventory-import" })}>
             <Upload size={15} /> Import
           </button>
-          <button className="btn-secondary" type="button" onClick={() => requirePermission(can.export, "export inventory") && exportMasterInventory()}>
+          <button className="btn-secondary" type="button" onClick={() => requirePermission(can.exportMaster, "export inventory") && exportMasterInventory()}>
             <Download size={15} /> Export
           </button>
           <button className="btn-secondary" type="button" onClick={() => requirePermission(can.viewCategories, "view inventory categories") && setModal({ type: "category-settings" })}>
             Category Settings
           </button>
-          <button className="btn-primary" type="button" onClick={() => requirePermission(can.manageMaster, "add inventory items") && setModal({ type: "item" })}>
+          <button className="btn-primary" type="button" onClick={() => requirePermission(can.createMaster, "add inventory items") && setModal({ type: "item" })}>
             <PackagePlus size={15} /> Add Item
           </button>
         </>
@@ -4595,7 +4608,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     }
     if (activeTab === "par-levels") {
       return (
-        <button className="btn-secondary" type="button" onClick={() => requirePermission(can.export, "export par levels") && exportParLevels()}>
+        <button className="btn-secondary" type="button" onClick={() => requirePermission(can.exportParLevels, "export par levels") && exportParLevels()}>
           <Download size={15} /> Export
         </button>
       );
@@ -4610,7 +4623,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       return <button className="btn-primary" type="button" onClick={() => requirePermission(can.createRequest, "create stock requests") && setModal({ type: "request" })}><PackagePlus size={15} /> New Request</button>;
     }
     if (activeTab === "orders") {
-      return <button className="btn-secondary" type="button" onClick={() => requirePermission(can.export, "export purchase orders") && exportPurchaseOrders()}><Download size={15} /> Export</button>;
+      return <button className="btn-secondary" type="button" onClick={() => requirePermission(can.exportPo, "export purchase orders") && exportPurchaseOrders()}><Download size={15} /> Export</button>;
     }
     if (activeTab === "movements") {
       return <button className="btn-primary" type="button" onClick={() => requirePermission(can.recordMovement, "record inventory movements") && setModal({ type: "movement" })}><RefreshCw size={15} /> Record Movement</button>;

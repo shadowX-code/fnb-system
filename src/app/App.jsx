@@ -309,6 +309,15 @@ export default function App() {
   }, [auth, store]);
 
   useEffect(() => {
+    if (!import.meta.env.DEV || auth.contextLoading || auth.loading || !auth.profile) return;
+    console.info("[FeedX outlet scope]", {
+      role: auth.profile.role_name ?? auth.profile.role?.name ?? "unassigned",
+      outletAccessType: auth.profile.role_outlet_access_type ?? auth.profile.role?.outlet_access_type ?? "selected",
+      accessibleOutlets: effectiveStore.outlets.map((outlet) => ({ id: outlet.id, name: outlet.name })),
+    });
+  }, [auth.contextLoading, auth.loading, auth.profile, effectiveStore.outlets]);
+
+  useEffect(() => {
     if (!auth.session || auth.passwordRecovery || auth.loading || auth.contextLoading) return undefined;
     let ignore = false;
     async function loadMasterData() {

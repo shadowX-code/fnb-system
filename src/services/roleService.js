@@ -11,6 +11,29 @@ const registryPermissionCodes = moduleRegistry.flatMap((module) =>
 const registryPermissionCodeSet = new Set(registryPermissionCodes);
 
 const registryModuleLabels = moduleRegistry.map((module) => module.label);
+const roleSelectWithOutletAccess = `
+  id,name,description,is_system_role,is_active,outlet_access_type,created_at,
+  role_permissions(permission_id,permissions(code,module)),
+  role_outlets(outlet_id)
+`;
+const roleSelectFallback = `
+  id,name,description,is_system_role,is_active,created_at,
+  role_permissions(permission_id,permissions(code,module)),
+  role_outlets(outlet_id)
+`;
+const roleOptionSelectWithOutletAccess = `
+  id,name,description,is_system_role,is_active,outlet_access_type,created_at,
+  role_outlets(outlet_id)
+`;
+const roleOptionSelectFallback = `
+  id,name,description,is_system_role,is_active,created_at,
+  role_outlets(outlet_id)
+`;
+
+function isMissingOutletAccessColumnError(error) {
+  const message = String(error?.message ?? error?.details ?? "");
+  return message.includes("outlet_access_type") || message.includes("Could not find") || error?.code === "PGRST200" || error?.code === "PGRST204";
+}
 
 async function syncPermissionCatalog(permissionCodes) {
   const requestedCodes = new Set(permissionCodes);
@@ -63,14 +86,12 @@ function mapRole(row) {
 
 export const roleService = {
   async listRoles() {
-    const { data, error } = await supabase
-      .from("roles")
-      .select(`
-        id,name,description,is_system_role,is_active,outlet_access_type,created_at,
-        role_permissions(permission_id,permissions(code,module)),
-        role_outlets(outlet_id)
-      `)
-      .order("name", { ascending: true });
+    const queryRoles = (select) => supabase.from("roles").select(select).order("name", { ascending: true });
+    let { data, error } = await queryRoles(roleSelectWithOutletAccess);
+    if (error && isMissingOutletAccessColumnError(error)) {
+      console.warn("[FeedX roles] Falling back to roles query without outlet_access_type. Apply the latest RBAC migration to persist explicit outlet scope.");
+      ({ data, error } = await queryRoles(roleSelectFallback));
+    }
 
     throwSupabaseError("roles.list", error);
 
@@ -85,14 +106,12 @@ export const roleService = {
   },
 
   async listRoleOptions() {
-    const { data, error } = await supabase
-      .from("roles")
-      .select(`
-        id,name,description,is_system_role,is_active,outlet_access_type,created_at,
-        role_outlets(outlet_id)
-      `)
-      .eq("is_active", true)
-      .order("name", { ascending: true });
+    const queryRoles = (select) => supabase.from("roles").select(select).eq("is_active", true).order("name", { ascending: true });
+    let { data, error } = await queryRoles(roleOptionSelectWithOutletAccess);
+    if (error && isMissingOutletAccessColumnError(error)) {
+      console.warn("[FeedX roles] Falling back to role options without outlet_access_type.");
+      ({ data, error } = await queryRoles(roleOptionSelectFallback));
+    }
 
     throwSupabaseError("roles.options", error);
     return (data ?? []).map((row) => mapRole({ ...row, role_permissions: [] }));
@@ -108,13 +127,19 @@ export const roleService = {
     };
 
     const isUpdate = isSupabaseUuid(role.id);
-    const roleQuery = isUpdate
-      ? supabase.from("roles").update(payload).eq("id", role.id)
-      : supabase.from("roles").insert(payload);
+    const runRoleSave = (nextPayload, select = "id,name,description,is_system_role,is_active,outlet_access_type,created_at") => {
+      const roleQuery = isUpdate
+        ? supabase.from("roles").update(nextPayload).eq("id", role.id)
+        : supabase.from("roles").insert(nextPayload);
+      return roleQuery.select(select).single();
+    };
 
-    const { data: savedRole, error: roleError } = await roleQuery
-      .select("id,name,description,is_system_role,is_active,outlet_access_type,created_at")
-      .single();
+    let { data: savedRole, error: roleError } = await runRoleSave(payload);
+    if (roleError && isMissingOutletAccessColumnError(roleError)) {
+      const { outlet_access_type: _outletAccessType, ...fallbackPayload } = payload;
+      console.warn("[FeedX roles] Saving role without outlet_access_type because the latest RBAC migration is not applied.");
+      ({ data: savedRole, error: roleError } = await runRoleSave(fallbackPayload, "id,name,description,is_system_role,is_active,created_at"));
+    }
 
     throwSupabaseError("roles.save", roleError);
 
