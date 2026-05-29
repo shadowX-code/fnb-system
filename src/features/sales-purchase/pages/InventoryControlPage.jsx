@@ -463,6 +463,46 @@ function focusEditableGridInput(gridRef, currentRow, currentField, direction) {
   target?.select?.();
 }
 
+function focusMatrixGridInput(gridRef, currentRow, currentColumn, direction) {
+  const visibleInputs = [...(gridRef.current?.querySelectorAll("[data-matrix-row][data-matrix-column]") || [])]
+    .filter((input) => !input.disabled && input.offsetParent !== null)
+    .map((input) => ({
+      input,
+      row: Number(input.dataset.matrixRow),
+      column: Number(input.dataset.matrixColumn),
+    }))
+    .filter((entry) => Number.isFinite(entry.row) && Number.isFinite(entry.column))
+    .sort((a, b) => a.row - b.row || a.column - b.column);
+  if (!visibleInputs.length) return;
+
+  const currentIndex = visibleInputs.findIndex((entry) => entry.row === currentRow && entry.column === currentColumn);
+  let nextIndex = currentIndex;
+  if (direction === "next-row") nextIndex = visibleInputs.findIndex((entry) => entry.row > currentRow && entry.column === currentColumn);
+  if (direction === "previous-row") {
+    for (let index = visibleInputs.length - 1; index >= 0; index -= 1) {
+      if (visibleInputs[index].row < currentRow && visibleInputs[index].column === currentColumn) {
+        nextIndex = index;
+        break;
+      }
+    }
+  }
+  if (direction === "right") {
+    nextIndex = visibleInputs.findIndex((entry) => entry.row === currentRow && entry.column > currentColumn);
+  }
+  if (direction === "left") {
+    for (let index = visibleInputs.length - 1; index >= 0; index -= 1) {
+      if (visibleInputs[index].row === currentRow && visibleInputs[index].column < currentColumn) {
+        nextIndex = index;
+        break;
+      }
+    }
+  }
+  if (nextIndex < 0 || nextIndex === currentIndex) return;
+  const target = visibleInputs[nextIndex]?.input;
+  target?.focus?.();
+  target?.select?.();
+}
+
 function getLinkedOutletIds(item = {}) {
   return uniqueIds([
     ...(item.linkedOutletIds || []),
@@ -2627,6 +2667,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [modal, setModal] = useState(null);
   const [masterActionMenuItemId, setMasterActionMenuItemId] = useState(null);
   const parLevelGridRef = useRef(null);
+  const parLevelMatrixRef = useRef(null);
   const [activeCheckGroupId, setActiveCheckGroupId] = useState(null);
   const [activeAuditCheck, setActiveAuditCheck] = useState(null);
   const [checkRows, setCheckRows] = useState([]);
@@ -3990,6 +4031,29 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       groups.get(key).items.push(item);
       return groups;
     }, new Map()).values()].sort((a, b) => Number(a.category?.sortOrder ?? 9999) - Number(b.category?.sortOrder ?? 9999) || (a.category?.name || "Uncategorized").localeCompare(b.category?.name || "Uncategorized"));
+    const matrixOutlets = activeOutletId && activeOutletId !== "all" ? outlets.filter((outlet) => outlet.id === activeOutletId) : outlets;
+    const matrixItemGroups = [...parItems.reduce((groups, item) => {
+      const category = categoryById.get(item.categoryId);
+      const key = item.categoryId || "uncategorized";
+      if (!groups.has(key)) groups.set(key, { id: key, category, items: [] });
+      groups.get(key).items.push(item);
+      return groups;
+    }, new Map()).values()].sort((a, b) => Number(a.category?.sortOrder ?? 9999) - Number(b.category?.sortOrder ?? 9999) || (a.category?.name || "Uncategorized").localeCompare(b.category?.name || "Uncategorized"));
+    const visibleMatrixItems = matrixItemGroups.flatMap((group) => group.items);
+    const visibleMatrixRowIndex = new Map(visibleMatrixItems.map((item, index) => [item.id, index]));
+    const configuredMatrixCount = visibleMatrixItems.reduce((count, item) => count + matrixOutlets.filter((outlet) => {
+      if (!item.linkedOutletIds?.includes(outlet.id)) return false;
+      const value = outletConfigForItem(item, outlet.id).parLevel;
+      return value !== "" && value !== null && value !== undefined;
+    }).length, 0);
+    const linkedMatrixCount = visibleMatrixItems.reduce((count, item) => count + matrixOutlets.filter((outlet) => item.linkedOutletIds?.includes(outlet.id)).length, 0);
+    const matrixValuesByItem = new Map(visibleMatrixItems.map((item) => {
+      const values = matrixOutlets
+        .filter((outlet) => item.linkedOutletIds?.includes(outlet.id))
+        .map((outlet) => Number(outletConfigForItem(item, outlet.id).parLevel))
+        .filter((value) => Number.isFinite(value) && value > 0);
+      return [item.id, values];
+    }));
     const visibleParItems = parLevelGroupBy === "category"
       ? parItemGroups.flatMap((group) => collapsedParCategoryIds.has(group.id) ? [] : group.items)
       : outletScopedItems;
@@ -4009,6 +4073,38 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       if (!direction) return;
       event.preventDefault();
       focusEditableGridInput(parLevelGridRef, rowIndex, field, direction);
+    }
+
+    function handleMatrixKeyDown(event, itemId, outletIndex) {
+      const rowIndex = visibleMatrixRowIndex.get(itemId);
+      if (rowIndex === undefined) return;
+      const keyMap = {
+        Enter: event.shiftKey ? "previous-row" : "next-row",
+        ArrowDown: "next-row",
+        ArrowUp: "previous-row",
+        ArrowRight: "right",
+        ArrowLeft: "left",
+      };
+      const direction = keyMap[event.key];
+      if (!direction) return;
+      event.preventDefault();
+      focusMatrixGridInput(parLevelMatrixRef, rowIndex, outletIndex, direction);
+    }
+
+    function matrixInputClass(item, outlet) {
+      const value = outletConfigForItem(item, outlet.id).parLevel;
+      const numericValue = Number(value);
+      const values = matrixValuesByItem.get(item.id) || [];
+      const positiveValues = values.filter((entry) => entry > 0);
+      const average = positiveValues.length ? positiveValues.reduce((sum, entry) => sum + entry, 0) / positiveValues.length : 0;
+      const isMissing = value === "" || value === null || value === undefined;
+      const isZero = !isMissing && Number(value) === 0;
+      const isInvalid = !isMissing && numericValue < 0;
+      const isOutlier = positiveValues.length >= 3 && numericValue > 0 && average > 0 && (numericValue > average * 2.2 || numericValue < average * 0.45);
+      if (isInvalid) return "border-rose-300 bg-rose-50 text-rose-800 focus:ring-rose-200";
+      if (isZero || isMissing) return "border-amber-200 bg-amber-50/60 text-amber-800 placeholder:text-amber-600 focus:ring-amber-100";
+      if (isOutlier) return "border-sky-200 bg-sky-50/70 text-sky-800 focus:ring-sky-100";
+      return "border-border bg-white text-text-primary";
     }
 
     const renderParRow = (item) => {
@@ -4191,48 +4287,89 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         ) : (
           <SectionCard title="Par Level Matrix" description="HQ view for comparing item par levels across outlets.">
             {parItems.length ? (
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[980px] text-left">
-                  <thead className="text-[11px] uppercase tracking-wide text-text-muted">
-                    <tr className="border-b border-border">
-                      <th className="py-2">Item</th>
-                      <th>UOM</th>
-                      {outlets.map((outlet) => <th key={outlet.id}>{outlet.name}</th>)}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border text-[13px]">
-                    {parItems.map((item) => (
-                      <tr key={item.id} className="transition hover:bg-primary/5">
-                        <td className="py-3">
-                          <div className="font-bold text-text-primary">{item.name}</div>
-                          <div className="type-caption text-text-secondary">{categoryById.get(item.categoryId)?.name ?? "Uncategorized"}</div>
-                        </td>
-                        <td>{item.unit}</td>
-                        {outlets.map((outlet) => {
-                          const linked = item.linkedOutletIds?.includes(outlet.id);
-                          const config = outletConfigForItem(item, outlet.id);
-                          return (
-                            <td key={outlet.id}>
-                              {linked ? (
-                                <input
-                                  className="control h-8 w-24 text-[13px]"
-                                  type="number"
-                                  min="0"
-                                  value={config.parLevel ?? ""}
-                                  placeholder="Not set"
-                                  onFocus={selectInputText}
-                                  onChange={(event) => saveParLevelConfig(item.id, outlet.id, { parLevel: parseNonNegativeNumber(event.target.value) })}
-                                />
-                              ) : (
-                                <span className="type-caption text-text-muted">Not linked</span>
-                              )}
-                            </td>
-                          );
-                        })}
+              <div className="space-y-3">
+                <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+                  <MetricCard label="Items" value={visibleMatrixItems.length} helper="Linked inventory rows" size="compact" />
+                  <MetricCard label="Categories" value={matrixItemGroups.length} helper="Grouped for scanning" size="compact" />
+                  <MetricCard label="Outlets" value={matrixOutlets.length} helper={activeOutletId ? "Visible columns" : "Comparison scope"} size="compact" />
+                  <MetricCard label="Configured" value={configuredMatrixCount} helper="Cells with par level" tone="success" size="compact" />
+                  <MetricCard label="Missing" value={Math.max(0, linkedMatrixCount - configuredMatrixCount)} helper="Linked but not set" tone={linkedMatrixCount - configuredMatrixCount ? "warning" : "success"} size="compact" />
+                </div>
+                <div className="overflow-x-auto rounded-2xl border border-border" ref={parLevelMatrixRef}>
+                  <table className="w-full min-w-[980px] border-separate border-spacing-0 text-left">
+                    <thead className="text-[11px] uppercase tracking-wide text-text-muted">
+                      <tr className="border-b border-border">
+                        <th className="sticky left-0 z-10 w-[260px] border-b border-border bg-surface px-3 py-2">Item</th>
+                        <th className="sticky left-[260px] z-10 w-[120px] border-b border-border bg-surface px-3 py-2">Category / UOM</th>
+                        {matrixOutlets.map((outlet) => (
+                          <th key={outlet.id} className="min-w-[150px] border-b border-border bg-primary/5 px-3 py-2">
+                            <div className="rounded-2xl border border-primary/10 bg-white/80 px-3 py-2 normal-case shadow-sm">
+                              <div className="truncate type-body-sm font-black text-text-primary">{outlet.name}</div>
+                              <div className="mt-0.5 type-micro font-bold uppercase tracking-wide text-primary">{outlet.code || outlet.shortCode || outlet.short_code || "Outlet"}</div>
+                            </div>
+                          </th>
+                        ))}
                       </tr>
-                    ))}
-                  </tbody>
-                </table>
+                    </thead>
+                    <tbody className="text-[13px]">
+                      {matrixItemGroups.map((group) => (
+                        <Fragment key={group.id}>
+                          <tr className="bg-primary/5">
+                            <td className="sticky left-0 z-10 border-b border-border bg-primary/5 px-3 py-2" colSpan={2}>
+                              <div className="flex items-center gap-2">
+                                <InventoryCategoryIcon category={group.category} size="sm" />
+                                <div>
+                                  <div className="type-body-sm font-black text-text-primary">{group.category?.name || "Uncategorized"}</div>
+                                  <div className="type-caption font-semibold text-text-secondary">{group.items.length} item{group.items.length === 1 ? "" : "s"}</div>
+                                </div>
+                              </div>
+                            </td>
+                            <td className="border-b border-border bg-primary/5 px-3 py-2" colSpan={matrixOutlets.length} />
+                          </tr>
+                          {group.items.map((item) => {
+                            const rowIndex = visibleMatrixRowIndex.get(item.id) ?? -1;
+                            return (
+                              <tr key={item.id} className="transition hover:bg-primary/5">
+                                <td className="sticky left-0 z-10 border-b border-border bg-surface px-3 py-3">
+                                  <div className="font-bold text-text-primary">{item.name}</div>
+                                  <div className="truncate type-caption text-text-secondary">{item.sku || "No SKU"}</div>
+                                </td>
+                                <td className="sticky left-[260px] z-10 border-b border-border bg-surface px-3 py-3">
+                                  <div className="type-caption font-semibold text-text-secondary">{group.category?.name ?? "Uncategorized"}</div>
+                                  <div className="type-body-sm font-black text-text-primary">{item.unit}</div>
+                                </td>
+                                {matrixOutlets.map((outlet, outletIndex) => {
+                                  const linked = item.linkedOutletIds?.includes(outlet.id);
+                                  const config = outletConfigForItem(item, outlet.id);
+                                  return (
+                                    <td key={outlet.id} className="border-b border-border px-3 py-3">
+                                      {linked ? (
+                                        <input
+                                          className={`h-9 w-28 rounded-xl border px-3 text-[13px] font-bold outline-none transition focus:ring-2 ${matrixInputClass(item, outlet)}`}
+                                          type="number"
+                                          min="0"
+                                          value={config.parLevel ?? ""}
+                                          placeholder="Not set"
+                                          data-matrix-row={rowIndex}
+                                          data-matrix-column={outletIndex}
+                                          onFocus={selectInputText}
+                                          onKeyDown={(event) => handleMatrixKeyDown(event, item.id, outletIndex)}
+                                          onChange={(event) => saveParLevelConfig(item.id, outlet.id, { parLevel: parseNonNegativeNumber(event.target.value) })}
+                                        />
+                                      ) : (
+                                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 type-caption font-bold text-text-muted">⊘ Not Linked</span>
+                                      )}
+                                    </td>
+                                  );
+                                })}
+                              </tr>
+                            );
+                          })}
+                        </Fragment>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
               </div>
             ) : <EmptyState title="No inventory items found" description="Adjust filters or create inventory items first." />}
           </SectionCard>

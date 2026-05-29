@@ -1935,7 +1935,13 @@ Par Level Setup:
 - Search, category filter, and outlet filter apply before grouping; empty groups are hidden.
 - When grouped by Category, Outlet View columns are Item, UOM, Par Level, Storage Location, and Suppliers.
 - When grouping is None, Outlet View columns are Item, UOM, Par Level, Storage Location, and Suppliers.
-- Matrix View rows are items and columns are outlets.
+- Matrix View is the HQ comparison view for outlet par levels.
+- Matrix View rows are grouped by Category and columns are outlets.
+- Matrix View freezes item identity columns so item details remain visible during horizontal scroll.
+- Matrix View outlet headers use outlet name/code cards for scanning.
+- Matrix View visually distinguishes Not Linked, Configured, Missing, Zero, Invalid, and Outlier cells.
+- Matrix View supports spreadsheet-style keyboard navigation across linked editable cells and skips Not Linked cells.
+- Matrix View includes a summary strip for Items, Categories, Outlets, Configured cells, and Missing cells.
 - Users can update par levels without opening each item.
 - Each outlet-item configuration can assign one or more suppliers.
 - Supplier assignment is outlet-specific and must only show active suppliers linked to the selected outlet through `supplier_outlets`.
