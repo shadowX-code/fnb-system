@@ -38,7 +38,8 @@ import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import { supabase } from "../../../lib/supabase.ts";
 import { getAccessibleOutletOptions, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 
-const STORAGE_KEY = "feedx.inventoryControl.v1";
+const STORAGE_KEY = "feedx.inventoryControl.v2";
+const LEGACY_STORAGE_KEYS = ["feedx.inventoryControl.v1"];
 
 const pageMeta = {
   dashboard: {
@@ -143,6 +144,49 @@ function toCurrency(value) {
 
 function canonical(value = "") {
   return String(value).trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function normalizeOutletRecord(outlet = {}) {
+  const relatedOutlet = Array.isArray(outlet.outlets) ? outlet.outlets[0] : outlet.outlets;
+  const source = relatedOutlet || outlet.outlet || outlet;
+  const id = source?.id ?? outlet.outlet_id ?? outlet.outletId ?? outlet.id ?? "";
+  const code =
+    source?.code ??
+    source?.outlet_code ??
+    source?.shortCode ??
+    source?.short_code ??
+    source?.abbreviation ??
+    outlet.code ??
+    outlet.outlet_code ??
+    outlet.shortCode ??
+    outlet.short_code ??
+    outlet.abbreviation ??
+    "";
+  const name =
+    source?.name ??
+    source?.outlet_name ??
+    source?.outletName ??
+    outlet.name ??
+    outlet.outlet_name ??
+    outlet.outletName ??
+    "";
+  return {
+    ...outlet,
+    ...source,
+    id,
+    code: String(code || "").trim(),
+    name: String(name || "").trim(),
+  };
+}
+
+function outletDisplayCode(outlet = {}) {
+  const normalized = normalizeOutletRecord(outlet);
+  return normalized.code || normalized.name || normalized.id || "Outlet";
+}
+
+function outletDisplayName(outlet = {}) {
+  const normalized = normalizeOutletRecord(outlet);
+  return normalized.name || normalized.code || normalized.id || "Unknown outlet";
 }
 
 function csvEscape(value) {
@@ -418,6 +462,10 @@ function uniqueIds(values = []) {
   return [...new Set(values.filter(Boolean))];
 }
 
+function isUuid(value) {
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
+}
+
 function selectInputText(event) {
   if (!event.target.value) return;
   event.target.select?.();
@@ -565,6 +613,139 @@ function normalizeUom(uom = {}) {
     createdAt: uom.createdAt ?? uom.created_at ?? "",
     updatedAt: uom.updatedAt ?? uom.updated_at ?? "",
   };
+}
+
+function mapRemoteCategory(row = {}) {
+  return {
+    id: row.id,
+    name: row.name || "Uncategorized",
+    description: row.description || "",
+    sortOrder: Number(row.sort_order ?? row.sortOrder ?? 0),
+    status: row.status || "active",
+    createdAt: row.created_at || row.createdAt || "",
+    updatedAt: row.updated_at || row.updatedAt || "",
+  };
+}
+
+function mapRemoteUom(row = {}) {
+  return normalizeUom({
+    id: row.id,
+    code: row.code,
+    displayName: row.display_name,
+    uomType: row.uom_type,
+    isActive: row.is_active,
+    sortOrder: row.sort_order,
+    createdAt: row.created_at,
+    updatedAt: row.updated_at,
+  });
+}
+
+function mapRemoteInventoryItem(row = {}, configs = []) {
+  const outletConfigs = configs.map((config) => ({
+    id: config.id,
+    inventoryItemId: config.inventory_item_id,
+    outletId: config.outlet_id,
+    parLevel: config.par_level === null || config.par_level === undefined ? "" : Number(config.par_level),
+    storageLocation: config.storage_location || "",
+    supplierIds: [],
+    isActive: config.is_active !== false,
+    createdAt: config.created_at || "",
+    updatedAt: config.updated_at || "",
+  }));
+  return normalizeInventoryItem({
+    id: row.id,
+    name: row.item_name || "Inventory item",
+    sku: row.sku_code || "",
+    categoryId: row.category_id || "",
+    unit: row.unit || "",
+    photo: row.photo_url || "",
+    description: row.description || "",
+    inventoryType: row.inventory_type || "",
+    defaultSupplierId: row.default_supplier_id || "",
+    status: row.status || "active",
+    linkedOutletIds: uniqueIds(outletConfigs.map((config) => config.outletId)),
+    outletConfigs,
+    createdAt: row.created_at || "",
+    updatedAt: row.updated_at || "",
+  });
+}
+
+async function loadRemoteInventoryMaster() {
+  const [categoriesResult, itemsResult, itemOutletsResult, uomsResult] = await Promise.all([
+    supabase.from("inventory_categories").select("*").order("sort_order", { ascending: true }),
+    supabase.from("inventory_items").select("*").order("created_at", { ascending: false }),
+    supabase.from("inventory_item_outlets").select("*"),
+    supabase.from("inventory_uoms").select("*").order("sort_order", { ascending: true }),
+  ]);
+  const firstError = categoriesResult.error || itemsResult.error || itemOutletsResult.error || uomsResult.error;
+  if (firstError) throw firstError;
+
+  const configsByItem = new Map();
+  (itemOutletsResult.data || []).forEach((config) => {
+    const list = configsByItem.get(config.inventory_item_id) || [];
+    list.push(config);
+    configsByItem.set(config.inventory_item_id, list);
+  });
+
+  return {
+    categories: (categoriesResult.data || []).map(mapRemoteCategory),
+    items: (itemsResult.data || []).map((item) => mapRemoteInventoryItem(item, configsByItem.get(item.id) || [])),
+    uoms: (uomsResult.data || []).map(mapRemoteUom),
+  };
+}
+
+async function persistRemoteInventoryItem(item, userId) {
+  const normalized = normalizeInventoryItem(item);
+  const itemPayload = {
+    item_name: normalized.name,
+    sku_code: normalized.sku || null,
+    category_id: isUuid(normalized.categoryId) ? normalized.categoryId : null,
+    unit: normalized.unit || null,
+    photo_url: normalized.photo || normalized.photo_url || null,
+    description: normalized.description || null,
+    inventory_type: normalized.inventoryType || null,
+    default_supplier_id: isUuid(normalized.defaultSupplierId) ? normalized.defaultSupplierId : null,
+    status: normalized.status || "active",
+    updated_by: userId || null,
+  };
+  if (isUuid(normalized.id)) itemPayload.id = normalized.id;
+  else itemPayload.created_by = userId || null;
+
+  const { data: savedItem, error: itemError } = await supabase
+    .from("inventory_items")
+    .upsert(itemPayload)
+    .select("*")
+    .single();
+  if (itemError) throw itemError;
+
+  const remoteItemId = savedItem.id;
+  const linkedOutletIds = uniqueIds(normalized.linkedOutletIds || []);
+  const configRows = linkedOutletIds
+    .filter((outletId) => isUuid(outletId))
+    .map((outletId) => {
+      const config = outletConfigForItem(normalized, outletId);
+      return {
+        inventory_item_id: remoteItemId,
+        outlet_id: outletId,
+        par_level: config.parLevel === "" || config.parLevel === null || config.parLevel === undefined ? null : Number(config.parLevel),
+        storage_location: config.storageLocation || null,
+        is_active: true,
+      };
+    });
+
+  if (configRows.length) {
+    const { error: configError } = await supabase
+      .from("inventory_item_outlets")
+      .upsert(configRows, { onConflict: "inventory_item_id,outlet_id" });
+    if (configError) throw configError;
+  }
+
+  const { data: savedConfigs, error: configsError } = await supabase
+    .from("inventory_item_outlets")
+    .select("*")
+    .eq("inventory_item_id", remoteItemId);
+  if (configsError) throw configsError;
+  return mapRemoteInventoryItem(savedItem, savedConfigs || []);
 }
 
 function uomOptionLabel(uom = {}) {
@@ -754,6 +935,7 @@ function defaultData(outlets = [], suppliers = []) {
 function useInventoryData(outlets, suppliers) {
   const [data, setData] = useState(() => {
     try {
+      LEGACY_STORAGE_KEYS.forEach((key) => localStorage.removeItem(key));
       const raw = localStorage.getItem(STORAGE_KEY);
       return normalizeInventoryData(raw ? JSON.parse(raw) : null, outlets, suppliers);
     } catch {
@@ -767,6 +949,30 @@ function useInventoryData(outlets, suppliers) {
       if (current.items?.length || current.groups?.length) return normalizeInventoryData(current, outlets, suppliers);
       return normalizeInventoryData(null, outlets, suppliers);
     });
+  }, [outlets, suppliers]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function loadRemote() {
+      try {
+        const remote = await loadRemoteInventoryMaster();
+        if (cancelled) return;
+        const hasRemoteMasterData = remote.items.length || remote.categories.length || remote.uoms.length;
+        if (!hasRemoteMasterData) return;
+        setData((current) => normalizeInventoryData({
+          ...current,
+          categories: remote.categories.length ? remote.categories : current.categories,
+          items: remote.items.length ? remote.items : current.items,
+          uoms: remote.uoms.length ? remote.uoms : current.uoms,
+        }, outlets, suppliers));
+      } catch (error) {
+        console.warn("[InventoryControl] Unable to load remote master inventory. Falling back to local cache.", error);
+      }
+    }
+    loadRemote();
+    return () => {
+      cancelled = true;
+    };
   }, [outlets, suppliers]);
 
   useEffect(() => {
@@ -858,13 +1064,30 @@ function MultiOutletPicker({ outlets, selectedIds, onChange }) {
 function LinkedOutletsSummary({ item, outlets, onConfigure }) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef(null);
-  const outletById = useMemo(() => new Map(outlets.map((outlet) => [outlet.id, outlet])), [outlets]);
+  const normalizedOutlets = useMemo(() => outlets.map(normalizeOutletRecord), [outlets]);
+  const outletById = useMemo(() => new Map(normalizedOutlets.map((outlet) => [outlet.id, outlet])), [normalizedOutlets]);
   const configs = normalizeInventoryItem(item).outletConfigs || [];
-  const visibleCodes = configs.slice(0, 3).map((config) => {
-    const outlet = outletById.get(config.outletId);
-    return outlet?.code || outlet?.shortCode || outlet?.short_code || outlet?.name || "Outlet";
-  });
+  const linkedOutletsRaw = useMemo(() => configs.map((config) => ({
+    config,
+    outlet: outletById.get(config.outletId) || null,
+  })), [configs, outletById]);
+  const mappedOutletLabels = linkedOutletsRaw.map(({ outlet }) => outlet ? outletDisplayCode(outlet) : "Outlet");
+  const visibleCodes = mappedOutletLabels.slice(0, 3);
   const hiddenCount = Math.max(0, configs.length - visibleCodes.length);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    console.log("[OutletChipDebug]", {
+      browser: navigator.userAgent,
+      linkedOutletsRaw,
+      mappedOutletLabels,
+    });
+  }, [item.id, configs.length, linkedOutletsRaw, mappedOutletLabels]);
+
+  const linkedOutletCards = configs.map((config) => {
+    const outlet = outletById.get(config.outletId);
+    return { config, outlet };
+  });
 
   return (
     <div ref={anchorRef} className="inline-flex">
@@ -873,8 +1096,8 @@ function LinkedOutletsSummary({ item, outlets, onConfigure }) {
         type="button"
         onClick={() => setOpen((current) => !current)}
       >
-        {visibleCodes.length ? visibleCodes.map((code) => (
-          <span key={code} className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-black text-text-secondary">{code}</span>
+        {visibleCodes.length ? visibleCodes.map((code, index) => (
+          <span key={`${code}-${index}`} className="rounded-full bg-slate-100 px-1.5 py-0.5 text-[10px] font-black text-text-secondary">{code}</span>
         )) : <span>No outlets</span>}
         {hiddenCount ? <span className="text-text-muted">+{hiddenCount}</span> : null}
         <ChevronDown size={13} />
@@ -889,14 +1112,13 @@ function LinkedOutletsSummary({ item, outlets, onConfigure }) {
             <Badge tone="info">{item.unit}</Badge>
           </div>
           <div className="max-h-64 space-y-2 overflow-y-auto pr-1">
-            {configs.length ? configs.map((config) => {
-              const outlet = outletById.get(config.outletId);
+            {linkedOutletCards.length ? linkedOutletCards.map(({ config, outlet }) => {
               return (
                 <div key={config.outletId} className="rounded-xl border border-border bg-slate-50/70 p-2.5">
                   <div className="flex items-start justify-between gap-2">
                     <div>
-                      <div className="type-body-sm font-bold text-text-primary">{outlet?.name ?? "Unknown outlet"}</div>
-                      <div className="type-caption text-text-secondary">{outlet?.code || outlet?.shortCode || outlet?.short_code || "No outlet code"}</div>
+                      <div className="type-body-sm font-bold text-text-primary">{outlet ? outletDisplayName(outlet) : "Unknown outlet"}</div>
+                      <div className="type-caption text-text-secondary">{outlet ? outletDisplayCode(outlet) : "No outlet code"}</div>
                     </div>
                     <Badge tone="success">Linked</Badge>
                   </div>
@@ -1165,11 +1387,13 @@ function readImportValue(row, aliases) {
 function buildInventoryImportPreview(rows, { categories, outlets, items, uoms }) {
   const categoryByName = new Map(categories.map((category) => [canonical(category.name), category]));
   const uomByCode = new Map(uoms.map((uom) => [canonical(uom.code), uom]));
-  const outletByCode = new Map(outlets.flatMap((outlet) => [
-    [canonical(outlet.code || ""), outlet],
-    [canonical(outlet.shortCode || ""), outlet],
-    [canonical(outlet.short_code || ""), outlet],
-  ]).filter(([key]) => key));
+  const outletByCode = new Map(outlets.flatMap((outlet) => {
+    const normalized = normalizeOutletRecord(outlet);
+    return [
+      [canonical(normalized.code || ""), normalized],
+      [canonical(normalized.name || ""), normalized],
+    ];
+  }).filter(([key]) => key));
   const existingBySku = new Map(items.filter((item) => item.sku).map((item) => [canonical(item.sku), item]));
   const existingByName = new Map(items.map((item) => [canonical(item.name), item]));
   const seenSkus = new Map();
@@ -1212,7 +1436,7 @@ function buildInventoryImportPreview(rows, { categories, outlets, items, uoms })
         return outlet;
       }).filter(Boolean)
       : [];
-    const linkedOutletCodes = linkedOutlets.map((outlet) => outlet.code || outlet.shortCode || outlet.short_code || outlet.id).filter(Boolean);
+    const linkedOutletCodes = linkedOutlets.map(outletDisplayCode).filter(Boolean);
     const existing = skuKey ? existingBySku.get(skuKey) : existingByName.get(nameKey);
 
     return {
@@ -2708,7 +2932,7 @@ function CopyPoTextModal({ text, onClose, onCopy }) {
 }
 
 function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
-  const outlets = store?.outlets ?? [];
+  const outlets = useMemo(() => (store?.outlets ?? []).map(normalizeOutletRecord), [store?.outlets]);
   const suppliers = store?.suppliers ?? [];
   const [data, setData] = useInventoryData(outlets, suppliers);
   const [activeTab, setActiveTab] = useState(initialTab);
@@ -2828,6 +3052,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     return [...groups.values()].sort((a, b) => Number(a.category?.sortOrder ?? 9999) - Number(b.category?.sortOrder ?? 9999) || (a.category?.name || "Uncategorized").localeCompare(b.category?.name || "Uncategorized"));
   }, [visibleItems, categoryById]);
 
+  useEffect(() => {
+    if (!import.meta.env.DEV || activeTab !== "master") return;
+    const itemNames = visibleItems.map((item) => item.name);
+    console.log("[InventoryDesktopItems]", itemNames);
+    console.log("[InventoryMobileItems]", itemNames);
+  }, [activeTab, visibleItems]);
+
   const selectedOutletIds = selectedOutletId === "all" ? outlets.map((outlet) => outlet.id) : [selectedOutletId];
   const scopedGroups = data.groups.filter((group) => selectedOutletIds.includes(group.outletId));
   const dueGroups = scopedGroups.filter((group) => ["Due Today", "Completed", "Overdue"].includes(dueStatus(group, data.checks, date)));
@@ -2873,7 +3104,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     return false;
   }
 
-  function saveItem(item) {
+  async function saveItem(item) {
     const normalizedItem = normalizeInventoryItem({ ...item, photo_url: item.photo ?? item.photo_url ?? "" });
     setData((current) => ({
       ...current,
@@ -2883,6 +3114,18 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     }));
     setModal(null);
     notify("Inventory item saved");
+    try {
+      const remoteItem = await persistRemoteInventoryItem(normalizedItem, auth?.user?.id);
+      setData((current) => ({
+        ...current,
+        items: current.items.some((entry) => entry.id === normalizedItem.id || entry.id === remoteItem.id)
+          ? current.items.map((entry) => (entry.id === normalizedItem.id || entry.id === remoteItem.id ? remoteItem : entry))
+          : [remoteItem, ...current.items],
+      }));
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to sync inventory item to Supabase.", error);
+      notify("Inventory item saved locally", "Remote sync failed. Refresh after connection or permission is restored.", "warning");
+    }
   }
 
   function saveCategory(category) {
@@ -3029,7 +3272,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       const category = categoryById.get(item.categoryId);
       const linkedOutlets = (item.linkedOutletIds || []).map((id) => {
         const outlet = outletById.get(id);
-        return outlet?.code || outlet?.shortCode || outlet?.short_code || outlet?.id || "";
+        return outlet ? outletDisplayCode(outlet) : "";
       }).filter(Boolean).join(", ");
       return {
         "Item Name": item.name,
@@ -3320,12 +3563,20 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     } : entry));
   }
 
-  function archiveItem(itemId) {
+  async function archiveItem(itemId) {
     setData((current) => ({
       ...current,
       items: current.items.map((item) => item.id === itemId ? { ...item, status: "archived" } : item),
     }));
     notify("Inventory item archived");
+    if (!isUuid(itemId)) return;
+    try {
+      const { error } = await supabase.from("inventory_items").update({ status: "archived", updated_by: auth?.user?.id || null }).eq("id", itemId);
+      if (error) throw error;
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to sync archived inventory item.", error);
+      notify("Inventory item archived locally", "Remote sync failed. Please try again later.", "warning");
+    }
   }
 
   function saveStockCheck(status) {
@@ -3985,6 +4236,64 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       );
     };
 
+    const renderItemCard = (item) => {
+      const category = categoryById.get(item.categoryId);
+      const photo = item.photo || item.photo_url;
+      return (
+        <div key={item.id} className="rounded-2xl border border-border bg-surface p-3 shadow-sm">
+          <div className="flex gap-3">
+            {photo ? (
+              <button
+                className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-2xl border border-border bg-slate-50 shadow-sm"
+                type="button"
+                onClick={() => setPhotoPreview({ src: photo, title: item.name })}
+                aria-label={`View photo for ${item.name}`}
+              >
+                <img src={photo} alt="" className="h-full w-full object-cover" />
+              </button>
+            ) : <InventoryCategoryIcon category={category} />}
+            <div className="min-w-0 flex-1">
+              <div className="font-bold text-text-primary">{item.name}</div>
+              <div className="mt-0.5 type-caption text-text-secondary">{category?.name || "Uncategorized"} · {item.sku || "No SKU"}</div>
+              {item.description ? <div className="mt-1 line-clamp-2 type-caption text-text-muted">{item.description}</div> : null}
+            </div>
+            <Badge tone={statusTone(item.status)}>{toTitle(item.status)}</Badge>
+          </div>
+          <div className="mt-3 grid gap-2 type-caption text-text-secondary">
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-semibold">UOM</span>
+              <span className="font-bold text-text-primary">{item.unit || "-"}</span>
+            </div>
+            <div className="flex items-center justify-between gap-3">
+              <span className="font-semibold">Linked Outlets</span>
+              <LinkedOutletsSummary item={item} outlets={outlets} onConfigure={() => { if (requirePermission(can.editParLevels, "manage par levels")) ui?.navigate?.("inventory_par_levels"); }} />
+            </div>
+          </div>
+          <div className="mt-3 flex justify-end gap-2 border-t border-border pt-3" onClick={(event) => event.stopPropagation()}>
+            <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.editMaster, "edit inventory items") && setModal({ type: "item", item })}>Edit</button>
+            <ActionMenu
+              open={masterActionMenuItemId === item.id}
+              onOpenChange={(nextOpen) => setMasterActionMenuItemId(nextOpen ? item.id : null)}
+              width={212}
+              ariaLabel="Inventory item actions"
+              trigger={({ toggle, ariaLabel }) => (
+                <button className="icon-btn h-8 w-8" type="button" aria-label={ariaLabel} onClick={toggle}>
+                  <MoreHorizontal size={15} />
+                </button>
+              )}
+            >
+              <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { setMasterActionMenuItemId(null); ui?.navigate?.("inventory_par_levels"); }}>
+                <PackageCheck size={14} /> View Par Levels
+              </button>
+              <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold text-rose-700 hover:bg-rose-50" type="button" onClick={() => { setMasterActionMenuItemId(null); requirePermission(can.deleteMaster, "archive inventory items") && archiveItem(item.id); }}>
+                <Trash2 size={14} /> Archive
+              </button>
+            </ActionMenu>
+          </div>
+        </div>
+      );
+    };
+
     return (
       <div className="space-y-4">
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -4020,7 +4329,37 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           description="Global item definitions. Outlet par levels are managed in Par Level Setup."
         >
           {visibleItems.length ? (
-            <div className="overflow-x-auto">
+            <>
+            <div className="space-y-3 md:hidden">
+              {masterGroupBy === "category" ? visibleItemGroups.map((group) => {
+                const collapsed = collapsedCategoryIds.has(group.id);
+                return (
+                  <div key={group.id} className="space-y-2">
+                    <button
+                      className="flex w-full items-center justify-between rounded-2xl border border-primary/10 bg-primary/5 px-3 py-2 text-left"
+                      type="button"
+                      onClick={() => setCollapsedCategoryIds((current) => {
+                        const next = new Set(current);
+                        if (next.has(group.id)) next.delete(group.id);
+                        else next.add(group.id);
+                        return next;
+                      })}
+                    >
+                      <span className="flex min-w-0 items-center gap-3">
+                        <InventoryCategoryIcon category={group.category} size="sm" />
+                        <span className="min-w-0">
+                          <span className="block type-body-sm font-black text-text-primary">{group.category?.name || "Uncategorized"}</span>
+                          <span className="type-caption font-semibold text-text-secondary">{group.items.length} item{group.items.length === 1 ? "" : "s"} · {new Set(group.items.flatMap((item) => item.linkedOutletIds || [])).size} outlets linked</span>
+                        </span>
+                      </span>
+                      <ChevronDown className={`shrink-0 text-text-muted transition ${collapsed ? "-rotate-90" : ""}`} size={16} />
+                    </button>
+                    {collapsed ? null : group.items.map(renderItemCard)}
+                  </div>
+                );
+              }) : visibleItems.map(renderItemCard)}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[880px] text-left">
                 <thead className="text-[11px] uppercase tracking-wide text-text-muted">
                   <tr className="border-b border-border">
@@ -4070,6 +4409,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                 </tbody>
               </table>
             </div>
+            </>
           ) : <EmptyState title="No inventory items match your filters" description="Adjust search, outlet, category or status filters to view more inventory items." />}
         </SectionCard>
       </div>
@@ -4381,7 +4721,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                         {matrixOutlets.map((outlet) => (
                           <th key={outlet.id} className="min-w-[150px] border-b border-border bg-primary/5 px-3 py-2">
                             <div className="rounded-2xl border border-primary/10 bg-white/80 px-3 py-2 normal-case shadow-sm">
-                              <div className="type-body-sm font-black text-text-primary" title={outlet.name}>{outlet.code || outlet.shortCode || outlet.short_code || "OUTLET"}</div>
+                              <div className="type-body-sm font-black text-text-primary" title={outletDisplayName(outlet)}>{outletDisplayCode(outlet)}</div>
                             </div>
                           </th>
                         ))}
@@ -5414,108 +5754,129 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           </div>
         </Modal>
       ) : null}
-      {modal?.type === "po-detail" ? (
-        <Modal
-          title={modal.edit ? "Edit Draft PO" : "View Purchase Order"}
-          description={`${modal.order.poNo} · Source: ${poSourceLabel(modal.order.sourceType)}`}
-          size="xl"
-          onClose={() => setModal(null)}
-          footer={<button className="btn-secondary" type="button" onClick={() => setModal(null)}>Close</button>}
-        >
-          <div className="space-y-4">
-            <div className="flex justify-end">
-              <button className="btn-secondary" type="button" onClick={() => copyPurchaseOrderText(modal.order)}><Copy size={15} /> Copy PO Text</button>
-            </div>
-            <div className="grid gap-3 sm:grid-cols-4">
-              <MetricCard label="Supplier" value={suppliers.find((supplier) => supplier.id === modal.order.supplierId)?.name || "Unassigned"} helper={outletById.get(modal.order.outletId || modal.order.outletIds?.[0])?.name || "Outlet"} />
-              <MetricCard label="Status" value={poStatusLabel(modal.order.status)} helper="PO workflow" tone={statusTone(modal.order.status)} />
-              <MetricCard label="Items" value={modal.order.lines.length} helper="PO lines" />
-              <MetricCard label="Source Check" value={modal.order.sourceStockCheckId ? "Linked" : "None"} helper={modal.order.sourceStockCheckId || "No stock check"} tone={modal.order.sourceStockCheckId ? "info" : "neutral"} />
-            </div>
-            <div className="grid gap-2 rounded-2xl border border-border bg-slate-50 p-3 type-caption font-semibold text-text-secondary sm:grid-cols-4">
-              <div>Created: <span className="text-text-primary">{formatDate(modal.order.createdAt)}</span></div>
-              <div>Submitted: <span className="text-text-primary">{modal.order.submittedAt ? formatDate(modal.order.submittedAt) : "-"}</span></div>
-              <div>Completed: <span className="text-text-primary">{modal.order.completedAt ? formatDate(modal.order.completedAt) : "-"}</span></div>
-              <div>Cancelled: <span className="text-text-primary">{modal.order.cancelledAt ? formatDate(modal.order.cancelledAt) : "-"}</span></div>
-            </div>
-            <div className="rounded-2xl border border-border bg-surface p-3">
-              <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                <div className="type-title font-bold text-text-primary">Fulfillment Summary</div>
-                {modal.order.status === "completed" ? (
-                  <Badge tone={modal.order.completionType === "partial" ? "warning" : "success"}>
-                    {modal.order.completionType === "partial" ? "Partially fulfilled" : "Fully fulfilled"}
-                  </Badge>
-                ) : null}
-              </div>
-              <div className="grid gap-3 sm:grid-cols-4">
-                <MetricCard label="Ordered Qty" value={poProgress(modal.order).ordered} helper="Total ordered" />
-                <MetricCard label="Received Qty" value={poProgress(modal.order).received} helper="Confirmed received" tone={poProgress(modal.order).received ? "success" : "neutral"} />
-                <MetricCard label="Remaining Qty" value={Math.max(0, poProgress(modal.order).ordered - poProgress(modal.order).received)} helper={modal.order.status === "completed" && modal.order.completionType === "partial" ? "Unfulfilled" : "Open balance"} tone={Math.max(0, poProgress(modal.order).ordered - poProgress(modal.order).received) ? "warning" : "success"} />
-                <MetricCard label="Fulfillment" value={`${poProgress(modal.order).percent}%`} helper="Received vs ordered" tone={poProgress(modal.order).percent >= 100 ? "success" : "info"} />
-              </div>
-              {modal.order.status === "completed" && modal.order.completionType ? (
-                <div className="mt-3 grid gap-2 rounded-xl bg-slate-50 p-3 type-caption font-semibold text-text-secondary sm:grid-cols-2">
-                  <div>Completion Type: <span className="text-text-primary">{modal.order.completionType === "partial" ? "Partial" : "Full"}</span></div>
-                  {modal.order.completionType === "partial" ? <div>Unfulfilled Qty: <span className="text-text-primary">{modal.order.unfulfilledQty ?? Math.max(0, poProgress(modal.order).ordered - poProgress(modal.order).received)}</span></div> : null}
-                  {modal.order.completionReason ? <div className="sm:col-span-2">Completion Reason: <span className="text-text-primary">{modal.order.completionReason}</span></div> : null}
+      {modal?.type === "po-detail" ? (() => {
+        const order = modal.order;
+        const progress = poProgress(order);
+        const supplier = suppliers.find((entry) => entry.id === order.supplierId);
+        const outlet = outletById.get(order.outletId || order.outletIds?.[0]);
+        const sourceCheck = data.checks.find((check) => check.id === order.sourceStockCheckId);
+        const balance = Math.max(0, progress.ordered - progress.received);
+        const isReceivable = ["submitted", "supplier_confirmed", "partial_received"].includes(order.status) && balance > 0;
+        const workflowSteps = [
+          { key: "created", label: "Created", date: order.createdAt, complete: Boolean(order.createdAt) },
+          { key: "submitted", label: "Submitted", date: order.submittedAt, complete: Boolean(order.submittedAt) || order.status !== "draft" },
+          { key: "receiving", label: "Receiving", date: order.receipts?.[0]?.receivedAt, complete: progress.received > 0 || ["fully_received", "completed"].includes(order.status) },
+          { key: "completed", label: "Completed", date: order.completedAt, complete: Boolean(order.completedAt) || order.status === "completed" },
+        ];
+        const workflowIndex = order.status === "draft" ? 0 : ["submitted", "supplier_confirmed"].includes(order.status) ? 1 : ["partial_received", "fully_received"].includes(order.status) ? 2 : order.status === "completed" ? 3 : -1;
+        const sourceName = sourceCheck ? `${sourceCheck.auditName || sourceCheck.groupName || "Stock Check"} · ${formatDate(sourceCheck.date)}` : order.sourceStockCheckId || "Manual purchase planning";
+
+        return (
+          <Modal
+            title="Purchase Order Detail"
+            description={`${order.poNo} · ${supplier?.name || "Supplier"} · ${outlet?.name || "Outlet"}`}
+            size="xl"
+            onClose={() => setModal(null)}
+            footer={<button className="btn-secondary" type="button" onClick={() => setModal(null)}>Close</button>}
+          >
+            <div className="space-y-4">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <Badge tone={order.status === "partial_received" ? "warning" : statusTone(order.status)}>{poStatusLabel(order.status)}</Badge>
+                <div className="flex flex-wrap justify-end gap-2">
+                  {isReceivable ? <button className="btn-primary" type="button" onClick={() => requirePermission(can.receivePo, "receive inventory") && setModal({ type: "po-receive", order })}><Truck size={15} /> Receive</button> : null}
+                  <button className="btn-secondary" type="button" onClick={() => copyPurchaseOrderText(order)}><Copy size={15} /> Copy PO Text</button>
+                  <button className="btn-secondary" type="button" onClick={() => { notify("Export PDF", "Use the print dialog to save this PO as PDF."); window.print(); }}><Download size={15} /> Export PDF</button>
+                  <button className="btn-secondary" type="button" onClick={() => window.print()}><FileText size={15} /> Print</button>
                 </div>
-              ) : null}
-            </div>
-            <div className="overflow-x-auto rounded-2xl border border-border">
-              <table className="w-full min-w-[720px] text-left">
-                <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
-                  <tr>
-                    <th className="px-3 py-2">Item</th>
-                    <th>Order Qty</th>
-                    <th>Received</th>
-                    <th>Remaining</th>
-                    <th>Unit</th>
-                    <th>Remark</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border text-[13px]">
-                  {modal.order.lines.map((line) => {
-                    const item = itemById.get(line.itemId);
+              </div>
+
+              <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
+                <div className="rounded-2xl border border-border bg-surface p-3">
+                  <div className="mb-3 type-title font-bold text-text-primary">Generated From</div>
+                  <div className="grid gap-3 sm:grid-cols-3">
+                    <div><div className="type-caption font-semibold text-text-muted">Source Type</div><div className="mt-1 type-body-sm font-bold text-text-primary">{poSourceLabel(order.sourceType)}</div></div>
+                    <div><div className="type-caption font-semibold text-text-muted">Source Name</div><div className="mt-1 type-body-sm font-bold text-text-primary">{sourceName}</div></div>
+                    <div><div className="type-caption font-semibold text-text-muted">Created Date</div><div className="mt-1 type-body-sm font-bold text-text-primary">{formatDate(order.createdAt)}</div></div>
+                  </div>
+                </div>
+                <div className="rounded-2xl border border-border bg-surface p-3">
+                  <div className="mb-3 type-title font-bold text-text-primary">Supplier Contact</div>
+                  <div className="grid gap-2 type-body-sm">
+                    <div className="flex justify-between gap-3"><span className="text-text-secondary">Supplier</span><span className="font-bold text-text-primary">{supplier?.name || "Supplier"}</span></div>
+                    <div className="flex justify-between gap-3"><span className="text-text-secondary">Phone</span><span className="font-bold text-text-primary">{supplier?.phone || supplier?.contactPhone || "Not configured"}</span></div>
+                    <div className="flex justify-between gap-3"><span className="text-text-secondary">Email</span><span className="font-bold text-text-primary">{supplier?.email || "Not configured"}</span></div>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-2xl border border-border bg-surface p-3">
+                <div className="mb-3 type-title font-bold text-text-primary">Workflow Progress</div>
+                <div className="grid gap-2 sm:grid-cols-4">
+                  {workflowSteps.map((step, index) => {
+                    const active = workflowIndex === index;
+                    const complete = step.complete || workflowIndex > index;
                     return (
-                      <tr key={line.id || line.itemId}>
-                        <td className="px-3 py-2 font-bold text-text-primary">{item?.name || "Inventory item"}</td>
-                        <td>{line.requestedQty}</td>
-                        <td>{line.receivedQty || 0}</td>
-                        <td>{remainingQty(line)}</td>
-                        <td>{line.unit || item?.unit || ""}</td>
-                        <td>{line.remark || "-"}</td>
-                      </tr>
+                      <div key={step.key} className={`rounded-2xl border p-3 ${active ? "border-primary/30 bg-primary/8" : complete ? "border-emerald-200 bg-emerald-50/70" : "border-border bg-slate-50"}`}>
+                        <div className="flex items-center gap-2"><span className={`grid h-6 w-6 place-items-center rounded-full text-[11px] font-black ${complete ? "bg-emerald-600 text-white" : active ? "bg-primary text-white" : "bg-slate-200 text-text-muted"}`}>{index + 1}</span><span className="type-body-sm font-black text-text-primary">{step.label}</span></div>
+                        <div className="mt-2 type-caption font-semibold text-text-secondary">{step.date ? formatDate(step.date) : "Pending"}</div>
+                      </div>
                     );
                   })}
-                </tbody>
-              </table>
-            </div>
-            <div className="rounded-2xl border border-border p-3">
-              <div className="mb-2 type-title font-bold text-text-primary">Receiving History</div>
-              {modal.order.receipts?.length ? (
-                <div className="space-y-2">
-                  {modal.order.receipts.map((receipt) => (
-                    <div key={receipt.id} className="rounded-xl bg-slate-50 p-2">
-                      <div className="type-caption font-bold text-text-primary">{formatDate(receipt.receivedAt)} · Received by {receipt.receivedBy || "Current User"}</div>
-                      <div className="mt-1 space-y-1">
-                        {(receipt.items || []).map((line) => (
-                          <div key={line.id} className="type-caption text-text-secondary">{itemById.get(line.itemId)?.name || "Inventory item"} +{line.receivedQty} {line.unit} {line.remark ? `· ${line.remark}` : ""}</div>
-                        ))}
-                      </div>
-                    </div>
-                  ))}
                 </div>
-              ) : <div className="type-caption font-semibold text-text-muted">No receiving records yet.</div>}
+              </div>
+
+              <div className="rounded-2xl border border-border bg-surface p-3">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+                  <div><div className="type-title font-bold text-text-primary">Fulfillment</div><div className="type-caption text-text-secondary">{progress.received} / {progress.ordered} received</div></div>
+                  <Badge tone={order.status === "partial_received" ? "warning" : progress.percent >= 100 ? "success" : "info"}>{progress.percent}% fulfilled</Badge>
+                </div>
+                <div className="h-3 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${order.status === "partial_received" ? "bg-amber-500" : "bg-primary"}`} style={{ width: `${Math.min(100, progress.percent)}%` }} /></div>
+                <div className="mt-3 grid gap-3 sm:grid-cols-3">
+                  <MetricCard label="Ordered Qty" value={progress.ordered} helper="Original order" size="compact" />
+                  <MetricCard label="Received Qty" value={progress.received} helper="Confirmed received" tone={progress.received ? "success" : "neutral"} size="compact" />
+                  <MetricCard label="Balance" value={balance} helper={order.status === "completed" && order.completionType === "partial" ? "Unfulfilled" : "Open balance"} tone={balance ? "warning" : "success"} size="compact" />
+                </div>
+              </div>
+
+              <div className="overflow-x-auto rounded-2xl border border-border">
+                <table className="w-full min-w-[760px] text-left">
+                  <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted"><tr><th className="px-3 py-2">Item</th><th>Order Qty</th><th>Received</th><th>Balance</th><th>Unit</th><th>Remark</th></tr></thead>
+                  <tbody className="divide-y divide-border text-[13px]">
+                    {order.lines.map((line) => {
+                      const item = itemById.get(line.itemId);
+                      return <tr key={line.id || line.itemId}><td className="px-3 py-2 font-bold text-text-primary">{item?.name || "Inventory item"}</td><td>{line.requestedQty}</td><td>{line.receivedQty || 0}</td><td className={remainingQty(line) ? "font-bold text-amber-700" : "font-semibold text-emerald-700"}>{remainingQty(line)}</td><td>{line.unit || item?.unit || ""}</td><td>{line.remark || "-"}</td></tr>;
+                    })}
+                  </tbody>
+                </table>
+              </div>
+
+              <div className="rounded-2xl border border-border p-3">
+                <div className="mb-3 type-title font-bold text-text-primary">Receiving History</div>
+                {order.receipts?.length ? (
+                  <div className="space-y-3">
+                    {order.receipts.map((receipt) => {
+                      const receiptQty = (receipt.items || []).reduce((sum, line) => sum + Number(line.receivedQty || 0), 0);
+                      return (
+                        <div key={receipt.id} className="relative pl-5">
+                          <span className="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full bg-primary" />
+                          <div className="rounded-xl bg-slate-50 p-3">
+                            <div className="flex flex-wrap items-center justify-between gap-2"><div className="type-body-sm font-black text-text-primary">{formatDate(receipt.receivedAt)}</div><Badge tone="success">+{receiptQty} qty</Badge></div>
+                            <div className="mt-1 type-caption font-semibold text-text-secondary">User: {receipt.receivedBy || "Current User"}</div>
+                            {receipt.remark ? <div className="mt-1 type-caption text-text-secondary">Remark: {receipt.remark}</div> : null}
+                            <div className="mt-2 space-y-1">{(receipt.items || []).map((line) => <div key={line.id} className="type-caption text-text-secondary">{itemById.get(line.itemId)?.name || "Inventory item"} · +{line.receivedQty} {line.unit}{line.remark ? ` · ${line.remark}` : ""}</div>)}</div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                ) : <div className="type-caption font-semibold text-text-muted">No receiving records yet.</div>}
+              </div>
+
+              {order.cancellationReason ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 type-body-sm font-semibold text-rose-800">Cancellation reason: {order.cancellationReason}</div> : null}
             </div>
-            <div className="flex flex-wrap items-center gap-2 type-caption font-semibold text-text-secondary">
-              {poStatuses.map((stage) => (
-                <span key={stage} className={`rounded-full px-2 py-1 ${modal.order.status === stage ? "bg-primary/10 text-primary" : "bg-slate-100 text-text-secondary"}`}>{poStatusLabel(stage)}</span>
-              ))}
-            </div>
-            {modal.order.cancellationReason ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 type-body-sm font-semibold text-rose-800">Cancellation reason: {modal.order.cancellationReason}</div> : null}
-          </div>
-        </Modal>
-      ) : null}
+          </Modal>
+        );
+      })() : null}
       <InventoryItemPhotoPreview preview={photoPreview} onClose={() => setPhotoPreview(null)} />
     </div>
   );

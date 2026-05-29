@@ -1738,6 +1738,8 @@ Routes:
 Core rules:
 
 - Master Inventory is the source of truth for inventory items.
+- Master Inventory must load from shared Supabase tables (`inventory_items`, `inventory_item_outlets`, `inventory_categories`, and `inventory_uoms`) so desktop and mobile sessions use the same source of truth.
+- Browser local storage may be used only as a fallback/cache when remote loading fails; it must not be treated as canonical inventory master data.
 - Master Inventory defines global item identity only.
 - Inventory Categories is managed through Master Inventory > Category Settings.
 - Inventory Categories does not appear as a standalone sidebar page.
@@ -1872,10 +1874,14 @@ Master Inventory UI:
 - When grouped by Category, the Category column is hidden because category is represented by the group header.
 - When grouping is None, the table columns are Item, Category, SKU Code, UOM, Linked Outlets, Status, and Actions.
 - Search, outlet filter, category filter, and status filter apply before grouping; empty groups are hidden.
+- Desktop and mobile Master Inventory views must render from the same filtered `visibleItems` collection. Mobile must not apply separate hidden filters, recency limits, created-by filters, photo filters, or outlet-only query limits.
+- Mobile Master Inventory uses compact cards instead of a wide table to avoid horizontal clipping while preserving item photo/icon, item name, category, SKU, UOM, linked outlets, status, and actions.
 - The Master Inventory table does not show Low Stock or Par Level columns because those values are outlet-specific.
 - Linked Outlets displays a compact count such as `3 outlets`.
 - Linked Outlets displays compact outlet codes for the first few outlets plus a `+X` more indicator.
 - Clicking the Linked Outlets display opens a FloatingLayer popover with outlet names, outlet codes, linked status, and key outlet stock settings.
+- Linked outlet labels must be normalized before rendering so all browsers use the same outlet shape: `code`, `outlet_code`, `shortCode`, `short_code`, or `abbreviation` for the display code, and `name`, `outlet_name`, or `outletName` for the display name.
+- Master Inventory local cache must be versioned; stale browser cache with old outlet shapes should be ignored or cleared so linked outlet chips do not fall back to generic `Outlet` labels.
 - Item rows use photo thumbnails when available and standardized category fallback icons when no photo exists.
 - Add/Edit Item keeps master item fields separate from outlet-level par management.
 - Add/Edit Item shows linked outlets and a note that par levels are managed in Par Level Setup.
@@ -2216,6 +2222,9 @@ Rules:
 - Partial Received POs cannot be cancelled. They are closed with Complete PO when the supplier cannot fulfill the remaining quantity.
 - Completing a Partial Received PO records `completion_type = partial`, saves the completion reason when provided/required, and treats remaining quantity as unfulfilled.
 - PO detail shows supplier, outlet, source stock check/request, item rows, ordered quantity, received quantity, remaining quantity, fulfillment percentage, completion type/reason, unit, remark, receiving history, and status timeline.
+- PO detail uses a procurement workflow view with Generated From context, supplier contact placeholder, Created → Submitted → Receiving → Completed progress, fulfillment progress bar, item Balance column, and receiving history timeline.
+- PO detail action group includes Copy PO Text, Export PDF, Print, and quick Receive when the PO is receivable.
+- Receiving history timeline shows received date, received quantity, user, remark, and item-level received quantities.
 - Status workflow: Draft → Submitted → Supplier Confirmed → Partial Received → Fully Received → Completed.
 - Cancelled preserves historical PO records and requires a cancellation reason.
 - Draft can be cancelled anytime.
