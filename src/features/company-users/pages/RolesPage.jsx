@@ -159,6 +159,7 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
   const [hasChanges, setHasChanges] = useState(false);
   const isEdit = mode === "edit";
   const isProtectedRole = isProtectedRoleName(role?.name);
+  const allCurrentOutletsSelected = outlets.length > 0 && outlets.every((outlet) => values.selectedOutletIds.includes(outlet.id));
 
   function markChanged(patch) {
     setValues((current) => ({ ...current, ...patch }));
@@ -294,12 +295,12 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
                         {
                           value: "all_outlets",
                           title: "All Outlets",
-                          description: "This role can access all outlets.",
+                          description: "Access every current and future outlet.",
                         },
                         {
                           value: "assigned_outlets",
                           title: "Selected Outlets",
-                          description: "Choose exactly which outlets this role can access.",
+                          description: "Choose specific outlets only. New outlets will not be included automatically.",
                         },
                       ].map((option) => {
                         const optionValue = option.value === "all_outlets" ? "all" : "selected";
@@ -357,6 +358,11 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
                         <div className="mt-1 text-[11px] text-text-muted">
                           Switching back to All Outlets keeps these selections for later.
                         </div>
+                        {allCurrentOutletsSelected ? (
+                          <div className="mt-1 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-[11px] font-semibold leading-4 text-amber-800">
+                            All current outlets selected, but future outlets will not be included automatically.
+                          </div>
+                        ) : null}
                       </div>
                     ) : null}
                     {errors.outletAccess ? <div className="mt-1 text-[11px] font-medium text-rose-600">{errors.outletAccess}</div> : null}
