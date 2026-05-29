@@ -70,6 +70,31 @@ function RoleOutletAccessDisplay({ role, compact = false, outlets = roleEditorOu
   );
 }
 
+function getOutletDebugRows(outletIds = [], outlets = []) {
+  return outletIds.map((outletId) => {
+    const outlet = outlets.find((item) => String(item.id) === String(outletId));
+    return {
+      id: outletId,
+      name: outlet?.name ?? outletId,
+      code: outlet?.code ?? outlet?.outlet_code ?? null,
+    };
+  });
+}
+
+function buildOutletScopeSet(outletIds, outlets = []) {
+  if (outletIds === null) return null;
+  const scope = new Set();
+  (outletIds ?? []).forEach((outletId) => {
+    const normalizedId = String(outletId);
+    scope.add(normalizedId);
+    const outlet = outlets.find((item) => String(item.id) === normalizedId);
+    if (outlet?.code) scope.add(String(outlet.code));
+    if (outlet?.outlet_code) scope.add(String(outlet.outlet_code));
+    if (outlet?.name) scope.add(String(outlet.name));
+  });
+  return scope;
+}
+
 const roleAssignedUserSamples = [
   { id: "u-owner", role: "owner", fullName: "Marcus Lee", nickname: "Marcus", email: "marcus@hola.test", position: "Owner", workplace: "All Outlets", accountStatus: "Active", employmentStatus: "Full Time" },
   { id: "u-admin", role: "admin", fullName: "Amanda Tan", nickname: "Amanda", email: "amanda@hola.test", position: "Admin", workplace: "HQ", accountStatus: "Active", employmentStatus: "Full Time" },
@@ -810,7 +835,23 @@ export default function RolesPage({ ui, store, auth }) {
         return false;
       }
       const accessibleOutletIds = getAccessibleOutletIds(auth);
-      const inaccessibleOutletIds = (role.selectedOutletIds ?? []).filter((outletId) => !accessibleOutletIds?.has(String(outletId)));
+      const accessibleOutletScope = buildOutletScopeSet(accessibleOutletIds === null ? null : [...accessibleOutletIds], editorOutlets);
+      const selectedRoleOutlets = role.selectedOutletIds ?? [];
+      const inaccessibleOutletIds = accessibleOutletScope === null
+        ? []
+        : selectedRoleOutlets.filter((outletId) => !accessibleOutletScope.has(String(outletId)));
+      if (import.meta.env.DEV) {
+        console.log("[RoleDebug] Outlet scope validation", {
+          currentUserRole: currentRoleName,
+          currentUserRoleId: currentRoleId,
+          targetRole: role?.name,
+          targetRoleId: role?.id,
+          currentUserHasAllOutletAccess: accessibleOutletScope === null,
+          currentUserAccessibleOutlets: accessibleOutletIds === null ? "all" : getOutletDebugRows([...accessibleOutletIds], editorOutlets),
+          selectedRoleOutlets: getOutletDebugRows(selectedRoleOutlets, editorOutlets),
+          inaccessibleOutletIds,
+        });
+      }
       if (inaccessibleOutletIds.length) {
         ui.notify({ title: "Outlet access restricted", message: "You can only assign outlets within your own outlet scope.", tone: "error" });
         return false;

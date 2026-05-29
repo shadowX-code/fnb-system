@@ -1847,6 +1847,8 @@ Master Inventory UI:
 - Category management access is controlled by inventory_categories.view/create/edit/delete.
 - Category is the main user-facing classification for inventory items.
 - Inventory Type is no longer exposed in Add/Edit Item.
+- Default Supplier is no longer exposed in Add/Edit Item because supplier assignment is outlet-specific and managed in Par Levels / outlet-item supplier configuration.
+- The master item unit field is displayed as UOM in Master Inventory UI.
 - Item Photo is uploaded from the device, not entered as a raw URL.
 - Item photos are saved to `inventory_items.photo_url` through the Supabase Storage bucket `inventory-item-photos`.
 - If storage is not configured yet, the form must show a clear fallback message instead of blocking item editing.
@@ -1855,7 +1857,7 @@ Master Inventory UI:
 - Collapsed category state may be remembered for the current browser session.
 - A Group by control supports Category and None.
 - When grouped by Category, the Category column is hidden because category is represented by the group header.
-- When grouping is None, the table columns are Item, Category, SKU Code, Unit, Linked Outlets, Status, and Actions.
+- When grouping is None, the table columns are Item, Category, SKU Code, UOM, Linked Outlets, Status, and Actions.
 - Search, outlet filter, category filter, and status filter apply before grouping; empty groups are hidden.
 - The Master Inventory table does not show Low Stock or Par Level columns because those values are outlet-specific.
 - Linked Outlets displays a compact count such as `3 outlets`.
@@ -1868,21 +1870,23 @@ Master Inventory UI:
 Master Inventory import/export:
 
 - Import supports CSV and XLSX.
-- Required import columns are Item Name, Category, and Unit.
-- Optional import columns are SKU Code, Description, Default Supplier, Status, Linked Outlets, and Photo URL.
-- Linked Outlets accepts outlet names or outlet codes separated by commas.
+- Required import columns are Item Name, Category, and UOM.
+- Import template columns are Item Name, SKU Code, Category, UOM, Description, Status, and Linked Outlet Codes.
+- Linked Outlet Codes accepts outlet codes separated by commas, for example `FC,HLIPH,JYMT`.
 - Import validates rows before commit and shows a preview of create, update, and failed rows.
 - Category matching uses normalized category name.
-- Outlet matching uses normalized outlet code first, then normalized outlet name.
-- Supplier matching uses normalized supplier name.
+- UOM must exist in the allowed UOM list.
+- Outlet matching uses normalized outlet code only and must be within the importing user's accessible outlet scope.
+- Unknown Category, UOM, or Outlet Code values show validation errors in the preview and must not be silently imported.
 - Import upserts inventory items by SKU Code when present; otherwise by normalized Item Name.
 - Import upserts `inventory_item_outlets` links for valid linked outlets.
-- Import does not create categories, outlets, or suppliers automatically.
+- Import does not create categories, UOM values, outlets, or suppliers automatically.
+- Import does not import supplier assignment data.
 - Import does not set Par Levels, Low Stock Thresholds, or Reorder Quantities.
 - Failed rows may be skipped while valid rows are imported.
 - Import template download is available from the import workflow.
 - Export supports the current filtered Master Inventory view as CSV.
-- Export columns are Item Name, SKU Code, Category, Unit, Description, Default Supplier, Status, Linked Outlets, Created At, and Updated At.
+- Export columns are Item Name, SKU Code, Category, UOM, Description, Status, Linked Outlet Codes, Created At, and Updated At.
 - Export filename format is `feedx-master-inventory-YYYY-MM-DD.csv`.
 - Import requires inventory_master.create or inventory_master.edit permission.
 - Export requires inventory_master.export permission.

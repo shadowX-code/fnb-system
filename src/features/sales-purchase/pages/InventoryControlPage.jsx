@@ -1000,7 +1000,7 @@ function InventoryItemPhotoPreview({ preview, onClose }) {
   );
 }
 
-const inventoryImportColumns = ["Item Name", "SKU Code", "Category", "Unit", "Description", "Default Supplier", "Status", "Linked Outlets", "Photo URL"];
+const inventoryImportColumns = ["Item Name", "SKU Code", "Category", "UOM", "Description", "Status", "Linked Outlet Codes"];
 
 function readImportValue(row, aliases) {
   const entries = Object.entries(row);
@@ -1011,13 +1011,13 @@ function readImportValue(row, aliases) {
   return "";
 }
 
-function buildInventoryImportPreview(rows, { categories, outlets, suppliers, items }) {
+function buildInventoryImportPreview(rows, { categories, outlets, items }) {
   const categoryByName = new Map(categories.map((category) => [canonical(category.name), category]));
-  const outletByKey = new Map(outlets.flatMap((outlet) => [
-    [canonical(outlet.code || outlet.shortCode || outlet.short_code || ""), outlet],
-    [canonical(outlet.name), outlet],
+  const outletByCode = new Map(outlets.flatMap((outlet) => [
+    [canonical(outlet.code || ""), outlet],
+    [canonical(outlet.shortCode || ""), outlet],
+    [canonical(outlet.short_code || ""), outlet],
   ]).filter(([key]) => key));
-  const supplierByName = new Map(suppliers.map((supplier) => [canonical(supplier.name), supplier]));
   const existingBySku = new Map(items.filter((item) => item.sku).map((item) => [canonical(item.sku), item]));
   const existingByName = new Map(items.map((item) => [canonical(item.name), item]));
   const seenSkus = new Map();
@@ -1027,12 +1027,10 @@ function buildInventoryImportPreview(rows, { categories, outlets, suppliers, ite
     const name = readImportValue(row, ["Item Name", "Name", "Item"]);
     const sku = readImportValue(row, ["SKU Code", "SKU"]);
     const categoryName = readImportValue(row, ["Category"]);
-    const unit = readImportValue(row, ["Unit"]);
+    const unit = readImportValue(row, ["UOM", "Unit"]);
     const description = readImportValue(row, ["Description"]);
-    const supplierName = readImportValue(row, ["Default Supplier", "Supplier"]);
     const status = (readImportValue(row, ["Status"]) || "active").toLowerCase();
-    const linkedOutletText = readImportValue(row, ["Linked Outlets", "Outlets"]);
-    const photo = readImportValue(row, ["Photo URL", "Photo", "Photo Url"]);
+    const linkedOutletText = readImportValue(row, ["Linked Outlet Codes", "Linked Outlets", "Outlets"]);
     const errors = [];
     const warnings = [];
 
@@ -1040,8 +1038,8 @@ function buildInventoryImportPreview(rows, { categories, outlets, suppliers, ite
     if (!categoryName) errors.push("Missing Category");
     const category = categoryByName.get(canonical(categoryName));
     if (categoryName && !category) errors.push("Unknown Category");
-    if (!unit) errors.push("Missing Unit");
-    if (unit && !units.map(canonical).includes(canonical(unit))) errors.push("Invalid Unit");
+    if (!unit) errors.push("Missing UOM");
+    if (unit && !units.map(canonical).includes(canonical(unit))) errors.push("Unknown UOM");
     if (!["active", "inactive", "archived"].includes(status)) errors.push("Invalid Status");
 
     const skuKey = canonical(sku);
@@ -1056,13 +1054,12 @@ function buildInventoryImportPreview(rows, { categories, outlets, suppliers, ite
 
     const linkedOutlets = linkedOutletText
       ? linkedOutletText.split(",").map((entry) => entry.trim()).filter(Boolean).map((entry) => {
-        const outlet = outletByKey.get(canonical(entry));
-        if (!outlet) errors.push(`Unknown Outlet: ${entry}`);
+        const outlet = outletByCode.get(canonical(entry));
+        if (!outlet) errors.push(`Unknown Outlet Code: ${entry}`);
         return outlet;
       }).filter(Boolean)
       : [];
-    const supplier = supplierName ? supplierByName.get(canonical(supplierName)) : null;
-    if (supplierName && !supplier) errors.push("Unknown Supplier");
+    const linkedOutletCodes = linkedOutlets.map((outlet) => outlet.code || outlet.shortCode || outlet.short_code || outlet.id).filter(Boolean);
     const existing = skuKey ? existingBySku.get(skuKey) : existingByName.get(nameKey);
 
     return {
@@ -1078,16 +1075,17 @@ function buildInventoryImportPreview(rows, { categories, outlets, suppliers, ite
         categoryId: category?.id || "",
         unit,
         description,
-        defaultSupplierId: supplier?.id || existing?.defaultSupplierId || "",
+        defaultSupplierId: existing?.defaultSupplierId || "",
         status,
-        photo: photo || existing?.photo || existing?.photo_url || "",
+        photo: existing?.photo || existing?.photo_url || "",
         linkedOutletIds: linkedOutlets.length ? linkedOutlets.map((outlet) => outlet.id) : existing?.linkedOutletIds || [],
+        linkedOutletCodes,
       },
     };
   });
 }
 
-function InventoryImportModal({ categories, outlets, suppliers, items, onClose, onImport }) {
+function InventoryImportModal({ categories, outlets, items, onClose, onImport }) {
   const [fileName, setFileName] = useState("");
   const [preview, setPreview] = useState([]);
   const [error, setError] = useState("");
@@ -1108,7 +1106,7 @@ function InventoryImportModal({ categories, outlets, suppliers, items, onClose, 
     try {
       setFileName(file.name);
       const parsed = extension === "xlsx" ? await parseXlsx(file) : parseCsv(await file.text());
-      const built = buildInventoryImportPreview(parsed.rows, { categories, outlets, suppliers, items });
+      const built = buildInventoryImportPreview(parsed.rows, { categories, outlets, items });
       setPreview(built);
     } catch (parseError) {
       setError(parseError.message || "Unable to parse import file.");
@@ -1116,11 +1114,9 @@ function InventoryImportModal({ categories, outlets, suppliers, items, onClose, 
   }
 
   function downloadTemplate() {
-    const sampleCategory = categories[0]?.name || "Raw Material";
-    const sampleOutlet = outlets[0]?.name || "Friends Corner";
     const text = [
       inventoryImportColumns.join(","),
-      ["Sambal Sauce", "RAW-SAM-001", sampleCategory, "kg", "House sambal batch", suppliers[0]?.name || "", "active", sampleOutlet, ""].map(csvEscape).join(","),
+      ["Sambal Sauce 三八", "RAW-SAM-001", "Raw Material", "kg", "House sambal batch", "Active", "FC,HLIPH"].map(csvEscape).join(","),
     ].join("\n");
     downloadTextFile("feedx-master-inventory-template.csv", text);
   }
@@ -1148,7 +1144,7 @@ function InventoryImportModal({ categories, outlets, suppliers, items, onClose, 
           <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-6 text-center transition hover:bg-primary/10">
             <Upload size={20} className="text-primary" />
             <span className="mt-2 type-body-sm font-bold text-text-primary">{fileName || "Upload CSV or XLSX"}</span>
-            <span className="type-caption text-text-secondary">Required: Item Name, Category, Unit</span>
+            <span className="type-caption text-text-secondary">Required: Item Name, Category, UOM</span>
             <input className="sr-only" type="file" accept=".csv,.xlsx" onChange={(event) => handleFile(event.target.files?.[0])} />
           </label>
           <button className="btn-secondary" type="button" onClick={downloadTemplate}><Download size={15} /> Download Template</button>
@@ -1169,8 +1165,8 @@ function InventoryImportModal({ categories, outlets, suppliers, items, onClose, 
                     <th>Action</th>
                     <th>Item</th>
                     <th>Category</th>
-                    <th>Unit</th>
-                    <th>Linked Outlets</th>
+                    <th>UOM</th>
+                    <th>Linked Outlet Codes</th>
                     <th>Validation</th>
                   </tr>
                 </thead>
@@ -1182,7 +1178,7 @@ function InventoryImportModal({ categories, outlets, suppliers, items, onClose, 
                       <td className="font-bold text-text-primary">{row.item.name || "-"}</td>
                       <td>{categoryByIdName(categories, row.item.categoryId)}</td>
                       <td>{row.item.unit || "-"}</td>
-                      <td>{row.item.linkedOutletIds.length} outlet{row.item.linkedOutletIds.length === 1 ? "" : "s"}</td>
+                      <td>{row.item.linkedOutletCodes?.length ? row.item.linkedOutletCodes.join(", ") : "-"}</td>
                       <td className={row.errors.length ? "text-rose-700" : "text-emerald-700"}>{row.errors.length ? row.errors.join("; ") : "Ready"}</td>
                     </tr>
                   ))}
@@ -1201,7 +1197,7 @@ function categoryByIdName(categories, categoryId) {
   return categories.find((category) => category.id === categoryId)?.name || "Uncategorized";
 }
 
-function InventoryItemModal({ item, categories, outlets, suppliers, onClose, onSave }) {
+function InventoryItemModal({ item, categories, outlets, onClose, onSave }) {
   const initialItem = normalizeInventoryItem(item ?? {
     id: "",
     name: "",
@@ -1260,8 +1256,7 @@ function InventoryItemModal({ item, categories, outlets, suppliers, onClose, onS
         <Field label="Item Name" value={form.name} required onChange={(value) => update("name", value)} placeholder="Sambal Sauce" />
         <Field label="SKU Code" value={form.sku} onChange={(value) => update("sku", value)} placeholder="RAW-SAM-001" />
         <SelectField label="Category" value={form.categoryId} options={categories.map((category) => ({ value: category.id, label: category.name }))} onChange={(value) => update("categoryId", value)} searchable required />
-        <SelectField label="Unit" value={form.unit} options={units.map((unit) => ({ value: unit, label: unit }))} onChange={(value) => update("unit", value)} />
-        <SelectField label="Default Supplier" value={form.defaultSupplierId} placeholder="Optional" options={[{ value: "", label: "No default supplier" }, ...suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))]} onChange={(value) => update("defaultSupplierId", value)} searchable />
+        <SelectField label="UOM" value={form.unit} options={units.map((unit) => ({ value: unit, label: unit }))} onChange={(value) => update("unit", value)} />
         <SelectField label="Status" value={form.status} options={statuses.map((status) => ({ value: status, label: toTitle(status) }))} onChange={(value) => update("status", value)} />
         <div className="md:col-span-2">
           <ItemPhotoPicker value={form.photo} itemId={form.id || form.sku || "draft"} onChange={(value) => update("photo", value)} />
@@ -1274,7 +1269,7 @@ function InventoryItemModal({ item, categories, outlets, suppliers, onClose, onS
           <div className="mt-2 rounded-xl border border-primary/15 bg-primary/5 px-3 py-2 type-caption text-text-secondary">
             Par levels can be managed in <span className="font-bold text-text-primary">Par Level Setup</span> after the item is saved.
           </div>
-          {invalid ? <div className="mt-2 type-caption font-semibold text-rose-600">Item name, category, unit and at least one linked outlet are required.</div> : null}
+          {invalid ? <div className="mt-2 type-caption font-semibold text-rose-600">Item name, category, UOM and at least one linked outlet are required.</div> : null}
         </div>
       </div>
     </Modal>
@@ -2633,26 +2628,23 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   function exportMasterInventory() {
     const rows = visibleItems.map((item) => {
       const category = categoryById.get(item.categoryId);
-      const supplier = suppliers.find((entry) => entry.id === item.defaultSupplierId);
       const linkedOutlets = (item.linkedOutletIds || []).map((id) => {
         const outlet = outletById.get(id);
-        const code = outlet?.code || outlet?.shortCode || outlet?.short_code;
-        return [outlet?.name, code ? `(${code})` : ""].filter(Boolean).join(" ");
+        return outlet?.code || outlet?.shortCode || outlet?.short_code || outlet?.id || "";
       }).filter(Boolean).join(", ");
       return {
         "Item Name": item.name,
         "SKU Code": item.sku,
         Category: category?.name || "",
-        Unit: item.unit,
+        UOM: item.unit,
         Description: item.description,
-        "Default Supplier": supplier?.name || "",
         Status: item.status,
-        "Linked Outlets": linkedOutlets,
+        "Linked Outlet Codes": linkedOutlets,
         "Created At": item.createdAt || "",
         "Updated At": item.updatedAt || "",
       };
     });
-    const columns = ["Item Name", "SKU Code", "Category", "Unit", "Description", "Default Supplier", "Status", "Linked Outlets", "Created At", "Updated At"];
+    const columns = ["Item Name", "SKU Code", "Category", "UOM", "Description", "Status", "Linked Outlet Codes", "Created At", "Updated At"];
     const csv = [columns.join(","), ...rows.map((row) => columns.map((column) => csvEscape(row[column])).join(","))].join("\n");
     downloadTextFile(`feedx-master-inventory-${todayInput()}.csv`, csv);
     notify("Master inventory exported successfully", `${rows.length} item${rows.length === 1 ? "" : "s"} exported.`);
@@ -3591,7 +3583,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                     <th className="py-2">Item</th>
                     {masterGroupBy === "none" ? <th>Category</th> : null}
                     <th>SKU Code</th>
-                    <th>Unit</th>
+                    <th>UOM</th>
                     <th>Linked Outlets</th>
                     <th>Status</th>
                     <th className="text-right">Actions</th>
@@ -4659,12 +4651,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
       {renderActiveTab()}
 
-      {modal?.type === "item" ? <InventoryItemModal item={modal.item} categories={sortedCategories} outlets={outlets} suppliers={suppliers} onClose={() => setModal(null)} onSave={saveItem} /> : null}
+      {modal?.type === "item" ? <InventoryItemModal item={modal.item} categories={sortedCategories} outlets={outlets} onClose={() => setModal(null)} onSave={saveItem} /> : null}
       {modal?.type === "inventory-import" ? (
         <InventoryImportModal
           categories={sortedCategories}
           outlets={outlets}
-          suppliers={suppliers}
           items={data.items}
           onClose={() => setModal(null)}
           onImport={importInventoryRows}
