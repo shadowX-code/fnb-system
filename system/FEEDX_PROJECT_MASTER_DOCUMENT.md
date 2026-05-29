@@ -2183,6 +2183,7 @@ Daily Stock Check workflow:
 7. Completed check card shows Review Purchase Suggestions when shortages exist and the user has permission.
 8. Create Draft POs only after user review and confirmation.
 9. Stock Check entry headers show the group, outlet, shift/date, started-by identity, and the latest draft/submission timestamp.
+10. Scheduled check card completion is matched from submitted scheduled checks by `group_id`, `outlet_id`, and `check_date`. The Shift filter defaults to All Shifts, so completed matching does not require `shift` unless a specific shift filter is selected.
 
 Audit Stock Check workflow:
 

@@ -296,28 +296,31 @@ function sameStockCheckShift(left, right) {
   return String(left || "").trim().toLowerCase() === String(right || "").trim().toLowerCase();
 }
 
-function checkMatchesGroupRun(check = {}, group = {}, date) {
+function checkMatchesGroupRun(check = {}, group = {}, date, shiftFilter = "all") {
+  const matchesShift = shiftFilter === "all" || !shiftFilter
+    ? true
+    : sameStockCheckShift(check.shift, shiftFilter);
   return check.stockCheckType !== "audit"
     && check.groupId === group.id
     && check.outletId === group.outletId
     && sameStockCheckDate(check.date, date)
-    && sameStockCheckShift(check.shift, group.shift);
+    && matchesShift;
 }
 
-function submittedCheckForGroupRun(group = {}, checks = [], date) {
+function submittedCheckForGroupRun(group = {}, checks = [], date, shiftFilter = "all") {
   return checks
-    .filter((check) => checkMatchesGroupRun(check, group, date) && ["submitted", "reviewed", "locked"].includes(check.status))
+    .filter((check) => checkMatchesGroupRun(check, group, date, shiftFilter) && ["submitted", "reviewed", "locked"].includes(check.status))
     .sort((a, b) => new Date(b.submittedAt || b.updatedAt || b.date || 0) - new Date(a.submittedAt || a.updatedAt || a.date || 0))[0] || null;
 }
 
-function draftCheckForGroupRun(group = {}, checks = [], date) {
+function draftCheckForGroupRun(group = {}, checks = [], date, shiftFilter = "all") {
   return checks
-    .filter((check) => checkMatchesGroupRun(check, group, date) && check.status === "draft")
+    .filter((check) => checkMatchesGroupRun(check, group, date, shiftFilter) && check.status === "draft")
     .sort((a, b) => new Date(b.updatedAt || b.createdAt || b.date || 0) - new Date(a.updatedAt || a.createdAt || a.date || 0))[0] || null;
 }
 
-function dueStatus(group, checks, date) {
-  if (submittedCheckForGroupRun(group, checks, date)) return "Completed";
+function dueStatus(group, checks, date, shiftFilter = "all") {
+  if (submittedCheckForGroupRun(group, checks, date, shiftFilter)) return "Completed";
   if (isGroupDue(group, date)) return "Due Today";
   const lastChecked = group.lastChecked ? new Date(group.lastChecked) : null;
   if (lastChecked && new Date(date) - lastChecked > 1000 * 60 * 60 * 24 * 8) return "Overdue";
@@ -1098,6 +1101,19 @@ async function loadRemoteInventoryMaster() {
     checkItemsByCheckId.set(row.stock_check_id, list);
   });
   const checks = (stockChecksResult.data || []).map((check) => mapRemoteStockCheck(check, checkItemsByCheckId.get(check.id) || []));
+  debugLog("[SubmittedScheduledChecksDebug]");
+  debugTable((stockChecksResult.data || [])
+    .filter((check) => (check.stock_check_type || check.check_type || "scheduled") === "scheduled" && ["submitted", "reviewed", "locked"].includes(check.status))
+    .map((check) => ({
+      id: check.id,
+      group_id: check.group_id,
+      outlet_id: check.outlet_id,
+      check_date: check.check_date,
+      shift: check.shift,
+      status: check.status,
+      check_type: check.stock_check_type || check.check_type || "scheduled",
+      submitted_at: check.submitted_at,
+    })));
   const purchaseItemsByOrderId = new Map();
   (purchaseOrderItemsResult.data || []).forEach((row) => {
     const list = purchaseItemsByOrderId.get(row.purchase_order_id) || [];
@@ -4364,6 +4380,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [wasteFilters, setWasteFilters] = useState({ wasteType: "all", from: "", to: "", search: "" });
   const [recipeFilters, setRecipeFilters] = useState({ category: "all", status: "active", search: "" });
   const [date, setDate] = useState(todayInput());
+  const [stockCheckShiftFilter, setStockCheckShiftFilter] = useState("all");
   const [modal, setModal] = useState(null);
   const [masterActionMenuItemId, setMasterActionMenuItemId] = useState(null);
   const parLevelGridRef = useRef(null);
@@ -4538,8 +4555,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }, [activeTab, auth, categoryById, categoryFilter, data.items, inventoryMeta, masterGroupBy, outletById, selectedOutletId, statusFilter, visibleItems]);
 
   const selectedOutletIds = selectedOutletId === "all" ? outlets.map((outlet) => outlet.id) : [selectedOutletId];
-  const scopedGroups = data.groups.filter((group) => selectedOutletIds.includes(group.outletId));
-  const dueGroups = scopedGroups.filter((group) => ["Due Today", "Completed", "Overdue"].includes(dueStatus(group, data.checks, date)));
+  const scopedGroups = data.groups.filter((group) => selectedOutletIds.includes(group.outletId) && (stockCheckShiftFilter === "all" || sameStockCheckShift(group.shift, stockCheckShiftFilter)));
+  const dueGroups = scopedGroups.filter((group) => ["Due Today", "Completed", "Overdue"].includes(dueStatus(group, data.checks, date, stockCheckShiftFilter)));
   const activeCheckGroup = activeAuditCheck || data.groups.find((group) => group.id === activeCheckGroupId);
 
   const dashboard = useMemo(() => {
@@ -4548,8 +4565,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       const configs = outletConfigsForScope(item, selectedOutletIds);
       return count + configs.filter((config) => Number(config.parLevel || 0) > 0 && latestActualCount(data.checks, item.id, config.outletId) < Number(config.parLevel || 0)).length;
     }, 0);
-    const criticalChecks = dueGroups.filter((group) => dueStatus(group, data.checks, date) === "Overdue").length;
-    const completion = dueGroups.length ? Math.round((dueGroups.filter((group) => dueStatus(group, data.checks, date) === "Completed").length / dueGroups.length) * 100) : 100;
+    const criticalChecks = dueGroups.filter((group) => dueStatus(group, data.checks, date, stockCheckShiftFilter) === "Overdue").length;
+    const completion = dueGroups.length ? Math.round((dueGroups.filter((group) => dueStatus(group, data.checks, date, stockCheckShiftFilter) === "Completed").length / dueGroups.length) * 100) : 100;
     return {
       inventoryValue: scopedItems.reduce((sum, item) => sum + outletConfigsForScope(item, selectedOutletIds).reduce((configSum, config) => configSum + Number(config.parLevel || 0) * 8, 0), 0),
       lowStock,
@@ -4557,7 +4574,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       varianceRisk: criticalChecks,
       checkCompletion: completion,
     };
-  }, [data.items, data.orders, data.checks, dueGroups, selectedOutletId, selectedOutletIds, date]);
+  }, [data.items, data.orders, data.checks, dueGroups, selectedOutletId, selectedOutletIds, date, stockCheckShiftFilter]);
 
   useEffect(() => {
     if (!activeCheckGroup) return;
@@ -5229,7 +5246,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }
 
   async function startScheduledStockCheck(group) {
-    const existingDraft = draftCheckForGroupRun(group, data.checks, date);
+    const existingDraft = draftCheckForGroupRun(group, data.checks, date, stockCheckShiftFilter);
     if (existingDraft) {
       setActiveAuditCheck(null);
       setActiveCheckGroupId(group.id);
@@ -5372,7 +5389,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         return;
       }
     }
-    const existingDraft = isAudit ? null : draftCheckForGroupRun(activeCheckGroup, data.checks, activeCheckGroup.date || date);
+    const existingDraft = isAudit ? null : draftCheckForGroupRun(activeCheckGroup, data.checks, activeCheckGroup.date || date, stockCheckShiftFilter);
     const persistGroup = {
       ...activeCheckGroup,
       existingCheckId: activeCheckGroup.existingCheckId || existingDraft?.id || "",
@@ -5381,6 +5398,21 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     try {
       const savedCheck = await persistRemoteStockCheck(persistGroup, rows, status, auth?.user?.id, auth?.profile?.id);
       const refreshedInventory = status === "submitted" ? await refreshInventory() : null;
+      if (status === "submitted") {
+        debugLog("[SubmittedScheduledChecksDebug]");
+        debugTable((refreshedInventory?.checks || [savedCheck])
+          .filter((check) => check.stockCheckType === "scheduled" && ["submitted", "reviewed", "locked"].includes(check.status))
+          .map((check) => ({
+            id: check.id,
+            group_id: check.groupId,
+            outlet_id: check.outletId,
+            check_date: check.date,
+            shift: check.shift,
+            status: check.status,
+            check_type: check.stockCheckType,
+            submitted_at: check.submittedAt,
+          })));
+      }
       setData((current) => ({
         ...current,
         ...(refreshedInventory ? {
@@ -5397,7 +5429,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         } : {}),
         checks: [
           savedCheck,
-          ...(refreshedInventory?.checks || current.checks).filter((check) => check.id !== savedCheck.id && !(!isAudit && checkMatchesGroupRun(check, activeCheckGroup, activeCheckGroup.date || date) && check.status === "draft")),
+          ...(refreshedInventory?.checks || current.checks).filter((check) => check.id !== savedCheck.id && !(!isAudit && checkMatchesGroupRun(check, activeCheckGroup, activeCheckGroup.date || date, stockCheckShiftFilter) && check.status === "draft")),
         ],
         groups: isAudit ? (refreshedInventory?.groups || current.groups) : (refreshedInventory?.groups || current.groups).map((group) => group.id === activeCheckGroup.id && status !== "draft" ? { ...group, lastChecked: savedCheck.date, lastCheckedAt: savedCheck.submittedAt || new Date().toISOString() } : group),
       }));
@@ -5455,7 +5487,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   function latestCheckForGroup(group) {
     return [...data.checks]
-      .filter((check) => checkMatchesGroupRun(check, group, date))
+      .filter((check) => checkMatchesGroupRun(check, group, date, stockCheckShiftFilter))
       .sort((a, b) => new Date(b.submittedAt || b.updatedAt || b.date || 0) - new Date(a.submittedAt || a.updatedAt || a.date || 0))[0] || null;
   }
 
@@ -6785,31 +6817,34 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         <div className="card flex flex-col gap-3 p-3 md:flex-row md:items-end">
           <SelectField label="Outlet" value={selectedOutletId} options={getAccessibleOutletOptions(auth, outlets)} onChange={setSelectedOutletId} searchable className="md:w-64" />
           <DatePickerField label="Date" value={date} onChange={setDate} />
-          <SelectField label="Shift" value="all" options={[{ value: "all", label: "All Shifts" }, ...shifts.map((shift) => ({ value: shift, label: shift }))]} onChange={() => {}} className="md:w-48" />
+          <SelectField label="Shift" value={stockCheckShiftFilter} options={[{ value: "all", label: "All Shifts" }, ...shifts.map((shift) => ({ value: shift, label: shift }))]} onChange={setStockCheckShiftFilter} className="md:w-48" />
         </div>
         <SectionCard title="Today's Required Checks" description="Only due groups appear here; outlets are not asked to count every item every day.">
           {dueGroups.length ? (
             <div className="grid gap-3 xl:grid-cols-3">
               {dueGroups.map((group) => {
-                const status = dueStatus(group, data.checks, date);
-                const submittedCheck = submittedCheckForGroupRun(group, data.checks, date);
-                const draftCheck = draftCheckForGroupRun(group, data.checks, date);
+                const status = dueStatus(group, data.checks, date, stockCheckShiftFilter);
+                const submittedCheck = submittedCheckForGroupRun(group, data.checks, date, stockCheckShiftFilter);
+                const draftCheck = draftCheckForGroupRun(group, data.checks, date, stockCheckShiftFilter);
                 const hasDraft = Boolean(draftCheck);
                 const itemCount = stockCheckItemsForGroup(group, data.items).length;
                 const latestCheck = submittedCheck || latestCheckForGroup(group);
                 const suggestions = latestCheck ? buildPurchaseSuggestions(latestCheck) : [];
                 const linkedOrders = latestCheck ? linkedPurchaseOrdersForStockCheck(latestCheck.id) : [];
                 const canReviewSuggestions = can.generatePo || can.reviewCheck;
-                debugLog("[StockCheckDueDebug]", {
+                const cardDebug = {
                   groupId: group.id,
                   groupName: group.name,
                   outletId: group.outletId,
                   shift: group.shift,
                   checkDate: date,
+                  selectedShift: stockCheckShiftFilter,
                   submittedCheckId: submittedCheck?.id || "",
                   isDue: isGroupDue(group, date),
                   cardState: status === "Completed" ? "completed" : hasDraft ? "draft" : "start",
-                });
+                };
+                debugLog("[StockCheckGroupCardDebug]", cardDebug);
+                debugLog("[StockCheckDueDebug]", cardDebug);
                 return (
                   <div key={group.id} className="rounded-2xl border border-border bg-white p-4 transition hover:border-primary/30 hover:shadow-sm">
                     <div className="flex items-start justify-between gap-3">
