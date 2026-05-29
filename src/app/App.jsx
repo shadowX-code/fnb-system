@@ -205,7 +205,7 @@ function RbacDiagnosticsPanel({ auth, loads }) {
             <div>Email: {auth.user?.email ?? "—"}</div>
             <div>Employee profile: {auth.profile?.id ?? "—"}</div>
             <div>Role: {auth.profile?.role_name ?? "—"}</div>
-            <div>Outlet access: {auth.isProtectedRole ? "All outlets" : `${auth.profile?.role_outlet_ids?.length ?? 0} assigned outlet(s)`}</div>
+            <div>Outlet access: {auth.isProtectedRole || auth.profile?.role_outlet_access_type === "all" ? "All outlets" : `${auth.profile?.role_outlet_ids?.length ?? 0} assigned outlet(s)`}</div>
             <div>Access state: {auth.profile?.access_state ?? "—"}</div>
             <div>Login type: {auth.source === "database" ? "Secure login" : "Limited access"}</div>
             <div>Permission count: {auth.permissions.length}</div>
@@ -266,8 +266,8 @@ function RbacDiagnosticsPanel({ auth, loads }) {
 export default function App() {
   const auth = useAuth();
   const authOutletScopeKey = useMemo(
-    () => (auth.profile?.role_outlet_ids ?? auth.profile?.roleOutletIds ?? []).join("|"),
-    [auth.profile?.roleOutletIds, auth.profile?.role_outlet_ids],
+    () => `${auth.profile?.role_outlet_access_type ?? auth.profile?.role?.outlet_access_type ?? ""}|${(auth.profile?.role_outlet_ids ?? auth.profile?.roleOutletIds ?? []).join("|")}`,
+    [auth.profile?.role?.outlet_access_type, auth.profile?.roleOutletIds, auth.profile?.role_outlet_access_type, auth.profile?.role_outlet_ids],
   );
   const initialRoute = window.location.hash?.replace("#", "") || "dashboard";
   const [activeRouteId, setActiveRouteId] = useState(

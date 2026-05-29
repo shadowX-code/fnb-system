@@ -2813,8 +2813,10 @@ Outlet filter behavior:
 - Outlet access controls which outlets a role can see.
 - Outlet filters control the current view within that visible outlet scope.
 - `All Outlets` means access to every current outlet and every future outlet.
+- `All Outlets` is stored explicitly on the role as `roles.outlet_access_type = 'all'`; it must not depend on `role_outlets` rows.
 - Roles with `All Outlets` must see `All Outlets` plus each individual accessible outlet in outlet filters.
 - `Selected Outlets` means access only to specifically selected outlets; future outlets are not included automatically.
+- `Selected Outlets` is stored as `roles.outlet_access_type = 'selected'` plus specific rows in `role_outlets`.
 - Roles with `Selected Outlets` must see `All Accessible Outlets` plus only the outlets assigned to that role.
 - If all current outlets are selected under `Selected Outlets`, the role still does not receive future outlets automatically.
 
@@ -3189,6 +3191,8 @@ Rules:
 - Non-protected users cannot assign outlets outside their own accessible outlet scope.
 - Only owner/admin can grant All Outlets access, which includes future outlets.
 - Outlet selectors must use the centralized accessible-outlet helper, not the full outlet list.
+- The centralized helper must first check the explicit role outlet access type. If access type is `all`, it returns all active outlets from the outlet master list and prepends `All Outlets`.
+- The helper must use `role_outlets` only when access type is `selected`.
 - Outlet filters must always include an aggregate option plus individual visible outlets: `All Outlets` for all-outlet roles, or `All Accessible Outlets` for selected-outlet roles.
 - All-outlet users must be able to filter down to a specific outlet; the aggregate option must not be the only visible option.
 - Outlet data is cached once during app bootstrap and accessible outlets are derived locally from the cached outlet list plus the current role outlet scope.

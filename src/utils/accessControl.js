@@ -9,6 +9,16 @@ export function isProtectedRole(auth) {
 export function hasAllOutletAccess(auth) {
   if (isProtectedRole(auth)) return true;
   const profile = auth?.profile ?? {};
+  const outletAccessType = String(
+    profile.role_outlet_access_type ??
+    profile.outlet_access_type ??
+    profile.outletAccess ??
+    profile.role?.outlet_access_type ??
+    auth?.roleOutletAccessType ??
+    "",
+  ).toLowerCase();
+  if (["all", "all_outlets"].includes(outletAccessType)) return true;
+  if (["selected", "selected_outlets"].includes(outletAccessType)) return false;
   const roleId = profile.role_id ?? profile.role?.id ?? auth?.roleId;
   const outletIds =
     profile.role_outlet_ids ??

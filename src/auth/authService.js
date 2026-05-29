@@ -20,7 +20,7 @@ async function loadEmployeeProfile(user) {
 
   const { data, error } = await supabase
     .from("employees")
-    .select("*, role:roles(id,name,description)")
+    .select("*, role:roles(id,name,description,outlet_access_type)")
     .or(filters.join(","))
     .maybeSingle();
 
@@ -43,7 +43,7 @@ async function activateEmployeeProfile(profile, user) {
       updated_at: new Date().toISOString(),
     })
     .eq("id", profile.id)
-    .select("*, role:roles(id,name,description)")
+    .select("*, role:roles(id,name,description,outlet_access_type)")
     .single();
 
   if (error) {
@@ -57,7 +57,7 @@ async function activateEmployeeProfile(profile, user) {
 async function loadLegacyUserProfile(user) {
   const { data, error } = await supabase
     .from("user_profiles")
-    .select("*, role:roles(id,name,description)")
+    .select("*, role:roles(id,name,description,outlet_access_type)")
     .eq("id", user.id)
     .maybeSingle();
 
@@ -161,12 +161,15 @@ export const authService = {
 
     const permissions = (rows ?? []).map((row) => row.permission?.code).filter(Boolean);
     const roleName = profile.role?.name ?? "unassigned";
-    const roleOutletIds = isProtectedRoleName(roleName) ? [] : await loadRoleOutletIds(profile.role_id);
+    const roleOutletAccessType = String(profile.role?.outlet_access_type || "").toLowerCase();
+    const roleHasAllOutletAccess = isProtectedRoleName(roleName) || ["all", "all_outlets"].includes(roleOutletAccessType);
+    const roleOutletIds = roleHasAllOutletAccess ? [] : await loadRoleOutletIds(profile.role_id);
     const profileWithScope = {
       ...profile,
       role_name: roleName,
+      role_outlet_access_type: roleHasAllOutletAccess ? "all" : "selected",
       role_outlet_ids: roleOutletIds,
-      role: profile.role ? { ...profile.role, outlet_ids: roleOutletIds } : profile.role,
+      role: profile.role ? { ...profile.role, outlet_access_type: roleHasAllOutletAccess ? "all" : "selected", outlet_ids: roleOutletIds } : profile.role,
     };
 
     if (isProtectedRoleName(roleName)) {

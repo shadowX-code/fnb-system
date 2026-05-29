@@ -66,7 +66,7 @@ export const roleService = {
     const { data, error } = await supabase
       .from("roles")
       .select(`
-        id,name,description,is_system_role,is_active,created_at,
+        id,name,description,is_system_role,is_active,outlet_access_type,created_at,
         role_permissions(permission_id,permissions(code,module)),
         role_outlets(outlet_id)
       `)
@@ -88,7 +88,7 @@ export const roleService = {
     const { data, error } = await supabase
       .from("roles")
       .select(`
-        id,name,description,is_system_role,is_active,created_at,
+        id,name,description,is_system_role,is_active,outlet_access_type,created_at,
         role_outlets(outlet_id)
       `)
       .eq("is_active", true)
@@ -104,6 +104,7 @@ export const roleService = {
       description: role.description ?? "",
       is_system_role: Boolean(role.is_system_role),
       is_active: role.is_active !== false,
+      outlet_access_type: role.outletAccess === "selected" ? "selected" : "all",
     };
 
     const isUpdate = isSupabaseUuid(role.id);
@@ -112,7 +113,7 @@ export const roleService = {
       : supabase.from("roles").insert(payload);
 
     const { data: savedRole, error: roleError } = await roleQuery
-      .select("id,name,description,is_system_role,is_active,created_at")
+      .select("id,name,description,is_system_role,is_active,outlet_access_type,created_at")
       .single();
 
     throwSupabaseError("roles.save", roleError);
