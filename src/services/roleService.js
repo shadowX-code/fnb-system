@@ -2,7 +2,7 @@ import { supabase } from "../lib/supabase";
 import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
 import { isSupabaseUuid } from "./idUtils";
-import { enabledActions, moduleRegistry, permissionCode } from "../../config/modules.ts";
+import { enabledActions, getPermissionDefinitions, moduleRegistry, permissionCode } from "../../config/modules.ts";
 import { isProtectedRoleName } from "../auth/rbac.js";
 
 const registryPermissionCodes = moduleRegistry.flatMap((module) =>
@@ -11,6 +11,24 @@ const registryPermissionCodes = moduleRegistry.flatMap((module) =>
 const registryPermissionCodeSet = new Set(registryPermissionCodes);
 
 const registryModuleLabels = moduleRegistry.map((module) => module.label);
+
+async function syncPermissionCatalog(permissionCodes) {
+  const requestedCodes = new Set(permissionCodes);
+  const definitions = getPermissionDefinitions()
+    .filter((definition) => requestedCodes.has(definition.code))
+    .map((definition) => ({
+      code: definition.code,
+      module: definition.module,
+      description: definition.description,
+    }));
+
+  if (!definitions.length) return;
+
+  const { error } = await supabase
+    .from("permissions")
+    .upsert(definitions, { onConflict: "code" });
+  throwSupabaseError("roles.permissions_sync", error);
+}
 
 function mapRole(row) {
   const isProtectedRole = isProtectedRoleName(row.name);
@@ -100,6 +118,8 @@ export const roleService = {
     throwSupabaseError("roles.save", roleError);
 
     const permissionCodes = [...new Set((role.permissions ?? []).filter((code) => registryPermissionCodeSet.has(code)))];
+    await syncPermissionCatalog(permissionCodes);
+
     const { data: permissions, error: permissionError } = await supabase
       .from("permissions")
       .select("id,code,module")

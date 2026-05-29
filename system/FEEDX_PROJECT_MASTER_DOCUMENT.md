@@ -1763,6 +1763,7 @@ Inventory Control permissions:
 - Inventory Control must not own operational permission rows such as create, edit, manage, import, export, record, generate, or approve.
 - Inventory permissions live on child modules only.
 - The `permissions` table must contain the canonical child permission keys below; role save/load must use these exact keys.
+- Role save should sync missing canonical permission catalog rows before writing `role_permissions` so newly introduced module keys do not revert to Off.
 - Role save must filter out legacy parent `inventory_control.*` keys from active payloads so old duplicate parent permissions are not reintroduced.
 - Stock Requests permissions are legacy/internal only and must not appear in the active Role Management matrix.
 - Non-view actions require view through the permission matrix dependency rule.
