@@ -4031,7 +4031,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       groups.get(key).items.push(item);
       return groups;
     }, new Map()).values()].sort((a, b) => Number(a.category?.sortOrder ?? 9999) - Number(b.category?.sortOrder ?? 9999) || (a.category?.name || "Uncategorized").localeCompare(b.category?.name || "Uncategorized"));
-    const matrixOutlets = activeOutletId && activeOutletId !== "all" ? outlets.filter((outlet) => outlet.id === activeOutletId) : outlets;
+    const matrixOutlets = outlets;
     const matrixItemGroups = [...parItems.reduce((groups, item) => {
       const category = categoryById.get(item.categoryId);
       const key = item.categoryId || "uncategorized";
@@ -4064,6 +4064,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       if (rowIndex === undefined) return;
       const keyMap = {
         Enter: event.shiftKey ? "previous-row" : "next-row",
+        Tab: event.shiftKey ? "left" : "right",
         ArrowDown: "next-row",
         ArrowUp: "previous-row",
         ArrowRight: "right",
@@ -4177,14 +4178,24 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       <div className="space-y-4">
         <div className="card flex flex-col gap-3 p-3 lg:flex-row lg:items-end lg:justify-between">
           <div className="flex flex-1 flex-col gap-3 lg:flex-row lg:items-end">
-            <SelectField
-              label="Outlet"
-              value={activeOutletId}
-              options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))}
-              onChange={setParLevelOutletId}
-              searchable
-              className="lg:w-72"
-            />
+            {parLevelView === "outlet" ? (
+              <SelectField
+                label="Outlet"
+                value={activeOutletId}
+                options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))}
+                onChange={setParLevelOutletId}
+                searchable
+                className="lg:w-72"
+              />
+            ) : (
+              <div className="lg:w-72">
+                <div className="mb-1 type-caption font-semibold text-text-secondary">Outlet Scope</div>
+                <div className="control flex h-9 items-center justify-between text-[13px] font-semibold text-text-primary">
+                  <span>All accessible outlets</span>
+                  <Badge tone="info">{outlets.length}</Badge>
+                </div>
+              </div>
+            )}
             <SelectField
               label="Category"
               value={categoryFilter}
@@ -4291,7 +4302,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                 <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
                   <MetricCard label="Items" value={visibleMatrixItems.length} helper="Linked inventory rows" size="compact" />
                   <MetricCard label="Categories" value={matrixItemGroups.length} helper="Grouped for scanning" size="compact" />
-                  <MetricCard label="Outlets" value={matrixOutlets.length} helper={activeOutletId ? "Visible columns" : "Comparison scope"} size="compact" />
+                  <MetricCard label="Outlets" value={matrixOutlets.length} helper="All accessible outlets" size="compact" />
                   <MetricCard label="Configured" value={configuredMatrixCount} helper="Cells with par level" tone="success" size="compact" />
                   <MetricCard label="Missing" value={Math.max(0, linkedMatrixCount - configuredMatrixCount)} helper="Linked but not set" tone={linkedMatrixCount - configuredMatrixCount ? "warning" : "success"} size="compact" />
                 </div>
@@ -4304,8 +4315,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                         {matrixOutlets.map((outlet) => (
                           <th key={outlet.id} className="min-w-[150px] border-b border-border bg-primary/5 px-3 py-2">
                             <div className="rounded-2xl border border-primary/10 bg-white/80 px-3 py-2 normal-case shadow-sm">
-                              <div className="truncate type-body-sm font-black text-text-primary">{outlet.name}</div>
-                              <div className="mt-0.5 type-micro font-bold uppercase tracking-wide text-primary">{outlet.code || outlet.shortCode || outlet.short_code || "Outlet"}</div>
+                              <div className="type-body-sm font-black text-text-primary" title={outlet.name}>{outlet.code || outlet.shortCode || outlet.short_code || "OUTLET"}</div>
                             </div>
                           </th>
                         ))}
@@ -4357,7 +4367,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                                           onChange={(event) => saveParLevelConfig(item.id, outlet.id, { parLevel: parseNonNegativeNumber(event.target.value) })}
                                         />
                                       ) : (
-                                        <span className="inline-flex items-center rounded-full border border-slate-200 bg-slate-100 px-2.5 py-1 type-caption font-bold text-text-muted">⊘ Not Linked</span>
+                                        <span className="inline-flex h-9 w-12 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 type-body-sm font-black text-text-muted" title={`${item.name} is not linked to ${outlet.name}`}>⊘</span>
                                       )}
                                     </td>
                                   );
