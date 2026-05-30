@@ -114,6 +114,7 @@ Date: 29 May 2026, 11:45 PM MYT
 | Browser import verification | Blocked by tool | Code-path review on 30 May 2026 confirmed the import confirm path validates rows, calls `persistRemoteInventoryItem()` for each valid row, writes `inventory_items` plus `inventory_item_outlets`, and skips invalid Category/UOM/Outlet Code rows. The requested live browser upload/refresh test could not be executed because the in-app browser tool refused navigation from its local error-page state under URL policy. | Retest when browser surface is available |
 | Result summary | Pass | Import completion reports Created, Updated, Skipped, and Failed rows. | - |
 | Export current filtered view | Pass | Export path still exports `visibleItems` as CSV with Linked Outlet Codes. | - |
+| Default Cost field | Pass after implementation | Master Inventory now persists `inventory_items.cost`, shows Default Cost in Add/Edit Item, supports inline table cost edits via `inventory_master.edit`, validates up to 4 decimals, imports optional Cost, and exports Cost in the current filtered CSV view. Browser refresh verification is still recommended after applying migration `202605310001_inventory_item_default_cost.sql` to staging. | Retest after migration push |
 
 ## P1-B Waste & Variance Persistence
 

@@ -1866,6 +1866,9 @@ Master Inventory fields:
 - sku_code
 - category_id
 - unit
+- cost
+- cost_updated_at
+- cost_updated_by
 - photo_url
 - description
 - inventory_type (backend compatibility only; not user-facing in current Add/Edit Item UI)
@@ -1899,6 +1902,11 @@ Master Inventory UI:
 - Default Supplier is no longer exposed in Add/Edit Item because supplier assignment is outlet-specific and managed in Par Levels / outlet-item supplier configuration.
 - The master item unit field is displayed as UOM in Master Inventory UI.
 - `inventory_items.unit` is the source of truth for Master Inventory UOM; UI aliases such as `uom_code` must normalize back to the selected `unit` value and must not override a newly saved UOM.
+- Master Inventory stores `inventory_items.cost` as the default estimated cost per UOM. This is a planning/default cost only; actual purchase cost from supplier invoices or PO receiving is a future enhancement and must not auto-update this field yet.
+- Add/Edit Item shows Default Cost with helper text such as `RM per kg` or `RM per pcs` based on the selected UOM.
+- Default Cost is optional, must be non-negative, and supports up to 4 decimals.
+- Master Inventory table columns are Item, SKU Code, UOM, Linked Outlets, Cost, Status, and Actions when grouped by Category.
+- Inline Cost editing requires `inventory_master.edit`, writes only `cost`, `cost_updated_at`, and `cost_updated_by`, and shows `Inventory cost updated` only after Supabase confirms the write.
 - Master Inventory UOM values are managed by users in Master Inventory > UOM Settings.
 - UOM dropdowns load from `inventory_uoms`, and the Add/Edit Item UOM dropdown includes `+ Add New UOM` for quick creation.
 - Saving a new UOM refreshes the UOM list and auto-selects the newly created UOM in the item form.
@@ -1919,7 +1927,7 @@ Master Inventory UI:
 - Collapsed category state may be remembered for the current browser session.
 - A Group by control supports Category and None.
 - When grouped by Category, the Category column is hidden because category is represented by the group header.
-- When grouping is None, the table columns are Item, Category, SKU Code, UOM, Linked Outlets, Status, and Actions.
+- When grouping is None, the table columns are Item, Category, SKU Code, UOM, Linked Outlets, Cost, Status, and Actions.
 - Search, outlet filter, category filter, and status filter apply before grouping; empty groups are hidden.
 - For roles with `outlet_access_type = all`, the `All Outlets` filter shows all active master inventory items and must not filter items out because they have no linked outlet rows.
 - For a specific selected outlet, Master Inventory shows only items linked to that outlet.
@@ -1940,7 +1948,7 @@ Master Inventory UI:
 - Add/Edit Item shows linked outlets and a note that par levels are managed in Par Level Setup.
 - Add/Edit Item does not show outlet-by-outlet Par Level, Low Stock Threshold, or Reorder Qty inputs.
 - Add/Edit Item save is remote-first: show success only after `inventory_items` and `inventory_item_outlets` are persisted and refetched from Supabase.
-- Add/Edit Item toast messages are action-specific: `Inventory item created`, `Inventory item updated`, `Inventory photo updated`, `Inventory UOM updated`, `Inventory category updated`, `Inventory status updated`, `Inventory item details updated`, `Linked outlets updated`, or `Item saved, but photo upload failed`.
+- Add/Edit Item toast messages are action-specific: `Inventory item created`, `Inventory item updated`, `Inventory photo updated`, `Inventory UOM updated`, `Inventory cost updated`, `Inventory category updated`, `Inventory status updated`, `Inventory item details updated`, `Linked outlets updated`, or `Item saved, but photo upload failed`.
 - Inventory Control toast messages must identify both module and action, and success toasts may only appear after Supabase confirms the write. Scheduled Stock Check uses `Stock Check draft saved` and `Stock Check submitted`; Audit Stock Check uses `Audit Stock Check draft saved` and `Audit Stock Check submitted`; purchase workflows use `Draft PO created`, `PO submitted`, `Inventory received`, `PO completed`, and `PO cancelled`; Waste uses `Waste record created` / `Waste record updated`; Recipes use `Recipe created`, `Recipe updated`, and `Recipe archived`. Error toasts must name the failed action, for example `Failed to submit Audit Stock Check` or `Failed to update Inventory Item`.
 - Item archive/delete actions are remote-first and must not mutate the visible item list before Supabase confirms the write.
 - Item Archive persists `inventory_items.status = inactive`, refetches the list, hides the item from the Active filter, and keeps the item visible under Inactive or All status filters.
@@ -1954,11 +1962,12 @@ Master Inventory import/export:
 
 - Import supports CSV and XLSX.
 - Required import columns are Item Name, Category, and UOM.
-- Import template columns are Item Name, SKU Code, Category, UOM, Description, Status, and Linked Outlet Codes.
+- Import template columns are Item Name, SKU Code, Category, UOM, Cost, Description, Status, and Linked Outlet Codes.
 - Linked Outlet Codes accepts outlet codes separated by commas, for example `FC,HLIPH,JYMT`.
 - Import validates rows before commit and shows a preview of create, update, and failed rows.
 - Category matching uses normalized category name.
 - UOM must exist in the allowed UOM list.
+- Cost is optional, must be numeric, non-negative, and supports up to 4 decimals.
 - Outlet matching uses normalized outlet code only and must be within the importing user's accessible outlet scope.
 - Unknown Category, UOM, or Outlet Code values show validation errors in the preview and must not be silently imported.
 - Import upserts inventory items by SKU Code when present; otherwise by normalized Item Name.
@@ -1971,7 +1980,7 @@ Master Inventory import/export:
 - Failed rows may be skipped while valid rows are imported.
 - Import template download is available from the import workflow.
 - Export supports the current filtered Master Inventory view as CSV.
-- Export columns are Item Name, SKU Code, Category, UOM, Description, Status, Linked Outlet Codes, Created At, and Updated At.
+- Export columns are Item Name, SKU Code, Category, UOM, Cost, Description, Status, Linked Outlet Codes, Created At, and Updated At.
 - Export filename format is `feedx-master-inventory-YYYY-MM-DD.csv`.
 - Import requires inventory_master.create or inventory_master.edit permission.
 - Export requires inventory_master.export permission.
@@ -4142,6 +4151,15 @@ Date picker rules:
 - Display format is `DD MMM YYYY` style, for example `28 May 2026`.
 - Manual input may accept numeric format such as `28/05/2026`.
 - Dark mode must keep card surfaces, text, hover state, selected state, and outside-month days readable.
+
+Dark mode semantic color rules:
+
+- Dark mode uses separate semantic tokens for success, warning, danger, info, neutral, primary, elevated surfaces, muted surfaces, subtle borders, and readable text.
+- Light mode color treatment must remain unchanged; dark-mode overrides tune only dark surfaces, borders, and text contrast.
+- Info, warning, success, and danger cards use tinted dark backgrounds with lighter readable text. Do not use saturated blue text on dark blue backgrounds or dark red text on dark red backgrounds.
+- Insight cards, security notes, alert callouts, status badges, and operational summary tiles must use semantic dark surfaces instead of muddy light color translations.
+- Badge and status pill text must keep strong contrast in dark mode for Active, Completed, Draft, Warning, High, Info, Success, and Error states.
+- FeedX green remains the brand accent, but semantic warning/danger/info states must stay visually distinct from the brand color.
 
 FloatingLayer migration status:
 
