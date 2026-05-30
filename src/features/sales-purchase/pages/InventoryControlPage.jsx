@@ -38,6 +38,11 @@ import { getAccessibleOutletOptions, getAccessibleOutlets, hasAllOutletAccess, h
 
 const STORAGE_KEY = "feedx.inventoryControl.v2";
 const LEGACY_STORAGE_KEYS = ["feedx.inventoryControl.v1"];
+const ENABLE_MOBILE_STOCKCHECK_EXPERIMENT = String(
+  import.meta.env.VITE_ENABLE_MOBILE_STOCKCHECK_EXPERIMENT
+    ?? import.meta.env.ENABLE_MOBILE_STOCKCHECK_EXPERIMENT
+    ?? "false",
+).toLowerCase() === "true";
 const INVENTORY_BROWSER_CACHE_KEYS = [
   STORAGE_KEY,
   ...LEGACY_STORAGE_KEYS,
@@ -604,6 +609,29 @@ function isImageDataUrl(value) {
 
 function isUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
+}
+
+function useIsMobileStockCheckExperiment() {
+  const [isMobile, setIsMobile] = useState(() => (
+    ENABLE_MOBILE_STOCKCHECK_EXPERIMENT
+    && typeof window !== "undefined"
+    && window.matchMedia?.("(max-width: 768px)")?.matches
+  ));
+
+  useEffect(() => {
+    if (!ENABLE_MOBILE_STOCKCHECK_EXPERIMENT || typeof window === "undefined") {
+      setIsMobile(false);
+      return undefined;
+    }
+    const query = window.matchMedia?.("(max-width: 768px)");
+    if (!query) return undefined;
+    const update = () => setIsMobile(query.matches);
+    update();
+    query.addEventListener?.("change", update);
+    return () => query.removeEventListener?.("change", update);
+  }, []);
+
+  return ENABLE_MOBILE_STOCKCHECK_EXPERIMENT && isMobile;
 }
 
 function selectInputText(event) {
@@ -2875,6 +2903,174 @@ function InventoryItemThumbnail({ item, category, onPreview, size = "md" }) {
   );
 }
 
+function StockCheckMobileView({
+  activeCheckGroup,
+  isAudit,
+  rows,
+  itemById,
+  categoryById,
+  outletName,
+  dateLabel,
+  startedByName,
+  submittedByName,
+  draftSavedAt,
+  activePersistedCheck,
+  currentCheckerName,
+  validationIssues,
+  checkSearch,
+  onSearchChange,
+  onPreviewPhoto,
+  onUpdateRow,
+  onSkipRow,
+  onUnskipRow,
+  onBack,
+  onSaveDraft,
+  onSubmit,
+}) {
+  const issueByRowIndex = new Map((validationIssues || []).map((issue) => [issue.rowIndex, issue]));
+  const filteredRows = rows.filter((row) => {
+    if (!checkSearch.trim()) return true;
+    const item = itemById.get(row.itemId);
+    return `${item?.name || ""} ${item?.sku || ""}`.toLowerCase().includes(checkSearch.trim().toLowerCase());
+  });
+
+  return (
+    <div className="space-y-3">
+      <SectionCard
+        title={activeCheckGroup.name}
+        description={`${outletName} · ${isAudit ? activeCheckGroup.auditType : activeCheckGroup.shift} · ${dateLabel}`}
+        action={<button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={onBack}>Back</button>}
+      >
+        <div className="grid gap-2 rounded-2xl border border-border bg-slate-50 p-3">
+          <div className="flex items-center justify-between gap-3">
+            <div>
+              <div className="type-micro font-black uppercase text-text-muted">Checked by</div>
+              <div className="type-body-sm font-bold text-text-primary">{currentCheckerName}</div>
+            </div>
+            <Badge tone={isAudit ? "info" : "warning"}>{isAudit ? "Audit" : "Scheduled"}</Badge>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <div>
+              <div className="type-micro font-black uppercase text-text-muted">Started by</div>
+              <div className="type-caption font-bold text-text-primary">{startedByName}</div>
+            </div>
+            <div>
+              <div className="type-micro font-black uppercase text-text-muted">{activePersistedCheck?.status === "submitted" ? "Submitted" : "Draft saved"}</div>
+              <div className="type-caption font-bold text-text-primary">
+                {activePersistedCheck?.status === "submitted"
+                  ? `${submittedByName || "Unknown user"} · ${formatDateTimeCompact(activePersistedCheck.submittedAt)}`
+                  : (draftSavedAt ? formatDateTimeCompact(draftSavedAt) : "Not saved yet")}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {isAudit ? (
+          <label className="mt-3 block">
+            <div className="relative">
+              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
+              <input className="control h-10 w-full pl-9 text-[13px]" value={checkSearch} onChange={(event) => onSearchChange(event.target.value)} placeholder="Search item" />
+            </div>
+          </label>
+        ) : null}
+
+        {validationIssues.length ? (
+          <div className="mt-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
+            <div className="flex items-start gap-3">
+              <AlertTriangle className="mt-0.5 shrink-0 text-amber-600" size={18} />
+              <div>
+                <div className="type-body-sm font-black">{isAudit ? "Audit Check cannot be submitted" : "Stock Check cannot be submitted"}</div>
+                <div className="mt-1 type-caption font-semibold">{validationIssues.length} item{validationIssues.length === 1 ? "" : "s"} require attention:</div>
+                <ul className="mt-2 space-y-1 type-caption">
+                  {validationIssues.slice(0, 6).map((issue) => (
+                    <li key={`${issue.rowIndex}-${issue.reason}`}><span className="font-bold">{issue.itemName}</span> &rarr; {issue.reason}</li>
+                  ))}
+                  {validationIssues.length > 6 ? <li className="font-semibold">+{validationIssues.length - 6} more</li> : null}
+                </ul>
+              </div>
+            </div>
+          </div>
+        ) : null}
+      </SectionCard>
+
+      <div className="space-y-3">
+        {filteredRows.map((row) => {
+          const item = itemById.get(row.itemId);
+          const category = categoryById.get(item?.categoryId);
+          const parLevel = parLevelForOutlet(item, activeCheckGroup.outletId);
+          const result = row.skipped ? { label: "Skipped", tone: "neutral", variance: 0 } : varianceStatus(parLevel, row.actualCount);
+          const issue = issueByRowIndex.get(row.rowIndex);
+          return (
+            <div key={row.itemId} data-check-row-index={row.rowIndex} className={`rounded-2xl border bg-white p-3 shadow-sm transition ${issue ? "border-amber-300 bg-amber-50/70" : "border-border"}`}>
+              <div className="flex items-start gap-3">
+                <InventoryItemThumbnail item={item} category={category} onPreview={onPreviewPhoto} />
+                <div className="min-w-0 flex-1">
+                  <div className="font-black text-text-primary">{item?.name || "Inventory item"}</div>
+                  <div className="type-caption text-text-secondary">{category?.name ?? "Uncategorized"}{item?.sku ? ` · ${item.sku}` : ""}</div>
+                </div>
+                <Badge tone={row.skipped ? "neutral" : row.na ? "neutral" : result.tone}>{row.skipped ? "Skipped" : row.na ? "NA" : result.label}</Badge>
+              </div>
+
+              <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl bg-slate-50 p-2 text-center">
+                <div><div className="type-micro font-black uppercase text-text-muted">Par</div><div className="type-body-sm font-bold text-text-primary">{parLevel}</div></div>
+                <div><div className="type-micro font-black uppercase text-text-muted">Variance</div><div className="type-body-sm font-bold text-text-primary">{row.skipped ? "Skipped" : row.na ? "NA" : result.variance}</div></div>
+                <div><div className="type-micro font-black uppercase text-text-muted">UOM</div><div className="type-body-sm font-bold text-text-primary">{item?.unit || "-"}</div></div>
+              </div>
+
+              <div className="mt-3">
+                <div className="mb-1 type-caption font-semibold text-text-secondary">Actual Count</div>
+                <div className="flex items-center gap-2">
+                  <button className="icon-btn h-10 w-10" type="button" disabled={row.skipped} onClick={() => onUpdateRow(row.rowIndex, (entry) => ({ ...entry, actualCount: Math.max(0, Number(entry.actualCount || 0) - 1), na: false }))}>-</button>
+                  <input className="control h-10 min-w-0 flex-1 text-center text-[15px] font-bold" type="number" min="0" disabled={row.skipped} value={row.actualCount ?? ""} placeholder="Qty" onFocus={selectInputText} onChange={(event) => onUpdateRow(row.rowIndex, (entry) => ({ ...entry, actualCount: parseNonNegativeNumber(event.target.value), na: false }))} />
+                  <button className="icon-btn h-10 w-10" type="button" disabled={row.skipped} onClick={() => onUpdateRow(row.rowIndex, (entry) => ({ ...entry, actualCount: Number(entry.actualCount || 0) + 1, na: false }))}>+</button>
+                </div>
+                {issue ? <div className="mt-2 type-caption font-bold text-amber-700">{issue.reason === "Count not entered" ? "Count required" : issue.reason}</div> : null}
+              </div>
+
+              {!row.skipped ? (
+                <div className="mt-3 flex flex-wrap gap-1">
+                  {[
+                    ["Full", parLevel],
+                    ["Half", Math.round(Number(parLevel || 0) / 2)],
+                    ["Empty", 0],
+                    ...(!isAudit ? [["NA", row.actualCount]] : []),
+                  ].map(([label, value]) => (
+                    <button key={label} className="rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text-secondary hover:border-primary/30 hover:text-primary" type="button" onClick={() => onUpdateRow(row.rowIndex, (entry) => ({ ...entry, actualCount: Number(value || 0), na: label === "NA" }))}>{label}</button>
+                  ))}
+                </div>
+              ) : <div className="mt-3 type-caption font-semibold text-text-muted">Skipped: {row.skipReason}</div>}
+
+              <input className="control mt-3 h-10 w-full text-[13px]" value={row.notes} onChange={(event) => onUpdateRow(row.rowIndex, (entry) => ({ ...entry, notes: event.target.value }))} placeholder="Optional note" />
+
+              {isAudit ? (
+                <div className="mt-3 flex justify-end">
+                  {row.skipped ? (
+                    <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={() => onUnskipRow(row.rowIndex)}>Unskip</button>
+                  ) : (
+                    <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={() => onSkipRow(row.rowIndex, item?.name)}>Skip</button>
+                  )}
+                </div>
+              ) : null}
+            </div>
+          );
+        })}
+      </div>
+
+      <div className="sticky bottom-3 z-20 rounded-2xl border border-border bg-white/95 p-3 shadow-card backdrop-blur">
+        <div className="mb-2 flex flex-wrap gap-2 type-caption font-semibold text-text-secondary">
+          <span>{rows.length} items</span>
+          <span>·</span>
+          <span>{rows.filter((row) => row.skipped).length} skipped</span>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
+          <button className="btn-secondary" type="button" onClick={onSaveDraft}>Save Draft</button>
+          <button className="btn-primary" type="button" onClick={onSubmit}>{isAudit ? "Submit Audit" : "Submit"}</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function InventoryItemPhotoPreview({ preview, onClose }) {
   useEffect(() => {
     if (!preview?.src) return undefined;
@@ -4475,6 +4671,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [checkSearch, setCheckSearch] = useState("");
   const [collapsedCheckCategoryIds, setCollapsedCheckCategoryIds] = useState(() => new Set());
   const [photoPreview, setPhotoPreview] = useState(null);
+  const isMobileStockCheckExperiment = useIsMobileStockCheckExperiment();
 
   const setDate = useCallback((value, source = "manual") => {
     setDateState(normalizeBusinessDate(value));
@@ -6965,12 +7162,51 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           </tr>
         );
       };
+      const updateCheckRow = (index, updater) => {
+        setCheckRows((current) => current.map((entry, rowIndex) => {
+          if (rowIndex !== index) return entry;
+          return typeof updater === "function" ? updater(entry) : { ...entry, ...updater };
+        }));
+      };
+      const closeActiveCheck = () => {
+        setActiveCheckGroupId(null);
+        setActiveScheduledCheckId(null);
+        setActiveAuditCheck(null);
+      };
+      if (isMobileStockCheckExperiment) {
+        return (
+          <StockCheckMobileView
+            activeCheckGroup={activeCheckGroup}
+            isAudit={isAudit}
+            rows={checkRows.map((row, index) => ({ ...row, rowIndex: index }))}
+            itemById={itemById}
+            categoryById={categoryById}
+            outletName={outletById.get(activeCheckGroup.outletId)?.name || "Outlet"}
+            dateLabel={formatDate(activeCheckGroup.date || date)}
+            startedByName={startedByName}
+            submittedByName={submittedByName}
+            draftSavedAt={draftSavedAt}
+            activePersistedCheck={activePersistedCheck}
+            currentCheckerName={currentCheckerName}
+            validationIssues={validationIssues}
+            checkSearch={checkSearch}
+            onSearchChange={setCheckSearch}
+            onPreviewPhoto={setPhotoPreview}
+            onUpdateRow={updateCheckRow}
+            onSkipRow={(rowIndex, itemName) => setModal({ type: "skip-check-row", rowIndex, itemName })}
+            onUnskipRow={unskipCheckRow}
+            onBack={closeActiveCheck}
+            onSaveDraft={() => requirePermission(can.editCheck, "save stock check drafts") && saveStockCheck("draft")}
+            onSubmit={() => requirePermission(can.createCheck, "submit stock checks") && saveStockCheck("submitted")}
+          />
+        );
+      }
       return (
         <div className="space-y-4">
           <SectionCard
             title={activeCheckGroup.name}
             description={`${outletById.get(activeCheckGroup.outletId)?.name} · ${isAudit ? activeCheckGroup.auditType : activeCheckGroup.shift} · ${formatDate(activeCheckGroup.date || date)}`}
-            action={<button className="btn-secondary" type="button" onClick={() => { setActiveCheckGroupId(null); setActiveScheduledCheckId(null); setActiveAuditCheck(null); }}>Back to Due Checks</button>}
+            action={<button className="btn-secondary" type="button" onClick={closeActiveCheck}>Back to Due Checks</button>}
           >
             <div className="mb-3 grid gap-2 rounded-2xl border border-border bg-slate-50 p-3 md:grid-cols-3">
               <div>
