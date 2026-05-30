@@ -738,9 +738,9 @@ function focusIndexedInput(containerRef, currentIndex, direction, selector = "[d
 }
 
 function getLinkedOutletIds(item = {}) {
+  if (Array.isArray(item.linkedOutletIds)) return uniqueIds(item.linkedOutletIds);
+  if (Array.isArray(item.linked_outlet_ids)) return uniqueIds(item.linked_outlet_ids);
   return uniqueIds([
-    ...(item.linkedOutletIds || []),
-    ...(item.linked_outlet_ids || []),
     ...(item.linkedOutlets || []).map((outlet) => normalizeOutletRecord(outlet).id),
     ...(item.linked_outlets || []).map((outlet) => normalizeOutletRecord(outlet).id),
     ...(item.outletConfigs || []).map((config) => config.outletId),
@@ -3501,9 +3501,14 @@ function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onA
 
   function updateLinkedOutlets(ids) {
     setForm((current) => {
-      const next = { ...current, linkedOutletIds: ids };
+      const next = { ...current, linkedOutletIds: ids, linked_outlet_ids: ids, linkedOutlets: [], linked_outlets: [] };
       const existing = new Map((current.outletConfigs || []).map((config) => [config.outletId, config]));
       next.outletConfigs = ids.map((outletId) => buildOutletConfig(current, outletId, existing.get(outletId)));
+      next.outlet_configs = next.outletConfigs.map((config) => ({
+        ...config,
+        inventory_item_id: config.inventoryItemId,
+        outlet_id: config.outletId,
+      }));
       return next;
     });
   }
@@ -5005,6 +5010,15 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     const normalizedItem = normalizeInventoryItem({ ...item, photo: safePhoto, photo_url: safePhoto });
     const photoChanged = !photoUploadFailed && (existingItem?.photo || existingItem?.photo_url || "") !== (normalizedItem.photo || normalizedItem.photo_url || "");
     const linkedOutletsChanged = !sameIdSet(existingItem?.linkedOutletIds || [], normalizedItem.linkedOutletIds || []);
+    const existingOutletIdsForDebug = uniqueIds(existingItem?.linkedOutletIds || []);
+    const selectedOutletIdsForDebug = uniqueIds(normalizedItem.linkedOutletIds || []);
+    debugLog("[InventoryOutletSaveDebug]", {
+      itemId: normalizedItem.id || null,
+      existingOutletIds: existingOutletIdsForDebug,
+      selectedOutletIds: selectedOutletIdsForDebug,
+      outletsToAdd: selectedOutletIdsForDebug.filter((outletId) => !existingOutletIdsForDebug.includes(outletId)),
+      outletsToRemove: existingOutletIdsForDebug.filter((outletId) => !selectedOutletIdsForDebug.includes(outletId)),
+    });
     const nameChanged = !isCreate && Boolean(existingItem) && existingItem.name !== normalizedItem.name;
     const skuChanged = !isCreate && Boolean(existingItem) && (existingItem.sku || "") !== (normalizedItem.sku || "");
     const categoryChanged = !isCreate && Boolean(existingItem) && (existingItem.categoryId || "") !== (normalizedItem.categoryId || "");
