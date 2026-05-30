@@ -932,7 +932,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
           ? safeNotificationQuery("purchase orders", supabase.from("inventory_purchase_orders").select("id,po_no,outlet_id,status,source_type,source_stock_check_id,created_at,updated_at,submitted_at").in("status", ["draft", "submitted", "supplier_confirmed", "partial_received"]).order("created_at", { ascending: false }).limit(80))
           : [],
         userCanNotification(["inventory_waste.view"])
-          ? safeNotificationQuery("waste records", supabase.from("inventory_waste_records").select("id,outlet_id,waste_type,quantity,unit,waste_date,created_at,item:inventory_items(name,category:inventory_categories(name))").gte("waste_date", today).order("waste_date", { ascending: false }).limit(80))
+          ? safeNotificationQuery("waste records", supabase.from("inventory_waste_records").select("id,outlet_id,inventory_item_id,waste_type,quantity,unit,waste_date,created_at").gte("waste_date", today).order("waste_date", { ascending: false }).limit(80))
           : [],
         assetWanted
           ? safeNotificationQuery("asset maintenance", supabase.from("asset_maintenance_records").select("id,asset_id,outlet_id,status,scheduled_date,date,maintenance_type,issue,created_at,updated_at,asset:asset_items(name)").neq("status", "completed").order("date", { ascending: true }).limit(80))

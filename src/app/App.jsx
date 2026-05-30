@@ -460,9 +460,30 @@ export default function App() {
     auth.permissions.length,
     auth.profile?.id,
     auth.profile?.role_name,
-    auth.session,
+    auth.user?.id,
     authOutletScopeKey,
   ]);
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return undefined;
+    const logTabEvent = (event) => {
+      console.info("[TabFocusRefreshDebug]", {
+        event,
+        routeBefore: activeRouteId,
+        didReload: false,
+        didRefetch: false,
+        errorSource: "",
+      });
+    };
+    const onFocus = () => logTabEvent("focus");
+    const onVisibilityChange = () => logTabEvent(document.hidden ? "visibility_hidden" : "visibility_visible");
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onVisibilityChange);
+    return () => {
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onVisibilityChange);
+    };
+  }, [activeRouteId]);
 
   useEffect(() => {
     if (!auth.session || auth.loading || auth.contextLoading || !accessibleRoutes.length) return;

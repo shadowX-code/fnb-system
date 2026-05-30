@@ -26,9 +26,19 @@ export function AuthProvider({ children }) {
   const [source, setSource] = useState("loading");
   const [passwordRecovery, setPasswordRecovery] = useState(false);
   const passwordRecoveryRef = useRef(false);
+  const currentUserRef = useRef(null);
+  const currentProfileRef = useRef(null);
   const [loading, setLoading] = useState(true);
   const [contextLoading, setContextLoading] = useState(false);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    currentUserRef.current = user;
+  }, [user]);
+
+  useEffect(() => {
+    currentProfileRef.current = profile;
+  }, [profile]);
 
   async function loadContext(nextSession) {
     setSession(nextSession);
@@ -94,6 +104,16 @@ export function AuthProvider({ children }) {
 
     const { data } = authService.onAuthStateChange((event, nextSession) => {
       if (ignore) return;
+      const currentUser = currentUserRef.current;
+      const currentProfile = currentProfileRef.current;
+      if (import.meta.env.DEV) {
+        console.info("[FeedX auth event]", {
+          event,
+          currentUserId: currentUser?.id ?? null,
+          nextUserId: nextSession?.user?.id ?? null,
+          hasProfile: Boolean(currentProfile),
+        });
+      }
       if (event === "PASSWORD_RECOVERY") {
         setSession(nextSession);
         setUser(nextSession?.user ?? null);
@@ -104,6 +124,16 @@ export function AuthProvider({ children }) {
         setSource("password-recovery");
         setLoading(false);
         setContextLoading(false);
+        return;
+      }
+      if (event === "TOKEN_REFRESHED" && nextSession?.user?.id === currentUser?.id) {
+        setSession(nextSession);
+        setUser(nextSession.user);
+        return;
+      }
+      if (event === "SIGNED_IN" && nextSession?.user?.id === currentUser?.id && currentProfile) {
+        setSession(nextSession);
+        setUser(nextSession.user);
         return;
       }
       if (!passwordRecoveryRef.current) loadContext(nextSession);
