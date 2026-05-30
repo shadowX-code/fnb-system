@@ -2941,6 +2941,9 @@ function StockCheckMobileView({
         description={`${outletName} · ${isAudit ? activeCheckGroup.auditType : activeCheckGroup.shift} · ${dateLabel}`}
         action={<button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={onBack}>Back</button>}
       >
+        <div className="mb-3 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-center text-[11px] font-black uppercase tracking-[0.14em] text-amber-700">
+          Mobile Stock Check Experimental
+        </div>
         <div className="grid gap-2 rounded-2xl border border-border bg-slate-50 p-3">
           <div className="flex items-center justify-between gap-3">
             <div>
