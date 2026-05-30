@@ -574,17 +574,18 @@ async function parseXlsx(file) {
 }
 
 async function uploadInventoryItemPhoto(file, itemId = "draft") {
+  const bucket = "inventory-item-photos";
   const extension = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
   const path = `${itemId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
   const { data, error } = await supabase.storage
-    .from("inventory-item-photos")
+    .from(bucket)
     .upload(path, file, {
       contentType: file.type || `image/${extension}`,
       upsert: true,
     });
   if (error) throw error;
-  const { data: publicUrlData } = supabase.storage.from("inventory-item-photos").getPublicUrl(data.path);
-  return publicUrlData.publicUrl;
+  const { data: publicUrlData } = supabase.storage.from(bucket).getPublicUrl(data.path);
+  return { bucket, path: data.path, publicUrl: publicUrlData.publicUrl };
 }
 
 function uniqueIds(values = []) {
@@ -2781,8 +2782,7 @@ function SupplierAssignmentPicker({ suppliers, outletId, selectedIds = [], onSav
   );
 }
 
-function ItemPhotoPicker({ value, itemId, onChange, onUploadingChange }) {
-  const [uploading, setUploading] = useState(false);
+function ItemPhotoPicker({ value, onChange }) {
   const [error, setError] = useState("");
 
   async function handleFile(file) {
@@ -2797,24 +2797,11 @@ function ItemPhotoPicker({ value, itemId, onChange, onUploadingChange }) {
       return;
     }
 
-    setUploading(true);
-    onUploadingChange?.(true);
     try {
       const preview = await readFileAsDataUrl(file);
-      onChange(preview, { localPreview: true, uploadFailed: false });
-      try {
-        const publicUrl = await uploadInventoryItemPhoto(file, itemId || "draft");
-        onChange(publicUrl, { uploaded: true, uploadFailed: false });
-      } catch (uploadError) {
-        console.warn("[InventoryControl] Item photo upload failed", uploadError);
-        onChange(preview, { localPreview: true, uploadFailed: true });
-        setError("Photo preview is shown, but upload storage is not ready. Please check the inventory-item-photos bucket.");
-      }
+      onChange(preview, { localPreview: true, uploadFailed: false, file });
     } catch (readError) {
       setError(readError.message || "Unable to read image. Please try another file.");
-    } finally {
-      setUploading(false);
-      onUploadingChange?.(false);
     }
   }
 
@@ -2827,7 +2814,7 @@ function ItemPhotoPicker({ value, itemId, onChange, onUploadingChange }) {
             <img className="h-20 w-20 rounded-2xl border border-border object-cover" src={value} alt="Item preview" />
             <div className="min-w-0 flex-1">
               <div className="type-body-sm font-bold text-text-primary">Photo selected</div>
-              <div className="type-caption text-text-secondary">{uploading ? "Uploading to inventory-item-photos..." : "Thumbnail appears in Master Inventory."}</div>
+              <div className="type-caption text-text-secondary">Photo uploads when you save the item.</div>
               <div className="mt-2 flex flex-wrap gap-2">
                 <label className="btn-secondary h-8 cursor-pointer px-3 text-xs">
                   Replace photo
@@ -2840,7 +2827,7 @@ function ItemPhotoPicker({ value, itemId, onChange, onUploadingChange }) {
         ) : (
           <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface px-4 py-5 text-center transition hover:border-primary/40 hover:bg-primary/5">
             <Upload size={18} className="text-primary" />
-            <span className="mt-2 type-body-sm font-bold text-text-primary">{uploading ? "Uploading..." : "Upload item photo"}</span>
+            <span className="mt-2 type-body-sm font-bold text-text-primary">Upload item photo</span>
             <span className="mt-0.5 type-caption text-text-muted">PNG/JPG/WebP</span>
             <input className="sr-only" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handleFile(event.target.files?.[0])} />
           </label>
@@ -3271,7 +3258,6 @@ function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onA
   });
   const [form, setForm] = useState(initialItem);
   const [quickUomOpen, setQuickUomOpen] = useState(false);
-  const [photoUploading, setPhotoUploading] = useState(false);
   const [touched, setTouched] = useState(false);
   const invalid = touched && (!form.name.trim() || !form.categoryId || !form.unit || !form.linkedOutletIds?.length);
 
@@ -3300,16 +3286,14 @@ function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onA
           <button
             className="btn-primary"
             type="button"
-            disabled={photoUploading}
             onClick={() => {
               setTouched(true);
-              if (photoUploading) return;
               if (!form.name.trim() || !form.categoryId || !form.unit || !form.linkedOutletIds?.length) return;
               const id = form.id || makeId("item");
-              onSave(normalizeInventoryItem({ ...form, id, outletConfigs: (form.outletConfigs || []).map((config) => ({ ...config, inventoryItemId: id })) }));
+              onSave({ ...form, id, outletConfigs: (form.outletConfigs || []).map((config) => ({ ...config, inventoryItemId: id })) });
             }}
           >
-            {photoUploading ? "Uploading Photo..." : "Save Item"}
+            Save Item
           </button>
         </>
       )}
@@ -3341,12 +3325,11 @@ function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onA
         <div className="md:col-span-2">
           <ItemPhotoPicker
             value={form.photo}
-            itemId={form.id || form.sku || "draft"}
-            onUploadingChange={setPhotoUploading}
             onChange={(value, meta = {}) => {
               setForm((current) => ({
                 ...current,
                 photo: value,
+                photoFile: meta.file || null,
                 photoUploadFailed: meta.uploadFailed === true,
                 photoLocalPreview: meta.localPreview === true,
               }));
@@ -4748,11 +4731,42 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   async function saveItem(item) {
     const existingItem = data.items.find((entry) => entry.id === item.id);
+    const hasNewPhotoFile = typeof File !== "undefined" && item.photoFile instanceof File;
     const incomingPhoto = item.photo ?? item.photo_url ?? "";
-    const photoUploadFailed = item.photoUploadFailed === true || isImageDataUrl(incomingPhoto);
-    const safePhoto = photoUploadFailed ? (existingItem?.photo || existingItem?.photo_url || "") : incomingPhoto;
-    const normalizedItem = normalizeInventoryItem({ ...item, photo: safePhoto, photo_url: safePhoto });
+    const isLocalPreview = isImageDataUrl(incomingPhoto);
     const isCreate = !isUuid(item.id);
+    let uploadedPhotoUrl = "";
+    let photoDebug = {
+      itemId: isCreate ? null : item.id,
+      hasNewPhotoFile,
+      previewUrl: isLocalPreview ? incomingPhoto.slice(0, 80) : incomingPhoto,
+      uploadBucket: "inventory-item-photos",
+      uploadPath: "",
+      uploadError: null,
+      publicUrl: "",
+      dbPayloadPhotoUrl: "",
+      savedRowPhotoUrl: "",
+    };
+    if (hasNewPhotoFile) {
+      try {
+        const uploadResult = await uploadInventoryItemPhoto(item.photoFile, isCreate ? "draft" : item.id);
+        uploadedPhotoUrl = uploadResult.publicUrl;
+        photoDebug = {
+          ...photoDebug,
+          uploadBucket: uploadResult.bucket,
+          uploadPath: uploadResult.path,
+          publicUrl: uploadResult.publicUrl,
+        };
+      } catch (uploadError) {
+        photoDebug = { ...photoDebug, uploadError };
+        debugLog("[InventoryPhotoSaveDebug]", photoDebug);
+        notify("Photo upload failed. Item was not updated.", uploadError.message || "Please check the inventory-item-photos bucket and try again.", "error");
+        return;
+      }
+    }
+    const photoUploadFailed = item.photoUploadFailed === true || (isLocalPreview && !hasNewPhotoFile);
+    const safePhoto = uploadedPhotoUrl || (photoUploadFailed ? (existingItem?.photo || existingItem?.photo_url || "") : incomingPhoto);
+    const normalizedItem = normalizeInventoryItem({ ...item, photo: safePhoto, photo_url: safePhoto });
     const photoChanged = !photoUploadFailed && (existingItem?.photo || existingItem?.photo_url || "") !== (normalizedItem.photo || normalizedItem.photo_url || "");
     const linkedOutletsChanged = !sameIdSet(existingItem?.linkedOutletIds || [], normalizedItem.linkedOutletIds || []);
     const textOrMetadataChanged = isCreate || !existingItem ||
@@ -4764,6 +4778,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       (existingItem.description || "") !== (normalizedItem.description || "");
     try {
       const remoteItem = await persistRemoteInventoryItem(normalizedItem, auth?.user?.id);
+      photoDebug = {
+        ...photoDebug,
+        itemId: remoteItem.id,
+        dbPayloadPhotoUrl: normalizedItem.photo || normalizedItem.photo_url || "",
+        savedRowPhotoUrl: remoteItem.photo || remoteItem.photo_url || "",
+      };
+      debugLog("[InventoryPhotoSaveDebug]", photoDebug);
       debugLog("[InventoryItemSaveDebug]", {
         itemId: remoteItem.id,
         payload: {
@@ -4785,7 +4806,16 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           ? current.items.map((entry) => (entry.id === normalizedItem.id || entry.id === remoteItem.id ? remoteItem : entry))
           : [remoteItem, ...current.items],
       }));
-      await refreshInventory();
+      const refreshedInventory = await refreshInventory();
+      if (hasNewPhotoFile) {
+        const refetchedItem = (refreshedInventory?.items || []).find((entry) => entry.id === remoteItem.id);
+        const refetchedPhotoUrl = refetchedItem?.photo || refetchedItem?.photo_url || "";
+        debugLog("[InventoryPhotoSaveDebug]", { ...photoDebug, refetchedPhotoUrl });
+        if (!refetchedPhotoUrl || refetchedPhotoUrl !== (normalizedItem.photo || normalizedItem.photo_url || "")) {
+          notify("Photo uploaded, but item update failed.", "The item list did not return the saved photo URL after refetch.", "error");
+          return;
+        }
+      }
       setModal(null);
       if (photoUploadFailed) {
         notify("Item saved, but photo upload failed", "The item details were saved. Please try uploading the photo again.", "warning");
@@ -4800,6 +4830,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       }
     } catch (error) {
       console.warn("[InventoryControl] Unable to save inventory item to Supabase.", error);
+      if (hasNewPhotoFile) {
+        debugLog("[InventoryPhotoSaveDebug]", { ...photoDebug, dbPayloadPhotoUrl: normalizedItem.photo || normalizedItem.photo_url || "", uploadError: null, dbError: error });
+        notify("Photo uploaded, but item update failed.", error.message || "Please try again.", "error");
+        return;
+      }
       if (error?.debug) {
         debugLog("[InventorySaveDebug]", error.debug);
         debugLog("[InventoryItemSaveDebug]", error.debug);

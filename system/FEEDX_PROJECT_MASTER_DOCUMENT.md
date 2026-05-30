@@ -1908,7 +1908,8 @@ Master Inventory UI:
 - Inventory settings must not show local-only success messages. If Supabase write fails, the UI must show an error and keep/refetch the remote truth.
 - Item Photo is uploaded from the device, not entered as a raw URL.
 - Item photos are saved to `inventory_items.photo_url` through the Supabase Storage bucket `inventory-item-photos`.
-- If storage is not configured yet, the form must show a clear fallback message. Item details may still save, but the success state must warn `Item saved, but photo upload failed` and must not write data-url previews into `inventory_items.photo_url`.
+- Photo previews are local only until Save. When a new item photo is selected, Save must upload to `inventory-item-photos`, persist the returned public URL to `inventory_items.photo_url`, refetch the item, and only then show `Inventory photo updated` or the relevant item update toast.
+- If photo upload fails, the UI must not show `Inventory item updated`; it should show `Photo upload failed. Item was not updated.` If upload succeeds but the item update/refetch does not return the saved `photo_url`, show `Photo uploaded, but item update failed.`
 - The Master Inventory list defaults to Group by Category.
 - Master Inventory shows a compact KPI summary strip above the list: Total Items, Categories, Active Items, and Outlets Linked.
 - Category group headers show category name, item count, and collapse/expand control.
