@@ -124,8 +124,26 @@ function toDateInputValue(value) {
   return `${year}-${month}-${day}`;
 }
 
-function todayInput() {
-  return toDateInputValue(new Date());
+function getBusinessDateInput(timeZone = "Asia/Kuala_Lumpur", value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return toDateInputValue(new Date());
+  try {
+    const parts = new Intl.DateTimeFormat("en-CA", {
+      timeZone,
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+    }).formatToParts(date);
+    const byType = Object.fromEntries(parts.map((part) => [part.type, part.value]));
+    if (byType.year && byType.month && byType.day) return `${byType.year}-${byType.month}-${byType.day}`;
+  } catch {
+    // Fall back to browser local date if the requested timezone is unavailable.
+  }
+  return toDateInputValue(date);
+}
+
+function todayInput(timeZone = "Asia/Kuala_Lumpur") {
+  return getBusinessDateInput(timeZone);
 }
 
 function normalizeBusinessDate(value, fallback = todayInput()) {
@@ -144,6 +162,21 @@ function businessDateToTimestamp(value) {
 function businessDateToLocalDate(value) {
   const [year, month, day] = normalizeBusinessDate(value).split("-").map(Number);
   return new Date(year, month - 1, day);
+}
+
+function stockCheckDateFromUrl() {
+  if (typeof window === "undefined") return "";
+  const hashQuery = window.location.hash.includes("?") ? window.location.hash.split("?")[1] : "";
+  const searchParams = new URLSearchParams(window.location.search || "");
+  const hashParams = new URLSearchParams(hashQuery || "");
+  const candidate = hashParams.get("date") || searchParams.get("stockCheckDate") || searchParams.get("date") || "";
+  return candidate ? normalizeBusinessDate(candidate, "") : "";
+}
+
+function getInitialStockCheckDate() {
+  const urlDate = stockCheckDateFromUrl();
+  if (urlDate) return { date: urlDate, source: "url" };
+  return { date: getBusinessDateInput("Asia/Kuala_Lumpur"), source: "business-today" };
 }
 
 function makeId(prefix) {
@@ -4383,6 +4416,7 @@ function CopyPoTextModal({ text, onClose, onCopy }) {
 }
 
 function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
+  const initialStockCheckDate = useMemo(getInitialStockCheckDate, []);
   const outlets = useMemo(() => (store?.outlets ?? []).map(normalizeOutletRecord), [store?.outlets]);
   const suppliers = useMemo(() => store?.suppliers ?? [], [store?.suppliers]);
   const [data, setData, inventoryMeta, refreshInventory] = useInventoryData(outlets, suppliers);
@@ -4406,7 +4440,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [movementFilters, setMovementFilters] = useState({ outletId: "all", movementType: "all", search: "", from: "", to: "" });
   const [wasteFilters, setWasteFilters] = useState({ wasteType: "all", from: "", to: "", search: "" });
   const [recipeFilters, setRecipeFilters] = useState({ category: "all", status: "active", search: "" });
-  const [date, setDate] = useState(todayInput());
+  const [date, setDateState] = useState(initialStockCheckDate.date);
+  const [selectedDateSource, setSelectedDateSource] = useState(initialStockCheckDate.source);
+  const selectedDateSourceRef = useRef(initialStockCheckDate.source);
   const [stockCheckShiftFilter, setStockCheckShiftFilter] = useState("all");
   const [modal, setModal] = useState(null);
   const [masterActionMenuItemId, setMasterActionMenuItemId] = useState(null);
@@ -4419,6 +4455,46 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [checkSearch, setCheckSearch] = useState("");
   const [collapsedCheckCategoryIds, setCollapsedCheckCategoryIds] = useState(() => new Set());
   const [photoPreview, setPhotoPreview] = useState(null);
+
+  const setDate = useCallback((value, source = "manual") => {
+    setDateState(normalizeBusinessDate(value));
+    selectedDateSourceRef.current = source;
+    setSelectedDateSource(source);
+  }, []);
+
+  useEffect(() => {
+    debugLog("[BusinessDateDebug]", {
+      browserDate: toDateInputValue(new Date()),
+      utcDate: new Date().toISOString().slice(0, 10),
+      businessDate: getBusinessDateInput("Asia/Kuala_Lumpur"),
+      selectedDate: date,
+      selectedDateSource,
+    });
+  }, [date, selectedDateSource]);
+
+  useEffect(() => {
+    function applyUrlStockCheckDate() {
+      const urlDate = stockCheckDateFromUrl();
+      if (!urlDate) {
+        if (selectedDateSourceRef.current === "url") {
+          selectedDateSourceRef.current = "business-today";
+          setDateState(getBusinessDateInput("Asia/Kuala_Lumpur"));
+          setSelectedDateSource("business-today");
+        }
+        return;
+      }
+      selectedDateSourceRef.current = "url";
+      setDateState(urlDate);
+      setSelectedDateSource("url");
+    }
+    applyUrlStockCheckDate();
+    window.addEventListener("hashchange", applyUrlStockCheckDate);
+    window.addEventListener("popstate", applyUrlStockCheckDate);
+    return () => {
+      window.removeEventListener("hashchange", applyUrlStockCheckDate);
+      window.removeEventListener("popstate", applyUrlStockCheckDate);
+    };
+  }, []);
 
   useEffect(() => {
     setActiveTab(initialTab);

@@ -1998,7 +1998,8 @@ Persistence priorities:
 Inventory Control business date rules:
 
 - Business dates must be explicit and must not be inferred from the browser/system clock when the user has selected an operational date.
-- FeedX normalizes Inventory Control business dates to `YYYY-MM-DD` with `normalizeBusinessDate()`.
+- FeedX gets the default Inventory Control business date with `getBusinessDateInput('Asia/Kuala_Lumpur')` and normalizes persisted business dates to `YYYY-MM-DD` with `normalizeBusinessDate()`.
+- Stock Check defaults to Malaysia business today on normal page load, respects an explicit `date` URL parameter, and does not default from `last_checked_at` or the latest submitted check.
 - Stock Check and Audit Stock Check persist `inventory_stock_checks.check_date` from the selected check/audit date.
 - Scheduled Stock Check completion cards match submitted checks by `group_id`, `outlet_id`, and normalized `check_date`; group names and system date are not valid matching keys.
 - Waste records persist `inventory_waste_records.waste_date` from the selected Waste Date.
