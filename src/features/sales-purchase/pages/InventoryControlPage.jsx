@@ -43,6 +43,7 @@ const ENABLE_MOBILE_STOCKCHECK_EXPERIMENT = String(
     ?? import.meta.env.ENABLE_MOBILE_STOCKCHECK_EXPERIMENT
     ?? "false",
 ).toLowerCase() === "true";
+const SHOW_STOCK_CHECK_CARD_DEBUG = import.meta.env.DEV && String(import.meta.env.VITE_SHOW_STOCK_CHECK_CARD_DEBUG ?? "false").toLowerCase() === "true";
 const INVENTORY_BROWSER_CACHE_KEYS = [
   STORAGE_KEY,
   ...LEGACY_STORAGE_KEYS,
@@ -398,7 +399,7 @@ function varianceStatus(parLevel, count) {
 
 function stockCheckResultStatus(row = {}) {
   if (row.skipped) return { label: "Skipped", tone: "neutral" };
-  if (row.na) return { label: "NA", tone: "neutral" };
+  if (row.na) return { label: "Not Available", tone: "neutral" };
   const variance = Number(row.variance || 0);
   if (variance > 0) return { label: "Shortage", tone: "warning" };
   if (variance < 0) return { label: "Excess", tone: "info" };
@@ -2975,7 +2976,7 @@ function StockCheckMobileView({
   });
 
   return (
-    <div className="space-y-3">
+    <div className="space-y-3 pb-[calc(7rem+env(safe-area-inset-bottom))]">
       <SectionCard
         title={activeCheckGroup.name}
         description={`${outletName} · ${isAudit ? activeCheckGroup.auditType : activeCheckGroup.shift} · ${dateLabel}`}
@@ -3051,12 +3052,12 @@ function StockCheckMobileView({
                   <div className="font-black text-text-primary">{item?.name || "Inventory item"}</div>
                   <div className="type-caption text-text-secondary">{category?.name ?? "Uncategorized"}{item?.sku ? ` · ${item.sku}` : ""}</div>
                 </div>
-                <Badge tone={row.skipped ? "neutral" : row.na ? "neutral" : result.tone}>{row.skipped ? "Skipped" : row.na ? "NA" : result.label}</Badge>
+                <Badge tone={row.skipped ? "neutral" : row.na ? "neutral" : result.tone}>{row.skipped ? "Skipped" : row.na ? "Not Available" : result.label}</Badge>
               </div>
 
               <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl bg-slate-50 p-2 text-center">
                 <div><div className="type-micro font-black uppercase text-text-muted">Par</div><div className="type-body-sm font-bold text-text-primary">{parLevel}</div></div>
-                <div><div className="type-micro font-black uppercase text-text-muted">Variance</div><div className="type-body-sm font-bold text-text-primary">{row.skipped ? "Skipped" : row.na ? "NA" : result.variance}</div></div>
+                <div><div className="type-micro font-black uppercase text-text-muted">Variance</div><div className="type-body-sm font-bold text-text-primary">{row.skipped ? "Skipped" : row.na ? "Not Available" : result.variance}</div></div>
                 <div><div className="type-micro font-black uppercase text-text-muted">UOM</div><div className="type-body-sm font-bold text-text-primary">{item?.unit || "-"}</div></div>
               </div>
 
@@ -3076,22 +3077,18 @@ function StockCheckMobileView({
                     ["Full", parLevel],
                     ["Half", Math.round(Number(parLevel || 0) / 2)],
                     ["Empty", 0],
-                    ...(!isAudit ? [["NA", row.actualCount]] : []),
                   ].map(([label, value]) => (
-                    <button key={label} className="rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text-secondary hover:border-primary/30 hover:text-primary" type="button" onClick={() => onUpdateRow(row.rowIndex, (entry) => ({ ...entry, actualCount: Number(value || 0), na: label === "NA" }))}>{label}</button>
+                    <button key={label} className="rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text-secondary hover:border-primary/30 hover:text-primary" type="button" onClick={() => onUpdateRow(row.rowIndex, (entry) => ({ ...entry, actualCount: Number(value || 0), na: false }))}>{label}</button>
                   ))}
+                  <button className="rounded-full border border-border px-2.5 py-1 text-[11px] font-semibold text-text-secondary hover:border-primary/30 hover:text-primary" type="button" onClick={() => onSkipRow(row.rowIndex, item?.name)}>Skip</button>
                 </div>
-              ) : <div className="mt-3 type-caption font-semibold text-text-muted">Skipped: {row.skipReason}</div>}
+              ) : <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2 type-caption font-semibold text-text-muted">Not Available · {row.skipReason}</div>}
 
               <input className="control mt-3 h-10 w-full text-[13px]" value={row.notes} onChange={(event) => onUpdateRow(row.rowIndex, (entry) => ({ ...entry, notes: event.target.value }))} placeholder="Optional note" />
 
-              {isAudit ? (
+              {row.skipped ? (
                 <div className="mt-3 flex justify-end">
-                  {row.skipped ? (
-                    <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={() => onUnskipRow(row.rowIndex)}>Unskip</button>
-                  ) : (
-                    <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={() => onSkipRow(row.rowIndex, item?.name)}>Skip</button>
-                  )}
+                  <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={() => onUnskipRow(row.rowIndex)}>Unskip</button>
                 </div>
               ) : null}
             </div>
@@ -3099,7 +3096,7 @@ function StockCheckMobileView({
         })}
       </div>
 
-      <div className="sticky bottom-3 z-20 rounded-2xl border border-border bg-white/95 p-3 shadow-card backdrop-blur">
+      <div className="sticky bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-20 rounded-2xl border border-border bg-white/95 p-3 shadow-card backdrop-blur">
         <div className="mb-2 flex flex-wrap gap-2 type-caption font-semibold text-text-secondary">
           <span>{rows.length} items</span>
           <span>·</span>
@@ -3939,7 +3936,7 @@ function SkipReasonModal({ itemName, onClose, onSave }) {
   const examples = ["Item not available for counting", "Locked storage", "Damaged label", "Staff unable to locate", "Other"];
   return (
     <Modal
-      title="Skip audit item"
+      title="Skip stock check item"
       description={`Provide a reason before skipping ${itemName || "this item"}.`}
       onClose={onClose}
       footer={(
@@ -5841,7 +5838,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         const negative = Number(row.actualCount || 0) < 0;
         const item = itemById.get(row.itemId);
         if (row.skipped) {
-          if (isAudit && !row.skipReason?.trim()) {
+          if (!row.skipReason?.trim()) {
             return { rowIndex, itemId: row.itemId, itemName: item?.name || "Inventory item", reason: "Skip reason required", action: "Add a skip reason" };
           }
           return null;
@@ -7383,6 +7380,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
     return (
       <div className="space-y-4">
+        {isMobileStockCheckExperiment ? (
+          <div className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-center text-[11px] font-black uppercase tracking-[0.14em] text-amber-700">
+            Mobile Stock Check Experimental
+          </div>
+        ) : null}
         <div className="card flex flex-col gap-3 p-3 md:flex-row md:items-end">
           <SelectField label="Outlet" value={selectedOutletId} options={getAccessibleOutletOptions(auth, outlets)} onChange={setSelectedOutletId} searchable className="md:w-64" />
           <DatePickerField label="Date" value={date} onChange={setDate} />
@@ -7427,7 +7429,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                       <div>Frequency: <span className="font-semibold text-text-primary">{frequencyLabel(group)}</span></div>
                       <div>Last checked: <span className="font-semibold text-text-primary">{group.lastChecked ? formatDate(group.lastChecked) : "Never"}</span></div>
                     </div>
-                    {import.meta.env.DEV ? (
+                    {SHOW_STOCK_CHECK_CARD_DEBUG ? (
                       <div className="mt-3 rounded-xl border border-dashed border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-semibold leading-relaxed text-amber-800">
                         <div>groupId: {group.id}</div>
                         <div>matchedCheckId: {submittedCheck?.id || "-"}</div>
