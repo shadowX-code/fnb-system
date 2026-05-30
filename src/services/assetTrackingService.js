@@ -6,7 +6,7 @@ const categoryBaseFields = "id,name,description,sort_order,is_active,created_at,
 const categoryFields = "id,name,description,sort_order,is_active,maintenance_enabled,created_at,updated_at";
 const assetBaseFields = "id,outlet_id,category_id,name,description,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name)";
 const assetBaseConditionFields = "id,outlet_id,category_id,name,description,condition,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name)";
-const assetFields = "id,outlet_id,category_id,name,description,image_url,thumbnail_url,health_status,last_inspection_at,maintenance_override,condition,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name,maintenance_enabled)";
+const assetFields = "id,outlet_id,category_id,name,description,asset_code,location,purchase_date,warranty_expiry,notes,image_url,thumbnail_url,health_status,last_inspection_at,maintenance_override,condition,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name,maintenance_enabled)";
 const movementFields = "id,asset_id,outlet_id,movement_type,quantity_change,quantity_before,quantity_after,reason,remark,movement_date,created_by,created_at";
 const maintenanceFields = "id,asset_id,outlet_id,date,maintenance_type,priority,issue,action_taken,vendor,cost,status,scheduled_date,completed_date,next_service_date,remark,photo_url,created_by,created_at,updated_at";
 const inspectionFields = "id,outlet_id,inspection_date,checked_by,category_scope,status,summary,notes,remark,created_by,current_step,completion_percentage,last_edited_at,last_edited_by,draft_data,auto_saved,created_at,updated_at";
@@ -128,6 +128,11 @@ function mapAsset(row) {
     maintenance_allowed: maintenanceOverride === "enabled" || (maintenanceOverride === "inherit" && categoryMaintenanceEnabled),
     name: row.name,
     description: row.description ?? "",
+    asset_code: row.asset_code ?? "",
+    location: row.location ?? "",
+    purchase_date: row.purchase_date ?? null,
+    warranty_expiry: row.warranty_expiry ?? null,
+    notes: row.notes ?? "",
     image_url: row.image_url ?? "",
     thumbnail_url: row.thumbnail_url ?? row.image_url ?? "",
     health_status: row.health_status ?? "healthy",
@@ -147,11 +152,11 @@ function isMissingOptionalAssetField(error) {
   const message = String(error?.message || error?.details || "");
   return error?.code === "42703" ||
     error?.code === "PGRST204" ||
-    /asset_items\.(image_url|thumbnail_url|health_status|last_inspection_at|condition|maintenance_override)|asset_categories\.maintenance_enabled|'(image_url|thumbnail_url|health_status|last_inspection_at|condition|maintenance_enabled|maintenance_override)' column|column .* does not exist|relationship .*maintenance_enabled/i.test(message);
+    /asset_items\.(image_url|thumbnail_url|health_status|last_inspection_at|condition|maintenance_override|asset_code|location|purchase_date|warranty_expiry|notes)|asset_categories\.maintenance_enabled|'(image_url|thumbnail_url|health_status|last_inspection_at|condition|maintenance_enabled|maintenance_override|asset_code|location|purchase_date|warranty_expiry|notes)' column|column .* does not exist|relationship .*maintenance_enabled/i.test(message);
 }
 
 function withoutOptionalAssetFields(payload) {
-  const { image_url, thumbnail_url, health_status, last_inspection_at, condition, maintenance_override, ...rest } = payload;
+  const { image_url, thumbnail_url, health_status, last_inspection_at, condition, maintenance_override, asset_code, location, purchase_date, warranty_expiry, notes, ...rest } = payload;
   return rest;
 }
 
@@ -480,6 +485,11 @@ export const assetTrackingService = {
       category_id: asset.category_id,
       name: asset.name,
       description: asset.description ?? "",
+      asset_code: asset.asset_code ? String(asset.asset_code).trim() : null,
+      location: asset.location ?? "",
+      purchase_date: asset.purchase_date || null,
+      warranty_expiry: asset.warranty_expiry || null,
+      notes: asset.notes ?? "",
       image_url: imageUrl,
       thumbnail_url: isDataUrl(asset.thumbnail_url) ? imageUrl : (asset.thumbnail_url ?? imageUrl),
       health_status: asset.health_status ?? "healthy",
@@ -488,7 +498,7 @@ export const assetTrackingService = {
       unit: asset.unit || "unit",
       current_quantity: Number(asset.current_quantity ?? 0),
       minimum_quantity: Number(asset.minimum_quantity ?? 0),
-      status: asset.status === "archived" ? "archived" : "active",
+      status: ["archived", "inactive", "disposed"].includes(asset.status) ? "archived" : "active",
       remark: asset.remark ?? "",
       updated_by: userId,
       updated_at: new Date().toISOString(),
@@ -689,6 +699,31 @@ export const assetTrackingService = {
 
     await logAssetAudit("asset_quantity_adjusted", asset.outlet_id, asset.name, movementPayload);
     return { asset: mapAsset(updatedAsset), movement: mapMovement(movement) };
+  },
+
+  async logImportMovement(asset, { beforeQuantity = 0, afterQuantity = 0, remark = "Imported from Asset Tracking import" } = {}) {
+    if (!asset?.id || !asset?.outlet_id) return null;
+    const userId = await currentUserId();
+    const movementPayload = {
+      asset_id: asset.id,
+      outlet_id: asset.outlet_id,
+      movement_type: "correction",
+      quantity_change: Number(afterQuantity || 0) - Number(beforeQuantity || 0),
+      quantity_before: Number(beforeQuantity || 0),
+      quantity_after: Number(afterQuantity || 0),
+      reason: "import",
+      remark,
+      movement_date: new Date().toISOString().slice(0, 10),
+      created_by: userId,
+    };
+    const { data, error } = await supabase
+      .from("asset_movement_logs")
+      .insert(movementPayload)
+      .select(movementFields)
+      .single();
+    throwSupabaseError("asset_movement_logs.import_insert", error);
+    await logAssetAudit("asset_imported", asset.outlet_id, asset.name, movementPayload);
+    return mapMovement(data);
   },
 
   async listInspections(assetId = "", outletId = "") {

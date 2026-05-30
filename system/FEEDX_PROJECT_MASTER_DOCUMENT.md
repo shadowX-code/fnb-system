@@ -1289,8 +1289,13 @@ Asset item fields:
 - id
 - outlet_id
 - category_id
+- asset_code
 - name
 - description
+- location
+- purchase_date
+- warranty_expiry
+- notes
 - image_url
 - thumbnail_url
 - unit
@@ -1418,6 +1423,18 @@ Asset UI rules:
 - Operational status strip summarizes attention count, low quantity alerts, and latest inspection state.
 - Asset list actions use a primary View action plus an overflow menu.
 - Detailed actions such as Adjust Quantity, Start Inspection, Edit Asset, Archive, and Add Maintenance Record live in the overflow menu or Asset Profile workflow.
+
+Asset import rules:
+
+- Asset Tracking supports CSV and XLSX import from the Asset Tracking page header.
+- Import required columns are `Asset Name`, `Outlet Code`, `Category`, and `Quantity`.
+- Optional import columns are `Asset Code`, `Description`, `Condition`, `Minimum Quantity`, `Location`, `Purchase Date`, `Warranty Expiry`, `Status`, `Photo URL`, and `Notes`.
+- Import validates outlet codes against outlets accessible to the current user and validates categories against existing asset categories.
+- Import never auto-creates outlets or asset categories.
+- Primary upsert matching is `Asset Code + Outlet`; fallback matching is normalized `Asset Name + Outlet`.
+- Valid import rows persist through the same Supabase-backed asset save path as Add/Edit Asset.
+- Import writes `asset_items` and, when the movement log table is available, records created/updated rows as an import correction entry in `asset_movement_logs`.
+- Invalid rows remain in preview as errors and are not imported; valid rows may be imported while invalid rows are skipped.
 - Add Maintenance Record appears only when maintenance is allowed for that asset.
 - Asset Profile hides the Maintenance tab entirely when maintenance is not allowed.
 - Asset Profile shows maintenance scope as Enabled or Not required based on category setting and asset override.
@@ -2729,6 +2746,19 @@ Insufficient data:
 Not enough data to generate insights yet.
 ```
 
+Notification Center rules:
+
+- The AppShell notification dropdown uses structured frontend notifications with `id`, `type`, `category`, `severity`, `title`, `description`, `moduleKey`, `outletId`, `actionLabel`, `actionRoute`, `createdAt`, and local `isRead` state.
+- Notification categories are `Alerts`, `Tasks`, `Insights`, and `Data Health`; severity values are `critical`, `high`, `medium`, and `info`.
+- A notification is visible only when the user has permission to view or act on the related module, the notification outlet is within the user's outlet scope, and the notification matches the user's role responsibility.
+- Owner/admin users can see all permission-allowed notifications across all accessible outlets.
+- Accounts users should see purchase drafts, supplier purchase anomalies, sales/purchase import issues, operating expenses, finance-oriented data health issues, and draft rows before month lock when their permissions allow those modules.
+- Managers should see assigned-outlet operational alerts such as stock checks due/overdue, purchase suggestions pending, waste/variance alerts, asset maintenance due, inspections due, and duty roster gaps when their permissions allow those modules.
+- Outlet staff should see assigned-outlet tasks such as stock checks, asset inspections, and waste reminders only when their permissions allow those modules; company-wide finance alerts are hidden unless finance/report permissions grant access.
+- Notification read state is local for the current MVP and stored in localStorage by user/profile id until a Supabase notification table is introduced.
+- Notification actions route to the related page and mark that notification as read.
+- Current Supabase-backed notification sources include stock check groups/checks/items, purchase orders, waste records, asset maintenance, asset inspections, and employee access data; existing sales/purchase analytics continue to provide alert and insight candidates.
+
 ---
 
 ## 5.16 Employees
@@ -3635,6 +3665,7 @@ Inventory Control tables:
 
 Asset table status and condition rules:
 
+- `asset_items.asset_code`, `location`, `purchase_date`, `warranty_expiry`, and `notes` are optional metadata used by Asset Tracking import and future asset lifecycle reporting.
 - `asset_items.condition` stores operational condition.
 - Allowed condition values are `healthy`, `needs_attention`, `under_maintenance`, `low_quantity`, `damaged`, `missing`, and `disposed`.
 - `asset_items.status` stores record lifecycle only.
@@ -4093,6 +4124,8 @@ FloatingLayer migration status:
 - AppShell notification popover uses FloatingLayer.
 - AppShell profile/theme popover uses FloatingLayer.
 - AppShell sidebar profile popover uses FloatingLayer.
+- AppShell sidebar account actions must be directly bound: View My Profile opens the current employee profile modal, Change Password opens the password update modal, and Sign Out clears the Supabase session and redirects to login.
+- Sidebar account menu buttons must stop pointer/mouse propagation so FloatingLayer outside-click handling cannot swallow the click.
 - New dropdowns, action menus, contextual popovers, date pickers, and tooltips must use FloatingLayer by default unless a stronger shared primitive already wraps it.
 - New overlays must not use arbitrary `z-[9999]` style values or page-local `createPortal` positioning unless documented as a temporary migration exception.
 

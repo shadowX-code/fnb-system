@@ -425,12 +425,319 @@ function isDraftInspection(inspection) {
   return ["draft", "in_progress", "pending_review"].includes(inspection.status);
 }
 
+function canonical(value = "") {
+  return String(value).trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function csvEscape(value) {
+  const text = String(value ?? "");
+  return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+}
+
+function downloadTextFile(filename, text, type = "text/csv;charset=utf-8") {
+  const blob = new Blob([text], { type });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+  URL.revokeObjectURL(url);
+}
+
+function normalizeOutletRecord(outlet = {}) {
+  const source = Array.isArray(outlet.outlets) ? outlet.outlets[0] : (outlet.outlets || outlet.outlet || outlet);
+  const id = source?.id ?? outlet.outlet_id ?? outlet.id ?? "";
+  const code = source?.code ?? source?.outlet_code ?? source?.shortCode ?? source?.short_code ?? source?.abbreviation ?? outlet.code ?? outlet.outlet_code ?? outlet.short_code ?? "";
+  const name = source?.name ?? source?.outlet_name ?? source?.outletName ?? outlet.name ?? outlet.outlet_name ?? "";
+  return { ...outlet, ...source, id, code: String(code || "").trim(), name: String(name || "").trim() };
+}
+
+function outletDisplayCode(outlet = {}) {
+  const normalized = normalizeOutletRecord(outlet);
+  return normalized.code || normalized.name || normalized.id || "Outlet";
+}
+
+function parseCsvLine(line = "") {
+  const cells = [];
+  let current = "";
+  let quoted = false;
+  for (let index = 0; index < line.length; index += 1) {
+    const char = line[index];
+    const next = line[index + 1];
+    if (char === '"' && quoted && next === '"') {
+      current += '"';
+      index += 1;
+    } else if (char === '"') {
+      quoted = !quoted;
+    } else if (char === "," && !quoted) {
+      cells.push(current.trim());
+      current = "";
+    } else {
+      current += char;
+    }
+  }
+  cells.push(current.trim());
+  return cells;
+}
+
+function parseCsv(text) {
+  const lines = text.split(/\r?\n/).filter((line) => line.trim());
+  const headers = parseCsvLine(lines[0] || "");
+  const rows = lines.slice(1).map((line, index) => {
+    const cells = parseCsvLine(line);
+    return headers.reduce((record, header, cellIndex) => ({ ...record, [header]: cells[cellIndex] ?? "" }), { __row: index + 2 });
+  });
+  return { headers, rows };
+}
+
+function readUInt16(view, offset) {
+  return view.getUint16(offset, true);
+}
+
+function readUInt32(view, offset) {
+  return view.getUint32(offset, true);
+}
+
+function columnIndex(cellRef = "") {
+  const letters = String(cellRef).match(/[A-Z]+/i)?.[0] ?? "A";
+  return [...letters.toUpperCase()].reduce((total, char) => total * 26 + char.charCodeAt(0) - 64, 0) - 1;
+}
+
+async function inflateRaw(bytes) {
+  if (!("DecompressionStream" in window)) {
+    throw new Error("XLSX parsing requires browser ZIP support. Please use CSV in this browser.");
+  }
+  const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+  return new Uint8Array(await new Response(stream).arrayBuffer());
+}
+
+async function unzipXlsx(buffer) {
+  const view = new DataView(buffer);
+  let eocdOffset = -1;
+  for (let offset = view.byteLength - 22; offset >= Math.max(0, view.byteLength - 66000); offset -= 1) {
+    if (readUInt32(view, offset) === 0x06054b50) {
+      eocdOffset = offset;
+      break;
+    }
+  }
+  if (eocdOffset === -1) throw new Error("Unable to read XLSX workbook.");
+  const entryCount = readUInt16(view, eocdOffset + 10);
+  let centralOffset = readUInt32(view, eocdOffset + 16);
+  const files = {};
+  const decoder = new TextDecoder();
+
+  for (let index = 0; index < entryCount; index += 1) {
+    if (readUInt32(view, centralOffset) !== 0x02014b50) break;
+    const method = readUInt16(view, centralOffset + 10);
+    const compressedSize = readUInt32(view, centralOffset + 20);
+    const fileNameLength = readUInt16(view, centralOffset + 28);
+    const extraLength = readUInt16(view, centralOffset + 30);
+    const commentLength = readUInt16(view, centralOffset + 32);
+    const localOffset = readUInt32(view, centralOffset + 42);
+    const name = decoder.decode(new Uint8Array(buffer, centralOffset + 46, fileNameLength));
+    const localNameLength = readUInt16(view, localOffset + 26);
+    const localExtraLength = readUInt16(view, localOffset + 28);
+    const dataOffset = localOffset + 30 + localNameLength + localExtraLength;
+    const compressed = new Uint8Array(buffer, dataOffset, compressedSize);
+    const bytes = method === 0 ? compressed : method === 8 ? await inflateRaw(compressed) : null;
+    if (bytes) files[name] = decoder.decode(bytes);
+    centralOffset += 46 + fileNameLength + extraLength + commentLength;
+  }
+  return files;
+}
+
+function textFromXlsxCell(cell, sharedStrings) {
+  const type = cell.getAttribute("t");
+  if (type === "s") {
+    const index = Number(cell.querySelector("v")?.textContent ?? -1);
+    return sharedStrings[index] ?? "";
+  }
+  if (type === "inlineStr") return [...cell.querySelectorAll("t")].map((item) => item.textContent ?? "").join("");
+  return cell.querySelector("v")?.textContent ?? "";
+}
+
+async function parseXlsx(file) {
+  const files = await unzipXlsx(await file.arrayBuffer());
+  const parser = new DOMParser();
+  const sharedStringsXml = files["xl/sharedStrings.xml"];
+  const sharedStrings = sharedStringsXml
+    ? [...parser.parseFromString(sharedStringsXml, "application/xml").querySelectorAll("si")].map((node) => [...node.querySelectorAll("t")].map((item) => item.textContent ?? "").join(""))
+    : [];
+  const sheetName = Object.keys(files).find((name) => /^xl\/worksheets\/sheet\d+\.xml$/.test(name));
+  if (!sheetName) throw new Error("No worksheet found in XLSX file.");
+  const sheet = parser.parseFromString(files[sheetName], "application/xml");
+  const rawRows = [...sheet.querySelectorAll("sheetData row")].map((rowNode) => {
+    const values = [];
+    [...rowNode.querySelectorAll("c")].forEach((cell) => {
+      values[columnIndex(cell.getAttribute("r"))] = textFromXlsxCell(cell, sharedStrings);
+    });
+    return values;
+  }).filter((row) => row.some((cell) => String(cell ?? "").trim()));
+  const headers = rawRows[0]?.map((cell) => String(cell ?? "").trim()) ?? [];
+  const rows = rawRows.slice(1).map((row, index) => headers.reduce((record, header, cellIndex) => ({ ...record, [header]: row[cellIndex] ?? "" }), { __row: index + 2 }));
+  return { headers, rows };
+}
+
+function readImportValue(row, aliases) {
+  const entries = Object.entries(row);
+  for (const alias of aliases) {
+    const found = entries.find(([key]) => canonical(key) === canonical(alias));
+    if (found) return String(found[1] ?? "").trim();
+  }
+  return "";
+}
+
+function parseImportDate(value) {
+  const text = String(value || "").trim();
+  if (!text) return "";
+  const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (iso) return text;
+  const slash = text.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  if (slash) {
+    const [, day, month, year] = slash;
+    return `${year}-${String(month).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+  }
+  const date = new Date(text);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function isValidDateInput(value) {
+  if (!value) return true;
+  const normalized = parseImportDate(value);
+  if (!normalized) return false;
+  const date = new Date(`${normalized}T00:00:00`);
+  return !Number.isNaN(date.getTime()) && normalized === `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+const assetImportColumns = ["Asset Name", "Asset Code", "Outlet Code", "Category", "Quantity", "Minimum Quantity", "Condition", "Location", "Purchase Date", "Warranty Expiry", "Status", "Description", "Notes"];
+const assetImportConditionMap = new Map([
+  ["good", "healthy"],
+  ["fair", "needs_attention"],
+  ["needsattention", "needs_attention"],
+  ["damaged", "damaged"],
+  ["disposed", "disposed"],
+]);
+const assetImportStatusMap = new Map([
+  ["active", "active"],
+  ["inactive", "archived"],
+  ["disposed", "archived"],
+]);
+
+function buildAssetImportPreview(rows, { assets, outlets, categories }) {
+  const outletByCode = new Map(outlets.map((outlet) => {
+    const normalized = normalizeOutletRecord(outlet);
+    return [canonical(normalized.code || ""), normalized];
+  }).filter(([key]) => key));
+  const categoryByName = new Map(categories.filter((category) => category.is_active !== false).map((category) => [canonical(category.name), category]));
+  const existingByCodeOutlet = new Map();
+  const existingByNameOutlet = new Map();
+  assets.forEach((asset) => {
+    const outletKey = canonical(asset.outlet_id);
+    if (asset.asset_code) existingByCodeOutlet.set(`${canonical(asset.asset_code)}:${outletKey}`, asset);
+    existingByNameOutlet.set(`${canonical(asset.name)}:${outletKey}`, asset);
+  });
+
+  return rows.map((row) => {
+    const assetName = readImportValue(row, ["Asset Name", "Name", "Asset"]);
+    const assetCode = readImportValue(row, ["Asset Code", "Code"]);
+    const outletCode = readImportValue(row, ["Outlet Code", "Outlet"]);
+    const categoryName = readImportValue(row, ["Category"]);
+    const quantityText = readImportValue(row, ["Quantity", "Current Quantity"]);
+    const minimumText = readImportValue(row, ["Minimum Quantity", "Minimum Qty", "Min Quantity"]);
+    const conditionText = readImportValue(row, ["Condition"]) || "Good";
+    const location = readImportValue(row, ["Location"]);
+    const purchaseDateText = readImportValue(row, ["Purchase Date"]);
+    const warrantyExpiryText = readImportValue(row, ["Warranty Expiry", "Warranty Expiry Date"]);
+    const statusText = readImportValue(row, ["Status"]) || "Active";
+    const description = readImportValue(row, ["Description"]);
+    const photoUrl = readImportValue(row, ["Photo URL", "Image URL"]);
+    const notes = readImportValue(row, ["Notes", "Remark"]);
+    const errors = [];
+
+    if (!assetName) errors.push("Missing Asset Name");
+    const outlet = outletByCode.get(canonical(outletCode));
+    if (!outletCode) errors.push("Missing Outlet Code");
+    if (outletCode && !outlet) errors.push(`Unknown Outlet Code: ${outletCode}`);
+    const category = categoryByName.get(canonical(categoryName));
+    if (!categoryName) errors.push("Missing Category");
+    if (categoryName && !category) errors.push("Unknown Category");
+
+    const quantity = quantityText === "" ? NaN : Number(quantityText);
+    if (!Number.isFinite(quantity) || quantity < 0) errors.push("Invalid Quantity");
+    const minimumQuantity = minimumText === "" ? 0 : Number(minimumText);
+    if (!Number.isFinite(minimumQuantity) || minimumQuantity < 0) errors.push("Invalid Minimum Quantity");
+
+    const condition = assetImportConditionMap.get(canonical(conditionText));
+    if (!condition) errors.push("Invalid Condition");
+    const status = assetImportStatusMap.get(canonical(statusText));
+    if (!status) errors.push("Invalid Status");
+    if (purchaseDateText && !isValidDateInput(purchaseDateText)) errors.push("Invalid Purchase Date");
+    if (warrantyExpiryText && !isValidDateInput(warrantyExpiryText)) errors.push("Invalid Warranty Expiry");
+    if (photoUrl && !/^https?:\/\//i.test(photoUrl)) errors.push("Invalid Photo URL");
+
+    const outletKey = canonical(outlet?.id);
+    const existing = assetCode
+      ? existingByCodeOutlet.get(`${canonical(assetCode)}:${outletKey}`)
+      : existingByNameOutlet.get(`${canonical(assetName)}:${outletKey}`);
+
+    const merged = {
+      ...emptyAsset(),
+      ...(existing || {}),
+      id: existing?.id || "",
+      asset_code: assetCode || existing?.asset_code || "",
+      outlet_id: outlet?.id || "",
+      category_id: category?.id || existing?.category_id || "",
+      name: assetName,
+      description: description || existing?.description || "",
+      image_url: photoUrl || existing?.image_url || "",
+      thumbnail_url: photoUrl || existing?.thumbnail_url || "",
+      condition: canonical(statusText) === "disposed" ? "disposed" : (condition || existing?.condition || "healthy"),
+      current_quantity: Number.isFinite(quantity) ? quantity : 0,
+      minimum_quantity: Number.isFinite(minimumQuantity) ? minimumQuantity : 0,
+      status: status || "active",
+      unit: existing?.unit || "unit",
+      location: location || existing?.location || "",
+      purchase_date: purchaseDateText ? parseImportDate(purchaseDateText) : existing?.purchase_date || null,
+      warranty_expiry: warrantyExpiryText ? parseImportDate(warrantyExpiryText) : existing?.warranty_expiry || null,
+      notes: notes || existing?.notes || "",
+      remark: notes || existing?.remark || "",
+    };
+
+    return {
+      rowNumber: row.__row,
+      source: row,
+      action: errors.length ? "error" : existing ? "update" : "create",
+      errors,
+      existing,
+      outlet,
+      category,
+      asset: merged,
+      display: {
+        assetName,
+        outlet: outlet ? `${outlet.name} (${outletDisplayCode(outlet)})` : outletCode,
+        category: category?.name || categoryName,
+        quantity: quantityText,
+        condition: conditionText,
+        status: statusText,
+      },
+    };
+  });
+}
+
 function emptyAsset() {
   return {
     outlet_id: "",
     category_id: "",
+    asset_code: "",
     name: "",
     description: "",
+    location: "",
+    purchase_date: null,
+    warranty_expiry: null,
+    notes: "",
     unit: "unit",
     current_quantity: 0,
     minimum_quantity: 0,
@@ -545,6 +852,131 @@ function AssetFormModal({ asset, outlets, categories, onClose, onSubmit, saving 
         </div>
       </div>
       {isEdit ? <p className="mt-3 text-xs font-semibold text-text-secondary">Use Adjust Quantity for stock changes so a movement log is created.</p> : null}
+    </Modal>
+  );
+}
+
+function AssetImportModal({ assets, outlets, categories, onClose, onImport }) {
+  const [fileName, setFileName] = useState("");
+  const [preview, setPreview] = useState([]);
+  const [error, setError] = useState("");
+  const [complete, setComplete] = useState(null);
+  const [isImporting, setIsImporting] = useState(false);
+  const validRows = preview.filter((row) => !row.errors.length);
+  const failedRows = preview.filter((row) => row.errors.length);
+
+  async function handleFile(file) {
+    setError("");
+    setComplete(null);
+    setPreview([]);
+    if (!file) return;
+    const extension = file.name.split(".").pop()?.toLowerCase();
+    if (!["csv", "xlsx"].includes(extension)) {
+      setError("Please upload CSV or XLSX only.");
+      return;
+    }
+    try {
+      setFileName(file.name);
+      const parsed = extension === "xlsx" ? await parseXlsx(file) : parseCsv(await file.text());
+      setPreview(buildAssetImportPreview(parsed.rows, { assets, outlets, categories }));
+    } catch (parseError) {
+      setError(parseError.message || "Unable to parse import file.");
+    }
+  }
+
+  function downloadTemplate() {
+    const text = [
+      assetImportColumns.join(","),
+      ["Noodle Plate", "AST-PLATE-001", "FC", "Kitchenware", "20", "5", "Good", "Dry rack", "2026-05-30", "", "Active", "Standard noodle plate", ""].map(csvEscape).join(","),
+    ].join("\n");
+    downloadTextFile("feedx-asset-tracking-template.csv", text);
+  }
+
+  async function confirmImport() {
+    setError("");
+    setIsImporting(true);
+    try {
+      const result = await onImport(preview);
+      setComplete(result);
+    } catch (importError) {
+      setError(importError.message || "Unable to import asset records.");
+    } finally {
+      setIsImporting(false);
+    }
+  }
+
+  return (
+    <Modal
+      title="Import Assets"
+      description="Upload CSV or XLSX, validate rows, preview changes, then import valid asset records."
+      size="xl"
+      onClose={onClose}
+      footer={(
+        <>
+          <button className="btn-secondary" type="button" onClick={onClose}>Close</button>
+          <button className="btn-primary" type="button" disabled={!validRows.length || Boolean(complete) || isImporting} onClick={confirmImport}>{isImporting ? "Importing..." : "Confirm Import"}</button>
+        </>
+      )}
+    >
+      <div className="space-y-4">
+        <div className="grid gap-3 md:grid-cols-[1fr_auto] md:items-center">
+          <label className="flex cursor-pointer flex-col items-center justify-center rounded-2xl border border-dashed border-primary/30 bg-primary/5 p-6 text-center transition hover:bg-primary/10">
+            <UploadCloud size={22} className="text-primary" />
+            <span className="mt-2 type-body-sm font-bold text-text-primary">{fileName || "Upload CSV or XLSX"}</span>
+            <span className="type-caption text-text-secondary">Required: Asset Name, Outlet Code, Category, Quantity</span>
+            <input className="sr-only" type="file" accept=".csv,.xlsx" onChange={(event) => handleFile(event.target.files?.[0])} />
+          </label>
+          <button className="btn-secondary" type="button" onClick={downloadTemplate}><Download size={15} /> Download Template</button>
+        </div>
+        {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 type-body-sm font-semibold text-rose-700">{error}</div> : null}
+        {preview.length ? (
+          <>
+            <div className="grid gap-3 sm:grid-cols-3">
+              <MetricCard label="Rows" value={preview.length} helper="Parsed from file" />
+              <MetricCard label="Valid" value={validRows.length} helper="Ready to import" tone="success" />
+              <MetricCard label="Failed" value={failedRows.length} helper="Can be skipped" tone={failedRows.length ? "danger" : "success"} />
+            </div>
+            <div className="overflow-x-auto rounded-2xl border border-border">
+              <table className="w-full min-w-[980px] text-left">
+                <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
+                  <tr>
+                    <th className="px-3 py-2">Row</th>
+                    <th>Asset Name</th>
+                    <th>Outlet</th>
+                    <th>Category</th>
+                    <th>Quantity</th>
+                    <th>Condition</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                    <th>Validation</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border text-[13px]">
+                  {preview.slice(0, 120).map((row) => (
+                    <tr key={row.rowNumber} className={row.errors.length ? "bg-rose-50/60" : "bg-white"}>
+                      <td className="px-3 py-2 font-mono text-xs">{row.rowNumber}</td>
+                      <td className="font-bold text-text-primary">{row.display.assetName || "-"}</td>
+                      <td>{row.display.outlet || "-"}</td>
+                      <td>{row.display.category || "-"}</td>
+                      <td>{row.display.quantity || "-"}</td>
+                      <td>{row.display.condition || "-"}</td>
+                      <td>{row.display.status || "-"}</td>
+                      <td><Badge tone={row.action === "error" ? "danger" : row.action === "create" ? "success" : "info"}>{row.action === "error" ? "Error" : titleCase(row.action)}</Badge></td>
+                      <td className={row.errors.length ? "text-rose-700" : "text-emerald-700"}>{row.errors.length ? row.errors.join("; ") : "Ready"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+            {complete ? (
+              <div className={`rounded-2xl border p-3 type-body-sm font-semibold ${complete.failed ? "border-amber-200 bg-amber-50 text-amber-800" : "border-emerald-200 bg-emerald-50 text-emerald-700"}`}>
+                Import complete: {complete.created} created · {complete.updated} updated · {complete.skipped} skipped · {complete.failed} failed.
+                {complete.failures?.length ? <div className="mt-1 font-medium">{complete.failures.slice(0, 4).map((failure) => `Row ${failure.rowNumber}: ${failure.message}`).join(" · ")}</div> : null}
+              </div>
+            ) : null}
+          </>
+        ) : null}
+      </div>
     </Modal>
   );
 }
@@ -2275,6 +2707,8 @@ export default function AssetTrackingPage({ store, ui, auth }) {
   const [inspections, setInspections] = useState([]);
   const [maintenanceRecords, setMaintenanceRecords] = useState([]);
   const [assetModal, setAssetModal] = useState(null);
+  const [assetImportOpen, setAssetImportOpen] = useState(false);
+  const [importAssets, setImportAssets] = useState([]);
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [adjustAsset, setAdjustAsset] = useState(null);
   const [inspectionOpen, setInspectionOpen] = useState(false);
@@ -2528,6 +2962,78 @@ export default function AssetTrackingPage({ store, ui, auth }) {
     }
   }
 
+  async function openAssetImport() {
+    if (!canAdd && !canEditAsset) {
+      notifyPermissionDenied(ui, "import assets");
+      return;
+    }
+    try {
+      const allAssets = await assetTrackingService.listAssets("all");
+      setImportAssets(allAssets);
+    } catch (loadImportError) {
+      console.warn("Unable to load all assets for import matching; using current outlet list.", loadImportError);
+      setImportAssets(assets);
+    }
+    setAssetImportOpen(true);
+  }
+
+  async function importAssetRows(previewRows) {
+    if (!canAdd && !canEditAsset) {
+      notifyPermissionDenied(ui, "import assets");
+      return { created: 0, updated: 0, skipped: 0, failed: previewRows.length, failures: [{ rowNumber: "-", message: "No permission to import assets." }] };
+    }
+    const invalidRows = previewRows.filter((row) => row.errors.length);
+    const validRows = previewRows.filter((row) => !row.errors.length);
+    const summary = {
+      created: 0,
+      updated: 0,
+      skipped: 0,
+      failed: invalidRows.length,
+      failures: invalidRows.map((row) => ({ rowNumber: row.rowNumber, message: row.errors.join("; ") })),
+    };
+    for (const row of validRows) {
+      const isUpdate = row.action === "update";
+      if ((isUpdate && !canEditAsset) || (!isUpdate && !canAdd)) {
+        summary.failed += 1;
+        summary.failures.push({ rowNumber: row.rowNumber, message: isUpdate ? "No permission to update asset." : "No permission to create asset." });
+        continue;
+      }
+      try {
+        const beforeQuantity = Number(row.existing?.current_quantity ?? 0);
+        if (import.meta.env.DEV) {
+          console.log("[AssetImportDebug]", {
+            rowNumber: row.rowNumber,
+            action: row.action,
+            payload: row.asset,
+          });
+        }
+        const savedAsset = await assetTrackingService.saveAsset(row.asset);
+        await assetTrackingService.logImportMovement(savedAsset, {
+          beforeQuantity: isUpdate ? beforeQuantity : 0,
+          afterQuantity: Number(savedAsset.current_quantity ?? row.asset.current_quantity ?? 0),
+          remark: isUpdate ? "Asset updated from import" : "Asset created from import",
+        }).catch((movementError) => {
+          if (import.meta.env.DEV) console.warn("[AssetImportMovementDebug]", movementError);
+        });
+        if (isUpdate) summary.updated += 1;
+        else summary.created += 1;
+      } catch (importError) {
+        console.error("Unable to import asset row", { rowNumber: row.rowNumber, error: importError });
+        summary.failed += 1;
+        summary.failures.push({ rowNumber: row.rowNumber, message: importError.message || "Supabase write failed." });
+      }
+    }
+    await loadData();
+    setImportAssets(await assetTrackingService.listAssets("all").catch(() => assets));
+    if (summary.created || summary.updated) {
+      ui.notify({ title: "Asset import completed", message: `${summary.created} created, ${summary.updated} updated.` });
+    }
+    if (!summary.created && !summary.updated && summary.failed) {
+      ui.notify({ title: "No assets imported", message: "Fix validation errors and try again.", tone: "error" });
+    }
+    return summary;
+  }
+
   async function saveCategory(category) {
     if ((category.id && !canEditAsset) || (!category.id && !canAdd)) {
       notifyPermissionDenied(ui, category.id ? "edit asset categories" : "create asset categories");
@@ -2742,6 +3248,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
           <div className="flex flex-wrap gap-2">
             <button className="btn-secondary" type="button" disabled={!canExportAsset} onClick={() => ui.notify({ title: "Export prepared", message: "Asset export will be connected to the export service." })}><Download size={16} /> Export</button>
             <button className="btn-secondary" type="button" onClick={() => setCategoryModalOpen(true)}><Settings2 size={16} /> Categories</button>
+            {(canAdd || canEditAsset) ? <button className="btn-secondary" type="button" onClick={openAssetImport}><UploadCloud size={16} /> Import</button> : null}
             {canManageAsset ? <button className="btn-secondary" type="button" onClick={() => setInspectionOpen(true)}><SlidersHorizontal size={16} /> Start Inspection</button> : null}
             {canAdd ? <button className="btn-primary" type="button" onClick={() => setAssetModal({ ...emptyAsset(), outlet_id: outletId })}><Plus size={16} /> Add Asset</button> : null}
           </div>
@@ -3003,6 +3510,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       </Card> : null}
 
       {assetModal ? <AssetFormModal asset={assetModal} outlets={activeOutlets} categories={categories} onClose={() => setAssetModal(null)} onSubmit={saveAsset} saving={saving} /> : null}
+      {assetImportOpen ? <AssetImportModal assets={importAssets.length ? importAssets : assets} outlets={activeOutlets} categories={categories} onClose={() => setAssetImportOpen(false)} onImport={importAssetRows} /> : null}
       {categoryModalOpen ? <CategoryModal categories={categories} assets={assets} onClose={() => setCategoryModalOpen(false)} onSave={saveCategory} onArchive={archiveCategory} onReorder={reorderCategories} saving={saving} canWrite={canAdd || canEditAsset} canArchive={canDeleteAsset} /> : null}
       {adjustAsset ? <AdjustQuantityModal asset={adjustAsset} onClose={() => setAdjustAsset(null)} onSubmit={adjustQuantity} saving={saving} /> : null}
       {maintenanceContext ? <MaintenanceRecordModal asset={maintenanceContext.asset} record={maintenanceContext.record} onClose={() => setMaintenanceContext(null)} onSubmit={saveMaintenanceRecord} saving={saving} /> : null}

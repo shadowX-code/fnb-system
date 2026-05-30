@@ -7,6 +7,7 @@ import { EMPLOYEE_ACCESS_STATE, EMPLOYEE_ACCESS_STATE_LABEL } from "../constants
 import { buildAlerts, getPreviousPeriod, getSupplierName, percentageChange, toPercent } from "../features/sales-purchase/utils/analytics.js";
 import { formatDateTime } from "../lib/dateTime.js";
 import { supabase } from "../lib/supabase";
+import { canAccessOutlet, hasPermission } from "../utils/accessControl.js";
 
 const iconMap = {
   dashboard: BarChart3,
@@ -53,7 +54,76 @@ function latestPeriod(store) {
   };
 }
 
-function buildNotificationItems(store) {
+function businessDateInput(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+}
+
+function notificationDateTime(value) {
+  if (!value) return new Date().toISOString();
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? new Date().toISOString() : date.toISOString();
+}
+
+function daysFromToday(value) {
+  if (!value) return null;
+  const date = new Date(`${String(value).slice(0, 10)}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return null;
+  const today = new Date();
+  const startToday = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+  return Math.round((date - startToday) / 86400000);
+}
+
+function outletNameById(outlets = [], outletId) {
+  return outlets.find((outlet) => outlet.id === outletId)?.name || "";
+}
+
+function notificationSeverityTone(severity) {
+  if (severity === "critical" || severity === "high") return "danger";
+  if (severity === "medium") return "warning";
+  return "info";
+}
+
+function notificationPermissionAllowed(auth, permissions = []) {
+  if (!permissions.length) return true;
+  return permissions.some((permission) => hasPermission(auth, permission));
+}
+
+function createNotification(candidate, auth, outlets) {
+  if (!notificationPermissionAllowed(auth, candidate.permissions)) return null;
+  if (candidate.outletId && !canAccessOutlet(auth, candidate.outletId)) return null;
+  return {
+    id: candidate.id,
+    type: candidate.type || "info",
+    category: candidate.category || "Insights",
+    severity: candidate.severity || "info",
+    title: candidate.title,
+    description: candidate.description,
+    moduleKey: candidate.moduleKey || "",
+    moduleLabel: candidate.moduleLabel || candidate.moduleKey || "FeedX",
+    outletId: candidate.outletId || "",
+    outletName: candidate.outletId ? outletNameById(outlets, candidate.outletId) : "",
+    actionLabel: candidate.actionLabel || "Open",
+    actionRoute: candidate.actionRoute || "",
+    createdAt: notificationDateTime(candidate.createdAt),
+    isRead: false,
+  };
+}
+
+function stockCheckCompletedForDate(checks, group, date) {
+  return checks.some((check) => (
+    check.stock_check_type === "scheduled" &&
+    check.status === "submitted" &&
+    check.group_id === group.id &&
+    check.outlet_id === group.outlet_id &&
+    String(check.check_date || "").slice(0, 10) === date
+  ));
+}
+
+function buildNotificationItems(store, auth, context = {}, readIds = new Set()) {
+  const outlets = store.outlets || [];
+  const today = businessDateInput();
   const period = latestPeriod(store);
   const alerts = buildAlerts({
     outletId: period.outletId,
@@ -92,106 +162,339 @@ function buildNotificationItems(store) {
     })
     .sort((a, b) => b.change - a.change)[0];
 
-  const items = [
-    ...alerts.slice(0, 3).map((alert) => ({
-      id: alert.id,
-      section: "Alerts",
-      label: alert.priority?.toUpperCase() ?? "INFO",
-      tone: alert.priority === "critical" || alert.priority === "high" ? "danger" : alert.priority === "medium" ? "warning" : "info",
+  const candidates = [
+    ...alerts.slice(0, 6).map((alert) => ({
+      id: `alert-${alert.id}`,
+      type: alert.priority || "info",
+      category: "Alerts",
+      severity: alert.priority === "critical" || alert.priority === "high" ? "high" : alert.priority === "medium" ? "medium" : "info",
       title: alert.title,
       description: alert.description,
+      moduleKey: "alerts",
+      moduleLabel: "Alerts",
+      outletId: period.outletId,
+      actionLabel: "Review Alert",
+      actionRoute: "alerts",
+      permissions: ["dashboard.view", "alerts.view", "sales_comparison.view", "purchase_comparison.view"],
     })),
     supplierSpike && supplierSpike.change > 30
       ? {
-          id: "supplier-spike",
-          section: "Alerts",
-          label: supplierSpike.change > 75 ? "HIGH" : "WARNING",
-          tone: supplierSpike.change > 75 ? "danger" : "warning",
+          id: `supplier-spike-${supplierSpike.record.outlet_id}-${supplierSpike.record.supplier_id}-${period.year}-${period.month}`,
+          type: "supplier_purchase_anomaly",
+          category: "Alerts",
+          severity: supplierSpike.change > 75 ? "high" : "medium",
           title: `${getSupplierName(store.suppliers, supplierSpike.record.supplier_id)} increased ${toPercent(supplierSpike.change)}`,
           description: "Supplier purchase is materially above previous month.",
+          moduleKey: "purchase_comparison",
+          moduleLabel: "Purchases",
+          outletId: supplierSpike.record.outlet_id,
+          actionLabel: "View Purchase Comparison",
+          actionRoute: "purchase-comparison",
+          permissions: ["purchase_comparison.view", "suppliers.view"],
         }
       : null,
-    {
-      id: "delivery-insight",
-      section: "Insights",
-      label: "INFO",
-      tone: "info",
-      title: deliveryChange < 0 ? "Delivery sales slowed this month" : "Delivery sales changed this month",
-      description: `Delivery platform sales moved ${toPercent(deliveryChange)} vs previous month.`,
-    },
-    {
-      id: "draft-health",
-      section: "Data Health",
-      label: "INFO",
-      tone: "info",
-      title: "2 draft purchase rows detected",
-      description: "Review draft rows before locking the month.",
-    },
+    deliveryChange < -15
+      ? {
+          id: `delivery-sales-slowed-${period.outletId}-${period.year}-${period.month}`,
+          type: "sales_drop",
+          category: "Insights",
+          severity: "medium",
+          title: "Delivery sales slowed",
+          description: `Delivery platform sales moved ${toPercent(deliveryChange)} vs previous month.`,
+          moduleKey: "sales_comparison",
+          moduleLabel: "Sales",
+          outletId: period.outletId,
+          actionLabel: "View Sales Comparison",
+          actionRoute: "sales-comparison",
+          permissions: ["sales_comparison.view", "dashboard.view"],
+        }
+      : null,
   ].filter(Boolean);
 
-  if (!items.length) {
-    return [
-      {
-        id: "caught-up",
-        section: "Data Health",
-        label: "INFO",
-        tone: "success",
-        title: "You're all caught up.",
-        description: "No alerts, insights, or data health items need attention.",
-      },
-    ];
-  }
+  (context.stockGroups || [])
+    .filter((group) => group.status !== "inactive" && group.status !== "archived")
+    .forEach((group) => {
+      const completed = stockCheckCompletedForDate(context.stockChecks || [], group, today);
+      if (completed) return;
+      candidates.push({
+        id: `stock-check-due-${group.id}-${today}`,
+        type: "stock_check_due",
+        category: "Tasks",
+        severity: "high",
+        title: "Stock check due",
+        description: `${group.name || "Stock check"} is due for ${group.shift || "today"} and has not been submitted.`,
+        moduleKey: "inventory_stock_check",
+        moduleLabel: "Inventory",
+        outletId: group.outlet_id,
+        actionLabel: "Start Check",
+        actionRoute: "inventory_stock_check",
+        permissions: ["inventory_stock_check.view"],
+      });
+    });
 
-  return items;
+  const draftOrders = (context.purchaseOrders || []).filter((order) => order.status === "draft");
+  draftOrders.slice(0, 6).forEach((order) => {
+    candidates.push({
+      id: `draft-po-${order.id}`,
+      type: "draft_po",
+      category: "Tasks",
+      severity: "medium",
+      title: "Draft PO pending submit",
+      description: `${order.po_no || "Draft PO"} is ready for review before submitting to supplier.`,
+      moduleKey: "inventory_orders",
+      moduleLabel: "Purchase Orders",
+      outletId: order.outlet_id,
+      actionLabel: "Review PO",
+      actionRoute: "inventory_orders",
+      permissions: ["inventory_orders.view", "inventory_orders.submit"],
+      createdAt: order.created_at,
+    });
+  });
+
+  (context.purchaseOrders || [])
+    .filter((order) => ["submitted", "supplier_confirmed", "partial_received"].includes(order.status))
+    .slice(0, 8)
+    .forEach((order) => {
+      candidates.push({
+        id: `po-receive-${order.id}`,
+        type: "po_pending_receive",
+        category: "Tasks",
+        severity: order.status === "partial_received" ? "high" : "medium",
+        title: order.status === "partial_received" ? "PO partially received" : "PO pending receive",
+        description: `${order.po_no || "Purchase order"} needs receiving action.`,
+        moduleKey: "inventory_orders",
+        moduleLabel: "Purchase Orders",
+        outletId: order.outlet_id,
+        actionLabel: "Receive Inventory",
+        actionRoute: "inventory_orders",
+        permissions: ["inventory_orders.view", "inventory_orders.receive"],
+        createdAt: order.updated_at || order.submitted_at || order.created_at,
+      });
+    });
+
+  const poByStockCheckId = new Set((context.purchaseOrders || []).filter((order) => order.source_stock_check_id).map((order) => order.source_stock_check_id));
+  const shortageItemsByCheck = new Map();
+  (context.stockCheckItems || []).forEach((item) => {
+    const shortage = Number(item.variance ?? 0) > 0 || Number(item.par_level_quantity ?? 0) > Number(item.actual_count_quantity ?? 0);
+    if (!shortage) return;
+    shortageItemsByCheck.set(item.stock_check_id, (shortageItemsByCheck.get(item.stock_check_id) || 0) + 1);
+  });
+  (context.stockChecks || [])
+    .filter((check) => check.stock_check_type === "scheduled" && check.status === "submitted" && shortageItemsByCheck.has(check.id) && !poByStockCheckId.has(check.id))
+    .slice(0, 6)
+    .forEach((check) => {
+      candidates.push({
+        id: `purchase-suggestions-${check.id}`,
+        type: "purchase_suggestion_pending",
+        category: "Tasks",
+        severity: "high",
+        title: "Purchase suggestions pending",
+        description: `${shortageItemsByCheck.get(check.id)} shortage item(s) need review before Draft PO creation.`,
+        moduleKey: "inventory_stock_check",
+        moduleLabel: "Inventory",
+        outletId: check.outlet_id,
+        actionLabel: "Review Suggestions",
+        actionRoute: "inventory_stock_check",
+        permissions: ["inventory_stock_check.view", "inventory_orders.create"],
+        createdAt: check.submitted_at || check.created_at,
+      });
+    });
+
+  (context.wasteRecords || []).slice(0, 8).forEach((record) => {
+    const quantity = Number(record.quantity || 0);
+    candidates.push({
+      id: `waste-${record.id}`,
+      type: quantity >= 10 ? "high_waste" : "waste_recorded",
+      category: quantity >= 10 ? "Alerts" : "Insights",
+      severity: quantity >= 10 ? "medium" : "info",
+      title: quantity >= 10 ? "High waste quantity recorded" : "Waste recorded today",
+      description: `${record.item?.name || "Inventory item"} · ${quantity} ${record.unit || ""} · ${record.waste_type || "Waste"}`,
+      moduleKey: "inventory_waste",
+      moduleLabel: "Waste",
+      outletId: record.outlet_id,
+      actionLabel: "View Waste",
+      actionRoute: "inventory_waste",
+      permissions: ["inventory_waste.view"],
+      createdAt: record.created_at || record.waste_date,
+    });
+  });
+
+  (context.maintenanceRecords || [])
+    .filter((record) => record.status !== "completed" && daysFromToday(record.scheduled_date || record.date) !== null && daysFromToday(record.scheduled_date || record.date) <= 1)
+    .slice(0, 8)
+    .forEach((record) => {
+      const days = daysFromToday(record.scheduled_date || record.date);
+      candidates.push({
+        id: `asset-maintenance-${record.id}`,
+        type: "asset_maintenance_due",
+        category: "Tasks",
+        severity: days < 0 ? "high" : "medium",
+        title: days < 0 ? "Asset maintenance overdue" : "Asset maintenance due",
+        description: `${record.asset?.name || "Asset"} needs ${String(record.maintenance_type || "maintenance").replace(/_/g, " ")} follow-up.`,
+        moduleKey: "asset_tracking",
+        moduleLabel: "Assets",
+        outletId: record.outlet_id,
+        actionLabel: "Open Assets",
+        actionRoute: "asset_tracking",
+        permissions: ["asset_tracking.view"],
+        createdAt: record.scheduled_date || record.date,
+      });
+    });
+
+  (context.inspections || [])
+    .filter((inspection) => ["draft", "in_progress", "pending_review"].includes(inspection.status))
+    .slice(0, 6)
+    .forEach((inspection) => {
+      candidates.push({
+        id: `asset-inspection-${inspection.id}`,
+        type: "asset_inspection_due",
+        category: "Tasks",
+        severity: "medium",
+        title: "Asset inspection draft open",
+        description: "An asset inspection is not yet submitted.",
+        moduleKey: "asset_tracking",
+        moduleLabel: "Assets",
+        outletId: inspection.outlet_id,
+        actionLabel: "Open Inspection",
+        actionRoute: "asset_tracking",
+        permissions: ["asset_tracking.view"],
+        createdAt: inspection.updated_at || inspection.created_at,
+      });
+    });
+
+  (context.employees || []).forEach((employee) => {
+    const displayName = employee.nickname || employee.full_name || employee.email || "Employee";
+    if (employee.enable_system_login && ["not_sent", "invited"].includes(employee.access_state)) {
+      candidates.push({
+        id: `employee-login-${employee.id}`,
+        type: "employee_login_setup",
+        category: "Tasks",
+        severity: "medium",
+        title: "Employee login setup pending",
+        description: `${displayName} has login access enabled but setup is not complete.`,
+        moduleKey: "employees",
+        moduleLabel: "People",
+        actionLabel: "View Employee",
+        actionRoute: "employees",
+        permissions: ["employees.view", "employees.edit"],
+        createdAt: employee.updated_at || employee.created_at,
+      });
+    }
+    if (employee.enable_system_login && !employee.role_id) {
+      candidates.push({
+        id: `employee-role-missing-${employee.id}`,
+        type: "employee_role_missing",
+        category: "Data Health",
+        severity: "high",
+        title: "Employee role missing",
+        description: `${displayName} has system login enabled without an assigned role.`,
+        moduleKey: "employees",
+        moduleLabel: "People",
+        actionLabel: "Fix Employee",
+        actionRoute: "employees",
+        permissions: ["employees.view", "employees.edit"],
+        createdAt: employee.updated_at || employee.created_at,
+      });
+    }
+    if (!employee.workplace) {
+      candidates.push({
+        id: `employee-workplace-missing-${employee.id}`,
+        type: "employee_workplace_missing",
+        category: "Data Health",
+        severity: "medium",
+        title: "Employee workplace missing",
+        description: `${displayName} has no workplace/outlet assigned.`,
+        moduleKey: "employees",
+        moduleLabel: "People",
+        actionLabel: "Review Employee",
+        actionRoute: "employees",
+        permissions: ["employees.view", "employees.edit"],
+        createdAt: employee.updated_at || employee.created_at,
+      });
+    }
+  });
+
+  return candidates
+    .map((candidate) => createNotification(candidate, auth, outlets))
+    .filter(Boolean)
+    .map((item) => ({ ...item, isRead: readIds.has(item.id) }))
+    .sort((first, second) => {
+      const severityRank = { critical: 4, high: 3, medium: 2, info: 1 };
+      return (severityRank[second.severity] || 0) - (severityRank[first.severity] || 0) ||
+        new Date(second.createdAt).getTime() - new Date(first.createdAt).getTime();
+    })
+    .slice(0, 40);
 }
 
-function NotificationPopover({ items, onClose }) {
-  const grouped = ["Alerts", "Insights", "Data Health"].map((section) => ({
-    section,
-    items: items.filter((item) => item.section === section),
-  })).filter((group) => group.items.length);
+const notificationTabs = ["All", "Tasks", "Alerts", "Data Health"];
+
+function NotificationPopover({ items, unreadCount, activeTab, onTabChange, onMarkAllRead, onAction, onClose }) {
+  const visibleItems = activeTab === "All" ? items : items.filter((item) => item.category === activeTab);
 
   return (
     <div>
       <div className="flex items-center justify-between border-b border-border px-4 py-3">
         <div>
           <div className="text-sm font-bold text-text-primary">Notifications</div>
-          <div className="text-xs text-text-secondary">Alerts, insights and data health</div>
+          <div className="text-xs text-text-secondary">{unreadCount} unread · Role-aware tasks and alerts</div>
         </div>
-        <button className="rounded-lg px-2 py-1 text-xs font-bold text-text-secondary hover:bg-slate-50" type="button" onClick={onClose}>Close</button>
+        <div className="flex items-center gap-2">
+          <button className="rounded-lg px-2 py-1 text-xs font-bold text-text-secondary hover:bg-slate-50" type="button" onClick={onMarkAllRead}>Mark all as read</button>
+          <button className="rounded-lg px-2 py-1 text-xs font-bold text-text-secondary hover:bg-slate-50" type="button" onClick={onClose}>Close</button>
+        </div>
+      </div>
+      <div className="flex gap-1 border-b border-border px-3 py-2">
+        {notificationTabs.map((tab) => {
+          const count = tab === "All" ? items.length : items.filter((item) => item.category === tab).length;
+          return (
+            <button
+              key={tab}
+              className={`rounded-full px-3 py-1 text-xs font-black transition ${activeTab === tab ? "bg-primary/10 text-primary" : "text-text-secondary hover:bg-slate-50 hover:text-text-primary"}`}
+              type="button"
+              onClick={() => onTabChange(tab)}
+            >
+              {tab} {count ? <span className="ml-1 text-[10px] opacity-70">{count}</span> : null}
+            </button>
+          );
+        })}
       </div>
       <div className="max-h-[430px] overflow-y-auto p-2">
-        {grouped.length ? grouped.map((group) => (
-          <section key={group.section} className="py-2">
-            <div className="px-2 pb-2 text-[11px] font-bold uppercase tracking-wide text-text-muted">{group.section}</div>
-            <div className="space-y-1">
-              {group.items.map((item) => (
-                <div key={item.id} className="rounded-xl px-3 py-2 transition hover:bg-slate-50">
-                  <div className="flex items-start gap-3">
-                    <span className={`mt-0.5 rounded-full px-2 py-0.5 text-[10px] font-bold ${
-                      item.tone === "danger"
-                        ? "bg-rose-100 text-rose-700"
-                        : item.tone === "warning"
-                          ? "bg-amber-100 text-amber-700"
-                          : item.tone === "success"
-                            ? "bg-emerald-100 text-emerald-700"
-                            : "bg-blue-100 text-blue-700"
-                    }`}>
-                      {item.label}
-                    </span>
-                    <div className="min-w-0">
-                      <div className="text-sm font-bold text-text-primary">{item.title}</div>
-                      <p className="mt-1 text-xs leading-5 text-text-secondary">{item.description}</p>
+        {visibleItems.length ? (
+          <div className="space-y-1">
+            {visibleItems.map((item) => (
+              <div key={item.id} className={`rounded-xl px-3 py-2 transition hover:bg-slate-50 ${item.isRead ? "opacity-70" : "bg-primary/5"}`}>
+                <div className="flex items-start gap-3">
+                  <span className={`mt-0.5 rounded-full px-2 py-0.5 text-[10px] font-bold ${
+                    notificationSeverityTone(item.severity) === "danger"
+                      ? "bg-rose-100 text-rose-700"
+                      : notificationSeverityTone(item.severity) === "warning"
+                        ? "bg-amber-100 text-amber-700"
+                        : "bg-blue-100 text-blue-700"
+                  }`}>
+                    {item.severity.toUpperCase()}
+                  </span>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      {item.outletName ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-bold text-slate-600">{item.outletName}</span> : null}
+                      <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-bold text-primary">{item.moduleLabel}</span>
+                      {!item.isRead ? <span className="h-1.5 w-1.5 rounded-full bg-primary" /> : null}
                     </div>
+                    <div className="mt-1 text-sm font-bold text-text-primary">{item.title}</div>
+                    <p className="mt-1 text-xs leading-5 text-text-secondary">{item.description}</p>
+                    {item.actionRoute ? (
+                      <button className="mt-2 text-xs font-black text-primary hover:underline" type="button" onClick={() => onAction(item)}>
+                        {item.actionLabel}
+                      </button>
+                    ) : null}
                   </div>
                 </div>
-              ))}
-            </div>
-          </section>
-        )) : (
+              </div>
+            ))}
+          </div>
+        ) : (
           <div className="p-8 text-center">
             <div className="text-sm font-bold text-text-primary">You're all caught up.</div>
-            <p className="mt-1 text-sm text-text-secondary">No alerts, insights, or data health items need attention.</p>
+            <p className="mt-1 text-sm text-text-secondary">No visible notifications need your attention.</p>
           </div>
         )}
       </div>
@@ -487,11 +790,23 @@ function SidebarProfilePopover({ auth, onViewProfile, onChangePassword, onSignOu
         </div>
       </div>
       <div className="pt-2">
-        <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text-secondary transition hover:bg-slate-50 hover:text-text-primary" type="button" onClick={onViewProfile}>
+        <button
+          className="pointer-events-auto flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text-secondary transition hover:bg-slate-50 hover:text-text-primary"
+          type="button"
+          onPointerDown={(event) => event.stopPropagation()}
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={onViewProfile}
+        >
           <UserRound size={15} />
           View My Profile
         </button>
-        <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text-secondary transition hover:bg-slate-50 hover:text-text-primary" type="button" onClick={onChangePassword}>
+        <button
+          className="pointer-events-auto flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left text-sm font-semibold text-text-secondary transition hover:bg-slate-50 hover:text-text-primary"
+          type="button"
+          onPointerDown={(event) => event.stopPropagation()}
+          onMouseDown={(event) => event.stopPropagation()}
+          onClick={onChangePassword}
+        >
           <KeyRound size={15} />
           Change Password
         </button>
@@ -512,6 +827,9 @@ function SidebarProfilePopover({ auth, onViewProfile, onChangePassword, onSignOu
 
 export default function AppShell({ activeRoute, activeRouteId, sections, onNavigate, children, store, auth, onLogout, onNotify }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
+  const [notificationTab, setNotificationTab] = useState("All");
+  const [notificationContext, setNotificationContext] = useState({});
+  const [notificationReadIds, setNotificationReadIds] = useState(() => new Set());
   const [profileMenuOpen, setProfileMenuOpen] = useState(false);
   const [sidebarProfileOpen, setSidebarProfileOpen] = useState(false);
   const [myProfileOpen, setMyProfileOpen] = useState(false);
@@ -541,9 +859,109 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
       return {};
     }
   });
-  const notificationItems = useMemo(() => buildNotificationItems(store), [store]);
-  const unreadCount = notificationItems.filter((item) => item.id !== "caught-up").length;
+  const notificationUserKey = auth?.profile?.id || auth?.user?.id || "anonymous";
+  const notificationStorageKey = `feedx.notifications.read.${notificationUserKey}`;
+  const notificationItems = useMemo(
+    () => buildNotificationItems(store, auth, notificationContext, notificationReadIds),
+    [auth, notificationContext, notificationReadIds, store],
+  );
+  const unreadCount = notificationItems.filter((item) => !item.isRead).length;
   const resolvedTheme = themeChoice === "system" ? systemTheme : themeChoice;
+
+  function userCanNotification(codes = []) {
+    return codes.some((code) => hasPermission(auth, code));
+  }
+
+  async function safeNotificationQuery(label, query) {
+    const { data, error } = await query;
+    if (error) {
+      if (import.meta.env.DEV) console.warn(`[NotificationCenter] ${label} skipped`, error);
+      return [];
+    }
+    return data ?? [];
+  }
+
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(localStorage.getItem(notificationStorageKey) || "[]");
+      setNotificationReadIds(new Set(Array.isArray(stored) ? stored : []));
+    } catch {
+      setNotificationReadIds(new Set());
+    }
+  }, [notificationStorageKey]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(notificationStorageKey, JSON.stringify([...notificationReadIds].slice(-300)));
+    } catch {
+      // Read state is a local convenience only.
+    }
+  }, [notificationReadIds, notificationStorageKey]);
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadNotificationContext() {
+      if (!auth?.session || auth.loading || auth.contextLoading) {
+        setNotificationContext({});
+        return;
+      }
+      const today = businessDateInput();
+      const inventoryWanted = userCanNotification(["inventory_stock_check.view", "inventory_orders.view", "inventory_orders.create", "inventory_waste.view"]);
+      const assetWanted = userCanNotification(["asset_tracking.view"]);
+      const peopleWanted = userCanNotification(["employees.view", "employees.edit"]);
+      const [
+        stockGroups,
+        stockChecks,
+        stockCheckItems,
+        purchaseOrders,
+        wasteRecords,
+        maintenanceRecords,
+        inspections,
+        employees,
+      ] = await Promise.all([
+        inventoryWanted
+          ? safeNotificationQuery("stock groups", supabase.from("inventory_stock_check_groups").select("id,name,outlet_id,shift,status,last_checked_at,updated_at").neq("status", "inactive").limit(80))
+          : [],
+        inventoryWanted
+          ? safeNotificationQuery("stock checks", supabase.from("inventory_stock_checks").select("id,check_name,group_id,outlet_id,check_date,shift,status,stock_check_type,submitted_at,created_at").gte("check_date", today).limit(120))
+          : [],
+        inventoryWanted
+          ? safeNotificationQuery("stock check items", supabase.from("inventory_stock_check_items").select("id,stock_check_id,par_level_quantity,actual_count_quantity,variance,status").limit(300))
+          : [],
+        userCanNotification(["inventory_orders.view", "inventory_orders.create", "inventory_orders.receive", "inventory_orders.submit"])
+          ? safeNotificationQuery("purchase orders", supabase.from("inventory_purchase_orders").select("id,po_no,outlet_id,status,source_type,source_stock_check_id,created_at,updated_at,submitted_at").in("status", ["draft", "submitted", "supplier_confirmed", "partial_received"]).order("created_at", { ascending: false }).limit(80))
+          : [],
+        userCanNotification(["inventory_waste.view"])
+          ? safeNotificationQuery("waste records", supabase.from("inventory_waste_records").select("id,outlet_id,waste_type,quantity,unit,waste_date,created_at,item:inventory_items(name,category:inventory_categories(name))").gte("waste_date", today).order("waste_date", { ascending: false }).limit(80))
+          : [],
+        assetWanted
+          ? safeNotificationQuery("asset maintenance", supabase.from("asset_maintenance_records").select("id,asset_id,outlet_id,status,scheduled_date,date,maintenance_type,issue,created_at,updated_at,asset:asset_items(name)").neq("status", "completed").order("date", { ascending: true }).limit(80))
+          : [],
+        assetWanted
+          ? safeNotificationQuery("asset inspections", supabase.from("asset_inspections").select("id,outlet_id,status,inspection_date,created_at,updated_at").in("status", ["draft", "in_progress", "pending_review"]).order("updated_at", { ascending: false }).limit(60))
+          : [],
+        peopleWanted
+          ? safeNotificationQuery("employees", supabase.from("employees").select("id,full_name,nickname,email,role_id,workplace,access_state,enable_system_login,created_at,updated_at").limit(200))
+          : [],
+      ]);
+      if (!ignore) {
+        setNotificationContext({
+          stockGroups,
+          stockChecks,
+          stockCheckItems,
+          purchaseOrders,
+          wasteRecords,
+          maintenanceRecords,
+          inspections,
+          employees,
+        });
+      }
+    }
+    loadNotificationContext();
+    return () => {
+      ignore = true;
+    };
+  }, [auth?.contextLoading, auth?.loading, auth?.permissions, auth?.profile?.id, auth?.session]);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -611,6 +1029,28 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
     setSidebarProfileOpen(false);
   }
 
+  function markNotificationRead(notificationId) {
+    setNotificationReadIds((current) => {
+      const next = new Set(current);
+      next.add(notificationId);
+      return next;
+    });
+  }
+
+  function markAllNotificationsRead() {
+    setNotificationReadIds((current) => {
+      const next = new Set(current);
+      notificationItems.forEach((item) => next.add(item.id));
+      return next;
+    });
+  }
+
+  function handleNotificationAction(item) {
+    markNotificationRead(item.id);
+    setNotificationsOpen(false);
+    if (item.actionRoute) onNavigate(item.actionRoute);
+  }
+
   useEffect(() => {
     if (!mobileSidebarOpen) return undefined;
     const previousOverflow = document.body.style.overflow;
@@ -635,6 +1075,43 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
     await auth.changePassword({ currentPassword, newPassword });
     setChangePasswordOpen(false);
     onNotify?.({ title: "Password changed", message: "Your FeedX login password was updated." });
+  }
+
+  function closeAccountMenus() {
+    setProfileMenuOpen(false);
+    setSidebarProfileOpen(false);
+    setNotificationsOpen(false);
+    setMobileSidebarOpen(false);
+  }
+
+  function handleViewMyProfileClick(event) {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    if (!auth?.profile?.id) {
+      onNotify?.({
+        title: "Unable to open profile",
+        message: "Your employee profile could not be loaded. Please refresh or contact admin.",
+        tone: "error",
+      });
+      return;
+    }
+    closeAccountMenus();
+    setMyProfileOpen(true);
+  }
+
+  function handleOpenChangePasswordClick(event) {
+    event?.preventDefault?.();
+    event?.stopPropagation?.();
+    if (!auth?.user?.email) {
+      onNotify?.({
+        title: "Password change unavailable",
+        message: "Your login email could not be loaded. Please use reset password from the login page.",
+        tone: "error",
+      });
+      return;
+    }
+    closeAccountMenus();
+    setChangePasswordOpen(true);
   }
 
   async function handleSignOutClick(event, source = "top") {
@@ -773,16 +1250,8 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
         >
           <SidebarProfilePopover
             auth={auth}
-            onViewProfile={() => {
-              setSidebarProfileOpen(false);
-              setMobileSidebarOpen(false);
-              setMyProfileOpen(true);
-            }}
-            onChangePassword={() => {
-              setSidebarProfileOpen(false);
-              setMobileSidebarOpen(false);
-              setChangePasswordOpen(true);
-            }}
+            onViewProfile={handleViewMyProfileClick}
+            onChangePassword={handleOpenChangePasswordClick}
             onSignOut={handleSignOutClick}
           />
         </FloatingLayer>
@@ -846,6 +1315,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
                 aria-expanded={notificationsOpen}
                 onClick={() => {
                   setProfileMenuOpen(false);
+                  setSidebarProfileOpen(false);
                   setNotificationsOpen((value) => !value);
                 }}
               >
@@ -880,7 +1350,15 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
                 maxHeight={560}
                 className="p-0"
               >
-                <NotificationPopover items={notificationItems} onClose={() => setNotificationsOpen(false)} />
+                <NotificationPopover
+                  items={notificationItems}
+                  unreadCount={unreadCount}
+                  activeTab={notificationTab}
+                  onTabChange={setNotificationTab}
+                  onMarkAllRead={markAllNotificationsRead}
+                  onAction={handleNotificationAction}
+                  onClose={() => setNotificationsOpen(false)}
+                />
               </FloatingLayer>
               <FloatingLayer
                 open={profileMenuOpen}
