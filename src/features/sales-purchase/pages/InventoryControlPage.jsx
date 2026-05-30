@@ -38,11 +38,6 @@ import { getAccessibleOutletOptions, getAccessibleOutlets, hasAllOutletAccess, h
 
 const STORAGE_KEY = "feedx.inventoryControl.v2";
 const LEGACY_STORAGE_KEYS = ["feedx.inventoryControl.v1"];
-const ENABLE_MOBILE_STOCKCHECK_EXPERIMENT = String(
-  import.meta.env.VITE_ENABLE_MOBILE_STOCKCHECK_EXPERIMENT
-    ?? import.meta.env.ENABLE_MOBILE_STOCKCHECK_EXPERIMENT
-    ?? "false",
-).toLowerCase() === "true";
 const SHOW_STOCK_CHECK_CARD_DEBUG = import.meta.env.DEV && String(import.meta.env.VITE_SHOW_STOCK_CHECK_CARD_DEBUG ?? "false").toLowerCase() === "true";
 const INVENTORY_BROWSER_CACHE_KEYS = [
   STORAGE_KEY,
@@ -612,27 +607,33 @@ function isUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
 }
 
-function useIsMobileStockCheckExperiment() {
-  const [isMobile, setIsMobile] = useState(() => (
-    ENABLE_MOBILE_STOCKCHECK_EXPERIMENT
-    && typeof window !== "undefined"
-    && window.matchMedia?.("(max-width: 768px)")?.matches
-  ));
+function getStockCheckResponsiveLayout() {
+  if (typeof window === "undefined") return "desktop";
+  const width = window.innerWidth || document.documentElement?.clientWidth || 1024;
+  if (width <= 768) return "mobile";
+  if (width < 1024) return "compact";
+  return "desktop";
+}
+
+function useStockCheckResponsiveLayout() {
+  const [layout, setLayout] = useState(getStockCheckResponsiveLayout);
 
   useEffect(() => {
-    if (!ENABLE_MOBILE_STOCKCHECK_EXPERIMENT || typeof window === "undefined") {
-      setIsMobile(false);
+    if (typeof window === "undefined") {
+      setLayout("desktop");
       return undefined;
     }
-    const query = window.matchMedia?.("(max-width: 768px)");
-    if (!query) return undefined;
-    const update = () => setIsMobile(query.matches);
+    const update = () => setLayout(getStockCheckResponsiveLayout());
     update();
-    query.addEventListener?.("change", update);
-    return () => query.removeEventListener?.("change", update);
+    window.addEventListener("resize", update);
+    window.addEventListener("orientationchange", update);
+    return () => {
+      window.removeEventListener("resize", update);
+      window.removeEventListener("orientationchange", update);
+    };
   }, []);
 
-  return ENABLE_MOBILE_STOCKCHECK_EXPERIMENT && isMobile;
+  return layout;
 }
 
 function selectInputText(event) {
@@ -2982,9 +2983,6 @@ function StockCheckMobileView({
         description={`${outletName} · ${isAudit ? activeCheckGroup.auditType : activeCheckGroup.shift} · ${dateLabel}`}
         action={<button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={onBack}>Back</button>}
       >
-        <div className="mb-3 rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-center text-[11px] font-black uppercase tracking-[0.14em] text-amber-700">
-          Mobile Stock Check Experimental
-        </div>
         <div className="grid gap-2 rounded-2xl border border-border bg-slate-50 p-3">
           <div className="flex items-center justify-between gap-3">
             <div>
@@ -4711,7 +4709,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [checkSearch, setCheckSearch] = useState("");
   const [collapsedCheckCategoryIds, setCollapsedCheckCategoryIds] = useState(() => new Set());
   const [photoPreview, setPhotoPreview] = useState(null);
-  const isMobileStockCheckExperiment = useIsMobileStockCheckExperiment();
+  const stockCheckResponsiveLayout = useStockCheckResponsiveLayout();
+  const useStockCheckCardLayout = stockCheckResponsiveLayout !== "desktop";
 
   const setDate = useCallback((value, source = "manual") => {
     setDateState(normalizeBusinessDate(value));
@@ -7232,7 +7231,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         setActiveScheduledCheckId(null);
         setActiveAuditCheck(null);
       };
-      if (isMobileStockCheckExperiment) {
+      if (useStockCheckCardLayout) {
         return (
           <StockCheckMobileView
             activeCheckGroup={activeCheckGroup}
@@ -7380,11 +7379,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
     return (
       <div className="space-y-4">
-        {isMobileStockCheckExperiment ? (
-          <div className="rounded-full border border-amber-200 bg-amber-50 px-3 py-1.5 text-center text-[11px] font-black uppercase tracking-[0.14em] text-amber-700">
-            Mobile Stock Check Experimental
-          </div>
-        ) : null}
         <div className="card flex flex-col gap-3 p-3 md:flex-row md:items-end">
           <SelectField label="Outlet" value={selectedOutletId} options={getAccessibleOutletOptions(auth, outlets)} onChange={setSelectedOutletId} searchable className="md:w-64" />
           <DatePickerField label="Date" value={date} onChange={setDate} />
