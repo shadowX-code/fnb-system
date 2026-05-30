@@ -1898,6 +1898,7 @@ Master Inventory UI:
 - Inventory Type is no longer exposed in Add/Edit Item.
 - Default Supplier is no longer exposed in Add/Edit Item because supplier assignment is outlet-specific and managed in Par Levels / outlet-item supplier configuration.
 - The master item unit field is displayed as UOM in Master Inventory UI.
+- `inventory_items.unit` is the source of truth for Master Inventory UOM; UI aliases such as `uom_code` must normalize back to the selected `unit` value and must not override a newly saved UOM.
 - Master Inventory UOM values are managed by users in Master Inventory > UOM Settings.
 - UOM dropdowns load from `inventory_uoms`, and the Add/Edit Item UOM dropdown includes `+ Add New UOM` for quick creation.
 - Saving a new UOM refreshes the UOM list and auto-selects the newly created UOM in the item form.
@@ -1907,7 +1908,7 @@ Master Inventory UI:
 - Inventory settings must not show local-only success messages. If Supabase write fails, the UI must show an error and keep/refetch the remote truth.
 - Item Photo is uploaded from the device, not entered as a raw URL.
 - Item photos are saved to `inventory_items.photo_url` through the Supabase Storage bucket `inventory-item-photos`.
-- If storage is not configured yet, the form must show a clear fallback message instead of blocking item editing.
+- If storage is not configured yet, the form must show a clear fallback message. Item details may still save, but the success state must warn `Item saved, but photo upload failed` and must not write data-url previews into `inventory_items.photo_url`.
 - The Master Inventory list defaults to Group by Category.
 - Master Inventory shows a compact KPI summary strip above the list: Total Items, Categories, Active Items, and Outlets Linked.
 - Category group headers show category name, item count, and collapse/expand control.
@@ -1938,6 +1939,8 @@ Master Inventory UI:
 - Add/Edit Item shows linked outlets and a note that par levels are managed in Par Level Setup.
 - Add/Edit Item does not show outlet-by-outlet Par Level, Low Stock Threshold, or Reorder Qty inputs.
 - Add/Edit Item save is remote-first: show success only after `inventory_items` and `inventory_item_outlets` are persisted and refetched from Supabase.
+- Add/Edit Item toast messages are action-specific: `Inventory item created`, `Inventory item updated`, `Inventory photo updated`, `Linked outlets updated`, or `Item saved, but photo upload failed`.
+- Inventory Control toast messages must identify both module and action, and success toasts may only appear after Supabase confirms the write. Scheduled Stock Check uses `Stock Check draft saved` and `Stock Check submitted`; Audit Stock Check uses `Audit Stock Check draft saved` and `Audit Stock Check submitted`; purchase workflows use `Draft PO created`, `PO submitted`, `Inventory received`, `PO completed`, and `PO cancelled`; Waste uses `Waste record created` / `Waste record updated`; Recipes use `Recipe created`, `Recipe updated`, and `Recipe archived`. Error toasts must name the failed action, for example `Failed to submit Audit Stock Check` or `Failed to update Inventory Item`.
 - Item archive/delete actions are remote-first and must not mutate the visible item list before Supabase confirms the write.
 - Item Archive persists `inventory_items.status = inactive`, refetches the list, hides the item from the Active filter, and keeps the item visible under Inactive or All status filters.
 - Linked outlet rows are stored in `inventory_item_outlets` using `inventory_item_id` and `outlet_id`; outlet codes are display/import inputs only and are not stored as the link key.
@@ -1992,6 +1995,7 @@ Status as of 30 May 2026:
 - Par Levels update Par Level, Storage Location, and Suppliers through Supabase-backed `inventory_item_outlets` and `inventory_item_outlet_suppliers`.
 - Stock Check Groups create/edit/duplicate/archive are Supabase-backed through `inventory_stock_check_groups` and `inventory_stock_check_group_categories`.
 - Scheduled Stock Check start/draft/submit/result and Audit Stock Check start/draft/submit/result are Supabase-backed through `inventory_stock_checks` and `inventory_stock_check_items`.
+- Stock Check submit validation is shown inline above the item list instead of as a blocking toast. The validation panel lists item names that require attention, highlights invalid rows, and auto-scrolls to the first invalid item. Save Draft remains available when a scheduled or audit check has incomplete counts.
 - Generated variance movements are not created by Stock Check submit in the current P0-2 implementation; Stock Check persistence stores the audit/count snapshot and variance result only.
 - Purchase Suggestions to Draft PO creation is Supabase-backed through `inventory_purchase_orders` and `inventory_purchase_order_items`.
 - Purchase Orders submit, edit Draft PO, receive, partial receive, complete, and cancel are Supabase-backed through `inventory_purchase_orders`, `inventory_purchase_order_items`, `inventory_purchase_receipts`, `inventory_purchase_receipt_items`, and `inventory_movements`.
@@ -2313,6 +2317,7 @@ Daily Stock Check UI:
 - Active counting form includes a compact info bar for checked-by, started-by, and draft/submission status.
 - Actual count input uses quantity stepper controls.
 - Quick count buttons: Full, Half, Empty, NA.
+- Submit validation lists incomplete items by name, shows inline row messages such as `Count required` or `Skip reason required`, and scrolls to the first invalid row.
 - Sticky bottom bar shows items checked, critical items, Save Draft, and Submit Stock Check.
 - Result modals show checked-by/submitted-at, total items, Normal, Shortage, Excess, and Skipped counts above the item table.
 - Result item rows show photo/fallback, category, SKU, UOM, notes, skip reason, and semantic status badges.

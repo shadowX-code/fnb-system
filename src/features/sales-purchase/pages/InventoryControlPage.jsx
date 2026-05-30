@@ -591,6 +591,16 @@ function uniqueIds(values = []) {
   return [...new Set(values.filter(Boolean))];
 }
 
+function sameIdSet(first = [], second = []) {
+  const left = uniqueIds(first).sort();
+  const right = uniqueIds(second).sort();
+  return left.length === right.length && left.every((value, index) => value === right[index]);
+}
+
+function isImageDataUrl(value) {
+  return /^data:image\/[a-zA-Z0-9.+-]+;base64,/i.test(String(value || ""));
+}
+
 function isUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(value || ""));
 }
@@ -739,7 +749,7 @@ function normalizeInventoryItem(item = {}) {
   const categoryId = item.categoryId ?? item.category_id ?? categoryRecord.id ?? "";
   const categoryName = item.categoryName ?? item.category_name ?? categoryRecord.name ?? "";
   const categoryCode = item.categoryCode ?? item.category_code ?? categoryRecord.code ?? categoryRecord.category_code ?? "";
-  const uomCode = item.uomCode ?? item.uom_code ?? item.unit ?? uomRecord.code ?? "";
+  const uomCode = item.unit ?? item.uomCode ?? item.uom_code ?? uomRecord.code ?? "";
   const photoUrl = item.photo_url ?? item.photoUrl ?? item.image_url ?? item.item_photo_url ?? item.photo ?? item.image ?? "";
   const description = item.description ?? "";
   const status = String(item.status ?? "active").toLowerCase();
@@ -839,7 +849,7 @@ function mapRemoteInventoryItem(row = {}, configs = [], categoryById = new Map()
     categoryId: row.category_id || "",
     categoryName: row.category_name || category?.name || "",
     categoryCode: row.category_code || category?.code || category?.category_code || "",
-    unit: row.uom_code || row.unit || row.uom || "",
+    unit: row.unit || row.uom_code || row.uom || "",
     photo: row.photo_url || row.image_url || row.item_photo_url || row.photo || row.image || "",
     description: row.description || "",
     inventoryType: row.inventory_type || "",
@@ -1272,6 +1282,11 @@ async function persistRemoteInventoryItem(item, userId) {
   const debug = {
     mode,
     payload: itemPayload,
+    itemId: normalized.id || null,
+    selectedUom: normalized.unit || null,
+    savedUnit: null,
+    photoUrl: itemPayload.photo_url,
+    linkedOutletIds: uniqueIds(normalized.linkedOutletIds || []),
     itemInsertResult: null,
     itemUpdateResult: null,
     outletLinksPayload: [],
@@ -1292,6 +1307,7 @@ async function persistRemoteInventoryItem(item, userId) {
     if (result.error) {
       debug.error = result.error;
       debugLog("[InventorySaveDebug]", debug);
+      debugLog("[InventoryItemSaveDebug]", debug);
       throw result.error;
     }
     savedItem = result.data;
@@ -1305,10 +1321,12 @@ async function persistRemoteInventoryItem(item, userId) {
     if (result.error) {
       debug.error = result.error;
       debugLog("[InventorySaveDebug]", debug);
+      debugLog("[InventoryItemSaveDebug]", debug);
       throw result.error;
     }
     savedItem = result.data;
   }
+  debug.savedUnit = savedItem?.unit || savedItem?.uom_code || null;
 
   const remoteItemId = savedItem.id;
   const linkedOutletIds = uniqueIds(normalized.linkedOutletIds || []);
@@ -1340,6 +1358,7 @@ async function persistRemoteInventoryItem(item, userId) {
     error.debug = debug;
     debug.error = deleteResult.error;
     debugLog("[InventorySaveDebug]", debug);
+    debugLog("[InventoryItemSaveDebug]", debug);
     throw error;
   }
 
@@ -1355,6 +1374,7 @@ async function persistRemoteInventoryItem(item, userId) {
       error.debug = debug;
       debug.error = configResult.error;
       debugLog("[InventorySaveDebug]", debug);
+      debugLog("[InventoryItemSaveDebug]", debug);
       throw error;
     }
   }
@@ -1366,9 +1386,11 @@ async function persistRemoteInventoryItem(item, userId) {
   if (configsError) {
     debug.error = configsError;
     debugLog("[InventorySaveDebug]", debug);
+    debugLog("[InventoryItemSaveDebug]", debug);
     throw configsError;
   }
   debugLog("[InventorySaveDebug]", debug);
+  debugLog("[InventoryItemSaveDebug]", debug);
   return mapRemoteInventoryItem(savedItem, savedConfigs || []);
 }
 
@@ -2759,7 +2781,7 @@ function SupplierAssignmentPicker({ suppliers, outletId, selectedIds = [], onSav
   );
 }
 
-function ItemPhotoPicker({ value, itemId, onChange }) {
+function ItemPhotoPicker({ value, itemId, onChange, onUploadingChange }) {
   const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
 
@@ -2776,20 +2798,23 @@ function ItemPhotoPicker({ value, itemId, onChange }) {
     }
 
     setUploading(true);
+    onUploadingChange?.(true);
     try {
       const preview = await readFileAsDataUrl(file);
-      onChange(preview);
+      onChange(preview, { localPreview: true, uploadFailed: false });
       try {
         const publicUrl = await uploadInventoryItemPhoto(file, itemId || "draft");
-        onChange(publicUrl);
+        onChange(publicUrl, { uploaded: true, uploadFailed: false });
       } catch (uploadError) {
         console.warn("[InventoryControl] Item photo upload failed", uploadError);
+        onChange(preview, { localPreview: true, uploadFailed: true });
         setError("Photo preview is shown, but upload storage is not ready. Please check the inventory-item-photos bucket.");
       }
     } catch (readError) {
       setError(readError.message || "Unable to read image. Please try another file.");
     } finally {
       setUploading(false);
+      onUploadingChange?.(false);
     }
   }
 
@@ -2808,7 +2833,7 @@ function ItemPhotoPicker({ value, itemId, onChange }) {
                   Replace photo
                   <input className="sr-only" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handleFile(event.target.files?.[0])} />
                 </label>
-                <button className="btn-secondary h-8 px-3 text-xs text-rose-600" type="button" onClick={() => { setError(""); onChange(""); }}>Remove</button>
+                <button className="btn-secondary h-8 px-3 text-xs text-rose-600" type="button" onClick={() => { setError(""); onChange("", { removed: true, uploadFailed: false }); }}>Remove</button>
               </div>
             </div>
           </div>
@@ -3246,6 +3271,7 @@ function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onA
   });
   const [form, setForm] = useState(initialItem);
   const [quickUomOpen, setQuickUomOpen] = useState(false);
+  const [photoUploading, setPhotoUploading] = useState(false);
   const [touched, setTouched] = useState(false);
   const invalid = touched && (!form.name.trim() || !form.categoryId || !form.unit || !form.linkedOutletIds?.length);
 
@@ -3274,14 +3300,16 @@ function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onA
           <button
             className="btn-primary"
             type="button"
+            disabled={photoUploading}
             onClick={() => {
               setTouched(true);
+              if (photoUploading) return;
               if (!form.name.trim() || !form.categoryId || !form.unit || !form.linkedOutletIds?.length) return;
               const id = form.id || makeId("item");
               onSave(normalizeInventoryItem({ ...form, id, outletConfigs: (form.outletConfigs || []).map((config) => ({ ...config, inventoryItemId: id })) }));
             }}
           >
-            Save Item
+            {photoUploading ? "Uploading Photo..." : "Save Item"}
           </button>
         </>
       )}
@@ -3311,7 +3339,19 @@ function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onA
         />
         <SelectField label="Status" value={form.status} options={statuses.map((status) => ({ value: status, label: toTitle(status) }))} onChange={(value) => update("status", value)} />
         <div className="md:col-span-2">
-          <ItemPhotoPicker value={form.photo} itemId={form.id || form.sku || "draft"} onChange={(value) => update("photo", value)} />
+          <ItemPhotoPicker
+            value={form.photo}
+            itemId={form.id || form.sku || "draft"}
+            onUploadingChange={setPhotoUploading}
+            onChange={(value, meta = {}) => {
+              setForm((current) => ({
+                ...current,
+                photo: value,
+                photoUploadFailed: meta.uploadFailed === true,
+                photoLocalPreview: meta.localPreview === true,
+              }));
+            }}
+          />
         </div>
         <div className="md:col-span-2">
           <TextArea label="Description" value={form.description} onChange={(value) => update("description", value)} placeholder="Short operational description." />
@@ -4448,6 +4488,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [activeScheduledCheckId, setActiveScheduledCheckId] = useState(null);
   const [activeAuditCheck, setActiveAuditCheck] = useState(null);
   const [checkRows, setCheckRows] = useState([]);
+  const [checkValidationAttempted, setCheckValidationAttempted] = useState(false);
   const [checkSearch, setCheckSearch] = useState("");
   const [collapsedCheckCategoryIds, setCollapsedCheckCategoryIds] = useState(() => new Set());
   const [photoPreview, setPhotoPreview] = useState(null);
@@ -4467,6 +4508,10 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       selectedDateSource,
     });
   }, [date, selectedDateSource]);
+
+  useEffect(() => {
+    setCheckValidationAttempted(false);
+  }, [activeCheckGroupId, activeScheduledCheckId, activeAuditCheck?.id]);
 
   useEffect(() => {
     function applyUrlStockCheckDate() {
@@ -4702,9 +4747,38 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }
 
   async function saveItem(item) {
-    const normalizedItem = normalizeInventoryItem({ ...item, photo_url: item.photo ?? item.photo_url ?? "" });
+    const existingItem = data.items.find((entry) => entry.id === item.id);
+    const incomingPhoto = item.photo ?? item.photo_url ?? "";
+    const photoUploadFailed = item.photoUploadFailed === true || isImageDataUrl(incomingPhoto);
+    const safePhoto = photoUploadFailed ? (existingItem?.photo || existingItem?.photo_url || "") : incomingPhoto;
+    const normalizedItem = normalizeInventoryItem({ ...item, photo: safePhoto, photo_url: safePhoto });
+    const isCreate = !isUuid(item.id);
+    const photoChanged = !photoUploadFailed && (existingItem?.photo || existingItem?.photo_url || "") !== (normalizedItem.photo || normalizedItem.photo_url || "");
+    const linkedOutletsChanged = !sameIdSet(existingItem?.linkedOutletIds || [], normalizedItem.linkedOutletIds || []);
+    const textOrMetadataChanged = isCreate || !existingItem ||
+      existingItem.name !== normalizedItem.name ||
+      existingItem.sku !== normalizedItem.sku ||
+      existingItem.categoryId !== normalizedItem.categoryId ||
+      existingItem.unit !== normalizedItem.unit ||
+      existingItem.status !== normalizedItem.status ||
+      (existingItem.description || "") !== (normalizedItem.description || "");
     try {
       const remoteItem = await persistRemoteInventoryItem(normalizedItem, auth?.user?.id);
+      debugLog("[InventoryItemSaveDebug]", {
+        itemId: remoteItem.id,
+        payload: {
+          name: normalizedItem.name,
+          sku: normalizedItem.sku,
+          categoryId: normalizedItem.categoryId,
+          unit: normalizedItem.unit,
+          status: normalizedItem.status,
+          photo_url: normalizedItem.photo || normalizedItem.photo_url || null,
+        },
+        selectedUom: normalizedItem.unit,
+        savedUnit: remoteItem.unit || remoteItem.uom_code,
+        photoUrl: remoteItem.photo || remoteItem.photo_url,
+        linkedOutletIds: remoteItem.linkedOutletIds || [],
+      });
       setData((current) => ({
         ...current,
         items: current.items.some((entry) => entry.id === normalizedItem.id || entry.id === remoteItem.id)
@@ -4713,15 +4787,28 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       }));
       await refreshInventory();
       setModal(null);
-      notify("Inventory item saved");
+      if (photoUploadFailed) {
+        notify("Item saved, but photo upload failed", "The item details were saved. Please try uploading the photo again.", "warning");
+      } else if (isCreate) {
+        notify("Inventory item created", remoteItem.name);
+      } else if (photoChanged && !textOrMetadataChanged && !linkedOutletsChanged) {
+        notify("Inventory photo updated", remoteItem.name);
+      } else if (linkedOutletsChanged && !textOrMetadataChanged && !photoChanged) {
+        notify("Linked outlets updated", remoteItem.name);
+      } else {
+        notify("Inventory item updated", remoteItem.name);
+      }
     } catch (error) {
       console.warn("[InventoryControl] Unable to save inventory item to Supabase.", error);
-      if (error?.debug) debugLog("[InventorySaveDebug]", error.debug);
+      if (error?.debug) {
+        debugLog("[InventorySaveDebug]", error.debug);
+        debugLog("[InventoryItemSaveDebug]", error.debug);
+      }
       await refreshInventory();
       if (error?.partialItemSaved) {
         notify("Item saved, but outlet links failed", error.cause?.message || error.message || "Please check outlet access and try again.", "warning");
       } else {
-        notify("Unable to save inventory item", error.message || "Please try again.", "error");
+        notify(isCreate ? "Failed to create Inventory Item" : "Failed to update Inventory Item", error.message || "Please try again.", "error");
       }
     }
   }
@@ -5055,9 +5142,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       failures,
     };
     if (failures.length) {
-      notify("Master inventory import completed with errors", `${created} created · ${updated} updated · ${invalidRows.length} skipped · ${failures.length} failed.`, "warning");
+      notify("Import completed", `${created} created · ${updated} updated · ${invalidRows.length} skipped · ${failures.length} failed.`, "warning");
     } else {
-      notify("Master inventory imported", `${created} created · ${updated} updated · ${invalidRows.length} skipped.`);
+      notify("Import completed", `${created} created · ${updated} updated · ${invalidRows.length} skipped.`);
     }
     return result;
   }
@@ -5454,9 +5541,47 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     } : entry));
   }
 
+  function stockCheckValidationIssues(rows = checkRows, isAudit = false) {
+    return rows
+      .map((row, rowIndex) => {
+        const countMissing = row.actualCount === "" || row.actualCount === null || row.actualCount === undefined;
+        const negative = Number(row.actualCount || 0) < 0;
+        const item = itemById.get(row.itemId);
+        if (row.skipped) {
+          if (isAudit && !row.skipReason?.trim()) {
+            return { rowIndex, itemId: row.itemId, itemName: item?.name || "Inventory item", reason: "Skip reason required", action: "Add a skip reason" };
+          }
+          return null;
+        }
+        if (countMissing) return { rowIndex, itemId: row.itemId, itemName: item?.name || "Inventory item", reason: "Count not entered", action: "Complete count or click Skip" };
+        if (negative) return { rowIndex, itemId: row.itemId, itemName: item?.name || "Inventory item", reason: "Count cannot be negative", action: "Enter a non-negative count" };
+        return null;
+      })
+      .filter(Boolean);
+  }
+
+  function revealFirstInvalidStockCheckRow(issue) {
+    if (!issue) return;
+    const item = itemById.get(issue.itemId);
+    if (checkSearch.trim()) setCheckSearch("");
+    if (item?.categoryId) {
+      setCollapsedCheckCategoryIds((current) => {
+        if (!current.has(item.categoryId)) return current;
+        const next = new Set(current);
+        next.delete(item.categoryId);
+        return next;
+      });
+    }
+    requestAnimationFrame(() => {
+      requestAnimationFrame(() => {
+        document.querySelector(`[data-check-row-index="${issue.rowIndex}"]`)?.scrollIntoView({ behavior: "smooth", block: "center" });
+      });
+    });
+  }
+
   async function archiveItem(itemId) {
     if (!isUuid(itemId)) {
-      notify("Unable to archive inventory item", "This item has not been saved to Supabase yet.", "error");
+      notify("Failed to archive Inventory Item", "This item has not been saved to Supabase yet.", "error");
       return;
     }
     try {
@@ -5477,7 +5602,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     } catch (error) {
       console.warn("[InventoryControl] Unable to sync archived inventory item.", error);
       debugLog("[InventorySaveDebug]", { mode: "archive", payload: { itemId }, itemUpdateResult: null, error });
-      notify("Unable to archive inventory item", error.message || "Please try again.", "error");
+      notify("Failed to archive Inventory Item", error.message || "Please try again.", "error");
     }
   }
 
@@ -5485,13 +5610,10 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     if (!activeCheckGroup) return;
     const isAudit = activeCheckGroup.stockCheckType === "audit";
     if (status === "submitted") {
-      const invalidRows = checkRows.filter((row) => {
-        const countMissing = row.actualCount === "" || row.actualCount === null || row.actualCount === undefined;
-        const negative = Number(row.actualCount || 0) < 0;
-        return row.skipped ? (isAudit && !row.skipReason?.trim()) : countMissing || negative;
-      });
+      const invalidRows = stockCheckValidationIssues(checkRows, isAudit);
       if (invalidRows.length) {
-        notify(isAudit ? "Audit check incomplete" : "Stock check incomplete", isAudit ? "Every item must have a valid count or be skipped with a reason." : "Every item must have a valid non-negative count.", "warning");
+        setCheckValidationAttempted(true);
+        revealFirstInvalidStockCheckRow(invalidRows[0]);
         return;
       }
     }
@@ -5546,15 +5668,22 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       setActiveCheckGroupId(null);
       setActiveScheduledCheckId(null);
       setActiveAuditCheck(null);
+      setCheckValidationAttempted(false);
       if (status === "submitted") {
-        notify(isAudit ? "Audit stock check completed" : "Stock check completed", isAudit ? "Audit result saved without purchase suggestions." : "Review purchase suggestions from the completed check card if shortages exist.");
+        notify(isAudit ? "Audit Stock Check submitted" : "Stock Check submitted", isAudit ? "Audit result saved without purchase suggestions." : "Review purchase suggestions from the completed check card if shortages exist.");
       } else {
-        notify("Stock check draft saved");
+        notify(isAudit ? "Audit Stock Check draft saved" : "Stock Check draft saved");
       }
     } catch (error) {
       console.warn("[InventoryControl] Unable to save stock check.", error);
       debugLog(isAudit ? "[AuditStockCheckDebug]" : status === "submitted" ? "[StockCheckSubmitDebug]" : "[StockCheckSaveDebug]", { action: status, activeCheckGroup, rows, error });
-      notify(status === "submitted" ? "Unable to submit stock check" : "Unable to save stock check draft", error.message || "Please try again.", "error");
+      notify(
+        status === "submitted"
+          ? (isAudit ? "Failed to submit Audit Stock Check" : "Failed to submit Stock Check")
+          : (isAudit ? "Failed to save Audit Stock Check draft" : "Failed to save Stock Check draft"),
+        error.message || "Please try again.",
+        "error",
+      );
     }
   }
 
@@ -5650,7 +5779,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       if (existingOrders.length) {
         setModal({ type: "purchase-suggestions", stockCheck, suggestions: buildPurchaseSuggestions(stockCheck), existingOrders });
       }
-      notify("Unable to create Draft PO", error.message || "Please try again.", "error");
+      notify("Failed to create Draft PO", error.message || "Please try again.", "error");
     }
   }
 
@@ -5662,11 +5791,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         orders: current.orders.map((order) => order.id === orderId ? updatedOrder : order),
       }));
       await refreshInventory();
-      notify("PO status updated", poStatusLabel(status));
+      notify(status === "submitted" ? "PO submitted" : status === "supplier_confirmed" ? "PO supplier confirmed" : "PO status updated", poStatusLabel(status));
     } catch (error) {
       console.warn("[InventoryControl] Unable to update PO status.", error);
       debugLog("[POSubmitDebug]", { action: "update-status", orderId, status, error });
-      notify("Unable to update PO", error.message || "Please try again.", "error");
+      notify(status === "submitted" ? "Failed to submit PO" : "Failed to update PO", error.message || "Please try again.", "error");
     }
   }
 
@@ -5683,7 +5812,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     } catch (error) {
       console.warn("[InventoryControl] Unable to save Draft PO.", error);
       debugLog("[POSubmitDebug]", { action: "save-draft-po", orderId: order?.id, order, error });
-      notify("Unable to save Draft PO", error.message || "Please try again.", "error");
+      notify("Failed to update Draft PO", error.message || "Please try again.", "error");
     }
   }
 
@@ -5696,11 +5825,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       }));
       await refreshInventory();
       setModal(null);
-      notify("Purchase order cancelled");
+      notify("PO cancelled");
     } catch (error) {
       console.warn("[InventoryControl] Unable to cancel PO.", error);
       debugLog("[POCancelDebug]", { action: "cancel-po", orderId: order?.id, reason, error });
-      notify("Unable to cancel PO", error.message || "Please try again.", "error");
+      notify("Failed to cancel PO", error.message || "Please try again.", "error");
     }
   }
 
@@ -5713,11 +5842,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       }));
       await refreshInventory();
       setModal(null);
-      notify("Purchase order completed", updatedOrder.completionType === "partial" ? "Remaining quantity marked as unfulfilled." : "PO closed as fully fulfilled.");
+      notify("PO completed", updatedOrder.completionType === "partial" ? "Remaining quantity marked as unfulfilled." : "PO closed as fully fulfilled.");
     } catch (error) {
       console.warn("[InventoryControl] Unable to complete PO.", error);
       debugLog("[POCompleteDebug]", { action: "complete-po", orderId: order?.id, reason, error });
-      notify("Unable to complete PO", error.message || "Please try again.", "error");
+      notify("Failed to complete PO", error.message || "Please try again.", "error");
     }
   }
 
@@ -5731,11 +5860,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       }));
       await refreshInventory();
       setModal(null);
-      notify(result.order.status === "fully_received" ? "PO fully received" : "PO partially received", "Inventory movement records were created.");
+      notify("Inventory received", result.order.status === "fully_received" ? "PO fully received. Inventory movement records were created." : "PO partially received. Inventory movement records were created.");
     } catch (error) {
       console.warn("[InventoryControl] Unable to receive PO.", error);
       debugLog("[POReceiveDebug]", { action: "receive-po", orderId: order?.id, rows, receiptRemark, error });
-      notify("Unable to receive PO", error.message || "Please try again.", "error");
+      notify("Failed to receive inventory", error.message || "Please try again.", "error");
     }
   }
 
@@ -5764,15 +5893,15 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       }));
       await refreshInventory();
       setModal(null);
-      notify("Waste recorded", "A waste movement was added to the inventory audit trail.");
+      notify("Waste record created", "A waste movement was added to the inventory audit trail.");
     } catch (error) {
       console.warn("[InventoryControl] Unable to save waste record.", error);
       debugLog("[WasteSaveDebug]", { action: "save-waste", payload: waste, error });
       await refreshInventory();
       if (error?.partialWasteSaved) {
-        notify("Waste saved, but movement failed", error.cause?.message || error.message || "Please check Inventory Movements permissions.", "warning");
+        notify("Waste record created, but movement failed", error.cause?.message || error.message || "Please check Inventory Movements permissions.", "warning");
       } else {
-        notify("Unable to record waste", error.message || "Please try again.", "error");
+        notify("Failed to create Waste Record", error.message || "Please try again.", "error");
       }
     }
   }
@@ -5799,12 +5928,12 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       }));
       await refreshInventory();
       setModal(null);
-      notify("Recipe saved");
+      notify(isUuid(recipe.id) ? "Recipe updated" : "Recipe created");
     } catch (error) {
       console.warn("[InventoryControl] Unable to save recipe.", error);
       debugLog("[RecipeSaveDebug]", { action: "save-recipe", payload: recipe, error });
       await refreshInventory();
-      notify("Unable to save recipe", error.message || "Please try again.", "error");
+      notify(isUuid(recipe.id) ? "Failed to update Recipe" : "Failed to create Recipe", error.message || "Please try again.", "error");
       throw error;
     }
   }
@@ -5822,7 +5951,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     } catch (error) {
       console.warn("[InventoryControl] Unable to archive recipe.", error);
       debugLog("[RecipeSaveDebug]", { action: "archive-recipe", recipeId, error });
-      notify("Unable to archive recipe", error.message || "Please try again.", "error");
+      notify("Failed to archive Recipe", error.message || "Please try again.", "error");
     }
   }
 
@@ -6719,6 +6848,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       const startedByName = activePersistedCheck?.createdBy ? actorNameByAuthUserId(activePersistedCheck.createdBy) : currentCheckerName;
       const submittedByName = activePersistedCheck?.submittedBy ? actorNameByEmployeeId(activePersistedCheck.submittedBy) : "";
       const draftSavedAt = activePersistedCheck?.updatedAt || activePersistedCheck?.createdAt || "";
+      const validationIssues = checkValidationAttempted ? stockCheckValidationIssues(checkRows, isAudit) : [];
+      const validationIssueByRowIndex = new Map(validationIssues.map((issue) => [issue.rowIndex, issue]));
       const checkRowsWithIndex = checkRows.map((row, index) => ({ ...row, rowIndex: index })).filter((row) => {
         if (!checkSearch.trim()) return true;
         const item = itemById.get(row.itemId);
@@ -6741,8 +6872,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         const category = categoryById.get(item?.categoryId);
         const parLevel = parLevelForOutlet(item, activeCheckGroup.outletId);
         const result = row.skipped ? { label: "Skipped", tone: "neutral", variance: 0 } : varianceStatus(parLevel, row.actualCount);
+        const validationIssue = validationIssueByRowIndex.get(index);
         return (
-          <tr key={row.itemId} className="align-middle">
+          <tr
+            key={row.itemId}
+            data-check-row-index={index}
+            className={`align-middle transition ${validationIssue ? "bg-amber-50/80 ring-1 ring-inset ring-amber-300" : ""}`}
+          >
             <td className="py-4">
               <div className="flex min-w-[220px] items-center gap-3">
                 <InventoryItemThumbnail item={item} category={category} onPreview={setPhotoPreview} />
@@ -6761,6 +6897,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                 <input className="control h-8 w-20 text-center text-[13px]" type="number" min="0" disabled={row.skipped} value={row.actualCount ?? ""} placeholder="Qty" onFocus={selectInputText} onChange={(event) => setCheckRows((current) => current.map((entry, rowIndex) => rowIndex === index ? { ...entry, actualCount: parseNonNegativeNumber(event.target.value), na: false } : entry))} />
                 <button className="icon-btn h-8 w-8" type="button" disabled={row.skipped} onClick={() => setCheckRows((current) => current.map((entry, rowIndex) => rowIndex === index ? { ...entry, actualCount: Number(entry.actualCount || 0) + 1, na: false } : entry))}>+</button>
               </div>
+              {validationIssue ? <div className="mt-2 type-caption font-bold text-amber-700">{validationIssue.reason === "Count not entered" ? "Count required" : validationIssue.reason}</div> : null}
               {!row.skipped ? (
                 <div className="mt-2 flex flex-wrap gap-1">
                   {[
@@ -6781,7 +6918,10 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             {isAudit ? (
               <td className="py-4 align-middle">
                 {row.skipped ? (
-                  <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => unskipCheckRow(index)}>Unskip</button>
+                  <div className="space-y-1">
+                    <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => unskipCheckRow(index)}>Unskip</button>
+                    {validationIssue?.reason === "Skip reason required" ? <div className="type-caption font-bold text-amber-700">Skip reason required</div> : null}
+                  </div>
                 ) : (
                   <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setModal({ type: "skip-check-row", rowIndex: index, itemName: item?.name })}>Skip</button>
                 )}
@@ -6827,6 +6967,24 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                     <input className="control h-9 w-full pl-9 text-[13px]" value={checkSearch} onChange={(event) => setCheckSearch(event.target.value)} placeholder="Search item" />
                   </div>
                 </label>
+              </div>
+            ) : null}
+            {validationIssues.length ? (
+              <div className="mb-3 rounded-2xl border border-amber-300 bg-amber-50 p-4 text-amber-950">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="mt-0.5 shrink-0 text-amber-600" size={18} />
+                  <div>
+                    <div className="type-body-sm font-black">{isAudit ? "Audit Check cannot be submitted" : "Stock Check cannot be submitted"}</div>
+                    <div className="mt-1 type-caption font-semibold">{validationIssues.length} item{validationIssues.length === 1 ? "" : "s"} require attention:</div>
+                    <ul className="mt-2 space-y-1 type-caption">
+                      {validationIssues.slice(0, 8).map((issue) => (
+                        <li key={`${issue.rowIndex}-${issue.reason}`}><span className="font-bold">{issue.itemName}</span> &rarr; {issue.reason}</li>
+                      ))}
+                      {validationIssues.length > 8 ? <li className="font-semibold">+{validationIssues.length - 8} more item{validationIssues.length - 8 === 1 ? "" : "s"}</li> : null}
+                    </ul>
+                    <div className="mt-2 type-caption font-semibold">{isAudit ? "Complete count or click Skip." : "Complete the count before submitting."}</div>
+                  </div>
+                </div>
               </div>
             ) : null}
             <div className="overflow-x-auto">
