@@ -109,6 +109,14 @@ function minutesBetween(start, end, breakMinutes = 0) {
   return Math.max(0, endTotal - startTotal - Number(breakMinutes || 0));
 }
 
+function isOvernightTimeRange(start, end) {
+  if (!start || !end) return false;
+  const [startHour, startMinute] = start.split(":").map(Number);
+  const [endHour, endMinute] = end.split(":").map(Number);
+  if (![startHour, startMinute, endHour, endMinute].every(Number.isFinite)) return false;
+  return endHour * 60 + endMinute < startHour * 60 + startMinute;
+}
+
 function hoursLabel(minutes) {
   return `${(minutes / 60).toFixed(minutes % 60 ? 1 : 0)}h`;
 }
@@ -434,6 +442,13 @@ function TimeComboField({ label, value, onChange, error, onError }) {
     return true;
   }
 
+  function commitOption(option) {
+    onChange(option.value);
+    setDraft(option.label);
+    onError?.("");
+    setOpen(false);
+  }
+
   return (
     <div ref={wrapperRef} className="relative">
       <label className="mb-1.5 block text-[11px] font-black uppercase tracking-[0.14em] text-text-muted">{label}</label>
@@ -481,13 +496,11 @@ function TimeComboField({ label, value, onChange, error, onError }) {
               key={option.value}
               className={`flex w-full items-center justify-between rounded-xl px-3 py-2 text-left text-sm font-bold transition hover:bg-primary/5 hover:text-primary ${option.value === value ? "bg-primary/10 text-primary" : "text-text-primary"}`}
               type="button"
-              onMouseDown={(event) => event.preventDefault()}
-              onClick={() => {
-                onChange(option.value);
-                setDraft(option.label);
-                onError?.("");
-                setOpen(false);
+              onPointerDown={(event) => {
+                event.preventDefault();
+                commitOption(option);
               }}
+              onClick={() => commitOption(option)}
             >
               <span>{option.label}</span>
               <span className="text-xs font-semibold text-text-muted">{option.displayLabel}</span>
@@ -971,6 +984,7 @@ function RosterSettingsDrawer({ outletId, outlets, positions, mappings, template
   const unassignedPositions = positions.filter((position) => !assignedIds.has(position.id));
   const activeTemplates = templates.filter((template) => template.is_active);
   const archivedTemplates = templates.filter((template) => !template.is_active);
+  const templateIsOvernight = isOvernightTimeRange(templateDraft.start_time, templateDraft.end_time);
 
   useEffect(() => {
     setFloorIds(new Set(mappings.filter((item) => item.group_name === "floor").map((item) => item.position_id)));
@@ -1160,7 +1174,7 @@ function RosterSettingsDrawer({ outletId, outlets, positions, mappings, template
               <div className="mb-3 flex items-center justify-between gap-3">
                 <div>
                   <div className="text-xs font-black uppercase tracking-[0.16em] text-text-muted">{templateDraft.id ? "Edit Template" : "Add Template"}</div>
-                  <p className="mt-1 text-xs font-semibold text-text-secondary">Type time as 10:00am or choose from suggestions. Break duration is unpaid.</p>
+                  <p className="mt-1 text-xs font-semibold text-text-secondary">Type time like 2pm, 2:30pm, or 14:00, or choose from suggestions. Break duration is unpaid.</p>
                 </div>
                 {templateDraft.id ? <button className="btn-secondary h-9 px-3 text-xs" type="button" onClick={resetTemplate}>New</button> : null}
               </div>
@@ -1227,6 +1241,7 @@ function RosterSettingsDrawer({ outletId, outlets, positions, mappings, template
                       <span className="h-2 w-2 rounded-full bg-current opacity-70" />
                       {templateDraft.color || "green"}
                     </span>
+                    {templateIsOvernight ? <span className="rounded-full bg-amber-100 px-2 py-1 text-amber-800 shadow-sm">End time is next day</span> : null}
                   </div>
                 </div>
               </div>

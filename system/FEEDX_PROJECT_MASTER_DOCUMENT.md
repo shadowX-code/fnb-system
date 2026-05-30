@@ -3918,9 +3918,11 @@ Roster settings:
   - Draggable active template cards.
   - Collapsed Archived Templates section.
 - Time selection supports manual typing and dropdown suggestions.
-- Manual typed time must use HH:MMam or HH:MMpm, with optional space before am/pm.
-- Accepted examples: 10:00am, 10:30am, 02:00pm, 05:30pm.
-- Rejected examples: 10am, 2pm, 14:00, 17:30, 10.30am.
+- Manual typed time accepts common roster formats such as `2pm`, `2 pm`, `2:00pm`, `02:00pm`, `14:00`, `9`, `930am`, `09:30am`, and `0930`.
+- Time input normalizes to `hh:mmam` / `hh:mmpm` display format, for example `02:00pm` and `09:30am`.
+- Invalid examples such as `25:00`, `13pm`, `abc`, and `2:99pm` show: `Enter time like 2pm, 2:30pm, 14:00, or select from the list.`
+- Suggestion dropdown selections must immediately update Start Time / End Time, close the dropdown, clear validation, and update Live Preview.
+- If End Time is earlier than Start Time, Duty Roster treats the shift as overnight and shows a next-day warning in the template preview.
 - Time is stored internally as 24-hour HH:MM and displayed as friendly operational text such as 10am - 6pm.
 - Break Duration is labeled clearly with minute options such as 60 mins unpaid.
 - sort_order controls quick template display order.

@@ -1,4 +1,4 @@
-export const SHIFT_TIME_INPUT_ERROR = "Use format HH:MMam or HH:MMpm";
+export const SHIFT_TIME_INPUT_ERROR = "Enter time like 2pm, 2:30pm, 14:00, or select from the list.";
 
 function parseDbTime(value) {
   if (!value) return null;
@@ -32,38 +32,48 @@ export function formatShiftTimeInput(value) {
   return `${String(hour12).padStart(2, "0")}:${String(parsed.minute).padStart(2, "0")}${period}`;
 }
 
-function autoColonTime(value) {
-  const match = String(value || "").trim().toLowerCase().replace(/\s+/g, "").match(/^(\d{3,4})(am|pm)$/);
-  if (!match) return "";
-  const digits = match[1];
-  const hour = digits.length === 3 ? digits.slice(0, 1) : digits.slice(0, 2);
-  const minute = digits.slice(-2);
-  return `${hour.padStart(2, "0")}:${minute}${match[2]}`;
+function timeValue(hour, minute) {
+  return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+}
+
+function parseNumericTimeParts(text) {
+  const colonMatch = text.match(/^(\d{1,2}):(\d{1,2})$/);
+  if (colonMatch) {
+    return { hour: Number(colonMatch[1]), minute: Number(colonMatch[2]), hasColon: true };
+  }
+  if (!/^\d{1,4}$/.test(text)) return null;
+  if (text.length <= 2) return { hour: Number(text), minute: 0, hasColon: false };
+  const hourText = text.length === 3 ? text.slice(0, 1) : text.slice(0, 2);
+  return { hour: Number(hourText), minute: Number(text.slice(-2)), hasColon: false };
+}
+
+export function parseShiftTimeInput(rawValue) {
+  const text = String(rawValue || "").trim().toLowerCase();
+  const compact = text.replace(/\s+/g, "");
+  if (!compact) return { valid: false, value: "", display: "", error: SHIFT_TIME_INPUT_ERROR };
+
+  const periodMatch = compact.match(/^(.*?)(am|pm)$/);
+  if (periodMatch) {
+    const parts = parseNumericTimeParts(periodMatch[1]);
+    if (!parts || !Number.isInteger(parts.hour) || !Number.isInteger(parts.minute) || parts.hour < 1 || parts.hour > 12 || parts.minute < 0 || parts.minute > 59) {
+      return { valid: false, value: "", display: "", error: SHIFT_TIME_INPUT_ERROR };
+    }
+    let hour = parts.hour % 12;
+    if (periodMatch[2] === "pm") hour += 12;
+    const value = timeValue(hour, parts.minute);
+    return { valid: true, value, display: formatShiftTimeInput(value), error: "" };
+  }
+
+  const parts = parseNumericTimeParts(compact);
+  if (!parts || !Number.isInteger(parts.hour) || !Number.isInteger(parts.minute) || parts.hour < 0 || parts.hour > 23 || parts.minute < 0 || parts.minute > 59) {
+    return { valid: false, value: "", display: "", error: SHIFT_TIME_INPUT_ERROR };
+  }
+  const value = timeValue(parts.hour, parts.minute);
+  return { valid: true, value, display: formatShiftTimeInput(value), error: "" };
 }
 
 export function normalizeShiftTimeInput(rawValue) {
-  const text = String(rawValue || "").trim().toLowerCase();
-  const compact = text.replace(/\s+/g, "");
-  const candidate = autoColonTime(text) || compact;
-  const match = candidate.match(/^(\d{2}):([0-5]\d)(am|pm)$/);
-  if (!match) return { valid: false, value: "", display: "", error: SHIFT_TIME_INPUT_ERROR };
-
-  const hour12 = Number(match[1]);
-  const minute = Number(match[2]);
-  const period = match[3];
-  if (!Number.isInteger(hour12) || hour12 < 1 || hour12 > 12 || !Number.isInteger(minute) || minute > 59) {
-    return { valid: false, value: "", display: "", error: SHIFT_TIME_INPUT_ERROR };
-  }
-
-  let hour = hour12 % 12;
-  if (period === "pm") hour += 12;
-  const value = `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
-  return {
-    valid: true,
-    value,
-    display: formatShiftTimeInput(value),
-    error: "",
-  };
+  return parseShiftTimeInput(rawValue);
 }
 
 export function buildShiftTimeOptions(startHour = 8, count = 32) {
