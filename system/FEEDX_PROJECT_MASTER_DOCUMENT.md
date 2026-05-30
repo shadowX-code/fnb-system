@@ -1931,12 +1931,15 @@ Master Inventory UI:
 - Linked outlet labels must be normalized before rendering so all browsers use the same outlet shape: `code`, `outlet_code`, `shortCode`, `short_code`, or `abbreviation` for the display code, and `name`, `outlet_name`, or `outletName` for the display name.
 - Master Inventory browser cache must be cleared or versioned out during loading; stale browser-specific cache must not cause Chrome/Safari item count or linked outlet label mismatches.
 - Item rows use photo thumbnails when available and standardized category fallback icons when no photo exists.
+- Master Inventory item rows show direct `Edit` and `Archive` actions; row overflow menus and `View Par Levels` shortcuts are not used.
+- Par Levels remains a standalone Inventory Control module and is not opened from item-level Master Inventory actions.
 - Baseline staging seed data includes Raw Material, Packaging, Frozen, Beverage, Cleaning, Dry Goods, Kitchen Supply, and Retail Item categories plus Sambal Sauce, Takeaway Cup 12oz, and Frozen Chicken Cut master items with outlet links and par levels.
 - Add/Edit Item keeps master item fields separate from outlet-level par management.
 - Add/Edit Item shows linked outlets and a note that par levels are managed in Par Level Setup.
 - Add/Edit Item does not show outlet-by-outlet Par Level, Low Stock Threshold, or Reorder Qty inputs.
 - Add/Edit Item save is remote-first: show success only after `inventory_items` and `inventory_item_outlets` are persisted and refetched from Supabase.
 - Item archive/delete actions are remote-first and must not mutate the visible item list before Supabase confirms the write.
+- Item Archive persists `inventory_items.status = inactive`, refetches the list, hides the item from the Active filter, and keeps the item visible under Inactive or All status filters.
 - Linked outlet rows are stored in `inventory_item_outlets` using `inventory_item_id` and `outlet_id`; outlet codes are display/import inputs only and are not stored as the link key.
 - New linked outlet rows may have `par_level = null` until configured in Par Levels.
 - Editing Linked Outlets may add or remove `inventory_item_outlets` rows and requires `inventory_master.edit` or equivalent outlet-scoped permission.

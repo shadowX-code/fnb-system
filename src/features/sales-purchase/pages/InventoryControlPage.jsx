@@ -13,9 +13,7 @@ import {
   FileText,
   Folder,
   GripVertical,
-  MoreHorizontal,
   Plus,
-  PackageCheck,
   PackagePlus,
   RefreshCw,
   Search,
@@ -32,7 +30,6 @@ import Modal from "../../../components/feedback/Modal.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
-import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
@@ -4445,7 +4442,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const selectedDateSourceRef = useRef(initialStockCheckDate.source);
   const [stockCheckShiftFilter, setStockCheckShiftFilter] = useState("all");
   const [modal, setModal] = useState(null);
-  const [masterActionMenuItemId, setMasterActionMenuItemId] = useState(null);
   const parLevelGridRef = useRef(null);
   const parLevelMatrixRef = useRef(null);
   const [activeCheckGroupId, setActiveCheckGroupId] = useState(null);
@@ -5466,7 +5462,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     try {
       const result = await supabase
         .from("inventory_items")
-        .update({ status: "archived", updated_by: auth?.user?.id || null })
+        .update({ status: "inactive", updated_by: auth?.user?.id || null, updated_at: new Date().toISOString() })
         .eq("id", itemId)
         .select("*")
         .single();
@@ -5474,7 +5470,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       if (result.error) throw result.error;
       setData((current) => ({
         ...current,
-        items: current.items.map((item) => item.id === itemId ? { ...item, status: "archived", updatedAt: result.data?.updated_at || new Date().toISOString() } : item),
+        items: current.items.map((item) => item.id === itemId ? { ...item, status: "inactive", updatedAt: result.data?.updated_at || new Date().toISOString() } : item),
       }));
       await refreshInventory();
       notify("Inventory item archived");
@@ -6055,24 +6051,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           <td>
             <div className="flex justify-end gap-2" onClick={(event) => event.stopPropagation()}>
               <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.editMaster, "edit inventory items") && setModal({ type: "item", item })}>Edit</button>
-              <ActionMenu
-                open={masterActionMenuItemId === item.id}
-                onOpenChange={(nextOpen) => setMasterActionMenuItemId(nextOpen ? item.id : null)}
-                width={212}
-                ariaLabel="Inventory item actions"
-                trigger={({ toggle, ariaLabel }) => (
-                  <button className="icon-btn h-8 w-8" type="button" aria-label={ariaLabel} onClick={toggle}>
-                    <MoreHorizontal size={15} />
-                  </button>
-                )}
-              >
-                <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { setMasterActionMenuItemId(null); ui?.navigate?.("inventory_par_levels"); }}>
-                  <PackageCheck size={14} /> View Par Levels
-                </button>
-                <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold text-rose-700 hover:bg-rose-50" type="button" onClick={() => { setMasterActionMenuItemId(null); requirePermission(can.deleteMaster, "archive inventory items") && archiveItem(item.id); }}>
-                  <Trash2 size={14} /> Archive
-                </button>
-              </ActionMenu>
+              <button className="btn-secondary h-8 px-2.5 text-xs text-rose-700" type="button" onClick={() => requirePermission(can.deleteMaster, "archive inventory items") && archiveItem(item.id)}>Archive</button>
             </div>
           </td>
         </tr>
@@ -6114,24 +6093,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           </div>
           <div className="mt-3 flex justify-end gap-2 border-t border-border pt-3" onClick={(event) => event.stopPropagation()}>
             <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.editMaster, "edit inventory items") && setModal({ type: "item", item })}>Edit</button>
-            <ActionMenu
-              open={masterActionMenuItemId === item.id}
-              onOpenChange={(nextOpen) => setMasterActionMenuItemId(nextOpen ? item.id : null)}
-              width={212}
-              ariaLabel="Inventory item actions"
-              trigger={({ toggle, ariaLabel }) => (
-                <button className="icon-btn h-8 w-8" type="button" aria-label={ariaLabel} onClick={toggle}>
-                  <MoreHorizontal size={15} />
-                </button>
-              )}
-            >
-              <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { setMasterActionMenuItemId(null); ui?.navigate?.("inventory_par_levels"); }}>
-                <PackageCheck size={14} /> View Par Levels
-              </button>
-              <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold text-rose-700 hover:bg-rose-50" type="button" onClick={() => { setMasterActionMenuItemId(null); requirePermission(can.deleteMaster, "archive inventory items") && archiveItem(item.id); }}>
-                <Trash2 size={14} /> Archive
-              </button>
-            </ActionMenu>
+            <button className="btn-secondary h-8 px-2.5 text-xs text-rose-700" type="button" onClick={() => requirePermission(can.deleteMaster, "archive inventory items") && archiveItem(item.id)}>Archive</button>
           </div>
         </div>
       );
