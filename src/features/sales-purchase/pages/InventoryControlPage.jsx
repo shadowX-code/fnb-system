@@ -1031,6 +1031,7 @@ function mapRemoteInventoryMovement(row = {}) {
     unit: row.unit || "",
     outletId: row.outlet_id || "",
     user: row.created_by || "Unknown user",
+    createdBy: row.created_by || "",
     reference: row.reference_no || "",
     referenceType: row.reference_type || "",
     referenceId: row.reference_id || "",
@@ -4844,6 +4845,12 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     if (authUserId === auth?.user?.id) return currentCheckerName;
     return peopleByAuthId.get(authUserId)?.name || "Unknown user";
   };
+  const actorNameByAnyId = (id) => {
+    if (!id) return "Unknown user";
+    if (id === auth?.profile?.id || id === auth?.user?.id) return currentCheckerName;
+    const person = peopleById.get(id) || peopleByAuthId.get(id);
+    return person?.name || person?.email || auth?.user?.email || "Unknown user";
+  };
 
   const visibleItems = useMemo(() => data.items.filter((item) => {
     const linkedOutletIds = item.linkedOutletIds || [];
@@ -7620,6 +7627,22 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   function renderMovements() {
     const movementTypesForFilter = uniqueIds(data.movements.map((movement) => movement.movementType || movement.type).filter(Boolean));
     const updateMovementFilter = (key, value) => setMovementFilters((current) => ({ ...current, [key]: value }));
+    const movementTypeKey = (movement) => canonical(movement.movementType || movement.type || "");
+    const movementTypeClass = (movement) => {
+      const key = movementTypeKey(movement);
+      if (key === "purchase") return "border-emerald-200 bg-emerald-50 text-emerald-700";
+      if (key === "transfer_in") return "border-blue-200 bg-blue-50 text-blue-700";
+      if (key === "transfer_out") return "border-purple-200 bg-purple-50 text-purple-700";
+      if (key === "waste") return "border-orange-200 bg-orange-50 text-orange-700";
+      if (key === "adjustment") return "border-slate-200 bg-slate-50 text-text-secondary";
+      return "border-slate-200 bg-slate-50 text-text-secondary";
+    };
+    const movementTypeLabel = (movement) => {
+      const key = movementTypeKey(movement);
+      if (key === "transfer_in") return "Transfer In";
+      if (key === "transfer_out") return "Transfer Out";
+      return toTitle(movement.movementType || movement.type || "movement");
+    };
     const filteredMovements = data.movements.filter((movement) => {
       const item = itemById.get(movement.itemId);
       const movementDate = String(movement.dateTime || movement.date || "").slice(0, 10);
@@ -7631,62 +7654,105 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       const matchesTo = !movementFilters.to || !movementDate || movementDate <= movementFilters.to;
       return matchesOutlet && matchesType && matchesSearch && matchesFrom && matchesTo;
     });
+    const movementSummary = filteredMovements.reduce((summary, movement) => {
+      const key = movementTypeKey(movement);
+      if (key === "purchase") summary.purchase += 1;
+      else if (key.includes("transfer")) summary.transfer += 1;
+      else if (key === "waste") summary.waste += 1;
+      else if (key === "adjustment") summary.adjustment += 1;
+      return summary;
+    }, { purchase: 0, transfer: 0, waste: 0, adjustment: 0 });
+    const openMovementReference = (movement) => {
+      const referenceType = canonical(movement.referenceType || "");
+      if (referenceType === "purchase_order" || referenceType === "po") {
+        const order = data.orders.find((entry) => entry.id === movement.referenceId || entry.poNo === movement.reference);
+        if (order) {
+          setModal({ type: "po-detail", order });
+          return;
+        }
+      }
+      if (referenceType === "waste") {
+        const waste = data.waste.find((entry) => entry.id === movement.referenceId);
+        if (waste) {
+          setModal({ type: "waste-detail", waste });
+          return;
+        }
+      }
+      notify("Reference detail unavailable", "No linked detail record is available for this movement.", "info");
+    };
     return (
-      <SectionCard
-        title="Inventory Movements"
-        description="All purchase, transfer, waste, adjustment and production usage movements."
-        action={<button className="btn-primary" type="button" onClick={() => requirePermission(can.recordMovement, "record inventory movements") && setModal({ type: "movement" })}><RefreshCw size={15} /> Record Movement</button>}
-      >
-        <div className="mb-4 grid gap-3 lg:grid-cols-5">
-          <SelectField label="Outlet" value={movementFilters.outletId} options={getAccessibleOutletOptions(auth, outlets)} onChange={(value) => updateMovementFilter("outletId", value)} searchable />
-          <SelectField label="Movement Type" value={movementFilters.movementType} options={[{ value: "all", label: "All Types" }, ...movementTypesForFilter.map((type) => ({ value: type, label: toTitle(type) }))]} onChange={(value) => updateMovementFilter("movementType", value)} />
-          <DatePickerField label="From" value={movementFilters.from} onChange={(value) => updateMovementFilter("from", value)} />
-          <DatePickerField label="To" value={movementFilters.to} onChange={(value) => updateMovementFilter("to", value)} />
-          <label>
-            <div className="mb-1 type-caption font-semibold text-text-secondary">Search Item / Reference</div>
-            <input className="control h-9 w-full text-[13px]" value={movementFilters.search} onChange={(event) => updateMovementFilter("search", event.target.value)} placeholder="Search item, PO no, notes" />
-          </label>
-        </div>
-        {filteredMovements.length ? (
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[1080px] text-left">
-              <thead className="text-[11px] uppercase tracking-wide text-text-muted">
-                <tr className="border-b border-border">
-                  <th className="py-2">Date & Time</th>
-                  <th>Outlet</th>
-                  <th>Item</th>
-                  <th>Movement Type</th>
-                  <th>Qty</th>
-                  <th>UOM</th>
-                  <th>Reference No.</th>
-                  <th>Notes</th>
-                  <th>Created By</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border text-[13px]">
-                {filteredMovements.map((movement) => {
-                  const item = itemById.get(movement.itemId);
-                  const type = movement.movementType || movement.type || "movement";
-                  const typeKey = String(type).toLowerCase();
-                  return (
-                    <tr key={movement.id}>
-                      <td className="py-3">{formatDate(movement.dateTime || movement.date)}</td>
-                      <td>{outletById.get(movement.outletId)?.name ?? "Unknown outlet"}</td>
-                      <td className="font-bold text-text-primary">{item?.name ?? "Inventory item"}</td>
-                      <td><Badge tone={typeKey === "waste" ? "danger" : typeKey.includes("transfer") ? "info" : typeKey === "adjustment" ? "warning" : "success"}>{toTitle(type)}</Badge></td>
-                      <td className="font-semibold text-text-primary">{Number(movement.quantity) > 0 ? "+" : ""}{movement.quantity}</td>
-                      <td>{movement.unit || item?.unit || "-"}</td>
-                      <td>{movement.reference || "-"}</td>
-                      <td>{movement.notes || "-"}</td>
-                      <td>{movement.user || "Unknown user"}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
+      <div className="space-y-4">
+        <SectionCard title="Filters" description="Filter movement records by outlet, type, date range and item/reference search.">
+          <div className="grid gap-3 lg:grid-cols-5">
+            <SelectField label="Outlet" value={movementFilters.outletId} options={getAccessibleOutletOptions(auth, outlets)} onChange={(value) => updateMovementFilter("outletId", value)} searchable />
+            <SelectField label="Movement Type" value={movementFilters.movementType} options={[{ value: "all", label: "All Types" }, ...movementTypesForFilter.map((type) => ({ value: type, label: toTitle(type) }))]} onChange={(value) => updateMovementFilter("movementType", value)} />
+            <DatePickerField label="From" value={movementFilters.from} onChange={(value) => updateMovementFilter("from", value)} />
+            <DatePickerField label="To" value={movementFilters.to} onChange={(value) => updateMovementFilter("to", value)} />
+            <label>
+              <div className="mb-1 type-caption font-semibold text-text-secondary">Search Item / Reference</div>
+              <input className="control h-9 w-full text-[13px]" value={movementFilters.search} onChange={(event) => updateMovementFilter("search", event.target.value)} placeholder="Search item, PO no, notes" />
+            </label>
           </div>
-        ) : <EmptyState title="No inventory movements found." description={data.movements.length ? "Adjust filters to see more movement records." : "Purchase receiving and manual movements will appear here after they are saved to Supabase."} />}
-      </SectionCard>
+        </SectionCard>
+
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard label="Purchase In" value={movementSummary.purchase} helper="Received inventory records" tone="success" size="compact" />
+          <MetricCard label="Transfer" value={movementSummary.transfer} helper="Transfer in/out records" tone="info" size="compact" />
+          <MetricCard label="Waste" value={movementSummary.waste} helper="Waste movement records" tone="warning" size="compact" />
+          <MetricCard label="Adjustments" value={movementSummary.adjustment} helper="Manual correction records" tone="neutral" size="compact" />
+        </div>
+
+        <SectionCard title="Movement Records" description={`Showing ${filteredMovements.length} record${filteredMovements.length === 1 ? "" : "s"}`}>
+          {filteredMovements.length ? (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[1080px] text-left">
+                <thead className="text-[11px] uppercase tracking-wide text-text-muted">
+                  <tr className="border-b border-border">
+                    <th className="py-2">Date & Time</th>
+                    <th>Outlet</th>
+                    <th>Item</th>
+                    <th>Movement Type</th>
+                    <th>Qty</th>
+                    <th>UOM</th>
+                    <th>Reference No.</th>
+                    <th>Notes</th>
+                    <th>Created By</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border text-[13px]">
+                  {filteredMovements.map((movement) => {
+                    const item = itemById.get(movement.itemId);
+                    const hasReference = Boolean(movement.reference || movement.referenceId);
+                    return (
+                      <tr key={movement.id}>
+                        <td className="py-3">{formatDateTimeCompact(movement.dateTime || movement.date)}</td>
+                        <td>{outletById.get(movement.outletId)?.name ?? "Unknown outlet"}</td>
+                        <td className="font-bold text-text-primary">{item?.name ?? "Inventory item"}</td>
+                        <td>
+                          <span className={`inline-flex rounded-full border px-2 py-0.5 type-caption font-semibold ${movementTypeClass(movement)}`}>
+                            {movementTypeLabel(movement)}
+                          </span>
+                        </td>
+                        <td className="font-semibold text-text-primary">{Number(movement.quantity) > 0 ? "+" : ""}{movement.quantity}</td>
+                        <td>{movement.unit || item?.unit || "-"}</td>
+                        <td>
+                          {hasReference ? (
+                            <button className="type-caption font-black text-primary underline-offset-2 hover:underline" type="button" onClick={() => openMovementReference(movement)}>
+                              {movement.reference || "Open reference"}
+                            </button>
+                          ) : "-"}
+                        </td>
+                        <td>{movement.notes || "-"}</td>
+                        <td>{actorNameByAnyId(movement.user || movement.createdBy)}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : <EmptyState title="No inventory movements found." description={data.movements.length ? "Adjust filters to see more movement records." : "Purchase receiving and manual movements will appear here after they are saved to Supabase."} />}
+        </SectionCard>
+      </div>
     );
   }
 
@@ -8032,6 +8098,29 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       {modal?.type === "audit-stock-check" ? <AuditStockCheckModal outlets={outlets} categories={sortedCategories} items={data.items} onClose={() => setModal(null)} onStart={startAuditStockCheck} /> : null}
       {modal?.type === "skip-check-row" ? <SkipReasonModal itemName={modal.itemName} onClose={() => setModal(null)} onSave={(reason) => skipCheckRow(modal.rowIndex, reason)} /> : null}
       {modal?.type === "movement" ? <MovementModal outlets={outlets} items={data.items} onClose={() => setModal(null)} onSave={saveMovement} /> : null}
+      {modal?.type === "waste-detail" ? (() => {
+        const waste = modal.waste || {};
+        const item = itemById.get(waste.itemId);
+        const outlet = outletById.get(waste.outletId);
+        return (
+          <Modal
+            title="Waste Record"
+            description={`${outlet?.name || "Outlet"} · ${formatDate(waste.date || waste.createdAt)}`}
+            onClose={() => setModal(null)}
+            footer={<button className="btn-secondary" type="button" onClick={() => setModal(null)}>Close</button>}
+          >
+            <div className="grid gap-3 md:grid-cols-2">
+              <MetricCard label="Item" value={item?.name || "Inventory item"} helper={item?.sku || "Waste movement reference"} size="compact" />
+              <MetricCard label="Waste Type" value={toTitle(waste.wasteType || "waste")} helper="Recorded classification" tone="warning" size="compact" />
+              <MetricCard label="Quantity" value={`${waste.quantity || 0} ${waste.unit || item?.unit || ""}`.trim()} helper="Recorded waste amount" tone="warning" size="compact" />
+              <MetricCard label="Recorded By" value={actorNameByAnyId(waste.recordedBy || waste.user)} helper="Source record owner" size="compact" />
+            </div>
+            <div className="mt-3 rounded-2xl border border-border bg-slate-50 p-3 type-body-sm text-text-secondary">
+              {waste.notes || "No notes recorded."}
+            </div>
+          </Modal>
+        );
+      })() : null}
       {modal?.type === "waste" ? (
         <WasteModal
           outlet={outletById.get(modal.outletId || selectedOutletId)}
