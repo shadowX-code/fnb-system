@@ -56,6 +56,14 @@ function toDateInputValue(date) {
   return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
 }
 
+function getDashboardGreeting(date = new Date()) {
+  const hour = date.getHours();
+  if (hour >= 5 && hour < 12) return "Good morning";
+  if (hour >= 12 && hour < 18) return "Good afternoon";
+  if (hour >= 18 && hour < 23) return "Good evening";
+  return "Welcome back";
+}
+
 function monthStart(year, month) {
   return new Date(Number(year), Number(month) - 1, 1);
 }
@@ -616,6 +624,7 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
     : outletMonthlyRows[0]?.reasons ?? [];
 
   const greetingName = auth?.profile?.full_name || auth?.profile?.name || auth?.profile?.email?.split("@")[0] || "there";
+  const dashboardGreeting = getDashboardGreeting();
   const hasMonthlySales = selectedTotals.sales > 0;
   const hasMonthlyPurchase = selectedTotals.purchase > 0;
   const aiSummary = [
@@ -636,7 +645,7 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
           <div>
             <div className="type-caption font-black uppercase tracking-[0.16em] text-primary">HQ Operations Command Center</div>
             <h1 className="mt-2 type-heading-xl font-semibold tracking-tight text-text-primary">
-              Good morning, {greetingName}
+              {dashboardGreeting}, {greetingName}
             </h1>
             <p className="mt-2 type-body-sm text-text-secondary">Here&apos;s what needs attention across your outlets.</p>
             <div className="mt-4 flex flex-wrap gap-2">

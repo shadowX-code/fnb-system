@@ -75,7 +75,7 @@ Final sidebar structure:
 
 ```text
 OVERVIEW
-- Overview Dashboard
+- Dashboard
 - Outlet P&L
 - S&P Dashboard
 - Product Analytics
@@ -382,7 +382,7 @@ Current status:
 
 ---
 
-## 5.2 Overview Dashboard
+## 5.2 Dashboard
 
 Purpose:
 
@@ -391,7 +391,7 @@ Monthly HQ management overview workspace for owners/admins to review business he
 Sidebar label:
 
 ```text
-Overview Dashboard
+Dashboard
 ```
 
 Data:
@@ -411,11 +411,12 @@ Data:
 Core rules:
 
 - Dashboard is month-based only.
-- Overview Dashboard is separate from S&P Dashboard and must not replace the detailed sales/purchase analytics workspace.
+- Dashboard is separate from S&P Dashboard and must not replace the detailed sales/purchase analytics workspace.
 - Do not show daily, hourly, real-time POS, or last-7-days metrics.
 - Outlet scope supports All Outlets and individual accessible outlets.
 - Every outlet-specific alert, product signal, action, and birthday must show outlet identity.
 - Missing data shows helpful empty states instead of misleading zeros.
+- The dashboard greeting uses browser local time: 05:00-11:59 "Good morning", 12:00-17:59 "Good afternoon", 18:00-22:59 "Good evening", and 23:00-04:59 "Welcome back".
 
 Dashboard sections:
 
@@ -473,10 +474,10 @@ dashboard.view
 
 Rules:
 
-- S&P Dashboard must remain separate from Overview Dashboard.
+- S&P Dashboard must remain separate from Dashboard.
 - It preserves the original detailed sales and purchase analytics logic.
 - It shows sales vs purchase trend, COGS margin trend, top suppliers by purchase, and recent rule-based alerts.
-- Overview Dashboard is the HQ command center; S&P Dashboard is the operational sales and purchase analytics workspace.
+- Dashboard is the HQ command center; S&P Dashboard is the operational sales and purchase analytics workspace.
 
 ---
 

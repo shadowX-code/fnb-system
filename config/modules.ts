@@ -76,7 +76,7 @@ export const moduleRegistry: AppModule[] = [
   {
     id: "dashboard",
     section: "Overview",
-    label: "Overview Dashboard",
+    label: "Dashboard",
     route: "/overview/dashboard",
     icon: "dashboard",
     sidebar: true,
