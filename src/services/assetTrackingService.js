@@ -143,6 +143,8 @@ function mapAsset(row) {
     minimum_quantity: Number(row.minimum_quantity ?? 0),
     status: row.status === "archived" || row.status === "inactive" ? "archived" : "active",
     remark: row.remark ?? "",
+    created_by: row.created_by ?? null,
+    updated_by: row.updated_by ?? null,
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -179,6 +181,7 @@ function mapMovement(row) {
     reason: row.reason ?? "",
     remark: row.remark ?? "",
     movement_date: row.movement_date,
+    created_by: row.created_by ?? null,
     created_at: row.created_at,
   };
 }

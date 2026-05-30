@@ -282,6 +282,7 @@ function assetNeedsAttention(asset) {
 function latestMovementSummary(movement) {
   if (!movement) return "—";
   const amount = Math.abs(Number(movement.quantity_change || 0));
+  if (movement.reason === "import") return `Asset Imported · ${amount ? `${movement.quantity_change > 0 ? "+" : ""}${movement.quantity_change}` : "Recorded"}`;
   if (movement.movement_type === "add") return `Quantity Adjusted · +${amount}`;
   if (movement.movement_type === "reduce") return `Quantity Adjusted · -${amount}`;
   if (movement.movement_type === "correction") return "Inspection update";
@@ -330,6 +331,47 @@ function currentNextServiceDate(records = []) {
 
 function assetNameById(assets = [], assetId) {
   return assets.find((asset) => asset.id === assetId)?.name || "Asset";
+}
+
+function activityTimestamp(row) {
+  return row?.created_at || row?.updated_at || row?.completed_date || row?.movement_date || row?.date || "";
+}
+
+function actorNameFromAuth(auth, actorId) {
+  const currentActorIds = [auth?.user?.id, auth?.profile?.auth_user_id, auth?.profile?.id].filter(Boolean);
+  if (actorId && currentActorIds.includes(actorId)) return profileDisplayName(auth?.profile) || auth?.user?.email || "Current user";
+  return actorId ? "Recorded user" : "Unknown user";
+}
+
+function activityActorLabel(prefix, actorId, auth) {
+  return `${prefix} by ${actorNameFromAuth(auth, actorId)}`;
+}
+
+function movementActivityMeta(movement, assetName) {
+  const quantity = Number(movement.quantity_change || 0);
+  const quantityText = `${quantity > 0 ? "+" : ""}${quantity}`;
+  if (movement.reason === "import") {
+    return {
+      title: "Asset Imported",
+      description: `${assetName} imported${quantity ? ` · ${quantityText}` : ""}`,
+      type: "created",
+      actorPrefix: "Imported",
+    };
+  }
+  if (movement.reason === "inspection" || movement.movement_type === "correction") {
+    return {
+      title: "Inspection Completed",
+      description: `${assetName} inspection correction${quantity ? ` · ${quantityText}` : ""}`,
+      type: "inspection",
+      actorPrefix: "Inspected",
+    };
+  }
+  return {
+    title: "Quantity Adjusted",
+    description: `${assetName} · ${quantityText} · ${movement.quantity_before} → ${movement.quantity_after}`,
+    type: "movement",
+    actorPrefix: "Adjusted",
+  };
 }
 
 function assetHoverInsight(asset, lastMovement, lastInspection) {
@@ -2215,27 +2257,34 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
   const recentActivity = [
     latestInspection ? {
       id: `inspection-${latestInspection.id}`,
-      date: latestInspection.inspection_date,
+      date: activityTimestamp(latestInspection) || latestInspection.inspection_date,
       title: "Inspection completed",
       detail: latestDifference ? `Difference ${latestDifference > 0 ? "+" : ""}${latestDifference}` : `Condition recorded as ${assetConditionLabel(latestInspectionItem?.condition_status || safeAsset.condition)}`,
+      actor: latestInspection.checked_by ? `Inspected by ${latestInspection.checked_by}` : activityActorLabel("Inspected", latestInspection.created_by || latestInspection.last_edited_by, { profile: currentProfile }),
     } : null,
-    ...movements.slice(0, 3).map((movement) => ({
-      id: `movement-${movement.id}`,
-      date: movement.movement_date,
-      title: `Quantity ${titleCase(movement.movement_type)}`,
-      detail: `${movement.quantity_change > 0 ? "+" : ""}${movement.quantity_change} · ${movement.quantity_before} → ${movement.quantity_after}`,
-    })),
+    ...movements.slice(0, 3).map((movement) => {
+      const meta = movementActivityMeta(movement, safeAsset.name);
+      return {
+        id: `movement-${movement.id}`,
+        date: activityTimestamp(movement),
+        title: meta.title,
+        detail: meta.description,
+        actor: activityActorLabel(meta.actorPrefix, movement.created_by, { profile: currentProfile }),
+      };
+    }),
     ...sortedMaintenanceRecords.slice(0, 2).map((record) => ({
       id: `maintenance-${record.id}`,
-      date: maintenanceRelevantDate(record),
-      title: "Maintenance recorded",
+      date: activityTimestamp(record) || maintenanceRelevantDate(record),
+      title: record.status === "completed" ? "Maintenance completed" : "Maintenance scheduled",
       detail: `${maintenanceStatusLabel(record.status)} · ${record.issue || "No issue recorded"}`,
+      actor: activityActorLabel(record.status === "completed" ? "Completed" : "Scheduled", record.created_by, { profile: currentProfile }),
     })),
     safeAsset.image_url ? {
       id: "asset-photo",
       date: safeAsset.updated_at,
       title: "Asset photo updated",
       detail: "Image available in asset profile",
+      actor: activityActorLabel("Updated", safeAsset.updated_by || safeAsset.created_by, { profile: currentProfile }),
     } : null,
   ].filter(Boolean).sort((first, second) => new Date(second.date || 0) - new Date(first.date || 0)).slice(0, 5);
 
@@ -2368,6 +2417,7 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
                           <div className="text-xs font-semibold text-text-muted"><DateText value={item.date} /></div>
                         </div>
                         <div className="mt-0.5 text-xs font-semibold text-text-secondary">{item.detail}</div>
+                        {item.actor ? <div className="mt-0.5 text-[11px] font-semibold text-text-muted">{item.actor}</div> : null}
                       </div>
                     </div>
                   ))}
@@ -2911,37 +2961,52 @@ export default function AssetTrackingPage({ store, ui, auth }) {
   }, [scopedAssets, inspections, maintenanceRecords]);
 
   const recentActivityRows = useMemo(() => {
-    const movementRows = movements.slice(0, 6).map((movement) => ({
-      id: `movement-${movement.id}`,
-      date: movement.movement_date,
-      title: movement.movement_type === "correction"
-        ? `${assetNameById(assets, movement.asset_id)} inspected`
-        : `${assetNameById(assets, movement.asset_id)} quantity adjusted`,
-      detail: movement.movement_type === "correction" ? "Inspection completed" : latestMovementSummary(movement),
-      tone: movement.movement_type === "correction" ? "info" : "warning",
-      kind: movement.movement_type === "correction" ? "inspection" : "movement",
-    }));
+    const importedAssetIds = new Set(movements.filter((movement) => movement.reason === "import").map((movement) => movement.asset_id));
+    const assetRows = assets
+      .filter((asset) => asset.created_at && !importedAssetIds.has(asset.id))
+      .slice(0, 6)
+      .map((asset) => ({
+        id: `asset-created-${asset.id}`,
+        date: asset.created_at,
+        title: "Asset Added",
+        detail: `${asset.name} was added to Asset Tracking.`,
+        type: "created",
+        actor: activityActorLabel("Created", asset.created_by, auth),
+      }));
+    const movementRows = movements.slice(0, 8).map((movement) => {
+      const assetName = assetNameById(assets, movement.asset_id);
+      const meta = movementActivityMeta(movement, assetName);
+      return {
+        id: `movement-${movement.id}`,
+        date: activityTimestamp(movement),
+        title: meta.title,
+        detail: meta.description,
+        type: meta.type,
+        actor: activityActorLabel(meta.actorPrefix, movement.created_by, auth),
+      };
+    });
     const maintenanceRows = maintenanceRecords.slice(0, 6).map((record) => ({
       id: `maintenance-${record.id}`,
-      date: record.completed_date || record.scheduled_date || record.date,
-      title: `${assetNameById(assets, record.asset_id)} maintenance ${maintenanceStatusLabel(record.status).toLowerCase()}`,
+      date: activityTimestamp(record) || record.completed_date || record.scheduled_date || record.date,
+      title: record.status === "completed" ? "Maintenance Completed" : "Maintenance Scheduled",
       detail: record.issue || maintenanceTypeLabel(record.maintenance_type),
-      tone: record.status === "completed" ? "success" : record.status === "in_progress" ? "info" : "warning",
-      kind: "maintenance",
+      type: "maintenance",
+      actor: activityActorLabel(record.status === "completed" ? "Completed" : "Scheduled", record.created_by, auth),
+      metadata: assetNameById(assets, record.asset_id),
     }));
     const inspectionRows = inspections.slice(0, 6).map((inspection) => ({
       id: `inspection-${inspection.id}`,
-      date: inspection.inspection_date || inspection.updated_at,
-      title: "Inspection completed",
+      date: activityTimestamp(inspection) || inspection.inspection_date,
+      title: "Inspection Completed",
       detail: `${inspection.summary?.total_assets || (inspection.items || []).length || 0} assets checked`,
-      tone: "info",
-      kind: "inspection",
+      type: "inspection",
+      actor: inspection.checked_by ? `Inspected by ${inspection.checked_by}` : activityActorLabel("Inspected", inspection.created_by || inspection.last_edited_by, auth),
     }));
-    return [...movementRows, ...maintenanceRows, ...inspectionRows]
+    return [...movementRows, ...maintenanceRows, ...inspectionRows, ...assetRows]
       .filter((row) => row.date)
       .sort((first, second) => new Date(second.date) - new Date(first.date))
       .slice(0, 8);
-  }, [assets, inspections, maintenanceRecords, movements]);
+  }, [assets, auth, inspections, maintenanceRecords, movements]);
 
   async function saveAsset(asset) {
     if ((asset.id && !canEditAsset) || (!asset.id && !canAdd)) {
@@ -3358,6 +3423,8 @@ export default function AssetTrackingPage({ store, ui, auth }) {
                 type: row.type || (row.title?.toLowerCase().includes("maintenance") ? "maintenance" : row.title?.toLowerCase().includes("inspection") ? "inspection" : "movement"),
                 title: row.title,
                 description: row.detail,
+                actor: row.actor,
+                metadata: row.metadata,
               }))}
               empty="Operational activity will appear after inspections, movements and maintenance updates."
             />

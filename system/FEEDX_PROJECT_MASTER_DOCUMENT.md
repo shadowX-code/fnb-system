@@ -1418,7 +1418,11 @@ Asset UI rules:
   - Recently Inspected
   - High Variance
   - No Photo
-- Last Movement shows the latest movement summary, such as `Quantity Adjusted · -2`, `Inspection completed`, or `Maintenance completed`.
+- Last Movement shows the latest movement summary, such as `Asset Imported`, `Asset Added`, `Quantity Adjusted · -2`, `Inspection Completed`, or `Maintenance Completed`.
+- Asset Recent Activity is sourced from Supabase-backed asset rows, movement logs, inspections, and maintenance records; mock/demo activity must not be shown in the authenticated app.
+- Asset activity labels must map from the actual event source: import movement rows with `reason = import` show `Asset Imported`, inspection rows show `Inspection Completed`, add/reduce movement rows show `Quantity Adjusted`, and maintenance rows show `Maintenance Scheduled` or `Maintenance Completed`.
+- Asset activity timestamps use persisted operation timestamps such as `created_at`, `updated_at`, or `completed_date`; date-only business fields such as `movement_date` must not be used as the timeline timestamp when an operation timestamp is available.
+- Asset activity cards show the actor label such as `Created by`, `Imported by`, `Inspected by`, `Adjusted by`, `Scheduled by`, or `Completed by` when the user can be resolved.
 - Operational records display actual dates such as `28 May 2026`; relative wording may appear only as tooltip/helper text.
 - Operational status strip summarizes attention count, low quantity alerts, and latest inspection state.
 - Asset list actions use a primary View action plus an overflow menu.
