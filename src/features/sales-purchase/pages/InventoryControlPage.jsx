@@ -1293,7 +1293,7 @@ async function loadRemoteInventoryMaster() {
   };
 }
 
-async function persistRemoteInventoryItem(item, userId) {
+async function persistRemoteInventoryItem(item, userId, accessibleOutletIds = null) {
   const normalized = normalizeInventoryItem(item);
   const mode = isUuid(normalized.id) ? "edit" : "create";
   const itemPayload = {
@@ -1323,6 +1323,12 @@ async function persistRemoteInventoryItem(item, userId) {
     outletDeleteResult: null,
     error: null,
   };
+  const selectedOutletIds = uniqueIds(normalized.linkedOutletIds || []).filter((outletId) => isUuid(outletId));
+  const hasExplicitAccessibleScope = Array.isArray(accessibleOutletIds);
+  const accessibleSet = hasExplicitAccessibleScope ? new Set(accessibleOutletIds) : null;
+  const inScope = (outletId) => !accessibleSet || accessibleSet.has(outletId);
+  const selectedOutletIdsInScope = selectedOutletIds.filter(inScope);
+  const skippedSelectedOutOfScope = selectedOutletIds.filter((outletId) => !inScope(outletId));
 
   let savedItem = null;
   if (mode === "edit") {
@@ -1358,9 +1364,37 @@ async function persistRemoteInventoryItem(item, userId) {
   debug.savedUnit = savedItem?.unit || savedItem?.uom_code || null;
 
   const remoteItemId = savedItem.id;
-  const linkedOutletIds = uniqueIds(normalized.linkedOutletIds || []);
-  const configRows = linkedOutletIds
-    .filter((outletId) => isUuid(outletId))
+  const { data: existingLinks, error: existingLinksError } = await supabase
+    .from("inventory_item_outlets")
+    .select("id,outlet_id")
+    .eq("inventory_item_id", remoteItemId);
+  if (existingLinksError) {
+    debug.error = existingLinksError;
+    debugLog("[InventorySaveDebug]", debug);
+    debugLog("[InventoryItemSaveDebug]", debug);
+    debugLog("[InventoryLinkedOutletsSaveDebug]", { itemId: remoteItemId, existingOutletIds: [], accessibleOutletIds: hasExplicitAccessibleScope ? accessibleOutletIds : null, selectedOutletIds, toAdd: [], toRemove: [], skippedOutOfScope: skippedSelectedOutOfScope, error: existingLinksError });
+    throw existingLinksError;
+  }
+  const existingOutletIds = uniqueIds((existingLinks || []).map((row) => row.outlet_id).filter(Boolean));
+  const existingOutletIdsInScope = existingOutletIds.filter(inScope);
+  const toAdd = selectedOutletIdsInScope.filter((outletId) => !existingOutletIdsInScope.includes(outletId));
+  const toRemove = existingOutletIdsInScope.filter((outletId) => !selectedOutletIdsInScope.includes(outletId));
+  const skippedOutOfScope = uniqueIds([
+    ...skippedSelectedOutOfScope,
+    ...existingOutletIds.filter((outletId) => !inScope(outletId)),
+  ]);
+
+  debugLog("[InventoryLinkedOutletsSaveDebug]", {
+    itemId: remoteItemId,
+    existingOutletIds,
+    accessibleOutletIds: hasExplicitAccessibleScope ? accessibleOutletIds : null,
+    selectedOutletIds,
+    toAdd,
+    toRemove,
+    skippedOutOfScope,
+  });
+
+  const configRows = selectedOutletIdsInScope
     .map((outletId) => {
       const config = outletConfigForItem(normalized, outletId);
       return {
@@ -1373,22 +1407,26 @@ async function persistRemoteInventoryItem(item, userId) {
     });
   debug.outletLinksPayload = configRows;
 
-  let deleteQuery = supabase
-    .from("inventory_item_outlets")
-    .delete()
-    .eq("inventory_item_id", remoteItemId);
-  if (linkedOutletIds.length) deleteQuery = deleteQuery.not("outlet_id", "in", `(${linkedOutletIds.join(",")})`);
-  const deleteResult = await deleteQuery;
-  debug.outletDeleteResult = { data: deleteResult.data || null, error: deleteResult.error };
-  if (deleteResult.error) {
-    const error = new Error("Item saved, but outlet links failed.");
-    error.cause = deleteResult.error;
-    error.partialItemSaved = true;
-    error.debug = debug;
-    debug.error = deleteResult.error;
-    debugLog("[InventorySaveDebug]", debug);
-    debugLog("[InventoryItemSaveDebug]", debug);
-    throw error;
+  if (toRemove.length) {
+    const deleteResult = await supabase
+      .from("inventory_item_outlets")
+      .delete()
+      .eq("inventory_item_id", remoteItemId)
+      .in("outlet_id", toRemove);
+    debug.outletDeleteResult = { data: deleteResult.data || null, error: deleteResult.error };
+    if (deleteResult.error) {
+      const error = new Error("Item saved, but outlet links failed.");
+      error.cause = deleteResult.error;
+      error.partialItemSaved = true;
+      error.debug = debug;
+      debug.error = deleteResult.error;
+      debugLog("[InventorySaveDebug]", debug);
+      debugLog("[InventoryItemSaveDebug]", debug);
+      debugLog("[InventoryLinkedOutletsSaveDebug]", { itemId: remoteItemId, existingOutletIds, accessibleOutletIds: hasExplicitAccessibleScope ? accessibleOutletIds : null, selectedOutletIds, toAdd, toRemove, skippedOutOfScope, error: deleteResult.error });
+      throw error;
+    }
+  } else {
+    debug.outletDeleteResult = { data: null, error: null };
   }
 
   if (configRows.length) {
@@ -1404,6 +1442,7 @@ async function persistRemoteInventoryItem(item, userId) {
       debug.error = configResult.error;
       debugLog("[InventorySaveDebug]", debug);
       debugLog("[InventoryItemSaveDebug]", debug);
+      debugLog("[InventoryLinkedOutletsSaveDebug]", { itemId: remoteItemId, existingOutletIds, accessibleOutletIds: hasExplicitAccessibleScope ? accessibleOutletIds : null, selectedOutletIds, toAdd, toRemove, skippedOutOfScope, error: configResult.error });
       throw error;
     }
   }
@@ -1420,6 +1459,7 @@ async function persistRemoteInventoryItem(item, userId) {
   }
   debugLog("[InventorySaveDebug]", debug);
   debugLog("[InventoryItemSaveDebug]", debug);
+  debugLog("[InventoryLinkedOutletsSaveDebug]", { itemId: remoteItemId, existingOutletIds, accessibleOutletIds: hasExplicitAccessibleScope ? accessibleOutletIds : null, selectedOutletIds, toAdd, toRemove, skippedOutOfScope, error: null });
   return mapRemoteInventoryItem(savedItem, savedConfigs || []);
 }
 
@@ -4969,15 +5009,25 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     const normalizedItem = normalizeInventoryItem({ ...item, photo: safePhoto, photo_url: safePhoto });
     const photoChanged = !photoUploadFailed && (existingItem?.photo || existingItem?.photo_url || "") !== (normalizedItem.photo || normalizedItem.photo_url || "");
     const linkedOutletsChanged = !sameIdSet(existingItem?.linkedOutletIds || [], normalizedItem.linkedOutletIds || []);
-    const textOrMetadataChanged = isCreate || !existingItem ||
-      existingItem.name !== normalizedItem.name ||
-      existingItem.sku !== normalizedItem.sku ||
-      existingItem.categoryId !== normalizedItem.categoryId ||
-      existingItem.unit !== normalizedItem.unit ||
-      existingItem.status !== normalizedItem.status ||
-      (existingItem.description || "") !== (normalizedItem.description || "");
+    const nameChanged = !isCreate && Boolean(existingItem) && existingItem.name !== normalizedItem.name;
+    const skuChanged = !isCreate && Boolean(existingItem) && (existingItem.sku || "") !== (normalizedItem.sku || "");
+    const categoryChanged = !isCreate && Boolean(existingItem) && (existingItem.categoryId || "") !== (normalizedItem.categoryId || "");
+    const uomChanged = !isCreate && Boolean(existingItem) && (existingItem.unit || "") !== (normalizedItem.unit || "");
+    const statusChanged = !isCreate && Boolean(existingItem) && (existingItem.status || "active") !== (normalizedItem.status || "active");
+    const descriptionChanged = !isCreate && Boolean(existingItem) && (existingItem.description || "") !== (normalizedItem.description || "");
+    const changeFlags = {
+      nameChanged,
+      skuChanged,
+      categoryChanged,
+      uomChanged,
+      statusChanged,
+      photoChanged,
+      descriptionChanged,
+      linkedOutletsChanged,
+    };
+    const changeCount = Object.values(changeFlags).filter(Boolean).length;
     try {
-      const remoteItem = await persistRemoteInventoryItem(normalizedItem, auth?.user?.id);
+      const remoteItem = await persistRemoteInventoryItem(normalizedItem, auth?.user?.id, accessibleOutletIds);
       photoDebug = {
         ...photoDebug,
         itemId: remoteItem.id,
@@ -5021,12 +5071,20 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         notify("Item saved, but photo upload failed", "The item details were saved. Please try uploading the photo again.", "warning");
       } else if (isCreate) {
         notify("Inventory item created", remoteItem.name);
-      } else if (photoChanged && !textOrMetadataChanged && !linkedOutletsChanged) {
-        notify("Inventory photo updated", remoteItem.name);
-      } else if (linkedOutletsChanged && !textOrMetadataChanged && !photoChanged) {
+      } else if (changeCount === 1 && linkedOutletsChanged) {
         notify("Linked outlets updated", remoteItem.name);
+      } else if (changeCount === 1 && photoChanged) {
+        notify("Inventory photo updated", remoteItem.name);
+      } else if (changeCount === 1 && uomChanged) {
+        notify("Inventory UOM updated", remoteItem.name);
+      } else if (changeCount === 1 && categoryChanged) {
+        notify("Inventory category updated", remoteItem.name);
+      } else if (changeCount === 1 && statusChanged) {
+        notify("Inventory status updated", remoteItem.name);
+      } else if (changeCount === 1 && descriptionChanged) {
+        notify("Inventory item details updated", remoteItem.name);
       } else {
-        notify("Inventory item updated", remoteItem.name);
+        notify("Inventory item updated", changeCount > 1 ? `${remoteItem.name} · ${changeCount} changes saved` : remoteItem.name);
       }
     } catch (error) {
       console.warn("[InventoryControl] Unable to save inventory item to Supabase.", error);
@@ -5041,7 +5099,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       }
       await refreshInventory();
       if (error?.partialItemSaved) {
-        notify("Item saved, but outlet links failed", error.cause?.message || error.message || "Please check outlet access and try again.", "warning");
+        notify("Linked outlet update failed", error.cause?.message || error.message || "Please check outlet access and try again.", "warning");
       } else {
         notify(isCreate ? "Failed to create Inventory Item" : "Failed to update Inventory Item", error.message || "Please try again.", "error");
       }
@@ -5343,7 +5401,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       });
 
       try {
-        const result = await persistRemoteInventoryItem(remoteItem, auth?.user?.id);
+        const result = await persistRemoteInventoryItem(remoteItem, auth?.user?.id, accessibleOutletIds);
         debugLog("[InventoryImportDebug]", {
           rowNumber: row.rowNumber,
           action: row.action,
@@ -5815,6 +5873,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }
 
   async function archiveItem(itemId) {
+    const item = data.items.find((entry) => entry.id === itemId);
     if (!isUuid(itemId)) {
       notify("Failed to archive Inventory Item", "This item has not been saved to Supabase yet.", "error");
       return;
@@ -5833,7 +5892,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         items: current.items.map((item) => item.id === itemId ? { ...item, status: "inactive", updatedAt: result.data?.updated_at || new Date().toISOString() } : item),
       }));
       await refreshInventory();
-      notify("Inventory item archived");
+      notify("Inventory item archived", item?.name || result.data?.item_name || result.data?.name || "");
     } catch (error) {
       console.warn("[InventoryControl] Unable to sync archived inventory item.", error);
       debugLog("[InventorySaveDebug]", { mode: "archive", payload: { itemId }, itemUpdateResult: null, error });

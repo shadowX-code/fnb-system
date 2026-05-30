@@ -1940,13 +1940,14 @@ Master Inventory UI:
 - Add/Edit Item shows linked outlets and a note that par levels are managed in Par Level Setup.
 - Add/Edit Item does not show outlet-by-outlet Par Level, Low Stock Threshold, or Reorder Qty inputs.
 - Add/Edit Item save is remote-first: show success only after `inventory_items` and `inventory_item_outlets` are persisted and refetched from Supabase.
-- Add/Edit Item toast messages are action-specific: `Inventory item created`, `Inventory item updated`, `Inventory photo updated`, `Linked outlets updated`, or `Item saved, but photo upload failed`.
+- Add/Edit Item toast messages are action-specific: `Inventory item created`, `Inventory item updated`, `Inventory photo updated`, `Inventory UOM updated`, `Inventory category updated`, `Inventory status updated`, `Inventory item details updated`, `Linked outlets updated`, or `Item saved, but photo upload failed`.
 - Inventory Control toast messages must identify both module and action, and success toasts may only appear after Supabase confirms the write. Scheduled Stock Check uses `Stock Check draft saved` and `Stock Check submitted`; Audit Stock Check uses `Audit Stock Check draft saved` and `Audit Stock Check submitted`; purchase workflows use `Draft PO created`, `PO submitted`, `Inventory received`, `PO completed`, and `PO cancelled`; Waste uses `Waste record created` / `Waste record updated`; Recipes use `Recipe created`, `Recipe updated`, and `Recipe archived`. Error toasts must name the failed action, for example `Failed to submit Audit Stock Check` or `Failed to update Inventory Item`.
 - Item archive/delete actions are remote-first and must not mutate the visible item list before Supabase confirms the write.
 - Item Archive persists `inventory_items.status = inactive`, refetches the list, hides the item from the Active filter, and keeps the item visible under Inactive or All status filters.
 - Linked outlet rows are stored in `inventory_item_outlets` using `inventory_item_id` and `outlet_id`; outlet codes are display/import inputs only and are not stored as the link key.
 - New linked outlet rows may have `par_level = null` until configured in Par Levels.
 - Editing Linked Outlets may add or remove `inventory_item_outlets` rows and requires `inventory_master.edit` or equivalent outlet-scoped permission.
+- Linked Outlet saves treat the selected outlet list as the source of truth within the current user's accessible outlet scope: the save flow fetches existing `inventory_item_outlets`, inserts newly selected scoped links, deletes removed scoped links, preserves out-of-scope existing links, then refetches Supabase truth before showing success.
 - Non-protected roles can only link items to outlets they can access.
 
 Master Inventory import/export:
