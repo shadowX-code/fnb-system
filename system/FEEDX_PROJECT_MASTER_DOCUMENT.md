@@ -417,6 +417,7 @@ Core rules:
 - Every outlet-specific alert, product signal, action, and birthday must show outlet identity.
 - Missing data shows helpful empty states instead of misleading zeros.
 - The dashboard greeting uses browser local time: 05:00-11:59 "Good morning", 12:00-17:59 "Good afternoon", 18:00-22:59 "Good evening", and 23:00-04:59 "Welcome back".
+- Dashboard greeting personalization uses `employees.nickname` first, then `employees.full_name`; if the employee profile is unavailable, it shows the greeting without a name.
 
 Dashboard sections:
 

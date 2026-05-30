@@ -64,6 +64,14 @@ function getDashboardGreeting(date = new Date()) {
   return "Welcome back";
 }
 
+function getDashboardGreetingName(profile) {
+  const nickname = String(profile?.nickname || "").trim();
+  if (nickname) return nickname;
+  const fullName = String(profile?.full_name || "").trim();
+  if (fullName) return fullName;
+  return "";
+}
+
 function monthStart(year, month) {
   return new Date(Number(year), Number(month) - 1, 1);
 }
@@ -623,8 +631,9 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
       ].filter(Boolean)
     : outletMonthlyRows[0]?.reasons ?? [];
 
-  const greetingName = auth?.profile?.full_name || auth?.profile?.name || auth?.profile?.email?.split("@")[0] || "there";
+  const greetingName = getDashboardGreetingName(auth?.profile);
   const dashboardGreeting = getDashboardGreeting();
+  const greetingText = greetingName ? `${dashboardGreeting}, ${greetingName}` : dashboardGreeting;
   const hasMonthlySales = selectedTotals.sales > 0;
   const hasMonthlyPurchase = selectedTotals.purchase > 0;
   const aiSummary = [
@@ -645,7 +654,7 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
           <div>
             <div className="type-caption font-black uppercase tracking-[0.16em] text-primary">HQ Operations Command Center</div>
             <h1 className="mt-2 type-heading-xl font-semibold tracking-tight text-text-primary">
-              {dashboardGreeting}, {greetingName}
+              {greetingText}
             </h1>
             <p className="mt-2 type-body-sm text-text-secondary">Here&apos;s what needs attention across your outlets.</p>
             <div className="mt-4 flex flex-wrap gap-2">
