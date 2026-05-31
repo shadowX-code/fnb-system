@@ -105,6 +105,7 @@ Current matching foundation:
 Status:
 - `recipe_code`, `recipe_name_en`, and `recipe_name_cn` are sufficient for Product Analytics mapping.
 - Explicit mapping UI now exists in the Recipes & Usage Product Mapping tab.
+- Recipe Intelligence is now a standalone Inventory Control sidebar page (`#recipe_intelligence`) protected by the existing `inventory_recipes.view` permission so current roles keep access while analytics is separated from setup.
 - Mapping decisions support Pending, Mapped, and Ignored states.
 - Ignored products persist in `product_recipe_mappings` with `status = ignored`, `recipe_id = null`, ignored metadata, and are excluded from coverage denominator and Recipe Intelligence.
 - Coverage is calculated as Mapped / (Mapped + Pending), so intentional ignored POS items do not penalize mapping health.

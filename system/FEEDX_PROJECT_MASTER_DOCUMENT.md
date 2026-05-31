@@ -195,6 +195,7 @@ inventory_orders        INVENTORY_CONTROL   Purchase Orders        #inventory_or
 inventory_movements     INVENTORY_CONTROL   Inventory Movements    #inventory_movements
 inventory_waste         INVENTORY_CONTROL   Waste & Variance       #inventory_waste
 inventory_recipes       INVENTORY_CONTROL   Recipes & Usage        #inventory_recipes
+recipe_intelligence     INVENTORY_CONTROL   Recipe Intelligence    #recipe_intelligence
 ```
 
 ---
@@ -2570,11 +2571,11 @@ Rules:
 - Unit Cost reads from `inventory_items.cost`; Total Cost is `Qty Used × Unit Cost`.
 - Recipe Summary calculates Ingredient Cost, Estimated Wastage Cost, Total Recipe Cost, Selling Price, Profit, and Margin % in real time.
 - Recipe Costing Dashboard shows Total Recipes, Average Recipe Cost, Average Margin, and Highest Cost Recipe above the recipe list; these KPIs are always calculated within the selected single-outlet scope.
-- Recipes & Usage is organized into workspace tabs: Recipes, Product Mapping, and Recipe Intelligence. The default tab is Recipes so the Recipe BOM table stays focused and the Product ↔ Recipe Mapping workflow does not crowd recipe setup.
+- Recipes & Usage is organized into setup tabs only: Recipes and Product Mapping. The default tab is Recipes so the Recipe BOM table stays focused, and Product Mapping stays close to recipe setup work.
 - Product Mapping uses three states: Pending, Mapped, and Ignored. Pending means a Product Analytics product has no mapping decision; Mapped links the product to a recipe; Ignored intentionally excludes non-recipe POS items such as Staff Meal, Voucher, Manual Adjustment, or POS Correction from Recipe Intelligence.
 - Product Mapping decisions persist in `product_recipe_mappings`. `status = mapped` requires `recipe_id`; `status = ignored` stores `recipe_id = null` plus ignored metadata. Pending products have no mapping row. Old mapped products remain mapped automatically, ignored products stay ignored after refresh, and newly imported Product Analytics product names appear as Pending.
 - Product Mapping Health uses Total Products, Mapped, Pending, Ignored, and Coverage %. Coverage is calculated as `Mapped / (Mapped + Pending)`, so Ignored products do not reduce coverage.
-- Recipe Intelligence appears in its own tab as a strategic management dashboard. Default analysis period is Last 3 Months, with options for Current Month, Last 3 Months, Last 6 Months, and Last 12 Months.
+- Recipe Intelligence is a standalone Inventory Control page at `#recipe_intelligence` because it is management analytics work, not recipe setup work. It uses the same `inventory_recipes.view` access requirement for now and appears below Recipes & Usage in the Inventory Control sidebar. Default analysis period is Last 3 Months, with options for Current Month, Last 3 Months, Last 6 Months, and Last 12 Months.
 - Recipe Mapping Health uses a wide card with Coverage %, Mapped Recipes, Pending Products, Products / Recipes count, guidance copy, and a progress bar. It should guide operators to map more products before relying on menu insights.
 - Menu Engineering Matrix uses Product Analytics as its only sales data source. X axis is Product Analytics Qty Sold, Y axis is recipe Margin %, and bubble size is Product Analytics Revenue / Net Sales. The chart uses dynamic average Qty Sold and average Margin % as quadrant split lines for Star, Puzzle, Workhorse, and Dog categories. Bubble tooltips show Recipe, Qty Sold, Revenue, Cost, Price, Profit, and Margin %. The matrix chart is hidden until at least 10 mapped recipes exist, then shows a locked/warming-up state with `Need at least 10 mapped recipes.` and the number of additional mappings needed.
 - Recipe Intelligence includes a Recipe Insights panel beside the matrix when reliable mapped data exists. Insights use gross profit contribution, low-margin high-volume items, high ingredient cost drivers, ingredient demand changes, and mapping coverage warnings; low-coverage or unavailable data shows guidance rather than fake recommendations.

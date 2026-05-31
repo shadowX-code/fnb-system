@@ -195,6 +195,12 @@ const routeDetails = {
     permission: "inventory_recipes.view",
     props: { initialTab: "recipes" },
   },
+  recipe_intelligence: {
+    description: "Analyze recipe profit, mapped product performance, and ingredient demand.",
+    component: InventoryControlPage,
+    permission: "inventory_recipes.view",
+    props: { initialTab: "recipe-intelligence" },
+  },
   "data-health": {
     description: "Month lock, completeness checks and data freshness controls.",
     component: DataHealthPage,

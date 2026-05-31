@@ -344,6 +344,15 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, create: true, edit: true, delete: true, manage: true, export: true },
   },
   {
+    id: "recipe_intelligence",
+    section: "Inventory Control",
+    label: "Recipe Intelligence",
+    route: "/inventory/recipe-intelligence",
+    icon: "recipe-intelligence",
+    sidebar: true,
+    permissions: {},
+  },
+  {
     id: "outlets",
     section: "Operations",
     label: "Outlets",

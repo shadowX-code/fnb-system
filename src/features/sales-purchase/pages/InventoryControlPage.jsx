@@ -101,6 +101,10 @@ const pageMeta = {
     title: "Recipes & Usage",
     description: "Link menu items to ingredients and estimate consumption.",
   },
+  "recipe-intelligence": {
+    title: "Recipe Intelligence",
+    description: "Analyze recipe profit, mapped product performance, and ingredient demand.",
+  },
 };
 
 const categoryPresets = ["Raw Material", "Beverage", "Packaging", "Cleaning", "Frozen", "Dry Goods", "Kitchen Supply", "Retail Item"];
@@ -1229,7 +1233,6 @@ const recipeAnalysisPeriodOptions = [
 const recipeWorkspaceTabs = [
   { id: "recipes", label: "Recipes" },
   { id: "mapping", label: "Product Mapping" },
-  { id: "intelligence", label: "Recipe Intelligence" },
 ];
 
 const recipeMappingStatusOptions = [
@@ -9805,8 +9808,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   function renderRecipes() {
     if (!can.viewRecipes) {
-      return <EmptyState title="Permission required" description="You do not have permission to view Recipes & Usage." />;
+      return <EmptyState title="Permission required" description={`You do not have permission to view ${activeTab === "recipe-intelligence" ? "Recipe Intelligence" : "Recipes & Usage"}.`} />;
     }
+    const isRecipeIntelligencePage = activeTab === "recipe-intelligence";
     const activeMenuCategories = (data.menuCategories?.length ? data.menuCategories : recipeMenuCategories.map((name, index) => mapRemoteMenuCategory({ id: `default_menu_${index + 1}`, name, sort_order: index + 1, status: "active" })))
       .filter((category) => category.status === "active")
       .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0) || a.name.localeCompare(b.name));
@@ -10102,37 +10106,51 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     }, null);
     return (
       <div className="space-y-4">
-        <div className="card grid gap-3 p-3 lg:grid-cols-[220px_190px_170px_1fr] lg:items-end">
-          <SelectField label="Outlet" value={activeRecipeOutletId} options={recipeOutletOptions} onChange={setSelectedOutletId} searchable />
-          <SelectField label="Category" value={recipeFilters.category} options={[{ value: "all", label: "All Categories" }, ...activeMenuCategories.map((category) => ({ value: category.name, label: category.name }))]} onChange={(value) => updateRecipeFilter("category", value)} />
-          <SelectField label="Status" value={recipeFilters.status} options={[{ value: "all", label: "All Status" }, ...statuses.map((status) => ({ value: status, label: toTitle(status) }))]} onChange={(value) => updateRecipeFilter("status", value)} />
-          <label>
-            <div className="mb-1 type-caption font-semibold text-text-secondary">Search recipe/menu item</div>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
-              <input className="control h-9 w-full pl-9 text-[13px]" value={recipeFilters.search} onChange={(event) => updateRecipeFilter("search", event.target.value)} placeholder="Search recipe, outlet or ingredient" />
+        {isRecipeIntelligencePage ? (
+          <div className="card grid gap-3 p-3 lg:grid-cols-[240px_220px] lg:items-end">
+            <SelectField label="Outlet" value={activeRecipeOutletId} options={recipeOutletOptions} onChange={setSelectedOutletId} searchable />
+            <SelectField
+              label="Analysis Period"
+              value={recipeAnalysisPeriod}
+              options={recipeAnalysisPeriodOptions.map((option) => ({ value: option.value, label: option.label }))}
+              onChange={setRecipeAnalysisPeriod}
+            />
+          </div>
+        ) : (
+          <>
+            <div className="card grid gap-3 p-3 lg:grid-cols-[220px_190px_170px_1fr] lg:items-end">
+              <SelectField label="Outlet" value={activeRecipeOutletId} options={recipeOutletOptions} onChange={setSelectedOutletId} searchable />
+              <SelectField label="Category" value={recipeFilters.category} options={[{ value: "all", label: "All Categories" }, ...activeMenuCategories.map((category) => ({ value: category.name, label: category.name }))]} onChange={(value) => updateRecipeFilter("category", value)} />
+              <SelectField label="Status" value={recipeFilters.status} options={[{ value: "all", label: "All Status" }, ...statuses.map((status) => ({ value: status, label: toTitle(status) }))]} onChange={(value) => updateRecipeFilter("status", value)} />
+              <label>
+                <div className="mb-1 type-caption font-semibold text-text-secondary">Search recipe/menu item</div>
+                <div className="relative">
+                  <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
+                  <input className="control h-9 w-full pl-9 text-[13px]" value={recipeFilters.search} onChange={(event) => updateRecipeFilter("search", event.target.value)} placeholder="Search recipe, outlet or ingredient" />
+                </div>
+              </label>
             </div>
-          </label>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="Total Recipes" value={filteredRecipes.length} helper="Current filters" size="compact" />
-          <MetricCard label="Average Recipe Cost" value={toCurrency(averageRecipeCost)} helper="Ingredient + wastage" size="compact" />
-          <MetricCard label="Average Margin" value={formatRecipeMargin(averageMargin)} helper="Priced recipes only" tone={recipeMarginTone(averageMargin)} size="compact" />
-          <MetricCard label="Highest Cost Recipe" value={highestCostRecipe ? recipeDisplayName(highestCostRecipe.recipe) : "—"} helper={highestCostRecipe ? toCurrency(highestCostRecipe.summary.totalCost) : "No recipes"} tone={highestCostRecipe?.summary?.totalCost ? "warning" : "neutral"} size="compact" />
-        </div>
-        <div className="flex flex-wrap gap-2 rounded-2xl border border-border bg-background p-2 shadow-sm">
-          {recipeWorkspaceTabs.map((tab) => (
-            <button
-              key={tab.id}
-              className={`rounded-xl px-4 py-2 type-body-sm font-black transition ${recipeWorkspaceTab === tab.id ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-primary/10 hover:text-text-primary"}`}
-              type="button"
-              onClick={() => setRecipeWorkspaceTab(tab.id)}
-            >
-              {tab.label}
-            </button>
-          ))}
-        </div>
-        {recipeWorkspaceTab === "recipes" ? <DashboardSection title="Recipe BOM Setup" subtitle="Link menu/product items to outlet-linked inventory ingredients.">
+            <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+              <MetricCard label="Total Recipes" value={filteredRecipes.length} helper="Current filters" size="compact" />
+              <MetricCard label="Average Recipe Cost" value={toCurrency(averageRecipeCost)} helper="Ingredient + wastage" size="compact" />
+              <MetricCard label="Average Margin" value={formatRecipeMargin(averageMargin)} helper="Priced recipes only" tone={recipeMarginTone(averageMargin)} size="compact" />
+              <MetricCard label="Highest Cost Recipe" value={highestCostRecipe ? recipeDisplayName(highestCostRecipe.recipe) : "—"} helper={highestCostRecipe ? toCurrency(highestCostRecipe.summary.totalCost) : "No recipes"} tone={highestCostRecipe?.summary?.totalCost ? "warning" : "neutral"} size="compact" />
+            </div>
+            <div className="flex flex-wrap gap-2 rounded-2xl border border-border bg-background p-2 shadow-sm">
+              {recipeWorkspaceTabs.map((tab) => (
+                <button
+                  key={tab.id}
+                  className={`rounded-xl px-4 py-2 type-body-sm font-black transition ${recipeWorkspaceTab === tab.id ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-primary/10 hover:text-text-primary"}`}
+                  type="button"
+                  onClick={() => setRecipeWorkspaceTab(tab.id)}
+                >
+                  {tab.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+        {!isRecipeIntelligencePage && recipeWorkspaceTab === "recipes" ? <DashboardSection title="Recipe BOM Setup" subtitle="Link menu/product items to outlet-linked inventory ingredients.">
           {filteredRecipes.length ? (
             <div className="overflow-x-auto rounded-2xl border border-border">
               <table className="w-full min-w-[980px] text-left">
@@ -10211,7 +10229,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             </div>
           )}
         </DashboardSection> : null}
-        {recipeWorkspaceTab === "mapping" ? <DashboardSection
+        {!isRecipeIntelligencePage && recipeWorkspaceTab === "mapping" ? <DashboardSection
           title="Product ↔ Recipe Mapping"
           subtitle="Connect Product Analytics products to recipes so Recipe Intelligence can use real sales volume and revenue."
           density="compact"
@@ -10342,18 +10360,12 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             )}
           </div>
         </DashboardSection> : null}
-        {recipeWorkspaceTab === "intelligence" ? <DashboardSection
+        {isRecipeIntelligencePage ? <DashboardSection
           title="Recipe Intelligence"
           subtitle="Identify profitable menu items, highest cost recipes and key ingredient cost drivers."
         >
-          <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-end">
+          <div className="mb-4 grid gap-3">
             <RecipeMappingHealth mapped={mappedProductKeys.size} unmapped={pendingProductCount} totalRecipes={mappingCandidateRecipes.length} loading={recipeProductLoading} />
-            <SelectField
-              label="Analysis Period"
-              value={recipeAnalysisPeriod}
-              options={recipeAnalysisPeriodOptions.map((option) => ({ value: option.value, label: option.label }))}
-              onChange={setRecipeAnalysisPeriod}
-            />
           </div>
           {pendingProductCount > 0 ? (
             <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 type-body-sm text-amber-900 dark:border-amber-400/30 dark:bg-amber-950/30 dark:text-amber-100">
@@ -10510,6 +10522,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     if (activeTab === "orders") return renderOrders();
     if (activeTab === "movements") return renderMovements();
     if (activeTab === "waste") return renderWaste();
+    if (activeTab === "recipe-intelligence") return renderRecipes();
     return renderRecipes();
   }
 
@@ -10557,6 +10570,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     }
     if (activeTab === "waste") {
       return <button className="btn-primary" type="button" onClick={openRecordWaste}>Record Waste</button>;
+    }
+    if (activeTab === "recipe-intelligence") {
+      return null;
     }
     if (activeTab === "recipes") {
       const openAddRecipe = () => {

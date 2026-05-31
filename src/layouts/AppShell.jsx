@@ -34,6 +34,7 @@ const iconMap = {
   "inventory-movements": RefreshCw,
   "inventory-waste": AlertTriangle,
   "inventory-recipes": FileText,
+  "recipe-intelligence": BarChart3,
   "data-import": Download,
   "data-health": BarChart3,
   "audit-logs": KeyRound,
