@@ -33,6 +33,7 @@ import {
   Truck,
   Upload,
   Warehouse,
+  X,
 } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import DashboardSection from "../../../components/layout/DashboardSection.jsx";
@@ -5036,6 +5037,7 @@ function RecipeTrendChart({ series = [], months = [], valueFormatter = (value) =
   if (!activeSeries.length || !months.length) {
     return <RecipeIntelligencePlaceholder title={emptyTitle} description={emptyDescription} />;
   }
+  const chartHeight = Math.max(240, Number(height) || 280);
   const values = activeSeries.flatMap((entry) => entry.values.map((point) => Number(point.value || 0)));
   const maxValue = Math.max(...values, 1);
   const trendData = months.map((month) => {
@@ -5048,6 +5050,9 @@ function RecipeTrendChart({ series = [], months = [], valueFormatter = (value) =
     });
     return row;
   });
+  if (!trendData.length) {
+    return <RecipeIntelligencePlaceholder title={emptyTitle} description={emptyDescription} />;
+  }
   const peakBySeries = Object.fromEntries(activeSeries.map((entry) => [entry.id, Math.max(...entry.values.map((point) => Number(point.value || 0)), 0)]));
   const axisMax = Math.ceil(maxValue * 1.12);
   const tooltipByKey = Object.fromEntries(activeSeries.map((entry) => [entry.id, entry]));
@@ -5109,8 +5114,8 @@ function RecipeTrendChart({ series = [], months = [], valueFormatter = (value) =
 
   return (
     <div>
-      <div className="rounded-3xl border border-border bg-gradient-to-br from-slate-50 via-white to-emerald-50/40 p-3 dark:from-slate-950 dark:via-slate-900 dark:to-emerald-950/20" style={{ height }}>
-        <ResponsiveContainer width="100%" height="100%">
+      <div className="w-full min-w-0 rounded-3xl border border-border bg-gradient-to-br from-slate-50 via-white to-emerald-50/40 p-3 dark:from-slate-950 dark:via-slate-900 dark:to-emerald-950/20" style={{ height: chartHeight, minHeight: chartHeight }}>
+        <ResponsiveContainer width="100%" height={chartHeight - 24} minWidth={1} minHeight={1}>
           <ComposedChart data={trendData} margin={{ top: 10, right: 16, bottom: 0, left: -8 }}>
             <defs>
               <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
