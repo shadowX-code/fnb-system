@@ -1,5 +1,15 @@
 import { Fragment, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
+  Area,
+  CartesianGrid,
+  ComposedChart,
+  Line,
+  ResponsiveContainer,
+  Tooltip as RechartsTooltip,
+  XAxis,
+  YAxis,
+} from "recharts";
+import {
   AlertTriangle,
   ArrowRight,
   Boxes,
@@ -1308,6 +1318,12 @@ function formatPercentChange(value) {
   if (value === null || value === undefined || !Number.isFinite(Number(value))) return "—";
   const numeric = Number(value);
   return `${numeric > 0 ? "+" : ""}${Math.round(numeric)}%`;
+}
+
+function formatCompactCurrency(value) {
+  const amount = Number(value || 0);
+  if (Math.abs(amount) >= 1000) return `RM${(amount / 1000).toLocaleString("en-MY", { maximumFractionDigits: 1 })}k`;
+  return toCurrency(amount);
 }
 
 function businessMonthSerial(offsetMonths = 0) {
@@ -4720,16 +4736,7 @@ function RecipeIntelligenceCard({ title, description, children, showViewAll = fa
 
 function RecipeYearSelector({ year, years = [], onChange }) {
   const options = years.length ? years : [year];
-  return (
-    <select
-      className="control h-9 w-28 shrink-0 rounded-xl text-[13px] font-black"
-      value={String(year)}
-      onChange={(event) => onChange(Number(event.target.value))}
-      aria-label="Trend year"
-    >
-      {options.map((option) => <option key={option} value={String(option)}>{option}</option>)}
-    </select>
-  );
+  return <div className="w-32"><SelectField ariaLabel="Trend year" value={String(year)} options={options.map((option) => ({ value: String(option), label: String(option) }))} onChange={(value) => onChange(Number(value))} /></div>;
 }
 
 function RecipeInsightBadge({ classification }) {
@@ -5024,110 +5031,114 @@ function RecipeRankingTable({ rows = [], columns = [], emptyTitle, emptyDescript
 
 const recipeTrendPalette = ["#22c55e", "#38bdf8", "#f59e0b", "#a855f7", "#f43f5e"];
 
-function RecipeTrendChart({ series = [], months = [], valueFormatter = (value) => value, emptyTitle, emptyDescription, height = 260 }) {
+function RecipeTrendChart({ series = [], months = [], valueFormatter = (value) => value, emptyTitle, emptyDescription, height = 280 }) {
   const activeSeries = series.filter((entry) => entry?.values?.some((point) => Number(point.value || 0) > 0)).slice(0, 5);
   if (!activeSeries.length || !months.length) {
     return <RecipeIntelligencePlaceholder title={emptyTitle} description={emptyDescription} />;
   }
   const values = activeSeries.flatMap((entry) => entry.values.map((point) => Number(point.value || 0)));
   const maxValue = Math.max(...values, 1);
-  const minValue = Math.min(0, ...values);
-  const range = maxValue - minValue || 1;
-  const chartLeft = 10;
-  const chartRight = 97;
-  const chartTop = 12;
-  const chartBottom = 82;
-  const chartWidth = chartRight - chartLeft;
-  const chartHeight = chartBottom - chartTop;
-  const pointFor = (point, index) => {
-    const x = months.length === 1 ? chartLeft + chartWidth / 2 : chartLeft + (index / (months.length - 1)) * chartWidth;
-    const y = chartBottom - ((Number(point.value || 0) - minValue) / range) * chartHeight;
-    return { x, y };
+  const trendData = months.map((month) => {
+    const row = { month, monthLabel: formatMonthShort(month) };
+    activeSeries.forEach((entry) => {
+      const point = entry.values.find((candidate) => candidate.month === month) || { value: 0 };
+      row[entry.id] = Number(point.value || 0);
+      row[`${entry.id}Tooltip`] = point.tooltip || "";
+      row[`${entry.id}Meta`] = point.meta || null;
+    });
+    return row;
+  });
+  const peakBySeries = Object.fromEntries(activeSeries.map((entry) => [entry.id, Math.max(...entry.values.map((point) => Number(point.value || 0)), 0)]));
+  const axisMax = Math.ceil(maxValue * 1.12);
+  const tooltipByKey = Object.fromEntries(activeSeries.map((entry) => [entry.id, entry]));
+  const gradientId = `recipeTrendArea-${activeSeries.map((entry) => entry.id).join("-")}`.replace(/[^a-zA-Z0-9_-]/g, "");
+  const CustomTooltip = ({ active, payload, label }) => {
+    if (!active || !payload?.length) return null;
+    const seen = new Set();
+    const rows = payload.filter((entry) => {
+      if (!tooltipByKey[entry.dataKey] || seen.has(entry.dataKey)) return false;
+      seen.add(entry.dataKey);
+      return true;
+    });
+    if (!rows.length) return null;
+    return (
+      <div className="min-w-56 rounded-2xl border border-white/60 bg-white/95 p-3 text-xs text-slate-800 shadow-2xl backdrop-blur dark:border-white/10 dark:bg-slate-950/95 dark:text-slate-100">
+        <div className="font-black">{label}</div>
+        <div className="mt-2 space-y-2">
+          {rows.map((entry) => (
+            <div key={entry.dataKey}>
+              <div className="flex items-center justify-between gap-3">
+                <span className="font-bold" style={{ color: entry.color }}>{tooltipByKey[entry.dataKey]?.label || entry.name}</span>
+                <span className="font-black">{valueFormatter(entry.value)}</span>
+              </div>
+              {Array.isArray(entry.payload?.[`${entry.dataKey}Meta`]) ? (
+                <div className="mt-1.5 space-y-1 text-slate-500 dark:text-slate-300">
+                  {entry.payload[`${entry.dataKey}Meta`].map((item) => (
+                    <div key={item.label} className="flex justify-between gap-4">
+                      <span>{item.label}</span>
+                      <span className="font-bold text-slate-700 dark:text-slate-100">{item.value}</span>
+                    </div>
+                  ))}
+                </div>
+              ) : entry.payload?.[`${entry.dataKey}Tooltip`] ? (
+                <div className="mt-1 text-slate-500 dark:text-slate-300">{entry.payload[`${entry.dataKey}Tooltip`]}</div>
+              ) : null}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
   };
-  const pathFor = (entry) => {
-    const points = entry.values.map(pointFor);
-    if (!points.length) return "";
-    if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
-    return points.reduce((path, point, index) => {
-      if (index === 0) return `M ${point.x} ${point.y}`;
-      const previous = points[index - 1];
-      const controlX = (previous.x + point.x) / 2;
-      return `${path} C ${controlX} ${previous.y}, ${controlX} ${point.y}, ${point.x} ${point.y}`;
-    }, "");
+  const Dot = ({ cx, cy, payload, dataKey, stroke }) => {
+    const value = Number(payload?.[dataKey] || 0);
+    if (!Number.isFinite(cx) || !Number.isFinite(cy)) return null;
+    const isPeak = value > 0 && value === peakBySeries[dataKey];
+    const radius = isPeak ? 5 : value > 0 ? 3 : 2;
+    return (
+      <circle
+        cx={cx}
+        cy={cy}
+        r={radius}
+        fill={value > 0 ? stroke : "#94a3b8"}
+        stroke={value > 0 ? "var(--surface, #fff)" : "#cbd5e1"}
+        strokeWidth={isPeak ? 2 : 1.5}
+        opacity={value > 0 ? 1 : 0.45}
+      />
+    );
   };
-  const areaFor = (entry) => `${pathFor(entry)} L ${pointFor(entry.values[entry.values.length - 1], entry.values.length - 1).x} ${chartBottom} L ${pointFor(entry.values[0], 0).x} ${chartBottom} Z`;
-  const yLabels = [
-    { label: valueFormatter(maxValue), y: chartTop },
-    { label: valueFormatter(maxValue / 2), y: chartTop + chartHeight / 2 },
-    { label: valueFormatter(0), y: chartBottom },
-  ];
 
   return (
     <div>
-      <div className="relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-slate-50 via-white to-emerald-50/40 p-3 dark:from-slate-950 dark:via-slate-900 dark:to-emerald-950/20" style={{ height }}>
-        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-full w-full">
-          <defs>
-            {activeSeries.map((entry, index) => (
-              <linearGradient key={entry.id || entry.label} id={`recipeTrendGradient-${entry.id || index}`} x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%" stopColor={recipeTrendPalette[index % recipeTrendPalette.length]} stopOpacity="0.22" />
-                <stop offset="100%" stopColor={recipeTrendPalette[index % recipeTrendPalette.length]} stopOpacity="0.02" />
+      <div className="rounded-3xl border border-border bg-gradient-to-br from-slate-50 via-white to-emerald-50/40 p-3 dark:from-slate-950 dark:via-slate-900 dark:to-emerald-950/20" style={{ height }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <ComposedChart data={trendData} margin={{ top: 10, right: 16, bottom: 0, left: -8 }}>
+            <defs>
+              <linearGradient id={gradientId} x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stopColor={recipeTrendPalette[0]} stopOpacity="0.18" />
+                <stop offset="100%" stopColor={recipeTrendPalette[0]} stopOpacity="0.02" />
               </linearGradient>
+            </defs>
+            <CartesianGrid vertical={false} stroke="currentColor" strokeDasharray="4 6" className="text-border/70" />
+            <XAxis dataKey="monthLabel" axisLine={false} tickLine={false} interval={0} tick={{ fill: "var(--text-muted)", fontSize: 11, fontWeight: 700 }} />
+            <YAxis axisLine={false} tickLine={false} tick={{ fill: "var(--text-muted)", fontSize: 11, fontWeight: 700 }} tickFormatter={formatCompactCurrency} width={48} domain={[0, axisMax]} />
+            <RechartsTooltip content={<CustomTooltip />} cursor={{ stroke: "var(--border-subtle)", strokeWidth: 1, strokeDasharray: "4 4" }} />
+            {activeSeries[0] ? <Area type="monotone" dataKey={activeSeries[0].id} fill={`url(#${gradientId})`} stroke="none" isAnimationActive={false} activeDot={false} dot={false} /> : null}
+            {activeSeries.map((entry, index) => (
+              <Line
+                key={entry.id}
+                type="monotone"
+                dataKey={entry.id}
+                name={entry.label}
+                stroke={recipeTrendPalette[index % recipeTrendPalette.length]}
+                strokeWidth={2}
+                dot={<Dot />}
+                activeDot={{ r: 6, strokeWidth: 2 }}
+                connectNulls
+                isAnimationActive={false}
+              />
             ))}
-          </defs>
-          {[chartTop, chartTop + chartHeight / 2, chartBottom].map((line) => <line key={line} x1={chartLeft} x2={chartRight} y1={line} y2={line} stroke="currentColor" className="text-border/70" strokeWidth="0.35" vectorEffect="non-scaling-stroke" />)}
-          {activeSeries.map((entry, index) => (
-            <path
-              key={`${entry.id || entry.label}-area`}
-              d={areaFor(entry)}
-              fill={`url(#recipeTrendGradient-${entry.id || index})`}
-            />
-          ))}
-          {activeSeries.map((entry, index) => (
-            <path
-              key={entry.id || entry.label}
-              d={pathFor(entry)}
-              fill="none"
-              stroke={recipeTrendPalette[index % recipeTrendPalette.length]}
-              strokeWidth="2"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              vectorEffect="non-scaling-stroke"
-            />
-          ))}
-        </svg>
-        <div className="pointer-events-none absolute bottom-[13%] left-[10%] right-[3%] top-[12%]">
-          {activeSeries.map((entry, seriesIndex) => {
-            const peakValue = Math.max(...entry.values.map((point) => Number(point.value || 0)));
-            return entry.values.map((point, pointIndex) => {
-              const position = pointFor(point, pointIndex);
-              const value = Number(point.value || 0);
-              const isPeak = value > 0 && value === peakValue;
-              return (
-                <div
-                  key={`${entry.id || entry.label}-${point.month}`}
-                  className={`group pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 rounded-full border transition ${isPeak ? "h-3.5 w-3.5 border-white shadow-lg ring-4 ring-primary/20" : value > 0 ? "h-2.5 w-2.5 border-white/90 shadow-sm hover:h-3 hover:w-3" : "h-1.5 w-1.5 border-slate-300 bg-slate-300 opacity-60 dark:border-slate-600 dark:bg-slate-600"}`}
-                  style={{
-                    left: `${((position.x - chartLeft) / chartWidth) * 100}%`,
-                    top: `${((position.y - chartTop) / chartHeight) * 100}%`,
-                    backgroundColor: value > 0 ? recipeTrendPalette[seriesIndex % recipeTrendPalette.length] : undefined,
-                  }}
-                >
-                  <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-64 -translate-x-1/2 rounded-2xl border border-white/50 bg-white/95 p-3 text-left text-xs text-slate-800 shadow-2xl backdrop-blur group-hover:block dark:border-white/10 dark:bg-slate-950/95 dark:text-slate-100">
-                    <div className="font-black">{entry.label} · {formatMonthShort(point.month)}</div>
-                    <div className="mt-1 font-semibold">{valueFormatter(point.value)}</div>
-                    {point.tooltip ? <div className="mt-1 text-slate-500 dark:text-slate-300">{point.tooltip}</div> : null}
-                  </div>
-                </div>
-              );
-            });
-          })}
-        </div>
-        <div className="pointer-events-none absolute bottom-6 left-3 top-4 flex flex-col justify-between type-caption font-bold text-text-muted">
-          {yLabels.map((tick) => <span key={`${tick.y}-${tick.label}`}>{tick.label}</span>)}
-        </div>
-        <div className="pointer-events-none absolute inset-x-9 bottom-2 flex justify-between type-caption font-bold text-text-muted">
-          {months.map((serial) => <span key={serial}>{formatMonthShort(serial)}</span>)}
-        </div>
+          </ComposedChart>
+        </ResponsiveContainer>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
         {activeSeries.map((entry, index) => (
@@ -5142,21 +5153,42 @@ function RecipeTrendChart({ series = [], months = [], valueFormatter = (value) =
 }
 
 function IngredientSelectorPills({ rows = [], selectedIds = [], onToggle, search, onSearch }) {
-  const visible = rows.filter((row) => !search.trim() || `${row.ingredient} ${row.category}`.toLowerCase().includes(search.trim().toLowerCase())).slice(0, 12);
+  const selectedRows = selectedIds
+    .map((id) => rows.find((row) => row.id === id))
+    .filter(Boolean);
+  const visible = rows
+    .filter((row) => !search.trim() || `${row.ingredient} ${row.category}`.toLowerCase().includes(search.trim().toLowerCase()))
+    .filter((row) => !selectedIds.includes(row.id))
+    .slice(0, 12);
   return (
-    <div className="space-y-2">
+    <div className="space-y-3">
       <label>
         <div className="mb-1 type-caption font-semibold text-text-secondary">Search ingredient</div>
         <input className="control h-9 w-full text-[13px]" value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Search ingredient to trend" />
       </label>
-      <div className="flex flex-wrap gap-2">
+      {selectedRows.length ? (
+        <div className="flex flex-wrap gap-1.5">
+          {selectedRows.map((row) => (
+            <button
+              key={row.id}
+              className="inline-flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-2 py-1 type-caption font-black text-primary transition hover:bg-primary/15 dark:border-emerald-400/30 dark:bg-emerald-400/10 dark:text-emerald-200"
+              type="button"
+              onClick={() => onToggle(row.id)}
+              title={`Remove ${row.ingredient}`}
+            >
+              <span>{row.ingredient}</span>
+              <X size={12} />
+            </button>
+          ))}
+        </div>
+      ) : null}
+      <div className="flex flex-wrap gap-1.5">
         {visible.map((row) => {
-          const active = selectedIds.includes(row.id);
-          const disabled = !active && selectedIds.length >= 5;
+          const disabled = selectedIds.length >= 5;
           return (
             <button
               key={row.id}
-              className={`rounded-full border px-3 py-1.5 type-caption font-black transition ${active ? "border-primary bg-primary text-white" : "border-border bg-background text-text-secondary hover:bg-primary/10"} ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
+              className={`rounded-full border border-border bg-background px-2 py-1 type-caption font-bold text-text-secondary transition hover:bg-primary/10 hover:text-text-primary dark:bg-white/5 ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
               type="button"
               disabled={disabled}
               onClick={() => onToggle(row.id)}
@@ -5668,10 +5700,6 @@ function RecipeDetailModal({ recipe, outlet, items, categories, onClose, onEdit 
               })}
             </tbody>
           </table>
-        </div>
-        <div className="rounded-2xl border border-primary/15 bg-primary/5 p-3">
-          <div className="type-title font-bold text-text-primary">Usage Estimate</div>
-          <p className="mt-1 type-body-sm text-text-secondary">Upload product sales reports and connect menu items to recipes to estimate ingredient usage.</p>
         </div>
         {recipe?.notes ? <div className="rounded-2xl border border-border bg-slate-50 p-3 type-body-sm text-text-secondary">{recipe.notes}</div> : null}
       </div>
@@ -10051,7 +10079,12 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           return {
             month,
             value: Number(bucket.cost || 0),
-            tooltip: `${Number(bucket.usage || 0).toLocaleString("en-MY", { maximumFractionDigits: 2 })} ${row?.uom || ""}`.trim(),
+            meta: [
+              { label: "Ingredient", value: row?.ingredient || "Ingredient" },
+              { label: "Estimated Usage", value: Number(bucket.usage || 0).toLocaleString("en-MY", { maximumFractionDigits: 2 }) },
+              { label: "UOM", value: row?.uom || "—" },
+              { label: "Estimated Cost", value: toCurrency(bucket.cost || 0) },
+            ],
           };
         }),
       };
@@ -10448,18 +10481,16 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                     <div className="mt-3 rounded-2xl border border-orange-200 bg-orange-50 p-3 type-body-sm text-orange-900 dark:border-orange-400/30 dark:bg-orange-950/30 dark:text-orange-100">
                       Highest ingredient cost was {highestIngredientCostPoint.ingredient} in {formatMonthShort(highestIngredientCostPoint.peak.month)} at {toCurrency(highestIngredientCostPoint.peak.cost)}.
                     </div>
-                  ) : null}
+                  ) : (
+                    <div className="mt-3 rounded-2xl border border-border bg-slate-50 p-3 type-body-sm text-text-secondary dark:bg-white/5">
+                      No ingredient cost trend available for selected year.
+                    </div>
+                  )}
                 </div>
               </RecipeIntelligenceCard>
             </div>
           </div>
         </DashboardSection> : null}
-        <DashboardSection title="Usage Estimate" subtitle="Future-ready product sales to ingredient usage foundation." density="compact">
-          <div className="rounded-2xl border border-primary/15 bg-primary/5 p-3">
-            <div className="type-title font-bold text-text-primary">Product sales quantity × recipe ingredient quantity = estimated inventory usage</div>
-            <p className="mt-1 type-body-sm text-text-secondary">Upload product sales reports and connect menu items to recipes to estimate ingredient usage.</p>
-          </div>
-        </DashboardSection>
       </div>
     );
   }
