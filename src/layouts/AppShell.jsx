@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, BarChart3, Bell, Boxes, Building2, CalendarDays, Check, ChevronsDownUp, ChevronsUpDown, ChevronDown, ClipboardCheck, ClipboardList, Download, FileText, KeyRound, LogOut, Menu, Monitor, Moon, PackageCheck, PackagePlus, PieChart, RefreshCw, Settings, Shield, ShoppingCart, Sun, Truck, UserRound, Users, Wallet, X } from "lucide-react";
+import { AlertTriangle, BarChart3, Bell, Boxes, Building2, CalendarDays, Check, ChevronsDownUp, ChevronsUpDown, ChevronDown, ClipboardCheck, ClipboardList, Download, Eye, EyeOff, FileText, KeyRound, LogOut, Menu, Monitor, Moon, PackageCheck, PackagePlus, PieChart, RefreshCw, Settings, Shield, ShoppingCart, Sun, Truck, UserRound, Users, Wallet, X } from "lucide-react";
 import Modal from "../components/feedback/Modal.jsx";
 import Badge from "../components/ui/Badge.jsx";
 import FloatingLayer from "../components/ui/FloatingLayer.jsx";
@@ -672,10 +672,73 @@ function MyProfileModal({ auth, onClose }) {
   );
 }
 
+function passwordChecks(password) {
+  return {
+    minLength: password.length >= 8,
+    hasLetter: /[A-Za-z]/.test(password),
+    hasNumber: /\d/.test(password),
+  };
+}
+
+function passwordStrength(password) {
+  const checks = passwordChecks(password);
+  if (!checks.minLength || !checks.hasLetter || !checks.hasNumber) return "Weak";
+  if (password.length >= 12) return "Strong";
+  return "Medium";
+}
+
+function PasswordInput({ label, value, onChange, autoComplete, error, disabled }) {
+  const [visible, setVisible] = useState(false);
+
+  return (
+    <label className="block">
+      <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">{label}</span>
+      <div className="relative mt-1">
+        <input
+          className={`w-full rounded-xl border bg-surface px-3 py-2 pr-11 text-sm font-semibold outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15 ${error ? "border-rose-300" : "border-border"}`}
+          type={visible ? "text" : "password"}
+          autoComplete={autoComplete}
+          value={value}
+          disabled={disabled}
+          onChange={(event) => onChange(event.target.value)}
+        />
+        <button
+          className="absolute right-2 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-lg text-text-secondary transition hover:bg-slate-100 hover:text-text-primary"
+          type="button"
+          onClick={() => setVisible((current) => !current)}
+          aria-label={visible ? `Hide ${label}` : `Show ${label}`}
+          disabled={disabled}
+        >
+          {visible ? <EyeOff size={16} /> : <Eye size={16} />}
+        </button>
+      </div>
+      <div className="mt-1 min-h-[18px] text-xs font-semibold text-rose-600">{error || ""}</div>
+    </label>
+  );
+}
+
+function RequirementRow({ met, children }) {
+  return (
+    <div className={`flex items-center gap-2 text-xs font-semibold ${met ? "text-emerald-700" : "text-text-secondary"}`}>
+      <span className={`flex h-4 w-4 items-center justify-center rounded-full border text-[10px] ${met ? "border-emerald-200 bg-emerald-50 text-emerald-700" : "border-border bg-surface text-text-muted"}`}>
+        {met ? "✓" : ""}
+      </span>
+      <span>{children}</span>
+    </div>
+  );
+}
+
 function ChangePasswordModal({ onClose, onSubmit, onError }) {
   const [values, setValues] = useState({ currentPassword: "", newPassword: "", confirmPassword: "" });
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);
+  const checks = passwordChecks(values.newPassword);
+  const strength = passwordStrength(values.newPassword);
+  const newPasswordValid = checks.minLength && checks.hasLetter && checks.hasNumber;
+  const confirmTouched = values.confirmPassword.length > 0;
+  const passwordsMatch = values.confirmPassword === values.newPassword;
+  const canSubmit = Boolean(values.currentPassword) && newPasswordValid && passwordsMatch && !saving;
+  const confirmError = confirmTouched && !passwordsMatch ? "Passwords do not match." : "";
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -684,12 +747,12 @@ function ChangePasswordModal({ onClose, onSubmit, onError }) {
       setError("Current password is required.");
       return;
     }
-    if (values.newPassword.length < 8) {
-      setError("New password must be at least 8 characters.");
+    if (!newPasswordValid) {
+      setError("New password must be at least 8 characters and include letters and numbers.");
       return;
     }
-    if (values.newPassword !== values.confirmPassword) {
-      setError("New password and confirmation do not match.");
+    if (!passwordsMatch) {
+      setError("Passwords do not match.");
       return;
     }
 
@@ -697,7 +760,10 @@ function ChangePasswordModal({ onClose, onSubmit, onError }) {
     try {
       await onSubmit({ currentPassword: values.currentPassword, newPassword: values.newPassword });
     } catch (submitError) {
-      const message = submitError.message || "Unable to change password.";
+      const rawMessage = submitError.message || "Unable to change password.";
+      const message = /invalid login credentials|invalid credentials/i.test(rawMessage)
+        ? "Current password is incorrect."
+        : rawMessage;
       setError(message);
       onError?.(message);
     } finally {
@@ -714,7 +780,7 @@ function ChangePasswordModal({ onClose, onSubmit, onError }) {
       footer={(
         <>
           <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="submit" form="change-password-form" disabled={saving}>
+          <button className="btn-primary" type="submit" form="change-password-form" disabled={!canSubmit}>
             {saving ? "Saving..." : "Save Password"}
           </button>
         </>
@@ -722,37 +788,48 @@ function ChangePasswordModal({ onClose, onSubmit, onError }) {
     >
       <form id="change-password-form" className="space-y-4" onSubmit={handleSubmit}>
         {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
-        <label className="block">
-          <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">Current Password</span>
-          <input
-            className="mt-1 w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm font-semibold outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
-            type="password"
-            autoComplete="current-password"
-            value={values.currentPassword}
-            onChange={(event) => setValues((current) => ({ ...current, currentPassword: event.target.value }))}
-          />
-        </label>
+        <PasswordInput
+          label="Current Password"
+          value={values.currentPassword}
+          autoComplete="current-password"
+          disabled={saving}
+          onChange={(value) => setValues((current) => ({ ...current, currentPassword: value }))}
+        />
         <div className="grid gap-3 sm:grid-cols-2">
-          <label className="block">
-            <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">New Password</span>
-            <input
-              className="mt-1 w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm font-semibold outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
-              type="password"
-              autoComplete="new-password"
-              value={values.newPassword}
-              onChange={(event) => setValues((current) => ({ ...current, newPassword: event.target.value }))}
-            />
-          </label>
-          <label className="block">
-            <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">Confirm Password</span>
-            <input
-              className="mt-1 w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm font-semibold outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
-              type="password"
-              autoComplete="new-password"
-              value={values.confirmPassword}
-              onChange={(event) => setValues((current) => ({ ...current, confirmPassword: event.target.value }))}
-            />
-          </label>
+          <PasswordInput
+            label="New Password"
+            value={values.newPassword}
+            autoComplete="new-password"
+            disabled={saving}
+            onChange={(value) => setValues((current) => ({ ...current, newPassword: value }))}
+          />
+          <PasswordInput
+            label="Confirm New Password"
+            value={values.confirmPassword}
+            autoComplete="new-password"
+            disabled={saving}
+            error={confirmError}
+            onChange={(value) => setValues((current) => ({ ...current, confirmPassword: value }))}
+          />
+        </div>
+        <div className="rounded-2xl border border-border bg-slate-50 p-3">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <div className="text-xs font-bold uppercase tracking-wide text-text-muted">Password requirements</div>
+            <div className={`rounded-full px-2.5 py-1 text-xs font-bold ${
+              strength === "Strong"
+                ? "bg-emerald-100 text-emerald-700"
+                : strength === "Medium"
+                  ? "bg-amber-100 text-amber-700"
+                  : "bg-rose-100 text-rose-700"
+            }`}>
+              {strength}
+            </div>
+          </div>
+          <div className="mt-3 grid gap-2 sm:grid-cols-3">
+            <RequirementRow met={checks.minLength}>At least 8 characters</RequirementRow>
+            <RequirementRow met={checks.hasLetter}>Contains letters</RequirementRow>
+            <RequirementRow met={checks.hasNumber}>Contains numbers</RequirementRow>
+          </div>
         </div>
       </form>
     </Modal>
@@ -1074,7 +1151,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
   async function handleChangePassword({ currentPassword, newPassword }) {
     await auth.changePassword({ currentPassword, newPassword });
     setChangePasswordOpen(false);
-    onNotify?.({ title: "Password changed", message: "Your FeedX login password was updated." });
+    onNotify?.({ title: "Password updated successfully.", tone: "success" });
   }
 
   function closeAccountMenus() {

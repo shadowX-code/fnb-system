@@ -105,6 +105,16 @@ Test employee: `Phoenix Wong Kar Yan` (`Phoenix`) was used for reversible stagin
 | Historical record name display | Pass | Inventory Movements browser check showed employee names such as `Isaac` and `Dason Yap`; no raw UUID-shaped values were visible in the rendered movement records. |
 | Test data restored | Pass | Phoenix was restored to `email = jymt.kopitiam@gmail.com`, `access_state = active`, `is_active = true`, `enable_system_login = true`, `email_verified = true`, original `role_id`, original `auth_user_id`, and original `last_login_at`. |
 
+## Account Menu Password UX - 31 May 2026
+
+| Test | Result | Notes |
+|---|---:|---|
+| Password fields | Pass | Sidebar Change Password modal has Current Password, New Password, and Confirm New Password fields with Show/Hide toggles and inline error space. |
+| Simplified policy | Pass | New password validation requires 8+ characters, at least one letter, and at least one number. Special characters and case-mix are not required. |
+| Live checklist and strength | Pass | Checklist updates for length, letters, and numbers; strength shows Weak, Medium, or Strong according to the documented policy. |
+| Save guard | Pass | Save remains disabled until current password is filled, the new password passes requirements, and confirmation matches. |
+| Error wording | Pass | Wrong current password is normalized to `Current password is incorrect.` instead of a generic Supabase error. |
+
 ## Bugs Fixed
 
 | Severity | Bug | Fix |

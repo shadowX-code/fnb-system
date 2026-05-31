@@ -4278,6 +4278,10 @@ FloatingLayer migration status:
 - AppShell profile/theme popover uses FloatingLayer.
 - AppShell sidebar profile popover uses FloatingLayer.
 - AppShell sidebar account actions must be directly bound: View My Profile opens the current employee profile modal, Change Password opens the password update modal, and Sign Out clears the Supabase session and redirects to login.
+- Change Password modal uses Current Password, New Password, and Confirm New Password fields with Show/Hide toggles. New passwords require only 8+ characters, at least one letter, and at least one number; special characters and case-mix are not required.
+- Change Password shows a live requirements checklist and simple strength label: Weak for missing/short values, Medium for 8+ characters with letters and numbers, and Strong for 12+ characters with letters and numbers.
+- Change Password must keep Save disabled until current password is filled, the new password passes requirements, and confirmation matches. Wrong current password errors display as `Current password is incorrect.`
+- Passwords must never be stored in FeedX tables, logged, or displayed by default. Future enhancement: update `last_password_changed_at` if/when the profile schema supports it.
 - Sidebar account menu buttons must stop pointer/mouse propagation so FloatingLayer outside-click handling cannot swallow the click.
 - New dropdowns, action menus, contextual popovers, date pickers, and tooltips must use FloatingLayer by default unless a stronger shared primitive already wraps it.
 - New overlays must not use arbitrary `z-[9999]` style values or page-local `createPortal` positioning unless documented as a temporary migration exception.

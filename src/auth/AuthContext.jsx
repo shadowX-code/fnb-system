@@ -224,7 +224,15 @@ export function AuthProvider({ children }) {
   async function changePassword({ currentPassword, newPassword }) {
     if (!user?.email) throw new Error("Current login email is not available.");
     setError("");
-    await authService.signInWithPassword({ email: user.email, password: currentPassword });
+    try {
+      await authService.signInWithPassword({ email: user.email, password: currentPassword });
+    } catch (passwordError) {
+      const message = String(passwordError?.message || "");
+      if (/invalid login credentials|invalid credentials|password/i.test(message)) {
+        throw new Error("Current password is incorrect.");
+      }
+      throw passwordError;
+    }
     await authService.updatePassword(newPassword);
     const nextSession = await authService.getSession();
     await loadContext(nextSession);
