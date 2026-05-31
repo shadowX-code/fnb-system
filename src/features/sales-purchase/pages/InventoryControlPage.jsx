@@ -1229,6 +1229,20 @@ const recipeAnalysisPeriodOptions = [
   { value: "last6", label: "Last 6 Months", months: 6 },
   { value: "last12", label: "Last 12 Months", months: 12 },
 ];
+const recipeMonthOptions = [
+  { value: "1", label: "Jan" },
+  { value: "2", label: "Feb" },
+  { value: "3", label: "Mar" },
+  { value: "4", label: "Apr" },
+  { value: "5", label: "May" },
+  { value: "6", label: "Jun" },
+  { value: "7", label: "Jul" },
+  { value: "8", label: "Aug" },
+  { value: "9", label: "Sep" },
+  { value: "10", label: "Oct" },
+  { value: "11", label: "Nov" },
+  { value: "12", label: "Dec" },
+];
 
 const recipeWorkspaceTabs = [
   { id: "recipes", label: "Recipes" },
@@ -6149,6 +6163,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [recipeMappingFilters, setRecipeMappingFilters] = useState({ status: "all", search: "" });
   const [recipeAnalysisPeriod, setRecipeAnalysisPeriod] = useState("last3");
   const [recipeTrendYear, setRecipeTrendYear] = useState(() => Number(getBusinessDateInput("Asia/Kuala_Lumpur").slice(0, 4)) || new Date().getFullYear());
+  const [recipeReportMonth, setRecipeReportMonth] = useState(() => String(Number(getBusinessDateInput("Asia/Kuala_Lumpur").slice(5, 7)) || 1));
+  const [recipeReportYear, setRecipeReportYear] = useState(() => String(Number(getBusinessDateInput("Asia/Kuala_Lumpur").slice(0, 4)) || new Date().getFullYear()));
   const [recipeProductReports, setRecipeProductReports] = useState([]);
   const [recipeProductItems, setRecipeProductItems] = useState([]);
   const [recipeProductMappings, setRecipeProductMappings] = useState([]);
@@ -6199,15 +6215,16 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }, [date, selectedDateSource]);
 
   useEffect(() => {
-    if (activeTab !== "recipes" || !activeRecipeOutletId) return undefined;
+    if (!["recipes", "recipe-intelligence"].includes(activeTab) || !activeRecipeOutletId) return undefined;
     let cancelled = false;
     const selectedPeriod = recipeAnalysisPeriodOptions.find((option) => option.value === recipeAnalysisPeriod) || recipeAnalysisPeriodOptions[1];
     const analysisStartSerial = businessMonthSerial(-(selectedPeriod.months - 1));
     const analysisEndSerial = businessMonthSerial(0);
+    const selectedReportSerial = monthSerial(recipeReportYear, recipeReportMonth);
     const trendStartSerial = monthSerial(recipeTrendYear, 1);
     const trendEndSerial = monthSerial(recipeTrendYear, 12);
-    const startSerial = Math.min(analysisStartSerial, trendStartSerial);
-    const endSerial = Math.max(analysisEndSerial, trendEndSerial);
+    const startSerial = Math.min(analysisStartSerial, selectedReportSerial, trendStartSerial);
+    const endSerial = Math.max(analysisEndSerial, selectedReportSerial, trendEndSerial);
     setRecipeProductLoading(true);
     Promise.all([
       productAnalyticsService.listReports({ outletIds: [activeRecipeOutletId] }),
@@ -6243,13 +6260,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     return () => {
       cancelled = true;
     };
-  }, [activeRecipeOutletId, activeTab, recipeAnalysisPeriod, recipeTrendYear]);
+  }, [activeRecipeOutletId, activeTab, recipeAnalysisPeriod, recipeReportMonth, recipeReportYear, recipeTrendYear]);
 
   useEffect(() => {
     setRecipeMappingSelections({});
     setIngredientTrendSearch("");
     setIngredientTrendSelectedIds([]);
-  }, [activeRecipeOutletId, recipeAnalysisPeriod, recipeTrendYear]);
+  }, [activeRecipeOutletId, recipeAnalysisPeriod, recipeReportMonth, recipeReportYear, recipeTrendYear]);
 
   useEffect(() => {
     setCheckValidationAttempted(false);
@@ -9841,13 +9858,18 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     const analysisEndSerial = businessMonthSerial(0);
     const analysisMonths = buildMonthSerialRange(analysisStartSerial, analysisEndSerial);
     const analysisMonthSet = new Set(analysisMonths);
+    const selectedReportSerial = monthSerial(recipeReportYear, recipeReportMonth);
+    const selectedReportMonthSet = new Set([selectedReportSerial]);
+    const selectedReportLabel = formatMonthSerial(selectedReportSerial);
     const trendMonths = buildMonthSerialRange(monthSerial(recipeTrendYear, 1), monthSerial(recipeTrendYear, 12));
     const trendMonthSet = new Set(trendMonths);
     const availableTrendYears = [...new Set([
       recipeTrendYear,
+      Number(recipeReportYear),
       Number(getBusinessDateInput("Asia/Kuala_Lumpur").slice(0, 4)),
       ...recipeProductReports.map((report) => Number(report.report_year)).filter(Boolean),
     ])].sort((a, b) => b - a);
+    const availableReportYears = availableTrendYears;
     const reportById = new Map(recipeProductReports.map((report) => [report.id, report]));
     const buildProductSalesByName = (allowedSerials) => recipeProductItems.reduce((totals, item) => {
         const key = normalizeProductRecipeKey(item.product_name);
@@ -9873,7 +9895,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         totals.set(key, current);
         return totals;
       }, new Map());
-    const productSalesByName = buildProductSalesByName(analysisMonthSet);
+    const analysisProductSalesByName = buildProductSalesByName(analysisMonthSet);
+    const monthlyProductSalesByName = buildProductSalesByName(selectedReportMonthSet);
+    const productSalesByName = isRecipeIntelligencePage ? monthlyProductSalesByName : analysisProductSalesByName;
     const yearlyProductSalesByName = buildProductSalesByName(trendMonthSet);
     const recipeCostById = new Map(recipeCostRows.map((row) => [row.recipe.id, row]));
     const mappingByProductKey = new Map(recipeProductMappings.map((mapping) => [normalizeProductRecipeKey(mapping.product_name), mapping]).filter(([key]) => key));
@@ -10005,7 +10029,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       return { monthlyGrossProfitBuckets, ingredientConsumptionByMonth };
     };
 
-    const analysisAnalytics = buildMappedRecipeAnalytics(productSalesByName, analysisMonths);
+    const analysisAnalytics = buildMappedRecipeAnalytics(analysisProductSalesByName, analysisMonths);
+    const monthlyAnalytics = buildMappedRecipeAnalytics(monthlyProductSalesByName, [selectedReportSerial]);
     const yearlyAnalytics = buildMappedRecipeAnalytics(yearlyProductSalesByName, trendMonths);
 
     const topGrossProfitRows = [...menuEngineeringRows]
@@ -10028,13 +10053,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     const currentYearGrossProfit = yearlyGrossProfitRows.reduce((sum, row) => sum + Number(row.grossProfit || 0), 0);
     const bestGrossProfitMonth = yearlyGrossProfitRows.reduce((best, row) => !best || Number(row.grossProfit || 0) > Number(best.grossProfit || 0) ? row : best, null);
     const averageMonthlyGrossProfit = currentYearGrossProfit / 12;
-    const latestConsumptionSerial = Math.max(
-      ...[...analysisAnalytics.ingredientConsumptionByMonth.values()].flatMap((row) => [...row.monthly.keys()]),
-      0,
-    ) || analysisEndSerial;
-    const ingredientConsumptionRows = [...analysisAnalytics.ingredientConsumptionByMonth.values()]
+    const ingredientConsumptionRows = [...monthlyAnalytics.ingredientConsumptionByMonth.values()]
       .map((row) => {
-        const latestBucket = row.monthly.get(latestConsumptionSerial) || { usage: 0, cost: 0 };
+        const latestBucket = row.monthly.get(selectedReportSerial) || { usage: 0, cost: 0 };
         const periodCost = [...row.monthly.values()].reduce((sum, bucket) => sum + Number(bucket.cost || 0), 0);
         return {
           ...row,
@@ -10107,13 +10128,19 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     return (
       <div className="space-y-4">
         {isRecipeIntelligencePage ? (
-          <div className="card grid gap-3 p-3 lg:grid-cols-[240px_220px] lg:items-end">
+          <div className="card grid gap-3 p-3 lg:grid-cols-[240px_160px_140px] lg:items-end">
             <SelectField label="Outlet" value={activeRecipeOutletId} options={recipeOutletOptions} onChange={setSelectedOutletId} searchable />
             <SelectField
-              label="Analysis Period"
-              value={recipeAnalysisPeriod}
-              options={recipeAnalysisPeriodOptions.map((option) => ({ value: option.value, label: option.label }))}
-              onChange={setRecipeAnalysisPeriod}
+              label="Month"
+              value={String(recipeReportMonth)}
+              options={recipeMonthOptions}
+              onChange={(value) => setRecipeReportMonth(String(value))}
+            />
+            <SelectField
+              label="Year"
+              value={String(recipeReportYear)}
+              options={availableReportYears.map((year) => ({ value: String(year), label: String(year) }))}
+              onChange={(value) => setRecipeReportYear(String(value))}
             />
           </div>
         ) : (
@@ -10411,8 +10438,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             </RecipeIntelligenceCard>
             <div className="grid gap-4 lg:grid-cols-2">
               <RecipeIntelligenceCard
-                title="Top Gross Profit Recipes"
-                description="Recipes ranked by total gross profit, not just revenue."
+                title={`Top Gross Profit Recipes - ${selectedReportLabel}`}
+                description="Recipes ranked by selected-month gross profit, not just revenue."
               >
                 <RecipeRankingTable
                   rows={topGrossProfitRows}
@@ -10447,10 +10474,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             </div>
             <div className="grid gap-4 lg:grid-cols-2">
               <RecipeIntelligenceCard
-                title={`Top 10 Ingredient Consumption - ${formatMonthSerial(latestConsumptionSerial)}`}
+                title={`Top 10 Ingredient Consumption - ${selectedReportLabel}`}
                 description="Estimated monthly usage from mapped Product Analytics sales × Recipe BOM."
-              >
-                <div className="mb-3 flex justify-end">
+                action={(
                   <button
                     className="btn-secondary h-8 px-3 text-xs"
                     type="button"
@@ -10459,7 +10485,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                   >
                     View All
                   </button>
-                </div>
+                )}
+              >
                 <RecipeRankingTable
                   rows={ingredientConsumptionRowsWithContribution.slice(0, 10)}
                   columns={[
