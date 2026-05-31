@@ -1291,6 +1291,12 @@ function formatMonthSerial(serial) {
   return new Date(year, month - 1, 1).toLocaleDateString("en-MY", { month: "short", year: "numeric" });
 }
 
+function formatMonthShort(serial) {
+  const { month } = serialToMonthParts(serial);
+  const labels = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  return labels[month - 1] || "—";
+}
+
 function buildMonthSerialRange(startSerial, endSerial) {
   const start = Number(startSerial || 0);
   const end = Number(endSerial || 0);
@@ -4697,7 +4703,7 @@ function RecipeIntelligencePlaceholder({ title, description }) {
   );
 }
 
-function RecipeIntelligenceCard({ title, description, children, showViewAll = false }) {
+function RecipeIntelligenceCard({ title, description, children, showViewAll = false, action = null }) {
   return (
     <div className="rounded-3xl border border-border bg-background p-4 shadow-sm dark:bg-white/5">
       <div className="flex items-start justify-between gap-3">
@@ -4705,10 +4711,24 @@ function RecipeIntelligenceCard({ title, description, children, showViewAll = fa
           <div className="type-title font-black text-text-primary">{title}</div>
           <p className="mt-1 type-body-sm text-text-secondary">{description}</p>
         </div>
-        {showViewAll ? <button className="type-caption font-black text-primary hover:underline" type="button">View All</button> : null}
+        {action || (showViewAll ? <button className="type-caption font-black text-primary hover:underline" type="button">View All</button> : null)}
       </div>
       <div className="mt-4">{children}</div>
     </div>
+  );
+}
+
+function RecipeYearSelector({ year, years = [], onChange }) {
+  const options = years.length ? years : [year];
+  return (
+    <select
+      className="control h-9 w-28 shrink-0 rounded-xl text-[13px] font-black"
+      value={String(year)}
+      onChange={(event) => onChange(Number(event.target.value))}
+      aria-label="Trend year"
+    >
+      {options.map((option) => <option key={option} value={String(option)}>{option}</option>)}
+    </select>
   );
 }
 
@@ -5011,50 +5031,102 @@ function RecipeTrendChart({ series = [], months = [], valueFormatter = (value) =
   }
   const values = activeSeries.flatMap((entry) => entry.values.map((point) => Number(point.value || 0)));
   const maxValue = Math.max(...values, 1);
-  const minValue = Math.min(...values, 0);
+  const minValue = Math.min(0, ...values);
   const range = maxValue - minValue || 1;
-  const pointsFor = (entry) => entry.values.map((point, index) => {
-    const x = months.length === 1 ? 50 : 8 + (index / (months.length - 1)) * 84;
-    const y = 86 - ((Number(point.value || 0) - minValue) / range) * 72;
-    return `${x},${y}`;
-  }).join(" ");
+  const chartLeft = 10;
+  const chartRight = 97;
+  const chartTop = 12;
+  const chartBottom = 82;
+  const chartWidth = chartRight - chartLeft;
+  const chartHeight = chartBottom - chartTop;
+  const pointFor = (point, index) => {
+    const x = months.length === 1 ? chartLeft + chartWidth / 2 : chartLeft + (index / (months.length - 1)) * chartWidth;
+    const y = chartBottom - ((Number(point.value || 0) - minValue) / range) * chartHeight;
+    return { x, y };
+  };
+  const pathFor = (entry) => {
+    const points = entry.values.map(pointFor);
+    if (!points.length) return "";
+    if (points.length === 1) return `M ${points[0].x} ${points[0].y}`;
+    return points.reduce((path, point, index) => {
+      if (index === 0) return `M ${point.x} ${point.y}`;
+      const previous = points[index - 1];
+      const controlX = (previous.x + point.x) / 2;
+      return `${path} C ${controlX} ${previous.y}, ${controlX} ${point.y}, ${point.x} ${point.y}`;
+    }, "");
+  };
+  const areaFor = (entry) => `${pathFor(entry)} L ${pointFor(entry.values[entry.values.length - 1], entry.values.length - 1).x} ${chartBottom} L ${pointFor(entry.values[0], 0).x} ${chartBottom} Z`;
+  const yLabels = [
+    { label: valueFormatter(maxValue), y: chartTop },
+    { label: valueFormatter(maxValue / 2), y: chartTop + chartHeight / 2 },
+    { label: valueFormatter(0), y: chartBottom },
+  ];
 
   return (
     <div>
-      <div className="relative overflow-hidden rounded-3xl border border-border bg-slate-50 p-3 dark:bg-white/5" style={{ height }}>
+      <div className="relative overflow-hidden rounded-3xl border border-border bg-gradient-to-br from-slate-50 via-white to-emerald-50/40 p-3 dark:from-slate-950 dark:via-slate-900 dark:to-emerald-950/20" style={{ height }}>
         <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-full w-full">
-          {[20, 40, 60, 80].map((line) => <line key={line} x1="5" x2="96" y1={line} y2={line} stroke="currentColor" className="text-border" strokeWidth="0.25" />)}
+          <defs>
+            {activeSeries.map((entry, index) => (
+              <linearGradient key={entry.id || entry.label} id={`recipeTrendGradient-${entry.id || index}`} x1="0" x2="0" y1="0" y2="1">
+                <stop offset="0%" stopColor={recipeTrendPalette[index % recipeTrendPalette.length]} stopOpacity="0.22" />
+                <stop offset="100%" stopColor={recipeTrendPalette[index % recipeTrendPalette.length]} stopOpacity="0.02" />
+              </linearGradient>
+            ))}
+          </defs>
+          {[chartTop, chartTop + chartHeight / 2, chartBottom].map((line) => <line key={line} x1={chartLeft} x2={chartRight} y1={line} y2={line} stroke="currentColor" className="text-border/70" strokeWidth="0.35" vectorEffect="non-scaling-stroke" />)}
           {activeSeries.map((entry, index) => (
-            <polyline
+            <path
+              key={`${entry.id || entry.label}-area`}
+              d={areaFor(entry)}
+              fill={`url(#recipeTrendGradient-${entry.id || index})`}
+            />
+          ))}
+          {activeSeries.map((entry, index) => (
+            <path
               key={entry.id || entry.label}
-              points={pointsFor(entry)}
+              d={pathFor(entry)}
               fill="none"
               stroke={recipeTrendPalette[index % recipeTrendPalette.length]}
-              strokeWidth="1.8"
+              strokeWidth="2"
               strokeLinecap="round"
               strokeLinejoin="round"
               vectorEffect="non-scaling-stroke"
             />
           ))}
-          {activeSeries.map((entry, index) => entry.values.map((point, pointIndex) => {
-            const [x, y] = pointsFor({ values: [point] }).split(",").map(Number);
-            const actualX = months.length === 1 ? 50 : 8 + (pointIndex / (months.length - 1)) * 84;
-            return (
-              <circle
-                key={`${entry.id || entry.label}-${point.month}`}
-                cx={actualX}
-                cy={y}
-                r="1.8"
-                fill={recipeTrendPalette[index % recipeTrendPalette.length]}
-                vectorEffect="non-scaling-stroke"
-              >
-                <title>{`${entry.label} · ${formatMonthSerial(point.month)} · ${valueFormatter(point.value)}${point.tooltip ? ` · ${point.tooltip}` : ""}`}</title>
-              </circle>
-            );
-          }))}
         </svg>
-        <div className="pointer-events-none absolute inset-x-6 bottom-2 flex justify-between type-caption font-bold text-text-muted">
-          {months.map((serial) => <span key={serial}>{formatMonthSerial(serial)}</span>)}
+        <div className="pointer-events-none absolute bottom-[13%] left-[10%] right-[3%] top-[12%]">
+          {activeSeries.map((entry, seriesIndex) => {
+            const peakValue = Math.max(...entry.values.map((point) => Number(point.value || 0)));
+            return entry.values.map((point, pointIndex) => {
+              const position = pointFor(point, pointIndex);
+              const value = Number(point.value || 0);
+              const isPeak = value > 0 && value === peakValue;
+              return (
+                <div
+                  key={`${entry.id || entry.label}-${point.month}`}
+                  className={`group pointer-events-auto absolute -translate-x-1/2 -translate-y-1/2 rounded-full border transition ${isPeak ? "h-3.5 w-3.5 border-white shadow-lg ring-4 ring-primary/20" : value > 0 ? "h-2.5 w-2.5 border-white/90 shadow-sm hover:h-3 hover:w-3" : "h-1.5 w-1.5 border-slate-300 bg-slate-300 opacity-60 dark:border-slate-600 dark:bg-slate-600"}`}
+                  style={{
+                    left: `${((position.x - chartLeft) / chartWidth) * 100}%`,
+                    top: `${((position.y - chartTop) / chartHeight) * 100}%`,
+                    backgroundColor: value > 0 ? recipeTrendPalette[seriesIndex % recipeTrendPalette.length] : undefined,
+                  }}
+                >
+                  <div className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 hidden w-64 -translate-x-1/2 rounded-2xl border border-white/50 bg-white/95 p-3 text-left text-xs text-slate-800 shadow-2xl backdrop-blur group-hover:block dark:border-white/10 dark:bg-slate-950/95 dark:text-slate-100">
+                    <div className="font-black">{entry.label} · {formatMonthShort(point.month)}</div>
+                    <div className="mt-1 font-semibold">{valueFormatter(point.value)}</div>
+                    {point.tooltip ? <div className="mt-1 text-slate-500 dark:text-slate-300">{point.tooltip}</div> : null}
+                  </div>
+                </div>
+              );
+            });
+          })}
+        </div>
+        <div className="pointer-events-none absolute bottom-6 left-3 top-4 flex flex-col justify-between type-caption font-bold text-text-muted">
+          {yLabels.map((tick) => <span key={`${tick.y}-${tick.label}`}>{tick.label}</span>)}
+        </div>
+        <div className="pointer-events-none absolute inset-x-9 bottom-2 flex justify-between type-caption font-bold text-text-muted">
+          {months.map((serial) => <span key={serial}>{formatMonthShort(serial)}</span>)}
         </div>
       </div>
       <div className="mt-3 flex flex-wrap gap-2">
@@ -10236,19 +10308,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           title="Recipe Intelligence"
           subtitle="Identify profitable menu items, highest cost recipes and key ingredient cost drivers."
         >
-          <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_160px] lg:items-end">
+          <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-end">
             <RecipeMappingHealth mapped={mappedProductKeys.size} unmapped={pendingProductCount} totalRecipes={mappingCandidateRecipes.length} loading={recipeProductLoading} />
             <SelectField
               label="Analysis Period"
               value={recipeAnalysisPeriod}
               options={recipeAnalysisPeriodOptions.map((option) => ({ value: option.value, label: option.label }))}
               onChange={setRecipeAnalysisPeriod}
-            />
-            <SelectField
-              label="Trend Year"
-              value={String(recipeTrendYear)}
-              options={availableTrendYears.map((year) => ({ value: String(year), label: String(year) }))}
-              onChange={(value) => setRecipeTrendYear(Number(value))}
             />
           </div>
           {pendingProductCount > 0 ? (
@@ -10273,10 +10339,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             <RecipeIntelligenceCard
               title="Recipe Gross Profit Trend"
               description={`Jan-Dec ${recipeTrendYear} monthly gross profit from mapped Product Analytics quantity sold × recipe profit per serving.`}
+              action={<RecipeYearSelector year={recipeTrendYear} years={availableTrendYears} onChange={setRecipeTrendYear} />}
             >
               <div className="mb-4 grid gap-3 sm:grid-cols-3">
                 <MetricCard label={`${recipeTrendYear} Gross Profit`} value={toCurrency(currentYearGrossProfit)} helper="Mapped recipe sales only" tone={currentYearGrossProfit ? "success" : "neutral"} size="compact" />
-                <MetricCard label="Best Month" value={bestGrossProfitMonth ? formatMonthSerial(bestGrossProfitMonth.month) : "—"} helper={bestGrossProfitMonth ? toCurrency(bestGrossProfitMonth.grossProfit) : "No mapped sales"} tone={bestGrossProfitMonth?.grossProfit ? "success" : "neutral"} size="compact" />
+                <MetricCard label="Best Month" value={bestGrossProfitMonth ? formatMonthShort(bestGrossProfitMonth.month) : "—"} helper={bestGrossProfitMonth ? toCurrency(bestGrossProfitMonth.grossProfit) : "No mapped sales"} tone={bestGrossProfitMonth?.grossProfit ? "success" : "neutral"} size="compact" />
                 <MetricCard label="Average Monthly GP" value={toCurrency(averageMonthlyGrossProfit)} helper="12-month average" size="compact" />
               </div>
               <RecipeTrendChart
@@ -10288,7 +10355,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               />
               {bestGrossProfitMonth?.grossProfit ? (
                 <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 type-body-sm text-emerald-900 dark:border-emerald-400/30 dark:bg-emerald-950/30 dark:text-emerald-100">
-                  Gross profit peaked in {formatMonthSerial(bestGrossProfitMonth.month)} at {toCurrency(bestGrossProfitMonth.grossProfit)}.
+                  Gross profit peaked in {formatMonthShort(bestGrossProfitMonth.month)} at {toCurrency(bestGrossProfitMonth.grossProfit)}.
                 </div>
               ) : null}
             </RecipeIntelligenceCard>
@@ -10360,6 +10427,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               <RecipeIntelligenceCard
                 title="Ingredient Consumption Trend - Monthly"
                 description={`Jan-Dec ${recipeTrendYear} estimated procurement cost trend by ingredient.`}
+                action={<RecipeYearSelector year={recipeTrendYear} years={availableTrendYears} onChange={setRecipeTrendYear} />}
               >
                 <IngredientSelectorPills
                   rows={trendIngredientRows}
@@ -10378,7 +10446,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                   />
                   {highestIngredientCostPoint?.peak ? (
                     <div className="mt-3 rounded-2xl border border-orange-200 bg-orange-50 p-3 type-body-sm text-orange-900 dark:border-orange-400/30 dark:bg-orange-950/30 dark:text-orange-100">
-                      Highest ingredient cost was {highestIngredientCostPoint.ingredient} in {formatMonthSerial(highestIngredientCostPoint.peak.month)} at {toCurrency(highestIngredientCostPoint.peak.cost)}.
+                      Highest ingredient cost was {highestIngredientCostPoint.ingredient} in {formatMonthShort(highestIngredientCostPoint.peak.month)} at {toCurrency(highestIngredientCostPoint.peak.cost)}.
                     </div>
                   ) : null}
                 </div>

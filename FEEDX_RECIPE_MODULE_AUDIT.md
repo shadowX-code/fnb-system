@@ -115,7 +115,8 @@ Status:
   - Top 10 Ingredient Consumption - Monthly
   - Ingredient Consumption Trend - Monthly
 - Ingredient analytics use mapped Product Analytics sales only. Pending products are excluded but flagged as mapping risk; Ignored products are excluded completely.
-- Trend charts use a dedicated Trend Year selector and always render Jan-Dec with missing months as 0. Analysis Period remains separate for matrix, insights context, and forecast averaging.
+- Trend charts use in-card year selectors and always render Jan-Dec with month-only axis labels and missing months as 0. Analysis Period remains separate for matrix, insights context, and forecast averaging.
+- Trend chart visuals use smooth FeedX styling with fixed circular markers, subtle area fill, compact y-axis labels, peak highlight, and hover tooltips.
 - Top 10 Ingredient Consumption includes Total Cost and Cost Contribution %, with View All search/category/sort controls.
 - Future notification hook: Product Analytics imports that introduce new Pending products should trigger a Notification Center task such as `Recipe mapping required`.
 
