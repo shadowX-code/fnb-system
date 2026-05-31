@@ -5150,6 +5150,7 @@ function IngredientConsumptionModal({ rows = [], categories = [], filters, onFil
           { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
           { key: "unitCost", label: "Unit Cost", render: (row) => toCurrency(row.unitCost) },
           { key: "totalCost", label: "Total Cost", render: (row) => <span className="font-black text-text-primary">{toCurrency(row.totalCost)}</span> },
+          { key: "contribution", label: "Cost Contribution %", render: (row) => <Badge tone="info">{formatRecipeMargin(row.costContribution)}</Badge> },
         ]}
         emptyTitle="No ingredient consumption rows"
         emptyDescription="Try another search or category filter."
@@ -6039,6 +6040,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [recipeWorkspaceTab, setRecipeWorkspaceTab] = useState("recipes");
   const [recipeMappingFilters, setRecipeMappingFilters] = useState({ status: "all", search: "" });
   const [recipeAnalysisPeriod, setRecipeAnalysisPeriod] = useState("last3");
+  const [recipeTrendYear, setRecipeTrendYear] = useState(() => Number(getBusinessDateInput("Asia/Kuala_Lumpur").slice(0, 4)) || new Date().getFullYear());
   const [recipeProductReports, setRecipeProductReports] = useState([]);
   const [recipeProductItems, setRecipeProductItems] = useState([]);
   const [recipeProductMappings, setRecipeProductMappings] = useState([]);
@@ -6092,8 +6094,12 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     if (activeTab !== "recipes" || !activeRecipeOutletId) return undefined;
     let cancelled = false;
     const selectedPeriod = recipeAnalysisPeriodOptions.find((option) => option.value === recipeAnalysisPeriod) || recipeAnalysisPeriodOptions[1];
-    const startSerial = businessMonthSerial(-(selectedPeriod.months - 1));
-    const endSerial = businessMonthSerial(0);
+    const analysisStartSerial = businessMonthSerial(-(selectedPeriod.months - 1));
+    const analysisEndSerial = businessMonthSerial(0);
+    const trendStartSerial = monthSerial(recipeTrendYear, 1);
+    const trendEndSerial = monthSerial(recipeTrendYear, 12);
+    const startSerial = Math.min(analysisStartSerial, trendStartSerial);
+    const endSerial = Math.max(analysisEndSerial, trendEndSerial);
     setRecipeProductLoading(true);
     Promise.all([
       productAnalyticsService.listReports({ outletIds: [activeRecipeOutletId] }),
@@ -6129,13 +6135,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     return () => {
       cancelled = true;
     };
-  }, [activeRecipeOutletId, activeTab, recipeAnalysisPeriod]);
+  }, [activeRecipeOutletId, activeTab, recipeAnalysisPeriod, recipeTrendYear]);
 
   useEffect(() => {
     setRecipeMappingSelections({});
     setIngredientTrendSearch("");
     setIngredientTrendSelectedIds([]);
-  }, [activeRecipeOutletId, recipeAnalysisPeriod]);
+  }, [activeRecipeOutletId, recipeAnalysisPeriod, recipeTrendYear]);
 
   useEffect(() => {
     setCheckValidationAttempted(false);
@@ -9725,31 +9731,41 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     const analysisStartSerial = businessMonthSerial(-(selectedPeriod.months - 1));
     const analysisEndSerial = businessMonthSerial(0);
     const analysisMonths = buildMonthSerialRange(analysisStartSerial, analysisEndSerial);
-    const latestAnalysisSerial = Math.max(...analysisMonths, 0);
+    const analysisMonthSet = new Set(analysisMonths);
+    const trendMonths = buildMonthSerialRange(monthSerial(recipeTrendYear, 1), monthSerial(recipeTrendYear, 12));
+    const trendMonthSet = new Set(trendMonths);
+    const availableTrendYears = [...new Set([
+      recipeTrendYear,
+      Number(getBusinessDateInput("Asia/Kuala_Lumpur").slice(0, 4)),
+      ...recipeProductReports.map((report) => Number(report.report_year)).filter(Boolean),
+    ])].sort((a, b) => b - a);
     const reportById = new Map(recipeProductReports.map((report) => [report.id, report]));
-    const productSalesByName = recipeProductItems.reduce((totals, item) => {
-      const key = normalizeProductRecipeKey(item.product_name);
-      if (!key) return totals;
-      const report = reportById.get(item.report_id);
-      const monthValue = item.report_month || item.month || report?.report_month || "";
-      const yearValue = item.report_year || item.year || report?.report_year || "";
-      const serial = monthSerial(yearValue || 0, monthValue || 0);
-      const current = totals.get(key) || { productName: item.product_name, quantity: 0, revenue: 0, latestSerial: 0, latestMonth: "", monthly: new Map() };
-      const quantity = Number(item.quantity || 0);
-      const revenue = Number(item.nett_sales || item.revenue || 0);
-      current.quantity += quantity;
-      current.revenue += revenue;
-      const monthBucket = current.monthly.get(serial) || { month: serial, quantity: 0, revenue: 0 };
-      monthBucket.quantity += quantity;
-      monthBucket.revenue += revenue;
-      current.monthly.set(serial, monthBucket);
-      if (serial > current.latestSerial) {
-        current.latestSerial = serial;
-        current.latestMonth = yearValue && monthValue ? `${yearValue}-${String(monthValue).padStart(2, "0")}` : "";
-      }
-      totals.set(key, current);
-      return totals;
-    }, new Map());
+    const buildProductSalesByName = (allowedSerials) => recipeProductItems.reduce((totals, item) => {
+        const key = normalizeProductRecipeKey(item.product_name);
+        if (!key) return totals;
+        const report = reportById.get(item.report_id);
+        const monthValue = item.report_month || item.month || report?.report_month || "";
+        const yearValue = item.report_year || item.year || report?.report_year || "";
+        const serial = monthSerial(yearValue || 0, monthValue || 0);
+        if (!allowedSerials.has(serial)) return totals;
+        const current = totals.get(key) || { productName: item.product_name, quantity: 0, revenue: 0, latestSerial: 0, latestMonth: "", monthly: new Map() };
+        const quantity = Number(item.quantity || 0);
+        const revenue = Number(item.nett_sales || item.revenue || 0);
+        current.quantity += quantity;
+        current.revenue += revenue;
+        const monthBucket = current.monthly.get(serial) || { month: serial, quantity: 0, revenue: 0 };
+        monthBucket.quantity += quantity;
+        monthBucket.revenue += revenue;
+        current.monthly.set(serial, monthBucket);
+        if (serial > current.latestSerial) {
+          current.latestSerial = serial;
+          current.latestMonth = yearValue && monthValue ? `${yearValue}-${String(monthValue).padStart(2, "0")}` : "";
+        }
+        totals.set(key, current);
+        return totals;
+      }, new Map());
+    const productSalesByName = buildProductSalesByName(analysisMonthSet);
+    const yearlyProductSalesByName = buildProductSalesByName(trendMonthSet);
     const recipeCostById = new Map(recipeCostRows.map((row) => [row.recipe.id, row]));
     const mappingByProductKey = new Map(recipeProductMappings.map((mapping) => [normalizeProductRecipeKey(mapping.product_name), mapping]).filter(([key]) => key));
     const mappedMappings = recipeProductMappings.filter((mapping) => mappingDecisionStatus(mapping) === "mapped");
@@ -9824,56 +9840,64 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     const ignoredProductCount = [...productSalesByName.keys()].filter((key) => ignoredProductKeys.has(key)).length;
     const mappingCoverage = (mappedProductKeys.size + pendingProductCount) ? Math.round((mappedProductKeys.size / (mappedProductKeys.size + pendingProductCount)) * 100) : 0;
     const reliableMenuEngineeringRows = mappedRecipeCount >= 10 ? menuEngineeringRows : [];
-    const monthlyGrossProfitBuckets = new Map(analysisMonths.map((serial) => [serial, { month: serial, revenue: 0, recipeCost: 0, grossProfit: 0, margin: null }]));
-    const ingredientConsumptionByMonth = new Map();
-    const addIngredientUsage = ({ line, item, month, usage }) => {
-      if (!item || !Number(usage || 0)) return;
-      const key = item.id || line.itemId || item.name;
-      const unitCost = Number(item.cost || 0);
-      const category = categoryById.get(item.categoryId);
-      const current = ingredientConsumptionByMonth.get(key) || {
-        id: key,
-        ingredient: item.name || "Inventory item",
-        category: category?.name || "Uncategorized",
-        uom: item.unit || line.unit || "",
-        unitCost,
-        estimatedUsage: 0,
-        totalCost: 0,
-        monthly: new Map(),
+    const buildMappedRecipeAnalytics = (salesByName, months) => {
+      const monthSet = new Set(months);
+      const monthlyGrossProfitBuckets = new Map(months.map((serial) => [serial, { month: serial, quantity: 0, revenue: 0, recipeCost: 0, grossProfit: 0, margin: null }]));
+      const ingredientConsumptionByMonth = new Map();
+      const addIngredientUsage = ({ line, item, month, usage }) => {
+        if (!item || !Number(usage || 0)) return;
+        const key = item.id || line.itemId || item.name;
+        const unitCost = Number(item.cost || 0);
+        const category = categoryById.get(item.categoryId);
+        const current = ingredientConsumptionByMonth.get(key) || {
+          id: key,
+          ingredient: item.name || "Inventory item",
+          category: category?.name || "Uncategorized",
+          uom: item.unit || line.unit || "",
+          unitCost,
+          estimatedUsage: 0,
+          totalCost: 0,
+          monthly: new Map(),
+        };
+        current.estimatedUsage += usage;
+        current.totalCost += usage * unitCost;
+        const monthBucket = current.monthly.get(month) || { month, usage: 0, cost: 0 };
+        monthBucket.usage += usage;
+        monthBucket.cost += usage * unitCost;
+        current.monthly.set(month, monthBucket);
+        ingredientConsumptionByMonth.set(key, current);
       };
-      current.estimatedUsage += usage;
-      current.totalCost += usage * unitCost;
-      const monthBucket = current.monthly.get(month) || { month, usage: 0, cost: 0 };
-      monthBucket.usage += usage;
-      monthBucket.cost += usage * unitCost;
-      current.monthly.set(month, monthBucket);
-      ingredientConsumptionByMonth.set(key, current);
-    };
-
-    mappedMappings.forEach((mapping) => {
-      const matchKey = normalizeProductRecipeKey(mapping.product_name);
-      const product = productSalesByName.get(matchKey);
-      const recipeRow = recipeCostById.get(mapping.recipe_id);
-      if (!product || !recipeRow) return;
-      const { recipe, summary } = recipeRow;
-      const recipeCost = Number(summary.totalCost || 0);
-      const sellingPrice = Number(recipe.sellingPrice ?? recipe.selling_price ?? 0);
-      const profitPerServing = sellingPrice - recipeCost;
-      product.monthly.forEach((monthSale, month) => {
-        if (!analysisMonths.includes(month)) return;
-        const gross = monthlyGrossProfitBuckets.get(month) || { month, revenue: 0, recipeCost: 0, grossProfit: 0, margin: null };
-        gross.revenue += Number(monthSale.revenue || 0);
-        gross.recipeCost += Number(monthSale.quantity || 0) * recipeCost;
-        gross.grossProfit += Number(monthSale.quantity || 0) * profitPerServing;
-        gross.margin = gross.revenue > 0 ? (gross.grossProfit / gross.revenue) * 100 : null;
-        monthlyGrossProfitBuckets.set(month, gross);
-        (recipe.ingredients || []).forEach((line) => {
-          const item = itemById.get(line.itemId);
-          const quantityUsed = Number(line.quantityUsed ?? line.quantity_used ?? 0);
-          addIngredientUsage({ line, item, month, usage: Number(monthSale.quantity || 0) * quantityUsed });
+      mappedMappings.forEach((mapping) => {
+        const matchKey = normalizeProductRecipeKey(mapping.product_name);
+        const product = salesByName.get(matchKey);
+        const recipeRow = recipeCostById.get(mapping.recipe_id);
+        if (!product || !recipeRow) return;
+        const { recipe, summary } = recipeRow;
+        const recipeCost = Number(summary.totalCost || 0);
+        const sellingPrice = Number(recipe.sellingPrice ?? recipe.selling_price ?? 0);
+        const profitPerServing = sellingPrice - recipeCost;
+        product.monthly.forEach((monthSale, month) => {
+          if (!monthSet.has(month)) return;
+          const quantity = Number(monthSale.quantity || 0);
+          const gross = monthlyGrossProfitBuckets.get(month) || { month, quantity: 0, revenue: 0, recipeCost: 0, grossProfit: 0, margin: null };
+          gross.quantity += quantity;
+          gross.revenue += Number(monthSale.revenue || 0);
+          gross.recipeCost += quantity * recipeCost;
+          gross.grossProfit += quantity * profitPerServing;
+          gross.margin = gross.revenue > 0 ? (gross.grossProfit / gross.revenue) * 100 : null;
+          monthlyGrossProfitBuckets.set(month, gross);
+          (recipe.ingredients || []).forEach((line) => {
+            const item = itemById.get(line.itemId);
+            const quantityUsed = Number(line.quantityUsed ?? line.quantity_used ?? 0);
+            addIngredientUsage({ line, item, month, usage: quantity * quantityUsed });
+          });
         });
       });
-    });
+      return { monthlyGrossProfitBuckets, ingredientConsumptionByMonth };
+    };
+
+    const analysisAnalytics = buildMappedRecipeAnalytics(productSalesByName, analysisMonths);
+    const yearlyAnalytics = buildMappedRecipeAnalytics(yearlyProductSalesByName, trendMonths);
 
     const topGrossProfitRows = [...menuEngineeringRows]
       .map((row) => ({ ...row, grossProfit: Number(row.salesVolume || 0) * Number(row.profitPerServing || 0) }))
@@ -9882,32 +9906,43 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     const grossProfitTrendSeries = [{
       id: "gross-profit",
       label: "Gross Profit",
-      values: analysisMonths.map((month) => {
-        const bucket = monthlyGrossProfitBuckets.get(month) || {};
+      values: trendMonths.map((month) => {
+        const bucket = yearlyAnalytics.monthlyGrossProfitBuckets.get(month) || {};
         return {
           month,
           value: Number(bucket.grossProfit || 0),
-          tooltip: `Revenue ${toCurrency(bucket.revenue || 0)} · Recipe Cost ${toCurrency(bucket.recipeCost || 0)} · Margin ${formatRecipeMargin(bucket.margin)}`,
+          tooltip: `Qty ${Number(bucket.quantity || 0).toLocaleString()} · Revenue ${toCurrency(bucket.revenue || 0)} · Recipe Cost ${toCurrency(bucket.recipeCost || 0)} · Margin ${formatRecipeMargin(bucket.margin)}`,
         };
       }),
     }];
+    const yearlyGrossProfitRows = [...yearlyAnalytics.monthlyGrossProfitBuckets.values()];
+    const currentYearGrossProfit = yearlyGrossProfitRows.reduce((sum, row) => sum + Number(row.grossProfit || 0), 0);
+    const bestGrossProfitMonth = yearlyGrossProfitRows.reduce((best, row) => !best || Number(row.grossProfit || 0) > Number(best.grossProfit || 0) ? row : best, null);
+    const averageMonthlyGrossProfit = currentYearGrossProfit / 12;
     const latestConsumptionSerial = Math.max(
-      ...[...ingredientConsumptionByMonth.values()].flatMap((row) => [...row.monthly.keys()]),
+      ...[...analysisAnalytics.ingredientConsumptionByMonth.values()].flatMap((row) => [...row.monthly.keys()]),
       0,
-    ) || latestAnalysisSerial;
-    const ingredientConsumptionRows = [...ingredientConsumptionByMonth.values()]
+    ) || analysisEndSerial;
+    const ingredientConsumptionRows = [...analysisAnalytics.ingredientConsumptionByMonth.values()]
       .map((row) => {
         const latestBucket = row.monthly.get(latestConsumptionSerial) || { usage: 0, cost: 0 };
+        const periodCost = [...row.monthly.values()].reduce((sum, bucket) => sum + Number(bucket.cost || 0), 0);
         return {
           ...row,
           estimatedUsage: latestBucket.usage,
           totalCost: latestBucket.cost,
+          periodCost,
         };
       })
       .filter((row) => Number(row.estimatedUsage || 0) > 0 || Number(row.totalCost || 0) > 0)
       .sort((a, b) => Number(b.totalCost || 0) - Number(a.totalCost || 0));
     const ingredientConsumptionCategories = [...new Set(ingredientConsumptionRows.map((row) => row.category).filter(Boolean))].sort();
-    const ingredientDemandForecastRows = [...ingredientConsumptionByMonth.values()]
+    const totalMonthlyIngredientCost = ingredientConsumptionRows.reduce((sum, row) => sum + Number(row.totalCost || 0), 0);
+    const ingredientConsumptionRowsWithContribution = ingredientConsumptionRows.map((row) => ({
+      ...row,
+      costContribution: totalMonthlyIngredientCost > 0 ? (Number(row.totalCost || 0) / totalMonthlyIngredientCost) * 100 : null,
+    }));
+    const ingredientDemandForecastRows = [...analysisAnalytics.ingredientConsumptionByMonth.values()]
       .map((row) => {
         const monthlyBuckets = analysisMonths.map((month) => row.monthly.get(month) || { usage: 0, cost: 0 });
         const forecastUsage = monthlyBuckets.reduce((sum, bucket) => sum + Number(bucket.usage || 0), 0) / Math.max(selectedPeriod.months, 1);
@@ -9925,21 +9960,21 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       .filter((row) => Number(row.forecastUsage || 0) > 0)
       .sort((a, b) => Number(b.forecastCost || 0) - Number(a.forecastCost || 0))
       .slice(0, 8);
-    const defaultTrendIngredientIds = [...ingredientConsumptionByMonth.values()]
+    const defaultTrendIngredientIds = [...yearlyAnalytics.ingredientConsumptionByMonth.values()]
       .sort((a, b) => Number(b.totalCost || 0) - Number(a.totalCost || 0))
       .slice(0, 5)
       .map((row) => row.id);
     const activeTrendIngredientIds = (ingredientTrendSelectedIds.length ? ingredientTrendSelectedIds : defaultTrendIngredientIds)
-      .filter((id) => ingredientConsumptionByMonth.has(id))
+      .filter((id) => yearlyAnalytics.ingredientConsumptionByMonth.has(id))
       .slice(0, 5);
-    const trendIngredientRows = [...ingredientConsumptionByMonth.values()]
+    const trendIngredientRows = [...yearlyAnalytics.ingredientConsumptionByMonth.values()]
       .sort((a, b) => Number(b.totalCost || 0) - Number(a.totalCost || 0));
     const ingredientTrendSeries = activeTrendIngredientIds.map((id) => {
-      const row = ingredientConsumptionByMonth.get(id);
+      const row = yearlyAnalytics.ingredientConsumptionByMonth.get(id);
       return {
         id,
         label: row?.ingredient || "Ingredient",
-        values: analysisMonths.map((month) => {
+        values: trendMonths.map((month) => {
           const bucket = row?.monthly?.get(month) || { usage: 0, cost: 0 };
           return {
             month,
@@ -9949,6 +9984,12 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         }),
       };
     });
+    const highestIngredientCostPoint = trendIngredientRows.reduce((best, row) => {
+      const peak = [...row.monthly.values()].reduce((monthBest, bucket) => !monthBest || Number(bucket.cost || 0) > Number(monthBest.cost || 0) ? bucket : monthBest, null);
+      if (!peak) return best;
+      const candidate = { ...row, peak };
+      return !best || Number(candidate.peak.cost || 0) > Number(best.peak.cost || 0) ? candidate : best;
+    }, null);
     return (
       <div className="space-y-4">
         <div className="card grid gap-3 p-3 lg:grid-cols-[220px_190px_170px_1fr] lg:items-end">
@@ -10195,13 +10236,19 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           title="Recipe Intelligence"
           subtitle="Identify profitable menu items, highest cost recipes and key ingredient cost drivers."
         >
-          <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-end">
+          <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px_160px] lg:items-end">
             <RecipeMappingHealth mapped={mappedProductKeys.size} unmapped={pendingProductCount} totalRecipes={mappingCandidateRecipes.length} loading={recipeProductLoading} />
             <SelectField
               label="Analysis Period"
               value={recipeAnalysisPeriod}
               options={recipeAnalysisPeriodOptions.map((option) => ({ value: option.value, label: option.label }))}
               onChange={setRecipeAnalysisPeriod}
+            />
+            <SelectField
+              label="Trend Year"
+              value={String(recipeTrendYear)}
+              options={availableTrendYears.map((year) => ({ value: String(year), label: String(year) }))}
+              onChange={(value) => setRecipeTrendYear(Number(value))}
             />
           </div>
           {pendingProductCount > 0 ? (
@@ -10225,15 +10272,25 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           <div className="mt-4 grid gap-4">
             <RecipeIntelligenceCard
               title="Recipe Gross Profit Trend"
-              description="Monthly gross profit from mapped Product Analytics quantity sold × recipe profit per serving."
+              description={`Jan-Dec ${recipeTrendYear} monthly gross profit from mapped Product Analytics quantity sold × recipe profit per serving.`}
             >
+              <div className="mb-4 grid gap-3 sm:grid-cols-3">
+                <MetricCard label={`${recipeTrendYear} Gross Profit`} value={toCurrency(currentYearGrossProfit)} helper="Mapped recipe sales only" tone={currentYearGrossProfit ? "success" : "neutral"} size="compact" />
+                <MetricCard label="Best Month" value={bestGrossProfitMonth ? formatMonthSerial(bestGrossProfitMonth.month) : "—"} helper={bestGrossProfitMonth ? toCurrency(bestGrossProfitMonth.grossProfit) : "No mapped sales"} tone={bestGrossProfitMonth?.grossProfit ? "success" : "neutral"} size="compact" />
+                <MetricCard label="Average Monthly GP" value={toCurrency(averageMonthlyGrossProfit)} helper="12-month average" size="compact" />
+              </div>
               <RecipeTrendChart
                 series={grossProfitTrendSeries}
-                months={analysisMonths}
+                months={trendMonths}
                 valueFormatter={toCurrency}
                 emptyTitle="Map products to recipes to unlock gross profit trend."
                 emptyDescription="Gross profit uses Product Analytics qty sold and Recipe BOM costing. No fake trend is shown."
               />
+              {bestGrossProfitMonth?.grossProfit ? (
+                <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 type-body-sm text-emerald-900 dark:border-emerald-400/30 dark:bg-emerald-950/30 dark:text-emerald-100">
+                  Gross profit peaked in {formatMonthSerial(bestGrossProfitMonth.month)} at {toCurrency(bestGrossProfitMonth.grossProfit)}.
+                </div>
+              ) : null}
             </RecipeIntelligenceCard>
             <div className="grid gap-4 lg:grid-cols-2">
               <RecipeIntelligenceCard
@@ -10280,20 +10337,21 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                   <button
                     className="btn-secondary h-8 px-3 text-xs"
                     type="button"
-                    onClick={() => setModal({ type: "ingredient-consumption", rows: ingredientConsumptionRows, categories: ingredientConsumptionCategories })}
-                    disabled={!ingredientConsumptionRows.length}
+                    onClick={() => setModal({ type: "ingredient-consumption", rows: ingredientConsumptionRowsWithContribution, categories: ingredientConsumptionCategories })}
+                    disabled={!ingredientConsumptionRowsWithContribution.length}
                   >
                     View All
                   </button>
                 </div>
                 <RecipeRankingTable
-                  rows={ingredientConsumptionRows.slice(0, 10)}
+                  rows={ingredientConsumptionRowsWithContribution.slice(0, 10)}
                   columns={[
                     { key: "ingredient", label: "Ingredient", render: (row) => <div><div className="font-bold text-text-primary">{row.ingredient}</div><div className="type-caption text-text-muted">{row.category}</div></div> },
                     { key: "usage", label: "Estimated Usage", render: (row) => <span className="font-black text-text-primary">{Number(row.estimatedUsage || 0).toLocaleString("en-MY", { maximumFractionDigits: 2 })}</span> },
                     { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
                     { key: "unitCost", label: "Unit Cost", render: (row) => toCurrency(row.unitCost) },
                     { key: "totalCost", label: "Total Cost", render: (row) => <span className="font-black text-text-primary">{toCurrency(row.totalCost)}</span> },
+                    { key: "contribution", label: "Cost Contribution %", render: (row) => <Badge tone="info">{formatRecipeMargin(row.costContribution)}</Badge> },
                   ]}
                   emptyTitle="Map products to recipes to estimate ingredient consumption."
                   emptyDescription="Only mapped products feed ingredient usage. Pending and ignored products are excluded."
@@ -10301,7 +10359,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               </RecipeIntelligenceCard>
               <RecipeIntelligenceCard
                 title="Ingredient Consumption Trend - Monthly"
-                description="Monthly estimated ingredient cost trend for the selected analysis period."
+                description={`Jan-Dec ${recipeTrendYear} estimated procurement cost trend by ingredient.`}
               >
                 <IngredientSelectorPills
                   rows={trendIngredientRows}
@@ -10313,11 +10371,16 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                 <div className="mt-4">
                   <RecipeTrendChart
                     series={ingredientTrendSeries}
-                    months={analysisMonths}
+                    months={trendMonths}
                     valueFormatter={toCurrency}
                     emptyTitle="Map products to recipes to unlock ingredient cost trends."
                     emptyDescription="The trend uses estimated monthly procurement cost, not quantity."
                   />
+                  {highestIngredientCostPoint?.peak ? (
+                    <div className="mt-3 rounded-2xl border border-orange-200 bg-orange-50 p-3 type-body-sm text-orange-900 dark:border-orange-400/30 dark:bg-orange-950/30 dark:text-orange-100">
+                      Highest ingredient cost was {highestIngredientCostPoint.ingredient} in {formatMonthSerial(highestIngredientCostPoint.peak.month)} at {toCurrency(highestIngredientCostPoint.peak.cost)}.
+                    </div>
+                  ) : null}
                 </div>
               </RecipeIntelligenceCard>
             </div>

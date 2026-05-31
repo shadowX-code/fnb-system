@@ -115,6 +115,8 @@ Status:
   - Top 10 Ingredient Consumption - Monthly
   - Ingredient Consumption Trend - Monthly
 - Ingredient analytics use mapped Product Analytics sales only. Pending products are excluded but flagged as mapping risk; Ignored products are excluded completely.
+- Trend charts use a dedicated Trend Year selector and always render Jan-Dec with missing months as 0. Analysis Period remains separate for matrix, insights context, and forecast averaging.
+- Top 10 Ingredient Consumption includes Total Cost and Cost Contribution %, with View All search/category/sort controls.
 - Future notification hook: Product Analytics imports that introduce new Pending products should trigger a Notification Center task such as `Recipe mapping required`.
 
 ## 6. View Recipe Consistency
