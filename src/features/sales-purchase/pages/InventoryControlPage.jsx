@@ -606,6 +606,21 @@ async function uploadInventoryItemPhoto(file, itemId = "draft") {
   return { bucket, path: data.path, publicUrl: publicUrlData.publicUrl };
 }
 
+async function uploadRecipePhoto(file, recipeId = "draft") {
+  const bucket = "inventory-item-photos";
+  const extension = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
+  const path = `recipe_photos/${recipeId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .upload(path, file, {
+      contentType: file.type || `image/${extension}`,
+      upsert: true,
+    });
+  if (error) throw error;
+  const { data: publicUrlData } = supabase.storage.from(bucket).getPublicUrl(data.path);
+  return { bucket, path: data.path, publicUrl: publicUrlData.publicUrl };
+}
+
 function uniqueIds(values = []) {
   return [...new Set(values.filter(Boolean))];
 }
@@ -1100,12 +1115,26 @@ function mapRemoteRecipeItem(row = {}) {
   };
 }
 
+function mapRemoteMenuCategory(row = {}) {
+  return {
+    id: row.id || makeId("menu_cat"),
+    name: row.name || "",
+    description: row.description || "",
+    status: row.status || "active",
+    sortOrder: Number(row.sort_order ?? row.sortOrder ?? 0),
+    createdAt: row.created_at || "",
+    updatedAt: row.updated_at || row.created_at || "",
+  };
+}
+
 function mapRemoteRecipe(row = {}, items = []) {
   return {
     id: row.id,
     outletId: row.outlet_id || "",
     recipeName: row.recipe_name || "Recipe",
     menuCategory: row.menu_category || "",
+    recipePhotoUrl: row.recipe_photo_url || "",
+    recipe_photo_url: row.recipe_photo_url || "",
     servingSize: row.serving_size === null || row.serving_size === undefined ? "" : String(Number(row.serving_size)),
     status: row.status || "active",
     notes: row.notes || "",
@@ -1148,7 +1177,7 @@ async function loadRemoteInventoryMaster() {
   const itemsResult = await supabase.from("inventory_items").select("*").order("created_at", { ascending: false });
   if (itemsResult.error) throw itemsResult.error;
 
-  const [categoriesResult, uomsResult, itemOutletsResult, itemOutletSuppliersResult, stockGroupsResult, stockGroupCategoriesResult, stockChecksResult, stockCheckItemsResult, purchaseOrdersResult, purchaseOrderItemsResult, purchaseReceiptsResult, purchaseReceiptItemsResult, movementsResult, wasteResult, recipesResult, recipeItemsResult, employeesResult] = await Promise.all([
+  const [categoriesResult, uomsResult, itemOutletsResult, itemOutletSuppliersResult, stockGroupsResult, stockGroupCategoriesResult, stockChecksResult, stockCheckItemsResult, purchaseOrdersResult, purchaseOrderItemsResult, purchaseReceiptsResult, purchaseReceiptItemsResult, movementsResult, wasteResult, menuCategoriesResult, recipesResult, recipeItemsResult, employeesResult] = await Promise.all([
     supabase.from("inventory_categories").select("*").order("sort_order", { ascending: true }),
     supabase.from("inventory_uoms").select("*").order("sort_order", { ascending: true }),
     supabase.from("inventory_item_outlets").select("*, outlets:outlet_id(*)"),
@@ -1163,6 +1192,7 @@ async function loadRemoteInventoryMaster() {
     supabase.from("inventory_purchase_receipt_items").select("*").order("created_at", { ascending: true }),
     supabase.from("inventory_movements").select("*").order("created_at", { ascending: false }),
     supabase.from("inventory_waste_records").select("*").order("waste_date", { ascending: false }).order("created_at", { ascending: false }),
+    supabase.from("inventory_menu_categories").select("*").order("sort_order", { ascending: true }),
     supabase.from("inventory_recipes").select("*").order("created_at", { ascending: false }),
     supabase.from("inventory_recipe_items").select("*").order("created_at", { ascending: true }),
     supabase.from("employees").select("id, auth_user_id, full_name, nickname, email"),
@@ -1180,6 +1210,7 @@ async function loadRemoteInventoryMaster() {
   if (purchaseReceiptItemsResult.error) console.warn("[InventoryControl] Purchase receipt items unavailable.", purchaseReceiptItemsResult.error);
   if (movementsResult.error) console.warn("[InventoryControl] Inventory movements unavailable. Movement history will render empty until persistence is configured.", movementsResult.error);
   if (wasteResult.error) console.warn("[InventoryControl] Waste records unavailable. Waste & Variance will render empty until persistence is configured.", wasteResult.error);
+  if (menuCategoriesResult.error) console.warn("[InventoryControl] Menu categories unavailable. Recipes & Usage will use default menu category labels.", menuCategoriesResult.error);
   if (recipesResult.error) console.warn("[InventoryControl] Recipes unavailable. Recipes & Usage will render empty until persistence is configured.", recipesResult.error);
   if (recipeItemsResult.error) console.warn("[InventoryControl] Recipe ingredients unavailable.", recipeItemsResult.error);
   if (employeesResult.error) console.warn("[InventoryControl] Employee names unavailable. Stock checks will show fallback checker names.", employeesResult.error);
@@ -1267,6 +1298,9 @@ async function loadRemoteInventoryMaster() {
     recipeItemsByRecipeId.set(row.recipe_id, list);
   });
   const recipes = (recipesResult.data || []).map((recipe) => mapRemoteRecipe(recipe, recipeItemsByRecipeId.get(recipe.id) || []));
+  const menuCategories = menuCategoriesResult.error
+    ? recipeMenuCategories.map((name, index) => mapRemoteMenuCategory({ id: `default_menu_${index + 1}`, name, sort_order: index + 1, status: "active" }))
+    : (menuCategoriesResult.data || []).map(mapRemoteMenuCategory);
 
   debugLog("[InventoryFetchRaw]", {
     itemRows: itemRows.map((row) => ({
@@ -1316,6 +1350,7 @@ async function loadRemoteInventoryMaster() {
     orders,
     movements: (movementsResult.data || []).map(mapRemoteInventoryMovement),
     waste: (wasteResult.data || []).map(mapRemoteWasteRecord),
+    menuCategories,
     recipes,
     people: (employeesResult.data || []).map(mapRemoteEmployeeLite),
     rawItemCount: itemRows.length,
@@ -2291,6 +2326,7 @@ async function persistRemoteRecipe(recipe = {}, userId) {
     outlet_id: recipe.outletId,
     recipe_name: recipeName,
     menu_category: recipe.menuCategory || recipe.menu_category || null,
+    recipe_photo_url: recipe.recipePhotoUrl || recipe.recipe_photo_url || null,
     serving_size: Number.isFinite(servingSize) && servingSize >= 0 ? servingSize : null,
     status: recipe.status || "active",
     notes: recipe.notes || null,
@@ -2366,6 +2402,34 @@ async function archiveRemoteRecipe(recipeId) {
   return mapRemoteRecipe(result.data, []);
 }
 
+async function persistRemoteMenuCategory(category = {}) {
+  const name = String(category.name || "").trim();
+  if (!name) throw new Error("Menu category name is required.");
+  const payload = {
+    name,
+    description: String(category.description || "").trim() || null,
+    status: category.status || "active",
+    sort_order: Number(category.sortOrder ?? category.sort_order ?? 0) || 0,
+    updated_at: new Date().toISOString(),
+  };
+  const mode = isUuid(category.id) ? "edit" : "create";
+  const result = mode === "edit"
+    ? await supabase
+      .from("inventory_menu_categories")
+      .update(payload)
+      .eq("id", category.id)
+      .select("*")
+      .single()
+    : await supabase
+      .from("inventory_menu_categories")
+      .insert(payload)
+      .select("*")
+      .single();
+  debugLog("[RecipeMenuCategoryDebug]", { action: mode, payload, result: { data: result.data, error: result.error }, error: result.error });
+  if (result.error) throw result.error;
+  return mapRemoteMenuCategory(result.data);
+}
+
 function uomOptionLabel(uom = {}) {
   return uom.displayName && canonical(uom.displayName) !== canonical(uom.code)
     ? `${uom.code} · ${uom.displayName}`
@@ -2429,6 +2493,7 @@ function normalizeInventoryData(raw, outlets = [], suppliers = [], options = {})
     orders: source.orders ?? [],
     movements: source.movements ?? [],
     waste: source.waste ?? [],
+    menuCategories: source.menuCategories ?? [],
     recipes: source.recipes ?? [],
   };
 }
@@ -2444,6 +2509,7 @@ function emptyInventoryData() {
     orders: [],
     movements: [],
     waste: [],
+    menuCategories: [],
     recipes: [],
     people: [],
   };
@@ -2570,6 +2636,7 @@ function defaultData(outlets = [], suppliers = []) {
       },
     ],
     waste: [],
+    menuCategories: recipeMenuCategories.map((name, index) => mapRemoteMenuCategory({ id: `default_menu_${index + 1}`, name, sort_order: index + 1, status: "active" })),
     recipes: [],
   };
 }
@@ -2605,6 +2672,7 @@ function useInventoryData(outlets, suppliers) {
         orders: remote.orders,
         movements: remote.movements,
         waste: remote.waste,
+        menuCategories: remote.menuCategories,
         recipes: remote.recipes,
         people: remote.people,
       }, outlets, suppliers, { allowEmptyMaster: true }));
@@ -3517,6 +3585,114 @@ function UomSettingsModal({ uoms, remoteRows, visibleRows, lastWriteStatus, canA
   );
 }
 
+function MenuCategoryModal({ category, onClose, onSave }) {
+  const [form, setForm] = useState(() => ({
+    id: category?.id || "",
+    name: category?.name || "",
+    description: category?.description || "",
+    status: category?.status || "active",
+    sortOrder: category?.sortOrder ?? 0,
+  }));
+  const [touched, setTouched] = useState(false);
+  const invalid = touched && !form.name.trim();
+  const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  return (
+    <Modal
+      title={category ? "Edit Menu Category" : "Add Menu Category"}
+      description="Menu categories organize recipe BOMs and recipe filters."
+      onClose={onClose}
+      footer={(
+        <>
+          <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
+          <button
+            className="btn-primary"
+            type="button"
+            onClick={() => {
+              setTouched(true);
+              if (!form.name.trim()) return;
+              onSave({
+                ...form,
+                name: form.name.trim(),
+                description: form.description.trim(),
+                sortOrder: Number(form.sortOrder || 0),
+              });
+            }}
+          >
+            Save
+          </button>
+        </>
+      )}
+    >
+      <div className="grid gap-3 md:grid-cols-2">
+        <Field label="Category Name" value={form.name} required onChange={(value) => update("name", value)} placeholder="Main Dish" />
+        <Field label="Sort Order" type="number" value={form.sortOrder} onChange={(value) => update("sortOrder", Number(value || 0))} />
+        <SelectField label="Status" value={form.status} options={[{ value: "active", label: "Active" }, { value: "inactive", label: "Inactive" }]} onChange={(value) => update("status", value)} />
+        <div className="md:col-span-2">
+          <TextArea label="Description" value={form.description} onChange={(value) => update("description", value)} placeholder="Optional description" />
+        </div>
+        {invalid ? <div className="md:col-span-2 type-caption font-semibold text-rose-600">Menu category name is required.</div> : null}
+      </div>
+    </Modal>
+  );
+}
+
+function MenuCategorySettingsModal({ categories, canManage, requirePermission, onAdd, onEdit, onArchive, onSort, onClose }) {
+  const ordered = [...categories].sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0) || a.name.localeCompare(b.name));
+  return (
+    <Modal
+      title="Menu Category Settings"
+      description="Create, edit, archive and sort menu categories used by Recipes & Usage."
+      size="lg"
+      onClose={onClose}
+      footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}
+    >
+      <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <div className="type-caption text-text-secondary">{ordered.length} configured menu categor{ordered.length === 1 ? "y" : "ies"}</div>
+          <div className="type-caption text-text-muted">Only active menu categories appear in recipe forms and filters.</div>
+        </div>
+        <button className="btn-primary h-8 px-3 text-xs" type="button" onClick={() => requirePermission(canManage, "add menu categories") && onAdd()}>
+          <PackagePlus size={14} /> Add Category
+        </button>
+      </div>
+      {ordered.length ? (
+        <div className="overflow-hidden rounded-2xl border border-border bg-surface">
+          {ordered.map((category) => (
+            <div
+              key={category.id}
+              draggable={canManage}
+              onDragStart={(event) => event.dataTransfer.setData("text/plain", category.id)}
+              onDragOver={(event) => event.preventDefault()}
+              onDrop={(event) => {
+                event.preventDefault();
+                const draggedId = event.dataTransfer.getData("text/plain");
+                if (draggedId && draggedId !== category.id) onSort(draggedId, category.id);
+              }}
+              className="grid grid-cols-[minmax(0,1fr)_auto] items-center gap-3 border-b border-border px-3 py-2.5 last:border-b-0 hover:bg-primary/5"
+            >
+              <div className="min-w-0">
+                <div className="flex flex-wrap items-center gap-2">
+                  <GripVertical size={14} className="text-text-muted" />
+                  <div className="truncate type-body-sm font-bold text-text-primary">{category.name}</div>
+                  <Badge tone={category.status === "active" ? "success" : "neutral"}>{toTitle(category.status || "active")}</Badge>
+                </div>
+                <div className="mt-0.5 truncate type-caption text-text-secondary">{category.description || "No description"}</div>
+                <div className="mt-1 type-caption font-semibold text-text-muted">Sort {category.sortOrder || 0}</div>
+              </div>
+              <div className="flex items-center justify-end gap-2">
+                <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(canManage, "edit menu categories") && onEdit(category)}>Edit</button>
+                <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(canManage, "archive menu categories") && onArchive(category)}>{category.status === "active" ? "Archive" : "Activate"}</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      ) : (
+        <EmptyState title="Create your first menu category." description="Menu categories help scan recipe BOMs by product type." />
+      )}
+    </Modal>
+  );
+}
+
 function InventoryItemModal({ item, categories, outlets, uoms, canCreateUom, onAddUom, onClose, onSave }) {
   const initialItem = normalizeInventoryItem(item ?? {
     id: "",
@@ -4142,13 +4318,41 @@ function WasteModal({ outlet, items, onClose, onSave }) {
   );
 }
 
-function RecipeModal({ recipe, outlets, items, onClose, onSave }) {
+function recipeIngredientCost(line = {}, item) {
+  const quantity = Number(line.quantityUsed || 0);
+  const unitCost = Number(item?.cost || 0);
+  const totalCost = quantity * unitCost;
+  const wastageCost = totalCost * (Number(line.wastagePercent || 0) / 100);
+  return {
+    quantity,
+    unitCost,
+    totalCost,
+    wastageCost,
+  };
+}
+
+function recipeCostSummary(recipe = {}, items = []) {
+  const itemById = new Map(items.map((item) => [item.id, item]));
+  return (recipe.ingredients || []).reduce((summary, line) => {
+    const cost = recipeIngredientCost(line, itemById.get(line.itemId));
+    return {
+      ingredientCost: summary.ingredientCost + cost.totalCost,
+      wastageCost: summary.wastageCost + cost.wastageCost,
+      totalCost: summary.totalCost + cost.totalCost + cost.wastageCost,
+    };
+  }, { ingredientCost: 0, wastageCost: 0, totalCost: 0 });
+}
+
+function RecipeModal({ recipe, outletId, outlet, items, menuCategories, onClose, onSave }) {
   const [isSaving, setIsSaving] = useState(false);
+  const [photoPreview, setPhotoPreview] = useState(recipe?.recipePhotoUrl || recipe?.recipe_photo_url || "");
   const [form, setForm] = useState(() => ({
     id: recipe?.id || "",
-    outletId: recipe?.outletId || outlets[0]?.id || "",
+    outletId: recipe?.outletId || outletId || "",
     recipeName: recipe?.recipeName || recipe?.recipe_name || "",
-    menuCategory: recipe?.menuCategory || recipe?.menu_category || recipeMenuCategories[0],
+    menuCategory: recipe?.menuCategory || recipe?.menu_category || menuCategories.find((category) => category.status === "active")?.name || recipeMenuCategories[0],
+    recipePhotoUrl: recipe?.recipePhotoUrl || recipe?.recipe_photo_url || "",
+    recipePhotoFile: null,
     servingSize: recipe?.servingSize || recipe?.serving_size || "1",
     status: recipe?.status || "active",
     notes: recipe?.notes || "",
@@ -4163,7 +4367,6 @@ function RecipeModal({ recipe, outlets, items, onClose, onSave }) {
   }));
   const availableItems = items.filter((item) => item.status === "active" && itemHasActiveOutletLink(item, form.outletId));
   const update = (key, value) => setForm((current) => {
-    if (key === "outletId") return { ...current, outletId: value, ingredients: [] };
     return { ...current, [key]: value };
   });
   const updateIngredient = (id, patch) => setForm((current) => ({
@@ -4193,6 +4396,19 @@ function RecipeModal({ recipe, outlets, items, onClose, onSave }) {
     }));
   };
   const removeIngredient = (id) => setForm((current) => ({ ...current, ingredients: current.ingredients.filter((line) => line.id !== id) }));
+  const summary = recipeCostSummary(form, items);
+  const categoryOptions = menuCategories
+    .filter((category) => category.status === "active")
+    .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0) || a.name.localeCompare(b.name))
+    .map((category) => ({ value: category.name, label: category.name }));
+  const safeCategoryOptions = categoryOptions.length ? categoryOptions : recipeMenuCategories.map((category) => ({ value: category, label: category }));
+  const handlePhotoChange = (event) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    const preview = URL.createObjectURL(file);
+    setPhotoPreview(preview);
+    update("recipePhotoFile", file);
+  };
   const invalid = !form.recipeName.trim() || !form.outletId || !form.ingredients.length || form.ingredients.some((line) => !line.itemId || Number(line.quantityUsed || 0) <= 0);
   const handleSave = async () => {
     if (invalid || isSaving) return;
@@ -4220,10 +4436,22 @@ function RecipeModal({ recipe, outlets, items, onClose, onSave }) {
       <div className="space-y-4">
         <div className="grid gap-3 md:grid-cols-2">
           <Field label="Recipe Name / Menu Item Name" value={form.recipeName} required onChange={(value) => update("recipeName", value)} placeholder="Nasi Lemak Ayam" />
-          <SelectField label="Outlet" value={form.outletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={(value) => update("outletId", value)} searchable />
-          <SelectField label="Menu Category" value={form.menuCategory} options={recipeMenuCategories.map((category) => ({ value: category, label: category }))} onChange={(value) => update("menuCategory", value)} />
+          <label>
+            <div className="mb-1 type-caption font-semibold text-text-secondary">Outlet</div>
+            <div className="control flex h-9 items-center text-[13px] font-semibold text-text-secondary">{outlet?.name || "Selected outlet"}</div>
+          </label>
+          <SelectField label="Menu Category" value={form.menuCategory} options={safeCategoryOptions} onChange={(value) => update("menuCategory", value)} />
           <SelectField label="Status" value={form.status} options={statuses.map((status) => ({ value: status, label: toTitle(status) }))} onChange={(value) => update("status", value)} />
           <Field label="Serving Size / Yield" value={form.servingSize} onChange={(value) => update("servingSize", value)} placeholder="1" />
+          <label>
+            <div className="mb-1 type-caption font-semibold text-text-secondary">Recipe Photo</div>
+            <div className="flex items-center gap-3">
+              <div className="h-16 w-16 overflow-hidden rounded-2xl border border-border bg-slate-100">
+                {photoPreview ? <img className="h-full w-full object-cover" src={photoPreview} alt="Recipe preview" /> : <div className="flex h-full w-full items-center justify-center text-xs font-bold text-text-muted">Photo</div>}
+              </div>
+              <input type="file" accept="image/*" onChange={handlePhotoChange} className="block text-xs text-text-secondary file:mr-3 file:rounded-xl file:border-0 file:bg-primary/10 file:px-3 file:py-2 file:text-xs file:font-bold file:text-primary" />
+            </div>
+          </label>
           <div className="rounded-2xl border border-primary/15 bg-primary/5 p-3 type-caption text-text-secondary">
             Ingredient selector only shows active inventory items linked to the selected outlet.
           </div>
@@ -4245,13 +4473,22 @@ function RecipeModal({ recipe, outlets, items, onClose, onSave }) {
             <div className="space-y-2">
               {form.ingredients.map((line) => {
                 const item = items.find((entry) => entry.id === line.itemId);
+                const cost = recipeIngredientCost(line, item);
                 return (
-                  <div key={line.id} className="grid gap-2 rounded-2xl border border-border bg-slate-50/70 p-2 lg:grid-cols-[1.4fr_110px_80px_110px_1fr_auto] lg:items-end">
+                  <div key={line.id} className="grid gap-2 rounded-2xl border border-border bg-slate-50/70 p-2 lg:grid-cols-[1.4fr_95px_72px_95px_100px_95px_1fr_auto] lg:items-end">
                     <SelectField label="Inventory Item" value={line.itemId} options={availableItems.map((entry) => ({ value: entry.id, label: entry.name }))} onChange={(value) => updateIngredient(line.id, { itemId: value })} searchable />
                     <Field label="Qty Used" type="number" value={line.quantityUsed} onChange={(value) => updateIngredient(line.id, { quantityUsed: parseNonNegativeNumber(value) })} />
                     <label>
                       <div className="mb-1 type-caption font-semibold text-text-secondary">Unit</div>
                       <div className="control flex h-9 items-center text-[13px] font-semibold text-text-secondary">{item?.unit || line.unit || "-"}</div>
+                    </label>
+                    <label>
+                      <div className="mb-1 type-caption font-semibold text-text-secondary">Unit Cost</div>
+                      <div className="control flex h-9 items-center text-[13px] font-semibold text-text-secondary">{toCurrency(cost.unitCost)}</div>
+                    </label>
+                    <label>
+                      <div className="mb-1 type-caption font-semibold text-text-secondary">Total Cost</div>
+                      <div className="control flex h-9 items-center text-[13px] font-semibold text-text-primary">{toCurrency(cost.totalCost)}</div>
                     </label>
                     <Field label="Wastage %" type="number" value={line.wastagePercent} onChange={(value) => updateIngredient(line.id, { wastagePercent: parseNonNegativeNumber(value) })} />
                     <Field label="Remark" value={line.remark} onChange={(value) => updateIngredient(line.id, { remark: value })} placeholder="Optional" />
@@ -4262,6 +4499,11 @@ function RecipeModal({ recipe, outlets, items, onClose, onSave }) {
             </div>
           ) : <EmptyState title="No ingredients yet" description={availableItems.length ? "Add ingredients to define usage per serving." : "No active outlet-linked inventory items are available for this outlet."} />}
         </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <MetricCard label="Ingredient Cost" value={toCurrency(summary.ingredientCost)} helper="Before wastage" size="compact" />
+          <MetricCard label="Estimated Wastage Cost" value={toCurrency(summary.wastageCost)} helper="Based on wastage %" tone={summary.wastageCost ? "warning" : "neutral"} size="compact" />
+          <MetricCard label="Total Recipe Cost" value={toCurrency(summary.totalCost)} helper="Ingredient + wastage" tone="success" size="compact" />
+        </div>
       </div>
     </Modal>
   );
@@ -4269,6 +4511,7 @@ function RecipeModal({ recipe, outlets, items, onClose, onSave }) {
 
 function RecipeDetailModal({ recipe, outlet, items, categories, onClose, onEdit }) {
   const ingredients = recipe?.ingredients || [];
+  const summary = recipeCostSummary(recipe, items);
   return (
     <Modal
       title={recipe?.recipeName || "Recipe"}
@@ -4283,19 +4526,31 @@ function RecipeDetailModal({ recipe, outlet, items, categories, onClose, onEdit 
       )}
     >
       <div className="space-y-4">
+        {recipe?.recipePhotoUrl || recipe?.recipe_photo_url ? (
+          <div className="overflow-hidden rounded-3xl border border-border bg-slate-100">
+            <img className="max-h-72 w-full object-cover" src={recipe.recipePhotoUrl || recipe.recipe_photo_url} alt={recipe?.recipeName || "Recipe"} />
+          </div>
+        ) : null}
         <div className="grid gap-3 sm:grid-cols-3">
           <MetricCard label="Ingredients" value={ingredients.length} helper="BOM rows" />
-          <MetricCard label="Serving Size" value={recipe?.servingSize || "1 portion"} helper="Yield basis" />
+          <MetricCard label="Total Recipe Cost" value={toCurrency(summary.totalCost)} helper="Ingredient + wastage" tone="success" />
           <MetricCard label="Status" value={toTitle(recipe?.status || "active")} helper="Recipe lifecycle" tone={statusTone(recipe?.status || "active")} />
         </div>
+        <div className="grid gap-3 sm:grid-cols-3">
+          <MetricCard label="Serving Size" value={recipe?.servingSize || "1 portion"} helper="Yield basis" size="compact" />
+          <MetricCard label="Ingredient Cost" value={toCurrency(summary.ingredientCost)} helper="Before wastage" size="compact" />
+          <MetricCard label="Estimated Wastage Cost" value={toCurrency(summary.wastageCost)} helper="Based on wastage %" tone={summary.wastageCost ? "warning" : "neutral"} size="compact" />
+        </div>
         <div className="overflow-x-auto rounded-2xl border border-border">
-          <table className="w-full min-w-[720px] text-left">
+          <table className="w-full min-w-[900px] text-left">
             <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
               <tr>
                 <th className="px-3 py-2">Inventory Item</th>
                 <th>Category</th>
                 <th>Qty Used</th>
                 <th>Unit</th>
+                <th>Unit Cost</th>
+                <th>Total Cost</th>
                 <th>Wastage %</th>
                 <th>Remark</th>
               </tr>
@@ -4304,12 +4559,15 @@ function RecipeDetailModal({ recipe, outlet, items, categories, onClose, onEdit 
               {ingredients.map((line) => {
                 const item = items.find((entry) => entry.id === line.itemId);
                 const category = categories.find((entry) => entry.id === item?.categoryId);
+                const cost = recipeIngredientCost(line, item);
                 return (
                   <tr key={line.id || line.itemId}>
                     <td className="px-3 py-2 font-bold text-text-primary">{item?.name || "Inventory item"}</td>
                     <td>{category?.name || "Uncategorized"}</td>
                     <td>{line.quantityUsed}</td>
                     <td>{line.unit || item?.unit || "-"}</td>
+                    <td>{toCurrency(cost.unitCost)}</td>
+                    <td>{toCurrency(cost.totalCost)}</td>
                     <td>{line.wastagePercent || 0}%</td>
                     <td>{line.remark || "-"}</td>
                   </tr>
@@ -6336,9 +6594,18 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   async function saveRecipe(recipe) {
     try {
+      let recipePhotoUrl = recipe.recipePhotoUrl || recipe.recipe_photo_url || "";
+      const hasNewPhotoFile = typeof File !== "undefined" && recipe.recipePhotoFile instanceof File;
+      if (hasNewPhotoFile) {
+        const uploadResult = await uploadRecipePhoto(recipe.recipePhotoFile, isUuid(recipe.id) ? recipe.id : "draft");
+        recipePhotoUrl = uploadResult.publicUrl;
+        debugLog("[RecipePhotoSaveDebug]", { recipeId: recipe.id || "new", uploadResult, error: null });
+      }
       const normalized = {
         ...recipe,
         recipeName: String(recipe.recipeName || "").trim(),
+        recipePhotoUrl,
+        recipe_photo_url: recipePhotoUrl,
         ingredients: (recipe.ingredients || []).map((line) => {
           const item = itemById.get(line.itemId);
           return {
@@ -6380,6 +6647,82 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       console.warn("[InventoryControl] Unable to archive recipe.", error);
       debugLog("[RecipeSaveDebug]", { action: "archive-recipe", recipeId, error });
       notify("Failed to archive Recipe", error.message || "Please try again.", "error");
+    }
+  }
+
+  async function saveMenuCategory(category) {
+    if (!requirePermission(can.manageRecipes, "manage recipe menu categories")) return;
+    try {
+      const savedCategory = await persistRemoteMenuCategory({
+        ...category,
+        sortOrder: Number(category.sortOrder ?? category.sort_order ?? 0)
+          || (data.menuCategories?.length ? Math.max(...data.menuCategories.map((entry) => Number(entry.sortOrder || 0))) + 1 : 1),
+      });
+      setData((current) => ({
+        ...current,
+        menuCategories: current.menuCategories?.some((entry) => entry.id === savedCategory.id)
+          ? current.menuCategories.map((entry) => entry.id === savedCategory.id ? savedCategory : entry)
+          : [...(current.menuCategories || []), savedCategory],
+      }));
+      await refreshInventory();
+      setModal({ type: "recipe-menu-categories" });
+      notify(isUuid(category.id) ? "Menu category updated" : "Menu category created");
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to save menu category.", error);
+      debugLog("[RecipeMenuCategoryDebug]", { action: "save", payload: category, error });
+      notify(isUuid(category.id) ? "Failed to update menu category" : "Failed to create menu category", error.message || "Please try again.", "error");
+    }
+  }
+
+  async function archiveMenuCategory(category) {
+    if (!requirePermission(can.manageRecipes, "archive recipe menu categories")) return;
+    try {
+      const savedCategory = await persistRemoteMenuCategory({ ...category, status: category.status === "active" ? "inactive" : "active" });
+      setData((current) => ({
+        ...current,
+        menuCategories: (current.menuCategories || []).map((entry) => entry.id === savedCategory.id ? savedCategory : entry),
+      }));
+      await refreshInventory();
+      notify(category.status === "active" ? "Menu category archived" : "Menu category activated");
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to archive menu category.", error);
+      debugLog("[RecipeMenuCategoryDebug]", { action: "archive", payload: category, error });
+      notify("Failed to update menu category", error.message || "Please try again.", "error");
+    }
+  }
+
+  async function sortMenuCategories(draggedId, targetId) {
+    if (!requirePermission(can.manageRecipes, "sort recipe menu categories")) return;
+    let sortedCategories = [];
+    setData((current) => {
+      const ordered = [...(current.menuCategories || [])].sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0) || a.name.localeCompare(b.name));
+      const fromIndex = ordered.findIndex((category) => category.id === draggedId);
+      const toIndex = ordered.findIndex((category) => category.id === targetId);
+      if (fromIndex < 0 || toIndex < 0) return current;
+      const [moved] = ordered.splice(fromIndex, 1);
+      ordered.splice(toIndex, 0, moved);
+      sortedCategories = ordered.map((category, index) => ({ ...category, sortOrder: index + 1 }));
+      const byId = new Map(sortedCategories.map((category) => [category.id, category]));
+      return {
+        ...current,
+        menuCategories: (current.menuCategories || []).map((category) => byId.get(category.id) || category),
+      };
+    });
+    try {
+      const results = await Promise.all(sortedCategories
+        .filter((category) => isUuid(category.id))
+        .map((category) => supabase
+          .from("inventory_menu_categories")
+          .update({ sort_order: category.sortOrder, updated_at: new Date().toISOString() })
+          .eq("id", category.id)));
+      const sortError = results.find((result) => result.error)?.error;
+      if (sortError) throw sortError;
+      await refreshInventory();
+      notify("Menu category order updated");
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to sort menu categories.", error);
+      notify("Failed to update menu category order", error.message || "Please try again.", "error");
+      await refreshInventory();
     }
   }
 
@@ -8050,6 +8393,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       return <EmptyState title="Permission required" description="You do not have permission to view Recipes & Usage." />;
     }
     const outletOptions = getAccessibleOutletOptions(auth, outlets);
+    const activeMenuCategories = (data.menuCategories?.length ? data.menuCategories : recipeMenuCategories.map((name, index) => mapRemoteMenuCategory({ id: `default_menu_${index + 1}`, name, sort_order: index + 1, status: "active" })))
+      .filter((category) => category.status === "active")
+      .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0) || a.name.localeCompare(b.name));
     const updateRecipeFilter = (key, value) => setRecipeFilters((current) => ({ ...current, [key]: value }));
     const filteredRecipes = data.recipes.filter((recipe) => {
       const outlet = outletById.get(recipe.outletId);
@@ -8064,7 +8410,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       <div className="space-y-4">
         <div className="card grid gap-3 p-3 lg:grid-cols-[220px_190px_170px_1fr] lg:items-end">
           <SelectField label="Outlet" value={selectedOutletId} options={outletOptions} onChange={setSelectedOutletId} searchable />
-          <SelectField label="Category" value={recipeFilters.category} options={[{ value: "all", label: "All Categories" }, ...recipeMenuCategories.map((category) => ({ value: category, label: category }))]} onChange={(value) => updateRecipeFilter("category", value)} />
+          <SelectField label="Category" value={recipeFilters.category} options={[{ value: "all", label: "All Categories" }, ...activeMenuCategories.map((category) => ({ value: category.name, label: category.name }))]} onChange={(value) => updateRecipeFilter("category", value)} />
           <SelectField label="Status" value={recipeFilters.status} options={[{ value: "all", label: "All Status" }, ...statuses.map((status) => ({ value: status, label: toTitle(status) }))]} onChange={(value) => updateRecipeFilter("status", value)} />
           <label>
             <div className="mb-1 type-caption font-semibold text-text-secondary">Search recipe/menu item</div>
@@ -8093,13 +8439,22 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                   {filteredRecipes.map((recipe) => (
                     <tr key={recipe.id} className="transition hover:bg-primary/5">
                       <td className="px-3 py-3">
-                        <div className="font-bold text-text-primary">{recipe.recipeName}</div>
-                        <div className="type-caption text-text-secondary">{recipe.servingSize || "1 portion"}</div>
+                        <div className="flex items-center gap-3">
+                          <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-2xl border border-border bg-slate-100">
+                            {recipe.recipePhotoUrl || recipe.recipe_photo_url
+                              ? <img className="h-full w-full object-cover" src={recipe.recipePhotoUrl || recipe.recipe_photo_url} alt={recipe.recipeName} />
+                              : <div className="flex h-full w-full items-center justify-center text-xs font-black text-text-muted">{String(recipe.recipeName || "R").slice(0, 1).toUpperCase()}</div>}
+                          </div>
+                          <div className="min-w-0">
+                            <div className="font-bold text-text-primary">{recipe.recipeName}</div>
+                            <div className="type-caption text-text-secondary">{recipe.servingSize || "1 portion"}</div>
+                          </div>
+                        </div>
                       </td>
                       <td>{outletById.get(recipe.outletId)?.name || "Outlet"}</td>
                       <td><Badge tone="info">{recipe.menuCategory || "Uncategorized"}</Badge></td>
                       <td>{(recipe.ingredients || []).length} ingredient{(recipe.ingredients || []).length === 1 ? "" : "s"}</td>
-                      <td className="font-semibold text-text-secondary">Not priced</td>
+                      <td className="font-semibold text-text-primary">{toCurrency(recipeCostSummary(recipe, data.items).totalCost)}</td>
                       <td><Badge tone={statusTone(recipe.status)}>{toTitle(recipe.status || "active")}</Badge></td>
                       <td>
                         <div className="flex justify-end gap-2">
@@ -8120,7 +8475,20 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                 description="Create recipes to connect menu items with inventory ingredients and estimate future usage variance."
               />
               <div className="flex justify-center">
-                <button className="btn-primary" type="button" onClick={() => requirePermission(can.manageRecipes, "add recipes") && setModal({ type: "recipe" })}>Add Recipe</button>
+                <button
+                  className="btn-primary"
+                  type="button"
+                  onClick={() => {
+                    if (!requirePermission(can.manageRecipes, "add recipes")) return;
+                    if (selectedOutletId === "all") {
+                      notify("Select an outlet before adding a recipe", "Recipes are outlet-specific and use the currently selected outlet context.", "warning");
+                      return;
+                    }
+                    setModal({ type: "recipe", outletId: selectedOutletId });
+                  }}
+                >
+                  Add Recipe
+                </button>
               </div>
             </div>
           )}
@@ -8194,10 +8562,19 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       return <button className="btn-primary" type="button" onClick={openRecordWaste}>Record Waste</button>;
     }
     if (activeTab === "recipes") {
+      const openAddRecipe = () => {
+        if (!requirePermission(can.manageRecipes, "add recipes")) return;
+        if (selectedOutletId === "all") {
+          notify("Select an outlet before adding a recipe", "Recipes are outlet-specific and use the currently selected outlet context.", "warning");
+          return;
+        }
+        setModal({ type: "recipe", outletId: selectedOutletId });
+      };
       return (
         <>
           <button className="btn-secondary" type="button" onClick={exportRecipes}><Download size={15} /> Export</button>
-          <button className="btn-primary" type="button" onClick={() => requirePermission(can.manageRecipes, "add recipes") && setModal({ type: "recipe" })}><PackagePlus size={15} /> Add Recipe</button>
+          <button className="btn-secondary" type="button" onClick={() => requirePermission(can.manageRecipes, "manage recipe menu categories") && setModal({ type: "recipe-menu-categories" })}>Menu Categories</button>
+          <button className="btn-primary" type="button" onClick={openAddRecipe}><PackagePlus size={15} /> Add Recipe</button>
         </>
       );
     }
@@ -8305,10 +8682,31 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       {modal?.type === "recipe" ? (
         <RecipeModal
           recipe={modal.recipe}
-          outlets={outlets}
+          outletId={modal.recipe?.outletId || modal.outletId || selectedOutletId}
+          outlet={outletById.get(modal.recipe?.outletId || modal.outletId || selectedOutletId)}
           items={data.items}
+          menuCategories={data.menuCategories || []}
           onClose={() => setModal(null)}
           onSave={saveRecipe}
+        />
+      ) : null}
+      {modal?.type === "recipe-menu-categories" ? (
+        <MenuCategorySettingsModal
+          categories={data.menuCategories || []}
+          canManage={can.manageRecipes}
+          requirePermission={requirePermission}
+          onClose={() => setModal(null)}
+          onAdd={() => setModal({ type: "recipe-menu-category", returnToSettings: true })}
+          onEdit={(category) => setModal({ type: "recipe-menu-category", category, returnToSettings: true })}
+          onArchive={archiveMenuCategory}
+          onSort={sortMenuCategories}
+        />
+      ) : null}
+      {modal?.type === "recipe-menu-category" ? (
+        <MenuCategoryModal
+          category={modal.category}
+          onClose={() => setModal(modal.returnToSettings ? { type: "recipe-menu-categories" } : null)}
+          onSave={saveMenuCategory}
         />
       ) : null}
       {modal?.type === "recipe-detail" ? (

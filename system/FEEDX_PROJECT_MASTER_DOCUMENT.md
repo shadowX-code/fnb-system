@@ -1992,7 +1992,7 @@ Inventory Control persistence audit:
 Status as of 30 May 2026:
 
 - Source file audited: `src/features/sales-purchase/pages/InventoryControlPage.jsx`.
-- Linked Supabase schema contains: `inventory_items`, `inventory_categories`, `inventory_uoms`, `inventory_item_outlets`, `inventory_item_outlet_suppliers`, `inventory_stock_check_groups`, `inventory_stock_check_group_categories`, `inventory_stock_checks`, `inventory_stock_check_items`, `inventory_purchase_orders`, `inventory_purchase_order_items`, `inventory_purchase_receipts`, `inventory_purchase_receipt_items`, `inventory_movements`, `inventory_waste_records`, `inventory_recipes`, and `inventory_recipe_items`.
+- Linked Supabase schema contains: `inventory_items`, `inventory_categories`, `inventory_uoms`, `inventory_item_outlets`, `inventory_item_outlet_suppliers`, `inventory_stock_check_groups`, `inventory_stock_check_group_categories`, `inventory_stock_checks`, `inventory_stock_check_items`, `inventory_purchase_orders`, `inventory_purchase_order_items`, `inventory_purchase_receipts`, `inventory_purchase_receipt_items`, `inventory_movements`, `inventory_waste_records`, `inventory_menu_categories`, `inventory_recipes`, and `inventory_recipe_items`.
 - All current Inventory Control persistence tables exist in linked staging Supabase.
 - P0-2 browser verification passed on 29 May 2026: scheduled Stock Check draft/save/refresh/resume/submit/View Result and Audit Stock Check draft/save/refresh/resume/submit/View Audit Result persisted through Supabase. Audit results did not expose Purchase Suggestions.
 - P0-3 browser verification passed on 29 May 2026: submitted scheduled Stock Check shortage rows opened in Purchase Suggestions, supplier-backed Draft PO creation persisted through Supabase, the Draft PO and item rows remained after refresh in Purchase Orders, the source Stock Check changed to View Draft PO / duplicate-prevention state, and Audit Stock Check records did not expose Purchase Suggestions.
@@ -2513,6 +2513,7 @@ Recipe fields:
 - outlet_id
 - recipe_name
 - menu_category
+- recipe_photo_url
 - serving_size
 - status
 - notes
@@ -2535,9 +2536,15 @@ Recipe item fields:
 Rules:
 
 - Recipes are outlet-scoped.
+- Add Recipe uses the currently selected Recipes & Usage outlet filter as its outlet context; the Add/Edit Recipe modal does not ask for outlet again.
+- Menu Category Settings supports create, edit, archive, and sort for `inventory_menu_categories`; active menu categories populate recipe forms and filters.
 - Recipe ingredient selectors only show active inventory items linked to the selected outlet.
 - Multiple ingredients are supported per recipe.
 - Unit follows the selected inventory item unit.
+- Recipe photo upload stores a public photo URL in `inventory_recipes.recipe_photo_url` and recipe list rows display a thumbnail when available.
+- Ingredient rows show Inventory Item, Qty Used, Unit, Unit Cost, Total Cost, Wastage %, and Remark.
+- Unit Cost reads from `inventory_items.cost`; Total Cost is `Qty Used × Unit Cost`.
+- Recipe Summary calculates Ingredient Cost, Estimated Wastage Cost, and Total Recipe Cost in real time.
 - Add Recipe writes to `inventory_recipes` and `inventory_recipe_items`; success is shown only after Supabase confirms the recipe and ingredient rows.
 - Edit Recipe updates the recipe row and replaces its ingredient snapshot rows in `inventory_recipe_items`.
 - Archive Recipe sets `inventory_recipes.status = inactive`; inactive recipes are hidden from the default Active filter but remain available for audit/history when filtering by status.
