@@ -3719,7 +3719,8 @@ Password recovery:
 - Show Set New Password screen and replace callback tokens with `/setup-password`.
 - Block dashboard/app routes while employee access is not active.
 - Call `supabase.auth.updateUser({ password })`.
-- Call `complete_employee_password_setup()` to set `access_state = active`, `setup_completed_at`, and login metadata.
+- For pending employee setup, call `complete_employee_password_setup()` to set `access_state = active`, `setup_completed_at`, and login metadata.
+- For normal Forgot Password recovery on an already-active employee, do not call the setup-completion RPC; reload the active user context after the password update succeeds.
 - Clear tokens.
 - Refresh profile.
 - Redirect to app/login.

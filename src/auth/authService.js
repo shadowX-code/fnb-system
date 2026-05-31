@@ -90,6 +90,11 @@ async function completeEmployeePasswordSetup(user) {
   return profile;
 }
 
+async function requiresEmployeePasswordSetup(user) {
+  const profile = await loadEmployeeProfile(user);
+  return Boolean(profile?.source === "employees" && profile.access_state !== EMPLOYEE_ACCESS_STATE.ACTIVE);
+}
+
 async function loadLegacyUserProfile(user) {
   const queryProfile = (select) => supabase
     .from("user_profiles")
@@ -153,7 +158,8 @@ export const authService = {
   },
 
   async resetPassword(email) {
-    const { error } = await supabase.auth.resetPasswordForEmail(email);
+    const redirectTo = typeof window !== "undefined" ? `${window.location.origin}/setup-password` : undefined;
+    const { error } = await supabase.auth.resetPasswordForEmail(email, redirectTo ? { redirectTo } : undefined);
     if (error) throw error;
   },
 
@@ -165,6 +171,10 @@ export const authService = {
 
   async completeEmployeePasswordSetup(user) {
     return completeEmployeePasswordSetup(user);
+  },
+
+  async requiresEmployeePasswordSetup(user) {
+    return requiresEmployeePasswordSetup(user);
   },
 
   isPasswordSetupRequiredError(error) {

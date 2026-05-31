@@ -221,16 +221,16 @@ export default function LoginPage() {
 
   async function handleResetPassword() {
     if (!email) {
-      setError("Enter your email first, then request a password setup link.");
+      setError("Enter your email first, then request a password reset link.");
       return;
     }
     setError("");
     setMessage("");
     try {
       await auth.resetPassword(email);
-      setMessage("Password setup email sent.");
+      setMessage("Password reset email sent.");
     } catch (resetError) {
-      setError(resetError.message || "Unable to send password setup email.");
+      setError(resetError.message || "Unable to send password reset email.");
     }
   }
 

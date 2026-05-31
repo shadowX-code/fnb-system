@@ -115,6 +115,26 @@ Test employee: `Phoenix Wong Kar Yan` (`Phoenix`) was used for reversible stagin
 | Save guard | Pass | Save remains disabled until current password is filled, the new password passes requirements, and confirmation matches. |
 | Error wording | Pass | Wrong current password is normalized to `Current password is incorrect.` instead of a generic Supabase error. |
 
+## Forgot Password UAT - 31 May 2026
+
+| Step | Result | Notes |
+|---|---:|---|
+| Forgot password link opens reset flow | Pass | Login page exposes `Forgot password?`; requesting a reset calls Supabase `resetPasswordForEmail`. |
+| Reset email sent | Pending mailbox UAT | Code path sends reset through Supabase Auth. Real mailbox delivery requires access to the recipient inbox/SMTP event logs. |
+| Email contains valid reset link | Pending mailbox UAT | Frontend now passes `redirectTo = APP_ORIGIN/setup-password` for forgot-password reset links. |
+| Link opens Reset Password page | Code verified | Auth context accepts Supabase `type=recovery` callback tokens, establishes a temporary setup/reset session, and renders the password page. |
+| Refresh stays on Reset Password page | Code verified | Callback tokens are normalized to `/setup-password`; if the temporary session remains, password reset mode is preserved and app routes are not shown before completion. |
+| Dashboard blocked before reset completion | Pass | Password recovery/setup sessions render only the password page and skip dashboard/master-data loading. |
+| Password update succeeds | Pending live UAT | Requires using a real reset link and intentionally changing a test account password. |
+| Old password rejected | Pending live UAT | Requires changing a real test account password and attempting old-password login. |
+| New password accepted | Pending live UAT | Requires changing a real test account password and logging in with the new password. |
+| Expired link handled | Code verified | Invalid/expired recovery tokens fail session establishment and do not produce the app Access Error page; the app falls back to login. |
+| No Access Error during valid reset flow | Code verified | Recovery sessions set `passwordRecovery = true`, so `SetNewPasswordPage` renders before user-context permission loading. |
+
+Fixes from this pass:
+- Forgot-password reset links now redirect to `/setup-password`.
+- Active-user password recovery no longer calls the employee setup-completion RPC; that RPC is only used when the employee record is still pending setup.
+
 ## Bugs Fixed
 
 | Severity | Bug | Fix |

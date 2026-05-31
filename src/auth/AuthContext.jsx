@@ -167,7 +167,10 @@ export function AuthProvider({ children }) {
     setError("");
     await authService.updatePassword(newPassword);
     const setupSession = await authService.getSession();
-    await authService.completeEmployeePasswordSetup(setupSession?.user ?? user);
+    const setupUser = setupSession?.user ?? user;
+    if (await authService.requiresEmployeePasswordSetup(setupUser)) {
+      await authService.completeEmployeePasswordSetup(setupUser);
+    }
     clearAuthCallbackUrl();
     passwordRecoveryRef.current = false;
     setPasswordRecovery(false);
