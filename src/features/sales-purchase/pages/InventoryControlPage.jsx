@@ -4621,7 +4621,7 @@ function formatRecipeMargin(margin) {
 
 function RecipeIntelligencePlaceholder({ title, description }) {
   return (
-    <div className="flex min-h-[180px] items-center justify-center rounded-2xl border border-dashed border-border bg-slate-50/70 p-4 text-center">
+    <div className="flex min-h-[180px] items-center justify-center rounded-2xl border border-dashed border-border bg-slate-50/70 p-4 text-center dark:bg-white/5">
       <div>
         <div className="type-title font-black text-text-primary">{title}</div>
         <p className="mt-1 max-w-md type-body-sm text-text-secondary">{description}</p>
@@ -4630,14 +4630,119 @@ function RecipeIntelligencePlaceholder({ title, description }) {
   );
 }
 
-function RecipeIntelligenceCard({ title, description, children }) {
+function RecipeIntelligenceCard({ title, description, children, showViewAll = false }) {
   return (
-    <div className="rounded-3xl border border-border bg-background p-4 shadow-sm">
-      <div>
-        <div className="type-title font-black text-text-primary">{title}</div>
-        <p className="mt-1 type-body-sm text-text-secondary">{description}</p>
+    <div className="rounded-3xl border border-border bg-background p-4 shadow-sm dark:bg-white/5">
+      <div className="flex items-start justify-between gap-3">
+        <div>
+          <div className="type-title font-black text-text-primary">{title}</div>
+          <p className="mt-1 type-body-sm text-text-secondary">{description}</p>
+        </div>
+        {showViewAll ? <button className="type-caption font-black text-primary hover:underline" type="button">View All</button> : null}
       </div>
       <div className="mt-4">{children}</div>
+    </div>
+  );
+}
+
+function RecipeInsightBadge({ classification }) {
+  const tone = classification === "Star" ? "success" : classification === "Puzzle" ? "info" : classification === "Workhorse" ? "warning" : "danger";
+  return <Badge tone={tone}>{classification}</Badge>;
+}
+
+function classifyMenuEngineeringRow(row, averageVolume, averageMargin) {
+  const highVolume = Number(row.salesVolume || 0) >= Number(averageVolume || 0);
+  const highMargin = Number(row.margin || 0) >= Number(averageMargin || 0);
+  if (highVolume && highMargin) {
+    return {
+      classification: "Star",
+      impact: "High",
+      reason: "High volume and high margin.",
+      action: "Protect availability and keep promoting.",
+    };
+  }
+  if (highVolume && !highMargin) {
+    return {
+      classification: "Workhorse",
+      impact: "High",
+      reason: "Strong volume but margin trails the average.",
+      action: "Review ingredient cost, portioning, or price.",
+    };
+  }
+  if (!highVolume && highMargin) {
+    return {
+      classification: "Puzzle",
+      impact: "Medium",
+      reason: "Good margin but lower sales volume.",
+      action: "Improve placement, bundling, or staff recommendation.",
+    };
+  }
+  return {
+    classification: "Dog",
+    impact: "Low",
+    reason: "Low volume and low margin.",
+    action: "Consider simplifying, repricing, or retiring.",
+  };
+}
+
+function RecipeInsightsPanel({ rows = [] }) {
+  if (!rows.length) {
+    return (
+      <RecipeIntelligenceCard title="Recipe Insights" description="Actionable classification will appear when mapped sales data is available.">
+        <RecipeIntelligencePlaceholder
+          title="No reliable insights yet"
+          description="Map recipes to Product Analytics products to classify Star, Workhorse, Puzzle and Dog recipes."
+        />
+      </RecipeIntelligenceCard>
+    );
+  }
+  const averageVolume = rows.reduce((sum, row) => sum + Number(row.salesVolume || 0), 0) / rows.length;
+  const averageMargin = rows.reduce((sum, row) => sum + Number(row.margin || 0), 0) / rows.length;
+  const ranked = rows
+    .map((row) => ({ ...row, ...classifyMenuEngineeringRow(row, averageVolume, averageMargin) }))
+    .sort((a, b) => {
+      const priority = { Star: 0, Workhorse: 1, Puzzle: 2, Dog: 3 };
+      return priority[a.classification] - priority[b.classification] || Number(b.revenue || 0) - Number(a.revenue || 0);
+    })
+    .slice(0, 5);
+  return (
+    <RecipeIntelligenceCard title="Recipe Insights" description="Top actions from the mapped Product Analytics period.">
+      <div className="space-y-3">
+        {ranked.map((row) => (
+          <div key={`${row.id}-${row.classification}`} className="rounded-2xl border border-border bg-slate-50/80 p-3 dark:bg-white/5">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <div className="font-black text-text-primary">{recipeNameEn(row.recipe) || row.label}</div>
+                <div className="type-caption text-text-muted">{row.salesVolume.toLocaleString()} sold · {toCurrency(row.revenue)} revenue</div>
+              </div>
+              <RecipeInsightBadge classification={row.classification} />
+            </div>
+            <p className="mt-2 type-body-sm text-text-secondary">{row.reason}</p>
+            <div className="mt-2 rounded-xl bg-background/80 p-2 type-caption text-text-secondary dark:bg-black/20">
+              <span className="font-black text-text-primary">Recommended action:</span> {row.action}
+            </div>
+            <div className="mt-2 type-caption font-bold text-text-muted">Impact: {row.impact}</div>
+          </div>
+        ))}
+      </div>
+    </RecipeIntelligenceCard>
+  );
+}
+
+function RecipeIntelligenceLockedState({ mappedCount }) {
+  const remaining = Math.max(10 - Number(mappedCount || 0), 0);
+  return (
+    <div className="flex min-h-[300px] items-center justify-center rounded-3xl border border-amber-200 bg-amber-50/80 p-6 text-center shadow-inner dark:border-amber-400/30 dark:bg-amber-950/30">
+      <div className="max-w-md">
+        <div className="mx-auto flex h-14 w-14 items-center justify-center rounded-2xl bg-amber-200/80 text-amber-900 dark:bg-amber-400/20 dark:text-amber-100">
+          <Sparkles size={24} />
+        </div>
+        <div className="mt-4 type-title font-black text-text-primary">Need at least 10 mapped recipes</div>
+        <p className="mt-1 type-body-sm text-text-secondary">Menu Engineering needs enough mapped products to avoid noisy management decisions.</p>
+        <p className="mt-3 type-body-sm font-bold text-amber-800 dark:text-amber-100">
+          Map {remaining} more {remaining === 1 ? "recipe" : "recipes"} to unlock reliable matrix insights.
+        </p>
+      </div>
     </div>
   );
 }
@@ -4669,33 +4774,38 @@ function RecipeBarChart({ rows = [], valueFormatter = (value) => value, emptyTit
   );
 }
 
-function RecipeMappingHealth({ mapped, unmapped, loading }) {
+function RecipeMappingHealth({ mapped, unmapped, totalRecipes, loading }) {
   const total = mapped + unmapped;
   const coverage = total ? Math.round((mapped / total) * 100) : 0;
   return (
-    <div className="rounded-2xl border border-border bg-background p-3">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
+    <div className="overflow-hidden rounded-3xl border border-primary/15 bg-gradient-to-br from-primary/10 via-background to-emerald-50 p-4 shadow-sm dark:from-emerald-400/10 dark:via-white/5 dark:to-cyan-400/10">
+      <div className="flex flex-wrap items-start justify-between gap-4">
+        <div className="min-w-0">
           <div className="type-caption font-black uppercase tracking-wide text-text-muted">Recipe Mapping Health</div>
-          <div className="mt-1 type-title font-black text-text-primary">{coverage}% coverage</div>
+          <div className="mt-1 text-3xl font-black text-text-primary">{coverage}%</div>
+          <p className="mt-1 max-w-xl type-body-sm text-text-secondary">You’re almost there. Map more recipes to unlock full menu insights.</p>
         </div>
         {loading ? <Badge tone="info">Loading</Badge> : <Badge tone={coverage >= 80 ? "success" : coverage >= 40 ? "warning" : "neutral"}>{mapped} mapped</Badge>}
       </div>
-      <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-100">
-        <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${coverage}%` }} />
+      <div className="mt-4 h-3 overflow-hidden rounded-full bg-white/80 shadow-inner dark:bg-black/30">
+        <div className="h-full rounded-full bg-gradient-to-r from-primary to-emerald-500 transition-all" style={{ width: `${coverage}%` }} />
       </div>
-      <div className="mt-3 grid grid-cols-3 gap-2 text-center type-caption">
-        <div className="rounded-xl bg-slate-50 p-2">
+      <div className="mt-4 grid grid-cols-2 gap-2 text-center type-caption sm:grid-cols-4">
+        <div className="rounded-2xl border border-white/60 bg-white/75 p-3 shadow-sm dark:border-white/10 dark:bg-white/5">
           <div className="font-black text-text-primary">{mapped}</div>
           <div className="font-semibold text-text-muted">Mapped</div>
         </div>
-        <div className="rounded-xl bg-slate-50 p-2">
+        <div className="rounded-2xl border border-white/60 bg-white/75 p-3 shadow-sm dark:border-white/10 dark:bg-white/5">
           <div className="font-black text-text-primary">{unmapped}</div>
           <div className="font-semibold text-text-muted">Unmapped</div>
         </div>
-        <div className="rounded-xl bg-slate-50 p-2">
+        <div className="rounded-2xl border border-white/60 bg-white/75 p-3 shadow-sm dark:border-white/10 dark:bg-white/5">
           <div className="font-black text-text-primary">{coverage}%</div>
           <div className="font-semibold text-text-muted">Coverage %</div>
+        </div>
+        <div className="rounded-2xl border border-white/60 bg-white/75 p-3 shadow-sm dark:border-white/10 dark:bg-white/5">
+          <div className="font-black text-text-primary">{total || 0} / {totalRecipes || 0}</div>
+          <div className="font-semibold text-text-muted">Products / Recipes</div>
         </div>
       </div>
     </div>
@@ -4718,27 +4828,48 @@ function RecipeMenuEngineeringMatrix({ rows = [] }) {
   const averageVolumeX = 10 + (averageVolume / maxVolume) * 80;
   const averageMarginY = 86 - Math.max(0, Math.min(100, averageMargin));
   return (
-    <div className="relative h-64 rounded-2xl border border-border bg-slate-50 p-4">
-      <div className="absolute left-4 top-3 type-caption font-black uppercase tracking-wide text-text-muted">Margin %</div>
-      <div className="absolute bottom-3 right-4 type-caption font-black uppercase tracking-wide text-text-muted">Sales Volume</div>
-      <div className="absolute inset-x-10 bottom-10 top-8 border-l border-b border-border" />
-      <div className="absolute bottom-10 top-8 border-l border-dashed border-text-muted/40" style={{ left: `${averageVolumeX}%` }} />
-      <div className="absolute left-10 right-10 border-t border-dashed border-text-muted/40" style={{ top: `${averageMarginY}%` }} />
-      <div className="absolute right-5 top-8 type-caption font-black text-emerald-700">Star</div>
-      <div className="absolute left-12 top-8 type-caption font-black text-amber-700">Puzzle</div>
-      <div className="absolute bottom-12 right-5 type-caption font-black text-blue-700">Workhorse</div>
-      <div className="absolute bottom-12 left-12 type-caption font-black text-rose-700">Dog</div>
+    <div className="relative h-[360px] overflow-hidden rounded-3xl border border-border bg-slate-950 p-4 shadow-inner dark:bg-slate-950">
+      <div className="absolute inset-x-10 bottom-12 top-10 overflow-hidden rounded-2xl border border-white/10">
+        <div className="absolute left-0 top-0 h-1/2 w-1/2 bg-amber-400/10" />
+        <div className="absolute right-0 top-0 h-1/2 w-1/2 bg-emerald-400/10" />
+        <div className="absolute bottom-0 left-0 h-1/2 w-1/2 bg-rose-400/10" />
+        <div className="absolute bottom-0 right-0 h-1/2 w-1/2 bg-sky-400/10" />
+      </div>
+      <div className="absolute left-4 top-3 type-caption font-black uppercase tracking-wide text-slate-300">Margin %</div>
+      <div className="absolute bottom-4 right-4 type-caption font-black uppercase tracking-wide text-slate-300">Qty Sold</div>
+      <div className="absolute bottom-12 top-10 border-l border-dashed border-white/35" style={{ left: `${averageVolumeX}%` }} />
+      <div className="absolute left-10 right-10 border-t border-dashed border-white/35" style={{ top: `${averageMarginY}%` }} />
+      <div className="absolute right-14 top-14 rounded-full bg-emerald-400/15 px-2 py-1 type-caption font-black text-emerald-100">Star</div>
+      <div className="absolute left-14 top-14 rounded-full bg-amber-400/15 px-2 py-1 type-caption font-black text-amber-100">Puzzle</div>
+      <div className="absolute bottom-16 right-14 rounded-full bg-sky-400/15 px-2 py-1 type-caption font-black text-sky-100">Workhorse</div>
+      <div className="absolute bottom-16 left-14 rounded-full bg-rose-400/15 px-2 py-1 type-caption font-black text-rose-100">Dog</div>
       {rows.map((row) => {
         const x = 10 + (Number(row.salesVolume || 0) / maxVolume) * 80;
         const y = 86 - Math.max(0, Math.min(100, Number(row.margin || 0)));
         const size = 18 + (Number(row.revenue || 0) / maxRevenue) * 34;
+        const cost = Number(row.recipeCost || 0);
+        const price = Number(row.sellingPrice || 0);
         return (
           <div
             key={row.id}
-            className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-primary/80 shadow-sm"
-            title={`${row.label}: ${row.salesVolume} sales, ${formatRecipeMargin(row.margin)}, ${toCurrency(row.revenue)}`}
+            className="group absolute -translate-x-1/2 -translate-y-1/2"
             style={{ left: `${x}%`, top: `${y}%`, height: size, width: size }}
-          />
+            title={`${row.label}: ${row.salesVolume} sold, ${toCurrency(row.revenue)} revenue, ${formatRecipeMargin(row.margin)} margin`}
+          >
+            <div className="h-full w-full rounded-full border-2 border-white/80 bg-primary shadow-[0_0_22px_rgba(34,197,94,0.55)] ring-4 ring-primary/25" />
+            <div className="pointer-events-none absolute left-full top-1/2 ml-2 hidden w-48 -translate-y-1/2 rounded-2xl border border-white/15 bg-slate-900/95 p-3 text-left text-xs text-white shadow-2xl group-hover:block">
+              <div className="font-black">{recipeNameEn(row.recipe) || row.label}</div>
+              <div className="mt-1 text-slate-300">Qty Sold: {Number(row.salesVolume || 0).toLocaleString()}</div>
+              <div className="text-slate-300">Revenue: {toCurrency(row.revenue)}</div>
+              <div className="text-slate-300">Cost: {toCurrency(cost)}</div>
+              <div className="text-slate-300">Price: {toCurrency(price)}</div>
+              <div className="text-slate-300">Profit: {toCurrency(row.profitPerServing)}</div>
+              <div className="text-slate-300">Margin: {formatRecipeMargin(row.margin)}</div>
+            </div>
+            <div className="absolute left-full top-1/2 ml-2 max-w-[110px] -translate-y-1/2 truncate rounded-full bg-white/90 px-2 py-0.5 type-caption font-black text-slate-900 shadow-sm">
+              {row.label}
+            </div>
+          </div>
         );
       })}
     </div>
@@ -9302,6 +9433,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         matchedProductKeys.add(matchKey);
         const product = productSalesByName.get(matchKey);
         const { recipe, margin } = recipeRow;
+        const recipeCost = Number(recipeRow.summary.totalCost || 0);
+        const sellingPrice = Number(recipe.sellingPrice ?? recipe.selling_price ?? 0);
         return {
           id: recipe.id,
           label: recipeCode(recipe) || recipeNameEn(recipe) || recipeNameCn(recipe),
@@ -9309,7 +9442,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           salesVolume: product.quantity,
           revenue: product.revenue,
           margin,
-          profitPerServing: Number(recipe.sellingPrice || 0) - Number(recipeRow.summary.totalCost || 0),
+          recipeCost,
+          sellingPrice,
+          profitPerServing: sellingPrice - recipeCost,
         };
       })
       .filter((row) => row && row.salesVolume > 0 && row.revenue > 0 && row.margin !== null && Number.isFinite(Number(row.margin)));
@@ -9350,6 +9485,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       .filter((row) => row.margin !== null && Number.isFinite(Number(row.margin)))
       .sort((a, b) => Number(a.margin) - Number(b.margin))
       .slice(0, 6);
+    const reliableMenuEngineeringRows = mappedRecipeCount >= 10 ? menuEngineeringRows : [];
     return (
       <div className="space-y-4">
         <div className="card grid gap-3 p-3 lg:grid-cols-[220px_190px_170px_1fr] lg:items-end">
@@ -9547,7 +9683,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           subtitle="Identify profitable menu items, highest cost recipes and key ingredient cost drivers."
         >
           <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-end">
-            <RecipeMappingHealth mapped={mappedRecipeCount} unmapped={unmappedProductCount} loading={recipeProductLoading} />
+            <RecipeMappingHealth mapped={mappedRecipeCount} unmapped={unmappedProductCount} totalRecipes={mappingCandidateRecipes.length} loading={recipeProductLoading} />
             <SelectField
               label="Analysis Period"
               value={recipeAnalysisPeriod}
@@ -9555,23 +9691,24 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               onChange={setRecipeAnalysisPeriod}
             />
           </div>
-          <div className="grid gap-4 lg:grid-cols-2">
+          <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)]">
             <RecipeIntelligenceCard
               title="Menu Engineering Matrix"
               description="Product Analytics source: X = Qty Sold, Y = Margin %, bubble size = Revenue."
             >
               {mappedRecipeCount < 10 ? (
-                <RecipeIntelligencePlaceholder
-                  title="Need at least 10 mapped recipes."
-                  description="Map more Product Analytics items to recipes before plotting a reliable menu engineering matrix."
-                />
+                <RecipeIntelligenceLockedState mappedCount={mappedRecipeCount} />
               ) : (
                 <RecipeMenuEngineeringMatrix rows={menuEngineeringRows} />
               )}
             </RecipeIntelligenceCard>
+            <RecipeInsightsPanel rows={reliableMenuEngineeringRows} />
+          </div>
+          <div className="mt-4 grid gap-4 lg:grid-cols-2">
             <RecipeIntelligenceCard
               title="Top Margin Products"
               description="Highest margin recipes within the selected outlet and filters."
+              showViewAll
             >
               <RecipeRankingTable
                 rows={topMarginRows}
@@ -9587,11 +9724,14 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             <RecipeIntelligenceCard
               title="Highest Cost Ingredients"
               description="Ingredient cost drivers aggregated across visible recipes."
+              showViewAll
             >
-              <RecipeBarChart
+              <RecipeRankingTable
                 rows={highestCostIngredientRows}
-                valueFormatter={toCurrency}
-                tone="warning"
+                columns={[
+                  { key: "ingredient", label: "Ingredient", render: (row) => <div className="font-bold text-text-primary">{row.label}</div> },
+                  { key: "cost", label: "Cost Contribution", render: (row) => <span className="font-black text-text-primary">{toCurrency(row.value)}</span> },
+                ]}
                 emptyTitle="No ingredient cost data yet"
                 emptyDescription="Add recipe ingredients with inventory costs to identify cost drivers."
               />
@@ -9599,6 +9739,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             <RecipeIntelligenceCard
               title="Top Revenue Recipes"
               description="Mapped recipes ranked by Product Analytics revenue."
+              showViewAll
             >
               <RecipeRankingTable
                 rows={topRevenueRows}
@@ -9611,8 +9752,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               />
             </RecipeIntelligenceCard>
             <RecipeIntelligenceCard
-              title="Lowest Margin Recipes"
+              title="Lowest Margin Products"
               description="Lowest priced margins sorted ascending."
+              showViewAll
             >
               <RecipeRankingTable
                 rows={lowestMarginRows}
