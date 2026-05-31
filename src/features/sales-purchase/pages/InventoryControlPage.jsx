@@ -4637,6 +4637,39 @@ function RecipeBarChart({ rows = [], valueFormatter = (value) => value, emptyTit
   );
 }
 
+function RecipeMappingHealth({ mapped, unmapped, loading }) {
+  const total = mapped + unmapped;
+  const coverage = total ? Math.round((mapped / total) * 100) : 0;
+  return (
+    <div className="rounded-2xl border border-border bg-background p-3">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <div className="type-caption font-black uppercase tracking-wide text-text-muted">Recipe Mapping Health</div>
+          <div className="mt-1 type-title font-black text-text-primary">{coverage}% coverage</div>
+        </div>
+        {loading ? <Badge tone="info">Loading</Badge> : <Badge tone={coverage >= 80 ? "success" : coverage >= 40 ? "warning" : "neutral"}>{mapped} mapped</Badge>}
+      </div>
+      <div className="mt-3 h-3 overflow-hidden rounded-full bg-slate-100">
+        <div className="h-full rounded-full bg-primary transition-all" style={{ width: `${coverage}%` }} />
+      </div>
+      <div className="mt-3 grid grid-cols-3 gap-2 text-center type-caption">
+        <div className="rounded-xl bg-slate-50 p-2">
+          <div className="font-black text-text-primary">{mapped}</div>
+          <div className="font-semibold text-text-muted">Mapped</div>
+        </div>
+        <div className="rounded-xl bg-slate-50 p-2">
+          <div className="font-black text-text-primary">{unmapped}</div>
+          <div className="font-semibold text-text-muted">Unmapped</div>
+        </div>
+        <div className="rounded-xl bg-slate-50 p-2">
+          <div className="font-black text-text-primary">{coverage}%</div>
+          <div className="font-semibold text-text-muted">Coverage %</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function RecipeMenuEngineeringMatrix({ rows = [] }) {
   if (!rows.length) {
     return (
@@ -4676,6 +4709,36 @@ function RecipeMenuEngineeringMatrix({ rows = [] }) {
           />
         );
       })}
+    </div>
+  );
+}
+
+function RecipeRankingTable({ rows = [], columns = [], emptyTitle, emptyDescription }) {
+  if (!rows.length) {
+    return <RecipeIntelligencePlaceholder title={emptyTitle} description={emptyDescription} />;
+  }
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-border">
+      <table className="w-full min-w-[520px] text-left text-[13px]">
+        <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
+          <tr>
+            {columns.map((column, index) => (
+              <th key={column.key} className={index === 0 ? "px-3 py-2" : "py-2"}>{column.label}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-border">
+          {rows.map((row) => (
+            <tr key={row.id || row.label}>
+              {columns.map((column, index) => (
+                <td key={column.key} className={index === 0 ? "px-3 py-2" : "py-2"}>
+                  {column.render ? column.render(row) : row[column.key]}
+                </td>
+              ))}
+            </tr>
+          ))}
+        </tbody>
+      </table>
     </div>
   );
 }
@@ -8958,9 +9021,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         return {
           id: recipe.id,
           label: recipeCode(recipe) || recipeNameEn(recipe) || recipeNameCn(recipe),
+          recipe,
           salesVolume: product.quantity,
           revenue: product.revenue,
           margin,
+          profitPerServing: Number(recipe.sellingPrice || 0) - Number(recipeRow.summary.totalCost || 0),
         };
       })
       .filter((row) => row && row.salesVolume > 0 && row.revenue > 0 && row.margin !== null && Number.isFinite(Number(row.margin)));
@@ -8972,11 +9037,16 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       .filter((row) => row.margin !== null && Number.isFinite(Number(row.margin)))
       .sort((a, b) => Number(b.margin) - Number(a.margin))
       .slice(0, 5)
-      .map(({ recipe, margin }) => ({
+      .map(({ recipe, summary, margin }) => ({
         id: recipe.id,
+        recipe,
         label: recipeNameEn(recipe) || recipeNameCn(recipe) || recipeCode(recipe),
         value: Number(margin),
+        profitPerServing: Number(recipe.sellingPrice || 0) - Number(summary.totalCost || 0),
       }));
+    const topRevenueRows = [...menuEngineeringRows]
+      .sort((a, b) => Number(b.revenue || 0) - Number(a.revenue || 0))
+      .slice(0, 5);
     const ingredientCostTotals = recipeCostRows.reduce((totals, { recipe }) => {
       (recipe.ingredients || []).forEach((line) => {
         const item = itemById.get(line.itemId);
@@ -9100,10 +9170,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           subtitle="Identify profitable menu items, highest cost recipes and key ingredient cost drivers."
         >
           <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-end">
-            <div className="grid gap-3 sm:grid-cols-2">
-              <MetricCard label="Mapped Recipes" value={mappedRecipeCount} helper={recipeProductReports.length ? "Matched to Product Analytics" : "No product reports in period"} tone={mappedRecipeCount ? "success" : "neutral"} size="compact" />
-              <MetricCard label="Unmapped Products" value={unmappedProductCount} helper={recipeProductLoading ? "Loading Product Analytics..." : "Need recipe mapping"} tone={unmappedProductCount ? "warning" : "neutral"} size="compact" />
-            </div>
+            <RecipeMappingHealth mapped={mappedRecipeCount} unmapped={unmappedProductCount} loading={recipeProductLoading} />
             <SelectField
               label="Analysis Period"
               value={recipeAnalysisPeriod}
@@ -9116,16 +9183,26 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               title="Menu Engineering Matrix"
               description="Product Analytics source: X = Qty Sold, Y = Margin %, bubble size = Revenue."
             >
-              <RecipeMenuEngineeringMatrix rows={menuEngineeringRows} />
+              {mappedRecipeCount < 10 ? (
+                <RecipeIntelligencePlaceholder
+                  title="Need at least 10 mapped recipes."
+                  description="Map more Product Analytics items to recipes before plotting a reliable menu engineering matrix."
+                />
+              ) : (
+                <RecipeMenuEngineeringMatrix rows={menuEngineeringRows} />
+              )}
             </RecipeIntelligenceCard>
             <RecipeIntelligenceCard
               title="Top Margin Products"
               description="Highest margin recipes within the selected outlet and filters."
             >
-              <RecipeBarChart
+              <RecipeRankingTable
                 rows={topMarginRows}
-                valueFormatter={(value) => `${Math.round(value)}%`}
-                tone="success"
+                columns={[
+                  { key: "recipe", label: "Recipe", render: (row) => <div className="font-bold text-text-primary">{row.label}</div> },
+                  { key: "margin", label: "Margin %", render: (row) => <Badge tone={recipeMarginTone(row.value)}>{formatRecipeMargin(row.value)}</Badge> },
+                  { key: "profit", label: "Profit", render: (row) => <span className="font-black text-text-primary">{toCurrency(row.profitPerServing)}</span> },
+                ]}
                 emptyTitle="No margin data yet"
                 emptyDescription="Add selling prices to recipes to compare product margin."
               />
@@ -9143,41 +9220,35 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               />
             </RecipeIntelligenceCard>
             <RecipeIntelligenceCard
+              title="Top Revenue Recipes"
+              description="Mapped recipes ranked by Product Analytics revenue."
+            >
+              <RecipeRankingTable
+                rows={topRevenueRows}
+                columns={[
+                  { key: "recipe", label: "Recipe", render: (row) => <div><div className="font-bold text-text-primary">{recipeNameEn(row.recipe) || row.label}</div><div className="type-caption text-text-muted">{recipeNameCn(row.recipe) || recipeCode(row.recipe)}</div></div> },
+                  { key: "revenue", label: "Revenue", render: (row) => <span className="font-black text-text-primary">{toCurrency(row.revenue)}</span> },
+                ]}
+                emptyTitle="No revenue data yet"
+                emptyDescription="Map Product Analytics products to recipes to rank recipe revenue."
+              />
+            </RecipeIntelligenceCard>
+            <RecipeIntelligenceCard
               title="Lowest Margin Recipes"
               description="Lowest priced margins sorted ascending."
             >
-              {lowestMarginRows.length ? (
-                <div className="overflow-x-auto rounded-2xl border border-border">
-                  <table className="w-full min-w-[520px] text-left text-[13px]">
-                    <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
-                      <tr>
-                        <th className="px-3 py-2">Recipe</th>
-                        <th>Cost</th>
-                        <th>Price</th>
-                        <th>Margin %</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border">
-                      {lowestMarginRows.map(({ recipe, summary, margin }) => (
-                        <tr key={recipe.id}>
-                          <td className="px-3 py-2">
-                            <div className="font-bold text-text-primary">{recipeDisplayName(recipe)}</div>
-                            <div className="type-caption text-text-muted">{recipeCode(recipe) || "No code"}</div>
-                          </td>
-                          <td className="font-bold text-text-secondary">{toCurrency(summary.totalCost)}</td>
-                          <td>{recipe.sellingPrice !== "" && recipe.sellingPrice !== null && recipe.sellingPrice !== undefined ? toCurrency(recipe.sellingPrice) : "—"}</td>
-                          <td><Badge tone={recipeMarginTone(margin)}>{formatRecipeMargin(margin)}</Badge></td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              ) : (
-                <RecipeIntelligencePlaceholder
-                  title="No margin data yet"
-                  description="Add selling prices and costed ingredients to identify lowest margin recipes."
-                />
-              )}
+              <RecipeRankingTable
+                rows={lowestMarginRows}
+                columns={[
+                  { key: "recipe", label: "Recipe", render: ({ recipe }) => <div><div className="font-bold text-text-primary">{recipeNameEn(recipe) || recipeCode(recipe)}</div><div className="type-caption text-text-muted">{recipeNameCn(recipe) || "—"}</div></div> },
+                  { key: "cost", label: "Cost", render: ({ summary }) => <span className="font-bold text-text-secondary">{toCurrency(summary.totalCost)}</span> },
+                  { key: "price", label: "Price", render: ({ recipe }) => recipe.sellingPrice !== "" && recipe.sellingPrice !== null && recipe.sellingPrice !== undefined ? toCurrency(recipe.sellingPrice) : "—" },
+                  { key: "margin", label: "Margin %", render: ({ margin }) => <Badge tone={recipeMarginTone(margin)}>{formatRecipeMargin(margin)}</Badge> },
+                  { key: "profit", label: "Profit", render: ({ recipe, summary }) => <span className="font-black text-text-primary">{toCurrency(Number(recipe.sellingPrice || 0) - Number(summary.totalCost || 0))}</span> },
+                ]}
+                emptyTitle="No margin data yet"
+                emptyDescription="Add selling prices and costed ingredients to identify lowest margin recipes."
+              />
             </RecipeIntelligenceCard>
           </div>
         </DashboardSection>
