@@ -386,6 +386,7 @@ function UserFormModal({
   onSwitchToEdit,
   canEditEmployee = false,
   canEnableLogin = false,
+  canDeactivateEmployee = false,
   canResetPassword = false,
 }) {
   const [values, setValues] = useState(() => {
@@ -399,8 +400,14 @@ function UserFormModal({
   const [touchedFields, setTouchedFields] = useState({});
   const [isSaving, setIsSaving] = useState(false);
   const [emailStatus, setEmailStatus] = useState("not_checked");
+  const [showAccessSetup, setShowAccessSetup] = useState(false);
+  const [showChangeEmail, setShowChangeEmail] = useState(false);
+  const [nextLoginEmail, setNextLoginEmail] = useState("");
   const isViewMode = mode === "view";
   const isEndedEmployment = ["resigned", "terminated"].includes(values.employment_status);
+  const accessState = getAccessState(values);
+  const accessHasLoginMetadata = Boolean(values.email || values.role || values.role_id || values.auth_user_id || values.last_login_at);
+  const shouldShowAccessSetup = showAccessSetup || (values.enable_system_login && accessState !== EMPLOYEE_ACCESS_STATE.ACTIVE && accessState !== EMPLOYEE_ACCESS_STATE.DISABLED);
   const isMalaysia = isMalaysiaNationality(values.nationality);
   const activeJobPositions = jobPositions.filter((position) => position.status === "active");
   const selectedPosition = findJobPosition(jobPositions, values.position);
@@ -488,11 +495,78 @@ function UserFormModal({
         ...(key === "full_name" && !current.bank_account_name ? { bank_account_name: value } : {}),
         ...(key === "position" ? { department: matchedPosition?.department || (nextPosition ? current.department : "") } : {}),
         ...(key === "employment_status" && value === "active" ? { resigned_date: "" } : {}),
-        ...(key === "enable_system_login" && !value ? { email: "", role: "", role_id: "", access_state: EMPLOYEE_ACCESS_STATE.NO_ACCESS, is_active: false, email_verified: false } : {}),
+        ...(key === "enable_system_login" && !value ? { access_state: EMPLOYEE_ACCESS_STATE.NO_ACCESS, is_active: false } : {}),
         ...(key === "enable_system_login" && value ? { access_state: hasSystemLogin(current) ? getAccessState(current) : EMPLOYEE_ACCESS_STATE.NOT_SENT, is_active: getAccessState(current) === EMPLOYEE_ACCESS_STATE.ACTIVE } : {}),
       };
     });
     setTouchedFields((current) => (current[key] ? current : { ...current, [key]: true }));
+  }
+
+  function enableAccessSetup() {
+    setShowAccessSetup(true);
+    setValues((current) => ({
+      ...current,
+      enable_system_login: true,
+      access_state: EMPLOYEE_ACCESS_STATE.NOT_SENT,
+      is_active: false,
+      email_verified: false,
+    }));
+  }
+
+  async function disableAccessInModal() {
+    if (!canDeactivateEmployee) {
+      notifyPermissionDenied(ui, "disable employee access");
+      return;
+    }
+    const confirmed = await ui.confirm({
+      title: "Disable system access?",
+      message: "This employee will no longer be able to sign in. Login email, role, auth link, last login, and historical records will be preserved.",
+      confirmLabel: "Disable Access",
+      danger: true,
+    });
+    if (!confirmed) return;
+    const nextValues = {
+      ...values,
+      enable_system_login: true,
+      access_state: EMPLOYEE_ACCESS_STATE.DISABLED,
+      is_active: false,
+      audit_summary: "System access disabled. Login metadata and historical records were preserved.",
+    };
+    setValues(nextValues);
+    setShowAccessSetup(false);
+    onSubmit(nextValues);
+  }
+
+  function openChangeEmailPanel() {
+    setNextLoginEmail(values.email || "");
+    setShowChangeEmail(true);
+  }
+
+  function applyLoginEmailChange() {
+    const email = String(nextLoginEmail || "").trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+      ui.notify({ title: "Enter a valid login email", tone: "error" });
+      return;
+    }
+    const alreadyUsed = users.some((user) => user.id !== values.id && String(user.email || "").toLowerCase() === email);
+    if (alreadyUsed) {
+      ui.notify({ title: "Login email already used", message: "Choose a different employee login email.", tone: "error" });
+      return;
+    }
+    const nextValues = {
+      ...values,
+      email,
+      enable_system_login: true,
+      access_state: EMPLOYEE_ACCESS_STATE.NOT_SENT,
+      is_active: false,
+      email_verified: false,
+      verification_sent_at: null,
+      audit_summary: "Login email changed. Employee must complete setup again.",
+    };
+    setValues(nextValues);
+    setShowChangeEmail(false);
+    setShowAccessSetup(true);
+    onSubmit(nextValues);
   }
 
   function updateRole(nextRoleName) {
@@ -595,7 +669,7 @@ function UserFormModal({
         ) : (
           <>
             <button className="btn-secondary" type="button" disabled={isSaving} onClick={onClose}>Cancel</button>
-              {values.enable_system_login && canResetPassword ? (
+              {shouldShowAccessSetup && canResetPassword ? (
                 <button
                   className="btn-primary"
                   type="button"
@@ -810,98 +884,129 @@ function UserFormModal({
             )
           ) : (
             <>
-            <div className="mb-3 rounded-xl border border-border bg-surface px-3 py-3">
-              <label className="flex cursor-pointer items-start gap-3">
-                <input
-                  className="mt-1 h-4 w-4 accent-primary"
-                  type="checkbox"
-                  checked={Boolean(values.enable_system_login)}
-                  disabled={!canEnableLogin}
-                  onChange={(event) => updateValue("enable_system_login", event.target.checked)}
-                />
-                <span>
-                  <span className="block text-sm font-bold text-text-primary">Enable System Login</span>
-                  <span className="mt-0.5 block text-xs text-text-secondary">Turn on only for employees who need to access the system.</span>
-                </span>
-              </label>
-            </div>
-            {values.enable_system_login ? (
-              <>
-              <div className="grid gap-3 md:grid-cols-2">
-              <FormField label="Email" required error={visibleError("email")}>
-                <div>
-                  <input className={`${inputClass(visibleError("email"))} w-full`} type="email" value={values.email} onBlur={() => markTouched("email")} onChange={(event) => updateValue("email", event.target.value)} placeholder="user@company.com" />
-                  {values.email || emailStatus !== "not_checked" ? (
-                  <div className="mt-1.5 flex items-center gap-2 text-xs">
-                    {emailStatus !== "not_checked" ? <EmailStatusBadge status={emailStatus} /> : null}
-                    <span className={`font-medium ${
-                      emailStatus === "valid"
-                        ? "text-emerald-700"
-                        : emailStatus === "used"
-                          ? "text-amber-700"
-                          : emailStatus === "invalid"
-                            ? "text-rose-700"
-                            : "text-text-muted"
-                    }`}>
-                      {emailStatus === "valid"
-                        ? "Email format is valid."
-                        : emailStatus === "used"
-                          ? "Employee profile or auth account may already exist."
-                          : emailStatus === "invalid"
-                            ? "Enter a valid email address."
-                            : emailStatus === "checking"
-                              ? "Checking employee profile..."
-                              : "Validation runs automatically."}
-                    </span>
+              <div className="rounded-xl border border-border bg-surface px-4 py-3">
+                <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-text-secondary">Access State</div>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <Badge tone={accountTone(accessState)}>{accountLabel(accessState)}</Badge>
+                      <span className="text-xs font-medium text-text-muted">{getAccessStateCopy(values)}</span>
+                    </div>
                   </div>
-                  ) : null}
+                  <div className="flex flex-wrap gap-2">
+                    {accessState === EMPLOYEE_ACCESS_STATE.ACTIVE ? (
+                      <>
+                        <button className="btn-secondary h-9 px-3 text-xs" type="button" disabled={!canDeactivateEmployee} onClick={disableAccessInModal}>
+                          <Power size={14} /> Disable Access
+                        </button>
+                        <button className="btn-secondary h-9 px-3 text-xs" type="button" disabled={!canResetPassword} onClick={openChangeEmailPanel}>
+                          <KeyRound size={14} /> Change Login Email
+                        </button>
+                      </>
+                    ) : shouldShowAccessSetup ? null : (
+                      <button className="btn-secondary h-9 px-3 text-xs" type="button" disabled={!canEnableLogin} onClick={enableAccessSetup}>
+                        <ShieldCheck size={14} /> Enable Access
+                      </button>
+                    )}
+                  </div>
                 </div>
-              </FormField>
-              <FormField label="Role" required error={visibleError("role")} helper="Role controls permissions and outlet scope. Outlet access is not assigned on the employee form.">
-                <SelectField
-                  value={values.role}
-                  placeholder="No Role"
-                  buttonClassName={visibleError("role") ? "border-rose-200" : ""}
-                  searchable
-                  options={roleOptions.map((role) => ({ value: role, label: role }))}
-                  onChange={updateRole}
-                />
-              </FormField>
-              <div className="rounded-xl border border-border bg-surface px-3 py-2.5">
-                <div className="text-xs font-semibold text-text-secondary">Access State</div>
-                <div className="mt-1 flex flex-wrap items-center gap-2">
-                  <Badge tone={accountTone(getAccessState(values))}>{accountLabel(getAccessState(values))}</Badge>
-                  <span className="text-xs font-medium text-text-muted">{getAccessStateCopy(values)}</span>
-                </div>
+
+                {accessState === EMPLOYEE_ACCESS_STATE.ACTIVE ? (
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <ReadOnlyField label="Login Email">{values.email || "-"}</ReadOnlyField>
+                    <ReadOnlyField label="Role"><Badge tone={values.role ? "info" : "warning"}>{values.role || "No Role"}</Badge></ReadOnlyField>
+                    <ReadOnlyField label="Outlet Access">
+                      <RoleOutletAccessSummary roleName={values.role} roleRecords={roleRecords} outlets={outlets} />
+                    </ReadOnlyField>
+                    <ReadOnlyField label="Last Login">{formatDateTime(values.last_login_at)}</ReadOnlyField>
+                  </div>
+                ) : accessState === EMPLOYEE_ACCESS_STATE.DISABLED && accessHasLoginMetadata && !shouldShowAccessSetup ? (
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <ReadOnlyField label="Login Email">{values.email || "-"}</ReadOnlyField>
+                    <ReadOnlyField label="Role"><Badge tone={values.role ? "info" : "warning"}>{values.role || "No Role"}</Badge></ReadOnlyField>
+                    <ReadOnlyField label="Last Login">{formatDateTime(values.last_login_at)}</ReadOnlyField>
+                    <ReadOnlyField label="Outlet Access">
+                      <RoleOutletAccessSummary roleName={values.role} roleRecords={roleRecords} outlets={outlets} />
+                    </ReadOnlyField>
+                  </div>
+                ) : null}
+
+                {showChangeEmail ? (
+                  <div className="mt-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-3">
+                    <div className="text-sm font-bold text-amber-900">Change Login Email</div>
+                    <p className="mt-1 text-xs font-medium text-amber-800">Changing login email requires the employee to complete setup again.</p>
+                    <div className="mt-3 flex flex-col gap-2 md:flex-row">
+                      <input className="control md:flex-1" type="email" value={nextLoginEmail} onChange={(event) => setNextLoginEmail(event.target.value)} placeholder="new.email@company.com" />
+                      <button className="btn-primary h-10 px-3 text-xs" type="button" onClick={applyLoginEmailChange}>Apply Email</button>
+                      <button className="btn-secondary h-10 px-3 text-xs" type="button" onClick={() => setShowChangeEmail(false)}>Cancel</button>
+                    </div>
+                  </div>
+                ) : null}
+
+                {shouldShowAccessSetup ? (
+                  <div className="mt-3 grid gap-3 md:grid-cols-2">
+                    <FormField label="Login Email" required error={visibleError("email")}>
+                      <div>
+                        <input className={`${inputClass(visibleError("email"))} w-full`} type="email" value={values.email} onBlur={() => markTouched("email")} onChange={(event) => updateValue("email", event.target.value)} placeholder="user@company.com" />
+                        {values.email || emailStatus !== "not_checked" ? (
+                          <div className="mt-1.5 flex items-center gap-2 text-xs">
+                            {emailStatus !== "not_checked" ? <EmailStatusBadge status={emailStatus} /> : null}
+                            <span className={`font-medium ${
+                              emailStatus === "valid"
+                                ? "text-emerald-700"
+                                : emailStatus === "used"
+                                  ? "text-amber-700"
+                                  : emailStatus === "invalid"
+                                    ? "text-rose-700"
+                                    : "text-text-muted"
+                            }`}>
+                              {emailStatus === "valid"
+                                ? "Email format is valid."
+                                : emailStatus === "used"
+                                  ? "Employee profile or auth account may already exist."
+                                  : emailStatus === "invalid"
+                                    ? "Enter a valid email address."
+                                    : emailStatus === "checking"
+                                      ? "Checking employee profile..."
+                                      : "Validation runs automatically."}
+                            </span>
+                          </div>
+                        ) : null}
+                      </div>
+                    </FormField>
+                    <FormField label="Role" required error={visibleError("role")} helper="Role controls permissions and outlet scope. Outlet access is not assigned on the employee form.">
+                      <SelectField
+                        value={values.role}
+                        placeholder="No Role"
+                        buttonClassName={visibleError("role") ? "border-rose-200" : ""}
+                        searchable
+                        options={roleOptions.map((role) => ({ value: role, label: role }))}
+                        onChange={updateRole}
+                      />
+                    </FormField>
+                    <div className="rounded-xl border border-border bg-surface px-3 py-2.5">
+                      <div className="text-xs font-semibold text-text-secondary">Outlet Access</div>
+                      <div className="mt-1">
+                        <RoleOutletAccessSummary roleName={values.role} roleRecords={roleRecords} outlets={outlets} />
+                      </div>
+                    </div>
+                    {mode === "edit" ? (
+                      <div className="rounded-xl border border-border bg-surface px-3 py-2.5">
+                        <div className="text-xs font-semibold text-text-secondary">Setup Link</div>
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          <button className="btn-secondary h-9 px-3 text-xs" type="button" disabled={!canResetPassword} onClick={sendLoginSetupForExistingEmployee}>
+                            <KeyRound size={14} /> Send Login Setup Email
+                          </button>
+                          <button className="btn-secondary h-9 px-3 text-xs" type="button" disabled={!canResetPassword} onClick={() => onSendLoginSetup(values, { mode: "manual_link" })}>
+                            <KeyRound size={14} /> Generate Setup Link
+                          </button>
+                        </div>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
               </div>
-              <div className="rounded-xl border border-border bg-surface px-3 py-2.5">
-                <div className="text-xs font-semibold text-text-secondary">Outlet Access</div>
-                <div className="mt-1">
-                  <RoleOutletAccessSummary roleName={values.role} roleRecords={roleRecords} outlets={outlets} />
-                </div>
-              </div>
-            </div>
-          {mode === "edit" ? (
-            <div className="mt-3 flex flex-wrap gap-2">
-              {[EMPLOYEE_ACCESS_STATE.NOT_SENT, EMPLOYEE_ACCESS_STATE.INVITED, EMPLOYEE_ACCESS_STATE.ACTIVE].includes(getAccessState(values)) ? (
-                <button className="btn-secondary h-9 px-3 text-xs" type="button" disabled={!canResetPassword} onClick={sendLoginSetupForExistingEmployee}>
-                  <KeyRound size={14} /> Send Login Setup Email
-                </button>
-              ) : null}
-              {[EMPLOYEE_ACCESS_STATE.NOT_SENT, EMPLOYEE_ACCESS_STATE.INVITED].includes(getAccessState(values)) ? (
-                <button className="btn-secondary h-9 px-3 text-xs" type="button" disabled={!canResetPassword} onClick={() => onSendLoginSetup(values, { mode: "manual_link" })}>
-                  <KeyRound size={14} /> Generate Setup Link
-                </button>
-              ) : null}
-            </div>
-          ) : null}
-          </>
-            ) : (
-              <div className="rounded-xl border border-dashed border-border bg-slate-50 px-4 py-3 text-sm font-semibold text-text-secondary">
-                Login fields are hidden until system login is enabled.
-              </div>
-            )}
-          </>
+            </>
           )}
         </FormSection>
       </div>
@@ -1104,27 +1209,12 @@ export default function UsersPage({ ui, store, auth }) {
     });
     if (!confirmed) return;
     updateUserAccount(user.id, {
+      enable_system_login: true,
       access_state: EMPLOYEE_ACCESS_STATE.DISABLED,
       is_active: false,
-      audit_summary: "System access disabled locally. Historical records remain available.",
+      audit_summary: "System access disabled. Login metadata and historical records remain available.",
     });
     ui.notify({ title: "System access disabled.", message: "Historical records remain available." });
-    closeActionMenu();
-  }
-
-  function activateUser(user) {
-    if (!canEnableLogin) {
-      notifyPermissionDenied(ui, "activate employee login");
-      return;
-    }
-    updateUserAccount(user.id, {
-      enable_system_login: true,
-      access_state: EMPLOYEE_ACCESS_STATE.ACTIVE,
-      is_active: true,
-      email_verified: true,
-      audit_summary: "System access reactivated locally.",
-    });
-    ui.notify({ title: "Employee login activated.", message: user.email });
     closeActionMenu();
   }
 
@@ -1189,13 +1279,23 @@ export default function UsersPage({ ui, store, auth }) {
 
     if (accessState === EMPLOYEE_ACCESS_STATE.NO_ACCESS) {
       return canEnableLogin ? (
-        <button className={buttonClass} type="button" onClick={() => { openUserProfile({ ...row, enable_system_login: true }, "edit"); setActionMenuUserId(null); }}>
-          <ShieldCheck size={14} /> Enable Login
+        <button className={buttonClass} type="button" onClick={() => { openUserProfile({ ...row, enable_system_login: true, access_state: EMPLOYEE_ACCESS_STATE.NOT_SENT }, "edit"); setActionMenuUserId(null); }}>
+          <ShieldCheck size={14} /> Enable Access
         </button>
       ) : null;
     }
 
     if (accessState === EMPLOYEE_ACCESS_STATE.ACTIVE) {
+      return (
+        <>
+          {canDeactivateEmployee ? <button className={dangerClass} type="button" onClick={() => disableUserAccess(row)}>
+            <Power size={14} /> Disable Access
+          </button> : null}
+        </>
+      );
+    }
+
+    if (accessState === EMPLOYEE_ACCESS_STATE.NOT_SENT || accessState === EMPLOYEE_ACCESS_STATE.INVITED) {
       return (
         <>
           {canResetPassword ? <button className={buttonClass} type="button" onClick={() => sendLoginSetupForUser(row)}>
@@ -1211,32 +1311,19 @@ export default function UsersPage({ ui, store, auth }) {
       );
     }
 
-    if (accessState === EMPLOYEE_ACCESS_STATE.NOT_SENT || accessState === EMPLOYEE_ACCESS_STATE.INVITED) {
-      return (
-        <>
-          {canResetPassword ? <button className={buttonClass} type="button" onClick={() => sendLoginSetupForUser(row)}>
-            <KeyRound size={14} /> Send Login Setup
-          </button> : null}
-          {canDeactivateEmployee ? <button className={dangerClass} type="button" onClick={() => disableUserAccess(row)}>
-            <Power size={14} /> Disable Access
-          </button> : null}
-        </>
-      );
-    }
-
     if (accessState === EMPLOYEE_ACCESS_STATE.DISABLED) {
       return (
         <>
-          {canEnableLogin ? <button className={buttonClass} type="button" onClick={() => activateUser(row)}>
-            <Power size={14} /> Activate Access
+          {canEnableLogin ? <button className={buttonClass} type="button" onClick={() => { openUserProfile(row, "edit"); setActionMenuUserId(null); }}>
+            <ShieldCheck size={14} /> Enable Access
           </button> : null}
         </>
       );
     }
 
     return (
-      canEnableLogin ? <button className={buttonClass} type="button" onClick={() => activateUser(row)}>
-        <Power size={14} /> Activate Access
+      canEnableLogin ? <button className={buttonClass} type="button" onClick={() => { openUserProfile(row, "edit"); setActionMenuUserId(null); }}>
+        <ShieldCheck size={14} /> Enable Access
       </button> : null
     );
   }
@@ -1430,6 +1517,7 @@ export default function UsersPage({ ui, store, auth }) {
           ui={ui}
           canEditEmployee={canEditEmployee}
           canEnableLogin={canEnableLogin}
+          canDeactivateEmployee={canDeactivateEmployee}
           canResetPassword={canResetPassword}
           onClose={() => setSelectedUser(null)}
           onSendLoginSetup={sendLoginSetupForUser}
@@ -1453,6 +1541,7 @@ export default function UsersPage({ ui, store, auth }) {
           ui={ui}
           canEditEmployee={formState.mode === "add" ? canCreateEmployee : canEditEmployee}
           canEnableLogin={canEnableLogin}
+          canDeactivateEmployee={canDeactivateEmployee}
           canResetPassword={canResetPassword}
           onClose={() => setFormState(null)}
           onSendLoginSetup={sendLoginSetupForUser}

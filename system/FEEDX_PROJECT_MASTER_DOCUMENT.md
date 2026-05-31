@@ -2942,9 +2942,16 @@ Rules:
 - Resigned and terminated employees keep their original Employment Type unless HR changes it explicitly.
 - Employee records referenced by Stock Checks, Purchase Orders, Waste Records, Inventory Movements, Asset Inspections, Audit Logs, or Duty Roster History must never be deleted just to remove access.
 - Historical actor displays must use nickname, then full_name, then email, then `Unknown User`; raw UUIDs must never be displayed.
-- System access state is generated, not manually selected.
-- Enable System Login OFF means no_access.
-- Enable System Login ON with no setup email means not_sent.
+- System access lifecycle is managed from the System Access panel, not with a profile-edit checkbox.
+- HR profile edits must not accidentally reset login email, role, auth user id, last login, or access history.
+- Access State `active` shows Disable Access and Change Login Email actions only; setup-link actions are hidden.
+- Access State `no_access` shows Enable Access.
+- Access State `not_sent`, `invited`, or expired/pending states show Send Login Setup, Generate Setup Link, and Disable Access.
+- Disable Access sets access disabled while preserving login email, role_id, auth_user_id, last_login_at, employee profile, and historical records.
+- Change Login Email is an explicit action. It changes the pending login email and requires the employee to complete setup again.
+- System access state is generated from login lifecycle, not manually selected as an HR status.
+- System Access OFF / no login means no_access.
+- Enable Access with no setup email means not_sent.
 - Send Login Setup changes state to invited.
 - Successful password setup changes state to active.
 - Disabled access changes state to disabled.
@@ -3927,13 +3934,24 @@ Select outlet
 
 ```text
 Create employee
-→ Enable System Login
+→ Employee profile defaults to System Access disabled
+→ Click Enable Access
 → Add email
 → Assign role
 → Send Login Setup Email
 → Edge Function sends setup email
 → Employee sets password
 → access_state becomes active
+
+Disable Access:
+→ Set access_state = disabled
+→ Preserve login email, role_id, auth_user_id, last_login_at, employee profile, and historical records
+
+Change Login Email:
+→ Explicit Change Login Email action
+→ Validate new email
+→ Save pending login email
+→ Require new setup/verification link
 ```
 
 ### 12.5 Module Import Workflow

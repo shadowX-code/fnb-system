@@ -13,6 +13,7 @@ Verification method:
 - Static verification of services, page action guards, route/sidebar registry, role editor rules, and Supabase RLS migrations.
 - Stability fixes for critical persistence/RBAC issues found during review.
 - Build verification.
+- Staging browser/remote verification on 31 May 2026 for the separated Employment Type and Employment Status fields.
 - Browser testing with separate Owner/Admin/Accounts/Manager/limited staff accounts was not completed in this pass because role-specific credentials were not available in the workspace context.
 
 Critical fixes applied:
@@ -21,6 +22,7 @@ Critical fixes applied:
 - Employee outlet RLS was tightened with a new migration that maps `employees.workplace` to `outlets.name/code` and enforces `roles.outlet_access_type` / `role_outlets` scope.
 - Outlet bootstrap and outlet RLS now include Employee permissions so People-only roles can load their accessible outlet list.
 - Employment structure migration `202605310009_employee_employment_structure.sql` separates Employment Type, Employment Status, and System Access, with a migration report table for legacy status/type mapping review.
+- System Access UX now separates HR profile editing from login lifecycle actions. Active accounts show Disable Access / Change Login Email, pending accounts show setup-link actions, and no-access accounts show Enable Access.
 - Department delete now checks active linked positions and active employees before hard delete; archive/inactive remains the preferred path.
 
 ## UAT Matrix
@@ -33,11 +35,14 @@ Critical fixes applied:
 | Employees | Change Position | Pass | Position change is persisted; employee department is now derived from selected position on save. | Fixed High |
 | Employees | Change Department | Pass with note | Department is not a direct employee form field; it follows the selected position. | None |
 | Employees | Change Role | Pass | Role dropdown stores role name for display and `role_id` for save; `employees.role_id` is persisted. | None |
-| Employees | Enable Login | Pass | `enable_system_login`, email, role_id, and access_state persist through employee save. | None |
-| Employees | Disable Login | Pass | Disable action calls `employeeService.saveEmployee()` with disabled access state; it does not change Employment Status or remove historical employee records. | None |
+| Employees | Enable Access | Pass | Access setup is explicit from the System Access panel or table action; login email, role_id, and access_state persist through employee save. | None |
+| Employees | Disable Access | Pass | Disable action saves `access_state = disabled` while preserving login email, role_id, auth_user_id, last login, Employment Status, and historical employee records. | Fixed High |
 | Employees | Employment Type change | Pass | Employment Type is separate from lifecycle status and persists in `employees.employment_type`. | Fixed High |
 | Employees | Employment Status change | Pass | Employment Status is limited to Active, Resigned, and Terminated and persists in `employees.employment_status`. | Fixed High |
 | Employees | Resign/terminate employee | Pass | `employment_status = resigned/terminated` and end date persist when supplied; login access remains a separate field. | None |
+| Employees | Active account table actions | Pass | Active access rows show View, Edit, and Disable Access; Send Login Setup / Generate Setup Link are hidden. | Fixed Medium |
+| Employees | Pending account table actions | Pass | Pending/not-sent rows show View, Edit, Send Login Setup, Generate Setup Link, and Disable Access. | Fixed Medium |
+| Employees | Login email change | Pass | Change Login Email is explicit and moves the account back to setup-required state instead of being hidden inside HR profile edits. | Fixed Medium |
 | Job Positions | Create Position | Pass | `jobPositionService.saveJobPosition()` inserts into Supabase. | None |
 | Job Positions | Edit Position | Pass | Updates Supabase and local list reflects saved row. | None |
 | Job Positions | Archive Position | Pass | Status toggle persists `status = inactive`; active linked employees are warned but records remain linked. | None |
@@ -66,6 +71,18 @@ Critical fixes applied:
 | RLS | job_positions | Pass | Permission-scoped by job_positions.view/create/edit/delete. Positions are global master data. | None |
 | RLS | roles | Pass | Protected-role, self-role, and permission/outlet escalation rules are enforced. | None |
 | RLS | role_permissions | Pass | Users with edit-role permission can manage non-protected roles only; canonical aliases supported. | None |
+
+## Employment Structure Browser UAT - 31 May 2026
+
+| Test | Result | Notes |
+|---|---:|---|
+| Employees page renders separated fields | Pass | Staging Employees page renders separate `Employment Type` and `Employment Status` columns and filters. |
+| Employment Type transition | Pass | Test employee `CCC` was moved through `probation` to `full_time`; remote `employees.employment_type` persisted the value. |
+| Employment Status transition | Pass | Test employee `CCC` was moved from `active` to `resigned`; remote `employees.employment_status` persisted the value after refresh-level verification. |
+| Resigned employee excluded from Duty Roster staff source | Pass | Duty Roster and Outlet Duty Roster staff loaders require `employee.employment_status === "active"`; a resigned `CCC` row was absent from the active-employee query. |
+| Resigned employee remains in Employee Directory | Pass | The employee row remains in `employees` and can be shown by Employee Directory status filtering; the record is not deleted. |
+| Historical record display rule | Pass | Existing People/operations user-display helpers preserve employee name display as nickname, then full_name, then email, then `Unknown User`; login disable or resignation does not delete the employee record. |
+| Test data restored | Pass | `CCC` was restored to `employment_type = full_time`, `employment_status = active`, and `resigned_date = null`. |
 
 ## Bugs Fixed
 
