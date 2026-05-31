@@ -91,6 +91,7 @@
     --z-popover: 70;
     --z-tooltip: 80;
     --z-lightbox: 90;
+    --z-toast: 9999;
   }
 
   :root[data-resolved-theme="dark"] {
@@ -354,6 +355,10 @@
 
   .z-lightbox-layer {
     z-index: var(--z-lightbox);
+  }
+
+  .z-toast-layer {
+    z-index: var(--z-toast);
   }
 
   .feedx-login-shell {

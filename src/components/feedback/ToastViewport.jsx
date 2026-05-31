@@ -6,7 +6,7 @@ const toneStyles = {
 
 export default function ToastViewport({ toasts, onDismiss }) {
   return (
-    <div className="fixed bottom-5 right-5 z-50 flex w-[360px] max-w-[calc(100vw-2rem)] flex-col gap-3">
+    <div className="fixed bottom-5 right-5 z-toast-layer flex w-[360px] max-w-[calc(100vw-2rem)] flex-col gap-3">
       {toasts.map((toast) => {
         return (
           <button
