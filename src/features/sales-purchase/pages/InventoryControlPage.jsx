@@ -621,6 +621,21 @@ async function uploadRecipePhoto(file, recipeId = "draft") {
   return { bucket, path: data.path, publicUrl: publicUrlData.publicUrl };
 }
 
+async function uploadWasteEvidencePhoto(file, wasteId = "draft") {
+  const bucket = "inventory-item-photos";
+  const extension = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
+  const path = `waste_evidence/${wasteId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
+  const { data, error } = await supabase.storage
+    .from(bucket)
+    .upload(path, file, {
+      contentType: file.type || `image/${extension}`,
+      upsert: true,
+    });
+  if (error) throw error;
+  const { data: publicUrlData } = supabase.storage.from(bucket).getPublicUrl(data.path);
+  return { bucket, path: data.path, publicUrl: publicUrlData.publicUrl };
+}
+
 function uniqueIds(values = []) {
   return [...new Set(values.filter(Boolean))];
 }
@@ -4273,6 +4288,7 @@ function WasteModal({ outlet, items, onClose, onSave }) {
     wasteType: "Spoilage",
     quantity: "",
     photoUrl: "",
+    photoFile: null,
     notes: "",
   });
   const [photoError, setPhotoError] = useState("");
@@ -4289,7 +4305,7 @@ function WasteModal({ outlet, items, onClose, onSave }) {
     }
     try {
       const preview = await readFileAsDataUrl(file);
-      update("photoUrl", preview);
+      setForm((current) => ({ ...current, photoUrl: preview, photoFile: file }));
     } catch (error) {
       setPhotoError(error.message || "Unable to read image.");
     }
@@ -4342,7 +4358,7 @@ function WasteModal({ outlet, items, onClose, onSave }) {
             {form.photoUrl ? (
               <>
                 <img className="h-12 w-12 rounded-xl border border-border object-cover" src={form.photoUrl} alt="Waste evidence preview" />
-                <button className="btn-secondary h-8 px-3 text-xs text-rose-700" type="button" onClick={() => update("photoUrl", "")}>Remove</button>
+                <button className="btn-secondary h-8 px-3 text-xs text-rose-700" type="button" onClick={() => setForm((current) => ({ ...current, photoUrl: "", photoFile: null }))}>Remove</button>
               </>
             ) : <span className="type-caption font-semibold text-text-muted">Optional evidence</span>}
           </div>
@@ -5153,6 +5169,17 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   useEffect(() => {
     if (!["groups", "waste", "recipes"].includes(activeTab)) return;
     if (!outlets.length) return;
+    if (activeTab === "waste") {
+      const firstAccessibleOutlet = getAccessibleOutlets(auth, outlets)[0]?.id || outlets[0]?.id || "";
+      if (selectedOutletId === "all" && firstAccessibleOutlet) {
+        setSelectedOutletId(firstAccessibleOutlet);
+        return;
+      }
+      if (selectedOutletId !== "all" && !outlets.some((outlet) => outlet.id === selectedOutletId) && firstAccessibleOutlet) {
+        setSelectedOutletId(firstAccessibleOutlet);
+        return;
+      }
+    }
     if (selectedOutletId !== "all" && !outlets.some((outlet) => outlet.id === selectedOutletId)) {
       setSelectedOutletId("all");
     }
@@ -5229,7 +5256,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     if (!id) return "Unknown user";
     if (id === auth?.profile?.id || id === auth?.user?.id) return currentCheckerName;
     const person = peopleById.get(id) || peopleByAuthId.get(id);
-    return person?.name || person?.email || auth?.user?.email || "Unknown user";
+    return person?.name || person?.email || "Unknown user";
   };
 
   const visibleItems = useMemo(() => data.items.filter((item) => {
@@ -6121,11 +6148,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   function openRecordWaste() {
     if (!requirePermission(can.recordWaste, "record waste")) return;
-    if (selectedOutletId === "all") {
+    const wasteOutletId = selectedOutletId === "all" ? getAccessibleOutlets(auth, outlets)[0]?.id : selectedOutletId;
+    if (!wasteOutletId) {
       notify("Select an outlet first", "Select an outlet before recording waste.", "warning");
       return;
     }
-    setModal({ type: "waste", outletId: selectedOutletId });
+    if (selectedOutletId === "all") setSelectedOutletId(wasteOutletId);
+    setModal({ type: "waste", outletId: wasteOutletId });
   }
 
   async function archiveGroup(groupId) {
@@ -6631,7 +6660,27 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   async function saveWaste(waste) {
     try {
-      const result = await persistRemoteWasteRecord(waste, auth?.user?.id);
+      let evidenceUrl = waste.photoUrl || waste.photo_url || "";
+      const hasEvidenceFile = typeof File !== "undefined" && waste.photoFile instanceof File;
+      let evidenceDebug = {
+        wasteRecordId: waste.id || "new",
+        uploadSuccess: false,
+        evidenceUrl,
+        savedEvidenceUrl: "",
+        displayEvidenceUrl: "",
+      };
+      if (hasEvidenceFile) {
+        const uploadResult = await uploadWasteEvidencePhoto(waste.photoFile, waste.id || "draft");
+        evidenceUrl = uploadResult.publicUrl;
+        evidenceDebug = { ...evidenceDebug, uploadSuccess: true, evidenceUrl };
+      }
+      const result = await persistRemoteWasteRecord({ ...waste, photoUrl: evidenceUrl, photo_url: evidenceUrl }, auth?.user?.id);
+      debugLog("[WasteEvidenceDebug]", {
+        ...evidenceDebug,
+        wasteRecordId: result.waste?.id || waste.id || "new",
+        savedEvidenceUrl: result.waste?.photoUrl || result.waste?.photo_url || "",
+        displayEvidenceUrl: result.waste?.photoUrl || result.waste?.photo_url || "",
+      });
       setData((current) => ({
         ...current,
         waste: [result.waste, ...current.waste.filter((entry) => entry.id !== result.waste.id)],
@@ -6643,6 +6692,14 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     } catch (error) {
       console.warn("[InventoryControl] Unable to save waste record.", error);
       debugLog("[WasteSaveDebug]", { action: "save-waste", payload: waste, error });
+      debugLog("[WasteEvidenceDebug]", {
+        wasteRecordId: waste?.id || "new",
+        uploadSuccess: false,
+        evidenceUrl: waste?.photoUrl || waste?.photo_url || "",
+        savedEvidenceUrl: "",
+        displayEvidenceUrl: "",
+        error,
+      });
       await refreshInventory();
       if (error?.partialWasteSaved) {
         notify("Waste record created, but movement failed", error.cause?.message || error.message || "Please check Inventory Movements permissions.", "warning");
@@ -8338,12 +8395,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     if (!can.viewWaste) {
       return <EmptyState title="Permission required" description="You do not have permission to view Waste & Variance." />;
     }
-    const outletOptions = getAccessibleOutletOptions(auth, outlets);
+    const outletOptions = getAccessibleOutletOptions(auth, outlets).filter((option) => option.value !== "all");
+    const activeWasteOutletId = selectedOutletId === "all" ? (outletOptions[0]?.value || "") : selectedOutletId;
     const filteredWaste = data.waste.filter((row) => {
       const item = itemById.get(row.itemId);
       const category = categoryById.get(item?.categoryId);
       const searchText = `${item?.name || ""} ${item?.sku || ""} ${category?.name || ""} ${row.notes || ""} ${outletById.get(row.outletId)?.name || ""}`.toLowerCase();
-      const matchesOutlet = selectedOutletId === "all" || row.outletId === selectedOutletId;
+      const matchesOutlet = activeWasteOutletId ? row.outletId === activeWasteOutletId : false;
       const matchesType = wasteFilters.wasteType === "all" || row.wasteType === wasteFilters.wasteType;
       const matchesFrom = !wasteFilters.from || row.date >= wasteFilters.from;
       const matchesTo = !wasteFilters.to || row.date <= wasteFilters.to;
@@ -8369,7 +8427,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     return (
       <div className="space-y-4">
         <div className="card grid gap-3 p-3 lg:grid-cols-[220px_180px_170px_170px_1fr] lg:items-end">
-          <SelectField label="Outlet" value={selectedOutletId} options={outletOptions} onChange={setSelectedOutletId} searchable />
+          <SelectField label="Outlet" value={activeWasteOutletId} options={outletOptions} onChange={setSelectedOutletId} searchable />
           <SelectField label="Waste Type" value={wasteFilters.wasteType} options={[{ value: "all", label: "All Waste Types" }, ...wasteTypes.map((type) => ({ value: type, label: type }))]} onChange={(value) => updateWasteFilter("wasteType", value)} />
           <DatePickerField label="From" value={wasteFilters.from} onChange={(value) => updateWasteFilter("from", value)} />
           <DatePickerField label="To" value={wasteFilters.to} onChange={(value) => updateWasteFilter("to", value)} />
@@ -8384,7 +8442,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <MetricCard label="Waste Quantity" value={totalWasteQuantity} helper="Total recorded quantity" tone={totalWasteQuantity ? "warning" : "success"} />
           <MetricCard label="Waste Records" value={filteredWaste.length} helper="Matching current filters" tone={filteredWaste.length ? "warning" : "success"} />
-          <MetricCard label={selectedOutletId === "all" ? "Highest Waste Category" : "Highest Waste Item"} value={selectedOutletId === "all" ? topCategory : topItem} helper="Based on quantity recorded" />
+          <MetricCard label="Highest Waste Item" value={topItem} helper="Based on quantity recorded" />
           <MetricCard label="Unexplained Loss %" value="0%" helper="No unexplained loss logged" />
         </div>
         <DashboardSection title="Operational Insights" subtitle="Rule-based signals for leakage and stock variance.">
@@ -8434,17 +8492,23 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                       <td><Badge tone="warning">{row.wasteType}</Badge></td>
                       <td className="font-semibold">{row.quantity} {row.unit || item?.unit}</td>
                       <td>{outletById.get(row.outletId)?.name || "Outlet"}</td>
-                      <td>{row.user || row.recordedBy || "Current User"}</td>
+                      <td>{actorNameByAnyId(row.recordedBy || row.user)}</td>
                       <td className="max-w-52 truncate">{row.notes || "-"}</td>
-                      <td>{row.photoUrl || row.photo_url ? <Badge tone="info">Photo</Badge> : <span className="type-caption text-text-muted">No evidence</span>}</td>
-                      <td><button className="btn-secondary h-8 px-2.5 text-xs" type="button">View</button></td>
+                      <td>
+                        {row.photoUrl || row.photo_url ? (
+                          <button className="type-caption font-black text-primary underline-offset-2 hover:underline" type="button" onClick={() => setPhotoPreview({ src: row.photoUrl || row.photo_url, title: `${item?.name || "Waste"} evidence` })}>
+                            📷 View Photo
+                          </button>
+                        ) : <span className="type-caption text-text-muted">—</span>}
+                      </td>
+                      <td><button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setModal({ type: "waste-detail", waste: row })}>View</button></td>
                     </tr>
                 );
               })}
                 </tbody>
               </table>
             </div>
-          ) : <EmptyState title={selectedOutletId === "all" ? "No waste records for the current filters." : "No waste records for this outlet and filter range."} description="Record spoilage, expiry or kitchen error to begin tracking operational leakage." />}
+          ) : <EmptyState title="No waste records for this outlet and filter range." description="Record spoilage, expiry or kitchen error to begin tracking operational leakage." />}
         </DashboardSection>
       </div>
     );
@@ -8735,21 +8799,37 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         const waste = modal.waste || {};
         const item = itemById.get(waste.itemId);
         const outlet = outletById.get(waste.outletId);
+        const category = categoryById.get(item?.categoryId);
+        const movement = data.movements.find((entry) => entry.referenceType === "waste" && entry.referenceId === waste.id);
+        const evidenceUrl = waste.photoUrl || waste.photo_url || "";
         return (
           <Modal
-            title="Waste Record"
+            title="Waste Record Detail"
             description={`${outlet?.name || "Outlet"} · ${formatDate(waste.date || waste.createdAt)}`}
+            size="lg"
             onClose={() => setModal(null)}
             footer={<button className="btn-secondary" type="button" onClick={() => setModal(null)}>Close</button>}
           >
             <div className="grid gap-3 md:grid-cols-2">
-              <MetricCard label="Item" value={item?.name || "Inventory item"} helper={item?.sku || "Waste movement reference"} size="compact" />
+              <MetricCard label="Date" value={formatDate(waste.date || waste.createdAt)} helper="Waste date" size="compact" />
+              <MetricCard label="Outlet" value={outlet?.name || "Outlet"} helper={outletDisplayCode(outlet)} size="compact" />
+              <MetricCard label="Item" value={item?.name || "Inventory item"} helper={item?.sku || "No SKU"} size="compact" />
+              <MetricCard label="Category" value={category?.name || "Uncategorized"} helper="Inventory category" size="compact" />
               <MetricCard label="Waste Type" value={toTitle(waste.wasteType || "waste")} helper="Recorded classification" tone="warning" size="compact" />
               <MetricCard label="Quantity" value={`${waste.quantity || 0} ${waste.unit || item?.unit || ""}`.trim()} helper="Recorded waste amount" tone="warning" size="compact" />
-              <MetricCard label="Recorded By" value={actorNameByAnyId(waste.recordedBy || waste.user)} helper="Source record owner" size="compact" />
+              <MetricCard label="Recorded By" value={actorNameByAnyId(waste.recordedBy || waste.user)} helper="Record owner" size="compact" />
+              <MetricCard label="Movement Reference" value={movement?.reference || "—"} helper={movement ? "Inventory movement created" : "No movement linked"} size="compact" />
             </div>
             <div className="mt-3 rounded-2xl border border-border bg-slate-50 p-3 type-body-sm text-text-secondary">
               {waste.notes || "No notes recorded."}
+            </div>
+            <div className="mt-3 rounded-2xl border border-border bg-slate-50 p-3">
+              <div className="type-caption font-semibold text-text-secondary">Evidence Photo</div>
+              {evidenceUrl ? (
+                <button className="mt-2 block overflow-hidden rounded-2xl border border-border bg-white" type="button" onClick={() => setPhotoPreview({ src: evidenceUrl, title: `${item?.name || "Waste"} evidence` })}>
+                  <img className="max-h-72 w-full object-cover" src={evidenceUrl} alt="Waste evidence" />
+                </button>
+              ) : <div className="mt-2 type-body-sm font-semibold text-text-muted">No evidence photo uploaded.</div>}
             </div>
           </Modal>
         );

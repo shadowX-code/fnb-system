@@ -2444,17 +2444,17 @@ Track wastage and operational leakage.
 
 Page behavior:
 
-- Waste & Variance uses an Outlet filter as the active operational context.
-- Owner/admin protected roles may view All Outlets; non-protected roles only see accessible outlets.
+- Waste & Variance uses a required single Outlet filter as the active operational context; All Outlets is not shown because every waste record must belong to one outlet.
+- The default Waste & Variance outlet is the first accessible outlet.
 - Record Waste uses the currently selected outlet context and does not ask for outlet inside the modal.
-- If the active context is All Outlets, Record Waste is blocked with helper text asking the user to select an outlet first.
 - Waste dashboard metrics, Waste Types, Waste Records, and operational insights respond to outlet, waste type, date range, and search filters.
 - Waste Records are outlet-scoped and should show Date, Item, Category, Waste Type, Qty, Outlet, Recorded By, Notes, Evidence, and Actions.
+- Recorded By must display employee nickname, falling back to full name/email, and must never expose raw UUIDs.
 - Record Waste item picker only shows active inventory items linked to the selected outlet.
 - Record Waste writes to `inventory_waste_records` and succeeds only after Supabase confirms the insert.
 - After a waste record is saved, FeedX creates an `inventory_movements` row with `movement_type = Waste`, `reference_type = waste`, `reference_id = inventory_waste_records.id`, and a `WASTE-XXXXXXXX` reference number.
 - Waste movement quantity follows the current inventory movement convention: waste is stored as a negative quantity because it reduces stock.
-- Photo evidence is optional; `photo_url` may remain null until the evidence upload flow is enabled.
+- Photo evidence is optional. Uploaded evidence is stored in Supabase Storage and the public URL is saved to `inventory_waste_records.photo_url`; the table shows `View Photo`, and the detail modal displays the evidence photo and movement reference.
 - Waste metrics currently use record count and quantity only; cost/value analysis is deferred until item costing exists.
 
 Waste types:
