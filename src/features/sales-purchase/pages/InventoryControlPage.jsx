@@ -4496,6 +4496,66 @@ function recipeIngredientCost(line = {}, item) {
   };
 }
 
+function RecipeIngredientPreviewPill({ recipe, itemById }) {
+  const anchorRef = useRef(null);
+  const [open, setOpen] = useState(false);
+  const ingredients = recipe.ingredients || [];
+  const rows = ingredients.slice(0, 5).map((line) => {
+    const item = itemById.get(line.itemId);
+    const quantity = Number(line.quantityUsed ?? line.quantity_used ?? 0);
+    const displayQty = Number.isFinite(quantity) ? String(quantity).replace(/\.0+$/, "") : "-";
+    const unit = line.unit || item?.unit || "";
+    const cost = recipeIngredientCost(line, item);
+    return `${item?.name || "Inventory item"} · ${displayQty} ${unit}`.trim() + ` · ${toCurrency(cost.totalCost)}`;
+  });
+  const remaining = Math.max(0, ingredients.length - 5);
+
+  return (
+    <span
+      className="inline-flex"
+      ref={anchorRef}
+      onMouseEnter={() => setOpen(true)}
+      onMouseLeave={() => setOpen(false)}
+      onFocus={() => setOpen(true)}
+      onBlur={() => setOpen(false)}
+    >
+      <button
+        className="rounded-full border border-border bg-slate-50 px-2.5 py-1 type-caption font-bold text-text-secondary transition hover:border-primary/30 hover:bg-primary/5 focus:outline-none focus:ring-2 focus:ring-primary/20"
+        type="button"
+        onClick={(event) => {
+          event.preventDefault();
+          setOpen((current) => !current);
+        }}
+      >
+        {ingredients.length} ingredient{ingredients.length === 1 ? "" : "s"}
+      </button>
+      <FloatingLayer
+        open={open}
+        onOpenChange={setOpen}
+        anchorRef={anchorRef}
+        align="start"
+        width={300}
+        minWidth={260}
+        estimatedHeight={220}
+        className="p-0"
+        contentClassName="p-3"
+      >
+        <div className="mb-2 type-caption font-black uppercase tracking-wide text-text-muted">Ingredient Preview</div>
+        {rows.length ? (
+          <div className="space-y-1.5">
+            {rows.map((line) => (
+              <div key={line} className="type-caption font-semibold text-text-secondary">{line}</div>
+            ))}
+            {remaining ? <div className="type-caption font-black text-primary">+{remaining} more</div> : null}
+          </div>
+        ) : (
+          <div className="type-caption text-text-muted">No ingredients</div>
+        )}
+      </FloatingLayer>
+    </span>
+  );
+}
+
 function recipeCostSummary(recipe = {}, items = []) {
   const itemById = new Map(items.map((item) => [item.id, item]));
   return (recipe.ingredients || []).reduce((summary, line) => {
@@ -8936,17 +8996,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       .filter((row) => row.margin !== null && Number.isFinite(Number(row.margin)))
       .sort((a, b) => Number(a.margin) - Number(b.margin))
       .slice(0, 6);
-    const ingredientPreviewRows = (recipe) => {
-      const lines = (recipe.ingredients || []).slice(0, 5).map((line) => {
-        const item = itemById.get(line.itemId);
-        const quantity = Number(line.quantityUsed ?? line.quantity_used ?? 0);
-        const displayQty = Number.isFinite(quantity) ? String(quantity).replace(/\.0+$/, "") : "-";
-        return `${item?.name || "Inventory item"} - ${displayQty} ${line.unit || item?.unit || ""}`.trim();
-      });
-      const remaining = Math.max(0, (recipe.ingredients || []).length - 5);
-      return remaining ? [...lines, `+${remaining} more`] : lines;
-    };
-
     return (
       <div className="space-y-4">
         <div className="card grid gap-3 p-3 lg:grid-cols-[220px_190px_170px_1fr] lg:items-end">
@@ -8995,31 +9044,15 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                           </div>
                           <div className="min-w-0">
                             <div className="type-caption font-black uppercase tracking-wide text-text-muted">{recipeCode(recipe) || "No code"}</div>
-                            <div className="font-bold text-text-primary">{recipeNameCn(recipe) || "Recipe Name CN required"}</div>
-                            <div className="type-caption text-text-secondary">{recipeNameEn(recipe) || "Recipe Name EN required"}</div>
+                            <div className="font-bold text-text-primary">{recipeNameEn(recipe) || "Recipe Name EN required"}</div>
+                            <div className="type-caption text-text-secondary">{recipeNameCn(recipe) || "Recipe Name CN required"}</div>
                             <div className="type-caption text-text-secondary">{outletById.get(recipe.outletId)?.name || "Outlet"} · {recipe.servingSize || "1 portion"}</div>
                           </div>
                         </div>
                       </td>
                       <td><Badge tone="info">{recipe.menuCategory || "Uncategorized"}</Badge></td>
                       <td>
-                        <div className="group relative inline-flex">
-                          <span className="cursor-help rounded-full border border-border bg-slate-50 px-2.5 py-1 type-caption font-bold text-text-secondary">
-                            {(recipe.ingredients || []).length} ingredient{(recipe.ingredients || []).length === 1 ? "" : "s"}
-                          </span>
-                          <div className="pointer-events-none absolute left-0 top-full z-30 mt-2 hidden min-w-56 rounded-2xl border border-border bg-background p-3 text-left shadow-xl group-hover:block">
-                            <div className="mb-2 type-caption font-black uppercase tracking-wide text-text-muted">Ingredient Preview</div>
-                            {ingredientPreviewRows(recipe).length ? (
-                              <div className="space-y-1">
-                                {ingredientPreviewRows(recipe).map((line) => (
-                                  <div key={line} className="type-caption font-semibold text-text-secondary">{line}</div>
-                                ))}
-                              </div>
-                            ) : (
-                              <div className="type-caption text-text-muted">No ingredients</div>
-                            )}
-                          </div>
-                        </div>
+                        <RecipeIngredientPreviewPill recipe={recipe} itemById={itemById} />
                       </td>
                       <td className="font-black text-text-primary">{toCurrency(summary.totalCost)}</td>
                       <td className="font-bold text-text-secondary">{recipe.sellingPrice !== "" && recipe.sellingPrice !== null && recipe.sellingPrice !== undefined ? toCurrency(recipe.sellingPrice) : "—"}</td>

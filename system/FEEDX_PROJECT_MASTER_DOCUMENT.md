@@ -2572,8 +2572,9 @@ Rules:
 - Recipe Intelligence matching foundation uses `product_recipe_mappings` for future explicit mapping. Until explicit mapping UI is built, mapping health compares Product Analytics product names against recipes by `recipe_code`, then `recipe_name_en`, then `recipe_name_cn`.
 - Recipe Intelligence shows Mapped Recipes and Unmapped Products so operators can see Product Analytics ↔ Recipe Mapping completeness.
 - Recipe Intelligence keeps Top Margin Recipes and Highest Cost Ingredients, and replaces Recipe Cost Composition with Lowest Margin Recipes sorted ascending by Margin %. POS/sales-dependent charts show `Coming Soon` guidance when Product Analytics ↔ Recipe Mapping is unavailable; no fake sales data is generated.
-- Recipe list columns are Recipe, Category, Ingredients, Estimated Cost, Selling Price, Margin, Status, and Actions. Recipe rows display Chinese name above English name, with recipe code as the operational identifier.
-- Recipe BOM table ingredient counts show a hover preview with up to five ingredient lines in `Ingredient - Qty UOM` format, then `+N more` when additional ingredients exist.
+- Recipe list columns are Recipe, Category, Ingredients, Estimated Cost, Selling Price, Margin, Status, and Actions. Recipe rows display `recipe_code` first, `recipe_name_en` as the primary bold name, `recipe_name_cn` as secondary muted text, then outlet name and serving size.
+- Recipe BOM table ingredient counts use a FloatingLayer/portal preview so the preview is not clipped by table or card overflow. Hover/focus shows the preview on desktop; tap opens it on mobile/touch and outside click closes it.
+- Ingredient preview shows up to five ingredient lines in `Ingredient name · Qty UOM · Cost` format, then `+N more` when additional ingredients exist.
 - Recipe exports include `recipe_code`, `recipe_name_en`, and `recipe_name_cn`.
 - Margin % is `((Selling Price - Estimated Cost) / Selling Price) × 100`; badges are green at 70%+, amber at 40%-69%, and red below 40%.
 - Add Recipe writes to `inventory_recipes` and `inventory_recipe_items`; success is shown only after Supabase confirms the recipe and ingredient rows.
