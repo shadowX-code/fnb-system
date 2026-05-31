@@ -104,7 +104,11 @@ Current matching foundation:
 
 Status:
 - `recipe_code`, `recipe_name_en`, and `recipe_name_cn` are sufficient for Product Analytics mapping.
-- Explicit mapping UI is still needed before broad Recipe Intelligence rollout.
+- Explicit mapping UI now exists in the Recipes & Usage Product Mapping tab.
+- Mapping decisions support Pending, Mapped, and Ignored states.
+- Ignored products persist in `product_recipe_mappings` with `status = ignored`, `recipe_id = null`, ignored metadata, and are excluded from coverage denominator and Recipe Intelligence.
+- Coverage is calculated as Mapped / (Mapped + Pending), so intentional ignored POS items do not penalize mapping health.
+- Future notification hook: Product Analytics imports that introduce new Pending products should trigger a Notification Center task such as `Recipe mapping required`.
 
 ## 6. View Recipe Consistency
 

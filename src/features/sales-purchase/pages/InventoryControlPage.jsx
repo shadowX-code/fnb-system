@@ -1200,8 +1200,34 @@ const recipeAnalysisPeriodOptions = [
   { value: "last12", label: "Last 12 Months", months: 12 },
 ];
 
+const recipeWorkspaceTabs = [
+  { id: "recipes", label: "Recipes" },
+  { id: "mapping", label: "Product Mapping" },
+  { id: "intelligence", label: "Recipe Intelligence" },
+];
+
+const recipeMappingStatusOptions = [
+  { value: "all", label: "All Status" },
+  { value: "pending", label: "Pending" },
+  { value: "mapped", label: "Mapped" },
+  { value: "ignored", label: "Ignored" },
+];
+
 function normalizeProductRecipeKey(value) {
   return String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function mappingDecisionStatus(mapping = {}) {
+  if (!mapping) return "pending";
+  if (mapping.status === "ignored") return "ignored";
+  return mapping.recipe_id ? "mapped" : "pending";
+}
+
+function mappingConfidenceLabel(confidence) {
+  if (confidence >= 90) return "High";
+  if (confidence >= 60) return "Medium";
+  if (confidence > 0) return "Low";
+  return "None";
 }
 
 function getRecipeMappingCandidates(recipe = {}) {
@@ -5784,13 +5810,14 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [movementFilters, setMovementFilters] = useState({ outletId: "all", movementType: "all", search: "", from: "", to: "" });
   const [wasteFilters, setWasteFilters] = useState({ wasteType: "all", from: "", to: "", search: "" });
   const [recipeFilters, setRecipeFilters] = useState({ category: "all", status: "active", search: "" });
+  const [recipeWorkspaceTab, setRecipeWorkspaceTab] = useState("recipes");
+  const [recipeMappingFilters, setRecipeMappingFilters] = useState({ status: "all", search: "" });
   const [recipeAnalysisPeriod, setRecipeAnalysisPeriod] = useState("last3");
   const [recipeProductReports, setRecipeProductReports] = useState([]);
   const [recipeProductItems, setRecipeProductItems] = useState([]);
   const [recipeProductMappings, setRecipeProductMappings] = useState([]);
   const [recipeProductLoading, setRecipeProductLoading] = useState(false);
   const [recipeMappingSelections, setRecipeMappingSelections] = useState({});
-  const [ignoredRecipeProductKeys, setIgnoredRecipeProductKeys] = useState(() => new Set());
   const [savingRecipeMappingKey, setSavingRecipeMappingKey] = useState("");
   const [date, setDateState] = useState(initialStockCheckDate.date);
   const [selectedDateSource, setSelectedDateSource] = useState(initialStockCheckDate.source);
@@ -5877,7 +5904,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   useEffect(() => {
     setRecipeMappingSelections({});
-    setIgnoredRecipeProductKeys(new Set());
   }, [activeRecipeOutletId, recipeAnalysisPeriod]);
 
   useEffect(() => {
@@ -7562,6 +7588,10 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         outlet_id: activeRecipeOutletId,
         product_name: productName,
         recipe_id: recipeId,
+        status: "mapped",
+        ignored_reason: null,
+        ignored_at: null,
+        ignored_by: null,
         updated_at: new Date().toISOString(),
       };
       const result = existing?.id
@@ -7579,16 +7609,80 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       debugLog("[RecipeMappingSaveDebug]", { productName, recipeId, payload, result: { data: result.data, error: result.error } });
       if (result.error) throw result.error;
       setRecipeProductMappings((current) => [result.data, ...current.filter((mapping) => mapping.id !== result.data.id && normalizeProductRecipeKey(mapping.product_name) !== productKey)]);
-      setIgnoredRecipeProductKeys((current) => {
-        const next = new Set(current);
-        next.delete(productKey);
-        return next;
-      });
       notify("Product mapped to Recipe");
     } catch (error) {
       console.warn("[InventoryControl] Unable to save recipe product mapping.", error);
       debugLog("[RecipeMappingSaveDebug]", { productName, recipeId, error });
       notify("Failed to map Product to Recipe", error.message || "Please try again.", "error");
+    } finally {
+      setSavingRecipeMappingKey("");
+    }
+  }
+
+  async function ignoreRecipeProductMapping(productName, reason = "Excluded from recipe intelligence") {
+    const productKey = normalizeProductRecipeKey(productName);
+    if (!activeRecipeOutletId || !productKey) {
+      notify("Failed to ignore Product", "Product name is missing.", "error");
+      return;
+    }
+    setSavingRecipeMappingKey(productKey);
+    try {
+      const existing = recipeProductMappings.find((mapping) => normalizeProductRecipeKey(mapping.product_name) === productKey);
+      const payload = {
+        outlet_id: activeRecipeOutletId,
+        product_name: productName,
+        recipe_id: null,
+        status: "ignored",
+        ignored_reason: reason,
+        ignored_at: new Date().toISOString(),
+        ignored_by: isUuid(auth?.profile?.id) ? auth.profile.id : null,
+        updated_at: new Date().toISOString(),
+      };
+      const result = existing?.id
+        ? await supabase
+          .from("product_recipe_mappings")
+          .update(payload)
+          .eq("id", existing.id)
+          .select("*")
+          .single()
+        : await supabase
+          .from("product_recipe_mappings")
+          .insert({ ...payload, created_by: isUuid(auth?.profile?.id) ? auth.profile.id : null })
+          .select("*")
+          .single();
+      debugLog("[RecipeMappingSaveDebug]", { action: "ignore", productName, payload, result: { data: result.data, error: result.error } });
+      if (result.error) throw result.error;
+      setRecipeProductMappings((current) => [result.data, ...current.filter((mapping) => mapping.id !== result.data.id && normalizeProductRecipeKey(mapping.product_name) !== productKey)]);
+      notify("Product ignored for Recipe Intelligence");
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to ignore recipe product mapping.", error);
+      debugLog("[RecipeMappingSaveDebug]", { action: "ignore", productName, error });
+      notify("Failed to ignore Product", error.message || "Please try again.", "error");
+    } finally {
+      setSavingRecipeMappingKey("");
+    }
+  }
+
+  async function clearRecipeProductMapping(productName) {
+    const productKey = normalizeProductRecipeKey(productName);
+    const existing = recipeProductMappings.find((mapping) => normalizeProductRecipeKey(mapping.product_name) === productKey);
+    if (!existing?.id) return;
+    setSavingRecipeMappingKey(productKey);
+    try {
+      const result = await supabase.from("product_recipe_mappings").delete().eq("id", existing.id);
+      debugLog("[RecipeMappingSaveDebug]", { action: "clear", productName, result: { error: result.error } });
+      if (result.error) throw result.error;
+      setRecipeProductMappings((current) => current.filter((mapping) => mapping.id !== existing.id));
+      setRecipeMappingSelections((current) => {
+        const next = { ...current };
+        delete next[productKey];
+        return next;
+      });
+      notify("Product mapping reset");
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to reset recipe product mapping.", error);
+      debugLog("[RecipeMappingSaveDebug]", { action: "clear", productName, error });
+      notify("Failed to reset Product mapping", error.message || "Please try again.", "error");
     } finally {
       setSavingRecipeMappingKey("");
     }
@@ -9396,36 +9490,62 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       ? pricedMargins.reduce((sum, row) => sum + row.margin, 0) / pricedMargins.length
       : null;
     const highestCostRecipe = recipeCostRows.reduce((highest, row) => !highest || row.summary.totalCost > highest.summary.totalCost ? row : highest, null);
+    const reportById = new Map(recipeProductReports.map((report) => [report.id, report]));
     const productSalesByName = recipeProductItems.reduce((totals, item) => {
       const key = normalizeProductRecipeKey(item.product_name);
       if (!key) return totals;
-      const current = totals.get(key) || { productName: item.product_name, quantity: 0, revenue: 0 };
+      const report = reportById.get(item.report_id);
+      const monthValue = item.report_month || item.month || report?.report_month || "";
+      const yearValue = item.report_year || item.year || report?.report_year || "";
+      const current = totals.get(key) || { productName: item.product_name, quantity: 0, revenue: 0, latestSerial: 0, latestMonth: "" };
       current.quantity += Number(item.quantity || 0);
       current.revenue += Number(item.nett_sales || item.revenue || 0);
+      const serial = monthSerial(yearValue || 0, monthValue || 0);
+      if (serial > current.latestSerial) {
+        current.latestSerial = serial;
+        current.latestMonth = yearValue && monthValue ? `${yearValue}-${String(monthValue).padStart(2, "0")}` : "";
+      }
       totals.set(key, current);
       return totals;
     }, new Map());
     const recipeCostById = new Map(recipeCostRows.map((row) => [row.recipe.id, row]));
-    const mappedProductKeys = new Set(recipeProductMappings.map((mapping) => normalizeProductRecipeKey(mapping.product_name)).filter(Boolean));
+    const mappingByProductKey = new Map(recipeProductMappings.map((mapping) => [normalizeProductRecipeKey(mapping.product_name), mapping]).filter(([key]) => key));
+    const mappedMappings = recipeProductMappings.filter((mapping) => mappingDecisionStatus(mapping) === "mapped");
+    const ignoredMappings = recipeProductMappings.filter((mapping) => mappingDecisionStatus(mapping) === "ignored");
+    const mappedProductKeys = new Set(mappedMappings.map((mapping) => normalizeProductRecipeKey(mapping.product_name)).filter(Boolean));
+    const ignoredProductKeys = new Set(ignoredMappings.map((mapping) => normalizeProductRecipeKey(mapping.product_name)).filter(Boolean));
     const mappingCandidateRecipes = filteredRecipes.filter((recipe) => recipe.status === "active");
-    const unmappedProductRows = [...productSalesByName.entries()]
-      .filter(([key]) => !mappedProductKeys.has(key) && !ignoredRecipeProductKeys.has(key))
+    const productMappingRows = [...productSalesByName.entries()]
       .map(([key, product]) => {
+        const mapping = mappingByProductKey.get(key);
+        const status = mappingDecisionStatus(mapping);
+        const mappedRecipe = status === "mapped" ? recipeCostById.get(mapping?.recipe_id)?.recipe || data.recipes.find((recipe) => recipe.id === mapping?.recipe_id) : null;
         const suggestion = suggestRecipeMatch(product.productName, mappingCandidateRecipes);
         return {
           key,
           productName: product.productName,
           quantity: product.quantity,
           revenue: product.revenue,
+          latestMonth: product.latestMonth || "—",
+          mapping,
+          status,
+          mappedRecipe,
           suggestedRecipe: suggestion.recipe,
           confidence: suggestion.confidence,
           matchType: suggestion.matchType,
-          selectedRecipeId: recipeMappingSelections[key] || suggestion.recipe?.id || "",
+          selectedRecipeId: recipeMappingSelections[key] || mapping?.recipe_id || suggestion.recipe?.id || "",
         };
       })
       .sort((a, b) => Number(b.revenue || 0) - Number(a.revenue || 0));
+    const unmappedProductRows = productMappingRows.filter((row) => row.status === "pending");
+    const recipeMappingSearch = recipeMappingFilters.search.trim().toLowerCase();
+    const visibleProductMappingRows = productMappingRows.filter((row) => {
+      const recipeText = `${recipeCode(row.mappedRecipe || row.suggestedRecipe)} ${recipeNameEn(row.mappedRecipe || row.suggestedRecipe)} ${recipeNameCn(row.mappedRecipe || row.suggestedRecipe)}`.toLowerCase();
+      return (recipeMappingFilters.status === "all" || row.status === recipeMappingFilters.status)
+        && (!recipeMappingSearch || `${row.productName} ${recipeText}`.toLowerCase().includes(recipeMappingSearch));
+    });
     const matchedProductKeys = new Set();
-    const menuEngineeringRows = recipeProductMappings
+    const menuEngineeringRows = mappedMappings
       .map((mapping) => {
         const matchKey = normalizeProductRecipeKey(mapping.product_name);
         const recipeRow = recipeCostById.get(mapping.recipe_id);
@@ -9448,10 +9568,12 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         };
       })
       .filter((row) => row && row.salesVolume > 0 && row.revenue > 0 && row.margin !== null && Number.isFinite(Number(row.margin)));
-    const mappedRecipeCount = new Set(recipeProductMappings
+    const mappedRecipeCount = new Set(mappedMappings
       .filter((mapping) => recipeCostById.has(mapping.recipe_id) && productSalesByName.has(normalizeProductRecipeKey(mapping.product_name)))
       .map((mapping) => mapping.recipe_id)).size;
-    const unmappedProductCount = [...productSalesByName.keys()].filter((key) => !matchedProductKeys.has(key)).length;
+    const pendingProductCount = [...productSalesByName.keys()].filter((key) => !mappedProductKeys.has(key) && !ignoredProductKeys.has(key)).length;
+    const ignoredProductCount = [...productSalesByName.keys()].filter((key) => ignoredProductKeys.has(key)).length;
+    const mappingCoverage = (mappedProductKeys.size + pendingProductCount) ? Math.round((mappedProductKeys.size / (mappedProductKeys.size + pendingProductCount)) * 100) : 0;
     const topMarginRows = recipeCostRows
       .filter((row) => row.margin !== null && Number.isFinite(Number(row.margin)))
       .sort((a, b) => Number(b.margin) - Number(a.margin))
@@ -9506,7 +9628,19 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           <MetricCard label="Average Margin" value={formatRecipeMargin(averageMargin)} helper="Priced recipes only" tone={recipeMarginTone(averageMargin)} size="compact" />
           <MetricCard label="Highest Cost Recipe" value={highestCostRecipe ? recipeDisplayName(highestCostRecipe.recipe) : "—"} helper={highestCostRecipe ? toCurrency(highestCostRecipe.summary.totalCost) : "No recipes"} tone={highestCostRecipe?.summary?.totalCost ? "warning" : "neutral"} size="compact" />
         </div>
-        <DashboardSection title="Recipe BOM Setup" subtitle="Link menu/product items to outlet-linked inventory ingredients.">
+        <div className="flex flex-wrap gap-2 rounded-2xl border border-border bg-background p-2 shadow-sm">
+          {recipeWorkspaceTabs.map((tab) => (
+            <button
+              key={tab.id}
+              className={`rounded-xl px-4 py-2 type-body-sm font-black transition ${recipeWorkspaceTab === tab.id ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-primary/10 hover:text-text-primary"}`}
+              type="button"
+              onClick={() => setRecipeWorkspaceTab(tab.id)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+        {recipeWorkspaceTab === "recipes" ? <DashboardSection title="Recipe BOM Setup" subtitle="Link menu/product items to outlet-linked inventory ingredients.">
           {filteredRecipes.length ? (
             <div className="overflow-x-auto rounded-2xl border border-border">
               <table className="w-full min-w-[980px] text-left">
@@ -9584,51 +9718,84 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               </div>
             </div>
           )}
-        </DashboardSection>
-        <DashboardSection
+        </DashboardSection> : null}
+        {recipeWorkspaceTab === "mapping" ? <DashboardSection
           title="Product ↔ Recipe Mapping"
           subtitle="Connect Product Analytics products to recipes so Recipe Intelligence can use real sales volume and revenue."
           density="compact"
         >
-          <div className="grid gap-3 lg:grid-cols-3">
-            <MetricCard label="Unmapped Products" value={unmappedProductRows.length} helper="Product Analytics products needing review" tone={unmappedProductRows.length ? "warning" : "success"} size="compact" />
-            <MetricCard label="Mapped Products" value={mappedProductKeys.size} helper="Saved in product recipe mappings" tone={mappedProductKeys.size ? "success" : "neutral"} size="compact" />
-            <MetricCard label="Suggested Matches" value={unmappedProductRows.filter((row) => row.suggestedRecipe).length} helper="Matched by code, EN name or CN name" tone="info" size="compact" />
+          <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+            <MetricCard label="Total Products" value={productMappingRows.length} helper="Product Analytics products" size="compact" />
+            <MetricCard label="Mapped" value={mappedProductKeys.size} helper="Feeds Recipe Intelligence" tone={mappedProductKeys.size ? "success" : "neutral"} size="compact" />
+            <MetricCard label="Pending" value={pendingProductCount} helper="Needs mapping decision" tone={pendingProductCount ? "warning" : "success"} size="compact" />
+            <MetricCard label="Ignored" value={ignoredProductCount} helper="Excluded intentionally" tone={ignoredProductCount ? "neutral" : "success"} size="compact" />
+            <MetricCard label="Coverage %" value={`${mappingCoverage}%`} helper="Mapped / (Mapped + Pending)" tone={mappingCoverage >= 80 ? "success" : mappingCoverage >= 40 ? "warning" : "danger"} size="compact" />
+          </div>
+          <div className="mt-4 grid gap-3 lg:grid-cols-[220px_1fr]">
+            <SelectField
+              label="Status"
+              value={recipeMappingFilters.status}
+              options={recipeMappingStatusOptions}
+              onChange={(value) => setRecipeMappingFilters((current) => ({ ...current, status: value }))}
+            />
+            <label>
+              <div className="mb-1 type-caption font-semibold text-text-secondary">Search product or recipe</div>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
+                <input
+                  className="control h-9 w-full pl-9 text-[13px]"
+                  value={recipeMappingFilters.search}
+                  onChange={(event) => setRecipeMappingFilters((current) => ({ ...current, search: event.target.value }))}
+                  placeholder="Search product name or mapped recipe"
+                />
+              </div>
+            </label>
           </div>
           <div className="mt-4 overflow-x-auto rounded-2xl border border-border">
-            {unmappedProductRows.length ? (
-              <table className="w-full min-w-[980px] text-left">
+            {visibleProductMappingRows.length ? (
+              <table className="w-full min-w-[1180px] text-left">
                 <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
                   <tr>
-                    <th className="px-3 py-2">Unmapped Product</th>
+                    <th className="px-3 py-2">Product Name</th>
+                    <th>Latest Month / Last Seen</th>
+                    <th>Qty Sold</th>
+                    <th>Net Sales</th>
                     <th>Suggested Recipe Match</th>
                     <th>Confidence</th>
+                    <th>Status</th>
                     <th>Manual Mapping</th>
                     <th className="pr-8 text-right">Action</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border text-[13px]">
-                  {unmappedProductRows.map((row) => {
+                  {visibleProductMappingRows.map((row) => {
                     const selectedRecipe = mappingCandidateRecipes.find((recipe) => recipe.id === row.selectedRecipeId);
-                    const confidenceTone = row.confidence >= 90 ? "success" : row.confidence >= 60 ? "warning" : "neutral";
+                    const displayRecipe = row.mappedRecipe || row.suggestedRecipe;
+                    const confidenceTone = row.confidence >= 90 ? "success" : row.confidence >= 60 ? "warning" : row.confidence > 0 ? "neutral" : "danger";
                     return (
                       <tr key={row.key} className="transition hover:bg-primary/5">
                         <td className="px-3 py-3">
                           <div className="font-bold text-text-primary">{row.productName}</div>
-                          <div className="type-caption text-text-secondary">{Number(row.quantity || 0).toLocaleString()} sold · {toCurrency(row.revenue)}</div>
+                          <div className="type-caption text-text-secondary">Outlet: {outletById.get(activeRecipeOutletId)?.name || "Selected outlet"}</div>
                         </td>
+                        <td className="font-bold text-text-secondary">{row.latestMonth}</td>
+                        <td className="font-black text-text-primary">{Number(row.quantity || 0).toLocaleString()}</td>
+                        <td className="font-black text-text-primary">{toCurrency(row.revenue)}</td>
                         <td>
-                          {row.suggestedRecipe ? (
+                          {displayRecipe ? (
                             <div>
-                              <div className="font-bold text-text-primary">{recipeNameEn(row.suggestedRecipe) || recipeCode(row.suggestedRecipe)}</div>
-                              <div className="type-caption text-text-muted">{recipeCode(row.suggestedRecipe)} · {recipeNameCn(row.suggestedRecipe) || "No CN name"}</div>
+                              <div className="font-bold text-text-primary">{recipeNameEn(displayRecipe) || recipeCode(displayRecipe)}</div>
+                              <div className="type-caption text-text-muted">{recipeCode(displayRecipe)} · {recipeNameCn(displayRecipe) || "No CN name"}</div>
                             </div>
                           ) : (
                             <span className="type-caption font-semibold text-text-muted">No suggestion</span>
                           )}
                         </td>
                         <td>
-                          {row.suggestedRecipe ? <Badge tone={confidenceTone}>{row.confidence}%</Badge> : <Badge tone="neutral">Manual</Badge>}
+                          {row.suggestedRecipe ? <Badge tone={confidenceTone}>{mappingConfidenceLabel(row.confidence)}</Badge> : <Badge tone="neutral">Manual</Badge>}
+                        </td>
+                        <td>
+                          <Badge tone={row.status === "mapped" ? "success" : row.status === "ignored" ? "neutral" : "warning"}>{toTitle(row.status)}</Badge>
                         </td>
                         <td>
                           <SelectField
@@ -9647,22 +9814,27 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                         </td>
                         <td className="pr-8">
                           <div className="flex justify-end gap-2">
-                            <button
-                              className="btn-primary h-8 px-3 text-xs"
-                              type="button"
-                              disabled={!row.selectedRecipeId || savingRecipeMappingKey === row.key}
-                              onClick={() => saveRecipeProductMapping(row.productName, row.selectedRecipeId)}
-                            >
-                              {savingRecipeMappingKey === row.key ? "Mapping..." : "Map"}
-                            </button>
-                            <button
-                              className="btn-secondary h-8 px-3 text-xs"
-                              type="button"
-                              disabled={savingRecipeMappingKey === row.key}
-                              onClick={() => setIgnoredRecipeProductKeys((current) => new Set([...current, row.key]))}
-                            >
-                              Ignore
-                            </button>
+                            {row.status === "mapped" ? (
+                              <>
+                                <button className="btn-primary h-8 px-3 text-xs" type="button" disabled={!row.selectedRecipeId || savingRecipeMappingKey === row.key} onClick={() => saveRecipeProductMapping(row.productName, row.selectedRecipeId)}>
+                                  {savingRecipeMappingKey === row.key ? "Saving..." : "Change Mapping"}
+                                </button>
+                                <button className="btn-secondary h-8 px-3 text-xs" type="button" disabled={savingRecipeMappingKey === row.key} onClick={() => clearRecipeProductMapping(row.productName)}>Unmap</button>
+                              </>
+                            ) : row.status === "ignored" ? (
+                              <button className="btn-secondary h-8 px-3 text-xs" type="button" disabled={savingRecipeMappingKey === row.key} onClick={() => clearRecipeProductMapping(row.productName)}>
+                                Restore to Pending
+                              </button>
+                            ) : (
+                              <>
+                                <button className="btn-primary h-8 px-3 text-xs" type="button" disabled={!row.selectedRecipeId || savingRecipeMappingKey === row.key} onClick={() => saveRecipeProductMapping(row.productName, row.selectedRecipeId)}>
+                                  {savingRecipeMappingKey === row.key ? "Mapping..." : "Map"}
+                                </button>
+                                <button className="btn-secondary h-8 px-3 text-xs" type="button" disabled={savingRecipeMappingKey === row.key} onClick={() => ignoreRecipeProductMapping(row.productName)}>
+                                  Ignore
+                                </button>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>
@@ -9672,18 +9844,18 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               </table>
             ) : (
               <EmptyState
-                title={recipeProductLoading ? "Loading Product Analytics products..." : "No unmapped products"}
-                description={recipeProductLoading ? "Recipe mapping suggestions will appear after Product Analytics data loads." : "All Product Analytics products in this period are mapped or ignored for this session."}
+                title={recipeProductLoading ? "Loading Product Analytics products..." : "No products match this filter"}
+                description={recipeProductLoading ? "Recipe mapping suggestions will appear after Product Analytics data loads." : "Try another status or search term. New Product Analytics products will appear as Pending."}
               />
             )}
           </div>
-        </DashboardSection>
-        <DashboardSection
+        </DashboardSection> : null}
+        {recipeWorkspaceTab === "intelligence" ? <DashboardSection
           title="Recipe Intelligence"
           subtitle="Identify profitable menu items, highest cost recipes and key ingredient cost drivers."
         >
           <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-end">
-            <RecipeMappingHealth mapped={mappedRecipeCount} unmapped={unmappedProductCount} totalRecipes={mappingCandidateRecipes.length} loading={recipeProductLoading} />
+            <RecipeMappingHealth mapped={mappedProductKeys.size} unmapped={pendingProductCount} totalRecipes={mappingCandidateRecipes.length} loading={recipeProductLoading} />
             <SelectField
               label="Analysis Period"
               value={recipeAnalysisPeriod}
@@ -9691,6 +9863,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               onChange={setRecipeAnalysisPeriod}
             />
           </div>
+          {pendingProductCount > 0 ? (
+            <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 type-body-sm text-amber-900 dark:border-amber-400/30 dark:bg-amber-950/30 dark:text-amber-100">
+              <span className="font-black">Some products are not mapped yet.</span> Insights may be incomplete until {pendingProductCount} pending {pendingProductCount === 1 ? "product is" : "products are"} mapped or ignored.
+            </div>
+          ) : null}
           <div className="grid gap-4 xl:grid-cols-[minmax(0,1.45fr)_minmax(320px,0.55fr)]">
             <RecipeIntelligenceCard
               title="Menu Engineering Matrix"
@@ -9770,7 +9947,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               />
             </RecipeIntelligenceCard>
           </div>
-        </DashboardSection>
+        </DashboardSection> : null}
         <DashboardSection title="Usage Estimate" subtitle="Future-ready product sales to ingredient usage foundation." density="compact">
           <div className="rounded-2xl border border-primary/15 bg-primary/5 p-3">
             <div className="type-title font-bold text-text-primary">Product sales quantity × recipe ingredient quantity = estimated inventory usage</div>
