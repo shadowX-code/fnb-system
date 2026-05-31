@@ -108,6 +108,13 @@ Status:
 - Mapping decisions support Pending, Mapped, and Ignored states.
 - Ignored products persist in `product_recipe_mappings` with `status = ignored`, `recipe_id = null`, ignored metadata, and are excluded from coverage denominator and Recipe Intelligence.
 - Coverage is calculated as Mapped / (Mapped + Pending), so intentional ignored POS items do not penalize mapping health.
+- Recipe Intelligence now focuses on profit and ingredient planning instead of repeated margin/revenue cards:
+  - Recipe Gross Profit Trend
+  - Top Gross Profit Recipes
+  - Ingredient Demand Forecast
+  - Top 10 Ingredient Consumption - Monthly
+  - Ingredient Consumption Trend - Monthly
+- Ingredient analytics use mapped Product Analytics sales only. Pending products are excluded but flagged as mapping risk; Ignored products are excluded completely.
 - Future notification hook: Product Analytics imports that introduce new Pending products should trigger a Notification Center task such as `Recipe mapping required`.
 
 ## 6. View Recipe Consistency

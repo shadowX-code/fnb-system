@@ -1278,6 +1278,32 @@ function monthSerial(year, month) {
   return Number(year) * 12 + Number(month);
 }
 
+function serialToMonthParts(serial) {
+  const value = Number(serial || 0);
+  const year = Math.floor((value - 1) / 12);
+  const month = value - year * 12;
+  return { year, month };
+}
+
+function formatMonthSerial(serial) {
+  const { year, month } = serialToMonthParts(serial);
+  if (!year || !month) return "—";
+  return new Date(year, month - 1, 1).toLocaleDateString("en-MY", { month: "short", year: "numeric" });
+}
+
+function buildMonthSerialRange(startSerial, endSerial) {
+  const start = Number(startSerial || 0);
+  const end = Number(endSerial || 0);
+  if (!start || !end || end < start) return [];
+  return Array.from({ length: end - start + 1 }, (_, index) => start + index);
+}
+
+function formatPercentChange(value) {
+  if (value === null || value === undefined || !Number.isFinite(Number(value))) return "—";
+  const numeric = Number(value);
+  return `${numeric > 0 ? "+" : ""}${Math.round(numeric)}%`;
+}
+
 function businessMonthSerial(offsetMonths = 0) {
   const [year, month] = getBusinessDateInput("Asia/Kuala_Lumpur").split("-").map(Number);
   return monthSerial(year, month) + offsetMonths;
@@ -4726,8 +4752,8 @@ function classifyMenuEngineeringRow(row, averageVolume, averageMargin) {
   };
 }
 
-function RecipeInsightsPanel({ rows = [] }) {
-  if (!rows.length) {
+function RecipeInsightsPanel({ rows = [], grossProfitRows = [], ingredientDrivers = [], pendingCount = 0 }) {
+  if (!rows.length && !grossProfitRows.length && !ingredientDrivers.length) {
     return (
       <RecipeIntelligenceCard title="Recipe Insights" description="Actionable classification will appear when mapped sales data is available.">
         <RecipeIntelligencePlaceholder
@@ -4749,6 +4775,35 @@ function RecipeInsightsPanel({ rows = [] }) {
   return (
     <RecipeIntelligenceCard title="Recipe Insights" description="Top actions from the mapped Product Analytics period.">
       <div className="space-y-3">
+        {pendingCount > 0 ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 dark:border-amber-400/30 dark:bg-amber-950/30">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <div className="font-black text-amber-900 dark:text-amber-100">Mapping coverage warning</div>
+                <p className="mt-1 type-body-sm text-amber-800 dark:text-amber-100">{pendingCount} pending products are excluded from profit and ingredient planning.</p>
+              </div>
+              <Badge tone="warning">Medium impact</Badge>
+            </div>
+          </div>
+        ) : null}
+        {grossProfitRows[0] ? (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-400/30 dark:bg-emerald-950/30">
+            <div className="font-black text-emerald-900 dark:text-emerald-100">Top gross profit recipe</div>
+            <p className="mt-1 type-body-sm text-emerald-800 dark:text-emerald-100">
+              {recipeNameEn(grossProfitRows[0].recipe) || grossProfitRows[0].label} contributes {toCurrency(grossProfitRows[0].grossProfit)} gross profit.
+            </p>
+            <div className="mt-2 type-caption font-bold text-emerald-800 dark:text-emerald-100">Action: protect availability and ingredient supply.</div>
+          </div>
+        ) : null}
+        {ingredientDrivers[0] ? (
+          <div className="rounded-2xl border border-orange-200 bg-orange-50 p-3 dark:border-orange-400/30 dark:bg-orange-950/30">
+            <div className="font-black text-orange-900 dark:text-orange-100">Ingredient cost driver</div>
+            <p className="mt-1 type-body-sm text-orange-800 dark:text-orange-100">
+              {ingredientDrivers[0].ingredient} is the largest forecast purchase driver at {toCurrency(ingredientDrivers[0].forecastCost)}.
+            </p>
+            <div className="mt-2 type-caption font-bold text-orange-800 dark:text-orange-100">Action: check supplier pricing and par level planning.</div>
+          </div>
+        ) : null}
         {ranked.map((row) => (
           <div key={`${row.id}-${row.classification}`} className="rounded-2xl border border-border bg-slate-50/80 p-3 dark:bg-white/5">
             <div className="flex flex-wrap items-start justify-between gap-2">
@@ -4838,7 +4893,7 @@ function RecipeMappingHealth({ mapped, unmapped, totalRecipes, loading }) {
         </div>
         <div className="rounded-2xl border border-white/60 bg-white/75 p-3 shadow-sm dark:border-white/10 dark:bg-white/5">
           <div className="font-black text-text-primary">{unmapped}</div>
-          <div className="font-semibold text-text-muted">Unmapped</div>
+          <div className="font-semibold text-text-muted">Pending</div>
         </div>
         <div className="rounded-2xl border border-white/60 bg-white/75 p-3 shadow-sm dark:border-white/10 dark:bg-white/5">
           <div className="font-black text-text-primary">{coverage}%</div>
@@ -4944,6 +4999,162 @@ function RecipeRankingTable({ rows = [], columns = [], emptyTitle, emptyDescript
         </tbody>
       </table>
     </div>
+  );
+}
+
+const recipeTrendPalette = ["#22c55e", "#38bdf8", "#f59e0b", "#a855f7", "#f43f5e"];
+
+function RecipeTrendChart({ series = [], months = [], valueFormatter = (value) => value, emptyTitle, emptyDescription, height = 260 }) {
+  const activeSeries = series.filter((entry) => entry?.values?.some((point) => Number(point.value || 0) > 0)).slice(0, 5);
+  if (!activeSeries.length || !months.length) {
+    return <RecipeIntelligencePlaceholder title={emptyTitle} description={emptyDescription} />;
+  }
+  const values = activeSeries.flatMap((entry) => entry.values.map((point) => Number(point.value || 0)));
+  const maxValue = Math.max(...values, 1);
+  const minValue = Math.min(...values, 0);
+  const range = maxValue - minValue || 1;
+  const pointsFor = (entry) => entry.values.map((point, index) => {
+    const x = months.length === 1 ? 50 : 8 + (index / (months.length - 1)) * 84;
+    const y = 86 - ((Number(point.value || 0) - minValue) / range) * 72;
+    return `${x},${y}`;
+  }).join(" ");
+
+  return (
+    <div>
+      <div className="relative overflow-hidden rounded-3xl border border-border bg-slate-50 p-3 dark:bg-white/5" style={{ height }}>
+        <svg viewBox="0 0 100 100" preserveAspectRatio="none" className="h-full w-full">
+          {[20, 40, 60, 80].map((line) => <line key={line} x1="5" x2="96" y1={line} y2={line} stroke="currentColor" className="text-border" strokeWidth="0.25" />)}
+          {activeSeries.map((entry, index) => (
+            <polyline
+              key={entry.id || entry.label}
+              points={pointsFor(entry)}
+              fill="none"
+              stroke={recipeTrendPalette[index % recipeTrendPalette.length]}
+              strokeWidth="1.8"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              vectorEffect="non-scaling-stroke"
+            />
+          ))}
+          {activeSeries.map((entry, index) => entry.values.map((point, pointIndex) => {
+            const [x, y] = pointsFor({ values: [point] }).split(",").map(Number);
+            const actualX = months.length === 1 ? 50 : 8 + (pointIndex / (months.length - 1)) * 84;
+            return (
+              <circle
+                key={`${entry.id || entry.label}-${point.month}`}
+                cx={actualX}
+                cy={y}
+                r="1.8"
+                fill={recipeTrendPalette[index % recipeTrendPalette.length]}
+                vectorEffect="non-scaling-stroke"
+              >
+                <title>{`${entry.label} · ${formatMonthSerial(point.month)} · ${valueFormatter(point.value)}${point.tooltip ? ` · ${point.tooltip}` : ""}`}</title>
+              </circle>
+            );
+          }))}
+        </svg>
+        <div className="pointer-events-none absolute inset-x-6 bottom-2 flex justify-between type-caption font-bold text-text-muted">
+          {months.map((serial) => <span key={serial}>{formatMonthSerial(serial)}</span>)}
+        </div>
+      </div>
+      <div className="mt-3 flex flex-wrap gap-2">
+        {activeSeries.map((entry, index) => (
+          <span key={entry.id || entry.label} className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-2.5 py-1 type-caption font-bold text-text-secondary dark:bg-white/5">
+            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: recipeTrendPalette[index % recipeTrendPalette.length] }} />
+            {entry.label}
+          </span>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function IngredientSelectorPills({ rows = [], selectedIds = [], onToggle, search, onSearch }) {
+  const visible = rows.filter((row) => !search.trim() || `${row.ingredient} ${row.category}`.toLowerCase().includes(search.trim().toLowerCase())).slice(0, 12);
+  return (
+    <div className="space-y-2">
+      <label>
+        <div className="mb-1 type-caption font-semibold text-text-secondary">Search ingredient</div>
+        <input className="control h-9 w-full text-[13px]" value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Search ingredient to trend" />
+      </label>
+      <div className="flex flex-wrap gap-2">
+        {visible.map((row) => {
+          const active = selectedIds.includes(row.id);
+          const disabled = !active && selectedIds.length >= 5;
+          return (
+            <button
+              key={row.id}
+              className={`rounded-full border px-3 py-1.5 type-caption font-black transition ${active ? "border-primary bg-primary text-white" : "border-border bg-background text-text-secondary hover:bg-primary/10"} ${disabled ? "cursor-not-allowed opacity-50" : ""}`}
+              type="button"
+              disabled={disabled}
+              onClick={() => onToggle(row.id)}
+            >
+              {row.ingredient}
+            </button>
+          );
+        })}
+      </div>
+      {selectedIds.length >= 5 ? <div className="type-caption text-text-muted">Up to 5 ingredients can be compared at once.</div> : null}
+    </div>
+  );
+}
+
+function IngredientConsumptionModal({ rows = [], categories = [], filters, onFilter, onClose }) {
+  const search = filters.search.trim().toLowerCase();
+  const filtered = rows
+    .filter((row) => (filters.category === "all" || row.category === filters.category)
+      && (!search || `${row.ingredient} ${row.category}`.toLowerCase().includes(search)))
+    .sort((a, b) => {
+      if (filters.sort === "usage") return Number(b.estimatedUsage || 0) - Number(a.estimatedUsage || 0);
+      if (filters.sort === "ingredient") return a.ingredient.localeCompare(b.ingredient);
+      if (filters.sort === "category") return a.category.localeCompare(b.category) || a.ingredient.localeCompare(b.ingredient);
+      return Number(b.totalCost || 0) - Number(a.totalCost || 0);
+    });
+  return (
+    <Modal
+      title="Ingredient Consumption"
+      description="Full monthly estimated ingredient consumption from mapped Product Analytics sales and Recipe BOM."
+      size="xl"
+      onClose={onClose}
+      footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}
+    >
+      <div className="mb-4 grid gap-3 lg:grid-cols-[1fr_180px_180px]">
+        <label>
+          <div className="mb-1 type-caption font-semibold text-text-secondary">Search ingredient</div>
+          <input className="control h-9 w-full text-[13px]" value={filters.search} onChange={(event) => onFilter({ ...filters, search: event.target.value })} placeholder="Search ingredient" />
+        </label>
+        <SelectField
+          label="Category"
+          value={filters.category}
+          options={[{ value: "all", label: "All Categories" }, ...categories.map((category) => ({ value: category, label: category }))]}
+          onChange={(value) => onFilter({ ...filters, category: value })}
+        />
+        <SelectField
+          label="Sort"
+          value={filters.sort}
+          options={[
+            { value: "cost", label: "Total Cost" },
+            { value: "usage", label: "Estimated Usage" },
+            { value: "ingredient", label: "Ingredient Name" },
+            { value: "category", label: "Category" },
+          ]}
+          onChange={(value) => onFilter({ ...filters, sort: value })}
+        />
+      </div>
+      <RecipeRankingTable
+        rows={filtered}
+        columns={[
+          { key: "ingredient", label: "Ingredient", render: (row) => <div className="font-bold text-text-primary">{row.ingredient}</div> },
+          { key: "category", label: "Category", render: (row) => <Badge tone="info">{row.category}</Badge> },
+          { key: "usage", label: "Estimated Usage", render: (row) => <span className="font-black text-text-primary">{Number(row.estimatedUsage || 0).toLocaleString("en-MY", { maximumFractionDigits: 2 })}</span> },
+          { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
+          { key: "unitCost", label: "Unit Cost", render: (row) => toCurrency(row.unitCost) },
+          { key: "totalCost", label: "Total Cost", render: (row) => <span className="font-black text-text-primary">{toCurrency(row.totalCost)}</span> },
+        ]}
+        emptyTitle="No ingredient consumption rows"
+        emptyDescription="Try another search or category filter."
+      />
+    </Modal>
   );
 }
 
@@ -5834,6 +6045,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [recipeProductLoading, setRecipeProductLoading] = useState(false);
   const [recipeMappingSelections, setRecipeMappingSelections] = useState({});
   const [savingRecipeMappingKey, setSavingRecipeMappingKey] = useState("");
+  const [ingredientTrendSearch, setIngredientTrendSearch] = useState("");
+  const [ingredientTrendSelectedIds, setIngredientTrendSelectedIds] = useState([]);
+  const [ingredientConsumptionFilters, setIngredientConsumptionFilters] = useState({ search: "", category: "all", sort: "cost" });
   const [date, setDateState] = useState(initialStockCheckDate.date);
   const [selectedDateSource, setSelectedDateSource] = useState(initialStockCheckDate.source);
   const selectedDateSourceRef = useRef(initialStockCheckDate.source);
@@ -5919,6 +6133,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   useEffect(() => {
     setRecipeMappingSelections({});
+    setIngredientTrendSearch("");
+    setIngredientTrendSelectedIds([]);
   }, [activeRecipeOutletId, recipeAnalysisPeriod]);
 
   useEffect(() => {
@@ -9505,6 +9721,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       ? pricedMargins.reduce((sum, row) => sum + row.margin, 0) / pricedMargins.length
       : null;
     const highestCostRecipe = recipeCostRows.reduce((highest, row) => !highest || row.summary.totalCost > highest.summary.totalCost ? row : highest, null);
+    const selectedPeriod = recipeAnalysisPeriodOptions.find((option) => option.value === recipeAnalysisPeriod) || recipeAnalysisPeriodOptions[1];
+    const analysisStartSerial = businessMonthSerial(-(selectedPeriod.months - 1));
+    const analysisEndSerial = businessMonthSerial(0);
+    const analysisMonths = buildMonthSerialRange(analysisStartSerial, analysisEndSerial);
+    const latestAnalysisSerial = Math.max(...analysisMonths, 0);
     const reportById = new Map(recipeProductReports.map((report) => [report.id, report]));
     const productSalesByName = recipeProductItems.reduce((totals, item) => {
       const key = normalizeProductRecipeKey(item.product_name);
@@ -9512,10 +9733,16 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       const report = reportById.get(item.report_id);
       const monthValue = item.report_month || item.month || report?.report_month || "";
       const yearValue = item.report_year || item.year || report?.report_year || "";
-      const current = totals.get(key) || { productName: item.product_name, quantity: 0, revenue: 0, latestSerial: 0, latestMonth: "" };
-      current.quantity += Number(item.quantity || 0);
-      current.revenue += Number(item.nett_sales || item.revenue || 0);
       const serial = monthSerial(yearValue || 0, monthValue || 0);
+      const current = totals.get(key) || { productName: item.product_name, quantity: 0, revenue: 0, latestSerial: 0, latestMonth: "", monthly: new Map() };
+      const quantity = Number(item.quantity || 0);
+      const revenue = Number(item.nett_sales || item.revenue || 0);
+      current.quantity += quantity;
+      current.revenue += revenue;
+      const monthBucket = current.monthly.get(serial) || { month: serial, quantity: 0, revenue: 0 };
+      monthBucket.quantity += quantity;
+      monthBucket.revenue += revenue;
+      current.monthly.set(serial, monthBucket);
       if (serial > current.latestSerial) {
         current.latestSerial = serial;
         current.latestMonth = yearValue && monthValue ? `${yearValue}-${String(monthValue).padStart(2, "0")}` : "";
@@ -9596,40 +9823,132 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     const pendingProductCount = [...productSalesByName.keys()].filter((key) => !mappedProductKeys.has(key) && !ignoredProductKeys.has(key)).length;
     const ignoredProductCount = [...productSalesByName.keys()].filter((key) => ignoredProductKeys.has(key)).length;
     const mappingCoverage = (mappedProductKeys.size + pendingProductCount) ? Math.round((mappedProductKeys.size / (mappedProductKeys.size + pendingProductCount)) * 100) : 0;
-    const topMarginRows = recipeCostRows
-      .filter((row) => row.margin !== null && Number.isFinite(Number(row.margin)))
-      .sort((a, b) => Number(b.margin) - Number(a.margin))
-      .slice(0, 5)
-      .map(({ recipe, summary, margin }) => ({
-        id: recipe.id,
-        recipe,
-        label: recipeNameEn(recipe) || recipeNameCn(recipe) || recipeCode(recipe),
-        value: Number(margin),
-        profitPerServing: Number(recipe.sellingPrice || 0) - Number(summary.totalCost || 0),
-      }));
-    const topRevenueRows = [...menuEngineeringRows]
-      .sort((a, b) => Number(b.revenue || 0) - Number(a.revenue || 0))
-      .slice(0, 5);
-    const ingredientCostTotals = recipeCostRows.reduce((totals, { recipe }) => {
-      (recipe.ingredients || []).forEach((line) => {
-        const item = itemById.get(line.itemId);
-        const cost = recipeIngredientCost(line, item);
-        const key = line.itemId || line.id || item?.name || "unknown";
-        const current = totals.get(key) || { id: key, label: item?.name || "Inventory item", value: 0 };
-        current.value += cost.totalCost + cost.wastageCost;
-        totals.set(key, current);
-      });
-      return totals;
-    }, new Map());
-    const highestCostIngredientRows = [...ingredientCostTotals.values()]
-      .filter((row) => Number(row.value || 0) > 0)
-      .sort((a, b) => Number(b.value) - Number(a.value))
-      .slice(0, 5);
-    const lowestMarginRows = recipeCostRows
-      .filter((row) => row.margin !== null && Number.isFinite(Number(row.margin)))
-      .sort((a, b) => Number(a.margin) - Number(b.margin))
-      .slice(0, 6);
     const reliableMenuEngineeringRows = mappedRecipeCount >= 10 ? menuEngineeringRows : [];
+    const monthlyGrossProfitBuckets = new Map(analysisMonths.map((serial) => [serial, { month: serial, revenue: 0, recipeCost: 0, grossProfit: 0, margin: null }]));
+    const ingredientConsumptionByMonth = new Map();
+    const addIngredientUsage = ({ line, item, month, usage }) => {
+      if (!item || !Number(usage || 0)) return;
+      const key = item.id || line.itemId || item.name;
+      const unitCost = Number(item.cost || 0);
+      const category = categoryById.get(item.categoryId);
+      const current = ingredientConsumptionByMonth.get(key) || {
+        id: key,
+        ingredient: item.name || "Inventory item",
+        category: category?.name || "Uncategorized",
+        uom: item.unit || line.unit || "",
+        unitCost,
+        estimatedUsage: 0,
+        totalCost: 0,
+        monthly: new Map(),
+      };
+      current.estimatedUsage += usage;
+      current.totalCost += usage * unitCost;
+      const monthBucket = current.monthly.get(month) || { month, usage: 0, cost: 0 };
+      monthBucket.usage += usage;
+      monthBucket.cost += usage * unitCost;
+      current.monthly.set(month, monthBucket);
+      ingredientConsumptionByMonth.set(key, current);
+    };
+
+    mappedMappings.forEach((mapping) => {
+      const matchKey = normalizeProductRecipeKey(mapping.product_name);
+      const product = productSalesByName.get(matchKey);
+      const recipeRow = recipeCostById.get(mapping.recipe_id);
+      if (!product || !recipeRow) return;
+      const { recipe, summary } = recipeRow;
+      const recipeCost = Number(summary.totalCost || 0);
+      const sellingPrice = Number(recipe.sellingPrice ?? recipe.selling_price ?? 0);
+      const profitPerServing = sellingPrice - recipeCost;
+      product.monthly.forEach((monthSale, month) => {
+        if (!analysisMonths.includes(month)) return;
+        const gross = monthlyGrossProfitBuckets.get(month) || { month, revenue: 0, recipeCost: 0, grossProfit: 0, margin: null };
+        gross.revenue += Number(monthSale.revenue || 0);
+        gross.recipeCost += Number(monthSale.quantity || 0) * recipeCost;
+        gross.grossProfit += Number(monthSale.quantity || 0) * profitPerServing;
+        gross.margin = gross.revenue > 0 ? (gross.grossProfit / gross.revenue) * 100 : null;
+        monthlyGrossProfitBuckets.set(month, gross);
+        (recipe.ingredients || []).forEach((line) => {
+          const item = itemById.get(line.itemId);
+          const quantityUsed = Number(line.quantityUsed ?? line.quantity_used ?? 0);
+          addIngredientUsage({ line, item, month, usage: Number(monthSale.quantity || 0) * quantityUsed });
+        });
+      });
+    });
+
+    const topGrossProfitRows = [...menuEngineeringRows]
+      .map((row) => ({ ...row, grossProfit: Number(row.salesVolume || 0) * Number(row.profitPerServing || 0) }))
+      .sort((a, b) => Number(b.grossProfit || 0) - Number(a.grossProfit || 0))
+      .slice(0, 8);
+    const grossProfitTrendSeries = [{
+      id: "gross-profit",
+      label: "Gross Profit",
+      values: analysisMonths.map((month) => {
+        const bucket = monthlyGrossProfitBuckets.get(month) || {};
+        return {
+          month,
+          value: Number(bucket.grossProfit || 0),
+          tooltip: `Revenue ${toCurrency(bucket.revenue || 0)} · Recipe Cost ${toCurrency(bucket.recipeCost || 0)} · Margin ${formatRecipeMargin(bucket.margin)}`,
+        };
+      }),
+    }];
+    const latestConsumptionSerial = Math.max(
+      ...[...ingredientConsumptionByMonth.values()].flatMap((row) => [...row.monthly.keys()]),
+      0,
+    ) || latestAnalysisSerial;
+    const ingredientConsumptionRows = [...ingredientConsumptionByMonth.values()]
+      .map((row) => {
+        const latestBucket = row.monthly.get(latestConsumptionSerial) || { usage: 0, cost: 0 };
+        return {
+          ...row,
+          estimatedUsage: latestBucket.usage,
+          totalCost: latestBucket.cost,
+        };
+      })
+      .filter((row) => Number(row.estimatedUsage || 0) > 0 || Number(row.totalCost || 0) > 0)
+      .sort((a, b) => Number(b.totalCost || 0) - Number(a.totalCost || 0));
+    const ingredientConsumptionCategories = [...new Set(ingredientConsumptionRows.map((row) => row.category).filter(Boolean))].sort();
+    const ingredientDemandForecastRows = [...ingredientConsumptionByMonth.values()]
+      .map((row) => {
+        const monthlyBuckets = analysisMonths.map((month) => row.monthly.get(month) || { usage: 0, cost: 0 });
+        const forecastUsage = monthlyBuckets.reduce((sum, bucket) => sum + Number(bucket.usage || 0), 0) / Math.max(selectedPeriod.months, 1);
+        const latestUsage = monthlyBuckets[monthlyBuckets.length - 1]?.usage || 0;
+        const priorBuckets = monthlyBuckets.slice(0, -1);
+        const priorAverage = priorBuckets.length ? priorBuckets.reduce((sum, bucket) => sum + Number(bucket.usage || 0), 0) / priorBuckets.length : null;
+        const change = priorAverage && priorAverage > 0 ? ((latestUsage - priorAverage) / priorAverage) * 100 : null;
+        return {
+          ...row,
+          forecastUsage,
+          forecastCost: forecastUsage * Number(row.unitCost || 0),
+          change,
+        };
+      })
+      .filter((row) => Number(row.forecastUsage || 0) > 0)
+      .sort((a, b) => Number(b.forecastCost || 0) - Number(a.forecastCost || 0))
+      .slice(0, 8);
+    const defaultTrendIngredientIds = [...ingredientConsumptionByMonth.values()]
+      .sort((a, b) => Number(b.totalCost || 0) - Number(a.totalCost || 0))
+      .slice(0, 5)
+      .map((row) => row.id);
+    const activeTrendIngredientIds = (ingredientTrendSelectedIds.length ? ingredientTrendSelectedIds : defaultTrendIngredientIds)
+      .filter((id) => ingredientConsumptionByMonth.has(id))
+      .slice(0, 5);
+    const trendIngredientRows = [...ingredientConsumptionByMonth.values()]
+      .sort((a, b) => Number(b.totalCost || 0) - Number(a.totalCost || 0));
+    const ingredientTrendSeries = activeTrendIngredientIds.map((id) => {
+      const row = ingredientConsumptionByMonth.get(id);
+      return {
+        id,
+        label: row?.ingredient || "Ingredient",
+        values: analysisMonths.map((month) => {
+          const bucket = row?.monthly?.get(month) || { usage: 0, cost: 0 };
+          return {
+            month,
+            value: Number(bucket.cost || 0),
+            tooltip: `${Number(bucket.usage || 0).toLocaleString("en-MY", { maximumFractionDigits: 2 })} ${row?.uom || ""}`.trim(),
+          };
+        }),
+      };
+    });
     return (
       <div className="space-y-4">
         <div className="card grid gap-3 p-3 lg:grid-cols-[220px_190px_170px_1fr] lg:items-end">
@@ -9901,73 +10220,107 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                 <RecipeMenuEngineeringMatrix rows={menuEngineeringRows} />
               )}
             </RecipeIntelligenceCard>
-            <RecipeInsightsPanel rows={reliableMenuEngineeringRows} />
+            <RecipeInsightsPanel rows={reliableMenuEngineeringRows} grossProfitRows={topGrossProfitRows} ingredientDrivers={ingredientDemandForecastRows} pendingCount={pendingProductCount} />
           </div>
-          <div className="mt-4 grid gap-4 lg:grid-cols-2">
+          <div className="mt-4 grid gap-4">
             <RecipeIntelligenceCard
-              title="Top Margin Products"
-              description="Highest margin recipes within the selected outlet and filters."
-              showViewAll
+              title="Recipe Gross Profit Trend"
+              description="Monthly gross profit from mapped Product Analytics quantity sold × recipe profit per serving."
             >
-              <RecipeRankingTable
-                rows={topMarginRows}
-                columns={[
-                  { key: "recipe", label: "Recipe", render: (row) => <div className="font-bold text-text-primary">{row.label}</div> },
-                  { key: "margin", label: "Margin %", render: (row) => <Badge tone={recipeMarginTone(row.value)}>{formatRecipeMargin(row.value)}</Badge> },
-                  { key: "profit", label: "Profit", render: (row) => <span className="font-black text-text-primary">{toCurrency(row.profitPerServing)}</span> },
-                ]}
-                emptyTitle="No margin data yet"
-                emptyDescription="Add selling prices to recipes to compare product margin."
+              <RecipeTrendChart
+                series={grossProfitTrendSeries}
+                months={analysisMonths}
+                valueFormatter={toCurrency}
+                emptyTitle="Map products to recipes to unlock gross profit trend."
+                emptyDescription="Gross profit uses Product Analytics qty sold and Recipe BOM costing. No fake trend is shown."
               />
             </RecipeIntelligenceCard>
-            <RecipeIntelligenceCard
-              title="Highest Cost Ingredients"
-              description="Ingredient cost drivers aggregated across visible recipes."
-              showViewAll
-            >
-              <RecipeRankingTable
-                rows={highestCostIngredientRows}
-                columns={[
-                  { key: "ingredient", label: "Ingredient", render: (row) => <div className="font-bold text-text-primary">{row.label}</div> },
-                  { key: "cost", label: "Cost Contribution", render: (row) => <span className="font-black text-text-primary">{toCurrency(row.value)}</span> },
-                ]}
-                emptyTitle="No ingredient cost data yet"
-                emptyDescription="Add recipe ingredients with inventory costs to identify cost drivers."
-              />
-            </RecipeIntelligenceCard>
-            <RecipeIntelligenceCard
-              title="Top Revenue Recipes"
-              description="Mapped recipes ranked by Product Analytics revenue."
-              showViewAll
-            >
-              <RecipeRankingTable
-                rows={topRevenueRows}
-                columns={[
-                  { key: "recipe", label: "Recipe", render: (row) => <div><div className="font-bold text-text-primary">{recipeNameEn(row.recipe) || row.label}</div><div className="type-caption text-text-muted">{recipeNameCn(row.recipe) || recipeCode(row.recipe)}</div></div> },
-                  { key: "revenue", label: "Revenue", render: (row) => <span className="font-black text-text-primary">{toCurrency(row.revenue)}</span> },
-                ]}
-                emptyTitle="No revenue data yet"
-                emptyDescription="Map Product Analytics products to recipes to rank recipe revenue."
-              />
-            </RecipeIntelligenceCard>
-            <RecipeIntelligenceCard
-              title="Lowest Margin Products"
-              description="Lowest priced margins sorted ascending."
-              showViewAll
-            >
-              <RecipeRankingTable
-                rows={lowestMarginRows}
-                columns={[
-                  { key: "recipe", label: "Recipe", render: ({ recipe }) => <div><div className="font-bold text-text-primary">{recipeNameEn(recipe) || recipeCode(recipe)}</div><div className="type-caption text-text-muted">{recipeNameCn(recipe) || "—"}</div></div> },
-                  { key: "cost", label: "Cost", render: ({ summary }) => <span className="font-bold text-text-secondary">{toCurrency(summary.totalCost)}</span> },
-                  { key: "price", label: "Price", render: ({ recipe }) => recipe.sellingPrice !== "" && recipe.sellingPrice !== null && recipe.sellingPrice !== undefined ? toCurrency(recipe.sellingPrice) : "—" },
-                  { key: "margin", label: "Margin %", render: ({ margin }) => <Badge tone={recipeMarginTone(margin)}>{formatRecipeMargin(margin)}</Badge> },
-                  { key: "profit", label: "Profit", render: ({ recipe, summary }) => <span className="font-black text-text-primary">{toCurrency(Number(recipe.sellingPrice || 0) - Number(summary.totalCost || 0))}</span> },
-                ]}
-                emptyTitle="No margin data yet"
-                emptyDescription="Add selling prices and costed ingredients to identify lowest margin recipes."
-              />
-            </RecipeIntelligenceCard>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <RecipeIntelligenceCard
+                title="Top Gross Profit Recipes"
+                description="Recipes ranked by total gross profit, not just revenue."
+              >
+                <RecipeRankingTable
+                  rows={topGrossProfitRows}
+                  columns={[
+                    { key: "recipe", label: "Recipe", render: (row) => <div><div className="font-bold text-text-primary">{recipeNameEn(row.recipe) || row.label}</div><div className="type-caption text-text-muted">{recipeNameCn(row.recipe) || recipeCode(row.recipe)}</div></div> },
+                    { key: "qty", label: "Qty Sold", render: (row) => <span className="font-black text-text-primary">{Number(row.salesVolume || 0).toLocaleString()}</span> },
+                    { key: "revenue", label: "Revenue", render: (row) => toCurrency(row.revenue) },
+                    { key: "grossProfit", label: "Gross Profit", render: (row) => <span className="font-black text-text-primary">{toCurrency(row.grossProfit)}</span> },
+                    { key: "margin", label: "Margin %", render: (row) => <Badge tone={recipeMarginTone(row.margin)}>{formatRecipeMargin(row.margin)}</Badge> },
+                  ]}
+                  emptyTitle="No mapped gross profit yet"
+                  emptyDescription="Map Product Analytics products to recipes with selling prices and ingredient costs."
+                />
+              </RecipeIntelligenceCard>
+              <RecipeIntelligenceCard
+                title="Ingredient Demand Forecast"
+                description={`${selectedPeriod.label} average monthly usage for procurement planning.`}
+              >
+                <RecipeRankingTable
+                  rows={ingredientDemandForecastRows}
+                  columns={[
+                    { key: "ingredient", label: "Ingredient", render: (row) => <div><div className="font-bold text-text-primary">{row.ingredient}</div><div className="type-caption text-text-muted">{row.category}</div></div> },
+                    { key: "usage", label: "Forecast Usage", render: (row) => <span className="font-black text-text-primary">{Number(row.forecastUsage || 0).toLocaleString("en-MY", { maximumFractionDigits: 2 })}</span> },
+                    { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
+                    { key: "cost", label: "Forecast Cost", render: (row) => <span className="font-black text-text-primary">{toCurrency(row.forecastCost)}</span> },
+                    { key: "change", label: "Change", render: (row) => <Badge tone={Number(row.change || 0) > 0 ? "warning" : Number(row.change || 0) < 0 ? "success" : "neutral"}>{formatPercentChange(row.change)}</Badge> },
+                  ]}
+                  emptyTitle="Map products to recipes to estimate demand."
+                  emptyDescription="Ingredient demand forecast needs mapped Product Analytics sales and Recipe BOM quantities."
+                />
+              </RecipeIntelligenceCard>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-2">
+              <RecipeIntelligenceCard
+                title={`Top 10 Ingredient Consumption - ${formatMonthSerial(latestConsumptionSerial)}`}
+                description="Estimated monthly usage from mapped Product Analytics sales × Recipe BOM."
+              >
+                <div className="mb-3 flex justify-end">
+                  <button
+                    className="btn-secondary h-8 px-3 text-xs"
+                    type="button"
+                    onClick={() => setModal({ type: "ingredient-consumption", rows: ingredientConsumptionRows, categories: ingredientConsumptionCategories })}
+                    disabled={!ingredientConsumptionRows.length}
+                  >
+                    View All
+                  </button>
+                </div>
+                <RecipeRankingTable
+                  rows={ingredientConsumptionRows.slice(0, 10)}
+                  columns={[
+                    { key: "ingredient", label: "Ingredient", render: (row) => <div><div className="font-bold text-text-primary">{row.ingredient}</div><div className="type-caption text-text-muted">{row.category}</div></div> },
+                    { key: "usage", label: "Estimated Usage", render: (row) => <span className="font-black text-text-primary">{Number(row.estimatedUsage || 0).toLocaleString("en-MY", { maximumFractionDigits: 2 })}</span> },
+                    { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
+                    { key: "unitCost", label: "Unit Cost", render: (row) => toCurrency(row.unitCost) },
+                    { key: "totalCost", label: "Total Cost", render: (row) => <span className="font-black text-text-primary">{toCurrency(row.totalCost)}</span> },
+                  ]}
+                  emptyTitle="Map products to recipes to estimate ingredient consumption."
+                  emptyDescription="Only mapped products feed ingredient usage. Pending and ignored products are excluded."
+                />
+              </RecipeIntelligenceCard>
+              <RecipeIntelligenceCard
+                title="Ingredient Consumption Trend - Monthly"
+                description="Monthly estimated ingredient cost trend for the selected analysis period."
+              >
+                <IngredientSelectorPills
+                  rows={trendIngredientRows}
+                  selectedIds={activeTrendIngredientIds}
+                  search={ingredientTrendSearch}
+                  onSearch={setIngredientTrendSearch}
+                  onToggle={(id) => setIngredientTrendSelectedIds((current) => current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id].slice(0, 5))}
+                />
+                <div className="mt-4">
+                  <RecipeTrendChart
+                    series={ingredientTrendSeries}
+                    months={analysisMonths}
+                    valueFormatter={toCurrency}
+                    emptyTitle="Map products to recipes to unlock ingredient cost trends."
+                    emptyDescription="The trend uses estimated monthly procurement cost, not quantity."
+                  />
+                </div>
+              </RecipeIntelligenceCard>
+            </div>
           </div>
         </DashboardSection> : null}
         <DashboardSection title="Usage Estimate" subtitle="Future-ready product sales to ingredient usage foundation." density="compact">
@@ -10212,6 +10565,15 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           categories={sortedCategories}
           onClose={() => setModal(null)}
           onEdit={() => setModal({ type: "recipe", recipe: modal.recipe })}
+        />
+      ) : null}
+      {modal?.type === "ingredient-consumption" ? (
+        <IngredientConsumptionModal
+          rows={modal.rows || []}
+          categories={modal.categories || []}
+          filters={ingredientConsumptionFilters}
+          onFilter={setIngredientConsumptionFilters}
+          onClose={() => setModal(null)}
         />
       ) : null}
       {modal?.type === "po-edit" ? <PurchaseOrderEditModal order={modal.order} suppliers={suppliers} items={data.items} onClose={() => setModal(null)} onSave={savePurchaseOrder} /> : null}
