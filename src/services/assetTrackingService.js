@@ -9,7 +9,7 @@ const assetBaseConditionFields = "id,outlet_id,category_id,name,description,cond
 const assetFields = "id,outlet_id,category_id,name,description,asset_code,location,purchase_date,warranty_expiry,notes,image_url,thumbnail_url,health_status,last_inspection_at,maintenance_override,condition,unit,current_quantity,minimum_quantity,status,remark,created_by,updated_by,created_at,updated_at,category:asset_categories(id,name,maintenance_enabled)";
 const movementFields = "id,asset_id,outlet_id,movement_type,quantity_change,quantity_before,quantity_after,reason,remark,movement_date,created_by,created_at";
 const maintenanceFields = "id,asset_id,outlet_id,date,maintenance_type,priority,issue,action_taken,vendor,cost,status,scheduled_date,completed_date,next_service_date,remark,photo_url,created_by,created_at,updated_at";
-const inspectionFields = "id,outlet_id,inspection_date,checked_by,category_scope,status,summary,notes,remark,created_by,current_step,completion_percentage,last_edited_at,last_edited_by,draft_data,auto_saved,created_at,updated_at";
+const inspectionFields = "id,outlet_id,inspection_date,checked_by,checked_by_employee_id,category_scope,status,summary,notes,remark,created_by,current_step,completion_percentage,last_edited_at,last_edited_by,draft_data,auto_saved,created_at,updated_at";
 const inspectionItemFields = "id,inspection_id,asset_id,expected_quantity,counted_quantity,expected_qty,counted_qty,difference,condition,condition_status,condition_template_id,evidence_required,evidence_status,remark,created_at,asset:asset_items(id,name,category:asset_categories(id,name))";
 const conditionFields = "id,category_id,name,severity,color,requires_photo,requires_remark,affects_health,triggers_alert,active,sort_order,created_at,updated_at";
 const evidenceFields = "id,inspection_item_id,image_url,caption,created_at";
@@ -237,6 +237,7 @@ function mapInspection(row, items = []) {
     outlet_id: row.outlet_id,
     inspection_date: row.inspection_date,
     checked_by: row.checked_by ?? "",
+    checked_by_employee_id: row.checked_by_employee_id ?? null,
     category_scope: row.category_scope ?? {},
     summary: row.summary ?? {},
     notes: row.notes ?? row.remark ?? "",
@@ -296,7 +297,7 @@ function isMissingInspectionV2Field(error) {
   const message = String(error?.message || error?.details || "");
   return error?.code === "42703" ||
     error?.code === "PGRST204" ||
-    /asset_condition_templates|asset_inspection_evidence|condition_template_id|evidence_required|evidence_status|expected_qty|counted_qty|summary|notes|current_step|completion_percentage|last_edited_at|last_edited_by|draft_data|auto_saved|asset_inspection_items\.condition|'condition' column/i.test(message);
+    /asset_condition_templates|asset_inspection_evidence|condition_template_id|evidence_required|evidence_status|expected_qty|counted_qty|summary|notes|current_step|completion_percentage|last_edited_at|last_edited_by|draft_data|auto_saved|checked_by_employee_id|asset_inspection_items\.condition|'condition' column/i.test(message);
 }
 
 async function currentUserId() {
@@ -813,7 +814,7 @@ export const assetTrackingService = {
       .sort(sortInspectionsNewestFirst);
   },
 
-  async submitInspection({ draftId = "", outletId, inspectionDate, checkedBy, categoryScope, remark, notes, rows, summary = {}, status = "completed", currentStep = 4, draftData = {}, autoSaved = false, applyCorrections = true }) {
+  async submitInspection({ draftId = "", outletId, inspectionDate, checkedBy, checkedByEmployeeId = null, categoryScope, remark, notes, rows, summary = {}, status = "completed", currentStep = 3, draftData = {}, autoSaved = false, applyCorrections = true }) {
     const userId = await currentUserId();
     console.info("[AssetTracking] Submit inspection payload", {
       draftId,
@@ -829,6 +830,7 @@ export const assetTrackingService = {
         inspection_date: inspectionDate,
         created_by: userId,
         checked_by: checkedBy,
+        checked_by_employee_id: checkedByEmployeeId || null,
         category_scope: categoryScope,
         status,
         summary,

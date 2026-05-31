@@ -17,6 +17,7 @@ import { assetTrackingService } from "../../../services/assetTrackingService.js"
 import { canCreate, canDelete, canEdit, canExport, canManage, notifyPermissionDenied } from "../../../utils/accessControl.js";
 
 const assetConditions = ["healthy", "needs_attention", "under_maintenance", "low_quantity", "damaged", "missing", "disposed"];
+const inspectionConditionOptions = ["healthy", "needs_attention", "damaged", "missing"];
 const reduceReasons = ["broken", "missing", "disposed", "stolen", "transferred", "correction", "other"];
 const maintenancePriorities = ["low", "medium", "high", "critical"];
 const maintenanceTypes = ["preventive", "repair", "inspection", "cleaning", "calibration", "replacement", "emergency"];
@@ -1770,7 +1771,6 @@ function createInspectionChecklistRow(asset, draftRow = {}) {
     evidence: draftRow.evidence || [],
     remark: draftRow.remark || "",
     skipped: draftRow.skipped === true,
-    flagged: draftRow.flagged === true,
   };
 }
 
@@ -1816,13 +1816,15 @@ function presetAssetsForInspectionType(scopedAssets, type) {
   return activeScopedAssets;
 }
 
-function InspectionModal({ outletId, categories, assets, draftInspection, defaultCheckedBy = "", onClose, onSubmit, saving }) {
+function InspectionModal({ outletId, categories, assets, draftInspection, defaultCheckedBy = "", defaultCheckedById = "", onClose, onSubmit, saving }) {
   const draftData = draftInspection?.draft_data || {};
-  const [step, setStep] = useState(draftInspection?.current_step || draftData.currentStep || 1);
+  const initialStep = Math.min(3, Math.max(1, Number(draftInspection?.current_step || draftData.currentStep || 1)));
+  const [step, setStep] = useState(initialStep);
   const [inspectionType, setInspectionType] = useState(normalizeInspectionType(draftData.inspectionType || draftInspection?.summary?.inspection_type || "routine_check"));
   const [scopeType, setScopeType] = useState(draftData.scopeType || draftInspection?.category_scope?.type || "all");
   const [selectedCategoryIds, setSelectedCategoryIds] = useState(draftData.selectedCategoryIds || draftInspection?.category_scope?.category_ids || []);
-  const [checkedBy, setCheckedBy] = useState(draftData.checkedBy || draftInspection?.checked_by || defaultCheckedBy || "");
+  const checkedBy = defaultCheckedBy || draftData.checkedBy || draftInspection?.checked_by || "";
+  const checkedByEmployeeId = defaultCheckedById || draftData.checkedByEmployeeId || draftInspection?.checked_by_employee_id || null;
   const [inspectionDate, setInspectionDate] = useState(draftData.inspectionDate || draftInspection?.inspection_date || new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState(draftData.notes || draftInspection?.notes || "");
   const [lightbox, setLightbox] = useState(null);
@@ -1857,7 +1859,6 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
   });
   const activeRows = enrichedRows.filter((row) => !row.skipped);
   const skippedRows = enrichedRows.filter((row) => row.skipped);
-  const flaggedRows = enrichedRows.filter((row) => row.flagged);
   const missingRows = activeRows.filter((row) => row.diff < 0 || row.condition_status === "missing");
   const extraRows = activeRows.filter((row) => row.diff > 0);
   const damagedRows = activeRows.filter((row) => row.condition_status === "damaged");
@@ -1865,8 +1866,13 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
   const pendingEvidenceRows = activeRows.filter((row) => row.needsEvidence && !row.evidenceComplete);
   const matchedRows = activeRows.filter((row) => row.diff === 0 && row.condition_status === "healthy");
   const criticalRows = activeRows.filter((row) => ["damaged", "missing"].includes(row.condition_status));
-  const issueRows = enrichedRows.filter((row) => row.skipped || row.flagged || row.diff !== 0 || row.condition_status !== "healthy" || !row.evidenceComplete);
+  const isIssueRow = (row) => row.skipped || row.diff !== 0 || row.condition_status !== "healthy" || !row.evidenceComplete;
+  const issueRows = enrichedRows.filter(isIssueRow);
+  const reviewRows = [...enrichedRows].sort((first, second) => Number(isIssueRow(second)) - Number(isIssueRow(first)) || String(safeInspectionAsset(first).name).localeCompare(String(safeInspectionAsset(second).name)));
   const checkedRows = activeRows.filter((row) => row.counted_quantity !== "" && row.counted_quantity !== null && row.counted_quantity !== undefined);
+  const completedRows = [...checkedRows, ...skippedRows];
+  const remainingRows = Math.max(0, rows.length - completedRows.length);
+  const progressPercentage = rows.length ? Math.round((completedRows.length / rows.length) * 100) : 0;
   const categoryScope = scopeType === "all"
     ? { type: "all", category_ids: [] }
     : { type: "selected", category_ids: selectedCategoryIds };
@@ -1885,9 +1891,8 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
   const summary = {
     total_assets: rows.length,
     checked_assets: checkedRows.length,
-    completion_percentage: rows.length ? Math.round((checkedRows.length / rows.length) * 100) : 0,
+    completion_percentage: progressPercentage,
     skipped_items: skippedRows.length,
-    flagged_items: flaggedRows.length,
     matched_assets: matchedRows.length,
     missing_assets: missingRows.length,
     extra_assets: extraRows.length,
@@ -1939,13 +1944,13 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
       evidence: row.evidence || [],
       remark: row.remark || "",
       skipped: row.skipped === true,
-      flagged: row.flagged === true,
     }));
     onSubmit({
       draftId: draftInspection?.id || "",
       outletId,
       inspectionDate,
       checkedBy,
+      checkedByEmployeeId,
       categoryScope,
       notes,
       remark: notes,
@@ -1958,6 +1963,7 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
         scopeType,
         selectedCategoryIds,
         checkedBy,
+        checkedByEmployeeId,
         inspectionDate,
         notes,
         rows: draftRows,
@@ -1967,7 +1973,7 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
     });
   }
 
-  const stepLabels = ["Setup", "Checklist", "Review", "Submit"];
+  const stepLabels = ["Setup", "Checklist", "Review & Submit"];
 
   return (
     <Modal
@@ -1980,16 +1986,12 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
           <button className="btn-secondary" type="button" onClick={step === 1 ? onClose : () => setStep((current) => current - 1)}>{step === 1 ? "Cancel" : "Back"}</button>
           {step > 1 ? <button className="btn-secondary" type="button" disabled={saving || !rows.length} onClick={() => submit("draft")}>Save Draft</button> : null}
           {step < 3 ? (
-            <button className="btn-primary" type="button" disabled={scopeType === "selected" && selectedCategoryIds.length === 0} onClick={() => setStep((current) => current + 1)}>{step === 2 ? "Review Summary" : "Continue Checklist"}</button>
-          ) : step === 3 ? (
-            <button className="btn-primary" type="button" disabled={saving || !rows.length} onClick={() => setStep(4)}>Proceed to Submit</button>
-          ) : (
-            <button className="btn-primary" type="button" disabled={saving || !rows.length} onClick={() => submit("completed")}>Submit Inspection</button>
-          )}
+            <button className="btn-primary" type="button" disabled={scopeType === "selected" && selectedCategoryIds.length === 0} onClick={() => setStep((current) => current + 1)}>{step === 2 ? "Review & Submit" : "Continue Checklist"}</button>
+          ) : null}
         </>
       )}
     >
-      <div className="mb-5 grid grid-cols-4 gap-2">
+      <div className="mb-5 grid grid-cols-3 gap-2">
         {stepLabels.map((label, index) => {
           const active = step >= index + 1;
           return (
@@ -2001,6 +2003,24 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
         })}
       </div>
 
+      {step > 1 ? (
+        <div className="sticky top-0 z-20 mb-5 rounded-3xl border border-border bg-surface/95 p-4 shadow-sm backdrop-blur">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <div className="text-xs font-black uppercase tracking-wide text-text-muted">Inspection Progress</div>
+              <div className="mt-1 text-sm font-black text-text-primary">{completedRows.length} / {rows.length} completed</div>
+            </div>
+            <div className="flex flex-wrap gap-2 text-xs font-bold text-text-secondary">
+              <span className="rounded-full bg-slate-100 px-2.5 py-1">{remainingRows} remaining</span>
+              <span className="rounded-full bg-slate-100 px-2.5 py-1">{progressPercentage}%</span>
+            </div>
+          </div>
+          <div className="mt-3 h-2 overflow-hidden rounded-full bg-slate-100">
+            <div className={`h-full rounded-full transition-all ${progressPercentage === 100 ? "bg-emerald-500" : "bg-primary"}`} style={{ width: `${progressPercentage}%` }} />
+          </div>
+        </div>
+      ) : null}
+
       {step === 1 ? (
         <div className="grid gap-4 md:grid-cols-2">
           <FieldLabel label="Inspection Type">
@@ -2008,7 +2028,12 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
             <div className="mt-1 text-xs font-semibold text-text-muted">{inspectionTypeOptions.find((option) => option.value === inspectionType)?.helper}</div>
           </FieldLabel>
           <DatePickerField label="Inspection Date" value={inspectionDate} onChange={setInspectionDate} />
-          <FieldLabel label="Checked By"><input className="control" value={checkedBy} onChange={(event) => setCheckedBy(event.target.value)} placeholder="Manager name" /></FieldLabel>
+          <FieldLabel label="Checked By">
+            <div className="rounded-2xl border border-border bg-slate-50 px-3 py-2 text-sm font-bold text-text-primary">
+              {checkedBy || "Authenticated user"}
+              <div className="mt-0.5 text-xs font-semibold text-text-muted">Auto-populated from your login.</div>
+            </div>
+          </FieldLabel>
           <FieldLabel label="Category Scope">
             <SelectField value={scopeType} options={[{ value: "all", label: "All Categories" }, { value: "selected", label: "Selected Categories" }]} onChange={setScopeType} />
           </FieldLabel>
@@ -2040,7 +2065,7 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
                 <div className="mt-1 flex flex-wrap gap-2 text-xs font-bold text-text-secondary">
                   <span className="rounded-full bg-white px-2.5 py-1">{checkedRows.length} completed</span>
                   <span className="rounded-full bg-white px-2.5 py-1">{skippedRows.length} skipped</span>
-                  <span className="rounded-full bg-white px-2.5 py-1">{flaggedRows.length} flagged</span>
+                  <span className="rounded-full bg-white px-2.5 py-1">{remainingRows} remaining</span>
                   <span className="rounded-full bg-white px-2.5 py-1">{rows.length} total</span>
                 </div>
               </div>
@@ -2099,7 +2124,7 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
                           <div className="mt-2 flex flex-wrap gap-1.5">
                             <Badge tone="info">{rowAsset.category_name || "Uncategorized"}</Badge>
                             {row.skipped ? <Badge tone="neutral">Skipped</Badge> : null}
-                            {row.flagged ? <Badge tone="warning">Flagged</Badge> : null}
+                            {!row.skipped && row.counted_quantity !== "" ? <Badge tone="success">Recorded</Badge> : null}
                           </div>
                         </div>
                       </div>
@@ -2110,7 +2135,7 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
                       </div>
                       <div className={`space-y-2 ${row.skipped ? "opacity-60" : ""}`}>
                         <FieldLabel label="Condition">
-                          <SelectField value={row.condition_status || "healthy"} options={assetConditions.map((condition) => ({ value: condition, label: assetConditionLabel(condition) }))} onChange={(value) => updateRow(rowAssetId, "condition_status", value)} disabled={row.skipped} />
+                          <SelectField value={row.condition_status || "healthy"} options={inspectionConditionOptions.map((condition) => ({ value: condition, label: assetConditionLabel(condition) }))} onChange={(value) => updateRow(rowAssetId, "condition_status", value)} disabled={row.skipped} />
                         </FieldLabel>
                         <div className="grid gap-2 md:grid-cols-[1fr_auto]">
                           <input className="control h-10" value={row.remark} onChange={(event) => updateRow(rowAssetId, "remark", event.target.value)} placeholder={row.needsEvidence ? "Discrepancy explanation" : "Inspection note"} />
@@ -2131,7 +2156,6 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
                         </div>
                         <div className="flex flex-wrap gap-1.5 border-t border-border pt-2">
                           <button className={`rounded-full px-2.5 py-1 text-xs font-black ${row.skipped ? "bg-slate-800 text-white" : "bg-slate-100 text-text-secondary hover:bg-slate-200"}`} type="button" onClick={() => updateRow(rowAssetId, "skipped", !row.skipped)}>{row.skipped ? "Unskip" : "Mark Skipped"}</button>
-                          <button className={`rounded-full px-2.5 py-1 text-xs font-black ${row.flagged ? "bg-amber-500 text-white" : "bg-amber-50 text-amber-700 hover:bg-amber-100"}`} type="button" onClick={() => updateRow(rowAssetId, "flagged", !row.flagged)}>{row.flagged ? "Unflag" : "Flag for Review"}</button>
                           <button className="rounded-full bg-rose-50 px-2.5 py-1 text-xs font-black text-rose-700 hover:bg-rose-100" type="button" onClick={() => removeRow(rowAssetId)}>Remove</button>
                         </div>
                       </div>
@@ -2145,8 +2169,8 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
 
       {step === 3 ? (
         <div className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-4">
-            {[["Checklist Items", rows.length], ["Completed Items", checkedRows.length], ["Skipped Items", skippedRows.length], ["Flagged Items", flaggedRows.length], ["Matched Assets", matchedRows.length], ["Missing Assets", missingRows.length], ["Extra Assets", extraRows.length], ["Damaged Assets", damagedRows.length], ["Warning Items", warningRows.length], ["Critical Alerts", criticalRows.length], ["Evidence Reminders", pendingEvidenceRows.length]].map(([label, value]) => (
+          <div className="grid gap-3 md:grid-cols-2">
+            {[["Inspection Summary", `${completedRows.length} / ${rows.length} completed`], ["Issues Found", issueRows.length]].map(([label, value]) => (
               <div key={label} className="rounded-2xl border border-border bg-background p-4">
                 <div className="text-xs font-black uppercase tracking-wide text-text-muted">{label}</div>
                 <div className="mt-2 text-2xl font-semibold text-text-primary">{value}</div>
@@ -2154,39 +2178,53 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
             ))}
           </div>
           <div className="overflow-hidden rounded-2xl border border-border">
-            <div className="bg-slate-50 px-4 py-3 text-xs font-black uppercase tracking-wide text-text-muted">Problem Rows</div>
+            <div className="bg-slate-50 px-4 py-3 text-xs font-black uppercase tracking-wide text-text-muted">Review & Submit</div>
             <div className="divide-y divide-border">
-              {issueRows.map((row, index) => {
+              {reviewRows.map((row, index) => {
                 const rowAsset = safeInspectionAsset(row);
                 const rowAssetId = rowAsset.id || `issue-${row.id || index}`;
+                const assetImage = rowAsset.thumbnail_url || rowAsset.image_url;
+                const evidenceImages = (row.evidence || []).map((item) => item.image_url).filter(Boolean);
                 return (
-                  <div key={rowAssetId} className="grid gap-2 p-4 text-sm md:grid-cols-[1fr_150px_130px_1fr]">
-                    <div className="font-bold text-text-primary">{rowAsset.name}</div>
+                  <div key={rowAssetId} className={`grid gap-3 p-4 text-sm md:grid-cols-[minmax(0,1fr)_150px_130px_minmax(0,1fr)] ${isIssueRow(row) ? "bg-amber-50/40" : "bg-white"}`}>
+                    <div className="flex min-w-0 gap-3">
+                      <button type="button" className="shrink-0" onClick={() => assetImage ? setLightbox({ images: [assetImage], index: 0 }) : null}>
+                        <AssetThumbnail asset={rowAsset} interactive={Boolean(assetImage)} />
+                      </button>
+                      <div className="min-w-0">
+                        <div className="truncate font-bold text-text-primary">{rowAsset.name}</div>
+                        <div className="text-xs font-semibold text-text-secondary">{rowAsset.category_name || "Uncategorized"}</div>
+                      </div>
+                    </div>
                     {row.skipped ? <Badge tone="neutral">Skipped</Badge> : <DifferenceBadge diff={row.diff} />}
-                    <Badge tone={row.flagged ? "warning" : assetConditionTone(row.condition_status)}>{row.flagged ? "Flagged" : assetConditionLabel(row.condition_status)}</Badge>
-                    <div className={row.evidenceComplete || row.skipped ? "text-text-secondary" : "font-bold text-amber-700"}>{row.skipped ? row.remark || "Skipped during this inspection" : row.evidenceComplete ? row.remark || "Evidence or remark added" : "Evidence or remark recommended"}</div>
+                    <Badge tone={assetConditionTone(row.condition_status)}>{assetConditionLabel(row.condition_status)}</Badge>
+                    <div>
+                      <div className={row.evidenceComplete || row.skipped ? "text-text-secondary" : "font-bold text-amber-700"}>{row.skipped ? row.remark || "Skipped during this inspection" : row.evidenceComplete ? row.remark || "Evidence or remark added" : "Evidence or remark recommended"}</div>
+                      {evidenceImages.length ? (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {evidenceImages.slice(0, 4).map((imageUrl, evidenceIndex) => (
+                            <button key={`${imageUrl}-${evidenceIndex}`} type="button" onClick={() => setLightbox({ images: evidenceImages, index: evidenceIndex })}>
+                              <img className="h-10 w-10 rounded-xl border border-border object-cover" src={imageUrl} alt="Inspection evidence" />
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                    </div>
                   </div>
                 );
               })}
-              {!issueRows.length ? <div className="p-5 text-center text-sm font-semibold text-text-secondary">No discrepancies or condition issues found.</div> : null}
+              {!reviewRows.length ? <div className="p-5 text-center text-sm font-semibold text-text-secondary">No assets found for this inspection.</div> : null}
             </div>
           </div>
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">
             Quantity differences will create correction movement logs. Asset conditions and last inspected dates will be updated after submission.
           </div>
-        </div>
-      ) : null}
-
-      {step === 4 ? (
-        <div className="space-y-4">
-          <div className="rounded-3xl border border-primary/20 bg-primary/5 p-5">
-            <div className="text-xs font-black uppercase tracking-wide text-primary">Ready to Submit</div>
-            <div className="mt-2 text-lg font-black text-text-primary">{checkedRows.length} completed · {skippedRows.length} skipped · {flaggedRows.length} flagged · {criticalRows.length} critical alerts</div>
-            <p className="mt-2 text-sm text-text-secondary">Submitting completes the operational audit and records quantity corrections, asset conditions, notes, and evidence.</p>
-          </div>
           {pendingEvidenceRows.length ? (
             <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">Some rows have evidence or remark recommendations. You can still submit or save this inspection as a draft.</div>
           ) : null}
+          <div className="flex justify-end">
+            <button className="btn-primary" type="button" disabled={saving || !rows.length} onClick={() => submit("completed")}>Submit Inspection</button>
+          </div>
         </div>
       ) : null}
 
@@ -2747,6 +2785,7 @@ function InspectionHistory({ inspections = [], outlet, currentProfile, onResumeD
 export default function AssetTrackingPage({ store, ui, auth }) {
   const activeOutlets = useMemo(() => (store?.outlets || []).filter((outlet) => outlet.status === "active" || outlet.is_active), [store?.outlets]);
   const currentInspectorName = auth?.profile?.nickname || auth?.profile?.full_name || auth?.user?.email || "";
+  const currentInspectorId = auth?.profile?.id || "";
   const [outletId, setOutletId] = useState(activeOutlets[0]?.id ?? "");
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("all");
@@ -3581,7 +3620,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       {categoryModalOpen ? <CategoryModal categories={categories} assets={assets} onClose={() => setCategoryModalOpen(false)} onSave={saveCategory} onArchive={archiveCategory} onReorder={reorderCategories} saving={saving} canWrite={canAdd || canEditAsset} canArchive={canDeleteAsset} /> : null}
       {adjustAsset ? <AdjustQuantityModal asset={adjustAsset} onClose={() => setAdjustAsset(null)} onSubmit={adjustQuantity} saving={saving} /> : null}
       {maintenanceContext ? <MaintenanceRecordModal asset={maintenanceContext.asset} record={maintenanceContext.record} onClose={() => setMaintenanceContext(null)} onSubmit={saveMaintenanceRecord} saving={saving} /> : null}
-      {inspectionOpen ? <InspectionModal outletId={inspectionOpen?.outlet_id || outletId} categories={categories} assets={assets} draftInspection={inspectionOpen === true ? null : inspectionOpen} defaultCheckedBy={currentInspectorName} onClose={() => setInspectionOpen(false)} onSubmit={submitInspection} saving={saving} /> : null}
+      {inspectionOpen ? <InspectionModal outletId={inspectionOpen?.outlet_id || outletId} categories={categories} assets={assets} draftInspection={inspectionOpen === true ? null : inspectionOpen} defaultCheckedBy={currentInspectorName} defaultCheckedById={currentInspectorId} onClose={() => setInspectionOpen(false)} onSubmit={submitInspection} saving={saving} /> : null}
       {detailAsset ? <AssetDetailDrawer asset={detailAsset} outlet={activeOutlets.find((outlet) => outlet.id === detailAsset.outlet_id)} movements={assetMovements} inspections={assetInspections} maintenanceRecords={assetMaintenanceRecords} currentProfile={auth?.profile} onClose={() => setDetailAsset(null)} onResumeDraft={(inspection) => setInspectionOpen(inspection)} onDeleteDraft={deleteInspection} onArchiveDraft={(inspection) => updateInspectionStatus(inspection, "archived")} onSaveMaintenance={(asset, values) => saveMaintenanceRecord(values, asset)} saving={saving} /> : null}
       {assetPreview ? <FloatingPreviewLayer anchor={assetPreview.anchor} width={300}>
         <div className="overflow-hidden rounded-3xl border border-border bg-white shadow-2xl">

@@ -1589,6 +1589,7 @@ Inspection fields:
 - created_by
 - inspection_date
 - checked_by
+- checked_by_employee_id
 - category_scope
 - status
 - summary
@@ -1630,22 +1631,22 @@ Inspection evidence fields:
 
 Inspection flow:
 
-1. Select outlet, inspection type, inspection date, checked-by name, and category scope.
+1. Select outlet, inspection type, inspection date, and category scope. Checked By is auto-populated from the authenticated employee and is not editable.
 2. Complete an asset inspection checklist using operational audit cards.
 3. Step 2 checklist supports dynamic manual asset selection through Add Asset.
 4. Add Asset uses a searchable, multi-select asset picker.
-5. Users can remove items from the inspection, mark items as skipped, and flag items for review.
-6. Checklist progress shows completed, skipped, and flagged counts.
+5. Users can remove items from the inspection or mark items as skipped.
+6. Checklist progress shows completed, remaining, skipped, and progress percentage.
 7. Each audit card shows asset thumbnail, asset name, description, category, expected quantity, counted quantity, difference status, condition, evidence upload, and remark.
 8. Difference states are Matched, Extra, and Missing.
-9. Condition dropdown uses the global asset condition values.
+9. Inspection condition dropdown uses Good, Needs Attention, Damaged, and Missing.
 10. Evidence or remark is recommended when quantity differs or condition is not Good, but submission is not blocked.
-11. Review enterprise summary cards and problematic rows before final submission.
-12. Submit inspection or save draft.
+11. Review & Submit shows Inspection Summary and Issues Found, with exception rows first, asset photos, and evidence photos.
+12. Submit inspection from Review & Submit or save draft.
 13. Submitting updates asset quantity, asset condition, and last inspected date.
 14. Quantity differences create correction movement logs.
 15. Inspection submit normalizes condition values to lowercase snake_case before saving.
-16. Critical alerts count only Damaged and Missing conditions; Needs Attention, Low Quantity, and Under Maintenance count as warnings.
+16. Critical alerts count only Damaged and Missing conditions; Needs Attention counts as a warning.
 
 Inspection type presets:
 
@@ -1663,7 +1664,7 @@ Preset behavior:
 - Closing Check prioritizes closing count and end-of-day operational verification.
 - Spot Check supports partial inspection and may start from a smaller or manually selected checklist.
 - Maintenance Verification prioritizes maintainable assets, Under Maintenance assets, Damaged assets, and recently completed maintenance.
-- Incident Follow-up prioritizes assets with recent issues, missing/damaged conditions, or flagged inspection history.
+- Incident Follow-up prioritizes assets with recent issues or missing/damaged conditions.
 - Presets influence default checklist behavior, default inspection scope, smart asset suggestions, and operational reporting.
 - Inspection Type is not just a static label.
 
@@ -1700,7 +1701,7 @@ Inspection draft and resume rules:
   - remarks
   - uploaded evidence previews
 - Draft records store full workflow state in `draft_data`.
-- Draft data preserves dynamically added assets, removed assets, skipped items, flagged items, counted quantities, selected conditions, remarks, and evidence previews.
+- Draft data preserves dynamically added assets, removed assets, skipped items, counted quantities, selected conditions, remarks, and evidence previews.
 - Draft status values:
   - draft
   - in_progress
@@ -3994,14 +3995,14 @@ Roster settings:
 ### 12.8 Asset Inspection
 
 ```text
-Select outlet, inspection type, date, checked by, and scope
+Select outlet, inspection type, date, and scope
 → Load preset checklist from selected scope
 → Add or remove assets manually when needed
 → Count assets and select conditions
-→ Mark items skipped or flagged for review when needed
+→ Mark items skipped when needed
 → Upload evidence or add remark when operationally useful
-→ Review discrepancy summary
-→ Submit inspection or save draft
+→ Review Inspection Summary and Issues Found
+→ Submit inspection from Review & Submit or save draft
 → Update asset quantities, conditions, last inspected date, and movement logs
 → Inspection History updates newest first
 ```
@@ -4009,8 +4010,12 @@ Select outlet, inspection type, date, checked by, and scope
 Rules:
 
 - Inspection Type is an operational preset, not only a label.
-- Checklist items can be dynamically added, removed, skipped, or flagged.
-- Skipped and flagged state is preserved in drafts.
+- Checked By is auto-populated from the authenticated employee and saves the employee id.
+- Checklist items can be dynamically added, removed, or skipped.
+- Skipped state is preserved in drafts.
+- Inspection has three steps: Setup, Checklist, Review & Submit.
+- Mobile inspection progress stays visible below the modal header and shows completed, remaining, and progress percentage.
+- Review & Submit shows asset photos, evidence photos, exception rows first, Inspection Summary, and Issues Found.
 - Submitted inspections show Checked By and timestamp.
 - Inspection History sorts newest first by inspection date, then created_at, then updated_at.
 
