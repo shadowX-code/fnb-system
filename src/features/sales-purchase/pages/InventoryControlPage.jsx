@@ -34,6 +34,7 @@ import SelectField from "../../../components/forms/SelectField.jsx";
 import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import { supabase } from "../../../lib/supabase.ts";
+import { productAnalyticsService } from "../../../services/productAnalyticsService.js";
 import { getAccessibleOutletOptions, getAccessibleOutlets, hasAllOutletAccess, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 
 const STORAGE_KEY = "feedx.inventoryControl.v2";
@@ -1176,11 +1177,56 @@ function mapRemoteMenuCategory(row = {}) {
   };
 }
 
+function recipeCode(recipe = {}) {
+  return String(recipe.recipeCode || recipe.recipe_code || "").trim();
+}
+
+function recipeNameEn(recipe = {}) {
+  return String(recipe.recipeNameEn || recipe.recipe_name_en || recipe.recipeName || recipe.recipe_name || "").trim();
+}
+
+function recipeNameCn(recipe = {}) {
+  return String(recipe.recipeNameCn || recipe.recipe_name_cn || "").trim();
+}
+
+function recipeDisplayName(recipe = {}) {
+  return recipeNameCn(recipe) || recipeNameEn(recipe) || recipeCode(recipe) || "Recipe";
+}
+
+const recipeAnalysisPeriodOptions = [
+  { value: "current", label: "Current Month", months: 1 },
+  { value: "last3", label: "Last 3 Months", months: 3 },
+  { value: "last6", label: "Last 6 Months", months: 6 },
+  { value: "last12", label: "Last 12 Months", months: 12 },
+];
+
+function normalizeProductRecipeKey(value) {
+  return String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
+}
+
+function monthSerial(year, month) {
+  return Number(year) * 12 + Number(month);
+}
+
+function businessMonthSerial(offsetMonths = 0) {
+  const [year, month] = getBusinessDateInput("Asia/Kuala_Lumpur").split("-").map(Number);
+  return monthSerial(year, month) + offsetMonths;
+}
+
 function mapRemoteRecipe(row = {}, items = []) {
+  const nameEn = row.recipe_name_en || row.recipe_name || "";
+  const nameCn = row.recipe_name_cn || "";
+  const code = row.recipe_code || "";
   return {
     id: row.id,
     outletId: row.outlet_id || "",
-    recipeName: row.recipe_name || "Recipe",
+    recipeCode: code,
+    recipe_code: code,
+    recipeNameEn: nameEn,
+    recipe_name_en: nameEn,
+    recipeNameCn: nameCn,
+    recipe_name_cn: nameCn,
+    recipeName: nameEn || nameCn || code || "Recipe",
     menuCategory: row.menu_category || "",
     recipePhotoUrl: row.recipe_photo_url || "",
     recipe_photo_url: row.recipe_photo_url || "",
@@ -2381,8 +2427,12 @@ async function persistRemoteWasteRecord(waste = {}, userId) {
 
 async function persistRemoteRecipe(recipe = {}, userId) {
   if (!isUuid(recipe.outletId)) throw new Error("Outlet is required.");
-  const recipeName = String(recipe.recipeName || recipe.recipe_name || "").trim();
-  if (!recipeName) throw new Error("Recipe name is required.");
+  const code = recipeCode(recipe);
+  const nameEn = recipeNameEn(recipe);
+  const nameCn = recipeNameCn(recipe);
+  if (!code) throw new Error("Recipe code is required.");
+  if (!nameEn) throw new Error("Recipe Name EN is required.");
+  if (!nameCn) throw new Error("Recipe Name CN is required.");
   const ingredients = (recipe.ingredients || recipe.items || []).map((line) => {
     const quantityUsed = Number(line.quantityUsed ?? line.quantity_used ?? 0);
     const wastagePercent = Number(line.wastagePercent ?? line.wastage_percent ?? 0);
@@ -2404,7 +2454,9 @@ async function persistRemoteRecipe(recipe = {}, userId) {
   const sellingPrice = Number(recipe.sellingPrice ?? recipe.selling_price ?? "");
   const recipePayload = {
     outlet_id: recipe.outletId,
-    recipe_name: recipeName,
+    recipe_code: code,
+    recipe_name_en: nameEn,
+    recipe_name_cn: nameCn,
     menu_category: recipe.menuCategory || recipe.menu_category || null,
     recipe_photo_url: recipe.recipePhotoUrl || recipe.recipe_photo_url || null,
     selling_price: Number.isFinite(sellingPrice) && sellingPrice >= 0 ? sellingPrice : null,
@@ -4525,61 +4577,34 @@ function RecipeBarChart({ rows = [], valueFormatter = (value) => value, emptyTit
   );
 }
 
-function RecipeDonutChart({ segments = [], emptyTitle, emptyDescription }) {
-  const total = segments.reduce((sum, segment) => sum + Number(segment.value || 0), 0);
-  if (!segments.length || !total) {
-    return <RecipeIntelligencePlaceholder title={emptyTitle} description={emptyDescription} />;
-  }
-  let cursor = 0;
-  const gradient = segments.map((segment) => {
-    const start = cursor;
-    const end = cursor + (Number(segment.value || 0) / total) * 100;
-    cursor = end;
-    return `${segment.color} ${start}% ${end}%`;
-  }).join(", ");
-  return (
-    <div className="grid gap-4 sm:grid-cols-[150px_minmax(0,1fr)] sm:items-center">
-      <div className="relative mx-auto h-36 w-36 rounded-full" style={{ background: `conic-gradient(${gradient})` }}>
-        <div className="absolute inset-5 flex items-center justify-center rounded-full bg-background text-center">
-          <div>
-            <div className="type-caption font-semibold text-text-muted">Total</div>
-            <div className="type-title font-black text-text-primary">{toCurrency(total)}</div>
-          </div>
-        </div>
-      </div>
-      <div className="space-y-2">
-        {segments.map((segment) => (
-          <div key={segment.label} className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-slate-50 px-3 py-2">
-            <div className="flex min-w-0 items-center gap-2">
-              <span className="h-3 w-3 rounded-full" style={{ backgroundColor: segment.color }} />
-              <span className="truncate type-body-sm font-bold text-text-primary">{segment.label}</span>
-            </div>
-            <span className="shrink-0 type-caption font-black text-text-secondary">{toCurrency(segment.value)}</span>
-          </div>
-        ))}
-      </div>
-    </div>
-  );
-}
-
 function RecipeMenuEngineeringMatrix({ rows = [] }) {
   if (!rows.length) {
     return (
       <RecipeIntelligencePlaceholder
-        title="Sales mapping unavailable"
-        description="Connect POS/menu sales data to plot sales volume, margin %, and revenue bubbles."
+        title="Coming Soon"
+        description="Requires Product Analytics ↔ Recipe Mapping before sales volume, margin %, and revenue bubbles can be plotted."
       />
     );
   }
   const maxVolume = Math.max(...rows.map((row) => Number(row.salesVolume || 0)), 1);
   const maxRevenue = Math.max(...rows.map((row) => Number(row.revenue || 0)), 1);
+  const averageVolume = rows.reduce((sum, row) => sum + Number(row.salesVolume || 0), 0) / rows.length;
+  const averageMargin = rows.reduce((sum, row) => sum + Number(row.margin || 0), 0) / rows.length;
+  const averageVolumeX = 10 + (averageVolume / maxVolume) * 80;
+  const averageMarginY = 86 - Math.max(0, Math.min(100, averageMargin));
   return (
     <div className="relative h-64 rounded-2xl border border-border bg-slate-50 p-4">
       <div className="absolute left-4 top-3 type-caption font-black uppercase tracking-wide text-text-muted">Margin %</div>
       <div className="absolute bottom-3 right-4 type-caption font-black uppercase tracking-wide text-text-muted">Sales Volume</div>
       <div className="absolute inset-x-10 bottom-10 top-8 border-l border-b border-border" />
+      <div className="absolute bottom-10 top-8 border-l border-dashed border-text-muted/40" style={{ left: `${averageVolumeX}%` }} />
+      <div className="absolute left-10 right-10 border-t border-dashed border-text-muted/40" style={{ top: `${averageMarginY}%` }} />
+      <div className="absolute right-5 top-8 type-caption font-black text-emerald-700">Star</div>
+      <div className="absolute left-12 top-8 type-caption font-black text-amber-700">Puzzle</div>
+      <div className="absolute bottom-12 right-5 type-caption font-black text-blue-700">Workhorse</div>
+      <div className="absolute bottom-12 left-12 type-caption font-black text-rose-700">Dog</div>
       {rows.map((row) => {
-        const x = 40 + (Number(row.salesVolume || 0) / maxVolume) * 72;
+        const x = 10 + (Number(row.salesVolume || 0) / maxVolume) * 80;
         const y = 86 - Math.max(0, Math.min(100, Number(row.margin || 0)));
         const size = 18 + (Number(row.revenue || 0) / maxRevenue) * 34;
         return (
@@ -4601,7 +4626,9 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, onClose,
   const [form, setForm] = useState(() => ({
     id: recipe?.id || "",
     outletId: recipe?.outletId || outletId || "",
-    recipeName: recipe?.recipeName || recipe?.recipe_name || "",
+    recipeCode: recipeCode(recipe),
+    recipeNameEn: recipeNameEn(recipe),
+    recipeNameCn: recipeNameCn(recipe),
     menuCategory: recipe?.menuCategory || recipe?.menu_category || menuCategories.find((category) => category.status === "active")?.name || recipeMenuCategories[0],
     recipePhotoUrl: recipe?.recipePhotoUrl || recipe?.recipe_photo_url || "",
     recipePhotoFile: null,
@@ -4663,7 +4690,7 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, onClose,
     setPhotoPreview(preview);
     update("recipePhotoFile", file);
   };
-  const invalid = !form.recipeName.trim() || !form.outletId || !form.ingredients.length || form.ingredients.some((line) => !line.itemId || Number(line.quantityUsed || 0) <= 0);
+  const invalid = !form.recipeCode.trim() || !form.recipeNameEn.trim() || !form.recipeNameCn.trim() || !form.outletId || !form.ingredients.length || form.ingredients.some((line) => !line.itemId || Number(line.quantityUsed || 0) <= 0);
   const handleSave = async () => {
     if (invalid || isSaving) return;
     setIsSaving(true);
@@ -4689,7 +4716,9 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, onClose,
     >
       <div className="space-y-4">
         <div className="grid gap-3 md:grid-cols-2">
-          <Field label="Recipe Name / Menu Item Name" value={form.recipeName} required onChange={(value) => update("recipeName", value)} placeholder="Nasi Lemak Ayam" />
+          <Field label="Recipe Code" value={form.recipeCode} required onChange={(value) => update("recipeCode", value)} placeholder="RCP-CURRY-001" />
+          <Field label="Recipe Name EN" value={form.recipeNameEn} required onChange={(value) => update("recipeNameEn", value)} placeholder="Classic Dry Curry Noodle" />
+          <Field label="Recipe Name CN" value={form.recipeNameCn} required onChange={(value) => update("recipeNameCn", value)} placeholder="经典干咖喱面" />
           <label>
             <div className="mb-1 type-caption font-semibold text-text-secondary">Outlet</div>
             <div className="control flex h-9 items-center text-[13px] font-semibold text-text-secondary">{outlet?.name || "Selected outlet"}</div>
@@ -4771,9 +4800,12 @@ function RecipeDetailModal({ recipe, outlet, items, categories, onClose, onEdit 
   const summary = recipeCostSummary(recipe, items);
   const margin = recipeMarginPercent(recipe?.sellingPrice ?? recipe?.selling_price, summary.totalCost);
   const photoUrl = recipe?.recipePhotoUrl || recipe?.recipe_photo_url || "";
+  const code = recipeCode(recipe);
+  const nameEn = recipeNameEn(recipe);
+  const nameCn = recipeNameCn(recipe);
   return (
     <Modal
-      title={recipe?.recipeName || "Recipe"}
+      title={nameCn || nameEn || code || "Recipe"}
       description={`${outlet?.name || "Outlet"} · ${recipe?.menuCategory || "Menu Category"}`}
       size="xl"
       onClose={onClose}
@@ -4788,7 +4820,7 @@ function RecipeDetailModal({ recipe, outlet, items, categories, onClose, onEdit 
         <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
           <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-3xl border border-border bg-slate-50 lg:h-[240px] lg:w-[240px]">
             {photoUrl ? (
-              <img className="h-full w-full object-contain p-2" src={photoUrl} alt={recipe?.recipeName || "Recipe"} />
+              <img className="h-full w-full object-contain p-2" src={photoUrl} alt={nameEn || nameCn || code || "Recipe"} />
             ) : (
               <div className="type-body-sm font-bold text-text-muted">No recipe photo</div>
             )}
@@ -4796,7 +4828,9 @@ function RecipeDetailModal({ recipe, outlet, items, categories, onClose, onEdit 
           <div className="rounded-3xl border border-border bg-background p-4">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
-                <div className="type-section-title font-black text-text-primary">{recipe?.recipeName || "Recipe"}</div>
+                <div className="type-caption font-black uppercase tracking-wide text-text-muted">{code || "No recipe code"}</div>
+                <div className="type-section-title font-black text-text-primary">{nameCn || "Recipe Name CN required"}</div>
+                <div className="mt-1 type-body-sm font-semibold text-text-secondary">{nameEn || "Recipe Name EN required"}</div>
                 <div className="mt-1 flex flex-wrap gap-2">
                   <Badge tone="info">{recipe?.menuCategory || "Uncategorized"}</Badge>
                   <Badge tone={statusTone(recipe?.status || "active")}>{toTitle(recipe?.status || "active")}</Badge>
@@ -5289,6 +5323,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [movementFilters, setMovementFilters] = useState({ outletId: "all", movementType: "all", search: "", from: "", to: "" });
   const [wasteFilters, setWasteFilters] = useState({ wasteType: "all", from: "", to: "", search: "" });
   const [recipeFilters, setRecipeFilters] = useState({ category: "all", status: "active", search: "" });
+  const [recipeAnalysisPeriod, setRecipeAnalysisPeriod] = useState("last3");
+  const [recipeProductReports, setRecipeProductReports] = useState([]);
+  const [recipeProductItems, setRecipeProductItems] = useState([]);
+  const [recipeProductMappings, setRecipeProductMappings] = useState([]);
+  const [recipeProductLoading, setRecipeProductLoading] = useState(false);
   const [date, setDateState] = useState(initialStockCheckDate.date);
   const [selectedDateSource, setSelectedDateSource] = useState(initialStockCheckDate.source);
   const selectedDateSourceRef = useRef(initialStockCheckDate.source);
@@ -5310,6 +5349,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [photoPreview, setPhotoPreview] = useState(null);
   const stockCheckResponsiveLayout = useStockCheckResponsiveLayout();
   const useStockCheckCardLayout = stockCheckResponsiveLayout !== "desktop";
+  const recipeOutletOptions = useMemo(() => getAccessibleOutletOptions(auth, outlets).filter((option) => option.value !== "all"), [auth, outlets]);
+  const activeRecipeOutletId = selectedOutletId === "all" ? (recipeOutletOptions[0]?.value || "") : selectedOutletId;
 
   const setDate = useCallback((value, source = "manual") => {
     setDateState(normalizeBusinessDate(value));
@@ -5326,6 +5367,49 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       selectedDateSource,
     });
   }, [date, selectedDateSource]);
+
+  useEffect(() => {
+    if (activeTab !== "recipes" || !activeRecipeOutletId) return undefined;
+    let cancelled = false;
+    const selectedPeriod = recipeAnalysisPeriodOptions.find((option) => option.value === recipeAnalysisPeriod) || recipeAnalysisPeriodOptions[1];
+    const startSerial = businessMonthSerial(-(selectedPeriod.months - 1));
+    const endSerial = businessMonthSerial(0);
+    setRecipeProductLoading(true);
+    Promise.all([
+      productAnalyticsService.listReports({ outletIds: [activeRecipeOutletId] }),
+      supabase
+        .from("product_recipe_mappings")
+        .select("*")
+        .eq("outlet_id", activeRecipeOutletId),
+    ])
+      .then(async ([reports, mappingsResult]) => {
+        if (mappingsResult.error) throw mappingsResult.error;
+        const periodReports = reports.filter((report) => {
+          const serial = monthSerial(report.report_year, report.report_month);
+          return serial >= startSerial && serial <= endSerial;
+        });
+        const items = await productAnalyticsService.listItemsByReportIds(periodReports.map((report) => report.id));
+        if (!cancelled) {
+          setRecipeProductReports(periodReports);
+          setRecipeProductItems(items);
+          setRecipeProductMappings(mappingsResult.data || []);
+        }
+      })
+      .catch((error) => {
+        console.warn("[InventoryControl] Unable to load Product Analytics for Recipe Intelligence.", error);
+        if (!cancelled) {
+          setRecipeProductReports([]);
+          setRecipeProductItems([]);
+          setRecipeProductMappings([]);
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setRecipeProductLoading(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeRecipeOutletId, activeTab, recipeAnalysisPeriod]);
 
   useEffect(() => {
     setCheckValidationAttempted(false);
@@ -6953,7 +7037,12 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       }
       const normalized = {
         ...recipe,
-        recipeName: String(recipe.recipeName || "").trim(),
+        recipeCode: recipeCode(recipe),
+        recipe_code: recipeCode(recipe),
+        recipeNameEn: recipeNameEn(recipe),
+        recipe_name_en: recipeNameEn(recipe),
+        recipeNameCn: recipeNameCn(recipe),
+        recipe_name_cn: recipeNameCn(recipe),
         recipePhotoUrl,
         recipe_photo_url: recipePhotoUrl,
         sellingPrice: recipe.sellingPrice === "" || recipe.sellingPrice === null || recipe.sellingPrice === undefined ? "" : Number(recipe.sellingPrice),
@@ -7082,7 +7171,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     if (!requirePermission(can.exportRecipes, "export recipes")) return;
     const activeRecipeOutletId = selectedOutletId === "all" ? (getAccessibleOutlets(auth, outlets)[0]?.id || outlets[0]?.id || "") : selectedOutletId;
     const rows = data.recipes.filter((recipe) => {
-      const searchText = `${recipe.recipeName || ""} ${recipe.menuCategory || ""} ${outletById.get(recipe.outletId)?.name || ""}`.toLowerCase();
+      const searchText = `${recipeCode(recipe)} ${recipeNameEn(recipe)} ${recipeNameCn(recipe)} ${recipe.menuCategory || ""} ${outletById.get(recipe.outletId)?.name || ""}`.toLowerCase();
       return recipe.outletId === activeRecipeOutletId
         && (recipeFilters.category === "all" || recipe.menuCategory === recipeFilters.category)
         && (recipeFilters.status === "all" || recipe.status === recipeFilters.status)
@@ -7090,7 +7179,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     }).map((recipe) => {
       const outlet = outletById.get(recipe.outletId);
       return {
-        "Recipe Name": recipe.recipeName,
+        recipe_code: recipeCode(recipe),
+        recipe_name_en: recipeNameEn(recipe),
+        recipe_name_cn: recipeNameCn(recipe),
         Outlet: outlet?.name || "",
         "Menu Category": recipe.menuCategory,
         "Serving Size": recipe.servingSize,
@@ -7099,7 +7190,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         Notes: recipe.notes || "",
       };
     });
-    const columns = ["Recipe Name", "Outlet", "Menu Category", "Serving Size", "Ingredients", "Status", "Notes"];
+    const columns = ["recipe_code", "recipe_name_en", "recipe_name_cn", "Outlet", "Menu Category", "Serving Size", "Ingredients", "Status", "Notes"];
     const csv = [columns.join(","), ...rows.map((row) => columns.map((column) => csvEscape(row[column])).join(","))].join("\n");
     downloadTextFile(`feedx-recipes-${todayInput()}.csv`, csv);
     notify("Recipes exported successfully");
@@ -8760,15 +8851,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     if (!can.viewRecipes) {
       return <EmptyState title="Permission required" description="You do not have permission to view Recipes & Usage." />;
     }
-    const outletOptions = getAccessibleOutletOptions(auth, outlets).filter((option) => option.value !== "all");
-    const activeRecipeOutletId = selectedOutletId === "all" ? (outletOptions[0]?.value || "") : selectedOutletId;
     const activeMenuCategories = (data.menuCategories?.length ? data.menuCategories : recipeMenuCategories.map((name, index) => mapRemoteMenuCategory({ id: `default_menu_${index + 1}`, name, sort_order: index + 1, status: "active" })))
       .filter((category) => category.status === "active")
       .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0) || a.name.localeCompare(b.name));
     const updateRecipeFilter = (key, value) => setRecipeFilters((current) => ({ ...current, [key]: value }));
     const filteredRecipes = data.recipes.filter((recipe) => {
       const outlet = outletById.get(recipe.outletId);
-      const searchText = `${recipe.recipeName || ""} ${recipe.menuCategory || ""} ${outlet?.name || ""} ${(recipe.ingredients || []).map((line) => itemById.get(line.itemId)?.name).join(" ")}`.toLowerCase();
+      const searchText = `${recipeCode(recipe)} ${recipeNameEn(recipe)} ${recipeNameCn(recipe)} ${recipe.menuCategory || ""} ${outlet?.name || ""} ${(recipe.ingredients || []).map((line) => itemById.get(line.itemId)?.name).join(" ")}`.toLowerCase();
       return recipe.outletId === activeRecipeOutletId
         && (recipeFilters.category === "all" || recipe.menuCategory === recipeFilters.category)
         && (recipeFilters.status === "all" || recipe.status === recipeFilters.status)
@@ -8787,27 +8876,45 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       ? pricedMargins.reduce((sum, row) => sum + row.margin, 0) / pricedMargins.length
       : null;
     const highestCostRecipe = recipeCostRows.reduce((highest, row) => !highest || row.summary.totalCost > highest.summary.totalCost ? row : highest, null);
-    const menuEngineeringRows = recipeCostRows
-      .map(({ recipe, margin, summary }) => {
-        const salesVolume = Number(recipe.salesVolume ?? recipe.sales_volume ?? recipe.salesQty ?? recipe.sales_qty ?? 0);
-        const sellingPrice = Number(recipe.sellingPrice ?? recipe.selling_price ?? 0);
-        const revenue = Number(recipe.revenue ?? recipe.salesRevenue ?? recipe.sales_revenue ?? (salesVolume && sellingPrice ? salesVolume * sellingPrice : 0));
+    const productSalesByName = recipeProductItems.reduce((totals, item) => {
+      const key = normalizeProductRecipeKey(item.product_name);
+      if (!key) return totals;
+      const current = totals.get(key) || { productName: item.product_name, quantity: 0, revenue: 0 };
+      current.quantity += Number(item.quantity || 0);
+      current.revenue += Number(item.nett_sales || item.revenue || 0);
+      totals.set(key, current);
+      return totals;
+    }, new Map());
+    const recipeCostById = new Map(recipeCostRows.map((row) => [row.recipe.id, row]));
+    const matchedProductKeys = new Set();
+    const menuEngineeringRows = recipeProductMappings
+      .map((mapping) => {
+        const matchKey = normalizeProductRecipeKey(mapping.product_name);
+        const recipeRow = recipeCostById.get(mapping.recipe_id);
+        if (!matchKey || !recipeRow || !productSalesByName.has(matchKey)) return null;
+        matchedProductKeys.add(matchKey);
+        const product = productSalesByName.get(matchKey);
+        const { recipe, margin } = recipeRow;
         return {
           id: recipe.id,
-          label: recipe.recipeName,
-          salesVolume,
-          revenue,
-          margin: margin ?? recipeMarginPercent(sellingPrice, summary.totalCost),
+          label: recipeCode(recipe) || recipeNameEn(recipe) || recipeNameCn(recipe),
+          salesVolume: product.quantity,
+          revenue: product.revenue,
+          margin,
         };
       })
-      .filter((row) => row.salesVolume > 0 && row.revenue > 0 && row.margin !== null && Number.isFinite(Number(row.margin)));
+      .filter((row) => row && row.salesVolume > 0 && row.revenue > 0 && row.margin !== null && Number.isFinite(Number(row.margin)));
+    const mappedRecipeCount = new Set(recipeProductMappings
+      .filter((mapping) => recipeCostById.has(mapping.recipe_id) && productSalesByName.has(normalizeProductRecipeKey(mapping.product_name)))
+      .map((mapping) => mapping.recipe_id)).size;
+    const unmappedProductCount = [...productSalesByName.keys()].filter((key) => !matchedProductKeys.has(key)).length;
     const topMarginRows = recipeCostRows
       .filter((row) => row.margin !== null && Number.isFinite(Number(row.margin)))
       .sort((a, b) => Number(b.margin) - Number(a.margin))
       .slice(0, 5)
       .map(({ recipe, margin }) => ({
         id: recipe.id,
-        label: recipe.recipeName,
+        label: recipeNameEn(recipe) || recipeNameCn(recipe) || recipeCode(recipe),
         value: Number(margin),
       }));
     const ingredientCostTotals = recipeCostRows.reduce((totals, { recipe }) => {
@@ -8825,17 +8932,25 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       .filter((row) => Number(row.value || 0) > 0)
       .sort((a, b) => Number(b.value) - Number(a.value))
       .slice(0, 5);
-    const totalIngredientCost = recipeCostRows.reduce((sum, row) => sum + Number(row.summary.ingredientCost || 0), 0);
-    const totalWastageCost = recipeCostRows.reduce((sum, row) => sum + Number(row.summary.wastageCost || 0), 0);
-    const costCompositionSegments = [
-      { label: "Ingredient Cost", value: totalIngredientCost, color: "#16a34a" },
-      { label: "Estimated Wastage", value: totalWastageCost, color: "#f59e0b" },
-    ].filter((segment) => Number(segment.value || 0) > 0);
+    const lowestMarginRows = recipeCostRows
+      .filter((row) => row.margin !== null && Number.isFinite(Number(row.margin)))
+      .sort((a, b) => Number(a.margin) - Number(b.margin))
+      .slice(0, 6);
+    const ingredientPreviewRows = (recipe) => {
+      const lines = (recipe.ingredients || []).slice(0, 5).map((line) => {
+        const item = itemById.get(line.itemId);
+        const quantity = Number(line.quantityUsed ?? line.quantity_used ?? 0);
+        const displayQty = Number.isFinite(quantity) ? String(quantity).replace(/\.0+$/, "") : "-";
+        return `${item?.name || "Inventory item"} - ${displayQty} ${line.unit || item?.unit || ""}`.trim();
+      });
+      const remaining = Math.max(0, (recipe.ingredients || []).length - 5);
+      return remaining ? [...lines, `+${remaining} more`] : lines;
+    };
 
     return (
       <div className="space-y-4">
         <div className="card grid gap-3 p-3 lg:grid-cols-[220px_190px_170px_1fr] lg:items-end">
-          <SelectField label="Outlet" value={activeRecipeOutletId} options={outletOptions} onChange={setSelectedOutletId} searchable />
+          <SelectField label="Outlet" value={activeRecipeOutletId} options={recipeOutletOptions} onChange={setSelectedOutletId} searchable />
           <SelectField label="Category" value={recipeFilters.category} options={[{ value: "all", label: "All Categories" }, ...activeMenuCategories.map((category) => ({ value: category.name, label: category.name }))]} onChange={(value) => updateRecipeFilter("category", value)} />
           <SelectField label="Status" value={recipeFilters.status} options={[{ value: "all", label: "All Status" }, ...statuses.map((status) => ({ value: status, label: toTitle(status) }))]} onChange={(value) => updateRecipeFilter("status", value)} />
           <label>
@@ -8850,7 +8965,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           <MetricCard label="Total Recipes" value={filteredRecipes.length} helper="Current filters" size="compact" />
           <MetricCard label="Average Recipe Cost" value={toCurrency(averageRecipeCost)} helper="Ingredient + wastage" size="compact" />
           <MetricCard label="Average Margin" value={formatRecipeMargin(averageMargin)} helper="Priced recipes only" tone={recipeMarginTone(averageMargin)} size="compact" />
-          <MetricCard label="Highest Cost Recipe" value={highestCostRecipe?.recipe?.recipeName || "—"} helper={highestCostRecipe ? toCurrency(highestCostRecipe.summary.totalCost) : "No recipes"} tone={highestCostRecipe?.summary?.totalCost ? "warning" : "neutral"} size="compact" />
+          <MetricCard label="Highest Cost Recipe" value={highestCostRecipe ? recipeDisplayName(highestCostRecipe.recipe) : "—"} helper={highestCostRecipe ? toCurrency(highestCostRecipe.summary.totalCost) : "No recipes"} tone={highestCostRecipe?.summary?.totalCost ? "warning" : "neutral"} size="compact" />
         </div>
         <DashboardSection title="Recipe BOM Setup" subtitle="Link menu/product items to outlet-linked inventory ingredients.">
           {filteredRecipes.length ? (
@@ -8865,7 +8980,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                     <th>Selling Price</th>
                     <th>Margin</th>
                     <th>Status</th>
-                    <th className="text-right">Actions</th>
+                    <th className="pr-8 text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border text-[13px]">
@@ -8875,22 +8990,42 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                         <div className="flex items-center gap-3">
                           <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-2xl border border-border bg-slate-100">
                             {recipe.recipePhotoUrl || recipe.recipe_photo_url
-                              ? <img className="h-full w-full object-cover" src={recipe.recipePhotoUrl || recipe.recipe_photo_url} alt={recipe.recipeName} />
-                              : <div className="flex h-full w-full items-center justify-center text-sm font-black text-text-muted">{String(recipe.recipeName || "R").slice(0, 1).toUpperCase()}</div>}
+                              ? <img className="h-full w-full object-cover" src={recipe.recipePhotoUrl || recipe.recipe_photo_url} alt={recipeNameEn(recipe) || recipeNameCn(recipe) || recipeCode(recipe)} />
+                              : <div className="flex h-full w-full items-center justify-center text-sm font-black text-text-muted">{String(recipeNameEn(recipe) || recipeNameCn(recipe) || recipeCode(recipe) || "R").slice(0, 1).toUpperCase()}</div>}
                           </div>
                           <div className="min-w-0">
-                            <div className="font-bold text-text-primary">{recipe.recipeName}</div>
+                            <div className="type-caption font-black uppercase tracking-wide text-text-muted">{recipeCode(recipe) || "No code"}</div>
+                            <div className="font-bold text-text-primary">{recipeNameCn(recipe) || "Recipe Name CN required"}</div>
+                            <div className="type-caption text-text-secondary">{recipeNameEn(recipe) || "Recipe Name EN required"}</div>
                             <div className="type-caption text-text-secondary">{outletById.get(recipe.outletId)?.name || "Outlet"} · {recipe.servingSize || "1 portion"}</div>
                           </div>
                         </div>
                       </td>
                       <td><Badge tone="info">{recipe.menuCategory || "Uncategorized"}</Badge></td>
-                      <td>{(recipe.ingredients || []).length} ingredient{(recipe.ingredients || []).length === 1 ? "" : "s"}</td>
+                      <td>
+                        <div className="group relative inline-flex">
+                          <span className="cursor-help rounded-full border border-border bg-slate-50 px-2.5 py-1 type-caption font-bold text-text-secondary">
+                            {(recipe.ingredients || []).length} ingredient{(recipe.ingredients || []).length === 1 ? "" : "s"}
+                          </span>
+                          <div className="pointer-events-none absolute left-0 top-full z-30 mt-2 hidden min-w-56 rounded-2xl border border-border bg-background p-3 text-left shadow-xl group-hover:block">
+                            <div className="mb-2 type-caption font-black uppercase tracking-wide text-text-muted">Ingredient Preview</div>
+                            {ingredientPreviewRows(recipe).length ? (
+                              <div className="space-y-1">
+                                {ingredientPreviewRows(recipe).map((line) => (
+                                  <div key={line} className="type-caption font-semibold text-text-secondary">{line}</div>
+                                ))}
+                              </div>
+                            ) : (
+                              <div className="type-caption text-text-muted">No ingredients</div>
+                            )}
+                          </div>
+                        </div>
+                      </td>
                       <td className="font-black text-text-primary">{toCurrency(summary.totalCost)}</td>
                       <td className="font-bold text-text-secondary">{recipe.sellingPrice !== "" && recipe.sellingPrice !== null && recipe.sellingPrice !== undefined ? toCurrency(recipe.sellingPrice) : "—"}</td>
                       <td><Badge tone={recipeMarginTone(margin)}>{formatRecipeMargin(margin)}</Badge></td>
                       <td><Badge tone={statusTone(recipe.status)}>{toTitle(recipe.status || "active")}</Badge></td>
-                      <td>
+                      <td className="pr-8">
                         <div className="flex justify-end gap-2">
                           <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setModal({ type: "recipe-detail", recipe })}>View</button>
                           <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.manageRecipes, "edit recipes") && setModal({ type: "recipe", recipe })}>Edit</button>
@@ -8931,10 +9066,22 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           title="Recipe Intelligence"
           subtitle="Identify profitable menu items, highest cost recipes and key ingredient cost drivers."
         >
+          <div className="mb-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_220px] lg:items-end">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <MetricCard label="Mapped Recipes" value={mappedRecipeCount} helper={recipeProductReports.length ? "Matched to Product Analytics" : "No product reports in period"} tone={mappedRecipeCount ? "success" : "neutral"} size="compact" />
+              <MetricCard label="Unmapped Products" value={unmappedProductCount} helper={recipeProductLoading ? "Loading Product Analytics..." : "Need recipe mapping"} tone={unmappedProductCount ? "warning" : "neutral"} size="compact" />
+            </div>
+            <SelectField
+              label="Analysis Period"
+              value={recipeAnalysisPeriod}
+              options={recipeAnalysisPeriodOptions.map((option) => ({ value: option.value, label: option.label }))}
+              onChange={setRecipeAnalysisPeriod}
+            />
+          </div>
           <div className="grid gap-4 lg:grid-cols-2">
             <RecipeIntelligenceCard
               title="Menu Engineering Matrix"
-              description="X = Sales Volume, Y = Margin %, bubble size = Revenue."
+              description="Product Analytics source: X = Qty Sold, Y = Margin %, bubble size = Revenue."
             >
               <RecipeMenuEngineeringMatrix rows={menuEngineeringRows} />
             </RecipeIntelligenceCard>
@@ -8963,14 +9110,41 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               />
             </RecipeIntelligenceCard>
             <RecipeIntelligenceCard
-              title="Recipe Cost Composition"
-              description="Ingredient cost versus estimated wastage cost."
+              title="Lowest Margin Recipes"
+              description="Lowest priced margins sorted ascending."
             >
-              <RecipeDonutChart
-                segments={costCompositionSegments}
-                emptyTitle="No cost composition yet"
-                emptyDescription="Cost composition appears after recipes have costed ingredients."
-              />
+              {lowestMarginRows.length ? (
+                <div className="overflow-x-auto rounded-2xl border border-border">
+                  <table className="w-full min-w-[520px] text-left text-[13px]">
+                    <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
+                      <tr>
+                        <th className="px-3 py-2">Recipe</th>
+                        <th>Cost</th>
+                        <th>Price</th>
+                        <th>Margin %</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border">
+                      {lowestMarginRows.map(({ recipe, summary, margin }) => (
+                        <tr key={recipe.id}>
+                          <td className="px-3 py-2">
+                            <div className="font-bold text-text-primary">{recipeDisplayName(recipe)}</div>
+                            <div className="type-caption text-text-muted">{recipeCode(recipe) || "No code"}</div>
+                          </td>
+                          <td className="font-bold text-text-secondary">{toCurrency(summary.totalCost)}</td>
+                          <td>{recipe.sellingPrice !== "" && recipe.sellingPrice !== null && recipe.sellingPrice !== undefined ? toCurrency(recipe.sellingPrice) : "—"}</td>
+                          <td><Badge tone={recipeMarginTone(margin)}>{formatRecipeMargin(margin)}</Badge></td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <RecipeIntelligencePlaceholder
+                  title="No margin data yet"
+                  description="Add selling prices and costed ingredients to identify lowest margin recipes."
+                />
+              )}
             </RecipeIntelligenceCard>
           </div>
         </DashboardSection>

@@ -2523,7 +2523,9 @@ Recipe fields:
 
 - id
 - outlet_id
-- recipe_name
+- recipe_code
+- recipe_name_en
+- recipe_name_cn
 - menu_category
 - recipe_photo_url
 - selling_price
@@ -2549,6 +2551,10 @@ Recipe item fields:
 Rules:
 
 - Recipes are outlet-scoped.
+- Recipe naming uses `recipe_code`, `recipe_name_en`, and `recipe_name_cn` only. New recipe forms require all three fields; the legacy single `recipe_name` column is retained only for migration/read fallback and must not be used for new writes.
+- `recipe_code` is the unique operational identity for recipes and is the primary identity shown in Menu Engineering Matrix and future integrations.
+- Legacy recipes with only `recipe_name` are migrated by copying that value into `recipe_name_en` and assigning a `LEGACY-...` recipe code. Recipes with blank `recipe_name_cn` require manual cleanup before they are considered fully standardized.
+- Future Product Analytics recipe matching priority is: `recipe_code`, then `recipe_name_en`, then `recipe_name_cn`.
 - Recipes & Usage does not expose an All Outlets aggregate filter. The outlet filter is required, defaults to the first accessible outlet, and contains only individual accessible outlets.
 - Add Recipe uses the currently selected Recipes & Usage outlet filter as its outlet context; the Add/Edit Recipe modal does not ask for outlet again.
 - Menu Category Settings supports create, edit, archive, and sort for `inventory_menu_categories`; active menu categories populate recipe forms and filters.
@@ -2561,8 +2567,14 @@ Rules:
 - Unit Cost reads from `inventory_items.cost`; Total Cost is `Qty Used × Unit Cost`.
 - Recipe Summary calculates Ingredient Cost, Estimated Wastage Cost, Total Recipe Cost, Selling Price, and Margin % in real time.
 - Recipe Costing Dashboard shows Total Recipes, Average Recipe Cost, Average Margin, and Highest Cost Recipe above the recipe list; these KPIs are always calculated within the selected single-outlet scope.
-- Recipe Intelligence appears below Recipe BOM Setup in a two-column desktop layout and stacked mobile layout. It includes Menu Engineering Matrix (Sales Volume × Margin %, bubble size = Revenue), Top Margin Products, Highest Cost Ingredients, and Recipe Cost Composition. POS/sales-dependent charts show placeholder guidance when menu sales mapping is unavailable; no fake sales data is generated.
-- Recipe list columns are Recipe, Category, Ingredients, Estimated Cost, Selling Price, Margin, Status, and Actions.
+- Recipe Intelligence appears below Recipe BOM Setup in a two-column desktop layout and stacked mobile layout. Default analysis period is Last 3 Months, with options for Current Month, Last 3 Months, Last 6 Months, and Last 12 Months.
+- Menu Engineering Matrix uses Product Analytics as its data source. X axis is Product Analytics Qty Sold, Y axis is recipe Margin %, and bubble size is Product Analytics Revenue / Net Sales. The chart uses dynamic average Qty Sold and average Margin % as quadrant split lines for Star, Puzzle, Workhorse, and Dog categories.
+- Recipe Intelligence matching foundation uses `product_recipe_mappings` for future explicit mapping. Until explicit mapping UI is built, mapping health compares Product Analytics product names against recipes by `recipe_code`, then `recipe_name_en`, then `recipe_name_cn`.
+- Recipe Intelligence shows Mapped Recipes and Unmapped Products so operators can see Product Analytics ↔ Recipe Mapping completeness.
+- Recipe Intelligence keeps Top Margin Recipes and Highest Cost Ingredients, and replaces Recipe Cost Composition with Lowest Margin Recipes sorted ascending by Margin %. POS/sales-dependent charts show `Coming Soon` guidance when Product Analytics ↔ Recipe Mapping is unavailable; no fake sales data is generated.
+- Recipe list columns are Recipe, Category, Ingredients, Estimated Cost, Selling Price, Margin, Status, and Actions. Recipe rows display Chinese name above English name, with recipe code as the operational identifier.
+- Recipe BOM table ingredient counts show a hover preview with up to five ingredient lines in `Ingredient - Qty UOM` format, then `+N more` when additional ingredients exist.
+- Recipe exports include `recipe_code`, `recipe_name_en`, and `recipe_name_cn`.
 - Margin % is `((Selling Price - Estimated Cost) / Selling Price) × 100`; badges are green at 70%+, amber at 40%-69%, and red below 40%.
 - Add Recipe writes to `inventory_recipes` and `inventory_recipe_items`; success is shown only after Supabase confirms the recipe and ingredient rows.
 - Edit Recipe updates the recipe row and replaces its ingredient snapshot rows in `inventory_recipe_items`.
