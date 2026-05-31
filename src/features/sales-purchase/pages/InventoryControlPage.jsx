@@ -1177,16 +1177,31 @@ function mapRemoteMenuCategory(row = {}) {
   };
 }
 
+function safeRecipe(recipe) {
+  return recipe && typeof recipe === "object" ? recipe : {};
+}
+
+function getRecipeDisplay(recipe) {
+  const safe = safeRecipe(recipe);
+  return {
+    code: String(safe.recipeCode || safe.recipe_code || "").trim() || "—",
+    nameEn: String(safe.recipeNameEn || safe.recipe_name_en || safe.recipeName || safe.recipe_name || "").trim() || "Unnamed recipe",
+    nameCn: String(safe.recipeNameCn || safe.recipe_name_cn || "").trim(),
+  };
+}
+
 function recipeCode(recipe = {}) {
-  return String(recipe.recipeCode || recipe.recipe_code || "").trim();
+  return String(safeRecipe(recipe).recipeCode || safeRecipe(recipe).recipe_code || "").trim();
 }
 
 function recipeNameEn(recipe = {}) {
-  return String(recipe.recipeNameEn || recipe.recipe_name_en || recipe.recipeName || recipe.recipe_name || "").trim();
+  const safe = safeRecipe(recipe);
+  return String(safe.recipeNameEn || safe.recipe_name_en || safe.recipeName || safe.recipe_name || "").trim();
 }
 
 function recipeNameCn(recipe = {}) {
-  return String(recipe.recipeNameCn || recipe.recipe_name_cn || "").trim();
+  const safe = safeRecipe(recipe);
+  return String(safe.recipeNameCn || safe.recipe_name_cn || "").trim();
 }
 
 function recipeDisplayName(recipe = {}) {
@@ -9521,6 +9536,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         const status = mappingDecisionStatus(mapping);
         const mappedRecipe = status === "mapped" ? recipeCostById.get(mapping?.recipe_id)?.recipe || data.recipes.find((recipe) => recipe.id === mapping?.recipe_id) : null;
         const suggestion = suggestRecipeMatch(product.productName, mappingCandidateRecipes);
+        if (!suggestion.recipe) {
+          debugLog("[RecipeMappingNullGuard]", {
+            productName: product.productName,
+            mappingStatus: status,
+            suggestedRecipe: suggestion.recipe,
+          });
+        }
         return {
           key,
           productName: product.productName,
