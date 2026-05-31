@@ -11,6 +11,7 @@ import {
   Search,
   SquarePen,
   Trash2,
+  Upload,
   Wallet,
 } from "lucide-react";
 import Card from "../../../components/ui/Card.jsx";
@@ -22,6 +23,7 @@ import { FieldLabel, MonthSelector, OutletSelector, YearSelector } from "../../.
 import SelectField from "../../../components/forms/SelectField.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import SupplierCombobox from "../components/SupplierCombobox.jsx";
+import { DataImportWorkspace } from "./DataImportPage.jsx";
 import usePeriodFilters from "../hooks/usePeriodFilters.js";
 import { purchaseRecordService } from "../../../services/purchaseRecordService.js";
 import { supplierService } from "../../../services/supplierService.js";
@@ -405,6 +407,8 @@ export default function PurchaseInputPage({ store, setStore, ui, auth, masterDat
   const [showAbnormalOnly, setShowAbnormalOnly] = useState(false);
   const [expandedRows, setExpandedRows] = useState(() => new Set());
   const [editingCategoryKey, setEditingCategoryKey] = useState(null);
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importRefreshKey, setImportRefreshKey] = useState(0);
   const previous = getPreviousPeriod(filters.month, filters.year);
   const isLocked = Boolean(getLock(store, filters.outletId, filters.month, filters.year)?.is_locked);
   const canWritePurchase = canWrite(auth, "purchase_input");
@@ -450,7 +454,7 @@ export default function PurchaseInputPage({ store, setStore, ui, auth, masterDat
     return () => {
       ignore = true;
     };
-  }, [filters.month, filters.outletId, filters.year]);
+  }, [filters.month, filters.outletId, filters.year, importRefreshKey]);
 
   useEffect(() => {
     if (saveState === "loading" || saveState === "error") return;
@@ -795,6 +799,9 @@ export default function PurchaseInputPage({ store, setStore, ui, auth, masterDat
           </span>
           {canWritePurchase ? (
             <>
+              <button className="btn-secondary" type="button" onClick={() => setImportModalOpen(true)}>
+                <Upload size={16} /> Import Purchase
+              </button>
               <button className="btn-secondary" type="button" disabled={isLocked} onClick={() => setDuplicateModal(true)}>
                 <Copy size={16} /> Duplicate Previous Month
               </button>
@@ -991,6 +998,29 @@ export default function PurchaseInputPage({ store, setStore, ui, auth, masterDat
                 <span className="mt-1 block text-text-secondary">Useful for estimation. Review every copied amount before saving.</span>
               </span>
             </label>
+          </div>
+        </Modal>
+      ) : null}
+      {importModalOpen ? (
+        <Modal
+          title="Import Purchase"
+          description="Upload, validate, preview and import purchase records."
+          size="2xl"
+          bodyClassName="p-0"
+          onClose={() => setImportModalOpen(false)}
+        >
+          <div className="p-4">
+            <DataImportWorkspace
+              store={store}
+              setStore={setStore}
+              ui={ui}
+              auth={auth}
+              fixedImportType="Purchases"
+              embedded
+              onImported={() => {
+                setImportRefreshKey((value) => value + 1);
+              }}
+            />
           </div>
         </Modal>
       ) : null}

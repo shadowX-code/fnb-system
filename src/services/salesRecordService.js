@@ -79,7 +79,7 @@ export const salesRecordService = {
 
   async deleteSalesRecordIds(ids) {
     if (!ids.length) return;
-    logSalesRecordQuery("delete:removed_rows", "sales_input.delete OR data_import.import", { rows: ids.length });
+    logSalesRecordQuery("delete:removed_rows", "sales_input.delete", { rows: ids.length });
     const { error } = await supabase
       .from("sales_records")
       .delete()
@@ -108,7 +108,7 @@ export const salesRecordService = {
 
     if (!payload.length) return [];
 
-    logSalesRecordQuery("upsert:period_rows", "sales_input.create/edit OR data_import.import", {
+    logSalesRecordQuery("upsert:period_rows", "sales_input.create/edit", {
       outletId,
       year,
       month,

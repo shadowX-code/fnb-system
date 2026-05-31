@@ -9,7 +9,8 @@ import { importService } from "../../../services/importService.js";
 import { purchaseCategoryService } from "../../../services/purchaseCategoryService.js";
 import { supplierService } from "../../../services/supplierService.js";
 import { monthLabel } from "../utils/analytics.js";
-import { canCreate, canImport, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { canCreate, canImport, canWrite, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { getEmployeeDisplayName } from "../../../utils/userDisplay.js";
 
 const monthAliases = {
   jan: 1, january: 1, feb: 2, february: 2, mar: 3, march: 3, apr: 4, april: 4, may: 5,
@@ -353,9 +354,18 @@ function withTimeout(promise, label, timeoutMs = 15000) {
   ]);
 }
 
-export default function DataImportPage({ store, setStore, ui, auth }) {
+export function DataImportWorkspace({
+  store,
+  setStore,
+  ui,
+  auth,
+  initialImportType = "Sales",
+  fixedImportType = "",
+  embedded = false,
+  onImported,
+}) {
   const inputRef = useRef(null);
-  const [importType, setImportType] = useState("Sales");
+  const [importType, setImportType] = useState(fixedImportType || initialImportType);
   const [step, setStep] = useState("upload");
   const [fileMeta, setFileMeta] = useState(null);
   const [parsed, setParsed] = useState({ headers: [], rows: [] });
@@ -365,28 +375,46 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
   const [supplierResolutions, setSupplierResolutions] = useState({});
   const [unknownCategories, setUnknownCategories] = useState([]);
   const [categoryResolutions, setCategoryResolutions] = useState({});
-  const [recentImports, setRecentImports] = useState([]);
+  const [allRecentImports, setAllRecentImports] = useState([]);
   const [isImporting, setIsImporting] = useState(false);
   const [validationState, setValidationState] = useState({ loading: false, message: "", error: "" });
   const [importSummary, setImportSummary] = useState(null);
   const [confirmImport, setConfirmImport] = useState(false);
   const [modeConfirmed, setModeConfirmed] = useState(false);
   const [importDetail, setImportDetail] = useState(null);
-  const canRunImport = canImport(auth, "data_import");
+  const employees = store.employees || store.people || [];
+  const actorDisplayName = (actorId) => getEmployeeDisplayName(actorId, {
+    employees,
+    currentProfile: auth?.profile,
+    currentUser: auth?.user,
+  });
+  const canRunImport = importType === "Sales"
+    ? canWrite(auth, "sales_input")
+    : importType === "Purchases"
+      ? canWrite(auth, "purchase_input")
+      : canImport(auth, "data_import");
   const canCreateImportSupplier = canCreate(auth, "suppliers");
   const canCreateImportCategory = canCreate(auth, "purchase_categories");
 
   useEffect(() => {
     importService.listImportBatches()
-      .then(setRecentImports)
+      .then(setAllRecentImports)
       .catch((error) => {
         console.error("Unable to load import batches", error);
-        setRecentImports([]);
+        setAllRecentImports([]);
       });
   }, []);
 
+  useEffect(() => {
+    if (fixedImportType) switchImportType(fixedImportType);
+  }, [fixedImportType]);
+
   const fieldOptions = importType === "Sales" ? salesFields : purchaseFields;
   const modeDetail = importModeDetails[importType];
+  const recentImports = useMemo(() => {
+    const importTypeKey = importType === "Sales" ? "sales" : "purchase";
+    return allRecentImports.filter((batch) => String(batch.import_type || "").toLowerCase() === importTypeKey);
+  }, [allRecentImports, importType]);
   const likelyImportType = useMemo(() => detectLikelyImportType(parsed.headers, mappings), [mappings, parsed.headers]);
   const mismatchMessage = modeMismatchMessage(importType, likelyImportType);
   const unresolvedUnknownSuppliers = unknownSuppliers.filter((item) => {
@@ -919,7 +947,7 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
           [field]: [...current[field].filter((record) => !importedKeys.has(key(record))), ...result.savedRows],
         };
       });
-      setRecentImports((current) => [result.batch, ...current]);
+      setAllRecentImports((current) => [result.batch, ...current]);
       setImportSummary({
         created: result.createdCount,
         updated: result.updatedCount,
@@ -936,6 +964,7 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
       setUnknownSuppliers([]);
       setCategoryResolutions({});
       setUnknownCategories([]);
+      onImported?.(result, importType);
       ui.notify({ title: "Import completed", message: `${result.createdCount} created · ${result.updatedCount} updated.` });
     } catch (error) {
       console.error("Unable to import records", error);
@@ -1023,22 +1052,32 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
 
   return (
     <div className="space-y-4">
-      <PageHeader
-        section="Operations"
-        title="Data Import"
-        description="Upload, validate, preview and import sales or purchase data."
-        actions={<button className="btn-secondary" type="button" onClick={downloadTemplate}><Download size={16} /> {modeDetail.template}</button>}
-      />
+      {!embedded ? (
+        <PageHeader
+          section="Operations"
+          title="Data Import"
+          description="Upload, validate, preview and import sales or purchase data."
+          actions={<button className="btn-secondary" type="button" onClick={downloadTemplate}><Download size={16} /> {modeDetail.template}</button>}
+        />
+      ) : (
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <div className="text-sm font-black text-text-primary">{modeDetail.title}</div>
+            <div className="mt-1 text-xs font-semibold text-text-secondary">{modeDetail.description}</div>
+          </div>
+          <button className="btn-secondary" type="button" onClick={downloadTemplate}><Download size={16} /> {modeDetail.template}</button>
+        </div>
+      )}
       {!canRunImport ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
-          Read-only access. You need Data Import permission to validate and import files.
+          Read-only access. You need {importType === "Sales" ? "Sales Input create or edit" : importType === "Purchases" ? "Purchase Input create or edit" : "Data Import"} permission to validate and import files.
         </div>
       ) : null}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1fr)_330px]">
         <Card title="Import Engine" description="No silent overwrite. Existing records are detected as duplicates and updated only after preview.">
           <div className="space-y-4 p-4">
-            <div className="grid gap-3 md:grid-cols-2">
+            {!fixedImportType ? <div className="grid gap-3 md:grid-cols-2">
               {["Sales", "Purchases"].map((type) => {
                 const selected = importType === type;
                 const detail = importModeDetails[type];
@@ -1066,7 +1105,7 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
                   </button>
                 );
               })}
-            </div>
+            </div> : null}
 
             <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-primary/15 bg-primary/5 px-4 py-3">
               <div>
@@ -1423,7 +1462,7 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
                       ["Rows Created", importDetail.row.created_count ?? 0],
                       ["Rows Updated", importDetail.row.updated_count ?? 0],
                       ["Rows Failed", importDetail.row.failed_count ?? 0],
-                      ["Imported By", importDetail.row.imported_by || importDetail.row.created_by || "System"],
+                      ["Imported By", actorDisplayName(importDetail.row.imported_by || importDetail.row.created_by || "System")],
                       ["Imported At", importDetail.row.imported_at || importDetail.row.created_at ? new Date(importDetail.row.imported_at || importDetail.row.created_at).toLocaleString("en-MY") : "-"],
                     ].map(([label, value]) => (
                       <div key={label} className="rounded-2xl border border-border bg-background p-4">
@@ -1480,4 +1519,8 @@ export default function DataImportPage({ store, setStore, ui, auth }) {
       ) : null}
     </div>
   );
+}
+
+export default function DataImportPage(props) {
+  return <DataImportWorkspace {...props} />;
 }

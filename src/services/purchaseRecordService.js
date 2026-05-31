@@ -88,7 +88,7 @@ export const purchaseRecordService = {
 
   async deletePurchaseRecordIds(ids) {
     if (!ids.length) return;
-    logPurchaseRecordQuery("delete:removed_rows", "purchase_input.delete OR data_import.import", { rows: ids.length });
+    logPurchaseRecordQuery("delete:removed_rows", "purchase_input.delete", { rows: ids.length });
     const { error } = await supabase
       .from("purchase_records")
       .delete()
@@ -120,7 +120,7 @@ export const purchaseRecordService = {
       if (row.id && existingById.has(row.id)) {
         seenExistingIds.add(row.id);
         const { id, ...updatePayload } = row;
-        logPurchaseRecordQuery("update:row", "purchase_input.edit OR data_import.import", { id, outletId, year, month });
+        logPurchaseRecordQuery("update:row", "purchase_input.edit", { id, outletId, year, month });
         const { data, error } = await supabase
           .from("purchase_records")
           .update({ ...updatePayload, updated_at: new Date().toISOString() })
@@ -131,7 +131,7 @@ export const purchaseRecordService = {
         savedRows.push(mapPurchaseRecord(data));
       } else {
         const { id: _ignoredId, ...insertPayload } = row;
-        logPurchaseRecordQuery("insert:row", "purchase_input.create OR data_import.import", {
+        logPurchaseRecordQuery("insert:row", "purchase_input.create", {
           outletId,
           year,
           month,

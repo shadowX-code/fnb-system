@@ -350,7 +350,7 @@ export const importService = {
 
       await auditLogService.createAuditLog({
         action: "sales_import_completed",
-        module: "data-import",
+        module: "sales",
         target: fileName,
         outlet: batch.outlet_id || "Multiple outlets",
         description: "Sales import completed.",
@@ -373,7 +373,7 @@ export const importService = {
       }))).catch(() => {});
       await auditLogService.createAuditLog({
         action: "sales_import_failed",
-        module: "data-import",
+        module: "sales",
         target: fileName,
         description: error.message,
         after: { batch_id: batch.id, createdCount, updatedCount, failedCount: records.length, warningCount },
@@ -416,7 +416,7 @@ export const importService = {
 
       await auditLogService.createAuditLog({
         action: "purchase_import_completed",
-        module: "data-import",
+        module: "purchases",
         target: fileName,
         outlet: batch.outlet_id || "Multiple outlets",
         description: "Purchase import completed.",
@@ -439,7 +439,7 @@ export const importService = {
       }))).catch(() => {});
       await auditLogService.createAuditLog({
         action: "purchase_import_failed",
-        module: "data-import",
+        module: "purchases",
         target: fileName,
         description: error.message,
         after: { batch_id: batch.id, createdCount, updatedCount, failedCount: records.length, warningCount },

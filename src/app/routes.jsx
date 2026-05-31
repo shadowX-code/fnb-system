@@ -2,7 +2,6 @@ import DashboardOverviewPage from "../features/sales-purchase/pages/DashboardOve
 import SPDashboardPage from "../features/sales-purchase/pages/SPDashboardPage.jsx";
 import AlertsInsightsPage from "../features/sales-purchase/pages/AlertsInsightsPage.jsx";
 import DataHealthPage from "../features/sales-purchase/pages/DataHealthPage.jsx";
-import DataImportPage from "../features/sales-purchase/pages/DataImportPage.jsx";
 import OutletManagementPage from "../features/sales-purchase/pages/OutletManagementPage.jsx";
 import PurchaseInputPage from "../features/sales-purchase/pages/PurchaseInputPage.jsx";
 import PurchaseComparisonPage from "../features/sales-purchase/pages/PurchaseComparisonPage.jsx";
@@ -195,10 +194,6 @@ const routeDetails = {
     component: InventoryControlPage,
     permission: "inventory_recipes.view",
     props: { initialTab: "recipes" },
-  },
-  "data-import": {
-    description: "Future-ready Excel and CSV import flow with mock progress feedback.",
-    component: DataImportPage,
   },
   "data-health": {
     description: "Month lock, completeness checks and data freshness controls.",

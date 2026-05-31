@@ -13,8 +13,10 @@ import SelectField from "../../../components/forms/SelectField.jsx";
 import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
+import { supabase } from "../../../lib/supabase.js";
 import { assetTrackingService } from "../../../services/assetTrackingService.js";
 import { canCreate, canDelete, canEdit, canExport, canManage, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { getEmployeeDisplayName, isUuidLike } from "../../../utils/userDisplay.js";
 
 const assetConditions = ["healthy", "needs_attention", "under_maintenance", "low_quantity", "damaged", "missing", "disposed"];
 const inspectionConditionOptions = ["healthy", "needs_attention", "damaged", "missing"];
@@ -340,12 +342,19 @@ function activityTimestamp(row) {
 
 function actorNameFromAuth(auth, actorId) {
   const currentActorIds = [auth?.user?.id, auth?.profile?.auth_user_id, auth?.profile?.id].filter(Boolean);
-  if (actorId && currentActorIds.includes(actorId)) return profileDisplayName(auth?.profile) || auth?.user?.email || "Current user";
-  return actorId ? "Recorded user" : "Unknown user";
+  if (actorId && currentActorIds.includes(actorId)) return getEmployeeDisplayName(auth?.profile, { fallback: auth?.user?.email || "Current user" });
+  return "Unknown User";
 }
 
-function activityActorLabel(prefix, actorId, auth) {
-  return `${prefix} by ${actorNameFromAuth(auth, actorId)}`;
+function activityActorLabel(prefix, actorId, auth, actorNameResolver = null) {
+  return `${prefix} by ${actorNameResolver ? actorNameResolver(actorId) : actorNameFromAuth(auth, actorId)}`;
+}
+
+function inspectionActorLabel(inspection, authOrProfile, actorNameResolver = null) {
+  const checkedBy = String(inspection?.checked_by || "").trim();
+  if (checkedBy && !isUuidLike(checkedBy)) return `Inspected by ${checkedBy}`;
+  const actorId = inspection?.checked_by_employee_id || checkedBy || inspection?.created_by || inspection?.last_edited_by;
+  return activityActorLabel("Inspected", actorId, authOrProfile, actorNameResolver);
 }
 
 function movementActivityMeta(movement, assetName) {
@@ -2247,7 +2256,7 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
   );
 }
 
-function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], maintenanceRecords = [], currentProfile, onClose, onResumeDraft, onDeleteDraft, onArchiveDraft, onSaveMaintenance, saving }) {
+function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], maintenanceRecords = [], currentProfile, actorNameResolver, onClose, onResumeDraft, onDeleteDraft, onArchiveDraft, onSaveMaintenance, saving }) {
   const [tab, setTab] = useState("overview");
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewZoom, setPreviewZoom] = useState(false);
@@ -2298,7 +2307,7 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
       date: activityTimestamp(latestInspection) || latestInspection.inspection_date,
       title: "Inspection completed",
       detail: latestDifference ? `Difference ${latestDifference > 0 ? "+" : ""}${latestDifference}` : `Condition recorded as ${assetConditionLabel(latestInspectionItem?.condition_status || safeAsset.condition)}`,
-      actor: latestInspection.checked_by ? `Inspected by ${latestInspection.checked_by}` : activityActorLabel("Inspected", latestInspection.created_by || latestInspection.last_edited_by, { profile: currentProfile }),
+      actor: inspectionActorLabel(latestInspection, { profile: currentProfile }, actorNameResolver),
     } : null,
     ...movements.slice(0, 3).map((movement) => {
       const meta = movementActivityMeta(movement, safeAsset.name);
@@ -2307,7 +2316,7 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
         date: activityTimestamp(movement),
         title: meta.title,
         detail: meta.description,
-        actor: activityActorLabel(meta.actorPrefix, movement.created_by, { profile: currentProfile }),
+        actor: activityActorLabel(meta.actorPrefix, movement.created_by, { profile: currentProfile }, actorNameResolver),
       };
     }),
     ...sortedMaintenanceRecords.slice(0, 2).map((record) => ({
@@ -2315,14 +2324,14 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
       date: activityTimestamp(record) || maintenanceRelevantDate(record),
       title: record.status === "completed" ? "Maintenance completed" : "Maintenance scheduled",
       detail: `${maintenanceStatusLabel(record.status)} · ${record.issue || "No issue recorded"}`,
-      actor: activityActorLabel(record.status === "completed" ? "Completed" : "Scheduled", record.created_by, { profile: currentProfile }),
+      actor: activityActorLabel(record.status === "completed" ? "Completed" : "Scheduled", record.created_by, { profile: currentProfile }, actorNameResolver),
     })),
     safeAsset.image_url ? {
       id: "asset-photo",
       date: safeAsset.updated_at,
       title: "Asset photo updated",
       detail: "Image available in asset profile",
-      actor: activityActorLabel("Updated", safeAsset.updated_by || safeAsset.created_by, { profile: currentProfile }),
+      actor: activityActorLabel("Updated", safeAsset.updated_by || safeAsset.created_by, { profile: currentProfile }, actorNameResolver),
     } : null,
   ].filter(Boolean).sort((first, second) => new Date(second.date || 0) - new Date(first.date || 0)).slice(0, 5);
 
@@ -2428,7 +2437,7 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
                 <div className="mb-3 flex items-center justify-between">
                   <div>
                     <div className="text-sm font-black text-text-primary">Latest Inspection</div>
-                    <div className="text-xs text-text-secondary">{latestInspection ? <><DateText value={latestInspection.inspection_date} /> · {latestInspection.checked_by || "Inspector not recorded"}</> : "No completed inspection yet."}</div>
+                    <div className="text-xs text-text-secondary">{latestInspection ? <><DateText value={latestInspection.inspection_date} /> · {inspectionDisplayName(latestInspection, currentProfile, actorNameResolver) || "Inspector not recorded"}</> : "No completed inspection yet."}</div>
                   </div>
                   {latestInspection ? <Badge tone={latestDifference === 0 ? "success" : latestDifference < 0 ? "danger" : "info"}>{latestDifference === 0 ? "Matched" : latestDifference > 0 ? `${latestDifference} Extra` : `${Math.abs(latestDifference)} Missing`}</Badge> : null}
                 </div>
@@ -2466,7 +2475,7 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
             </div>
           ) : null}
           {tab === "movement" ? <Timeline rows={movements} empty="No movement logs yet." /> : null}
-          {tab === "inspection" ? <InspectionHistory inspections={inspections} outlet={outlet} currentProfile={currentProfile} onResumeDraft={onResumeDraft} onDeleteDraft={onDeleteDraft} onArchiveDraft={onArchiveDraft} /> : null}
+          {tab === "inspection" ? <InspectionHistory inspections={inspections} outlet={outlet} currentProfile={currentProfile} actorNameResolver={actorNameResolver} onResumeDraft={onResumeDraft} onDeleteDraft={onDeleteDraft} onArchiveDraft={onArchiveDraft} /> : null}
           {tab === "maintenance" ? (
             <div className="space-y-4">
               <div className="flex items-start justify-between gap-3">
@@ -2587,24 +2596,36 @@ function Timeline({ rows, empty }) {
 }
 
 function profileDisplayName(profile) {
-  return profile?.nickname || profile?.full_name || profile?.email || "";
+  return getEmployeeDisplayName(profile, { fallback: "" });
 }
 
 function inspectionActorMeta(inspection, currentProfile) {
   const actorIds = [inspection.created_by, inspection.last_edited_by].filter(Boolean);
   const actorMatchesProfile = Boolean(currentProfile?.id && actorIds.includes(currentProfile.id));
-  const name = inspection.checked_by || (actorMatchesProfile ? profileDisplayName(currentProfile) : "");
+  const checkedBy = String(inspection.checked_by || "").trim();
+  const name = checkedBy && !isUuidLike(checkedBy) ? checkedBy : (actorMatchesProfile ? profileDisplayName(currentProfile) : "");
   const role = actorMatchesProfile ? (currentProfile.position || currentProfile.role_name || "") : "";
   const timestamp = inspection.updated_at || inspection.last_edited_at || inspection.created_at || inspection.inspection_date;
   return { name, role, timestamp };
 }
 
-function CheckedByText({ inspection, currentProfile }) {
+function inspectionDisplayName(inspection, currentProfile, actorNameResolver = null) {
+  const checkedBy = String(inspection?.checked_by || "").trim();
+  if (checkedBy && !isUuidLike(checkedBy)) return checkedBy;
+  if (actorNameResolver) {
+    const resolved = actorNameResolver(inspection?.checked_by_employee_id || checkedBy || inspection?.created_by || inspection?.last_edited_by);
+    if (resolved && resolved !== "Unknown User") return resolved;
+  }
+  return inspectionActorMeta(inspection || {}, currentProfile).name || "";
+}
+
+function CheckedByText({ inspection, currentProfile, actorNameResolver = null }) {
   const actor = inspectionActorMeta(inspection, currentProfile);
-  if (!actor.name) return <span>Checked by: Unknown user</span>;
+  const name = inspectionDisplayName(inspection, currentProfile, actorNameResolver);
+  if (!name) return <span>Checked by: Unknown User</span>;
   return (
     <span>
-      Checked by {actor.name}
+      Checked by {name}
       {actor.role ? <span> · {actor.role}</span> : null}
       {actor.timestamp ? <span> · {formatDateTime(actor.timestamp)}</span> : null}
     </span>
@@ -2646,7 +2667,7 @@ function sortInspectionsNewestFirst(first, second) {
     secondTime.updatedAt - firstTime.updatedAt;
 }
 
-function InspectionDetailModal({ inspection, outlet, currentProfile, onClose }) {
+function InspectionDetailModal({ inspection, outlet, currentProfile, actorNameResolver, onClose }) {
   const rows = inspection.items || [];
   return createPortal(
     <div className="fixed inset-0 z-[10020] flex items-center justify-center bg-slate-950/45 p-4" role="dialog" aria-modal="true">
@@ -2656,7 +2677,7 @@ function InspectionDetailModal({ inspection, outlet, currentProfile, onClose }) 
           <div>
             <div className="text-[11px] font-black uppercase tracking-[0.16em] text-primary">Inspection Details</div>
             <div className="mt-1 text-xl font-semibold text-text-primary">{formatFullDate(inspection.inspection_date)}</div>
-            <div className="mt-1 text-xs font-semibold text-text-secondary"><CheckedByText inspection={inspection} currentProfile={currentProfile} /></div>
+            <div className="mt-1 text-xs font-semibold text-text-secondary"><CheckedByText inspection={inspection} currentProfile={currentProfile} actorNameResolver={actorNameResolver} /></div>
           </div>
           <button className="icon-btn" type="button" onClick={onClose} aria-label="Close inspection details"><X size={18} /></button>
         </div>
@@ -2712,7 +2733,7 @@ function InspectionDetailModal({ inspection, outlet, currentProfile, onClose }) 
   );
 }
 
-function InspectionHistory({ inspections = [], outlet, currentProfile, onResumeDraft, onDeleteDraft, onArchiveDraft }) {
+function InspectionHistory({ inspections = [], outlet, currentProfile, actorNameResolver, onResumeDraft, onDeleteDraft, onArchiveDraft }) {
   const [detailInspection, setDetailInspection] = useState(null);
   const sortedInspections = useMemo(() => [...inspections].sort(sortInspectionsNewestFirst), [inspections]);
   const dateCounts = useMemo(() => {
@@ -2740,7 +2761,7 @@ function InspectionHistory({ inspections = [], outlet, currentProfile, onResumeD
                   <div className="text-sm font-black text-text-primary">{inspectionDisplayDate(inspection, dateCounts.get(dateKey) || 0)}</div>
                   <Badge tone={isDraftInspection(inspection) ? "warning" : "success"}>{draftStatusLabel(inspection.status)}</Badge>
                 </div>
-                <div className="mt-1 text-xs font-semibold text-text-secondary"><CheckedByText inspection={inspection} currentProfile={currentProfile} /></div>
+                <div className="mt-1 text-xs font-semibold text-text-secondary"><CheckedByText inspection={inspection} currentProfile={currentProfile} actorNameResolver={actorNameResolver} /></div>
                 <div className="mt-2 flex flex-wrap gap-2 text-[11px] font-bold text-text-muted">
                   <span>{checkedCount} assets checked</span>
                   <span>{inspection.summary?.critical_alerts || 0} critical</span>
@@ -2777,9 +2798,52 @@ function InspectionHistory({ inspections = [], outlet, currentProfile, onResumeD
           </div>
         );
       })}</div>
-      {detailInspection ? <InspectionDetailModal inspection={detailInspection} outlet={outlet} currentProfile={currentProfile} onClose={() => setDetailInspection(null)} /> : null}
+      {detailInspection ? <InspectionDetailModal inspection={detailInspection} outlet={outlet} currentProfile={currentProfile} actorNameResolver={actorNameResolver} onClose={() => setDetailInspection(null)} /> : null}
     </>
   ) : <div className="rounded-2xl border border-dashed border-border p-6 text-center text-sm font-semibold text-text-secondary">No inspection history yet.</div>;
+}
+
+function collectAssetActorIds({ assets = [], movements = [], inspections = [], maintenanceRecords = [] }) {
+  const ids = new Set();
+  const add = (value) => {
+    if (isUuidLike(value)) ids.add(String(value));
+  };
+  assets.forEach((asset) => {
+    add(asset.created_by);
+    add(asset.updated_by);
+    add(asset.recorded_by);
+    add(asset.user_id);
+  });
+  movements.forEach((movement) => {
+    add(movement.created_by);
+    add(movement.updated_by);
+    add(movement.recorded_by);
+    add(movement.user_id);
+  });
+  maintenanceRecords.forEach((record) => {
+    add(record.created_by);
+    add(record.updated_by);
+    add(record.recorded_by);
+    add(record.user_id);
+  });
+  inspections.forEach((inspection) => {
+    add(inspection.created_by);
+    add(inspection.updated_by);
+    add(inspection.last_edited_by);
+    add(inspection.checked_by);
+    add(inspection.checked_by_employee_id);
+    add(inspection.inspected_by);
+    add(inspection.recorded_by);
+    add(inspection.user_id);
+    (inspection.items || []).forEach((item) => {
+      add(item.created_by);
+      add(item.updated_by);
+      add(item.checked_by);
+      add(item.recorded_by);
+      add(item.user_id);
+    });
+  });
+  return [...ids];
 }
 
 export default function AssetTrackingPage({ store, ui, auth }) {
@@ -2814,6 +2878,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [actorEmployees, setActorEmployees] = useState([]);
 
   const canAdd = canCreate(auth, "asset_tracking");
   const canEditAsset = canEdit(auth, "asset_tracking");
@@ -2863,6 +2928,51 @@ export default function AssetTrackingPage({ store, ui, auth }) {
   useEffect(() => {
     if (outletId) loadData();
   }, [outletId]);
+
+  const assetActorIds = useMemo(() => collectAssetActorIds({ assets, movements, inspections, maintenanceRecords }), [assets, movements, inspections, maintenanceRecords]);
+  const assetActorKey = assetActorIds.join(",");
+
+  useEffect(() => {
+    let ignore = false;
+    async function loadActorEmployees() {
+      if (!assetActorIds.length) {
+        setActorEmployees([]);
+        return;
+      }
+      const { data, error } = await supabase
+        .from("employees")
+        .select("id,auth_user_id,nickname,full_name,email")
+        .or(`id.in.(${assetActorIds.join(",")}),auth_user_id.in.(${assetActorIds.join(",")})`);
+      if (ignore) return;
+      if (error) {
+        if (import.meta.env.DEV) console.warn("[AssetActorMapDebug]", error);
+        setActorEmployees([]);
+        return;
+      }
+      setActorEmployees(data || []);
+    }
+    loadActorEmployees();
+    return () => {
+      ignore = true;
+    };
+  }, [assetActorKey]);
+
+  const employeeActorMap = useMemo(() => {
+    const map = new Map();
+    actorEmployees.forEach((employee) => {
+      const displayName = getEmployeeDisplayName(employee);
+      if (employee.id) map.set(employee.id, displayName);
+      if (employee.auth_user_id) map.set(employee.auth_user_id, displayName);
+    });
+    return map;
+  }, [actorEmployees]);
+
+  const actorDisplayName = (actorId) => getEmployeeDisplayName(actorId, {
+    employeeActorMap,
+    employees: actorEmployees,
+    currentProfile: auth?.profile,
+    currentUser: auth?.user,
+  });
 
   const movementByAsset = useMemo(() => movements.reduce((map, movement) => {
     if (!map.has(movement.asset_id)) map.set(movement.asset_id, movement);
@@ -3010,7 +3120,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
         title: "Asset Added",
         detail: `${asset.name} was added to Asset Tracking.`,
         type: "created",
-        actor: activityActorLabel("Created", asset.created_by, auth),
+        actor: activityActorLabel("Created", asset.created_by, auth, actorDisplayName),
       }));
     const movementRows = movements.slice(0, 8).map((movement) => {
       const assetName = assetNameById(assets, movement.asset_id);
@@ -3021,7 +3131,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
         title: meta.title,
         detail: meta.description,
         type: meta.type,
-        actor: activityActorLabel(meta.actorPrefix, movement.created_by, auth),
+        actor: activityActorLabel(meta.actorPrefix, movement.created_by, auth, actorDisplayName),
       };
     });
     const maintenanceRows = maintenanceRecords.slice(0, 6).map((record) => ({
@@ -3030,7 +3140,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       title: record.status === "completed" ? "Maintenance Completed" : "Maintenance Scheduled",
       detail: record.issue || maintenanceTypeLabel(record.maintenance_type),
       type: "maintenance",
-      actor: activityActorLabel(record.status === "completed" ? "Completed" : "Scheduled", record.created_by, auth),
+      actor: activityActorLabel(record.status === "completed" ? "Completed" : "Scheduled", record.created_by, auth, actorDisplayName),
       metadata: assetNameById(assets, record.asset_id),
     }));
     const inspectionRows = inspections.slice(0, 6).map((inspection) => ({
@@ -3039,13 +3149,13 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       title: "Inspection Completed",
       detail: `${inspection.summary?.total_assets || (inspection.items || []).length || 0} assets checked`,
       type: "inspection",
-      actor: inspection.checked_by ? `Inspected by ${inspection.checked_by}` : activityActorLabel("Inspected", inspection.created_by || inspection.last_edited_by, auth),
+      actor: inspectionActorLabel(inspection, auth, actorDisplayName),
     }));
     return [...movementRows, ...maintenanceRows, ...inspectionRows, ...assetRows]
       .filter((row) => row.date)
       .sort((first, second) => new Date(second.date) - new Date(first.date))
       .slice(0, 8);
-  }, [assets, auth, inspections, maintenanceRecords, movements]);
+  }, [actorEmployees, assets, auth, inspections, maintenanceRecords, movements]);
 
   async function saveAsset(asset) {
     if ((asset.id && !canEditAsset) || (!asset.id && !canAdd)) {
@@ -3621,7 +3731,7 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       {adjustAsset ? <AdjustQuantityModal asset={adjustAsset} onClose={() => setAdjustAsset(null)} onSubmit={adjustQuantity} saving={saving} /> : null}
       {maintenanceContext ? <MaintenanceRecordModal asset={maintenanceContext.asset} record={maintenanceContext.record} onClose={() => setMaintenanceContext(null)} onSubmit={saveMaintenanceRecord} saving={saving} /> : null}
       {inspectionOpen ? <InspectionModal outletId={inspectionOpen?.outlet_id || outletId} categories={categories} assets={assets} draftInspection={inspectionOpen === true ? null : inspectionOpen} defaultCheckedBy={currentInspectorName} defaultCheckedById={currentInspectorId} onClose={() => setInspectionOpen(false)} onSubmit={submitInspection} saving={saving} /> : null}
-      {detailAsset ? <AssetDetailDrawer asset={detailAsset} outlet={activeOutlets.find((outlet) => outlet.id === detailAsset.outlet_id)} movements={assetMovements} inspections={assetInspections} maintenanceRecords={assetMaintenanceRecords} currentProfile={auth?.profile} onClose={() => setDetailAsset(null)} onResumeDraft={(inspection) => setInspectionOpen(inspection)} onDeleteDraft={deleteInspection} onArchiveDraft={(inspection) => updateInspectionStatus(inspection, "archived")} onSaveMaintenance={(asset, values) => saveMaintenanceRecord(values, asset)} saving={saving} /> : null}
+      {detailAsset ? <AssetDetailDrawer asset={detailAsset} outlet={activeOutlets.find((outlet) => outlet.id === detailAsset.outlet_id)} movements={assetMovements} inspections={assetInspections} maintenanceRecords={assetMaintenanceRecords} currentProfile={auth?.profile} actorNameResolver={actorDisplayName} onClose={() => setDetailAsset(null)} onResumeDraft={(inspection) => setInspectionOpen(inspection)} onDeleteDraft={deleteInspection} onArchiveDraft={(inspection) => updateInspectionStatus(inspection, "archived")} onSaveMaintenance={(asset, values) => saveMaintenanceRecord(values, asset)} saving={saving} /> : null}
       {assetPreview ? <FloatingPreviewLayer anchor={assetPreview.anchor} width={300}>
         <div className="overflow-hidden rounded-3xl border border-border bg-white shadow-2xl">
           <div className="p-3">

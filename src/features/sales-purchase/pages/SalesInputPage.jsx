@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Percent, Plus, Save, Trash2, TrendingUp, Wallet } from "lucide-react";
+import { Percent, Plus, Save, Trash2, TrendingUp, Upload, Wallet } from "lucide-react";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
+import { DataImportWorkspace } from "./DataImportPage.jsx";
 import PeriodFilterBar from "../components/PeriodFilterBar.jsx";
 import SummaryPanel from "../components/SummaryPanel.jsx";
 import usePeriodFilters from "../hooks/usePeriodFilters.js";
@@ -96,6 +97,8 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
   const [activeRowId, setActiveRowId] = useState(null);
   const [deductionModal, setDeductionModal] = useState(false);
   const [deductionType, setDeductionType] = useState("SST Deduction");
+  const [importModalOpen, setImportModalOpen] = useState(false);
+  const [importRefreshKey, setImportRefreshKey] = useState(0);
 
   const sstConfig = getOutletTaxConfig(store.outletTaxConfigs, filters.outletId, filters.month, filters.year, "SST");
   const sstEnabled = Boolean(sstConfig.enabled);
@@ -176,7 +179,7 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
     return () => {
       ignore = true;
     };
-  }, [filters.month, filters.outletId, filters.year, store.salesChannels]);
+  }, [filters.month, filters.outletId, filters.year, importRefreshKey, store.salesChannels]);
 
   useEffect(() => {
     if (!sstEnabled && deductionType === "SST Deduction") {
@@ -630,6 +633,11 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
         actions={
           <>
             <span className={`text-xs font-semibold ${saveStatusClass}`}>{saveStatusLabel}</span>
+            {canWriteSales ? (
+              <button className="btn-secondary" type="button" onClick={() => setImportModalOpen(true)}>
+                <Upload size={15} /> Import Sales
+              </button>
+            ) : null}
             <button
               className="btn-secondary"
               type="button"
@@ -843,6 +851,29 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
                 <input className="h-4 w-4 accent-primary" type="radio" checked={deductionType === type} onChange={() => setDeductionType(type)} />
               </label>
             ))}
+          </div>
+        </Modal>
+      ) : null}
+      {importModalOpen ? (
+        <Modal
+          title="Import Sales"
+          description="Upload, validate, preview and import sales records."
+          size="2xl"
+          bodyClassName="p-0"
+          onClose={() => setImportModalOpen(false)}
+        >
+          <div className="p-4">
+            <DataImportWorkspace
+              store={store}
+              setStore={setStore}
+              ui={ui}
+              auth={auth}
+              fixedImportType="Sales"
+              embedded
+              onImported={() => {
+                setImportRefreshKey((value) => value + 1);
+              }}
+            />
           </div>
         </Modal>
       ) : null}

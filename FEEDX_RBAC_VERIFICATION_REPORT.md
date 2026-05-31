@@ -23,11 +23,11 @@ Critical fixes applied during this verification:
 | Module | Permission | Expected | Actual | Result | Notes |
 |---|---|---|---|---|---|
 | Overview Dashboard | `dashboard.view` | Sidebar visible and direct route allowed only with view | Route/sidebar derive from registry permission | Pass | Outlet filters use accessible outlet helper. |
-| Sales Input | `sales_input.view/create/edit/delete` | View gates page, actions gate mutations | Registry and route guard aligned | Pass | Existing Sales action UAT still recommended. |
+| Sales Input | `sales_input.view/create/edit/delete` | View gates page; sales entry and Import Sales actions use child keys | Registry and route guard aligned | Pass | Import Sales requires create or edit. |
 | Sales Comparison | `sales_comparison.view/export` | View/export scoped separately | Registry and route guard aligned | Pass | Export permission exists in registry. |
 | Sales Channels | `sales_channels.view/create/edit/delete` | CRUD actions require matching key | Registry aligned | Pass | No hardcoded owner/admin gate found in route registry. |
 | Tax Settings | `tax_settings.view/edit` | View and edit only | Registry aligned | Pass | No create/delete permissions exposed. |
-| Purchase Input | `purchase_input.view/create/edit/delete/approve` | Purchase entry actions use child keys | Registry aligned | Pass | Supplier context bootstrap includes purchase permissions. |
+| Purchase Input | `purchase_input.view/create/edit/delete/approve` | Purchase entry and Import Purchase actions use child keys | Registry aligned | Pass | Import Purchase requires create or edit; supplier context bootstrap includes purchase permissions. |
 | Suppliers | `suppliers.view/create/edit/delete` | Supplier actions use child keys | Registry aligned | Pass | Supplier page also treats deactivate as edit-compatible where used. |
 | Purchase Categories | `purchase_categories.view/create/edit/delete` | CRUD actions use child keys | Registry aligned | Pass | No parent purchase permission detected. |
 | Operating Expenses | `operating_expenses.view/create/edit/delete` | Page/action gating by child keys | Registry aligned | Pass | Outlet bootstrap includes operating expenses. |
@@ -50,7 +50,7 @@ Critical fixes applied during this verification:
 | Departments | `departments.view/create/edit/delete` | CRUD actions use child keys | Registry aligned via route mapping | Pass | Module id hyphen maps to underscore permission prefix. |
 | Roles & Permissions | `roles_permissions.view/create/edit/delete` | Role editor uses canonical roles_permissions keys | Role page checks `roles_permissions.*` with legacy alias support | Pass | Registry still uses route id `roles`; aliases bridge legacy rows. |
 | Outlets | `outlets.view/create/edit/delete` | Outlet actions use child keys | Registry aligned | Pass | Outlet scope helper supports all/selected access. |
-| Data Import | `data_import.view/import` | Import action separate from view | Registry aligned via route mapping | Pass | Module id hyphen maps to underscore permission prefix. |
+| Module-Level Imports | `sales_input.create/edit`, `purchase_input.create/edit`, module import keys where available | Central Data Import is removed from active role catalog; imports live inside owning modules | Sales and Purchase imports use their module write permissions | Pass | `import_batches` / `import_batch_rows` remain shared history tables. |
 | Data Health | `data_health.view` | View-only | Registry aligned via route mapping | Pass | No mutation actions exposed. |
 | Audit Logs | `audit_logs.view/export` | View/export use child keys | Registry aligned via route mapping | Pass | System section route guarded. |
 

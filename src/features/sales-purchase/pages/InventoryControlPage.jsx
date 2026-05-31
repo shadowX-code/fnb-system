@@ -314,7 +314,7 @@ function formatDateTimeCompact(value) {
 }
 
 function employeeDisplayName(employee = {}) {
-  return employee.nickname || employee.full_name || employee.fullName || employee.name || employee.email || "Unknown user";
+  return employee.nickname || employee.full_name || employee.fullName || employee.name || employee.email || "Unknown User";
 }
 
 function weekdayName(value = todayInput()) {
@@ -324,7 +324,7 @@ function weekdayName(value = todayInput()) {
 function statusTone(status) {
   if (["active", "normal", "completed", "reviewed", "locked", "delivered", "fully_received"].includes(status)) return "success";
   if (["draft", "due today", "scheduled", "partial approved", "partial delivery", "partial_delivered", "partial_received"].includes(status)) return "warning";
-  if (["critical", "shortage", "overdue", "rejected", "archived", "cancelled"].includes(status)) return "danger";
+  if (["critical", "shortage", "overdue", "missed", "rejected", "archived", "cancelled"].includes(status)) return "danger";
   if (["excess", "sent", "submitted", "confirmed", "supplier_confirmed", "ordered", "packing"].includes(status)) return "info";
   return "neutral";
 }
@@ -367,6 +367,14 @@ function sameStockCheckDate(left, right) {
   return String(left || "").slice(0, 10) === String(right || "").slice(0, 10);
 }
 
+function compareBusinessDates(left, right) {
+  return normalizeBusinessDate(left).localeCompare(normalizeBusinessDate(right));
+}
+
+function isPastBusinessDate(value, reference = getBusinessDateInput("Asia/Kuala_Lumpur")) {
+  return compareBusinessDates(value, reference) < 0;
+}
+
 function sameStockCheckShift(left, right) {
   return String(left || "").trim().toLowerCase() === String(right || "").trim().toLowerCase();
 }
@@ -396,10 +404,36 @@ function draftCheckForGroupRun(group = {}, checks = [], date, shiftFilter = "all
 
 function dueStatus(group, checks, date, shiftFilter = "all") {
   if (submittedCheckForGroupRun(group, checks, date, shiftFilter)) return "Completed";
-  if (isGroupDue(group, date)) return "Due Today";
-  const lastChecked = group.lastChecked ? businessDateToLocalDate(group.lastChecked) : null;
-  if (lastChecked && businessDateToLocalDate(date) - lastChecked > 1000 * 60 * 60 * 24 * 8) return "Overdue";
+  const draft = draftCheckForGroupRun(group, checks, date, shiftFilter);
+  const due = isGroupDue(group, date);
+  if (due && isPastBusinessDate(date)) return "Missed";
+  if (draft) return "Draft";
+  if (due) return "Due Today";
   return "Not Due";
+}
+
+function dueStatusDescription(status) {
+  if (status === "Missed") return "This stock check was not completed on schedule.";
+  if (status === "Completed") return "Stock check completed for this date.";
+  if (status === "Draft") return "Draft saved. Continue counting today.";
+  if (status === "Due Today") return "Ready to count on the assigned date.";
+  return "";
+}
+
+function canStartScheduledStockCheckForDate(group, date) {
+  return isGroupDue(group, date) && compareBusinessDates(date, getBusinessDateInput("Asia/Kuala_Lumpur")) === 0;
+}
+
+function isActionableStockCheckStatus(status) {
+  return ["Due Today", "Completed", "Draft", "Missed"].includes(status);
+}
+
+function stockCheckCardActionState(status) {
+  if (status === "Completed") return "completed";
+  if (status === "Draft") return "draft";
+  if (status === "Missed") return "missed";
+  if (status === "Due Today") return "start";
+  return "none";
 }
 
 function varianceStatus(parLevel, count) {
@@ -1088,7 +1122,7 @@ function mapRemoteInventoryMovement(row = {}) {
     quantity: row.quantity === null || row.quantity === undefined ? 0 : Number(row.quantity),
     unit: row.unit || "",
     outletId: row.outlet_id || "",
-    user: row.created_by || "Unknown user",
+    user: row.created_by || "",
     createdBy: row.created_by || "",
     reference: row.reference_no || "",
     referenceType: row.reference_type || "",
@@ -1109,8 +1143,8 @@ function mapRemoteWasteRecord(row = {}) {
     notes: row.notes || "",
     photoUrl: row.photo_url || "",
     photo_url: row.photo_url || "",
-    user: row.created_by || "Unknown user",
-    recordedBy: row.created_by || "Unknown user",
+    user: row.created_by || "",
+    recordedBy: row.created_by || "",
     createdAt: row.created_at || "",
     updatedAt: row.updated_at || row.created_at || "",
     value: 0,
@@ -1877,6 +1911,34 @@ async function persistRemoteStockCheck(activeGroup, rows = [], status = "draft",
     .order("created_at", { ascending: true });
   if (savedItemsResult.error) throw savedItemsResult.error;
   return mapRemoteStockCheck(checkResult.data, savedItemsResult.data || []);
+}
+
+async function deleteRemoteStockCheckDraft(checkId) {
+  if (!isUuid(checkId)) throw new Error("This audit draft has not been saved to Supabase yet.");
+  const checkResult = await supabase
+    .from("inventory_stock_checks")
+    .select("id,status,stock_check_type")
+    .eq("id", checkId)
+    .single();
+  debugLog("[AuditStockCheckDebug]", { action: "delete-draft-read", checkId, result: { data: checkResult.data, error: checkResult.error }, error: checkResult.error });
+  if (checkResult.error) throw checkResult.error;
+  if (checkResult.data?.status !== "draft") throw new Error("Only draft audit stock checks can be deleted.");
+  if (checkResult.data?.stock_check_type !== "audit") throw new Error("Only audit drafts can be deleted from this action.");
+
+  const deleteItemsResult = await supabase
+    .from("inventory_stock_check_items")
+    .delete()
+    .eq("stock_check_id", checkId);
+  debugLog("[AuditStockCheckDebug]", { action: "delete-draft-items", checkId, result: { data: deleteItemsResult.data || null, error: deleteItemsResult.error }, error: deleteItemsResult.error });
+  if (deleteItemsResult.error) throw deleteItemsResult.error;
+
+  const deleteCheckResult = await supabase
+    .from("inventory_stock_checks")
+    .delete()
+    .eq("id", checkId);
+  debugLog("[AuditStockCheckDebug]", { action: "delete-draft-check", checkId, result: { data: deleteCheckResult.data || null, error: deleteCheckResult.error }, error: deleteCheckResult.error });
+  if (deleteCheckResult.error) throw deleteCheckResult.error;
+  return true;
 }
 
 async function fetchRemotePurchaseOrdersForStockCheck(stockCheckId) {
@@ -3129,7 +3191,7 @@ function StockCheckMobileView({
               <div className="type-micro font-black uppercase text-text-muted">{activePersistedCheck?.status === "submitted" ? "Submitted" : "Draft saved"}</div>
               <div className="type-caption font-bold text-text-primary">
                 {activePersistedCheck?.status === "submitted"
-                  ? `${submittedByName || "Unknown user"} · ${formatDateTimeCompact(activePersistedCheck.submittedAt)}`
+                  ? `${submittedByName || "Unknown User"} · ${formatDateTimeCompact(activePersistedCheck.submittedAt)}`
                   : (draftSavedAt ? formatDateTimeCompact(draftSavedAt) : "Not saved yet")}
               </div>
             </div>
@@ -4413,6 +4475,126 @@ function formatRecipeMargin(margin) {
   return `${Math.round(margin)}%`;
 }
 
+function RecipeIntelligencePlaceholder({ title, description }) {
+  return (
+    <div className="flex min-h-[180px] items-center justify-center rounded-2xl border border-dashed border-border bg-slate-50/70 p-4 text-center">
+      <div>
+        <div className="type-title font-black text-text-primary">{title}</div>
+        <p className="mt-1 max-w-md type-body-sm text-text-secondary">{description}</p>
+      </div>
+    </div>
+  );
+}
+
+function RecipeIntelligenceCard({ title, description, children }) {
+  return (
+    <div className="rounded-3xl border border-border bg-background p-4 shadow-sm">
+      <div>
+        <div className="type-title font-black text-text-primary">{title}</div>
+        <p className="mt-1 type-body-sm text-text-secondary">{description}</p>
+      </div>
+      <div className="mt-4">{children}</div>
+    </div>
+  );
+}
+
+function RecipeBarChart({ rows = [], valueFormatter = (value) => value, emptyTitle, emptyDescription, tone = "primary" }) {
+  const maxValue = Math.max(...rows.map((row) => Number(row.value || 0)), 0);
+  const toneClass = tone === "warning" ? "bg-amber-500" : tone === "success" ? "bg-emerald-500" : "bg-primary";
+  if (!rows.length || !maxValue) {
+    return <RecipeIntelligencePlaceholder title={emptyTitle} description={emptyDescription} />;
+  }
+  return (
+    <div className="space-y-3">
+      {rows.map((row) => {
+        const value = Number(row.value || 0);
+        const width = Math.max(6, Math.round((value / maxValue) * 100));
+        return (
+          <div key={row.id || row.label} className="space-y-1">
+            <div className="flex items-center justify-between gap-3 type-caption">
+              <span className="truncate font-bold text-text-primary">{row.label}</span>
+              <span className="shrink-0 font-black text-text-secondary">{valueFormatter(value)}</span>
+            </div>
+            <div className="h-3 overflow-hidden rounded-full bg-slate-100">
+              <div className={`h-full rounded-full ${toneClass}`} style={{ width: `${width}%` }} />
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+function RecipeDonutChart({ segments = [], emptyTitle, emptyDescription }) {
+  const total = segments.reduce((sum, segment) => sum + Number(segment.value || 0), 0);
+  if (!segments.length || !total) {
+    return <RecipeIntelligencePlaceholder title={emptyTitle} description={emptyDescription} />;
+  }
+  let cursor = 0;
+  const gradient = segments.map((segment) => {
+    const start = cursor;
+    const end = cursor + (Number(segment.value || 0) / total) * 100;
+    cursor = end;
+    return `${segment.color} ${start}% ${end}%`;
+  }).join(", ");
+  return (
+    <div className="grid gap-4 sm:grid-cols-[150px_minmax(0,1fr)] sm:items-center">
+      <div className="relative mx-auto h-36 w-36 rounded-full" style={{ background: `conic-gradient(${gradient})` }}>
+        <div className="absolute inset-5 flex items-center justify-center rounded-full bg-background text-center">
+          <div>
+            <div className="type-caption font-semibold text-text-muted">Total</div>
+            <div className="type-title font-black text-text-primary">{toCurrency(total)}</div>
+          </div>
+        </div>
+      </div>
+      <div className="space-y-2">
+        {segments.map((segment) => (
+          <div key={segment.label} className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-slate-50 px-3 py-2">
+            <div className="flex min-w-0 items-center gap-2">
+              <span className="h-3 w-3 rounded-full" style={{ backgroundColor: segment.color }} />
+              <span className="truncate type-body-sm font-bold text-text-primary">{segment.label}</span>
+            </div>
+            <span className="shrink-0 type-caption font-black text-text-secondary">{toCurrency(segment.value)}</span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function RecipeMenuEngineeringMatrix({ rows = [] }) {
+  if (!rows.length) {
+    return (
+      <RecipeIntelligencePlaceholder
+        title="Sales mapping unavailable"
+        description="Connect POS/menu sales data to plot sales volume, margin %, and revenue bubbles."
+      />
+    );
+  }
+  const maxVolume = Math.max(...rows.map((row) => Number(row.salesVolume || 0)), 1);
+  const maxRevenue = Math.max(...rows.map((row) => Number(row.revenue || 0)), 1);
+  return (
+    <div className="relative h-64 rounded-2xl border border-border bg-slate-50 p-4">
+      <div className="absolute left-4 top-3 type-caption font-black uppercase tracking-wide text-text-muted">Margin %</div>
+      <div className="absolute bottom-3 right-4 type-caption font-black uppercase tracking-wide text-text-muted">Sales Volume</div>
+      <div className="absolute inset-x-10 bottom-10 top-8 border-l border-b border-border" />
+      {rows.map((row) => {
+        const x = 40 + (Number(row.salesVolume || 0) / maxVolume) * 72;
+        const y = 86 - Math.max(0, Math.min(100, Number(row.margin || 0)));
+        const size = 18 + (Number(row.revenue || 0) / maxRevenue) * 34;
+        return (
+          <div
+            key={row.id}
+            className="absolute -translate-x-1/2 -translate-y-1/2 rounded-full border-2 border-white bg-primary/80 shadow-sm"
+            title={`${row.label}: ${row.salesVolume} sales, ${formatRecipeMargin(row.margin)}, ${toCurrency(row.revenue)}`}
+            style={{ left: `${x}%`, top: `${y}%`, height: size, width: size }}
+          />
+        );
+      })}
+    </div>
+  );
+}
+
 function RecipeModal({ recipe, outletId, outlet, items, menuCategories, onClose, onSave }) {
   const [isSaving, setIsSaving] = useState(false);
   const [photoPreview, setPhotoPreview] = useState(recipe?.recipePhotoUrl || recipe?.recipe_photo_url || "");
@@ -4588,6 +4770,7 @@ function RecipeDetailModal({ recipe, outlet, items, categories, onClose, onEdit 
   const ingredients = recipe?.ingredients || [];
   const summary = recipeCostSummary(recipe, items);
   const margin = recipeMarginPercent(recipe?.sellingPrice ?? recipe?.selling_price, summary.totalCost);
+  const photoUrl = recipe?.recipePhotoUrl || recipe?.recipe_photo_url || "";
   return (
     <Modal
       title={recipe?.recipeName || "Recipe"}
@@ -4602,20 +4785,34 @@ function RecipeDetailModal({ recipe, outlet, items, categories, onClose, onEdit 
       )}
     >
       <div className="space-y-4">
-        {recipe?.recipePhotoUrl || recipe?.recipe_photo_url ? (
-          <div className="overflow-hidden rounded-3xl border border-border bg-slate-100">
-            <img className="max-h-72 w-full object-cover" src={recipe.recipePhotoUrl || recipe.recipe_photo_url} alt={recipe?.recipeName || "Recipe"} />
+        <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+          <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-3xl border border-border bg-slate-50 lg:h-[240px] lg:w-[240px]">
+            {photoUrl ? (
+              <img className="h-full w-full object-contain p-2" src={photoUrl} alt={recipe?.recipeName || "Recipe"} />
+            ) : (
+              <div className="type-body-sm font-bold text-text-muted">No recipe photo</div>
+            )}
           </div>
-        ) : null}
-        <div className="grid gap-3 sm:grid-cols-3">
-          <MetricCard label="Ingredients" value={ingredients.length} helper="BOM rows" />
-          <MetricCard label="Total Recipe Cost" value={toCurrency(summary.totalCost)} helper="Ingredient + wastage" tone="success" />
-          <MetricCard label="Margin %" value={formatRecipeMargin(margin)} helper={recipe?.sellingPrice ? `Selling price ${toCurrency(recipe.sellingPrice)}` : "No selling price"} tone={recipeMarginTone(margin)} />
-        </div>
-        <div className="grid gap-3 sm:grid-cols-3">
-          <MetricCard label="Serving Size" value={recipe?.servingSize || "1 portion"} helper="Yield basis" size="compact" />
-          <MetricCard label="Ingredient Cost" value={toCurrency(summary.ingredientCost)} helper="Before wastage" size="compact" />
-          <MetricCard label="Status" value={toTitle(recipe?.status || "active")} helper="Recipe lifecycle" tone={statusTone(recipe?.status || "active")} size="compact" />
+          <div className="rounded-3xl border border-border bg-background p-4">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <div className="type-section-title font-black text-text-primary">{recipe?.recipeName || "Recipe"}</div>
+                <div className="mt-1 flex flex-wrap gap-2">
+                  <Badge tone="info">{recipe?.menuCategory || "Uncategorized"}</Badge>
+                  <Badge tone={statusTone(recipe?.status || "active")}>{toTitle(recipe?.status || "active")}</Badge>
+                </div>
+                <div className="mt-2 type-body-sm font-semibold text-text-secondary">{outlet?.name || "Outlet"} · {recipe?.servingSize || "1 portion"}</div>
+              </div>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+              <MetricCard label="Estimated Cost" value={toCurrency(summary.totalCost)} helper="Ingredient + wastage" tone="success" size="compact" />
+              <MetricCard label="Selling Price" value={recipe?.sellingPrice !== "" && recipe?.sellingPrice !== null && recipe?.sellingPrice !== undefined ? toCurrency(recipe.sellingPrice) : "—"} helper="Menu price" size="compact" />
+              <MetricCard label="Margin %" value={formatRecipeMargin(margin)} helper="Price vs cost" tone={recipeMarginTone(margin)} size="compact" />
+              <MetricCard label="Ingredients" value={ingredients.length} helper="BOM rows" size="compact" />
+              <MetricCard label="Ingredient Cost" value={toCurrency(summary.ingredientCost)} helper="Before wastage" size="compact" />
+              <MetricCard label="Status" value={toTitle(recipe?.status || "active")} helper="Recipe lifecycle" tone={statusTone(recipe?.status || "active")} size="compact" />
+            </div>
+          </div>
         </div>
         <div className="overflow-x-auto rounded-2xl border border-border">
           <table className="w-full min-w-[900px] text-left">
@@ -5169,7 +5366,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   useEffect(() => {
     if (!["groups", "waste", "recipes"].includes(activeTab)) return;
     if (!outlets.length) return;
-    if (activeTab === "waste") {
+    if (activeTab === "waste" || activeTab === "recipes") {
       const firstAccessibleOutlet = getAccessibleOutlets(auth, outlets)[0]?.id || outlets[0]?.id || "";
       if (selectedOutletId === "all" && firstAccessibleOutlet) {
         setSelectedOutletId(firstAccessibleOutlet);
@@ -5243,20 +5440,20 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const canSeeAllMasterItems = selectedOutletId === "all" && hasAllOutletAccess(auth);
   const currentCheckerName = employeeDisplayName(auth?.profile || { email: auth?.user?.email, name: auth?.user?.email });
   const actorNameByEmployeeId = (employeeId) => {
-    if (!employeeId) return "Unknown user";
+    if (!employeeId) return "Unknown User";
     if (employeeId === auth?.profile?.id) return currentCheckerName;
-    return peopleById.get(employeeId)?.name || "Unknown user";
+    return peopleById.get(employeeId)?.name || "Unknown User";
   };
   const actorNameByAuthUserId = (authUserId) => {
-    if (!authUserId) return "Unknown user";
+    if (!authUserId) return "Unknown User";
     if (authUserId === auth?.user?.id) return currentCheckerName;
-    return peopleByAuthId.get(authUserId)?.name || "Unknown user";
+    return peopleByAuthId.get(authUserId)?.name || "Unknown User";
   };
   const actorNameByAnyId = (id) => {
-    if (!id) return "Unknown user";
+    if (!id) return "Unknown User";
     if (id === auth?.profile?.id || id === auth?.user?.id) return currentCheckerName;
     const person = peopleById.get(id) || peopleByAuthId.get(id);
-    return person?.name || person?.email || "Unknown user";
+    return person?.name || person?.email || "Unknown User";
   };
 
   const visibleItems = useMemo(() => data.items.filter((item) => {
@@ -5339,7 +5536,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   const selectedOutletIds = selectedOutletId === "all" ? outlets.map((outlet) => outlet.id) : [selectedOutletId];
   const scopedGroups = data.groups.filter((group) => selectedOutletIds.includes(group.outletId) && (stockCheckShiftFilter === "all" || sameStockCheckShift(group.shift, stockCheckShiftFilter)));
-  const dueGroups = scopedGroups.filter((group) => ["Due Today", "Completed", "Overdue"].includes(dueStatus(group, data.checks, date, stockCheckShiftFilter)));
+  const dueGroups = scopedGroups.filter((group) => isActionableStockCheckStatus(dueStatus(group, data.checks, date, stockCheckShiftFilter)));
   const activeCheckGroup = activeAuditCheck || data.groups.find((group) => group.id === activeCheckGroupId);
 
   const dashboard = useMemo(() => {
@@ -5348,7 +5545,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       const configs = outletConfigsForScope(item, selectedOutletIds);
       return count + configs.filter((config) => Number(config.parLevel || 0) > 0 && latestActualCount(data.checks, item.id, config.outletId) < Number(config.parLevel || 0)).length;
     }, 0);
-    const criticalChecks = dueGroups.filter((group) => dueStatus(group, data.checks, date, stockCheckShiftFilter) === "Overdue").length;
+    const criticalChecks = dueGroups.filter((group) => dueStatus(group, data.checks, date, stockCheckShiftFilter) === "Missed").length;
     const completion = dueGroups.length ? Math.round((dueGroups.filter((group) => dueStatus(group, data.checks, date, stockCheckShiftFilter) === "Completed").length / dueGroups.length) * 100) : 100;
     return {
       inventoryValue: scopedItems.reduce((sum, item) => sum + outletConfigsForScope(item, selectedOutletIds).reduce((configSum, config) => configSum + Number(config.parLevel || 0) * 8, 0), 0),
@@ -6209,6 +6406,15 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }
 
   async function startScheduledStockCheck(group) {
+    const status = dueStatus(group, data.checks, date, stockCheckShiftFilter);
+    if (status === "Missed") {
+      notify("Stock check missed", "This stock check was not completed on schedule.", "warning");
+      return;
+    }
+    if (!canStartScheduledStockCheckForDate(group, date) && status !== "Draft") {
+      notify("Stock check locked", "Scheduled stock checks can only be started on their assigned date.", "warning");
+      return;
+    }
     const existingDraft = draftCheckForGroupRun(group, data.checks, date, stockCheckShiftFilter);
     if (existingDraft) {
       setActiveAuditCheck(null);
@@ -6292,6 +6498,33 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       date: check.date || todayInput(),
       notes: check.notes || "",
     });
+  }
+
+  async function deleteAuditDraft(check) {
+    if (!check || check.status !== "draft") {
+      notify("Failed to delete audit draft", "Only draft audit stock checks can be deleted.", "error");
+      return;
+    }
+    const confirmed = await ui.confirm({
+      title: "Delete Audit Draft?",
+      message: "This action cannot be undone.",
+      danger: true,
+      confirmLabel: "Delete Draft",
+    });
+    if (!confirmed) return;
+    try {
+      await deleteRemoteStockCheckDraft(check.id);
+      setData((current) => ({ ...current, checks: current.checks.filter((entry) => entry.id !== check.id) }));
+      if (activeAuditCheck?.existingCheckId === check.id || activeAuditCheck?.id === check.id) {
+        setActiveAuditCheck(null);
+      }
+      await refreshInventory();
+      notify("Audit draft deleted");
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to delete audit draft.", error);
+      debugLog("[AuditStockCheckDebug]", { action: "delete-draft", checkId: check?.id, error });
+      notify("Failed to delete audit draft", error.message || "Please try again.", "error");
+    }
   }
 
   function skipCheckRow(rowIndex, reason) {
@@ -6847,9 +7080,10 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   function exportRecipes() {
     if (!requirePermission(can.exportRecipes, "export recipes")) return;
+    const activeRecipeOutletId = selectedOutletId === "all" ? (getAccessibleOutlets(auth, outlets)[0]?.id || outlets[0]?.id || "") : selectedOutletId;
     const rows = data.recipes.filter((recipe) => {
       const searchText = `${recipe.recipeName || ""} ${recipe.menuCategory || ""} ${outletById.get(recipe.outletId)?.name || ""}`.toLowerCase();
-      return (selectedOutletId === "all" || recipe.outletId === selectedOutletId)
+      return recipe.outletId === activeRecipeOutletId
         && (recipeFilters.category === "all" || recipe.menuCategory === recipeFilters.category)
         && (recipeFilters.status === "all" || recipe.status === recipeFilters.status)
         && (!recipeFilters.search.trim() || searchText.includes(recipeFilters.search.trim().toLowerCase()));
@@ -6924,7 +7158,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
     const alerts = [
       dashboard.lowStock ? { title: `${dashboard.lowStock} low stock items`, reason: "Actual counts are below configured par levels.", tone: "warning", category: "Low Stock" } : null,
-      dashboard.varianceRisk ? { title: `${dashboard.varianceRisk} overdue stock checks`, reason: "Outlet check groups are not completed.", tone: "danger", category: "Stock Check" } : null,
+      dashboard.varianceRisk ? { title: `${dashboard.varianceRisk} missed stock checks`, reason: "Outlet check groups were not completed on schedule.", tone: "danger", category: "Stock Check" } : null,
       data.orders.some((order) => ["sent", "confirmed", "packing"].includes(order.status)) ? { title: "Supplier delivery pending", reason: "Purchase orders are still open.", tone: "info", category: "Ordering" } : null,
     ].filter(Boolean);
 
@@ -6934,7 +7168,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           <MetricCard icon={Warehouse} label="Inventory Value" value={toCurrency(dashboard.inventoryValue)} helper="Estimated at par level" trend="Monthly" emphasis="primary" />
           <MetricCard icon={AlertTriangle} label="Low Stock Items" value={dashboard.lowStock} helper="Below outlet par level" tone={dashboard.lowStock ? "warning" : "success"} />
           <MetricCard icon={PackagePlus} label="Pending Orders" value={dashboard.pendingOrders} helper="Open supplier orders" tone={dashboard.pendingOrders ? "warning" : "success"} />
-          <MetricCard icon={Sparkles} label="Variance Risk" value={dashboard.varianceRisk} helper="Overdue checks" tone={dashboard.varianceRisk ? "danger" : "success"} />
+          <MetricCard icon={Sparkles} label="Variance Risk" value={dashboard.varianceRisk} helper="Missed checks" tone={dashboard.varianceRisk ? "danger" : "success"} />
           <MetricCard icon={ClipboardCheck} label="Check Completion" value={`${dashboard.checkCompletion}%`} helper="Due groups completed" tone={dashboard.checkCompletion < 80 ? "warning" : "success"} />
         </div>
 
@@ -7935,7 +8169,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                 <div className="type-micro font-black uppercase text-text-muted">{activePersistedCheck?.status === "submitted" ? "Submitted" : "Draft saved"}</div>
                 <div className="type-body-sm font-bold text-text-primary">
                   {activePersistedCheck?.status === "submitted"
-                    ? `${submittedByName || "Unknown user"} · ${formatDateTimeCompact(activePersistedCheck.submittedAt)}`
+                    ? `${submittedByName || "Unknown User"} · ${formatDateTimeCompact(activePersistedCheck.submittedAt)}`
                     : (draftSavedAt ? formatDateTimeCompact(draftSavedAt) : "Not saved yet")}
                 </div>
               </div>
@@ -8062,7 +8296,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                   selectedShift: stockCheckShiftFilter,
                   submittedCheckId: submittedCheck?.id || "",
                   isDue: isGroupDue(group, date),
-                  cardState: status === "Completed" ? "completed" : hasDraft ? "draft" : "start",
+                  cardState: stockCheckCardActionState(status),
                 };
                 debugLog("[StockCheckGroupCardDebug]", cardDebug);
                 debugLog("[StockCheckDueDebug]", cardDebug);
@@ -8078,6 +8312,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                     <div className="mt-4 space-y-1 type-caption text-text-secondary">
                       <div>Frequency: <span className="font-semibold text-text-primary">{frequencyLabel(group)}</span></div>
                       <div>Last checked: <span className="font-semibold text-text-primary">{group.lastChecked ? formatDate(group.lastChecked) : "Never"}</span></div>
+                      {dueStatusDescription(status) ? <div className="font-semibold text-text-secondary">{dueStatusDescription(status)}</div> : null}
                     </div>
                     {SHOW_STOCK_CHECK_CARD_DEBUG ? (
                       <div className="mt-3 rounded-xl border border-dashed border-amber-200 bg-amber-50 px-3 py-2 text-[10px] font-semibold leading-relaxed text-amber-800">
@@ -8100,6 +8335,10 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                           </button>
                           <button className="btn-secondary w-full" type="button" onClick={() => setModal({ type: "check-result", stockCheck: latestCheck, suggestions })}>View Result</button>
                         </>
+                      ) : status === "Missed" ? (
+                        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm font-semibold text-rose-800">
+                          This stock check was not completed on schedule.
+                        </div>
                       ) : (
                         <button className="btn-primary w-full" type="button" onClick={() => requirePermission(can.createCheck, "start stock checks") && startScheduledStockCheck(group)}>
                           {hasDraft ? "Continue Check" : "Start Check"}
@@ -8134,7 +8373,10 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                       <div>Variance items: <span className="font-semibold text-text-primary">{shortageCount}</span></div>
                     </div>
                     {check.status === "draft" ? (
-                      <button className="btn-primary mt-4 w-full" type="button" onClick={() => continueAuditStockCheck(check)}>Continue Audit</button>
+                      <div className="mt-4 grid gap-2 sm:grid-cols-2">
+                        <button className="btn-primary w-full" type="button" onClick={() => continueAuditStockCheck(check)}>Continue Audit</button>
+                        <button className="btn-secondary w-full border-rose-200 text-rose-700 hover:bg-rose-50" type="button" onClick={() => deleteAuditDraft(check)}>Delete Draft</button>
+                      </div>
                     ) : (
                       <button className="btn-secondary mt-4 w-full" type="button" onClick={() => setModal({ type: "check-result", stockCheck: check, suggestions: [], isAudit: true })}>View Audit Result</button>
                     )}
@@ -8518,7 +8760,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     if (!can.viewRecipes) {
       return <EmptyState title="Permission required" description="You do not have permission to view Recipes & Usage." />;
     }
-    const outletOptions = getAccessibleOutletOptions(auth, outlets);
+    const outletOptions = getAccessibleOutletOptions(auth, outlets).filter((option) => option.value !== "all");
+    const activeRecipeOutletId = selectedOutletId === "all" ? (outletOptions[0]?.value || "") : selectedOutletId;
     const activeMenuCategories = (data.menuCategories?.length ? data.menuCategories : recipeMenuCategories.map((name, index) => mapRemoteMenuCategory({ id: `default_menu_${index + 1}`, name, sort_order: index + 1, status: "active" })))
       .filter((category) => category.status === "active")
       .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0) || a.name.localeCompare(b.name));
@@ -8526,7 +8769,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     const filteredRecipes = data.recipes.filter((recipe) => {
       const outlet = outletById.get(recipe.outletId);
       const searchText = `${recipe.recipeName || ""} ${recipe.menuCategory || ""} ${outlet?.name || ""} ${(recipe.ingredients || []).map((line) => itemById.get(line.itemId)?.name).join(" ")}`.toLowerCase();
-      return (selectedOutletId === "all" || recipe.outletId === selectedOutletId)
+      return recipe.outletId === activeRecipeOutletId
         && (recipeFilters.category === "all" || recipe.menuCategory === recipeFilters.category)
         && (recipeFilters.status === "all" || recipe.status === recipeFilters.status)
         && (!recipeFilters.search.trim() || searchText.includes(recipeFilters.search.trim().toLowerCase()));
@@ -8544,11 +8787,55 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       ? pricedMargins.reduce((sum, row) => sum + row.margin, 0) / pricedMargins.length
       : null;
     const highestCostRecipe = recipeCostRows.reduce((highest, row) => !highest || row.summary.totalCost > highest.summary.totalCost ? row : highest, null);
+    const menuEngineeringRows = recipeCostRows
+      .map(({ recipe, margin, summary }) => {
+        const salesVolume = Number(recipe.salesVolume ?? recipe.sales_volume ?? recipe.salesQty ?? recipe.sales_qty ?? 0);
+        const sellingPrice = Number(recipe.sellingPrice ?? recipe.selling_price ?? 0);
+        const revenue = Number(recipe.revenue ?? recipe.salesRevenue ?? recipe.sales_revenue ?? (salesVolume && sellingPrice ? salesVolume * sellingPrice : 0));
+        return {
+          id: recipe.id,
+          label: recipe.recipeName,
+          salesVolume,
+          revenue,
+          margin: margin ?? recipeMarginPercent(sellingPrice, summary.totalCost),
+        };
+      })
+      .filter((row) => row.salesVolume > 0 && row.revenue > 0 && row.margin !== null && Number.isFinite(Number(row.margin)));
+    const topMarginRows = recipeCostRows
+      .filter((row) => row.margin !== null && Number.isFinite(Number(row.margin)))
+      .sort((a, b) => Number(b.margin) - Number(a.margin))
+      .slice(0, 5)
+      .map(({ recipe, margin }) => ({
+        id: recipe.id,
+        label: recipe.recipeName,
+        value: Number(margin),
+      }));
+    const ingredientCostTotals = recipeCostRows.reduce((totals, { recipe }) => {
+      (recipe.ingredients || []).forEach((line) => {
+        const item = itemById.get(line.itemId);
+        const cost = recipeIngredientCost(line, item);
+        const key = line.itemId || line.id || item?.name || "unknown";
+        const current = totals.get(key) || { id: key, label: item?.name || "Inventory item", value: 0 };
+        current.value += cost.totalCost + cost.wastageCost;
+        totals.set(key, current);
+      });
+      return totals;
+    }, new Map());
+    const highestCostIngredientRows = [...ingredientCostTotals.values()]
+      .filter((row) => Number(row.value || 0) > 0)
+      .sort((a, b) => Number(b.value) - Number(a.value))
+      .slice(0, 5);
+    const totalIngredientCost = recipeCostRows.reduce((sum, row) => sum + Number(row.summary.ingredientCost || 0), 0);
+    const totalWastageCost = recipeCostRows.reduce((sum, row) => sum + Number(row.summary.wastageCost || 0), 0);
+    const costCompositionSegments = [
+      { label: "Ingredient Cost", value: totalIngredientCost, color: "#16a34a" },
+      { label: "Estimated Wastage", value: totalWastageCost, color: "#f59e0b" },
+    ].filter((segment) => Number(segment.value || 0) > 0);
 
     return (
       <div className="space-y-4">
         <div className="card grid gap-3 p-3 lg:grid-cols-[220px_190px_170px_1fr] lg:items-end">
-          <SelectField label="Outlet" value={selectedOutletId} options={outletOptions} onChange={setSelectedOutletId} searchable />
+          <SelectField label="Outlet" value={activeRecipeOutletId} options={outletOptions} onChange={setSelectedOutletId} searchable />
           <SelectField label="Category" value={recipeFilters.category} options={[{ value: "all", label: "All Categories" }, ...activeMenuCategories.map((category) => ({ value: category.name, label: category.name }))]} onChange={(value) => updateRecipeFilter("category", value)} />
           <SelectField label="Status" value={recipeFilters.status} options={[{ value: "all", label: "All Status" }, ...statuses.map((status) => ({ value: status, label: toTitle(status) }))]} onChange={(value) => updateRecipeFilter("status", value)} />
           <label>
@@ -8627,11 +8914,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                   type="button"
                   onClick={() => {
                     if (!requirePermission(can.manageRecipes, "add recipes")) return;
-                    if (selectedOutletId === "all") {
+                    if (!activeRecipeOutletId) {
                       notify("Select an outlet before adding a recipe", "Recipes are outlet-specific and use the currently selected outlet context.", "warning");
                       return;
                     }
-                    setModal({ type: "recipe", outletId: selectedOutletId });
+                    setModal({ type: "recipe", outletId: activeRecipeOutletId });
                   }}
                 >
                   Add Recipe
@@ -8639,6 +8926,53 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               </div>
             </div>
           )}
+        </DashboardSection>
+        <DashboardSection
+          title="Recipe Intelligence"
+          subtitle="Identify profitable menu items, highest cost recipes and key ingredient cost drivers."
+        >
+          <div className="grid gap-4 lg:grid-cols-2">
+            <RecipeIntelligenceCard
+              title="Menu Engineering Matrix"
+              description="X = Sales Volume, Y = Margin %, bubble size = Revenue."
+            >
+              <RecipeMenuEngineeringMatrix rows={menuEngineeringRows} />
+            </RecipeIntelligenceCard>
+            <RecipeIntelligenceCard
+              title="Top Margin Products"
+              description="Highest margin recipes within the selected outlet and filters."
+            >
+              <RecipeBarChart
+                rows={topMarginRows}
+                valueFormatter={(value) => `${Math.round(value)}%`}
+                tone="success"
+                emptyTitle="No margin data yet"
+                emptyDescription="Add selling prices to recipes to compare product margin."
+              />
+            </RecipeIntelligenceCard>
+            <RecipeIntelligenceCard
+              title="Highest Cost Ingredients"
+              description="Ingredient cost drivers aggregated across visible recipes."
+            >
+              <RecipeBarChart
+                rows={highestCostIngredientRows}
+                valueFormatter={toCurrency}
+                tone="warning"
+                emptyTitle="No ingredient cost data yet"
+                emptyDescription="Add recipe ingredients with inventory costs to identify cost drivers."
+              />
+            </RecipeIntelligenceCard>
+            <RecipeIntelligenceCard
+              title="Recipe Cost Composition"
+              description="Ingredient cost versus estimated wastage cost."
+            >
+              <RecipeDonutChart
+                segments={costCompositionSegments}
+                emptyTitle="No cost composition yet"
+                emptyDescription="Cost composition appears after recipes have costed ingredients."
+              />
+            </RecipeIntelligenceCard>
+          </div>
         </DashboardSection>
         <DashboardSection title="Usage Estimate" subtitle="Future-ready product sales to ingredient usage foundation." density="compact">
           <div className="rounded-2xl border border-primary/15 bg-primary/5 p-3">
@@ -8711,11 +9045,12 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     if (activeTab === "recipes") {
       const openAddRecipe = () => {
         if (!requirePermission(can.manageRecipes, "add recipes")) return;
-        if (selectedOutletId === "all") {
+        const activeRecipeOutletId = selectedOutletId === "all" ? (getAccessibleOutlets(auth, outlets)[0]?.id || outlets[0]?.id || "") : selectedOutletId;
+        if (!activeRecipeOutletId) {
           notify("Select an outlet before adding a recipe", "Recipes are outlet-specific and use the currently selected outlet context.", "warning");
           return;
         }
-        setModal({ type: "recipe", outletId: selectedOutletId });
+        setModal({ type: "recipe", outletId: activeRecipeOutletId });
       };
       return (
         <>
@@ -8920,7 +9255,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           if (result.label === "Skipped") acc.skipped += 1;
           return acc;
         }, { total: 0, normal: 0, shortage: 0, excess: 0, skipped: 0 });
-        const submittedByName = stockCheck.submittedBy ? actorNameByEmployeeId(stockCheck.submittedBy) : "Unknown user";
+        const submittedByName = stockCheck.submittedBy ? actorNameByEmployeeId(stockCheck.submittedBy) : "Unknown User";
         const outletName = outletById.get(stockCheck.outletId)?.name || "Outlet";
         const shiftLabel = isAuditResult ? (stockCheck.auditType || "Audit") : (stockCheck.shift || "Stock Check");
         return (
@@ -9115,7 +9450,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                           <span className="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full bg-primary" />
                           <div className="rounded-xl bg-slate-50 p-3">
                             <div className="flex flex-wrap items-center justify-between gap-2"><div className="type-body-sm font-black text-text-primary">{formatDate(receipt.receivedAt)}</div><Badge tone="success">+{receiptQty} qty</Badge></div>
-                            <div className="mt-1 type-caption font-semibold text-text-secondary">User: {receipt.receivedBy || "Current User"}</div>
+                            <div className="mt-1 type-caption font-semibold text-text-secondary">Received By: {actorNameByAnyId(receipt.receivedBy)}</div>
                             {receipt.remark ? <div className="mt-1 type-caption text-text-secondary">Remark: {receipt.remark}</div> : null}
                             <div className="mt-2 space-y-1">{(receipt.items || []).map((line) => <div key={line.id} className="type-caption text-text-secondary">{itemById.get(line.itemId)?.name || "Inventory item"} · +{line.receivedQty} {line.unit}{line.remark ? ` · ${line.remark}` : ""}</div>)}</div>
                           </div>

@@ -99,7 +99,6 @@ OPERATIONS
 - Duty Roster
 - Asset Tracking
 - Outlets
-- Data Import
 - Data Health
 
 INVENTORY CONTROL
@@ -2043,6 +2042,7 @@ Inventory Control business date rules:
 - Business dates must be explicit and must not be inferred from the browser/system clock when the user has selected an operational date.
 - FeedX gets the default Inventory Control business date with `getBusinessDateInput('Asia/Kuala_Lumpur')` and normalizes persisted business dates to `YYYY-MM-DD` with `normalizeBusinessDate()`.
 - Stock Check defaults to Malaysia business today on normal page load, respects an explicit `date` URL parameter, and does not default from `last_checked_at` or the latest submitted check.
+- Scheduled Stock Check date lock: scheduled checks can only be started on their assigned Malaysia business date. If a due scheduled check date is before today and no submitted check exists for that group/outlet/date, the card shows `Missed`, hides Start Check, and explains that the check was not completed on schedule.
 - Stock Check and Audit Stock Check persist `inventory_stock_checks.check_date` from the selected check/audit date.
 - Scheduled Stock Check completion cards match submitted checks by `group_id`, `outlet_id`, and normalized `check_date`; group names and system date are not valid matching keys.
 - Waste records persist `inventory_waste_records.waste_date` from the selected Waste Date.
@@ -2226,22 +2226,25 @@ Due status:
 
 - Due Today
 - Completed
-- Overdue
+- Draft
+- Missed
 - Not Due
 
 Daily Stock Check workflow:
 
 1. Select outlet and stock check group.
-2. Start Check creates or resumes a Supabase draft for the same outlet, group, date, and shift.
-3. Count items and preserve actual count, notes, variance, and row status in `inventory_stock_check_items`.
-4. Save Draft writes `inventory_stock_checks.status = draft` and replaces the item snapshot rows.
-5. Submit Stock Check writes the final item snapshot to the exact active draft/check row, preserves the selected check date, sets `inventory_stock_checks.status = submitted`, sets `submitted_at`, records `submitted_by`, and updates the group `last_checked_at`.
-6. Return to Stock Check list.
-7. Completed check card shows Review Purchase Suggestions when shortages exist and the user has permission.
-8. Create Draft POs only after user review and confirmation.
-9. Stock Check entry headers show the group, outlet, shift/date, started-by identity, and the latest draft/submission timestamp.
-10. Scheduled check card completion is matched from submitted scheduled checks by `group_id`, `outlet_id`, and `check_date`. The Shift filter defaults to All Shifts, so completed matching does not require `shift` unless a specific shift filter is selected. Group names are never used for completion matching.
-11. Mobile Stock Check shows live completion progress: counted or skipped rows count as completed, remaining rows have no count and are not skipped, the progress bar updates while typing, and the sticky footer shows completed/skipped/remaining plus Ready to submit at 100%.
+2. Start Check is available only when the selected scheduled check date is today and the group is due on that date.
+3. Backdated due scheduled checks show Missed and cannot be started from the scheduled flow.
+4. Start Check creates or resumes a Supabase draft for the same outlet, group, date, and shift.
+5. Count items and preserve actual count, notes, variance, and row status in `inventory_stock_check_items`.
+6. Save Draft writes `inventory_stock_checks.status = draft` and replaces the item snapshot rows.
+7. Submit Stock Check writes the final item snapshot to the exact active draft/check row, preserves the selected check date, sets `inventory_stock_checks.status = submitted`, sets `submitted_at`, records `submitted_by`, and updates the group `last_checked_at`.
+8. Return to Stock Check list.
+9. Completed check card shows Review Purchase Suggestions when shortages exist and the user has permission.
+10. Create Draft POs only after user review and confirmation.
+11. Stock Check entry headers show the group, outlet, shift/date, started-by identity, and the latest draft/submission timestamp.
+12. Scheduled check card completion is matched from submitted scheduled checks by `group_id`, `outlet_id`, and `check_date`. The Shift filter defaults to All Shifts, so completed matching does not require `shift` unless a specific shift filter is selected. Group names are never used for completion matching.
+13. Mobile Stock Check shows live completion progress: counted or skipped rows count as completed, remaining rows have no count and are not skipped, the progress bar updates while typing, and the sticky footer shows completed/skipped/remaining plus Ready to submit at 100%.
 
 Audit Stock Check workflow:
 
@@ -2259,7 +2262,8 @@ Audit Stock Check workflow:
 - Audit drafts and submitted audit results are persisted in `inventory_stock_checks` and `inventory_stock_check_items`.
 - Audit submissions also record `submitted_by` and `submitted_at` so audit results show who completed the count.
 - Audit Stock Check does not generate Purchase Suggestions, Draft PO, or ordering workflows.
-- Submitted audit result cards show View Audit Result only. Draft audit cards show Continue Audit.
+- Submitted audit result cards show View Audit Result only. Draft audit cards show Continue Audit and Delete Draft.
+- Audit draft deletion is allowed only when `inventory_stock_checks.status = draft`; it deletes the draft check and its `inventory_stock_check_items` after confirmation. Completed audits cannot be deleted.
 
 Stock check statuses:
 
@@ -2339,6 +2343,12 @@ Daily Stock Check UI:
 - Result item rows show photo/fallback, category, SKU, UOM, notes, skip reason, and semantic status badges.
 - Mobile uses card layout instead of a dense table.
 
+Operational identity display:
+
+- Operational history components must resolve user references from `recorded_by`, `created_by`, `received_by`, `submitted_by`, and inspection checker fields to employee display names.
+- Display priority is `employees.nickname`, then `employees.full_name`, then `employees.email`, then `Unknown User`.
+- Purchase Order Receiving History, Inventory Movements, Waste Records, Stock Check Results, Audit Stock Check Results, Asset Inspection History, and activity timelines must not expose raw employee/auth UUIDs.
+
 Stock Requests:
 
 - Removed from the current Inventory Control sidebar scope.
@@ -2386,7 +2396,7 @@ Rules:
 - PO detail shows supplier, outlet, source stock check/request, item rows, ordered quantity, received quantity, remaining quantity, fulfillment percentage, completion type/reason, unit, remark, receiving history, and status timeline.
 - PO detail uses a procurement workflow view with Generated From context, supplier contact placeholder, Created → Submitted → Receiving → Completed progress, fulfillment progress bar, item Balance column, and receiving history timeline.
 - PO detail action group includes Copy PO Text, Export PDF, Print, and quick Receive when the PO is receivable.
-- Receiving history timeline shows received date, received quantity, user, remark, and item-level received quantities.
+- Receiving history timeline shows received date, received quantity, `Received By`, remark, and item-level received quantities. `Received By` must resolve employee nickname, then full name, then email, then `Unknown User`; raw UUIDs must never be displayed.
 - Status workflow: Draft → Submitted → Supplier Confirmed → Partial Received → Fully Received → Completed.
 - Cancelled preserves historical PO records and requires a cancellation reason.
 - Draft can be cancelled anytime.
@@ -2539,16 +2549,19 @@ Recipe item fields:
 Rules:
 
 - Recipes are outlet-scoped.
+- Recipes & Usage does not expose an All Outlets aggregate filter. The outlet filter is required, defaults to the first accessible outlet, and contains only individual accessible outlets.
 - Add Recipe uses the currently selected Recipes & Usage outlet filter as its outlet context; the Add/Edit Recipe modal does not ask for outlet again.
 - Menu Category Settings supports create, edit, archive, and sort for `inventory_menu_categories`; active menu categories populate recipe forms and filters.
 - Recipe ingredient selectors only show active inventory items linked to the selected outlet.
 - Multiple ingredients are supported per recipe.
 - Unit follows the selected inventory item unit.
 - Recipe photo upload stores a public photo URL in `inventory_recipes.recipe_photo_url` and recipe list rows display a thumbnail when available.
+- Recipe Detail uses a hero layout instead of a full-width banner: desktop shows a 240 × 240 square recipe photo with `object-fit: contain` beside recipe identity, cost, price, margin, and status metrics; mobile uses a full-width 1:1 photo area with metrics below. Missing images show `No recipe photo`.
 - Ingredient rows show Inventory Item, Qty Used, Unit, Unit Cost, Total Cost, Wastage %, and Remark.
 - Unit Cost reads from `inventory_items.cost`; Total Cost is `Qty Used × Unit Cost`.
 - Recipe Summary calculates Ingredient Cost, Estimated Wastage Cost, Total Recipe Cost, Selling Price, and Margin % in real time.
-- Recipe Costing Dashboard shows Total Recipes, Average Recipe Cost, Average Margin, and Highest Cost Recipe above the recipe list.
+- Recipe Costing Dashboard shows Total Recipes, Average Recipe Cost, Average Margin, and Highest Cost Recipe above the recipe list; these KPIs are always calculated within the selected single-outlet scope.
+- Recipe Intelligence appears below Recipe BOM Setup in a two-column desktop layout and stacked mobile layout. It includes Menu Engineering Matrix (Sales Volume × Margin %, bubble size = Revenue), Top Margin Products, Highest Cost Ingredients, and Recipe Cost Composition. POS/sales-dependent charts show placeholder guidance when menu sales mapping is unavailable; no fake sales data is generated.
 - Recipe list columns are Recipe, Category, Ingredients, Estimated Cost, Selling Price, Margin, Status, and Actions.
 - Margin % is `((Selling Price - Estimated Cost) / Selling Price) × 100`; badges are green at 70%+, amber at 40%-69%, and red below 40%.
 - Add Recipe writes to `inventory_recipes` and `inventory_recipe_items`; success is shown only after Supabase confirms the recipe and ingredient rows.
@@ -2610,11 +2623,20 @@ Rules:
 
 ---
 
-## 5.14 Data Import
+## 5.14 Module-Level Imports
 
 Purpose:
 
-Import sales and purchase CSV/XLSX data safely.
+Import workflows live inside their owning modules instead of a centralized Data Import page.
+
+Active module imports:
+
+- Sales Input -> Import Sales
+- Purchase Input -> Import Purchase
+- Master Inventory -> Import
+- Asset Tracking -> Import
+
+The centralized Data Import navigation item is removed from active sidebar and role catalog scope. The underlying import tables and utility code remain available for module-level workflows.
 
 Flow:
 
@@ -2703,6 +2725,12 @@ Import tables:
 
 - import_batches
 - import_batch_rows
+
+Import history:
+
+- Sales Input shows sales-only import batches.
+- Purchase Input shows purchase-only import batches.
+- Import batch rows remain available for row-level validation history.
 
 Batch status:
 
@@ -3412,11 +3440,6 @@ Outlets:
 - outlets.edit
 - outlets.delete
 
-Data Import:
-
-- data_import.view
-- data_import.import
-
 Data Health:
 
 - data_health.view
@@ -3538,7 +3561,6 @@ Outlet scope applies to:
 - Outlet P&L
 - Operating Expenses
 - Tax Settings
-- Data Import
 - Data Health
 - Alerts & Insights
 
@@ -3774,8 +3796,8 @@ Should allow users with related view permissions.
 Examples:
 
 - outlets readable by outlets.view or dashboard.view where needed.
-- suppliers readable by suppliers.view, purchase_input.view, purchase_comparison.view, data_import.view where needed.
-- sales_channels readable by sales_channels.view, sales_input.view, sales_comparison.view, data_import.view where needed.
+- suppliers readable by suppliers.view, purchase_input.view, purchase_comparison.view where needed.
+- sales_channels readable by sales_channels.view, sales_input.view, sales_comparison.view where needed.
 - outlet_tax_configs readable by tax_settings.view, sales_input.view, dashboard.view where needed.
 - asset_categories readable by asset_tracking.view.
 - inventory_categories readable by related Inventory Control view/manage permissions.
@@ -3786,16 +3808,16 @@ Transaction records:
 Sales records:
 
 - SELECT: sales_input.view OR sales_comparison.view OR dashboard.view
-- INSERT: sales_input.create OR data_import.import
-- UPDATE: sales_input.edit OR data_import.import
-- DELETE: sales_input.delete OR data_import.import
+- INSERT: sales_input.create
+- UPDATE: sales_input.edit
+- DELETE: sales_input.delete
 
 Purchase records:
 
 - SELECT: purchase_input.view OR purchase_comparison.view OR dashboard.view
-- INSERT: purchase_input.create OR data_import.import
-- UPDATE: purchase_input.edit OR data_import.import
-- DELETE: purchase_input.delete OR data_import.import
+- INSERT: purchase_input.create
+- UPDATE: purchase_input.edit
+- DELETE: purchase_input.delete
 
 Asset records:
 
@@ -3879,10 +3901,12 @@ Create employee
 → access_state becomes active
 ```
 
-### 12.5 Data Import
+### 12.5 Module Import Workflow
 
 ```text
-Upload file
+Open owning module
+→ Click module import action
+→ Upload file
 → Parse rows
 → Map columns
 → Validate values
@@ -3893,6 +3917,12 @@ Upload file
 → Batch upsert
 → Audit log
 ```
+
+Rules:
+
+- Sales import is launched from Sales Input and requires `sales_input.create` or `sales_input.edit`.
+- Purchase import is launched from Purchase Input and requires `purchase_input.create` or `purchase_input.edit`.
+- The centralized Data Import page is not active in current navigation.
 
 ### 12.6 Duty Roster Weekly Scheduling
 

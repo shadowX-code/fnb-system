@@ -371,15 +371,6 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, export: true },
   },
   {
-    id: "data-import",
-    section: "Operations",
-    label: "Data Import",
-    route: "/operations/data-import",
-    icon: "data-import",
-    sidebar: true,
-    permissions: { view: true, import: true },
-  },
-  {
     id: "data-health",
     section: "Operations",
     label: "Data Health",
