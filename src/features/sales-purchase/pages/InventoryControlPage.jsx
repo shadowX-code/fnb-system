@@ -3078,6 +3078,13 @@ function StockCheckMobileView({
     const item = itemById.get(row.itemId);
     return `${item?.name || ""} ${item?.sku || ""}`.toLowerCase().includes(checkSearch.trim().toLowerCase());
   });
+  const isRowCounted = (row = {}) => row.actualCount !== "" && row.actualCount !== null && row.actualCount !== undefined && Number.isFinite(Number(row.actualCount));
+  const totalItems = rows.length;
+  const skippedCount = rows.filter((row) => row.skipped).length;
+  const completedCount = rows.filter((row) => row.skipped || isRowCounted(row)).length;
+  const remainingCount = Math.max(0, totalItems - completedCount);
+  const progressPercent = totalItems ? Math.round((completedCount / totalItems) * 100) : 0;
+  const isComplete = totalItems > 0 && completedCount === totalItems;
 
   return (
     <div className="space-y-3 pb-[calc(7rem+env(safe-area-inset-bottom))]">
@@ -3145,6 +3152,7 @@ function StockCheckMobileView({
           const parLevel = parLevelForOutlet(item, activeCheckGroup.outletId);
           const result = row.skipped ? { label: "Skipped", tone: "neutral", variance: 0 } : varianceStatus(parLevel, row.actualCount);
           const issue = issueByRowIndex.get(row.rowIndex);
+          const rowCompleted = row.skipped || isRowCounted(row);
           return (
             <div key={row.itemId} data-check-row-index={row.rowIndex} className={`rounded-2xl border bg-white p-3 shadow-sm transition ${issue ? "border-amber-300 bg-amber-50/70" : "border-border"}`}>
               <div className="flex items-start gap-3">
@@ -3153,7 +3161,10 @@ function StockCheckMobileView({
                   <div className="font-black text-text-primary">{item?.name || "Inventory item"}</div>
                   <div className="type-caption text-text-secondary">{category?.name ?? "Uncategorized"}{item?.sku ? ` · ${item.sku}` : ""}</div>
                 </div>
-                <Badge tone={row.skipped ? "neutral" : row.na ? "neutral" : result.tone}>{row.skipped ? "Skipped" : row.na ? "Not Available" : result.label}</Badge>
+                <div className="flex flex-col items-end gap-1">
+                  <Badge tone={row.skipped ? "neutral" : rowCompleted ? "success" : "warning"}>{row.skipped ? "Skipped" : rowCompleted ? "Recorded" : "Pending"}</Badge>
+                  {rowCompleted && !row.skipped ? <Badge tone={row.na ? "neutral" : result.tone}>{row.na ? "Not Available" : result.label}</Badge> : null}
+                </div>
               </div>
 
               <div className="mt-3 grid grid-cols-3 gap-2 rounded-xl bg-slate-50 p-2 text-center">
@@ -3197,11 +3208,31 @@ function StockCheckMobileView({
         })}
       </div>
 
+      <div className="rounded-2xl border border-border bg-white p-3 shadow-sm">
+        <div className="mb-2 flex items-center justify-between gap-3">
+          <div>
+            <div className="type-micro font-black uppercase tracking-wide text-text-muted">Progress</div>
+            <div className="type-body-sm font-black text-text-primary">{completedCount} / {totalItems} completed</div>
+          </div>
+          <Badge tone={isComplete ? "success" : "info"}>{isComplete ? "Ready to submit" : `${progressPercent}%`}</Badge>
+        </div>
+        <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+          <div className={`h-full rounded-full transition-all ${isComplete ? "bg-emerald-500" : "bg-primary"}`} style={{ width: `${progressPercent}%` }} />
+        </div>
+        <div className="mt-2 grid grid-cols-2 gap-2 type-caption font-semibold text-text-secondary">
+          <div>{skippedCount} skipped</div>
+          <div className="text-right">{isComplete ? "Ready to submit" : `${remainingCount} remaining`}</div>
+        </div>
+      </div>
+
       <div className="sticky bottom-[calc(0.75rem+env(safe-area-inset-bottom))] z-20 rounded-2xl border border-border bg-white/95 p-3 shadow-card backdrop-blur">
-        <div className="mb-2 flex flex-wrap gap-2 type-caption font-semibold text-text-secondary">
-          <span>{rows.length} items</span>
-          <span>·</span>
-          <span>{rows.filter((row) => row.skipped).length} skipped</span>
+        <div className="mb-2">
+          <div className="type-body-sm font-black text-text-primary">{completedCount} / {totalItems} completed</div>
+          <div className="mt-0.5 flex flex-wrap gap-2 type-caption font-semibold text-text-secondary">
+            <span>{skippedCount} skipped</span>
+            <span>·</span>
+            <span>{isComplete ? "Ready to submit" : `${remainingCount} remaining`}</span>
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <button className="btn-secondary" type="button" onClick={onSaveDraft}>Save Draft</button>

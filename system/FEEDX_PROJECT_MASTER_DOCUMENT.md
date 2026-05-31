@@ -2240,6 +2240,7 @@ Daily Stock Check workflow:
 8. Create Draft POs only after user review and confirmation.
 9. Stock Check entry headers show the group, outlet, shift/date, started-by identity, and the latest draft/submission timestamp.
 10. Scheduled check card completion is matched from submitted scheduled checks by `group_id`, `outlet_id`, and `check_date`. The Shift filter defaults to All Shifts, so completed matching does not require `shift` unless a specific shift filter is selected. Group names are never used for completion matching.
+11. Mobile Stock Check shows live completion progress: counted or skipped rows count as completed, remaining rows have no count and are not skipped, the progress bar updates while typing, and the sticky footer shows completed/skipped/remaining plus Ready to submit at 100%.
 
 Audit Stock Check workflow:
 
