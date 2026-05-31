@@ -4779,6 +4779,9 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existing
   const [isSaving, setIsSaving] = useState(false);
   const [photoPreview, setPhotoPreview] = useState(recipe?.recipePhotoUrl || recipe?.recipe_photo_url || "");
   const [touched, setTouched] = useState({});
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [duplicateCodeError, setDuplicateCodeError] = useState("");
+  const [checkingRecipeCode, setCheckingRecipeCode] = useState(false);
   const [form, setForm] = useState(() => ({
     id: recipe?.id || "",
     outletId: recipe?.outletId || outletId || "",
@@ -4836,7 +4839,8 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existing
   const margin = recipeMarginPercent(form.sellingPrice, summary.totalCost);
   const profit = Number(form.sellingPrice || 0) - Number(summary.totalCost || 0);
   const normalizedRecipeCode = recipeCode(form).toLowerCase();
-  const duplicateRecipeCode = Boolean(normalizedRecipeCode && existingRecipes.some((entry) => entry.id !== form.id && recipeCode(entry).toLowerCase() === normalizedRecipeCode));
+  const localDuplicateRecipeCode = Boolean(normalizedRecipeCode && existingRecipes.some((entry) => entry.id !== form.id && recipeCode(entry).toLowerCase() === normalizedRecipeCode));
+  const duplicateRecipeCode = Boolean(localDuplicateRecipeCode || duplicateCodeError);
   const sellingPriceValue = Number(form.sellingPrice);
   const sellingPriceInvalid = form.sellingPrice === "" || !Number.isFinite(sellingPriceValue) || sellingPriceValue <= 0;
   const identityErrors = {
@@ -4859,11 +4863,57 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existing
   };
   const hasInvalidIngredients = !form.ingredients.length || form.ingredients.some((line) => !line.itemId || Number(line.quantityUsed || 0) <= 0);
   const invalid = Boolean(identityErrors.recipeCode || identityErrors.recipeNameEn || identityErrors.recipeNameCn || identityErrors.sellingPrice || !form.outletId || hasInvalidIngredients);
+  const showError = (key) => Boolean(touched[key] || submitAttempted);
+  const touchField = (key) => setTouched((current) => ({ ...current, [key]: true }));
+  const ingredientFieldKey = (lineId, field) => `ingredient.${lineId}.${field}`;
+  const handleRecipeCodeChange = (value) => {
+    setDuplicateCodeError("");
+    update("recipeCode", value);
+  };
+  const checkDuplicateRecipeCode = async () => {
+    const code = recipeCode(form);
+    touchField("recipeCode");
+    if (!code) {
+      setDuplicateCodeError("");
+      return false;
+    }
+    if (localDuplicateRecipeCode) {
+      setDuplicateCodeError("Recipe code already exists.");
+      return true;
+    }
+    setCheckingRecipeCode(true);
+    try {
+      const result = await supabase
+        .from("inventory_recipes")
+        .select("id, recipe_code")
+        .ilike("recipe_code", code)
+        .limit(5);
+      if (result.error) throw result.error;
+      const duplicate = (result.data || []).some((row) => row.id !== form.id && recipeCode(row).toLowerCase() === normalizedRecipeCode);
+      setDuplicateCodeError(duplicate ? "Recipe code already exists." : "");
+      return duplicate;
+    } catch (error) {
+      debugLog("[RecipeCodeDuplicateDebug]", { recipeId: form.id, recipeCode: code, error });
+      setDuplicateCodeError("");
+      return false;
+    } finally {
+      setCheckingRecipeCode(false);
+    }
+  };
   const handleSave = async () => {
-    if (invalid || isSaving) return;
+    setSubmitAttempted(true);
+    if (isSaving) return;
+    if (invalid) return;
+    const hasDuplicate = await checkDuplicateRecipeCode();
+    if (hasDuplicate) return;
     setIsSaving(true);
     try {
       await onSave({ ...form });
+    } catch (error) {
+      if (/inventory_recipes_recipe_code_unique|recipe_code/i.test(String(error?.message || error?.details || ""))) {
+        setDuplicateCodeError("Recipe code already exists.");
+        touchField("recipeCode");
+      }
     } finally {
       setIsSaving(false);
     }
@@ -4878,7 +4928,7 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existing
       footer={(
         <>
           <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="button" disabled={invalid || isSaving} onClick={handleSave}>{isSaving ? "Saving..." : "Save Recipe"}</button>
+          <button className="btn-primary" type="button" disabled={isSaving || checkingRecipeCode} onClick={handleSave}>{isSaving ? "Saving..." : "Save Recipe"}</button>
         </>
       )}
     >
@@ -4893,19 +4943,20 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existing
               label="Recipe Code"
               value={form.recipeCode}
               required
-              onChange={(value) => update("recipeCode", value)}
-              onBlur={() => setTouched((current) => ({ ...current, recipeCode: true }))}
-              error={touched.recipeCode ? identityErrors.recipeCode : ""}
+              onChange={handleRecipeCodeChange}
+              onBlur={checkDuplicateRecipeCode}
+              error={showError("recipeCode") ? identityErrors.recipeCode : ""}
               placeholder="RCP-CURRY-001"
             />
+            {checkingRecipeCode ? <div className="self-end type-caption font-semibold text-text-muted">Checking recipe code...</div> : null}
             <SelectField label="Menu Category" value={form.menuCategory} options={safeCategoryOptions} onChange={(value) => update("menuCategory", value)} />
             <Field
               label="Recipe Name EN"
               value={form.recipeNameEn}
               required
               onChange={(value) => update("recipeNameEn", value)}
-              onBlur={() => setTouched((current) => ({ ...current, recipeNameEn: true }))}
-              error={touched.recipeNameEn ? identityErrors.recipeNameEn : ""}
+              onBlur={() => touchField("recipeNameEn")}
+              error={showError("recipeNameEn") ? identityErrors.recipeNameEn : ""}
               placeholder="Classic Dry Curry Noodle"
             />
             <Field
@@ -4913,8 +4964,8 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existing
               value={form.recipeNameCn}
               required
               onChange={(value) => update("recipeNameCn", value)}
-              onBlur={() => setTouched((current) => ({ ...current, recipeNameCn: true }))}
-              error={touched.recipeNameCn ? identityErrors.recipeNameCn : ""}
+              onBlur={() => touchField("recipeNameCn")}
+              error={showError("recipeNameCn") ? identityErrors.recipeNameCn : ""}
               placeholder="经典干咖喱面"
             />
             <label>
@@ -4937,8 +4988,8 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existing
               value={form.sellingPrice}
               required
               onChange={(value) => update("sellingPrice", parseNonNegativeNumber(value))}
-              onBlur={() => setTouched((current) => ({ ...current, sellingPrice: true }))}
-              error={touched.sellingPrice ? identityErrors.sellingPrice : ""}
+              onBlur={() => touchField("sellingPrice")}
+              error={showError("sellingPrice") ? identityErrors.sellingPrice : ""}
               placeholder="0.00"
             />
             <Field label="Serving Size / Yield" value={form.servingSize} onChange={(value) => update("servingSize", value)} placeholder="1" />
@@ -4994,9 +5045,16 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existing
                   <div key={line.id} className="grid gap-2 rounded-2xl border border-border bg-slate-50/70 p-3 xl:grid-cols-[1.4fr_95px_72px_95px_95px_100px_1fr_auto] xl:items-end">
                     <div>
                       <SelectField label="Inventory Item" value={line.itemId} options={availableItems.map((entry) => ({ value: entry.id, label: entry.name }))} onChange={(value) => updateIngredient(line.id, { itemId: value })} searchable />
-                      {!line.itemId ? <div className="mt-1 type-caption font-semibold text-rose-600">Inventory item is required.</div> : null}
+                      {submitAttempted && !line.itemId ? <div className="mt-1 type-caption font-semibold text-rose-600">Inventory item is required.</div> : null}
                     </div>
-                    <Field label="Qty Used" type="number" value={line.quantityUsed} onChange={(value) => updateIngredient(line.id, { quantityUsed: parseNonNegativeNumber(value) })} error={Number(line.quantityUsed || 0) <= 0 ? "Qty must be greater than 0." : ""} />
+                    <Field
+                      label="Qty Used"
+                      type="number"
+                      value={line.quantityUsed}
+                      onChange={(value) => updateIngredient(line.id, { quantityUsed: parseNonNegativeNumber(value) })}
+                      onBlur={() => touchField(ingredientFieldKey(line.id, "quantityUsed"))}
+                      error={(showError(ingredientFieldKey(line.id, "quantityUsed")) && Number(line.quantityUsed || 0) <= 0) ? "Qty must be greater than 0." : ""}
+                    />
                     <label>
                       <div className="mb-1 type-caption font-semibold text-text-secondary">Unit</div>
                       <div className="control flex h-9 items-center text-[13px] font-semibold text-text-secondary">{item?.unit || line.unit || "-"}</div>
@@ -7316,7 +7374,12 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       console.warn("[InventoryControl] Unable to save recipe.", error);
       debugLog("[RecipeSaveDebug]", { action: "save-recipe", payload: recipe, error });
       await refreshInventory();
-      notify(isUuid(recipe.id) ? "Failed to update Recipe" : "Failed to create Recipe", error.message || "Please try again.", "error");
+      const duplicateCodeFailure = /inventory_recipes_recipe_code_unique|duplicate key|recipe_code/i.test(String(`${error?.message || ""} ${error?.details || ""}`));
+      notify(
+        isUuid(recipe.id) ? "Failed to update Recipe" : "Failed to create Recipe",
+        duplicateCodeFailure ? "Recipe code already exists. Please use another code." : error.message || "Please try again.",
+        "error",
+      );
       throw error;
     }
   }
