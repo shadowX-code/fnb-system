@@ -4782,7 +4782,7 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existing
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [duplicateCodeError, setDuplicateCodeError] = useState("");
   const [checkingRecipeCode, setCheckingRecipeCode] = useState(false);
-  const duplicateCheckRef = useRef({ requestId: 0, submitting: false });
+  const duplicateCheckRef = useRef({ requestId: 0, submitting: false, saving: false });
   const [form, setForm] = useState(() => ({
     id: recipe?.id || "",
     outletId: recipe?.outletId || outletId || "",
@@ -4840,8 +4840,21 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existing
   const margin = recipeMarginPercent(form.sellingPrice, summary.totalCost);
   const profit = Number(form.sellingPrice || 0) - Number(summary.totalCost || 0);
   const normalizedRecipeCode = recipeCode(form).toLowerCase();
-  const localDuplicateRecipeCode = Boolean(normalizedRecipeCode && existingRecipes.some((entry) => entry.id !== form.id && recipeCode(entry).toLowerCase() === normalizedRecipeCode));
-  const duplicateRecipeCode = Boolean(localDuplicateRecipeCode || duplicateCodeError);
+  const duplicateValidationSuppressed = isSaving || duplicateCheckRef.current.saving;
+  const setRecipeDuplicateError = (message, source, meta = {}) => {
+    debugLog("[RecipeDuplicateErrorSource]", {
+      source,
+      value: recipeCode(form),
+      mode: form.id ? "edit" : "create",
+      recipeId: form.id || "",
+      timestamp: new Date().toISOString(),
+      message,
+      ...meta,
+    });
+    setDuplicateCodeError(message);
+  };
+  const localDuplicateRecipeCode = !duplicateValidationSuppressed && Boolean(normalizedRecipeCode && existingRecipes.some((entry) => entry.id !== form.id && recipeCode(entry).toLowerCase() === normalizedRecipeCode));
+  const duplicateRecipeCode = !duplicateValidationSuppressed && Boolean(localDuplicateRecipeCode || duplicateCodeError);
   const sellingPriceValue = Number(form.sellingPrice);
   const sellingPriceInvalid = form.sellingPrice === "" || !Number.isFinite(sellingPriceValue) || sellingPriceValue <= 0;
   const identityErrors = {
@@ -4869,7 +4882,7 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existing
   const ingredientFieldKey = (lineId, field) => `ingredient.${lineId}.${field}`;
   const handleRecipeCodeChange = (value) => {
     duplicateCheckRef.current.requestId += 1;
-    setDuplicateCodeError("");
+    setRecipeDuplicateError("", "recipe-code-change");
     update("recipeCode", value);
   };
   const checkDuplicateRecipeCode = async ({ forSubmit = false } = {}) => {
@@ -4880,13 +4893,13 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existing
     if (forSubmit) duplicateCheckRef.current.submitting = true;
     touchField("recipeCode");
     if (!code) {
-      if (duplicateCheckRef.current.requestId === requestId) setDuplicateCodeError("");
+      if (duplicateCheckRef.current.requestId === requestId) setRecipeDuplicateError("", forSubmit ? "submit-duplicate-check-blank" : "onBlur-duplicate-check-blank", { requestId });
       debugLog("[RecipeCodeValidation]", { value: code, duplicateResult: false, submitBlocked: forSubmit && true, reason: "blank" });
       return false;
     }
     const localDuplicate = Boolean(codeKey && existingRecipes.some((entry) => entry.id !== form.id && normalizeProductRecipeKey(recipeCode(entry)) === codeKey));
     if (localDuplicate) {
-      if (duplicateCheckRef.current.requestId === requestId) setDuplicateCodeError("Recipe code already exists.");
+      if (duplicateCheckRef.current.requestId === requestId && !duplicateCheckRef.current.saving) setRecipeDuplicateError("Recipe code already exists.", forSubmit ? "submit-duplicate-check-local" : "onBlur-duplicate-check-local", { requestId });
       debugLog("[RecipeCodeValidation]", { value: code, duplicateResult: true, submitBlocked: forSubmit, source: "local" });
       return true;
     }
@@ -4900,12 +4913,12 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existing
       if (result.error) throw result.error;
       const duplicate = (result.data || []).some((row) => row.id !== form.id && normalizeProductRecipeKey(recipeCode(row)) === codeKey);
       const isLatest = duplicateCheckRef.current.requestId === requestId && recipeCode(form).toLowerCase() === code.toLowerCase();
-      if (isLatest) setDuplicateCodeError(duplicate ? "Recipe code already exists." : "");
+      if (isLatest && !duplicateCheckRef.current.saving) setRecipeDuplicateError(duplicate ? "Recipe code already exists." : "", forSubmit ? "submit-duplicate-check-remote" : "onBlur-duplicate-check-remote", { requestId, duplicateResult: duplicate });
       debugLog("[RecipeCodeValidation]", { value: code, duplicateResult: duplicate, submitBlocked: forSubmit && duplicate, source: "remote", stale: !isLatest });
       return duplicate;
     } catch (error) {
       debugLog("[RecipeCodeDuplicateDebug]", { recipeId: form.id, recipeCode: code, error });
-      if (duplicateCheckRef.current.requestId === requestId) setDuplicateCodeError("");
+      if (duplicateCheckRef.current.requestId === requestId && !duplicateCheckRef.current.saving) setRecipeDuplicateError("", forSubmit ? "submit-duplicate-check-error-clear" : "onBlur-duplicate-check-error-clear", { requestId, error });
       return false;
     } finally {
       if (duplicateCheckRef.current.requestId === requestId) setCheckingRecipeCode(false);
@@ -4919,19 +4932,23 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existing
     if (blockingInvalid) return;
     const hasDuplicate = await checkDuplicateRecipeCode({ forSubmit: true });
     if (hasDuplicate) return;
-    setDuplicateCodeError("");
+    duplicateCheckRef.current.saving = true;
+    duplicateCheckRef.current.requestId += 1;
+    setRecipeDuplicateError("", "submit-no-duplicate-clear");
     setIsSaving(true);
     try {
       await onSave({ ...form });
-      setDuplicateCodeError("");
+      setRecipeDuplicateError("", "save-success-clear");
       setTouched({});
       setSubmitAttempted(false);
     } catch (error) {
       if (/inventory_recipes_recipe_code_unique|recipe_code/i.test(String(error?.message || error?.details || ""))) {
-        setDuplicateCodeError("Recipe code already exists.");
+        duplicateCheckRef.current.saving = false;
+        setRecipeDuplicateError("Recipe code already exists.", "supabase-unique-fallback", { error });
         touchField("recipeCode");
       }
     } finally {
+      duplicateCheckRef.current.saving = false;
       setIsSaving(false);
     }
   };

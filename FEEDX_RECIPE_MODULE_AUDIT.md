@@ -117,8 +117,28 @@ Current standard:
 | Issue | Status | Notes |
 | --- | --- | --- |
 | Create recipe fails because legacy `recipe_name` is NOT NULL | Fixed | App now mirrors `recipe_name = recipe_name_en` on create/update |
-| Recipe code duplicate discovered only after Supabase error | Fixed | Inline duplicate check added on blur; Save disabled |
+| Recipe code duplicate discovered only after Supabase error | Fixed | Inline duplicate check added on blur and rechecked before submit |
+| Unique recipe create showed false duplicate error after save | Fixed in code | Root cause was post-save list refresh self-match before modal unmounted; duplicate validation is suppressed during save/close |
 | Selling price allowed as blank/zero | Fixed | Selling price must be greater than 0 |
+
+## Recipe Create Success UAT
+
+Date: 2026-05-31
+
+Status: Pass
+
+Browser:
+- Authenticated in-app browser at `http://127.0.0.1:5173/#inventory_recipes`.
+
+Verified:
+- Add Recipe opens correctly.
+- Add Ingredient no longer shows `Qty must be greater than 0` immediately on a fresh row.
+- Unique recipe code `UATTRY002` created successfully with no duplicate error flash; success toast appeared, modal closed, and the recipe appeared in the table.
+- Existing recipe code `UATTRY002` was blocked; duplicate error appeared, modal stayed open, no success toast appeared, and no duplicate recipe was created.
+- Rapid code entry `UATRAPID312` followed immediately by Save created successfully with no stale duplicate error after success.
+
+Result:
+- Recipe duplicate-code validation race is verified fixed in browser UAT.
 
 ## P1 Issues
 
