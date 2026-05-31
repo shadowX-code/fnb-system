@@ -2515,6 +2515,7 @@ Recipe fields:
 - recipe_name
 - menu_category
 - recipe_photo_url
+- selling_price
 - serving_size
 - status
 - notes
@@ -2545,7 +2546,10 @@ Rules:
 - Recipe photo upload stores a public photo URL in `inventory_recipes.recipe_photo_url` and recipe list rows display a thumbnail when available.
 - Ingredient rows show Inventory Item, Qty Used, Unit, Unit Cost, Total Cost, Wastage %, and Remark.
 - Unit Cost reads from `inventory_items.cost`; Total Cost is `Qty Used × Unit Cost`.
-- Recipe Summary calculates Ingredient Cost, Estimated Wastage Cost, and Total Recipe Cost in real time.
+- Recipe Summary calculates Ingredient Cost, Estimated Wastage Cost, Total Recipe Cost, Selling Price, and Margin % in real time.
+- Recipe Costing Dashboard shows Total Recipes, Average Recipe Cost, Average Margin, and Highest Cost Recipe above the recipe list.
+- Recipe list columns are Recipe, Category, Ingredients, Estimated Cost, Selling Price, Margin, Status, and Actions.
+- Margin % is `((Selling Price - Estimated Cost) / Selling Price) × 100`; badges are green at 70%+, amber at 40%-69%, and red below 40%.
 - Add Recipe writes to `inventory_recipes` and `inventory_recipe_items`; success is shown only after Supabase confirms the recipe and ingredient rows.
 - Edit Recipe updates the recipe row and replaces its ingredient snapshot rows in `inventory_recipe_items`.
 - Archive Recipe sets `inventory_recipes.status = inactive`; inactive recipes are hidden from the default Active filter but remain available for audit/history when filtering by status.

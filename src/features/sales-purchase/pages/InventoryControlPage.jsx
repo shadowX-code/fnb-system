@@ -1135,6 +1135,8 @@ function mapRemoteRecipe(row = {}, items = []) {
     menuCategory: row.menu_category || "",
     recipePhotoUrl: row.recipe_photo_url || "",
     recipe_photo_url: row.recipe_photo_url || "",
+    sellingPrice: row.selling_price === null || row.selling_price === undefined ? "" : Number(row.selling_price),
+    selling_price: row.selling_price === null || row.selling_price === undefined ? "" : Number(row.selling_price),
     servingSize: row.serving_size === null || row.serving_size === undefined ? "" : String(Number(row.serving_size)),
     status: row.status || "active",
     notes: row.notes || "",
@@ -2322,11 +2324,13 @@ async function persistRemoteRecipe(recipe = {}, userId) {
   if (ingredients.some((line) => !Number.isFinite(line.wastage_percent) || line.wastage_percent < 0)) throw new Error("Wastage percentage cannot be negative.");
 
   const servingSize = Number(recipe.servingSize ?? recipe.serving_size ?? "");
+  const sellingPrice = Number(recipe.sellingPrice ?? recipe.selling_price ?? "");
   const recipePayload = {
     outlet_id: recipe.outletId,
     recipe_name: recipeName,
     menu_category: recipe.menuCategory || recipe.menu_category || null,
     recipe_photo_url: recipe.recipePhotoUrl || recipe.recipe_photo_url || null,
+    selling_price: Number.isFinite(sellingPrice) && sellingPrice >= 0 ? sellingPrice : null,
     serving_size: Number.isFinite(servingSize) && servingSize >= 0 ? servingSize : null,
     status: recipe.status || "active",
     notes: recipe.notes || null,
@@ -4374,6 +4378,25 @@ function recipeCostSummary(recipe = {}, items = []) {
   }, { ingredientCost: 0, wastageCost: 0, totalCost: 0 });
 }
 
+function recipeMarginPercent(sellingPrice, cost) {
+  const price = Number(sellingPrice || 0);
+  const totalCost = Number(cost || 0);
+  if (!price || price <= 0) return null;
+  return ((price - totalCost) / price) * 100;
+}
+
+function recipeMarginTone(margin) {
+  if (margin === null || margin === undefined || !Number.isFinite(Number(margin))) return "neutral";
+  if (margin >= 70) return "success";
+  if (margin >= 40) return "warning";
+  return "danger";
+}
+
+function formatRecipeMargin(margin) {
+  if (margin === null || margin === undefined || !Number.isFinite(Number(margin))) return "—";
+  return `${Math.round(margin)}%`;
+}
+
 function RecipeModal({ recipe, outletId, outlet, items, menuCategories, onClose, onSave }) {
   const [isSaving, setIsSaving] = useState(false);
   const [photoPreview, setPhotoPreview] = useState(recipe?.recipePhotoUrl || recipe?.recipe_photo_url || "");
@@ -4384,6 +4407,7 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, onClose,
     menuCategory: recipe?.menuCategory || recipe?.menu_category || menuCategories.find((category) => category.status === "active")?.name || recipeMenuCategories[0],
     recipePhotoUrl: recipe?.recipePhotoUrl || recipe?.recipe_photo_url || "",
     recipePhotoFile: null,
+    sellingPrice: recipe?.sellingPrice ?? recipe?.selling_price ?? "",
     servingSize: recipe?.servingSize || recipe?.serving_size || "1",
     status: recipe?.status || "active",
     notes: recipe?.notes || "",
@@ -4428,6 +4452,7 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, onClose,
   };
   const removeIngredient = (id) => setForm((current) => ({ ...current, ingredients: current.ingredients.filter((line) => line.id !== id) }));
   const summary = recipeCostSummary(form, items);
+  const margin = recipeMarginPercent(form.sellingPrice, summary.totalCost);
   const categoryOptions = menuCategories
     .filter((category) => category.status === "active")
     .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0) || a.name.localeCompare(b.name))
@@ -4474,6 +4499,7 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, onClose,
           <SelectField label="Menu Category" value={form.menuCategory} options={safeCategoryOptions} onChange={(value) => update("menuCategory", value)} />
           <SelectField label="Status" value={form.status} options={statuses.map((status) => ({ value: status, label: toTitle(status) }))} onChange={(value) => update("status", value)} />
           <Field label="Serving Size / Yield" value={form.servingSize} onChange={(value) => update("servingSize", value)} placeholder="1" />
+          <Field label="Selling Price" type="number" value={form.sellingPrice} onChange={(value) => update("sellingPrice", parseNonNegativeNumber(value))} placeholder="0.00" />
           <label>
             <div className="mb-1 type-caption font-semibold text-text-secondary">Recipe Photo</div>
             <div className="flex items-center gap-3">
@@ -4530,10 +4556,12 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, onClose,
             </div>
           ) : <EmptyState title="No ingredients yet" description={availableItems.length ? "Add ingredients to define usage per serving." : "No active outlet-linked inventory items are available for this outlet."} />}
         </div>
-        <div className="grid gap-3 sm:grid-cols-3">
+        <div className="grid gap-3 sm:grid-cols-5">
           <MetricCard label="Ingredient Cost" value={toCurrency(summary.ingredientCost)} helper="Before wastage" size="compact" />
           <MetricCard label="Estimated Wastage Cost" value={toCurrency(summary.wastageCost)} helper="Based on wastage %" tone={summary.wastageCost ? "warning" : "neutral"} size="compact" />
           <MetricCard label="Total Recipe Cost" value={toCurrency(summary.totalCost)} helper="Ingredient + wastage" tone="success" size="compact" />
+          <MetricCard label="Selling Price" value={form.sellingPrice !== "" ? toCurrency(form.sellingPrice) : "—"} helper="Menu price" size="compact" />
+          <MetricCard label="Margin %" value={formatRecipeMargin(margin)} helper="Price vs cost" tone={recipeMarginTone(margin)} size="compact" />
         </div>
       </div>
     </Modal>
@@ -4543,6 +4571,7 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, onClose,
 function RecipeDetailModal({ recipe, outlet, items, categories, onClose, onEdit }) {
   const ingredients = recipe?.ingredients || [];
   const summary = recipeCostSummary(recipe, items);
+  const margin = recipeMarginPercent(recipe?.sellingPrice ?? recipe?.selling_price, summary.totalCost);
   return (
     <Modal
       title={recipe?.recipeName || "Recipe"}
@@ -4565,12 +4594,12 @@ function RecipeDetailModal({ recipe, outlet, items, categories, onClose, onEdit 
         <div className="grid gap-3 sm:grid-cols-3">
           <MetricCard label="Ingredients" value={ingredients.length} helper="BOM rows" />
           <MetricCard label="Total Recipe Cost" value={toCurrency(summary.totalCost)} helper="Ingredient + wastage" tone="success" />
-          <MetricCard label="Status" value={toTitle(recipe?.status || "active")} helper="Recipe lifecycle" tone={statusTone(recipe?.status || "active")} />
+          <MetricCard label="Margin %" value={formatRecipeMargin(margin)} helper={recipe?.sellingPrice ? `Selling price ${toCurrency(recipe.sellingPrice)}` : "No selling price"} tone={recipeMarginTone(margin)} />
         </div>
         <div className="grid gap-3 sm:grid-cols-3">
           <MetricCard label="Serving Size" value={recipe?.servingSize || "1 portion"} helper="Yield basis" size="compact" />
           <MetricCard label="Ingredient Cost" value={toCurrency(summary.ingredientCost)} helper="Before wastage" size="compact" />
-          <MetricCard label="Estimated Wastage Cost" value={toCurrency(summary.wastageCost)} helper="Based on wastage %" tone={summary.wastageCost ? "warning" : "neutral"} size="compact" />
+          <MetricCard label="Status" value={toTitle(recipe?.status || "active")} helper="Recipe lifecycle" tone={statusTone(recipe?.status || "active")} size="compact" />
         </div>
         <div className="overflow-x-auto rounded-2xl border border-border">
           <table className="w-full min-w-[900px] text-left">
@@ -6637,6 +6666,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         recipeName: String(recipe.recipeName || "").trim(),
         recipePhotoUrl,
         recipe_photo_url: recipePhotoUrl,
+        sellingPrice: recipe.sellingPrice === "" || recipe.sellingPrice === null || recipe.sellingPrice === undefined ? "" : Number(recipe.sellingPrice),
+        selling_price: recipe.sellingPrice === "" || recipe.sellingPrice === null || recipe.sellingPrice === undefined ? "" : Number(recipe.sellingPrice),
         ingredients: (recipe.ingredients || []).map((line) => {
           const item = itemById.get(line.itemId);
           return {
@@ -8436,6 +8467,19 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         && (recipeFilters.status === "all" || recipe.status === recipeFilters.status)
         && (!recipeFilters.search.trim() || searchText.includes(recipeFilters.search.trim().toLowerCase()));
     });
+    const recipeCostRows = filteredRecipes.map((recipe) => {
+      const summary = recipeCostSummary(recipe, data.items);
+      const margin = recipeMarginPercent(recipe.sellingPrice ?? recipe.selling_price, summary.totalCost);
+      return { recipe, summary, margin };
+    });
+    const averageRecipeCost = recipeCostRows.length
+      ? recipeCostRows.reduce((sum, row) => sum + row.summary.totalCost, 0) / recipeCostRows.length
+      : 0;
+    const pricedMargins = recipeCostRows.filter((row) => row.margin !== null && Number.isFinite(Number(row.margin)));
+    const averageMargin = pricedMargins.length
+      ? pricedMargins.reduce((sum, row) => sum + row.margin, 0) / pricedMargins.length
+      : null;
+    const highestCostRecipe = recipeCostRows.reduce((highest, row) => !highest || row.summary.totalCost > highest.summary.totalCost ? row : highest, null);
 
     return (
       <div className="space-y-4">
@@ -8451,41 +8495,49 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             </div>
           </label>
         </div>
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+          <MetricCard label="Total Recipes" value={filteredRecipes.length} helper="Current filters" size="compact" />
+          <MetricCard label="Average Recipe Cost" value={toCurrency(averageRecipeCost)} helper="Ingredient + wastage" size="compact" />
+          <MetricCard label="Average Margin" value={formatRecipeMargin(averageMargin)} helper="Priced recipes only" tone={recipeMarginTone(averageMargin)} size="compact" />
+          <MetricCard label="Highest Cost Recipe" value={highestCostRecipe?.recipe?.recipeName || "—"} helper={highestCostRecipe ? toCurrency(highestCostRecipe.summary.totalCost) : "No recipes"} tone={highestCostRecipe?.summary?.totalCost ? "warning" : "neutral"} size="compact" />
+        </div>
         <DashboardSection title="Recipe BOM Setup" subtitle="Link menu/product items to outlet-linked inventory ingredients.">
           {filteredRecipes.length ? (
             <div className="overflow-x-auto rounded-2xl border border-border">
               <table className="w-full min-w-[980px] text-left">
                 <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
                   <tr>
-                    <th className="px-3 py-2">Menu Item / Recipe Name</th>
-                    <th>Outlet</th>
+                    <th className="px-3 py-2">Recipe</th>
                     <th>Category</th>
                     <th>Ingredients</th>
                     <th>Estimated Cost</th>
+                    <th>Selling Price</th>
+                    <th>Margin</th>
                     <th>Status</th>
                     <th className="text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border text-[13px]">
-                  {filteredRecipes.map((recipe) => (
+                  {recipeCostRows.map(({ recipe, summary, margin }) => (
                     <tr key={recipe.id} className="transition hover:bg-primary/5">
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-3">
-                          <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-2xl border border-border bg-slate-100">
+                          <div className="h-14 w-14 flex-shrink-0 overflow-hidden rounded-2xl border border-border bg-slate-100">
                             {recipe.recipePhotoUrl || recipe.recipe_photo_url
                               ? <img className="h-full w-full object-cover" src={recipe.recipePhotoUrl || recipe.recipe_photo_url} alt={recipe.recipeName} />
-                              : <div className="flex h-full w-full items-center justify-center text-xs font-black text-text-muted">{String(recipe.recipeName || "R").slice(0, 1).toUpperCase()}</div>}
+                              : <div className="flex h-full w-full items-center justify-center text-sm font-black text-text-muted">{String(recipe.recipeName || "R").slice(0, 1).toUpperCase()}</div>}
                           </div>
                           <div className="min-w-0">
                             <div className="font-bold text-text-primary">{recipe.recipeName}</div>
-                            <div className="type-caption text-text-secondary">{recipe.servingSize || "1 portion"}</div>
+                            <div className="type-caption text-text-secondary">{outletById.get(recipe.outletId)?.name || "Outlet"} · {recipe.servingSize || "1 portion"}</div>
                           </div>
                         </div>
                       </td>
-                      <td>{outletById.get(recipe.outletId)?.name || "Outlet"}</td>
                       <td><Badge tone="info">{recipe.menuCategory || "Uncategorized"}</Badge></td>
                       <td>{(recipe.ingredients || []).length} ingredient{(recipe.ingredients || []).length === 1 ? "" : "s"}</td>
-                      <td className="font-semibold text-text-primary">{toCurrency(recipeCostSummary(recipe, data.items).totalCost)}</td>
+                      <td className="font-black text-text-primary">{toCurrency(summary.totalCost)}</td>
+                      <td className="font-bold text-text-secondary">{recipe.sellingPrice !== "" && recipe.sellingPrice !== null && recipe.sellingPrice !== undefined ? toCurrency(recipe.sellingPrice) : "—"}</td>
+                      <td><Badge tone={recipeMarginTone(margin)}>{formatRecipeMargin(margin)}</Badge></td>
                       <td><Badge tone={statusTone(recipe.status)}>{toTitle(recipe.status || "active")}</Badge></td>
                       <td>
                         <div className="flex justify-end gap-2">
