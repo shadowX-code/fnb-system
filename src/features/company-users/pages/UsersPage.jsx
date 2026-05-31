@@ -434,6 +434,23 @@ function UserFormModal({
   const isViewMode = mode === "view";
   const isEndedEmployment = ["resigned", "terminated"].includes(values.employment_status);
   const accessState = getAccessState(values);
+  const savedAccessEnabled = Boolean(initialUser.enable_system_login ?? initialUser.email ?? initialUser.role ?? initialUser.email_verified ?? initialUser.last_login_at);
+  const savedAccessState = normalizeEmployeeAccessState(
+    initialUser.access_state ?? (savedAccessEnabled ? EMPLOYEE_ACCESS_STATE.NOT_SENT : EMPLOYEE_ACCESS_STATE.NO_ACCESS),
+    savedAccessEnabled,
+  );
+  const savedLoginEmail = String(initialUser.email || "").trim().toLowerCase();
+  const currentLoginEmail = String(values.email || "").trim().toLowerCase();
+  const savedRoleId = String(initialUser.role_id || "").trim();
+  const currentRoleId = String(values.role_id || "").trim();
+  const accessSetupHasUnsavedChanges = (
+    Boolean(values.enable_system_login) !== savedAccessEnabled ||
+    currentLoginEmail !== savedLoginEmail ||
+    currentRoleId !== savedRoleId ||
+    accessState !== savedAccessState
+  );
+  const savedAccessCanGenerateSetup = mode === "edit" && Boolean(initialUser.id && savedAccessEnabled && savedLoginEmail && savedRoleId);
+  const setupActionDisabled = !canResetPassword || setupAction === "manual_link" || accessSetupHasUnsavedChanges || !savedAccessCanGenerateSetup;
   const accessHasLoginMetadata = Boolean(values.email || values.role || values.role_id || values.auth_user_id || values.last_login_at);
   const shouldShowAccessSetup = showAccessSetup || (values.enable_system_login && accessState !== EMPLOYEE_ACCESS_STATE.ACTIVE && accessState !== EMPLOYEE_ACCESS_STATE.DISABLED);
   const isMalaysia = isMalaysiaNationality(values.nationality);
@@ -664,6 +681,10 @@ function UserFormModal({
       notifyPermissionDenied(ui, "send password setup links");
       return;
     }
+    if (accessSetupHasUnsavedChanges || !savedAccessCanGenerateSetup) {
+      ui.notify({ title: "Save employee first before generating setup link.", message: "Save this employee before sending login setup.", tone: "error" });
+      return;
+    }
     if (!values.email) {
       ui.notify({ title: "Email required", message: "Add an email before sending login setup.", tone: "error" });
       return;
@@ -684,6 +705,10 @@ function UserFormModal({
   async function generateSetupLinkForExistingEmployee() {
     if (!canResetPassword) {
       notifyPermissionDenied(ui, "generate password setup links");
+      return;
+    }
+    if (accessSetupHasUnsavedChanges || !savedAccessCanGenerateSetup) {
+      ui.notify({ title: "Save employee first before generating setup link.", message: "Save this employee before generating a setup link.", tone: "error" });
       return;
     }
     if (!values.email) {
@@ -1082,14 +1107,17 @@ function UserFormModal({
                     {mode === "edit" ? (
                       <div className="rounded-xl border border-border bg-surface px-3 py-2.5">
                         <div className="text-xs font-semibold text-text-secondary">Setup Link</div>
+                        {accessSetupHasUnsavedChanges || !savedAccessCanGenerateSetup ? (
+                          <p className="mt-1 text-xs font-semibold text-amber-700">Save this employee before generating a setup link.</p>
+                        ) : null}
                         <div className="mt-2 flex flex-wrap gap-2">
-                          <button className="btn-secondary h-9 px-3 text-xs" type="button" disabled={!canResetPassword} onClick={sendLoginSetupForExistingEmployee}>
+                          <button className="btn-secondary h-9 px-3 text-xs" type="button" disabled={setupActionDisabled} onClick={sendLoginSetupForExistingEmployee}>
                             <KeyRound size={14} /> Send Login Setup Email
                           </button>
                           <button
                             className="btn-secondary h-9 px-3 text-xs"
                             type="button"
-                            disabled={!canResetPassword || setupAction === "manual_link"}
+                            disabled={setupActionDisabled}
                             onClick={generateSetupLinkForExistingEmployee}
                           >
                             <KeyRound size={14} /> {setupAction === "manual_link" ? "Generating..." : "Generate Setup Link"}
