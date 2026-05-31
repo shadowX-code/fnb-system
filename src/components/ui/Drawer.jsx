@@ -47,7 +47,7 @@ export default function Drawer({
         aria-label="Close drawer backdrop"
         onClick={closeOnOverlay ? onClose : undefined}
       />
-      <aside className={`flex h-full w-full ${widthClass} flex-col border-l border-border bg-surface shadow-2xl ${className}`}>
+      <aside className={`relative z-modal-content-layer flex h-full w-full ${widthClass} flex-col border-l border-border bg-surface shadow-2xl ${className}`}>
         {header === false ? null : header ?? (
           <header className="sticky top-0 z-sticky-layer shrink-0 border-b border-border bg-surface/95 p-4 shadow-sm backdrop-blur">
             <div className="flex items-start justify-between gap-3">

@@ -10,12 +10,16 @@ function readRecoveryCallback() {
   const type = hashParams.get("type") || queryParams.get("type");
   const accessToken = hashParams.get("access_token") || queryParams.get("access_token");
   const refreshToken = hashParams.get("refresh_token") || queryParams.get("refresh_token");
-  if (type !== "recovery" || !accessToken || !refreshToken) return null;
+  if (!["invite", "recovery"].includes(type) || !accessToken || !refreshToken) return null;
   return { accessToken, refreshToken };
 }
 
 function clearAuthCallbackUrl() {
-  window.history.replaceState(null, "", `${window.location.pathname}#dashboard`);
+  window.history.replaceState(null, "", `${window.location.origin}/#dashboard`);
+}
+
+function setSetupPasswordUrl() {
+  window.history.replaceState(null, "", `${window.location.origin}/setup-password`);
 }
 
 export function AuthProvider({ children }) {
@@ -61,6 +65,18 @@ export function AuthProvider({ children }) {
       setPermissions(context.permissions);
       setSource(context.source);
     } catch (loadError) {
+      if (authService.isPasswordSetupRequiredError(loadError)) {
+        passwordRecoveryRef.current = true;
+        setPasswordRecovery(true);
+        setProfile(null);
+        setPermissions([]);
+        setSource("password-setup-required");
+        setError("");
+        setSetupPasswordUrl();
+        setLoading(false);
+        setContextLoading(false);
+        return;
+      }
       console.error("Unable to load user context", loadError);
       setError(loadError.message === "Unable to load role permissions." ? loadError.message : "Unable to load your access permissions. Please contact admin.");
       setProfile(null);
@@ -86,6 +102,7 @@ export function AuthProvider({ children }) {
           setProfile(null);
           setPermissions([]);
           setSource("password-recovery");
+          setSetupPasswordUrl();
           setLoading(false);
           setContextLoading(false);
         })
@@ -122,6 +139,7 @@ export function AuthProvider({ children }) {
         setProfile(null);
         setPermissions([]);
         setSource("password-recovery");
+        setSetupPasswordUrl();
         setLoading(false);
         setContextLoading(false);
         return;
@@ -148,6 +166,8 @@ export function AuthProvider({ children }) {
   async function completePasswordSetup(newPassword) {
     setError("");
     await authService.updatePassword(newPassword);
+    const setupSession = await authService.getSession();
+    await authService.completeEmployeePasswordSetup(setupSession?.user ?? user);
     clearAuthCallbackUrl();
     passwordRecoveryRef.current = false;
     setPasswordRecovery(false);

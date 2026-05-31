@@ -4,6 +4,7 @@ import { isProtectedRoleName } from "./rbac.js";
 
 const roleSelectWithOutletAccess = "*, role:roles(id,name,description,outlet_access_type)";
 const roleSelectFallback = "*, role:roles(id,name,description)";
+const PASSWORD_SETUP_REQUIRED_CODE = "PASSWORD_SETUP_REQUIRED";
 
 function isMissingOutletAccessColumnError(error) {
   const message = String(error?.message ?? error?.details ?? "");
@@ -41,15 +42,18 @@ async function loadEmployeeProfile(user) {
   return data ? normalizeContextProfile(data, "employees") : null;
 }
 
-async function activateEmployeeProfile(profile, user) {
-  if (!profile?.enable_system_login || profile.access_state === EMPLOYEE_ACCESS_STATE.NO_ACCESS) return profile;
-  if (profile.access_state === EMPLOYEE_ACCESS_STATE.DISABLED) return profile;
+function createPasswordSetupRequiredError(profile) {
+  const error = new Error("Password setup is required before entering FeedX.");
+  error.code = PASSWORD_SETUP_REQUIRED_CODE;
+  error.profile = profile;
+  return error;
+}
 
+async function touchActiveEmployeeLogin(profile, user) {
   const queryProfile = (select) => supabase
     .from("employees")
     .update({
       auth_user_id: user.id,
-      access_state: EMPLOYEE_ACCESS_STATE.ACTIVE,
       email_verified: true,
       is_active: true,
       last_login_at: new Date().toISOString(),
@@ -65,11 +69,25 @@ async function activateEmployeeProfile(profile, user) {
     ({ data, error } = await queryProfile(roleSelectFallback));
   }
   if (error) {
-    console.error("Unable to activate employee login", error);
+    console.error("Unable to update employee login timestamp", error);
     return profile;
   }
 
   return normalizeContextProfile(data, "employees");
+}
+
+async function completeEmployeePasswordSetup(user) {
+  if (!user?.id) throw new Error("Password setup session is not available.");
+  const { error } = await supabase.rpc("complete_employee_password_setup");
+  if (error) {
+    console.error("Unable to complete employee password setup", error);
+    throw new Error(error.message || "Unable to complete password setup.");
+  }
+  const profile = await loadEmployeeProfile(user);
+  if (!profile || profile.access_state !== EMPLOYEE_ACCESS_STATE.ACTIVE) {
+    throw new Error("Password was updated, but employee access was not activated.");
+  }
+  return profile;
 }
 
 async function loadLegacyUserProfile(user) {
@@ -145,6 +163,14 @@ export const authService = {
     return data;
   },
 
+  async completeEmployeePasswordSetup(user) {
+    return completeEmployeePasswordSetup(user);
+  },
+
+  isPasswordSetupRequiredError(error) {
+    return error?.code === PASSWORD_SETUP_REQUIRED_CODE;
+  },
+
   async getUserContext(user) {
     let profile = await loadEmployeeProfile(user) ?? await loadLegacyUserProfile(user);
 
@@ -152,16 +178,24 @@ export const authService = {
       throw new Error("No employee profile is linked to this login.");
     }
 
-    if (profile.source === "employees") {
-      profile = await activateEmployeeProfile(profile, user);
+    if (profile.source === "employees" && (!profile.enable_system_login || profile.access_state === EMPLOYEE_ACCESS_STATE.NO_ACCESS)) {
+      throw new Error("Employee system access is not active.");
     }
 
-    if (profile.is_active === false || profile.access_state === EMPLOYEE_ACCESS_STATE.DISABLED) {
+    if (profile.access_state === EMPLOYEE_ACCESS_STATE.DISABLED) {
       throw new Error("Employee profile is inactive.");
     }
 
-    if (profile.access_state !== EMPLOYEE_ACCESS_STATE.ACTIVE) {
-      throw new Error("Employee system access is not active.");
+    if (profile.source === "employees" && profile.access_state !== EMPLOYEE_ACCESS_STATE.ACTIVE) {
+      throw createPasswordSetupRequiredError(profile);
+    }
+
+    if (profile.is_active === false) {
+      throw new Error("Employee profile is inactive.");
+    }
+
+    if (profile.source === "employees") {
+      profile = await touchActiveEmployeeLogin(profile, user);
     }
 
     if (!profile.role_id) {

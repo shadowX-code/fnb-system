@@ -2953,7 +2953,8 @@ Rules:
 - System Access OFF / no login means no_access.
 - Enable Access with no setup email means not_sent.
 - Send Login Setup changes state to invited.
-- Successful password setup changes state to active.
+- Successful password setup changes state to active and writes `employees.setup_completed_at`.
+- Setup password links must redirect to `/setup-password`. They may create a temporary Supabase invite/recovery session, but that session must not enter the FeedX app while `access_state` is `not_sent` or `invited`. The auth guard must allow only the setup-password route until `supabase.auth.updateUser({ password })` and the `complete_employee_password_setup()` RPC both succeed.
 - Disabled access changes state to disabled.
 - Employee workplace must be either a real outlet assignment or `Management`; it must never be `All Outlets`.
 - `Management` is an HQ/management workplace label, not an outlet. It is stored as `employees.workplace = 'Management'` until the future `employees.outlet_id` migration, has no outlet id, and remains separate from role outlet access.
@@ -3709,13 +3710,16 @@ Frontend fallback behavior:
 - Email setup failure with canGenerateManualLink shows a warning modal with Generate Setup Link.
 - Employees already in Invitation Pending can still resend setup email or generate a manual setup link.
 - Manual setup links are copyable and do not expose passwords.
+- Supabase invite and recovery setup links must use `redirectTo = APP_URL/setup-password`, not the app root.
 
 Password recovery:
 
-- Detect recovery callback tokens.
-- Establish session from URL.
-- Show Set New Password screen.
+- Detect invite/recovery callback tokens.
+- Establish a temporary setup session from URL.
+- Show Set New Password screen and replace callback tokens with `/setup-password`.
+- Block dashboard/app routes while employee access is not active.
 - Call `supabase.auth.updateUser({ password })`.
+- Call `complete_employee_password_setup()` to set `access_state = active`, `setup_completed_at`, and login metadata.
 - Clear tokens.
 - Refresh profile.
 - Redirect to app/login.
@@ -3943,7 +3947,8 @@ Create employee
 → Send Login Setup Email
 → Edge Function sends setup email
 → Employee sets password
-→ access_state becomes active
+→ Setup completion RPC sets access_state = active and setup_completed_at
+→ App access is allowed
 
 Disable Access:
 → Set access_state = disabled
@@ -4350,19 +4355,26 @@ Z-index scale:
 ```text
 base: 0
 sticky: 30
-drawer: 50
-modal: 60
-popover: 70
-tooltip: 80
-lightbox: 90
+drawer overlay: 100
+modal overlay: 100
+modal/drawer content: 110
+popover: 150
+tooltip: 160
+lightbox: 180
+confirmation overlay: 200
+confirmation content: 210
+toast: 9999
 ```
 
 Layering rules:
 
 - Drawers sit above normal page content.
-- Modals sit above drawers.
+- Modals and drawers use the shared overlay/content layer and must not rely on page-local z-index values.
 - Popovers opened from drawers or modals sit above their parent surface.
 - Tooltips and lightboxes sit above popovers.
+- Confirmation dialogs opened from a modal or drawer must use the shared global ConfirmDialog layer so destructive confirmations always render above the parent surface.
+- Nested confirmation examples include Disable Access, Archive Recipe, Archive Inventory Item, Delete Draft Audit, Delete Draft Stock Check, Archive Employee, and future destructive actions.
+- Toasts must remain above modals, confirmations, and lightboxes so modal action feedback is always readable.
 - Avoid arbitrary high z-index values such as z-[9999] unless there is a temporary migration reason.
 - New overlay UI must use the shared primitives before adding page-local layering code.
 

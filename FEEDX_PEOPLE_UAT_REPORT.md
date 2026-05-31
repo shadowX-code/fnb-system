@@ -23,6 +23,7 @@ Critical fixes applied:
 - Outlet bootstrap and outlet RLS now include Employee permissions so People-only roles can load their accessible outlet list.
 - Employment structure migration `202605310009_employee_employment_structure.sql` separates Employment Type, Employment Status, and System Access, with a migration report table for legacy status/type mapping review.
 - System Access UX now separates HR profile editing from login lifecycle actions. Active accounts show Disable Access / Change Login Email, pending accounts show setup-link actions, and no-access accounts show Enable Access.
+- Setup password links now create only a temporary setup session. Pending/not-sent/invited employees cannot enter the app until password creation succeeds and `setup_completed_at` is written.
 - Department delete now checks active linked positions and active employees before hard delete; archive/inactive remains the preferred path.
 
 ## UAT Matrix
@@ -63,6 +64,7 @@ Critical fixes applied:
 | Outlet Access | Selected Outlets role | Pass | Access type `selected` only includes assigned outlets; future outlets are not automatic. | None |
 | Employee Login | Send setup email | Pass with caveat | Edge function path persists invited state after function success; SMTP availability depends on Supabase configuration. | External |
 | Employee Login | Generate manual setup link | Pass with caveat | Uses same edge function with manual-link mode; requires function availability. | External |
+| Employee Login | Setup password route guard | Pass | Invite/recovery setup sessions are blocked from dashboard access while employee access is `not_sent`/`invited`; the app stays on `/setup-password` until password update and setup completion succeed. | Fixed Critical |
 | Direct Route Protection | No view permission | Pass | Route/sidebar derive from registry and view permission; inaccessible routes fall back to first accessible route. | None |
 | Direct Route Protection | View-only user | Pass | Page is visible but create/edit/delete actions are hidden or disabled. | None |
 | Direct Route Protection | Edit user | Pass | Edit actions appear when matching edit/create/deactivate/reset permissions are present. | None |
@@ -97,6 +99,8 @@ Test employee: `Phoenix Wong Kar Yan` (`Phoenix`) was used for reversible stagin
 | Disable Access toast timing | Pass | Row-menu Disable Access now awaits the Supabase save before showing the success toast; failures show the existing employee update error toast. |
 | Re-enable Access setup state | Pass | Re-enable path moved the employee to `access_state = not_sent`, preserved login email and role, and browser UI exposed setup fields with `Send Login Setup Email` and `Generate Setup Link`. |
 | Generate setup link | Pass | Browser UAT generated a manual setup link for an already pending staging employee (`CCC` / `idamans.hq@gmail.com`) when email delivery was unavailable; setup-link generation completed successfully without exposing the link in the report. |
+| Setup link redirect target | Pending browser retest | The onboarding Edge Function now sends Supabase invite/recovery links with `redirectTo = APP_URL/setup-password` instead of the app root. |
+| Setup link refresh guard | Pending browser retest | Code path now treats Supabase invite/recovery sessions as temporary setup sessions. Refreshing `/setup-password` or navigating directly to dashboard with `access_state = not_sent/invited` is redirected back to `/setup-password` until the password is saved. |
 | Change Login Email state | Pass | Login email change was verified with a temporary staging email; it moved the employee to `not_sent`, set `email_verified = false`, cleared `verification_sent_at`, and preserved role/auth metadata for setup-required flow. |
 | Historical record name display | Pass | Inventory Movements browser check showed employee names such as `Isaac` and `Dason Yap`; no raw UUID-shaped values were visible in the rendered movement records. |
 | Test data restored | Pass | Phoenix was restored to `email = jymt.kopitiam@gmail.com`, `access_state = active`, `is_active = true`, `enable_system_login = true`, `email_verified = true`, original `role_id`, original `auth_user_id`, and original `last_login_at`. |
@@ -106,6 +110,7 @@ Test employee: `Phoenix Wong Kar Yan` (`Phoenix`) was used for reversible stagin
 | Severity | Bug | Fix |
 |---|---|---|
 | Critical | Selected-outlet People users could potentially read all employee rows because `employees.view` RLS was not outlet-scoped. | Added `202605300100_people_employee_outlet_scope.sql` to scope employee select/insert/update by workplace outlet. |
+| Critical | Setup password links could create a Supabase session and app context before the employee actually set a password. | Removed automatic employee activation from auth context loading; added `complete_employee_password_setup()` RPC and setup route guard so activation happens only after password update succeeds. |
 | Critical | Employee workplace allowed `All Outlets`, which is an access filter concept, not an employee assignment. | Removed `All Outlets` from employee workplace options and limited options to accessible outlets, with `Management` as the explicit non-outlet HQ workplace. |
 | High | Department hard delete did not enforce the rule that departments used by active employees/positions should not be deleted. | Added service-level active position and employee checks before department delete. |
 | High | Employee department could drift from position because the employee form did not persist department after position change. | Employee save now derives department from the selected position. |

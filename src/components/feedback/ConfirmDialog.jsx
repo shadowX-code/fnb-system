@@ -1,10 +1,31 @@
+import { useEffect } from "react";
+import { createPortal } from "react-dom";
+
 export default function ConfirmDialog({ request, onCancel, onConfirm }) {
+  useEffect(() => {
+    if (!request) return undefined;
+    function handleKeyDown(event) {
+      if (event.key === "Escape") onCancel?.();
+    }
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [onCancel, request]);
+
   if (!request) return null;
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm">
-      <div className="w-full max-w-md rounded-2xl border border-border bg-white p-5 shadow-card">
-        <h2 className="text-base font-bold text-text-primary">{request.title}</h2>
+  return createPortal(
+    <div
+      className="fixed inset-0 z-confirm-layer flex items-center justify-center bg-slate-950/40 p-4 backdrop-blur-sm"
+      role="dialog"
+      aria-modal="true"
+      aria-labelledby="confirm-dialog-title"
+      onMouseDown={onCancel}
+    >
+      <div
+        className="relative z-confirm-content-layer w-full max-w-md rounded-2xl border border-border bg-surface p-5 shadow-2xl"
+        onMouseDown={(event) => event.stopPropagation()}
+      >
+        <h2 id="confirm-dialog-title" className="text-base font-bold text-text-primary">{request.title}</h2>
         <p className="mt-2 text-sm text-text-secondary">{request.message}</p>
         <div className="mt-5 flex justify-end gap-2">
           <button className="btn-secondary" type="button" onClick={onCancel}>
@@ -19,6 +40,7 @@ export default function ConfirmDialog({ request, onCancel, onConfirm }) {
           </button>
         </div>
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }

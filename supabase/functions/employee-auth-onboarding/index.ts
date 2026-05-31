@@ -160,7 +160,7 @@ async function handleRequest(request: Request) {
     }, 400);
   }
 
-  const redirectTo = siteUrl ? `${siteUrl.replace(/\/$/, "")}/` : undefined;
+  const redirectTo = siteUrl ? `${siteUrl.replace(/\/$/, "")}/setup-password` : undefined;
   const existingUser = await findAuthUserByEmail(adminClient, email);
   let authUser = existingUser;
   let mode: "email" | "manual_link" = "email";

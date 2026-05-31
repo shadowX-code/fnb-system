@@ -86,11 +86,14 @@
     --leading-body-ui: 1.45;
     --z-base: 0;
     --z-sticky: 30;
-    --z-drawer: 50;
-    --z-modal: 60;
-    --z-popover: 70;
-    --z-tooltip: 80;
-    --z-lightbox: 90;
+    --z-drawer: 100;
+    --z-modal: 100;
+    --z-modal-content: 110;
+    --z-popover: 150;
+    --z-tooltip: 160;
+    --z-lightbox: 180;
+    --z-confirm: 200;
+    --z-confirm-content: 210;
     --z-toast: 9999;
   }
 
@@ -345,6 +348,10 @@
     z-index: var(--z-modal);
   }
 
+  .z-modal-content-layer {
+    z-index: var(--z-modal-content);
+  }
+
   .z-popover-layer {
     z-index: var(--z-popover);
   }
@@ -355,6 +362,14 @@
 
   .z-lightbox-layer {
     z-index: var(--z-lightbox);
+  }
+
+  .z-confirm-layer {
+    z-index: var(--z-confirm);
+  }
+
+  .z-confirm-content-layer {
+    z-index: var(--z-confirm-content);
   }
 
   .z-toast-layer {

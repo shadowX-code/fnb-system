@@ -21,7 +21,7 @@ export default function Modal({
 
   return (
     <div className="fixed inset-0 z-modal-layer flex items-center justify-center bg-slate-950/30 p-4 backdrop-blur-sm">
-      <div className={`flex max-h-[85vh] w-full ${widthClass} flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-card ${panelClassName}`}>
+      <div className={`relative z-modal-content-layer flex max-h-[85vh] w-full ${widthClass} flex-col overflow-hidden rounded-2xl border border-border bg-white shadow-card ${panelClassName}`}>
         <div className="shrink-0 flex items-start justify-between gap-4 border-b border-border p-4">
           <div>
             <h2 className="type-title font-bold text-text-primary">{title}</h2>
