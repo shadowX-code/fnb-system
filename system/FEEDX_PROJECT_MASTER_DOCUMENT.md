@@ -2551,7 +2551,7 @@ Recipe item fields:
 Rules:
 
 - Recipes are outlet-scoped.
-- Recipe naming uses `recipe_code`, `recipe_name_en`, and `recipe_name_cn` only. New recipe forms require all three fields; the legacy single `recipe_name` column is retained only for migration/read fallback and must not be used for new writes.
+- Recipe naming uses `recipe_code`, `recipe_name_en`, and `recipe_name_cn` as the canonical UI/integration fields. New recipe forms require all three fields. Current staging schema still has a legacy `inventory_recipes.recipe_name` NOT NULL dependency from the original table, so create/update writes mirror `recipe_name = recipe_name_en` as a temporary compatibility bridge until the final schema migration removes the legacy requirement.
 - `recipe_code` is the unique operational identity for recipes and is the primary identity shown in Menu Engineering Matrix and future integrations.
 - Legacy recipes with only `recipe_name` are migrated by copying that value into `recipe_name_en` and assigning a `LEGACY-...` recipe code. Recipes with blank `recipe_name_cn` require manual cleanup before they are considered fully standardized.
 - Future Product Analytics recipe matching priority is: `recipe_code`, then `recipe_name_en`, then `recipe_name_cn`.

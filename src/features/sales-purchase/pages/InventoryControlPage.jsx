@@ -2455,6 +2455,7 @@ async function persistRemoteRecipe(recipe = {}, userId) {
   const recipePayload = {
     outlet_id: recipe.outletId,
     recipe_code: code,
+    recipe_name: nameEn,
     recipe_name_en: nameEn,
     recipe_name_cn: nameCn,
     menu_category: recipe.menuCategory || recipe.menu_category || null,
@@ -7198,6 +7199,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         recipeCode: recipeCode(recipe),
         recipe_code: recipeCode(recipe),
         recipeNameEn: recipeNameEn(recipe),
+        recipe_name: recipeNameEn(recipe),
         recipe_name_en: recipeNameEn(recipe),
         recipeNameCn: recipeNameCn(recipe),
         recipe_name_cn: recipeNameCn(recipe),
