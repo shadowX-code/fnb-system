@@ -1592,7 +1592,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
         if (ignore) return;
         setEmployees(employeeRows.filter((employee) => (
           employee.is_active !== false &&
-          employee.employment_status !== "resigned" &&
+          employee.employment_status === "active" &&
           (!employee.workplace || employee.workplace === outletId || employee.workplace === activeOutlets.find((outlet) => outlet.id === outletId)?.name)
         )));
         setJobPositions(positionRows);

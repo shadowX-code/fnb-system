@@ -27,7 +27,7 @@ export const jobPositionService = {
     throwSupabaseError("job_positions.employee_counts", employeesResult.error);
     const employeeCounts = new Map();
     (employeesResult.data ?? []).forEach((employee) => {
-      if (!employee.position || employee.employment_status === "resigned") return;
+      if (!employee.position || employee.employment_status !== "active") return;
       employeeCounts.set(employee.position, (employeeCounts.get(employee.position) ?? 0) + 1);
     });
 
@@ -83,7 +83,7 @@ export const jobPositionService = {
         .from("employees")
         .select("id", { count: "exact", head: true })
         .eq("position", positionName)
-        .neq("employment_status", "resigned");
+        .eq("employment_status", "active");
 
       throwSupabaseError("job_positions.delete_employee_count", employeeCountError);
       if (Number(count || 0) > 0) {

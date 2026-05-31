@@ -77,7 +77,7 @@ export const departmentService = {
           .from("employees")
           .select("id", { count: "exact", head: true })
           .eq("department", name)
-          .neq("employment_status", "resigned"),
+          .eq("employment_status", "active"),
       ]);
       throwSupabaseError("departments.delete_position_count", positionsResult.error);
       throwSupabaseError("departments.delete_employee_department_count", employeesByDepartmentResult.error);
@@ -93,7 +93,7 @@ export const departmentService = {
         const { count, error: employeePositionError } = await supabase
           .from("employees")
           .select("id", { count: "exact", head: true })
-          .neq("employment_status", "resigned")
+          .eq("employment_status", "active")
           .in("position", positionNames);
         throwSupabaseError("departments.delete_employee_position_count", employeePositionError);
         employeeByPositionCount = Number(count || 0);

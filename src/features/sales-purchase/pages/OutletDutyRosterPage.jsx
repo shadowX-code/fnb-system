@@ -362,7 +362,7 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
         const outlet = activeOutlets.find((item) => item.id === outletId);
         setEmployees(employeeRows.filter((employee) => (
           employee.is_active !== false &&
-          employee.employment_status !== "resigned" &&
+          employee.employment_status === "active" &&
           (!employee.workplace || employee.workplace === outletId || employee.workplace === outlet?.name)
         )));
         setJobPositions(positionRows);

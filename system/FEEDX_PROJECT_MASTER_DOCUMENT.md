@@ -2873,6 +2873,7 @@ Fields:
 - birthday
 - contact
 - email
+- employment_type
 - employment_status
 - department
 - position
@@ -2896,11 +2897,24 @@ Fields:
 - created_at
 - updated_at
 
-Employment Status:
+Employment Type:
 
+- probation
 - full_time
 - part_time
+- intern
+- contract
+
+Employment Status:
+
+- active
 - resigned
+- terminated
+
+System Access:
+
+- enabled through `enable_system_login = true` plus a valid role/login setup state
+- disabled through `enable_system_login = false` or `access_state = disabled`
 
 Access State:
 
@@ -2920,6 +2934,14 @@ Labels:
 
 Rules:
 
+- Employment Type is the employee classification only: Probation, Full-Time, Part-Time, Intern, or Contract.
+- Employment Status is the HR lifecycle state only: Active, Resigned, or Terminated.
+- System Access controls login only and must remain separate from Employment Type and Employment Status.
+- New employees default to Employment Type `probation`, Employment Status `active`, System Access disabled, and no role.
+- Disabling login blocks future app access but does not remove the employee record, alter employment history, or change Employment Status.
+- Resigned and terminated employees keep their original Employment Type unless HR changes it explicitly.
+- Employee records referenced by Stock Checks, Purchase Orders, Waste Records, Inventory Movements, Asset Inspections, Audit Logs, or Duty Roster History must never be deleted just to remove access.
+- Historical actor displays must use nickname, then full_name, then email, then `Unknown User`; raw UUIDs must never be displayed.
 - System access state is generated, not manually selected.
 - Enable System Login OFF means no_access.
 - Enable System Login ON with no setup email means not_sent.
@@ -2930,6 +2952,7 @@ Rules:
 - People users with selected-outlet roles may only view, create, or update employees whose workplace matches an accessible outlet.
 - Current implementation stores workplace as text and RLS maps `employees.workplace` to `outlets.name` or `outlets.code`; future schema cleanup should migrate this to `employees.outlet_id`.
 - Employee department is derived from the selected Job Position during save so position and department do not drift.
+- Migration `202605310009_employee_employment_structure.sql` adds `employees.employment_type`, remaps legacy mixed `employment_status` values into the new type/status structure, and records mappings in `employee_employment_structure_migration_report` for manual review where needed.
 
 Employee form sections:
 
@@ -3063,7 +3086,7 @@ Rules:
 
 - Departments are global People master data.
 - Archive/inactive status is preferred when a department has linked positions or employees.
-- Hard delete is allowed only when the department has no active linked positions and no active non-resigned employees linked directly or through positions.
+- Hard delete is allowed only when the department has no active linked positions and no employees with Employment Status `active` linked directly or through positions.
 
 ---
 

@@ -190,7 +190,7 @@ function resolveEmployeeOutlet(employee, outletById) {
 
 function isActiveBirthdayEmployee(employee) {
   if (!employee || employee.is_active === false) return false;
-  if (normalizeLookupValue(employee.employment_status) === "resigned") return false;
+  if (normalizeLookupValue(employee.employment_status) !== "active") return false;
   if (employee.resigned_date) return false;
   return true;
 }

@@ -20,6 +20,7 @@ Critical fixes applied:
 - Employee department is derived from the selected job position before save so employee profile data stays consistent after position changes.
 - Employee outlet RLS was tightened with a new migration that maps `employees.workplace` to `outlets.name/code` and enforces `roles.outlet_access_type` / `role_outlets` scope.
 - Outlet bootstrap and outlet RLS now include Employee permissions so People-only roles can load their accessible outlet list.
+- Employment structure migration `202605310009_employee_employment_structure.sql` separates Employment Type, Employment Status, and System Access, with a migration report table for legacy status/type mapping review.
 - Department delete now checks active linked positions and active employees before hard delete; archive/inactive remains the preferred path.
 
 ## UAT Matrix
@@ -33,13 +34,14 @@ Critical fixes applied:
 | Employees | Change Department | Pass with note | Department is not a direct employee form field; it follows the selected position. | None |
 | Employees | Change Role | Pass | Role dropdown stores role name for display and `role_id` for save; `employees.role_id` is persisted. | None |
 | Employees | Enable Login | Pass | `enable_system_login`, email, role_id, and access_state persist through employee save. | None |
-| Employees | Disable Login | Pass | Disable action calls `employeeService.saveEmployee()` with disabled access state; refresh-safe. | None |
-| Employees | Employment Status change | Pass | Employment status persists in `employees.employment_status`. | None |
-| Employees | Resign employee | Pass | `employment_status = resigned` and resigned date persist when supplied. | None |
+| Employees | Disable Login | Pass | Disable action calls `employeeService.saveEmployee()` with disabled access state; it does not change Employment Status or remove historical employee records. | None |
+| Employees | Employment Type change | Pass | Employment Type is separate from lifecycle status and persists in `employees.employment_type`. | Fixed High |
+| Employees | Employment Status change | Pass | Employment Status is limited to Active, Resigned, and Terminated and persists in `employees.employment_status`. | Fixed High |
+| Employees | Resign/terminate employee | Pass | `employment_status = resigned/terminated` and end date persist when supplied; login access remains a separate field. | None |
 | Job Positions | Create Position | Pass | `jobPositionService.saveJobPosition()` inserts into Supabase. | None |
 | Job Positions | Edit Position | Pass | Updates Supabase and local list reflects saved row. | None |
 | Job Positions | Archive Position | Pass | Status toggle persists `status = inactive`; active linked employees are warned but records remain linked. | None |
-| Job Positions | Delete used Position | Pass | Service blocks hard delete when active non-resigned employees use the position. | None |
+| Job Positions | Delete used Position | Pass | Service blocks hard delete when active employees use the position. | None |
 | Departments | Create Department | Pass | `departmentService.saveDepartment()` inserts into Supabase. | None |
 | Departments | Edit Department | Pass | Updates Supabase `departments`. | None |
 | Departments | Archive Department | Pass | Status update persists `status = inactive`; preferred for used departments. | None |

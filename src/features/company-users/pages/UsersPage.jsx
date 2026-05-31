@@ -23,6 +23,18 @@ import { canCreate, canEdit, getAccessibleOutlets, hasPermission, notifyPermissi
 
 const fallbackRoleOptions = ["owner", "admin", "manager", "supervisor", "cashier", "kitchen", "purchaser", "finance", "hr", "staff"];
 const fallbackWorkplaceOptions = ["Hola Ipoh Bangsar", "Hola TTDI", "Hola Mont Kiara", "Hola Subang"];
+const employmentTypeOptions = [
+  { value: "probation", label: "Probation" },
+  { value: "full_time", label: "Full-Time" },
+  { value: "part_time", label: "Part-Time" },
+  { value: "intern", label: "Intern" },
+  { value: "contract", label: "Contract" },
+];
+const employmentStatusOptions = [
+  { value: "active", label: "Active" },
+  { value: "resigned", label: "Resigned" },
+  { value: "terminated", label: "Terminated" },
+];
 
 function createEmptyUser() {
   return {
@@ -35,12 +47,13 @@ function createEmptyUser() {
     ic_no: "",
     gender: "",
     birthday: "",
-    role: "staff",
+    role: "",
     role_id: "",
     position: "",
     workplace: "",
     outlet_access: [],
-    employment_status: "full_time",
+    employment_type: "probation",
+    employment_status: "active",
     access_state: EMPLOYEE_ACCESS_STATE.NO_ACCESS,
     enable_system_login: false,
     is_active: false,
@@ -178,6 +191,7 @@ function getRequiredUserFields(values) {
     ic_no: isMalaysia ? "IC No. is required." : "Passport / ID No. is required.",
     contact: "Contact is required.",
     birthday: "Birthday is required.",
+    employment_type: "Employment Type is required.",
     employment_status: "Employment Status is required.",
     position: "Position is required.",
     workplace: "Work Place / Outlet is required.",
@@ -218,9 +232,27 @@ function validateUserForm(values) {
 }
 
 function employmentTone(status) {
-  if (status === "full_time") return "success";
-  if (status === "part_time") return "info";
+  if (status === "active") return "success";
+  if (status === "resigned") return "warning";
+  if (status === "terminated") return "danger";
   return "neutral";
+}
+
+function employmentTypeTone(type) {
+  if (type === "full_time") return "success";
+  if (type === "part_time") return "info";
+  if (type === "probation") return "warning";
+  if (type === "intern") return "neutral";
+  if (type === "contract") return "info";
+  return "neutral";
+}
+
+function employmentTypeLabel(type) {
+  return employmentTypeOptions.find((option) => option.value === type)?.label || titleCase(type);
+}
+
+function employmentStatusLabel(status) {
+  return employmentStatusOptions.find((option) => option.value === status)?.label || titleCase(status);
 }
 
 function accountTone(status) {
@@ -368,7 +400,7 @@ function UserFormModal({
   const [isSaving, setIsSaving] = useState(false);
   const [emailStatus, setEmailStatus] = useState("not_checked");
   const isViewMode = mode === "view";
-  const isResigned = values.employment_status === "resigned";
+  const isEndedEmployment = ["resigned", "terminated"].includes(values.employment_status);
   const isMalaysia = isMalaysiaNationality(values.nationality);
   const activeJobPositions = jobPositions.filter((position) => position.status === "active");
   const selectedPosition = findJobPosition(jobPositions, values.position);
@@ -455,7 +487,7 @@ function UserFormModal({
         ...((key === "ic_no" || key === "nationality") && nextDetectedBirthday && !current.birthday ? { birthday: nextDetectedBirthday } : {}),
         ...(key === "full_name" && !current.bank_account_name ? { bank_account_name: value } : {}),
         ...(key === "position" ? { department: matchedPosition?.department || (nextPosition ? current.department : "") } : {}),
-        ...(key === "employment_status" && value !== "resigned" ? { resigned_date: "" } : {}),
+        ...(key === "employment_status" && value === "active" ? { resigned_date: "" } : {}),
         ...(key === "enable_system_login" && !value ? { email: "", role: "", role_id: "", access_state: EMPLOYEE_ACCESS_STATE.NO_ACCESS, is_active: false, email_verified: false } : {}),
         ...(key === "enable_system_login" && value ? { access_state: hasSystemLogin(current) ? getAccessState(current) : EMPLOYEE_ACCESS_STATE.NOT_SENT, is_active: getAccessState(current) === EMPLOYEE_ACCESS_STATE.ACTIVE } : {}),
       };
@@ -651,7 +683,8 @@ function UserFormModal({
         <FormSection title="Employment Info" icon={BriefcaseBusiness}>
           {isViewMode ? (
             <div className="grid gap-3 md:grid-cols-2">
-              <ReadOnlyField label="Employment Status">{titleCase(values.employment_status)}</ReadOnlyField>
+              <ReadOnlyField label="Employment Type">{employmentTypeLabel(values.employment_type)}</ReadOnlyField>
+              <ReadOnlyField label="Employment Status">{employmentStatusLabel(values.employment_status)}</ReadOnlyField>
               <ReadOnlyField label="Position">
                 <span>{values.position || "-"}</span>
                 {selectedPosition?.status === "inactive" ? <span className="ml-2"><Badge tone="warning">Disabled</Badge></span> : null}
@@ -659,23 +692,27 @@ function UserFormModal({
               <ReadOnlyField label="Work Place / Outlet">{values.workplace || "Missing"}</ReadOnlyField>
               <ReadOnlyField label="Employee Code">{values.employee_code || "-"}</ReadOnlyField>
               <ReadOnlyField label="Joined Date">{formatDateForView(values.joined_date)}</ReadOnlyField>
-              {isResigned ? <ReadOnlyField label="Resigned Date">{formatDateForView(values.resigned_date)}</ReadOnlyField> : null}
+              {isEndedEmployment ? <ReadOnlyField label={values.employment_status === "terminated" ? "Terminated Date" : "Resigned Date"}>{formatDateForView(values.resigned_date)}</ReadOnlyField> : null}
             </div>
           ) : (
             <div className="grid gap-3 md:grid-cols-2">
-            <FormField label="Employment Status" required error={visibleError("employment_status")}>
-              <SelectField
-                value={values.employment_status}
-                buttonClassName={visibleError("employment_status") ? "border-rose-200" : ""}
-                helper={values.employment_status === "resigned" ? "Resigned employees should normally have inactive system access." : undefined}
-                options={[
-                  { value: "full_time", label: "Full Time" },
-                  { value: "part_time", label: "Part Time" },
-                  { value: "resigned", label: "Resigned" },
-                ]}
-                onChange={(nextValue) => updateValue("employment_status", nextValue)}
-              />
-            </FormField>
+              <FormField label="Employment Type" required error={visibleError("employment_type")}>
+                <SelectField
+                  value={values.employment_type}
+                  buttonClassName={visibleError("employment_type") ? "border-rose-200" : ""}
+                  options={employmentTypeOptions}
+                  onChange={(nextValue) => updateValue("employment_type", nextValue)}
+                />
+              </FormField>
+              <FormField label="Employment Status" required error={visibleError("employment_status")}>
+                <SelectField
+                  value={values.employment_status}
+                  buttonClassName={visibleError("employment_status") ? "border-rose-200" : ""}
+                  helper={values.employment_status !== "active" ? "Ended employees should normally have disabled system access." : undefined}
+                  options={employmentStatusOptions}
+                  onChange={(nextValue) => updateValue("employment_status", nextValue)}
+                />
+              </FormField>
             <FormField label="Position" required error={visibleError("position")} helper="Position is the employee HR title. Role controls system permissions.">
               <SelectField
                 value={values.position}
@@ -703,8 +740,8 @@ function UserFormModal({
               <input className="control" value={values.employee_code || ""} onBlur={() => markTouched("employee_code")} onChange={(event) => updateValue("employee_code", event.target.value)} placeholder="EMP-001" />
             </FormField>
             <DatePickerField label="Joined Date" value={values.joined_date} onBlur={() => markTouched("joined_date")} onChange={(value) => updateValue("joined_date", value)} />
-            {isResigned ? (
-              <DatePickerField label="Resigned Date" value={values.resigned_date} onBlur={() => markTouched("resigned_date")} onChange={(value) => updateValue("resigned_date", value)} />
+            {isEndedEmployment ? (
+              <DatePickerField label={values.employment_status === "terminated" ? "Terminated Date" : "Resigned Date"} value={values.resigned_date} onBlur={() => markTouched("resigned_date")} onChange={(value) => updateValue("resigned_date", value)} />
             ) : null}
             </div>
           )}
@@ -881,7 +918,8 @@ export default function UsersPage({ ui, store, auth }) {
   const [query, setQuery] = useState("");
   const [roleFilter, setRoleFilter] = useState("all");
   const [workplaceFilter, setWorkplaceFilter] = useState("all");
-  const [employmentFilter, setEmploymentFilter] = useState([]);
+  const [employmentTypeFilter, setEmploymentTypeFilter] = useState([]);
+  const [employmentStatusFilter, setEmploymentStatusFilter] = useState([]);
   const [accountFilter, setAccountFilter] = useState("");
   const [selectedUser, setSelectedUser] = useState(null);
   const [profileMode, setProfileMode] = useState("view");
@@ -944,19 +982,23 @@ export default function UsersPage({ ui, store, auth }) {
         [user.full_name, user.email, user.ic_no, user.contact].some((value) => String(value || "").toLowerCase().includes(search));
       const matchesRole = roleFilter === "all" || user.role === roleFilter;
       const matchesWorkplace = workplaceFilter === "all" || user.workplace === workplaceFilter;
-      const matchesEmployment = !employmentFilter.length || employmentFilter.includes(user.employment_status);
+      const matchesEmploymentType = !employmentTypeFilter.length || employmentTypeFilter.includes(user.employment_type);
+      const matchesEmploymentStatus = !employmentStatusFilter.length || employmentStatusFilter.includes(user.employment_status);
       const matchesAccount = !accountFilter || getAccessState(user) === accountFilter;
-      return matchesSearch && matchesRole && matchesWorkplace && matchesEmployment && matchesAccount;
+      return matchesSearch && matchesRole && matchesWorkplace && matchesEmploymentType && matchesEmploymentStatus && matchesAccount;
     });
-  }, [accountFilter, employmentFilter, query, roleFilter, users, workplaceFilter]);
+  }, [accountFilter, employmentStatusFilter, employmentTypeFilter, query, roleFilter, users, workplaceFilter]);
 
   const stats = {
     active: users.filter((user) => getAccessState(user) === EMPLOYEE_ACCESS_STATE.ACTIVE).length,
     disabled: users.filter((user) => getAccessState(user) === EMPLOYEE_ACCESS_STATE.DISABLED).length,
     loginEnabled: users.filter(hasSystemLogin).length,
-    fullTime: users.filter((user) => user.employment_status === "full_time").length,
-    partTime: users.filter((user) => user.employment_status === "part_time").length,
+    fullTime: users.filter((user) => user.employment_type === "full_time").length,
+    partTime: users.filter((user) => user.employment_type === "part_time").length,
+    probation: users.filter((user) => user.employment_type === "probation").length,
+    activeEmployment: users.filter((user) => user.employment_status === "active").length,
     resigned: users.filter((user) => user.employment_status === "resigned").length,
+    terminated: users.filter((user) => user.employment_status === "terminated").length,
   };
 
   function updateUserAccount(userId, updates) {
@@ -1228,7 +1270,8 @@ export default function UsersPage({ ui, store, auth }) {
       },
     },
     { key: "workplace", header: "Work Place", render: (row) => row.workplace || <Badge tone="warning">Missing</Badge> },
-    { key: "employment_status", header: "Employment Status", render: (row) => <Badge tone={employmentTone(row.employment_status)}>{titleCase(row.employment_status)}</Badge> },
+    { key: "employment_type", header: "Employment Type", render: (row) => <Badge tone={employmentTypeTone(row.employment_type)}>{employmentTypeLabel(row.employment_type)}</Badge> },
+    { key: "employment_status", header: "Employment Status", render: (row) => <Badge tone={employmentTone(row.employment_status)}>{employmentStatusLabel(row.employment_status)}</Badge> },
     { key: "account", header: "Access State", render: (row) => {
       const accessState = getAccessState(row);
       return <Badge tone={accountTone(accessState)}>{accountLabel(accessState)}</Badge>;
@@ -1290,8 +1333,8 @@ export default function UsersPage({ ui, store, auth }) {
         <StatCard label="Login Enabled" value={stats.loginEnabled} helper="Employees with system access configured" tone="success" />
         <StatCard label="Access Active" value={stats.active} helper="Can access the system" tone="success" />
         <StatCard label="Access Disabled" value={stats.disabled} helper="System access disabled" tone={stats.disabled ? "warning" : "neutral"} />
-        <StatCard label="Full Time" value={stats.fullTime} helper="Full-time employees" />
-        <StatCard label="Part Time" value={stats.partTime} helper="Part-time employees" />
+        <StatCard label="Employment Active" value={stats.activeEmployment} helper="Currently employed" />
+        <StatCard label="Probation" value={stats.probation} helper="Employees in probation" />
       </div>
 
       <FilterBar compact>
@@ -1318,16 +1361,20 @@ export default function UsersPage({ ui, store, auth }) {
             onApply={(nextValue) => setWorkplaceFilter(nextValue || "all")}
           />
         </FieldLabel>
-        <FieldLabel label="Employment">
+        <FieldLabel label="Employment Type">
           <MultiSelectField
-            value={employmentFilter}
+            value={employmentTypeFilter}
+            placeholder="All Types"
+            options={employmentTypeOptions}
+            onApply={setEmploymentTypeFilter}
+          />
+        </FieldLabel>
+        <FieldLabel label="Employment Status">
+          <MultiSelectField
+            value={employmentStatusFilter}
             placeholder="All Status"
-            options={[
-              { value: "full_time", label: "Full Time" },
-              { value: "part_time", label: "Part Time" },
-              { value: "resigned", label: "Resigned" },
-            ]}
-            onApply={setEmploymentFilter}
+            options={employmentStatusOptions}
+            onApply={setEmploymentStatusFilter}
           />
         </FieldLabel>
         <FieldLabel label="Access State">

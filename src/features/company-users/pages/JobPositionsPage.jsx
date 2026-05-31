@@ -50,9 +50,9 @@ function DetailSection({ title, children }) {
 
 function formatEmploymentStatus(status) {
   const labels = {
-    full_time: "Full Time",
-    part_time: "Part Time",
+    active: "Active",
     resigned: "Resigned",
+    terminated: "Terminated",
   };
   return labels[status] ?? "Active";
 }
@@ -63,7 +63,7 @@ function formatEmployeeName(employee) {
 }
 
 function activeEmployeeCountForPosition(employees, positionName) {
-  return employees.filter((employee) => employee.position === positionName && employee.employment_status !== "resigned").length;
+  return employees.filter((employee) => employee.position === positionName && employee.employment_status === "active").length;
 }
 
 function getPositionAudit(position, isNew = false) {
