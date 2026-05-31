@@ -1204,6 +1204,35 @@ function normalizeProductRecipeKey(value) {
   return String(value ?? "").trim().replace(/\s+/g, " ").toLowerCase();
 }
 
+function getRecipeMappingCandidates(recipe = {}) {
+  return [
+    { type: "recipe_code", value: recipeCode(recipe), confidence: 98 },
+    { type: "recipe_name_en", value: recipeNameEn(recipe), confidence: 92 },
+    { type: "recipe_name_cn", value: recipeNameCn(recipe), confidence: 88 },
+  ].filter((entry) => entry.value);
+}
+
+function suggestRecipeMatch(productName, recipes = []) {
+  const productKey = normalizeProductRecipeKey(productName);
+  if (!productKey) return { recipe: null, confidence: 0, matchType: "" };
+  for (const recipe of recipes) {
+    const match = getRecipeMappingCandidates(recipe).find((candidate) => normalizeProductRecipeKey(candidate.value) === productKey);
+    if (match) return { recipe, confidence: match.confidence, matchType: match.type };
+  }
+  const fuzzy = recipes
+    .map((recipe) => {
+      const candidates = getRecipeMappingCandidates(recipe);
+      const matched = candidates.find((candidate) => {
+        const key = normalizeProductRecipeKey(candidate.value);
+        return key && (productKey.includes(key) || key.includes(productKey));
+      });
+      return matched ? { recipe, confidence: Math.max(55, matched.confidence - 25), matchType: `${matched.type}_partial` } : null;
+    })
+    .filter(Boolean)
+    .sort((a, b) => b.confidence - a.confidence)[0];
+  return fuzzy || { recipe: null, confidence: 0, matchType: "" };
+}
+
 function monthSerial(year, month) {
   return Number(year) * 12 + Number(month);
 }
@@ -2839,7 +2868,7 @@ function useInventoryData(outlets, suppliers) {
   return [data, setData, meta, refreshInventory];
 }
 
-function Field({ label, value, onChange, type = "text", placeholder, required = false }) {
+function Field({ label, value, onChange, type = "text", placeholder, required = false, onBlur, error }) {
   return (
     <label className="block">
       <div className="mb-1 type-caption font-semibold text-text-secondary">
@@ -2853,7 +2882,9 @@ function Field({ label, value, onChange, type = "text", placeholder, required = 
         placeholder={placeholder}
         onFocus={type === "number" ? selectInputText : undefined}
         onChange={(event) => onChange(event.target.value)}
+        onBlur={onBlur}
       />
+      {error ? <div className="mt-1 type-caption font-semibold text-rose-600">{error}</div> : null}
     </label>
   );
 }
@@ -4744,9 +4775,10 @@ function RecipeRankingTable({ rows = [], columns = [], emptyTitle, emptyDescript
   );
 }
 
-function RecipeModal({ recipe, outletId, outlet, items, menuCategories, onClose, onSave }) {
+function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existingRecipes = [], onClose, onSave }) {
   const [isSaving, setIsSaving] = useState(false);
   const [photoPreview, setPhotoPreview] = useState(recipe?.recipePhotoUrl || recipe?.recipe_photo_url || "");
+  const [touched, setTouched] = useState({});
   const [form, setForm] = useState(() => ({
     id: recipe?.id || "",
     outletId: recipe?.outletId || outletId || "",
@@ -4803,6 +4835,16 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, onClose,
   const summary = recipeCostSummary(form, items);
   const margin = recipeMarginPercent(form.sellingPrice, summary.totalCost);
   const profit = Number(form.sellingPrice || 0) - Number(summary.totalCost || 0);
+  const normalizedRecipeCode = recipeCode(form).toLowerCase();
+  const duplicateRecipeCode = Boolean(normalizedRecipeCode && existingRecipes.some((entry) => entry.id !== form.id && recipeCode(entry).toLowerCase() === normalizedRecipeCode));
+  const sellingPriceValue = Number(form.sellingPrice);
+  const sellingPriceInvalid = form.sellingPrice === "" || !Number.isFinite(sellingPriceValue) || sellingPriceValue <= 0;
+  const identityErrors = {
+    recipeCode: !form.recipeCode.trim() ? "Recipe code is required." : duplicateRecipeCode ? "Recipe code already exists." : "",
+    recipeNameEn: !form.recipeNameEn.trim() ? "Recipe Name EN is required." : "",
+    recipeNameCn: !form.recipeNameCn.trim() ? "Recipe Name CN is required." : "",
+    sellingPrice: sellingPriceInvalid ? "Selling price must be greater than 0." : "",
+  };
   const categoryOptions = menuCategories
     .filter((category) => category.status === "active")
     .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0) || a.name.localeCompare(b.name))
@@ -4815,7 +4857,8 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, onClose,
     setPhotoPreview(preview);
     update("recipePhotoFile", file);
   };
-  const invalid = !form.recipeCode.trim() || !form.recipeNameEn.trim() || !form.recipeNameCn.trim() || !form.outletId || !form.ingredients.length || form.ingredients.some((line) => !line.itemId || Number(line.quantityUsed || 0) <= 0);
+  const hasInvalidIngredients = !form.ingredients.length || form.ingredients.some((line) => !line.itemId || Number(line.quantityUsed || 0) <= 0);
+  const invalid = Boolean(identityErrors.recipeCode || identityErrors.recipeNameEn || identityErrors.recipeNameCn || identityErrors.sellingPrice || !form.outletId || hasInvalidIngredients);
   const handleSave = async () => {
     if (invalid || isSaving) return;
     setIsSaving(true);
@@ -4846,10 +4889,34 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, onClose,
             <div className="type-caption text-text-secondary">Core recipe names and lifecycle state.</div>
           </div>
           <div className="grid gap-3 md:grid-cols-2">
-            <Field label="Recipe Code" value={form.recipeCode} required onChange={(value) => update("recipeCode", value)} placeholder="RCP-CURRY-001" />
+            <Field
+              label="Recipe Code"
+              value={form.recipeCode}
+              required
+              onChange={(value) => update("recipeCode", value)}
+              onBlur={() => setTouched((current) => ({ ...current, recipeCode: true }))}
+              error={touched.recipeCode ? identityErrors.recipeCode : ""}
+              placeholder="RCP-CURRY-001"
+            />
             <SelectField label="Menu Category" value={form.menuCategory} options={safeCategoryOptions} onChange={(value) => update("menuCategory", value)} />
-            <Field label="Recipe Name EN" value={form.recipeNameEn} required onChange={(value) => update("recipeNameEn", value)} placeholder="Classic Dry Curry Noodle" />
-            <Field label="Recipe Name CN" value={form.recipeNameCn} required onChange={(value) => update("recipeNameCn", value)} placeholder="经典干咖喱面" />
+            <Field
+              label="Recipe Name EN"
+              value={form.recipeNameEn}
+              required
+              onChange={(value) => update("recipeNameEn", value)}
+              onBlur={() => setTouched((current) => ({ ...current, recipeNameEn: true }))}
+              error={touched.recipeNameEn ? identityErrors.recipeNameEn : ""}
+              placeholder="Classic Dry Curry Noodle"
+            />
+            <Field
+              label="Recipe Name CN"
+              value={form.recipeNameCn}
+              required
+              onChange={(value) => update("recipeNameCn", value)}
+              onBlur={() => setTouched((current) => ({ ...current, recipeNameCn: true }))}
+              error={touched.recipeNameCn ? identityErrors.recipeNameCn : ""}
+              placeholder="经典干咖喱面"
+            />
             <label>
               <div className="mb-1 type-caption font-semibold text-text-secondary">Outlet</div>
               <div className="control flex h-9 items-center text-[13px] font-semibold text-text-secondary">{outlet?.name || "Selected outlet"}</div>
@@ -4864,7 +4931,16 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, onClose,
             <div className="type-caption text-text-secondary">Selling price and yield drive live recipe costing.</div>
           </div>
           <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_1.4fr] lg:items-end">
-            <Field label="Selling Price" type="number" value={form.sellingPrice} onChange={(value) => update("sellingPrice", parseNonNegativeNumber(value))} placeholder="0.00" />
+            <Field
+              label="Selling Price"
+              type="number"
+              value={form.sellingPrice}
+              required
+              onChange={(value) => update("sellingPrice", parseNonNegativeNumber(value))}
+              onBlur={() => setTouched((current) => ({ ...current, sellingPrice: true }))}
+              error={touched.sellingPrice ? identityErrors.sellingPrice : ""}
+              placeholder="0.00"
+            />
             <Field label="Serving Size / Yield" value={form.servingSize} onChange={(value) => update("servingSize", value)} placeholder="1" />
             <div className="grid gap-2 sm:grid-cols-3">
               <MetricCard label="Recipe Cost" value={toCurrency(summary.totalCost)} helper="Ingredient + wastage" tone="success" size="compact" />
@@ -4916,8 +4992,11 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, onClose,
                 const cost = recipeIngredientCost(line, item);
                 return (
                   <div key={line.id} className="grid gap-2 rounded-2xl border border-border bg-slate-50/70 p-3 xl:grid-cols-[1.4fr_95px_72px_95px_95px_100px_1fr_auto] xl:items-end">
-                    <SelectField label="Inventory Item" value={line.itemId} options={availableItems.map((entry) => ({ value: entry.id, label: entry.name }))} onChange={(value) => updateIngredient(line.id, { itemId: value })} searchable />
-                    <Field label="Qty Used" type="number" value={line.quantityUsed} onChange={(value) => updateIngredient(line.id, { quantityUsed: parseNonNegativeNumber(value) })} />
+                    <div>
+                      <SelectField label="Inventory Item" value={line.itemId} options={availableItems.map((entry) => ({ value: entry.id, label: entry.name }))} onChange={(value) => updateIngredient(line.id, { itemId: value })} searchable />
+                      {!line.itemId ? <div className="mt-1 type-caption font-semibold text-rose-600">Inventory item is required.</div> : null}
+                    </div>
+                    <Field label="Qty Used" type="number" value={line.quantityUsed} onChange={(value) => updateIngredient(line.id, { quantityUsed: parseNonNegativeNumber(value) })} error={Number(line.quantityUsed || 0) <= 0 ? "Qty must be greater than 0." : ""} />
                     <label>
                       <div className="mb-1 type-caption font-semibold text-text-secondary">Unit</div>
                       <div className="control flex h-9 items-center text-[13px] font-semibold text-text-secondary">{item?.unit || line.unit || "-"}</div>
@@ -4964,7 +5043,7 @@ function RecipeDetailModal({ recipe, outlet, items, categories, onClose, onEdit 
   const nameCn = recipeNameCn(recipe);
   return (
     <Modal
-      title={nameCn || nameEn || code || "Recipe"}
+      title={nameEn || nameCn || code || "Recipe"}
       description={`${outlet?.name || "Outlet"} · ${recipe?.menuCategory || "Menu Category"}`}
       size="xl"
       onClose={onClose}
@@ -4988,8 +5067,8 @@ function RecipeDetailModal({ recipe, outlet, items, categories, onClose, onEdit 
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div>
                 <div className="type-caption font-black uppercase tracking-wide text-text-muted">{code || "No recipe code"}</div>
-                <div className="type-section-title font-black text-text-primary">{nameCn || "Recipe Name CN required"}</div>
-                <div className="mt-1 type-body-sm font-semibold text-text-secondary">{nameEn || "Recipe Name EN required"}</div>
+                <div className="type-section-title font-black text-text-primary">{nameEn || "Recipe Name EN required"}</div>
+                <div className="mt-1 type-body-sm font-semibold text-text-secondary">{nameCn || "Recipe Name CN required"}</div>
                 <div className="mt-1 flex flex-wrap gap-2">
                   <Badge tone="info">{recipe?.menuCategory || "Uncategorized"}</Badge>
                   <Badge tone={statusTone(recipe?.status || "active")}>{toTitle(recipe?.status || "active")}</Badge>
@@ -5487,6 +5566,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [recipeProductItems, setRecipeProductItems] = useState([]);
   const [recipeProductMappings, setRecipeProductMappings] = useState([]);
   const [recipeProductLoading, setRecipeProductLoading] = useState(false);
+  const [recipeMappingSelections, setRecipeMappingSelections] = useState({});
+  const [ignoredRecipeProductKeys, setIgnoredRecipeProductKeys] = useState(() => new Set());
+  const [savingRecipeMappingKey, setSavingRecipeMappingKey] = useState("");
   const [date, setDateState] = useState(initialStockCheckDate.date);
   const [selectedDateSource, setSelectedDateSource] = useState(initialStockCheckDate.source);
   const selectedDateSourceRef = useRef(initialStockCheckDate.source);
@@ -5569,6 +5651,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       cancelled = true;
     };
   }, [activeRecipeOutletId, activeTab, recipeAnalysisPeriod]);
+
+  useEffect(() => {
+    setRecipeMappingSelections({});
+    setIgnoredRecipeProductKeys(new Set());
+  }, [activeRecipeOutletId, recipeAnalysisPeriod]);
 
   useEffect(() => {
     setCheckValidationAttempted(false);
@@ -7231,6 +7318,51 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       await refreshInventory();
       notify(isUuid(recipe.id) ? "Failed to update Recipe" : "Failed to create Recipe", error.message || "Please try again.", "error");
       throw error;
+    }
+  }
+
+  async function saveRecipeProductMapping(productName, recipeId) {
+    const productKey = normalizeProductRecipeKey(productName);
+    if (!activeRecipeOutletId || !productKey || !isUuid(recipeId)) {
+      notify("Failed to map Product to Recipe", "Choose a recipe before saving the mapping.", "error");
+      return;
+    }
+    setSavingRecipeMappingKey(productKey);
+    try {
+      const existing = recipeProductMappings.find((mapping) => normalizeProductRecipeKey(mapping.product_name) === productKey);
+      const payload = {
+        outlet_id: activeRecipeOutletId,
+        product_name: productName,
+        recipe_id: recipeId,
+        updated_at: new Date().toISOString(),
+      };
+      const result = existing?.id
+        ? await supabase
+          .from("product_recipe_mappings")
+          .update(payload)
+          .eq("id", existing.id)
+          .select("*")
+          .single()
+        : await supabase
+          .from("product_recipe_mappings")
+          .insert({ ...payload, created_by: isUuid(auth?.profile?.id) ? auth.profile.id : null })
+          .select("*")
+          .single();
+      debugLog("[RecipeMappingSaveDebug]", { productName, recipeId, payload, result: { data: result.data, error: result.error } });
+      if (result.error) throw result.error;
+      setRecipeProductMappings((current) => [result.data, ...current.filter((mapping) => mapping.id !== result.data.id && normalizeProductRecipeKey(mapping.product_name) !== productKey)]);
+      setIgnoredRecipeProductKeys((current) => {
+        const next = new Set(current);
+        next.delete(productKey);
+        return next;
+      });
+      notify("Product mapped to Recipe");
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to save recipe product mapping.", error);
+      debugLog("[RecipeMappingSaveDebug]", { productName, recipeId, error });
+      notify("Failed to map Product to Recipe", error.message || "Please try again.", "error");
+    } finally {
+      setSavingRecipeMappingKey("");
     }
   }
 
@@ -9046,6 +9178,24 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       return totals;
     }, new Map());
     const recipeCostById = new Map(recipeCostRows.map((row) => [row.recipe.id, row]));
+    const mappedProductKeys = new Set(recipeProductMappings.map((mapping) => normalizeProductRecipeKey(mapping.product_name)).filter(Boolean));
+    const mappingCandidateRecipes = filteredRecipes.filter((recipe) => recipe.status === "active");
+    const unmappedProductRows = [...productSalesByName.entries()]
+      .filter(([key]) => !mappedProductKeys.has(key) && !ignoredRecipeProductKeys.has(key))
+      .map(([key, product]) => {
+        const suggestion = suggestRecipeMatch(product.productName, mappingCandidateRecipes);
+        return {
+          key,
+          productName: product.productName,
+          quantity: product.quantity,
+          revenue: product.revenue,
+          suggestedRecipe: suggestion.recipe,
+          confidence: suggestion.confidence,
+          matchType: suggestion.matchType,
+          selectedRecipeId: recipeMappingSelections[key] || suggestion.recipe?.id || "",
+        };
+      })
+      .sort((a, b) => Number(b.revenue || 0) - Number(a.revenue || 0));
     const matchedProductKeys = new Set();
     const menuEngineeringRows = recipeProductMappings
       .map((mapping) => {
@@ -9201,6 +9351,99 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               </div>
             </div>
           )}
+        </DashboardSection>
+        <DashboardSection
+          title="Product ↔ Recipe Mapping"
+          subtitle="Connect Product Analytics products to recipes so Recipe Intelligence can use real sales volume and revenue."
+          density="compact"
+        >
+          <div className="grid gap-3 lg:grid-cols-3">
+            <MetricCard label="Unmapped Products" value={unmappedProductRows.length} helper="Product Analytics products needing review" tone={unmappedProductRows.length ? "warning" : "success"} size="compact" />
+            <MetricCard label="Mapped Products" value={mappedProductKeys.size} helper="Saved in product recipe mappings" tone={mappedProductKeys.size ? "success" : "neutral"} size="compact" />
+            <MetricCard label="Suggested Matches" value={unmappedProductRows.filter((row) => row.suggestedRecipe).length} helper="Matched by code, EN name or CN name" tone="info" size="compact" />
+          </div>
+          <div className="mt-4 overflow-x-auto rounded-2xl border border-border">
+            {unmappedProductRows.length ? (
+              <table className="w-full min-w-[980px] text-left">
+                <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
+                  <tr>
+                    <th className="px-3 py-2">Unmapped Product</th>
+                    <th>Suggested Recipe Match</th>
+                    <th>Confidence</th>
+                    <th>Manual Mapping</th>
+                    <th className="pr-8 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border text-[13px]">
+                  {unmappedProductRows.map((row) => {
+                    const selectedRecipe = mappingCandidateRecipes.find((recipe) => recipe.id === row.selectedRecipeId);
+                    const confidenceTone = row.confidence >= 90 ? "success" : row.confidence >= 60 ? "warning" : "neutral";
+                    return (
+                      <tr key={row.key} className="transition hover:bg-primary/5">
+                        <td className="px-3 py-3">
+                          <div className="font-bold text-text-primary">{row.productName}</div>
+                          <div className="type-caption text-text-secondary">{Number(row.quantity || 0).toLocaleString()} sold · {toCurrency(row.revenue)}</div>
+                        </td>
+                        <td>
+                          {row.suggestedRecipe ? (
+                            <div>
+                              <div className="font-bold text-text-primary">{recipeNameEn(row.suggestedRecipe) || recipeCode(row.suggestedRecipe)}</div>
+                              <div className="type-caption text-text-muted">{recipeCode(row.suggestedRecipe)} · {recipeNameCn(row.suggestedRecipe) || "No CN name"}</div>
+                            </div>
+                          ) : (
+                            <span className="type-caption font-semibold text-text-muted">No suggestion</span>
+                          )}
+                        </td>
+                        <td>
+                          {row.suggestedRecipe ? <Badge tone={confidenceTone}>{row.confidence}%</Badge> : <Badge tone="neutral">Manual</Badge>}
+                        </td>
+                        <td>
+                          <SelectField
+                            value={row.selectedRecipeId}
+                            options={[
+                              { value: "", label: "Choose recipe" },
+                              ...mappingCandidateRecipes.map((recipe) => ({
+                                value: recipe.id,
+                                label: `${recipeCode(recipe) || "No code"} · ${recipeNameEn(recipe) || recipeNameCn(recipe) || "Recipe"}`,
+                              })),
+                            ]}
+                            onChange={(value) => setRecipeMappingSelections((current) => ({ ...current, [row.key]: value }))}
+                            searchable
+                          />
+                          {selectedRecipe ? <div className="mt-1 type-caption text-text-muted">{recipeNameCn(selectedRecipe) || "No Chinese name"}</div> : null}
+                        </td>
+                        <td className="pr-8">
+                          <div className="flex justify-end gap-2">
+                            <button
+                              className="btn-primary h-8 px-3 text-xs"
+                              type="button"
+                              disabled={!row.selectedRecipeId || savingRecipeMappingKey === row.key}
+                              onClick={() => saveRecipeProductMapping(row.productName, row.selectedRecipeId)}
+                            >
+                              {savingRecipeMappingKey === row.key ? "Mapping..." : "Map"}
+                            </button>
+                            <button
+                              className="btn-secondary h-8 px-3 text-xs"
+                              type="button"
+                              disabled={savingRecipeMappingKey === row.key}
+                              onClick={() => setIgnoredRecipeProductKeys((current) => new Set([...current, row.key]))}
+                            >
+                              Ignore
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            ) : (
+              <EmptyState
+                title={recipeProductLoading ? "Loading Product Analytics products..." : "No unmapped products"}
+                description={recipeProductLoading ? "Recipe mapping suggestions will appear after Product Analytics data loads." : "All Product Analytics products in this period are mapped or ignored for this session."}
+              />
+            )}
+          </div>
         </DashboardSection>
         <DashboardSection
           title="Recipe Intelligence"
@@ -9499,6 +9742,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           outlet={outletById.get(modal.recipe?.outletId || modal.outletId || selectedOutletId)}
           items={data.items}
           menuCategories={data.menuCategories || []}
+          existingRecipes={data.recipes || []}
           onClose={() => setModal(null)}
           onSave={saveRecipe}
         />
