@@ -2955,9 +2955,11 @@ Rules:
 - Send Login Setup changes state to invited.
 - Successful password setup changes state to active.
 - Disabled access changes state to disabled.
-- Employee workplace must be a real outlet assignment, not `All Outlets`.
+- Employee workplace must be either a real outlet assignment or `Management`; it must never be `All Outlets`.
+- `Management` is an HQ/management workplace label, not an outlet. It is stored as `employees.workplace = 'Management'` until the future `employees.outlet_id` migration, has no outlet id, and remains separate from role outlet access.
+- Management employees appear in People directory and active People counts when `employment_status = active`, but they are excluded from outlet-specific roster staff lists unless explicitly supported later.
 - People users with selected-outlet roles may only view, create, or update employees whose workplace matches an accessible outlet.
-- Current implementation stores workplace as text and RLS maps `employees.workplace` to `outlets.name` or `outlets.code`; future schema cleanup should migrate this to `employees.outlet_id`.
+- Current implementation stores workplace as text and RLS maps outlet workplaces to `outlets.name` or `outlets.code`; future schema cleanup should migrate outlet employees to `employees.outlet_id` while preserving the `Management` non-outlet option.
 - Employee department is derived from the selected Job Position during save so position and department do not drift.
 - Migration `202605310009_employee_employment_structure.sql` adds `employees.employment_type`, remaps legacy mixed `employment_status` values into the new type/status structure, and records mappings in `employee_employment_structure_migration_report` for manual review where needed.
 

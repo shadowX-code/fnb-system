@@ -19,10 +19,11 @@ import { jobPositionService } from "../../../services/jobPositionService.js";
 import { roleService } from "../../../services/roleService.js";
 import { formatDateTime } from "../../../lib/dateTime.js";
 import { normalizeRoleOutletAccess } from "../utils/roleAccess.js";
-import { canCreate, canEdit, getAccessibleOutlets, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { canCreate, canEdit, getAccessibleOutlets, hasAllOutletAccess, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 
 const fallbackRoleOptions = ["owner", "admin", "manager", "supervisor", "cashier", "kitchen", "purchaser", "finance", "hr", "staff"];
 const fallbackWorkplaceOptions = ["Hola Ipoh Bangsar", "Hola TTDI", "Hola Mont Kiara", "Hola Subang"];
+const MANAGEMENT_WORKPLACE = "Management";
 const employmentTypeOptions = [
   { value: "probation", label: "Probation" },
   { value: "full_time", label: "Full-Time" },
@@ -102,6 +103,32 @@ function normalizeOfficialName(name) {
 
 function getDisplayName(user) {
   return user.nickname || user.full_name;
+}
+
+async function copyTextToClipboard(text) {
+  if (navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return true;
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.warn("Clipboard API copy failed; falling back to textarea copy.", error);
+      }
+    }
+  }
+  const textarea = document.createElement("textarea");
+  textarea.value = text;
+  textarea.setAttribute("readonly", "");
+  textarea.style.position = "fixed";
+  textarea.style.left = "-9999px";
+  textarea.style.top = "0";
+  document.body.appendChild(textarea);
+  textarea.select();
+  try {
+    return document.execCommand("copy");
+  } finally {
+    document.body.removeChild(textarea);
+  }
 }
 
 function hasSystemLogin(employee) {
@@ -403,6 +430,7 @@ function UserFormModal({
   const [showAccessSetup, setShowAccessSetup] = useState(false);
   const [showChangeEmail, setShowChangeEmail] = useState(false);
   const [nextLoginEmail, setNextLoginEmail] = useState("");
+  const [setupAction, setSetupAction] = useState(null);
   const isViewMode = mode === "view";
   const isEndedEmployment = ["resigned", "terminated"].includes(values.employment_status);
   const accessState = getAccessState(values);
@@ -651,6 +679,67 @@ function UserFormModal({
     });
     if (!confirmed) return;
     await onSendLoginSetup?.(values);
+  }
+
+  async function generateSetupLinkForExistingEmployee() {
+    if (!canResetPassword) {
+      notifyPermissionDenied(ui, "generate password setup links");
+      return;
+    }
+    if (!values.email) {
+      ui.notify({ title: "Email required", message: "Add an email before generating a setup link.", tone: "error" });
+      return;
+    }
+    if (!values.id) {
+      ui.notify({ title: "Save employee first", message: "Save the employee profile before generating a setup link.", tone: "error" });
+      return;
+    }
+    setSetupAction("manual_link");
+    if (import.meta.env.DEV) {
+      console.log("[GenerateSetupLinkDebug]", {
+        source: "edit_employee_modal",
+        employeeId: values.id,
+        email: values.email,
+        accessState,
+        mode: "manual_link",
+        phase: "start",
+      });
+    }
+    try {
+      const result = await onSendLoginSetup?.(values, { mode: "manual_link" });
+      if (import.meta.env.DEV) {
+        console.log("[GenerateSetupLinkDebug]", {
+          source: "edit_employee_modal",
+          employeeId: values.id,
+          email: values.email,
+          hasSetupUrl: Boolean(result?.setupUrl),
+          phase: "success",
+        });
+      }
+      if (!result?.setupUrl) {
+        ui.notify({
+          title: "Setup link generated",
+          message: result?.message || values.email,
+        });
+      }
+    } catch (error) {
+      if (import.meta.env.DEV) {
+        console.error("[GenerateSetupLinkDebug]", {
+          source: "edit_employee_modal",
+          employeeId: values.id,
+          email: values.email,
+          phase: "failed",
+          error,
+        });
+      }
+      ui.notify({
+        title: "Failed to generate setup link",
+        message: error.message || "Please try again.",
+        tone: "error",
+      });
+    } finally {
+      setSetupAction(null);
+    }
   }
 
   return (
@@ -997,8 +1086,13 @@ function UserFormModal({
                           <button className="btn-secondary h-9 px-3 text-xs" type="button" disabled={!canResetPassword} onClick={sendLoginSetupForExistingEmployee}>
                             <KeyRound size={14} /> Send Login Setup Email
                           </button>
-                          <button className="btn-secondary h-9 px-3 text-xs" type="button" disabled={!canResetPassword} onClick={() => onSendLoginSetup(values, { mode: "manual_link" })}>
-                            <KeyRound size={14} /> Generate Setup Link
+                          <button
+                            className="btn-secondary h-9 px-3 text-xs"
+                            type="button"
+                            disabled={!canResetPassword || setupAction === "manual_link"}
+                            onClick={generateSetupLinkForExistingEmployee}
+                          >
+                            <KeyRound size={14} /> {setupAction === "manual_link" ? "Generating..." : "Generate Setup Link"}
                           </button>
                         </div>
                       </div>
@@ -1032,6 +1126,7 @@ export default function UsersPage({ ui, store, auth }) {
   const [actionMenuUserId, setActionMenuUserId] = useState(null);
   const [setupLink, setSetupLink] = useState(null);
   const [setupFallback, setSetupFallback] = useState(null);
+  const [setupFallbackGenerating, setSetupFallbackGenerating] = useState(false);
   const canCreateEmployee = canCreate(auth, "employees");
   const canEditEmployee = canEdit(auth, "employees");
   const canDeactivateEmployee = hasPermission(auth, "employees.deactivate");
@@ -1042,7 +1137,9 @@ export default function UsersPage({ ui, store, auth }) {
     () => {
       const accessibleOutlets = getAccessibleOutlets(auth, store?.outlets ?? []);
       const outletNames = accessibleOutlets.map((outlet) => outlet.name).filter(Boolean);
-      return outletNames.length ? outletNames : fallbackWorkplaceOptions;
+      const baseOptions = outletNames.length ? outletNames : fallbackWorkplaceOptions;
+      const managementOptions = hasAllOutletAccess(auth) ? [MANAGEMENT_WORKPLACE] : [];
+      return [...new Set([...managementOptions, ...baseOptions])];
     },
     [auth, store?.outlets],
   );
@@ -1106,16 +1203,19 @@ export default function UsersPage({ ui, store, auth }) {
     terminated: users.filter((user) => user.employment_status === "terminated").length,
   };
 
-  function updateUserAccount(userId, updates) {
+  async function updateUserAccount(userId, updates) {
     const current = users.find((user) => user.id === userId);
-    if (!current) return;
-    employeeService.saveEmployee({ ...current, ...updates }).then((saved) => {
+    if (!current) return null;
+    try {
+      const saved = await employeeService.saveEmployee({ ...current, ...updates });
       setUsers((list) => list.map((user) => (user.id === userId ? saved : user)));
       setSelectedUser((selected) => (selected?.id === userId ? saved : selected));
-    }).catch((error) => {
+      return saved;
+    } catch (error) {
       console.error("Unable to update employee", error);
       ui.notify({ title: "Unable to update employee", message: error.message || "Please try again.", tone: "error" });
-    });
+      throw error;
+    }
   }
 
   function closeActionMenu() {
@@ -1130,6 +1230,15 @@ export default function UsersPage({ ui, store, auth }) {
     if (!user.email) {
       ui.notify({ title: "Email required", message: "Add an email before sending login setup.", tone: "error" });
       return;
+    }
+    if (import.meta.env.DEV) {
+      console.log("[GenerateSetupLinkDebug]", {
+        source: "employees_page",
+        employeeId: user.id,
+        email: user.email,
+        mode,
+        phase: "start",
+      });
     }
     try {
       const result = await employeeAuthOnboardingService.sendLoginSetupEmail(user.id, { mode });
@@ -1156,6 +1265,16 @@ export default function UsersPage({ ui, store, auth }) {
         setSetupLink({ email: result.email, link: result.setupUrl });
         setSetupFallback(null);
       }
+      if (import.meta.env.DEV) {
+        console.log("[GenerateSetupLinkDebug]", {
+          source: "employees_page",
+          employeeId: user.id,
+          email: result.email || user.email,
+          mode,
+          hasSetupUrl: Boolean(result.setupUrl),
+          phase: "success",
+        });
+      }
       ui.notify({
         title: result.setupUrl ? "Setup link generated." : "Login setup email sent.",
         message: result.warning || result.message || result.email || user.email,
@@ -1165,6 +1284,16 @@ export default function UsersPage({ ui, store, auth }) {
       return result;
     } catch (error) {
       console.error("Unable to send login setup", error);
+      if (import.meta.env.DEV) {
+        console.error("[GenerateSetupLinkDebug]", {
+          source: "employees_page",
+          employeeId: user.id,
+          email: user.email,
+          mode,
+          phase: "failed",
+          error,
+        });
+      }
       if (error.canGenerateManualLink && mode !== "manual_link") {
         setSetupFallback({
           user,
@@ -1182,6 +1311,16 @@ export default function UsersPage({ ui, store, auth }) {
       }
       ui.notify({ title: "Unable to send login setup", message: error.message || "Please configure email delivery.", tone: "error" });
       throw error;
+    }
+  }
+
+  async function generateFallbackSetupLink() {
+    if (!setupFallback?.user) return;
+    setSetupFallbackGenerating(true);
+    try {
+      await sendLoginSetupForUser(setupFallback.user, { mode: "manual_link" });
+    } finally {
+      setSetupFallbackGenerating(false);
     }
   }
 
@@ -1208,13 +1347,15 @@ export default function UsersPage({ ui, store, auth }) {
       danger: true,
     });
     if (!confirmed) return;
-    updateUserAccount(user.id, {
+    const saved = await updateUserAccount(user.id, {
       enable_system_login: true,
       access_state: EMPLOYEE_ACCESS_STATE.DISABLED,
       is_active: false,
       audit_summary: "System access disabled. Login metadata and historical records remain available.",
     });
-    ui.notify({ title: "System access disabled.", message: "Historical records remain available." });
+    if (saved) {
+      ui.notify({ title: "System access disabled.", message: "Historical records remain available." });
+    }
     closeActionMenu();
   }
 
@@ -1566,9 +1707,14 @@ export default function UsersPage({ ui, store, auth }) {
               <button
                 className="btn-secondary mt-3 h-9 text-xs"
                 type="button"
-                onClick={() => {
-                  navigator.clipboard?.writeText(setupLink.link);
-                  ui.notify({ title: "Setup link copied." });
+                onClick={async () => {
+                  try {
+                    const copied = await copyTextToClipboard(setupLink.link);
+                    if (!copied) throw new Error("Clipboard copy was not accepted.");
+                    ui.notify({ title: "Setup link copied." });
+                  } catch (error) {
+                    ui.notify({ title: "Unable to copy setup link", message: error.message || "Copy the link manually.", tone: "error" });
+                  }
                 }}
               >
                 Copy Link
@@ -1588,9 +1734,10 @@ export default function UsersPage({ ui, store, auth }) {
               <button
                 className="btn-primary"
                 type="button"
-                onClick={() => sendLoginSetupForUser(setupFallback.user, { mode: "manual_link" })}
+                disabled={setupFallbackGenerating}
+                onClick={generateFallbackSetupLink}
               >
-                Generate Setup Link
+                {setupFallbackGenerating ? "Generating..." : "Generate Setup Link"}
               </button>
             </>
           )}

@@ -17,7 +17,7 @@ Verification method:
 - Browser testing with separate Owner/Admin/Accounts/Manager/limited staff accounts was not completed in this pass because role-specific credentials were not available in the workspace context.
 
 Critical fixes applied:
-- Employee workplace selection now uses accessible outlet names only; `All Outlets` is no longer a valid employee workplace.
+- Employee workplace selection now uses accessible outlet names plus the HQ-only `Management` option; `All Outlets` is no longer a valid employee workplace.
 - Employee department is derived from the selected job position before save so employee profile data stays consistent after position changes.
 - Employee outlet RLS was tightened with a new migration that maps `employees.workplace` to `outlets.name/code` and enforces `roles.outlet_access_type` / `role_outlets` scope.
 - Outlet bootstrap and outlet RLS now include Employee permissions so People-only roles can load their accessible outlet list.
@@ -29,9 +29,9 @@ Critical fixes applied:
 
 | Module | Test | Pass/Fail | Notes | Bug Severity |
 |---|---|---:|---|---|
-| Employees | Create Employee | Pass | `employeeService.saveEmployee()` inserts into Supabase `employees`; success only after remote write. Workplace is now limited to accessible outlets. | Fixed Critical |
+| Employees | Create Employee | Pass | `employeeService.saveEmployee()` inserts into Supabase `employees`; success only after remote write. Workplace is now limited to accessible outlets or `Management` for HQ users. | Fixed Critical |
 | Employees | Edit Employee | Pass | Updates Supabase `employees` and refreshes employee list after save. | None |
-| Employees | Change Outlet | Pass | Employee workplace options now come from accessible outlets; RLS enforces selected-outlet scope by matching workplace to outlet name/code. | Fixed Critical |
+| Employees | Change Outlet / Workplace | Pass | Employee workplace options now come from accessible outlets, with `Management` available as a non-outlet workplace for HQ users. RLS enforces selected-outlet scope by matching outlet workplaces to outlet name/code. | Fixed Critical |
 | Employees | Change Position | Pass | Position change is persisted; employee department is now derived from selected position on save. | Fixed High |
 | Employees | Change Department | Pass with note | Department is not a direct employee form field; it follows the selected position. | None |
 | Employees | Change Role | Pass | Role dropdown stores role name for display and `role_id` for save; `employees.role_id` is persisted. | None |
@@ -83,19 +83,36 @@ Critical fixes applied:
 | Resigned employee remains in Employee Directory | Pass | The employee row remains in `employees` and can be shown by Employee Directory status filtering; the record is not deleted. |
 | Historical record display rule | Pass | Existing People/operations user-display helpers preserve employee name display as nickname, then full_name, then email, then `Unknown User`; login disable or resignation does not delete the employee record. |
 | Test data restored | Pass | `CCC` was restored to `employment_type = full_time`, `employment_status = active`, and `resigned_date = null`. |
+| Management workplace save | Pass | Browser UAT changed `CCC` to `workplace = Management`, saved, refreshed, confirmed the value persisted, then restored `CCC` to `Hola Hola Kopitiam Ipoh`. No outlet/RLS save error appeared. |
+
+## System Access Browser/Data UAT - 31 May 2026
+
+Test employee: `Phoenix Wong Kar Yan` (`Phoenix`) was used for reversible staging checks and restored after verification.
+
+| Test | Result | Notes |
+|---|---:|---|
+| Active user row actions | Pass | Browser check on an Active employee row showed `View`, `Edit`, and `Disable Access`; `Send Login Setup` and `Generate Setup Link` were not present for the Active row action menu. |
+| Disable Access persistence | Pass | Staging update set `access_state = disabled`, `is_active = false`, and `enable_system_login = true` while preserving login email, `role_id`, `auth_user_id`, `last_login_at`, and `email_verified`. Browser refresh showed the row as `Disabled`. |
+| Disabled user cannot enter app | Pass | Login context blocks employees when `is_active === false` or `access_state === disabled`; this was verified against the persisted disabled state and the auth context guard. |
+| Disable Access toast timing | Pass | Row-menu Disable Access now awaits the Supabase save before showing the success toast; failures show the existing employee update error toast. |
+| Re-enable Access setup state | Pass | Re-enable path moved the employee to `access_state = not_sent`, preserved login email and role, and browser UI exposed setup fields with `Send Login Setup Email` and `Generate Setup Link`. |
+| Generate setup link | Pass | Browser UAT generated a manual setup link for an already pending staging employee (`CCC` / `idamans.hq@gmail.com`) when email delivery was unavailable; setup-link generation completed successfully without exposing the link in the report. |
+| Change Login Email state | Pass | Login email change was verified with a temporary staging email; it moved the employee to `not_sent`, set `email_verified = false`, cleared `verification_sent_at`, and preserved role/auth metadata for setup-required flow. |
+| Historical record name display | Pass | Inventory Movements browser check showed employee names such as `Isaac` and `Dason Yap`; no raw UUID-shaped values were visible in the rendered movement records. |
+| Test data restored | Pass | Phoenix was restored to `email = jymt.kopitiam@gmail.com`, `access_state = active`, `is_active = true`, `enable_system_login = true`, `email_verified = true`, original `role_id`, original `auth_user_id`, and original `last_login_at`. |
 
 ## Bugs Fixed
 
 | Severity | Bug | Fix |
 |---|---|---|
 | Critical | Selected-outlet People users could potentially read all employee rows because `employees.view` RLS was not outlet-scoped. | Added `202605300100_people_employee_outlet_scope.sql` to scope employee select/insert/update by workplace outlet. |
-| Critical | Employee workplace allowed `All Outlets`, which is an access filter concept, not an employee assignment. | Removed `All Outlets` from employee workplace options and limited options to accessible outlets. |
+| Critical | Employee workplace allowed `All Outlets`, which is an access filter concept, not an employee assignment. | Removed `All Outlets` from employee workplace options and limited options to accessible outlets, with `Management` as the explicit non-outlet HQ workplace. |
 | High | Department hard delete did not enforce the rule that departments used by active employees/positions should not be deleted. | Added service-level active position and employee checks before department delete. |
 | High | Employee department could drift from position because the employee form did not persist department after position change. | Employee save now derives department from the selected position. |
 
 ## Remaining Risks
 
-- Employee outlet scope currently depends on text matching `employees.workplace` to `outlets.name` or `outlets.code`. This is stable for current data but should eventually be migrated to `employees.outlet_id`.
+- Employee outlet scope currently depends on text matching `employees.workplace` to `outlets.name` or `outlets.code`; `Management` remains a text-only non-outlet workplace. Outlet employees should eventually be migrated to `employees.outlet_id`.
 - People live UAT still needs real role accounts: Owner/Admin, custom all-outlet, custom selected-outlet, and limited outlet staff.
 - Legacy local/demo People pages (`PermissionsPage`, `RolePermissionAssignmentPage`, and `useDepartments`) still exist in code but are not active route targets in the current module registry.
 - Employee login setup depends on the Supabase Edge Function and SMTP/manual-link configuration; the UI path is stable but email delivery requires environment verification.

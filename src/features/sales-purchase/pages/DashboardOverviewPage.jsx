@@ -162,9 +162,10 @@ function outletMeta(outlet, index = 0) {
   };
 }
 
-function employeeMatchesOutletScope(employee, scopeOutletIds, outletById) {
+function employeeMatchesOutletScope(employee, scopeOutletIds, outletById, { includeManagement = false } = {}) {
   const workplace = normalizeLookupValue(employee?.workplace);
   if (!workplace) return false;
+  if (workplace === "management") return includeManagement;
   if (["all outlets", "all outlet", "hq", "headquarters"].includes(workplace)) return true;
   return scopeOutletIds.some((outletId) => {
     const outlet = outletById.get(outletId);
@@ -603,7 +604,7 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
   const birthdays = useMemo(() => {
     const scopedEmployees = opsData.employees.filter((employee) => (
       isActiveBirthdayEmployee(employee)
-      && employeeMatchesOutletScope(employee, scopeOutletIds, outletById)
+      && employeeMatchesOutletScope(employee, scopeOutletIds, outletById, { includeManagement: selectedOutletId === "all" })
     ));
     const mapped = scopedEmployees
       .map((employee) => ({ employee, birthday: birthdayOccurrence(employeeBirthday(employee), today) }))
@@ -613,7 +614,7 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
       upcoming: mapped.filter((item) => item.birthday.days <= 30),
       next: mapped[0],
     };
-  }, [opsData.employees, outletById, scopeOutletIds, today]);
+  }, [opsData.employees, outletById, scopeOutletIds, selectedOutletId, today]);
 
   const statusCounts = outletMonthlyRows.reduce((counts, row) => {
     counts[row.status] = (counts[row.status] || 0) + 1;
