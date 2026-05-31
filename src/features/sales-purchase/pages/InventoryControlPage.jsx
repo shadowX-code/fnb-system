@@ -4801,6 +4801,7 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, onClose,
   const removeIngredient = (id) => setForm((current) => ({ ...current, ingredients: current.ingredients.filter((line) => line.id !== id) }));
   const summary = recipeCostSummary(form, items);
   const margin = recipeMarginPercent(form.sellingPrice, summary.totalCost);
+  const profit = Number(form.sellingPrice || 0) - Number(summary.totalCost || 0);
   const categoryOptions = menuCategories
     .filter((category) => category.status === "active")
     .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0) || a.name.localeCompare(b.name))
@@ -4838,43 +4839,74 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, onClose,
       )}
     >
       <div className="space-y-4">
-        <div className="grid gap-3 md:grid-cols-2">
-          <Field label="Recipe Code" value={form.recipeCode} required onChange={(value) => update("recipeCode", value)} placeholder="RCP-CURRY-001" />
-          <Field label="Recipe Name EN" value={form.recipeNameEn} required onChange={(value) => update("recipeNameEn", value)} placeholder="Classic Dry Curry Noodle" />
-          <Field label="Recipe Name CN" value={form.recipeNameCn} required onChange={(value) => update("recipeNameCn", value)} placeholder="经典干咖喱面" />
-          <label>
-            <div className="mb-1 type-caption font-semibold text-text-secondary">Outlet</div>
-            <div className="control flex h-9 items-center text-[13px] font-semibold text-text-secondary">{outlet?.name || "Selected outlet"}</div>
-          </label>
-          <SelectField label="Menu Category" value={form.menuCategory} options={safeCategoryOptions} onChange={(value) => update("menuCategory", value)} />
-          <SelectField label="Status" value={form.status} options={statuses.map((status) => ({ value: status, label: toTitle(status) }))} onChange={(value) => update("status", value)} />
-          <Field label="Serving Size / Yield" value={form.servingSize} onChange={(value) => update("servingSize", value)} placeholder="1" />
-          <Field label="Selling Price" type="number" value={form.sellingPrice} onChange={(value) => update("sellingPrice", parseNonNegativeNumber(value))} placeholder="0.00" />
-          <label>
-            <div className="mb-1 type-caption font-semibold text-text-secondary">Recipe Photo</div>
-            <div className="flex items-center gap-3">
-              <div className="h-16 w-16 overflow-hidden rounded-2xl border border-border bg-slate-100">
-                {photoPreview ? <img className="h-full w-full object-cover" src={photoPreview} alt="Recipe preview" /> : <div className="flex h-full w-full items-center justify-center text-xs font-bold text-text-muted">Photo</div>}
-              </div>
-              <input type="file" accept="image/*" onChange={handlePhotoChange} className="block text-xs text-text-secondary file:mr-3 file:rounded-xl file:border-0 file:bg-primary/10 file:px-3 file:py-2 file:text-xs file:font-bold file:text-primary" />
-            </div>
-          </label>
-          <div className="rounded-2xl border border-primary/15 bg-primary/5 p-3 type-caption text-text-secondary">
-            Ingredient selector only shows active inventory items linked to the selected outlet.
+        <section className="rounded-3xl border border-border bg-background p-4">
+          <div className="mb-3">
+            <div className="type-title font-black text-text-primary">Recipe Identity</div>
+            <div className="type-caption text-text-secondary">Core recipe names and lifecycle state.</div>
           </div>
-          <div className="md:col-span-2">
+          <div className="grid gap-3 md:grid-cols-2">
+            <Field label="Recipe Code" value={form.recipeCode} required onChange={(value) => update("recipeCode", value)} placeholder="RCP-CURRY-001" />
+            <SelectField label="Menu Category" value={form.menuCategory} options={safeCategoryOptions} onChange={(value) => update("menuCategory", value)} />
+            <Field label="Recipe Name EN" value={form.recipeNameEn} required onChange={(value) => update("recipeNameEn", value)} placeholder="Classic Dry Curry Noodle" />
+            <Field label="Recipe Name CN" value={form.recipeNameCn} required onChange={(value) => update("recipeNameCn", value)} placeholder="经典干咖喱面" />
+            <label>
+              <div className="mb-1 type-caption font-semibold text-text-secondary">Outlet</div>
+              <div className="control flex h-9 items-center text-[13px] font-semibold text-text-secondary">{outlet?.name || "Selected outlet"}</div>
+            </label>
+            <SelectField label="Status" value={form.status} options={statuses.map((status) => ({ value: status, label: toTitle(status) }))} onChange={(value) => update("status", value)} />
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-border bg-background p-4">
+          <div className="mb-3">
+            <div className="type-title font-black text-text-primary">Commercial Information</div>
+            <div className="type-caption text-text-secondary">Selling price and yield drive live recipe costing.</div>
+          </div>
+          <div className="grid gap-3 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_1.4fr] lg:items-end">
+            <Field label="Selling Price" type="number" value={form.sellingPrice} onChange={(value) => update("sellingPrice", parseNonNegativeNumber(value))} placeholder="0.00" />
+            <Field label="Serving Size / Yield" value={form.servingSize} onChange={(value) => update("servingSize", value)} placeholder="1" />
+            <div className="grid gap-2 sm:grid-cols-3">
+              <MetricCard label="Recipe Cost" value={toCurrency(summary.totalCost)} helper="Ingredient + wastage" tone="success" size="compact" />
+              <MetricCard label="Profit" value={form.sellingPrice !== "" ? toCurrency(profit) : "—"} helper="Price - cost" tone={profit >= 0 ? "success" : "danger"} size="compact" />
+              <MetricCard label="Margin %" value={formatRecipeMargin(margin)} helper="Price vs cost" tone={recipeMarginTone(margin)} size="compact" />
+            </div>
+          </div>
+        </section>
+
+        <section className="rounded-3xl border border-border bg-background p-4">
+          <div className="mb-3">
+            <div className="type-title font-black text-text-primary">Product Display</div>
+            <div className="type-caption text-text-secondary">Photo and notes shown to operators reviewing the recipe.</div>
+          </div>
+          <div className="grid gap-4 lg:grid-cols-[240px_minmax(0,1fr)]">
+            <label>
+              <div className="mb-1 type-caption font-semibold text-text-secondary">Recipe Photo</div>
+              <div className="rounded-2xl border border-border bg-slate-50 p-3">
+                <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-2xl border border-border bg-slate-100">
+                  {photoPreview ? <img className="h-full w-full object-contain p-2" src={photoPreview} alt="Recipe preview" /> : <div className="text-xs font-bold text-text-muted">No recipe photo</div>}
+                </div>
+                <input type="file" accept="image/*" onChange={handlePhotoChange} className="mt-3 block w-full text-xs text-text-secondary file:mr-3 file:rounded-xl file:border-0 file:bg-primary/10 file:px-3 file:py-2 file:text-xs file:font-bold file:text-primary" />
+              </div>
+            </label>
             <TextArea label="Notes" value={form.notes} onChange={(value) => update("notes", value)} placeholder="Prep notes, yield assumptions or special handling." />
           </div>
-        </div>
-        <div className="rounded-2xl border border-border p-3">
-          <div className="mb-3 flex items-center justify-between gap-3">
+        </section>
+
+        <section className="rounded-3xl border border-border bg-background p-4">
+          <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
             <div>
-              <div className="type-title font-bold text-text-primary">Ingredients</div>
+              <div className="type-title font-black text-text-primary">Ingredients</div>
               <div className="type-caption text-text-secondary">Quantity used is per serving/yield above.</div>
             </div>
-            <button className="btn-secondary h-8 px-3 text-xs" type="button" onClick={addIngredient} disabled={!availableItems.length}>
-              <Plus size={14} /> Add Ingredient
-            </button>
+            <div className="flex flex-wrap items-center justify-end gap-2">
+              <Badge tone="success">Running total {toCurrency(summary.totalCost)}</Badge>
+              <button className="btn-secondary h-8 px-3 text-xs" type="button" onClick={addIngredient} disabled={!availableItems.length}>
+                <Plus size={14} /> Add Ingredient
+              </button>
+            </div>
+          </div>
+          <div className="mb-3 rounded-2xl border border-primary/15 bg-primary/5 p-3 type-caption text-text-secondary">
+            Ingredient selector only shows active inventory items linked to the selected outlet.
           </div>
           {form.ingredients.length ? (
             <div className="space-y-2">
@@ -4882,7 +4914,7 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, onClose,
                 const item = items.find((entry) => entry.id === line.itemId);
                 const cost = recipeIngredientCost(line, item);
                 return (
-                  <div key={line.id} className="grid gap-2 rounded-2xl border border-border bg-slate-50/70 p-2 lg:grid-cols-[1.4fr_95px_72px_95px_100px_95px_1fr_auto] lg:items-end">
+                  <div key={line.id} className="grid gap-2 rounded-2xl border border-border bg-slate-50/70 p-3 xl:grid-cols-[1.4fr_95px_72px_95px_95px_100px_1fr_auto] xl:items-end">
                     <SelectField label="Inventory Item" value={line.itemId} options={availableItems.map((entry) => ({ value: entry.id, label: entry.name }))} onChange={(value) => updateIngredient(line.id, { itemId: value })} searchable />
                     <Field label="Qty Used" type="number" value={line.quantityUsed} onChange={(value) => updateIngredient(line.id, { quantityUsed: parseNonNegativeNumber(value) })} />
                     <label>
@@ -4893,11 +4925,11 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, onClose,
                       <div className="mb-1 type-caption font-semibold text-text-secondary">Unit Cost</div>
                       <div className="control flex h-9 items-center text-[13px] font-semibold text-text-secondary">{toCurrency(cost.unitCost)}</div>
                     </label>
+                    <Field label="Wastage %" type="number" value={line.wastagePercent} onChange={(value) => updateIngredient(line.id, { wastagePercent: parseNonNegativeNumber(value) })} />
                     <label>
                       <div className="mb-1 type-caption font-semibold text-text-secondary">Total Cost</div>
-                      <div className="control flex h-9 items-center text-[13px] font-semibold text-text-primary">{toCurrency(cost.totalCost)}</div>
+                      <div className="control flex h-9 items-center text-[13px] font-semibold text-text-primary">{toCurrency(cost.totalCost + cost.wastageCost)}</div>
                     </label>
-                    <Field label="Wastage %" type="number" value={line.wastagePercent} onChange={(value) => updateIngredient(line.id, { wastagePercent: parseNonNegativeNumber(value) })} />
                     <Field label="Remark" value={line.remark} onChange={(value) => updateIngredient(line.id, { remark: value })} placeholder="Optional" />
                     <button className="btn-secondary h-9 px-3 text-xs text-rose-700" type="button" onClick={() => removeIngredient(line.id)}>Remove</button>
                   </div>
@@ -4905,14 +4937,17 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, onClose,
               })}
             </div>
           ) : <EmptyState title="No ingredients yet" description={availableItems.length ? "Add ingredients to define usage per serving." : "No active outlet-linked inventory items are available for this outlet."} />}
-        </div>
-        <div className="grid gap-3 sm:grid-cols-5">
-          <MetricCard label="Ingredient Cost" value={toCurrency(summary.ingredientCost)} helper="Before wastage" size="compact" />
-          <MetricCard label="Estimated Wastage Cost" value={toCurrency(summary.wastageCost)} helper="Based on wastage %" tone={summary.wastageCost ? "warning" : "neutral"} size="compact" />
-          <MetricCard label="Total Recipe Cost" value={toCurrency(summary.totalCost)} helper="Ingredient + wastage" tone="success" size="compact" />
-          <MetricCard label="Selling Price" value={form.sellingPrice !== "" ? toCurrency(form.sellingPrice) : "—"} helper="Menu price" size="compact" />
-          <MetricCard label="Margin %" value={formatRecipeMargin(margin)} helper="Price vs cost" tone={recipeMarginTone(margin)} size="compact" />
-        </div>
+          <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-slate-50 p-3">
+            <div>
+              <div className="type-caption font-black uppercase tracking-wide text-text-muted">Total Recipe Cost</div>
+              <div className="type-title font-black text-text-primary">{toCurrency(summary.totalCost)}</div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge tone="neutral">Ingredient {toCurrency(summary.ingredientCost)}</Badge>
+              <Badge tone={summary.wastageCost ? "warning" : "neutral"}>Wastage {toCurrency(summary.wastageCost)}</Badge>
+            </div>
+          </div>
+        </section>
       </div>
     </Modal>
   );

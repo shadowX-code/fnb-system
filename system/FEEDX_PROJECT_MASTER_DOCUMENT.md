@@ -2557,15 +2557,16 @@ Rules:
 - Future Product Analytics recipe matching priority is: `recipe_code`, then `recipe_name_en`, then `recipe_name_cn`.
 - Recipes & Usage does not expose an All Outlets aggregate filter. The outlet filter is required, defaults to the first accessible outlet, and contains only individual accessible outlets.
 - Add Recipe uses the currently selected Recipes & Usage outlet filter as its outlet context; the Add/Edit Recipe modal does not ask for outlet again.
+- Add/Edit Recipe follows the operator workflow: Recipe Identity (`recipe_code`, `recipe_name_en`, `recipe_name_cn`, Menu Category, Status), Commercial Information (Selling Price, Serving Size/Yield, live Recipe Cost, Profit, and Margin %), Product Display (Recipe Photo and Notes), then Ingredients as the primary working area.
 - Menu Category Settings supports create, edit, archive, and sort for `inventory_menu_categories`; active menu categories populate recipe forms and filters.
 - Recipe ingredient selectors only show active inventory items linked to the selected outlet.
 - Multiple ingredients are supported per recipe.
 - Unit follows the selected inventory item unit.
 - Recipe photo upload stores a public photo URL in `inventory_recipes.recipe_photo_url` and recipe list rows display a thumbnail when available.
 - Recipe Detail uses a hero layout instead of a full-width banner: desktop shows a 240 × 240 square recipe photo with `object-fit: contain` beside recipe identity, cost, price, margin, and status metrics; mobile uses a full-width 1:1 photo area with metrics below. Missing images show `No recipe photo`.
-- Ingredient rows show Inventory Item, Qty Used, Unit, Unit Cost, Total Cost, Wastage %, and Remark.
+- Ingredient rows show Inventory Item, Qty Used, Unit, Unit Cost, Wastage %, Total Cost, and Remark. The Ingredients section shows a running total while editing and a footer Total Recipe Cost with ingredient and wastage breakdowns.
 - Unit Cost reads from `inventory_items.cost`; Total Cost is `Qty Used × Unit Cost`.
-- Recipe Summary calculates Ingredient Cost, Estimated Wastage Cost, Total Recipe Cost, Selling Price, and Margin % in real time.
+- Recipe Summary calculates Ingredient Cost, Estimated Wastage Cost, Total Recipe Cost, Selling Price, Profit, and Margin % in real time.
 - Recipe Costing Dashboard shows Total Recipes, Average Recipe Cost, Average Margin, and Highest Cost Recipe above the recipe list; these KPIs are always calculated within the selected single-outlet scope.
 - Recipe Intelligence appears below Recipe BOM Setup in a two-column desktop layout and stacked mobile layout. Default analysis period is Last 3 Months, with options for Current Month, Last 3 Months, Last 6 Months, and Last 12 Months.
 - Menu Engineering Matrix uses Product Analytics as its data source. X axis is Product Analytics Qty Sold, Y axis is recipe Margin %, and bubble size is Product Analytics Revenue / Net Sales. The chart uses dynamic average Qty Sold and average Margin % as quadrant split lines for Star, Puzzle, Workhorse, and Dog categories. The matrix chart is hidden until at least 10 mapped recipes exist, then shows `Need at least 10 mapped recipes.` guidance instead of low-confidence chart output.
