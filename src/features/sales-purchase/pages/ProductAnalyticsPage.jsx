@@ -254,8 +254,6 @@ function KpiNameValue({ value }) {
   );
 }
 
-const productAnalyticsNumericKpiClass = "type-kpi-value";
-
 function extractFeedMeMetadata(rawRows) {
   const metadata = {};
   rawRows.slice(0, 20).forEach((row) => {
@@ -1034,14 +1032,14 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
       ) : null}
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-        <MetricCard variant="compact" label="Total Net Sales" value={toCurrency(current.totals.nett_sales)} helper={comparePeriod ? `${salesChange >= 0 ? "+" : ""}${toPercent(salesChange)} vs compare month` : "Current period"} icon={BarChart3} valueClassName={productAnalyticsNumericKpiClass} />
-        <MetricCard variant="compact" label="Total Quantity Sold" value={current.totals.quantity.toLocaleString()} helper={comparePeriod ? `${qtyChange >= 0 ? "+" : ""}${toPercent(qtyChange)} quantity movement` : "Items sold"} icon={ArrowUpDown} valueClassName={productAnalyticsNumericKpiClass} />
-        <MetricCard variant="compact" label="Average Spend / Item" value={toCurrency(avgSpend)} helper="Net sales divided by quantity" icon={PieChart} valueClassName={productAnalyticsNumericKpiClass} />
+        <MetricCard variant="compact" label="Total Net Sales" value={toCurrency(current.totals.nett_sales)} helper={comparePeriod ? `${salesChange >= 0 ? "+" : ""}${toPercent(salesChange)} vs compare month` : "Current period"} icon={BarChart3} />
+        <MetricCard variant="compact" label="Total Quantity Sold" value={current.totals.quantity.toLocaleString()} helper={comparePeriod ? `${qtyChange >= 0 ? "+" : ""}${toPercent(qtyChange)} quantity movement` : "Items sold"} icon={ArrowUpDown} />
+        <MetricCard variant="compact" label="Average Spend / Item" value={toCurrency(avgSpend)} helper="Net sales divided by quantity" icon={PieChart} />
         <MetricCard variant="compact" label="Best Selling Product" value={<KpiNameValue value={best?.product} />} helper={best ? `${best.quantity} sold` : "No product data"} icon={Sparkles} valueClassName="text-base" />
         <MetricCard variant="compact" label="Lowest Performer" value={<KpiNameValue value={lowest?.product} />} helper={lowest ? `${lowest.quantity} sold · ${toCurrency(lowest.nett_sales)}` : "No product data"} icon={Clock} valueClassName="text-base" />
-        <MetricCard variant="compact" label="Discount Given" value={toCurrency(current.totals.discount)} helper="Total discount in report" icon={Download} valueClassName={productAnalyticsNumericKpiClass} />
+        <MetricCard variant="compact" label="Discount Given" value={toCurrency(current.totals.discount)} helper="Total discount in report" icon={Download} />
         <MetricCard variant="compact" label="Top Category" value={<KpiNameValue value={topCategory?.name} />} helper={topCategory ? toCurrency(topCategory.nett_sales) : "No category data"} icon={PieChart} valueClassName="text-base" />
-        <MetricCard variant="compact" label="Menu Items Sold" value={current.products.length.toLocaleString()} helper="Unique products after variant grouping" icon={FileSpreadsheet} valueClassName={productAnalyticsNumericKpiClass} />
+        <MetricCard variant="compact" label="Menu Items Sold" value={current.products.length.toLocaleString()} helper="Unique products after variant grouping" icon={FileSpreadsheet} />
       </div>
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,1.1fr)_minmax(360px,0.9fr)]">
