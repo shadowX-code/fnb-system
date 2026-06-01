@@ -45,6 +45,7 @@ import SelectField from "../../../components/forms/SelectField.jsx";
 import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import { supabase } from "../../../lib/supabase.ts";
+import { auditLogService } from "../../../services/auditLogService.js";
 import { productAnalyticsService } from "../../../services/productAnalyticsService.js";
 import { getAccessibleOutletOptions, getAccessibleOutlets, hasAllOutletAccess, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { IMAGE_UPLOAD_ACCEPT, isImageDataUrl as isStandardImageDataUrl, optimizeImageFileForPreview, removeStorageObjectFromPublicUrl, uploadOptimizedImage } from "../../../utils/imageUpload.js";
@@ -2450,11 +2451,17 @@ async function persistRemoteInventoryMovement(movement = {}, userId) {
   if (!isUuid(movement.outletId)) throw new Error("Outlet is required.");
   if (!isUuid(movement.itemId)) throw new Error("Inventory item is required.");
   const timestamp = movement.date ? businessDateToTimestamp(movement.date) : new Date().toISOString();
+  const movementType = toTitle(movement.type || movement.movementType || "adjustment");
+  let quantity = Number(movement.quantity || 0);
+  const movementKey = canonical(movementType);
+  if (movementKey === "purchase") quantity = Math.abs(quantity);
+  if (movementKey === "waste") quantity = -Math.abs(quantity);
+  if (!Number.isFinite(quantity) || quantity === 0) throw new Error("Quantity is required.");
   const payload = {
     outlet_id: movement.outletId,
     inventory_item_id: movement.itemId,
-    movement_type: toTitle(movement.type || movement.movementType || "adjustment"),
-    quantity: Number(movement.quantity || 0),
+    movement_type: movementType,
+    quantity,
     unit: movement.unit || null,
     reference_type: movement.referenceType || "manual",
     reference_id: isUuid(movement.referenceId) ? movement.referenceId : null,
@@ -2463,7 +2470,6 @@ async function persistRemoteInventoryMovement(movement = {}, userId) {
     created_by: userId || null,
     created_at: timestamp,
   };
-  if (!Number.isFinite(payload.quantity) || payload.quantity === 0) throw new Error("Quantity is required.");
   const result = await supabase
     .from("inventory_movements")
     .insert(payload)
@@ -2471,6 +2477,60 @@ async function persistRemoteInventoryMovement(movement = {}, userId) {
     .single();
   debugLog("[InventoryMovementDebug]", { action: "insert-movement", payload, result: { data: result.data, error: result.error }, error: result.error });
   if (result.error) throw result.error;
+  return mapRemoteInventoryMovement(result.data);
+}
+
+function canEditInventoryMovement(movement = {}) {
+  const referenceType = canonical(movement.referenceType || "");
+  if (referenceType === "purchase_order" || referenceType === "po") return false;
+  const type = canonical(movement.movementType || movement.type || "");
+  return type === "waste" || type === "adjustment" || type.includes("transfer");
+}
+
+function movementEditPayload(movement = {}) {
+  if (!isUuid(movement.outletId)) throw new Error("Outlet is required.");
+  if (!isUuid(movement.itemId)) throw new Error("Inventory item is required.");
+  const movementType = toTitle(movement.type || movement.movementType || "adjustment");
+  let quantity = Number(movement.quantity || 0);
+  const movementKey = canonical(movementType);
+  if (movementKey === "purchase") quantity = Math.abs(quantity);
+  if (movementKey === "waste") quantity = -Math.abs(quantity);
+  if (!Number.isFinite(quantity) || quantity === 0) throw new Error("Quantity is required.");
+  return {
+    outlet_id: movement.outletId,
+    inventory_item_id: movement.itemId,
+    movement_type: movementType,
+    quantity,
+    unit: movement.unit || null,
+    reference_type: movement.referenceType || "manual",
+    reference_id: isUuid(movement.referenceId) ? movement.referenceId : null,
+    reference_no: movement.reference || movement.referenceNo || null,
+    notes: movement.notes || null,
+  };
+}
+
+async function persistRemoteInventoryMovementUpdate(movement = {}, userId) {
+  if (!isUuid(movement.id)) throw new Error("Movement record is required.");
+  if (!canEditInventoryMovement(movement)) throw new Error("Purchase receiving movements are read-only.");
+  const payload = movementEditPayload(movement);
+  const result = await supabase
+    .from("inventory_movements")
+    .update(payload)
+    .eq("id", movement.id)
+    .select("*")
+    .single();
+  debugLog("[InventoryMovementDebug]", { action: "update-movement", movementId: movement.id, payload, result: { data: result.data, error: result.error }, error: result.error });
+  if (result.error) throw result.error;
+  await auditLogService.createAuditLog({
+    action: "inventory_movement_updated",
+    module: "inventory_movements",
+    target: payload.reference_no || movement.id,
+    description: "Inventory movement updated.",
+    before: movement,
+    after: result.data,
+    outlet: payload.outlet_id,
+    metadata: { outlet_id: payload.outlet_id, movement_id: movement.id, edited_by: userId || null },
+  }).catch((error) => debugLog("[InventoryMovementDebug]", { action: "movement-edit-audit-log", movementId: movement.id, error }));
   return mapRemoteInventoryMovement(result.data);
 }
 
@@ -4452,38 +4512,137 @@ function SkipReasonModal({ itemName, onClose, onSave }) {
   );
 }
 
-function MovementModal({ outlets, items, onClose, onSave }) {
+function MovementModal({ outlets, items, movements = [], movement, onClose, onSave }) {
+  const isEdit = Boolean(movement?.id);
+  const movementKey = canonical(movement?.movementType || movement?.type || "");
+  const isTransferEdit = movementKey.includes("transfer");
+  const pairedTransfer = isTransferEdit
+    ? movements.find((entry) => entry.id !== movement.id && entry.reference && movement.reference && entry.reference === movement.reference && canonical(entry.movementType || entry.type || "").includes("transfer"))
+    : null;
+  const outgoingTransfer = isTransferEdit && movementKey === "transfer_in" ? pairedTransfer : movement;
+  const incomingTransfer = isTransferEdit && movementKey === "transfer_out" ? pairedTransfer : movement;
+  const initialType = isTransferEdit ? "transfer" : movementKey === "waste" ? "waste" : movementKey === "purchase" ? "purchase" : "adjustment";
+  const initialDirection = Number(movement?.quantity || 0) < 0 ? "decrease" : "increase";
   const [form, setForm] = useState({
-    id: "",
-    date: todayInput(),
-    itemId: items[0]?.id ?? "",
-    type: "adjustment",
-    quantity: "",
-    outletId: outlets[0]?.id ?? "",
+    id: isTransferEdit ? outgoingTransfer?.id || movement?.id || "" : movement?.id || "",
+    pairMovementId: isTransferEdit ? incomingTransfer?.id || "" : "",
+    date: movement?.date || todayInput(),
+    itemId: movement?.itemId || items[0]?.id || "",
+    type: initialType,
+    direction: initialDirection,
+    quantity: movement?.quantity ? Math.abs(Number(movement.quantity)) : "",
+    outletId: movement?.outletId || outlets[0]?.id || "",
+    fromOutletId: isTransferEdit ? outgoingTransfer?.outletId || "" : movement?.outletId || "",
+    toOutletId: isTransferEdit ? incomingTransfer?.outletId || "" : "",
     user: "Current User",
-    reference: "",
-    notes: "",
+    reference: movement?.reference || "",
+    referenceType: movement?.referenceType || (isEdit ? "manual" : ""),
+    referenceId: movement?.referenceId || "",
+    notes: movement?.notes || "",
   });
-  const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
+  const selectedItem = items.find((item) => item.id === form.itemId);
+  const isTransfer = form.type === "transfer";
+  const quantity = Number(form.quantity || 0);
+  const canSave = form.itemId && quantity > 0 && (
+    isTransfer
+      ? form.fromOutletId && form.toOutletId && form.fromOutletId !== form.toOutletId
+      : form.outletId
+  );
+  const movementTypeOptions = [
+    { value: "purchase", label: "Purchase" },
+    { value: "waste", label: "Waste" },
+    { value: "transfer", label: "Transfer" },
+    { value: "adjustment", label: "Adjustment" },
+  ].filter((option) => !isEdit || option.value !== "purchase");
+  const update = (key, value) => setForm((current) => {
+    if (key === "type") {
+      return {
+        ...current,
+        type: value,
+        direction: value === "waste" ? "decrease" : current.direction,
+        outletId: current.outletId || current.fromOutletId || outlets[0]?.id || "",
+        fromOutletId: current.fromOutletId || current.outletId || outlets[0]?.id || "",
+        toOutletId: current.toOutletId || "",
+      };
+    }
+    return { ...current, [key]: value };
+  });
+  const handleSave = () => {
+    if (isTransfer) {
+      const reference = form.reference || `TRF-${Date.now().toString().slice(-8)}`;
+      onSave({
+        transfer: true,
+        pairMovementId: form.pairMovementId,
+        id: form.id,
+        itemId: form.itemId,
+        quantity,
+        unit: selectedItem?.unit || "",
+        fromOutletId: form.fromOutletId,
+        toOutletId: form.toOutletId,
+        reference,
+        referenceType: "transfer",
+        notes: form.notes,
+      });
+      return;
+    }
+    const signedQuantity = form.type === "waste"
+      ? -Math.abs(quantity)
+      : form.type === "adjustment" && form.direction === "decrease"
+        ? -Math.abs(quantity)
+        : Math.abs(quantity);
+    onSave({
+      ...form,
+      quantity: signedQuantity,
+      unit: selectedItem?.unit || "",
+      movementType: form.type,
+      id: form.id || makeId("move"),
+      referenceType: form.referenceType || "manual",
+    });
+  };
   return (
     <Modal
-      title="Record Inventory Movement"
+      title={isEdit ? "Edit Inventory Movement" : "Record Inventory Movement"}
       description="Every stock movement should create an operational audit trail."
       onClose={onClose}
       footer={(
         <>
           <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="button" disabled={!form.itemId || !form.outletId || !Number(form.quantity)} onClick={() => onSave({ ...form, id: makeId("move") })}>Save Movement</button>
+          <button className="btn-primary" type="button" disabled={!canSave} onClick={handleSave}>{isEdit ? "Update Movement" : "Save Movement"}</button>
         </>
       )}
     >
       <div className="grid gap-3">
-        <SelectField label="Item" value={form.itemId} options={items.map((item) => ({ value: item.id, label: item.name }))} onChange={(value) => update("itemId", value)} searchable />
-        <SelectField label="Outlet" value={form.outletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={(value) => update("outletId", value)} searchable />
-        <SelectField label="Movement Type" value={form.type} options={movementTypes.map((type) => ({ value: type, label: toTitle(type) }))} onChange={(value) => update("type", value)} />
-        <Field label="Quantity" type="number" value={form.quantity} placeholder="Enter quantity" onChange={(value) => update("quantity", parseNonNegativeNumber(value))} />
+        {isTransfer ? (
+          <div className="grid gap-3 md:grid-cols-2">
+            <SelectField label="From Outlet" value={form.fromOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={(value) => update("fromOutletId", value)} searchable />
+            <SelectField label="To Outlet" value={form.toOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={(value) => update("toOutletId", value)} searchable />
+          </div>
+        ) : (
+          <SelectField label="Outlet" value={form.outletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={(value) => update("outletId", value)} searchable />
+        )}
+        <SelectField label="Item" value={form.itemId} options={items.map((item) => ({ value: item.id, label: `${item.name}${item.sku ? ` · ${item.sku}` : ""}` }))} onChange={(value) => update("itemId", value)} searchable />
+        <SelectField label="Movement Type" value={form.type} options={movementTypeOptions} onChange={(value) => update("type", value)} />
+        {form.type === "adjustment" ? (
+          <SelectField label="Adjustment Direction" value={form.direction} options={[{ value: "increase", label: "Increase" }, { value: "decrease", label: "Decrease" }]} onChange={(value) => update("direction", value)} />
+        ) : null}
+        <Field label={`Quantity${selectedItem?.unit ? ` (${selectedItem.unit})` : ""}`} type="number" value={form.quantity} placeholder="Enter quantity" onChange={(value) => update("quantity", parseNonNegativeNumber(value))} />
         <Field label="Reference" value={form.reference} onChange={(value) => update("reference", value)} />
         <TextArea label="Notes" value={form.notes} onChange={(value) => update("notes", value)} />
+        {form.type === "purchase" ? (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 type-caption font-semibold text-emerald-800">
+            Purchase movements are saved as positive quantities. PO receiving records remain read-only after creation.
+          </div>
+        ) : null}
+        {form.type === "waste" ? (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 type-caption font-semibold text-amber-800">
+            Waste movements are saved as negative quantities because they reduce stock.
+          </div>
+        ) : null}
+        {form.type === "transfer" && form.fromOutletId === form.toOutletId ? (
+          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 type-caption font-semibold text-rose-700">
+            From Outlet and To Outlet must be different.
+          </div>
+        ) : null}
       </div>
     </Modal>
   );
@@ -7829,12 +7988,76 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   async function saveMovement(movement) {
     try {
+      if (movement.transfer) {
+        const reference = movement.reference || `TRF-${Date.now().toString().slice(-8)}`;
+        const base = {
+          itemId: movement.itemId,
+          unit: movement.unit || itemById.get(movement.itemId)?.unit || "",
+          reference,
+          referenceType: "transfer",
+          notes: movement.notes,
+        };
+        if (movement.id) {
+          const outgoing = await persistRemoteInventoryMovementUpdate({
+            id: movement.id,
+            ...base,
+            outletId: movement.fromOutletId,
+            type: "transfer_out",
+            quantity: -Math.abs(Number(movement.quantity || 0)),
+          }, auth?.user?.id);
+          const incoming = movement.pairMovementId
+            ? await persistRemoteInventoryMovementUpdate({
+              id: movement.pairMovementId,
+              ...base,
+              outletId: movement.toOutletId,
+              type: "transfer_in",
+              quantity: Math.abs(Number(movement.quantity || 0)),
+            }, auth?.user?.id)
+            : await persistRemoteInventoryMovement({
+              ...base,
+              outletId: movement.toOutletId,
+              type: "transfer_in",
+              quantity: Math.abs(Number(movement.quantity || 0)),
+            }, auth?.user?.id);
+          setData((current) => ({
+            ...current,
+            movements: [outgoing, incoming, ...current.movements.filter((entry) => ![outgoing.id, incoming.id].includes(entry.id))],
+          }));
+          await refreshInventory();
+          setModal(null);
+          notify("Inventory movement updated");
+          return;
+        }
+        const outgoing = await persistRemoteInventoryMovement({
+          ...base,
+          outletId: movement.fromOutletId,
+          type: "transfer_out",
+          quantity: -Math.abs(Number(movement.quantity || 0)),
+        }, auth?.user?.id);
+        const incoming = await persistRemoteInventoryMovement({
+          ...base,
+          outletId: movement.toOutletId,
+          type: "transfer_in",
+          quantity: Math.abs(Number(movement.quantity || 0)),
+        }, auth?.user?.id);
+        setData((current) => ({
+          ...current,
+          movements: [outgoing, incoming, ...current.movements.filter((entry) => ![outgoing.id, incoming.id].includes(entry.id))],
+        }));
+        await refreshInventory();
+        setModal(null);
+        notify("Inventory movement recorded");
+        return;
+      }
       const selectedItem = itemById.get(movement.itemId);
-      const savedMovement = await persistRemoteInventoryMovement({ ...movement, unit: movement.unit || selectedItem?.unit || "" }, auth?.user?.id);
+      const existing = data.movements.some((entry) => entry.id === movement.id);
+      const savedMovement = existing
+        ? await persistRemoteInventoryMovementUpdate({ ...movement, unit: movement.unit || selectedItem?.unit || "" }, auth?.user?.id)
+        : await persistRemoteInventoryMovement({ ...movement, unit: movement.unit || selectedItem?.unit || "" }, auth?.user?.id);
       setData((current) => ({ ...current, movements: [savedMovement, ...current.movements.filter((entry) => entry.id !== savedMovement.id)] }));
       await refreshInventory();
       setModal(null);
-      notify("Inventory movement recorded");
+      notify(existing ? "Inventory movement updated" : "Inventory movement recorded");
     } catch (error) {
       console.warn("[InventoryControl] Unable to save inventory movement.", error);
       debugLog("[InventoryMovementDebug]", { action: "save-movement", movement, error });
@@ -9593,11 +9816,24 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       if (key === "adjustment") return "border-slate-200 bg-slate-50 text-text-secondary";
       return "border-slate-200 bg-slate-50 text-text-secondary";
     };
+    const movementQuantityClass = (movement) => {
+      const key = movementTypeKey(movement);
+      if (key === "purchase") return "text-emerald-700";
+      if (key === "waste") return "text-amber-700";
+      if (key.includes("transfer")) return "text-blue-700";
+      if (key === "adjustment") return "text-purple-700";
+      return "text-text-primary";
+    };
     const movementTypeLabel = (movement) => {
       const key = movementTypeKey(movement);
       if (key === "transfer_in") return "Transfer In";
       if (key === "transfer_out") return "Transfer Out";
       return toTitle(movement.movementType || movement.type || "movement");
+    };
+    const movementQuantityLabel = (movement, item) => {
+      const quantity = Number(movement.quantity || 0);
+      const unit = movement.unit || item?.unit || "";
+      return `${quantity > 0 ? "+" : ""}${quantity}${unit ? ` ${unit}` : ""}`;
     };
     const filteredMovements = data.movements.filter((movement) => {
       const item = itemById.get(movement.itemId);
@@ -9634,6 +9870,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           return;
         }
       }
+      if (referenceType === "transfer") {
+        const transferMovements = data.movements.filter((entry) => entry.reference && movement.reference && entry.reference === movement.reference);
+        setModal({ type: "transfer-detail", movement, movements: transferMovements.length ? transferMovements : [movement] });
+        return;
+      }
       notify("Reference detail unavailable", "No linked detail record is available for this movement.", "info");
     };
     return (
@@ -9668,11 +9909,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                     <th>Outlet</th>
                     <th>Item</th>
                     <th>Movement Type</th>
-                    <th>Qty</th>
-                    <th>UOM</th>
+                    <th>Qty / UOM</th>
                     <th>Reference No.</th>
                     <th>Notes</th>
                     <th>Created By</th>
+                    <th className="text-right">Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border text-[13px]">
@@ -9689,8 +9930,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                             {movementTypeLabel(movement)}
                           </span>
                         </td>
-                        <td className="font-semibold text-text-primary">{Number(movement.quantity) > 0 ? "+" : ""}{movement.quantity}</td>
-                        <td>{movement.unit || item?.unit || "-"}</td>
+                        <td className={`font-semibold ${movementQuantityClass(movement)}`}>{movementQuantityLabel(movement, item)}</td>
                         <td>
                           {hasReference ? (
                             <button className="type-caption font-black text-primary underline-offset-2 hover:underline" type="button" onClick={() => openMovementReference(movement)}>
@@ -9700,6 +9940,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                         </td>
                         <td>{movement.notes || "-"}</td>
                         <td>{actorNameByAnyId(movement.user || movement.createdBy)}</td>
+                        <td className="text-right">
+                          {canEditInventoryMovement(movement) && can.recordMovement ? (
+                            <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setModal({ type: "movement", movement })}>Edit</button>
+                          ) : (
+                            <span className="type-caption font-semibold text-text-muted">Read-only</span>
+                          )}
+                        </td>
                       </tr>
                     );
                   })}
@@ -10744,7 +10991,39 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       {modal?.type === "group" ? <GroupModal group={modal.group} outletId={modal.outletId || selectedOutletId} outlets={outlets} items={data.items} categories={sortedCategories} onClose={() => setModal(null)} onSave={saveGroup} /> : null}
       {modal?.type === "audit-stock-check" ? <AuditStockCheckModal outlets={outlets} categories={sortedCategories} items={data.items} onClose={() => setModal(null)} onStart={startAuditStockCheck} /> : null}
       {modal?.type === "skip-check-row" ? <SkipReasonModal itemName={modal.itemName} onClose={() => setModal(null)} onSave={(reason) => skipCheckRow(modal.rowIndex, reason)} /> : null}
-      {modal?.type === "movement" ? <MovementModal outlets={outlets} items={data.items} onClose={() => setModal(null)} onSave={saveMovement} /> : null}
+      {modal?.type === "movement" ? <MovementModal outlets={outlets} items={data.items} movements={data.movements} movement={modal.movement} onClose={() => setModal(null)} onSave={saveMovement} /> : null}
+      {modal?.type === "transfer-detail" ? (() => {
+        const rows = modal.movements || [];
+        const reference = modal.movement?.reference || rows[0]?.reference || "Transfer";
+        return (
+          <Modal
+            title="Transfer Detail"
+            description={reference}
+            size="lg"
+            onClose={() => setModal(null)}
+            footer={<button className="btn-secondary" type="button" onClick={() => setModal(null)}>Close</button>}
+          >
+            <div className="space-y-2">
+              {rows.map((row) => {
+                const item = itemById.get(row.itemId);
+                const quantity = Number(row.quantity || 0);
+                return (
+                  <div key={row.id} className="rounded-2xl border border-border bg-slate-50 p-3">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="font-bold text-text-primary">{quantity < 0 ? "Transfer Out" : "Transfer In"}</div>
+                        <div className="mt-1 type-caption text-text-secondary">{outletById.get(row.outletId)?.name || "Outlet"} · {item?.name || "Inventory item"}</div>
+                      </div>
+                      <Badge tone="info">{quantity > 0 ? "+" : ""}{quantity} {row.unit || item?.unit || ""}</Badge>
+                    </div>
+                    {row.notes ? <div className="mt-2 type-body-sm text-text-secondary">{row.notes}</div> : null}
+                  </div>
+                );
+              })}
+            </div>
+          </Modal>
+        );
+      })() : null}
       {modal?.type === "waste-detail" ? (() => {
         const waste = modal.waste || {};
         const item = itemById.get(waste.itemId);

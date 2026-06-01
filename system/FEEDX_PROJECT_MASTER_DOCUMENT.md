@@ -2433,9 +2433,15 @@ UI rules:
 - Inventory Movements uses the page header as the only page title/action area; duplicate section titles and duplicate Record Movement buttons are not shown.
 - The page is split into Filters, Movement Summary, and Movement Records sections.
 - Movement Summary shows KPI cards for Purchase In, Transfer, Waste, and Adjustments based on currently filtered records.
-- Movement Records shows the filtered record count, keeps the table horizontally scrollable on mobile, and displays readable employee names or email fallbacks for Created By. Raw UUIDs must not be shown to users.
+- Record/Edit Movement field order is Outlet, Item, Movement Type, Quantity, Reference, and Notes. Transfer movements use From Outlet and To Outlet in place of a single outlet.
+- The Item selector is searchable.
+- Purchase movements must be positive. Waste movements must be negative. Transfer movements create one Transfer Out row and one Transfer In row. Adjustment movements support Increase or Decrease.
+- Purchase movements created by PO Receiving are read-only from Inventory Movements. Waste, Transfer, and Adjustment movement rows can be edited by users with inventory movement write access.
+- Movement edits update Supabase and create an audit log entry with before/after values so edit history is retained.
+- Movement Records shows the filtered record count, keeps the table horizontally scrollable on mobile, merges Qty and UOM into one column such as `+12 kg` or `-1 kg`, and displays readable employee names or email fallbacks for Created By. Raw UUIDs must not be shown to users.
+- Quantity colors: Purchase green, Waste amber, Transfer blue, and Adjustment purple.
 - Movement type badges use semantic colors: Purchase green, Transfer In blue, Transfer Out purple, Waste orange, and Adjustment grey.
-- Reference No. is clickable when a linked source exists: Purchase Order references open PO detail, Waste references open the waste record detail, and future Transfer references should open transfer detail when that workflow exists.
+- Reference No. is clickable when a linked source exists: Purchase Order references open PO detail, Waste references open the waste record detail, and Transfer references open transfer detail when available.
 
 Movement types:
 
