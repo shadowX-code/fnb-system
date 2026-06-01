@@ -9,11 +9,22 @@ Recommendation: **NOT READY for production cutover yet.**
 
 Reason: the application builds successfully and the major modules are now Supabase-backed, but production go-live should wait until the P0 release gates below are completed against the real production Supabase project: migration parity, RLS policy verification, storage bucket/policy verification, SMTP/auth onboarding verification, and full role-based UAT. No new feature work is required for those gates, but they must be completed before moving staging to production.
 
+Production Supabase post-reset update on 1 June 2026:
+
+- Production project ref verified: `oyfobxdoyfuzsodogpgs`.
+- Production reset completed successfully.
+- Remote migration parity confirmed: 67 local migrations / 67 remote migrations.
+- Production auth users, employees, outlets, sales records, purchase records, and suppliers are currently empty after reset.
+- Approved system defaults remain: roles, permissions, role permissions, UOM defaults, inventory categories, menu categories, and storage buckets.
+- The three migration-seeded staging inventory rows were verified as test/demo data and removed from production.
+- Production `inventory_items` count is now `0`.
+- `dev` has not been merged to `main`; production deployment has not started.
+
 Git/environment update:
 
 - `FEEDX_RELEASE_CANDIDATE_REPORT.md` was created for the `dev` to `main` promotion.
-- Local Supabase CLI is currently linked to staging project `fnb-system-staging`; production migration commands must not run from this link.
-- `supabase/.temp` files are tracked in `dev` and should be removed from version control before merging to `main`.
+- Local Supabase CLI was linked to production for reset execution; verify project ref before any future Supabase command.
+- `supabase/.temp` files were removed from git tracking and must remain untracked before merging to `main`.
 - Vercel branch mapping and environment variables require dashboard/CLI verification before merge.
 
 ## Audit Summary
@@ -205,19 +216,16 @@ P1/P2 debt:
 
 P0 release gates before production:
 
-1. **Production Supabase migration parity not verified in this audit.**  
-   Run `supabase migration list` against production, apply missing migrations, and confirm no schema-cache errors for current frontend fields.
-
-2. **Production RLS/policy behavior not live-tested in this audit.**  
+1. **Production RLS/policy behavior not live-tested after reset.**  
    Execute the RBAC/UAT matrix with real production roles before go-live.
 
-3. **Production storage buckets/policies not verified in this audit.**  
-   Confirm `inventory-item-photos` and `asset-photos` exist and permit expected upload/read/delete flows.
+2. **Production storage upload/read/delete flows not browser-tested after reset.**  
+   Buckets exist, but image upload policies and replacement cleanup still need live verification.
 
-4. **Production auth redirect/SMTP/onboarding not verified in this audit.**  
+3. **Production auth redirect/SMTP/onboarding not verified after reset.**  
    Confirm setup-password and forgot-password flows on the production domain.
 
-5. **Full production UAT checklist not yet executed.**  
+4. **Full production UAT checklist not yet executed.**  
    Use `FEEDX_PRODUCTION_UAT_CHECKLIST.md` before final cutover.
 
 ## P1 Issues

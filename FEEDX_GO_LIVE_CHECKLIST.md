@@ -58,25 +58,38 @@ Do not merge automatically from Codex unless explicitly instructed after READY s
 
 Important: Do not copy staging data.
 
-Before production migration:
+Post-reset status on 1 June 2026:
 
-```bash
-supabase link --project-ref <production-project-ref>
-supabase migration list
-```
+- Production project ref verified: `oyfobxdoyfuzsodogpgs`.
+- Production reset completed with `supabase db reset --linked --yes`.
+- Remote migration parity confirmed: 67 local migrations / 67 remote migrations.
+- No `dev` to `main` merge has been performed yet.
 
-Verify linked project is Production Supabase `fnb-system`.
+Post-reset cleanup:
 
-Then:
+- The migration set temporarily created three staging/demo inventory items:
+  - Sambal Sauce / `RAW-SAM-001`
+  - Takeaway Cup 12oz / `PKG-CUP-012`
+  - Frozen Chicken Cut / `FRZ-CHK-001`
+- These were verified as staging seed data from `20260529175237_seed_inventory_master_staging.sql`, not required production defaults.
+- Only those three `inventory_items` rows were deleted.
+- Dependent outlet/item link and operational child rows were checked and were already zero.
+- Production `inventory_items` count is now `0`.
 
-```bash
-supabase db push --linked
-```
+Current approved defaults retained:
+
+- Roles: `10`
+- Permissions: `134`
+- Role permissions: `288`
+- Inventory UOMs: `8`
+- Inventory categories: `8`
+- Inventory menu categories: `8`
+- Storage buckets: `2`
 
 Gate:
 
-- Local migrations and production migration list are understood.
-- Staging/demo seed migrations are reviewed and safe for production or manually excluded/reworked.
+- Production migration parity remains confirmed after reset.
+- Staging/demo inventory rows are not present in production after cleanup.
 - No staging auth users, sales, purchases, inventory, recipes, product analytics, photos, or test employees are copied.
 
 ## 6. Production Seed Rules
@@ -157,4 +170,3 @@ Go-live requires:
 - Production auth URLs verified.
 
 Current status: **NOT READY**
-

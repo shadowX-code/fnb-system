@@ -7,9 +7,9 @@ Production project ref: `oyfobxdoyfuzsodogpgs`
 
 ## Scope And Safety
 
-This audit was read-only.
+Original schema audit was read-only. The approved post-reset cleanup on 1 June 2026 deleted only the three staging-seeded `inventory_items` rows listed below.
 
-Commands not run:
+Commands not run during the original audit:
 
 - `supabase db push`
 - `supabase db reset`
@@ -20,11 +20,19 @@ Commands not run:
 
 Current production backup status per operator: confirmed.
 
+Post-reset cleanup command scope:
+
+- Deleted only:
+  - Sambal Sauce / `RAW-SAM-001`
+  - Takeaway Cup 12oz / `PKG-CUP-012`
+  - Frozen Chicken Cut / `FRZ-CHK-001`
+- No roles, permissions, role permissions, UOM defaults, inventory categories, menu categories, or storage buckets were deleted.
+
 ## Executive Summary
 
-Recommendation: **Reset production database, then apply the finalized migration set, with controlled production-only seed data.**
+Original recommendation: **Reset production database, then apply the finalized migration set, with controlled production-only seed data.**
 
-Do not perform the reset yet.
+Post-reset status on 1 June 2026: **reset completed successfully**.
 
 Reason:
 
@@ -43,6 +51,49 @@ Preferred path:
 4. Apply migrations from the finalized repo.
 5. Seed only approved system defaults.
 6. Re-import approved production business data if needed.
+
+Post-reset cleanup update:
+
+- `supabase db reset --linked --yes` was executed against production project ref `oyfobxdoyfuzsodogpgs`.
+- `supabase migration list` confirmed remote/local parity: 67 local migrations and 67 remote migrations.
+- The reset did not run `supabase/seed.sql`; no such seed file matched.
+- The migration set created three staging/demo inventory rows through `20260529175237_seed_inventory_master_staging.sql`.
+- Those rows were verified as test data, not system defaults, and were deleted from production:
+  - Sambal Sauce / `RAW-SAM-001`
+  - Takeaway Cup 12oz / `PKG-CUP-012`
+  - Frozen Chicken Cut / `FRZ-CHK-001`
+- Dependent item outlet links and operational child rows were checked and were already zero.
+- Production `inventory_items` count is now `0`.
+- Roles, permissions, role permissions, inventory UOMs, inventory categories, inventory menu categories, and storage buckets were retained.
+
+Current recommendation after cleanup: **continue with production environment verification and production UAT before merging `dev` to `main` or deploying production**.
+
+## Current Post-Reset Counts
+
+Verified after cleanup on 1 June 2026:
+
+| Table / Resource | Row Count |
+|---|---:|
+| `auth.users` | 0 |
+| `public.employees` | 0 |
+| `public.outlets` | 0 |
+| `public.roles` | 10 |
+| `public.permissions` | 134 |
+| `public.role_permissions` | 288 |
+| `public.inventory_items` | 0 |
+| `public.inventory_uoms` | 8 |
+| `public.inventory_categories` | 8 |
+| `public.inventory_menu_categories` | 8 |
+| `public.sales_records` | 0 |
+| `public.purchase_records` | 0 |
+| `storage.buckets` | 2 |
+
+Storage buckets now present:
+
+| Bucket | Public |
+|---|---:|
+| `asset-photos` | true |
+| `inventory-item-photos` | true |
 
 ## Linked Project Verification
 
@@ -383,4 +434,3 @@ This path is slower and higher risk than reset/apply/re-import.
 4. Build a production seed script that excludes test/demo operational data.
 5. After approval, run production schema reset/apply process.
 6. Execute `FEEDX_PRODUCTION_UAT_CHECKLIST.md`.
-
