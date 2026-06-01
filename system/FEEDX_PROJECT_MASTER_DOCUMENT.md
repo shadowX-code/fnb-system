@@ -4375,6 +4375,7 @@ StatusBadge rules:
 MetricCard rules:
 
 - Dashboard KPI cards use MetricCard.
+- Analytics-heavy KPI strips, such as Product Analytics, should use `MetricCard variant="compact"` to reduce card height, icon footprint, and whitespace while keeping numeric values prominent.
 - Clickable summary cards must show pointer affordance and active state when filtering/drilling down.
 - Hover lift is allowed for standalone dashboard cards only.
 - MetricCard must not be used inside table rows with transform hover behavior.

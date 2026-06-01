@@ -70,20 +70,22 @@ Updated shared styling rather than page-by-page overrides:
   - Reduced standard card height/padding.
   - Capped primary KPI value at 28px.
   - KPI label is now semibold uppercase 12px-style treatment.
+  - Added `variant="compact"` for analytics-heavy KPI strips that need higher density without weakening global dashboard cards.
 - `src/components/tables/DataTable.jsx`
   - Table body text standardized to 14px with compact row padding.
 - `src/components/forms/SelectField.jsx`
   - Select button text uses exact 14px.
 - `src/features/sales-purchase/pages/ProductAnalyticsPage.jsx`
-  - Page-local KPI cards reduced from 116px minimum height to 96px.
-  - KPI values reduced to 26px and icon footprint reduced.
+  - Page-local KPI cards were replaced with shared `MetricCard variant="compact"`.
+  - Numeric KPI values now target a compact 28-34px range, while long product/category names use a smaller 20-24px range to reduce wrapping.
+  - Icon footprint and vertical whitespace were reduced so more Product Analytics content appears above the fold.
 
 ## Page Impact Summary
 
 | Page / Module | Expected Result |
 | --- | --- |
 | Dashboard | KPI cards and page header feel less oversized while retaining executive hierarchy. |
-| Product Analytics | KPI strip is notably more compact; tables inherit balanced header/body scale. |
+| Product Analytics | KPI strip is notably more compact through shared compact MetricCards; tables inherit balanced header/body scale. |
 | Master Inventory | Shared tables and buttons read cleaner without reducing mobile touch targets. |
 | Recipes & Usage / Recipe Intelligence | Shared cards, tables, buttons, and filters align to the same scale. |
 | Employees / People pages | KPI and table density aligns with Inventory and analytics pages. |
