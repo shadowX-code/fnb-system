@@ -17,6 +17,7 @@ import { supabase } from "../../../lib/supabase.js";
 import { assetTrackingService } from "../../../services/assetTrackingService.js";
 import { canCreate, canDelete, canEdit, canExport, canManage, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { getEmployeeDisplayName, isUuidLike } from "../../../utils/userDisplay.js";
+import { IMAGE_UPLOAD_ACCEPT, optimizeImageFileForPreview } from "../../../utils/imageUpload.js";
 
 const assetConditions = ["healthy", "needs_attention", "under_maintenance", "low_quantity", "damaged", "missing", "disposed"];
 const inspectionConditionOptions = ["healthy", "needs_attention", "damaged", "missing"];
@@ -809,21 +810,16 @@ function AssetFormModal({ asset, outlets, categories, onClose, onSubmit, saving 
   function update(key, value) {
     setValues((current) => ({ ...current, [key]: value }));
   }
-  function handleImageFile(file) {
+  async function handleImageFile(file) {
     setImageError("");
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setImageError("Please upload an image file.");
-      return;
+    try {
+      const optimized = await optimizeImageFileForPreview(file);
+      update("image_url", optimized.dataUrl);
+      update("previous_image_url", asset?.image_url || asset?.thumbnail_url || "");
+    } catch (error) {
+      setImageError(error.message || "Unable to read image. Please try another file.");
     }
-    if (file.size > 750 * 1024) {
-      setImageError("Please use an image below 750KB for now.");
-      return;
-    }
-    const reader = new FileReader();
-    reader.onload = () => update("image_url", reader.result || "");
-    reader.onerror = () => setImageError("Unable to read image. Please try another file.");
-    reader.readAsDataURL(file);
   }
   return (
     <Modal
@@ -851,10 +847,10 @@ function AssetFormModal({ asset, outlets, categories, onClose, onSubmit, saving 
             <AssetThumbnail asset={{ ...values, category_name: categories.find((category) => category.id === values.category_id)?.name }} size="lg" />
             <label className="btn-secondary mt-4 h-9 cursor-pointer px-3 text-xs">
               <UploadCloud size={14} /> Upload Photo
-              <input className="sr-only" type="file" accept="image/*" onChange={(event) => handleImageFile(event.target.files?.[0])} />
+              <input className="sr-only" type="file" accept={IMAGE_UPLOAD_ACCEPT} onChange={(event) => handleImageFile(event.target.files?.[0])} />
             </label>
-            {values.image_url ? <button className="mt-2 text-xs font-bold text-text-muted hover:text-rose-600" type="button" onClick={() => update("image_url", "")}>Remove image</button> : null}
-            {imageError ? <div className="mt-2 text-xs font-semibold text-rose-600">{imageError}</div> : <div className="mt-2 text-xs text-text-muted">Thumbnail appears in the asset list and profile.</div>}
+            {values.image_url ? <button className="mt-2 text-xs font-bold text-text-muted hover:text-rose-600" type="button" onClick={() => { update("previous_image_url", asset?.image_url || asset?.thumbnail_url || ""); update("image_url", ""); update("thumbnail_url", ""); }}>Remove image</button> : null}
+            {imageError ? <div className="mt-2 text-xs font-semibold text-rose-600">{imageError}</div> : <div className="mt-2 text-xs text-text-muted">JPG/PNG/WebP · max 5MB. Optimized on upload.</div>}
           </div>
         </div>
         <div className="grid gap-3 md:grid-cols-2">
@@ -1366,17 +1362,16 @@ function MaintenanceRecordModal({ asset, record, onClose, onSubmit, saving }) {
     });
   }
 
-  function handlePhoto(file) {
+  async function handlePhoto(file) {
     setPhotoError("");
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setPhotoError("Upload an image file.");
-      return;
+    try {
+      const optimized = await optimizeImageFileForPreview(file);
+      update("photo_url", optimized.dataUrl);
+      update("previous_photo_url", record?.photo_url || "");
+    } catch (error) {
+      setPhotoError(error.message || "Unable to read this image.");
     }
-    const reader = new FileReader();
-    reader.onload = () => update("photo_url", reader.result);
-    reader.onerror = () => setPhotoError("Unable to read this image.");
-    reader.readAsDataURL(file);
   }
 
   return (
@@ -1447,7 +1442,7 @@ function MaintenanceRecordModal({ asset, record, onClose, onSubmit, saving }) {
           <div className="flex items-center gap-3">
             <label className="btn-secondary h-10 cursor-pointer px-3 text-xs">
               <UploadCloud size={14} /> Upload Photo
-              <input className="sr-only" type="file" accept="image/*" onChange={(event) => handlePhoto(event.target.files?.[0])} />
+              <input className="sr-only" type="file" accept={IMAGE_UPLOAD_ACCEPT} onChange={(event) => handlePhoto(event.target.files?.[0])} />
             </label>
             {values.photo_url ? (
               <button className="relative h-12 w-12 overflow-hidden rounded-xl border border-border" type="button" onClick={() => setPreviewOpen(true)}>
@@ -1455,7 +1450,7 @@ function MaintenanceRecordModal({ asset, record, onClose, onSubmit, saving }) {
               </button>
             ) : null}
           </div>
-          {values.photo_url ? <button className="mt-2 text-xs font-bold text-text-muted hover:text-rose-600" type="button" onClick={() => update("photo_url", "")}>Remove photo</button> : null}
+          {values.photo_url ? <button className="mt-2 text-xs font-bold text-text-muted hover:text-rose-600" type="button" onClick={() => { update("previous_photo_url", record?.photo_url || ""); update("photo_url", ""); }}>Remove photo</button> : null}
           {photoError ? <div className="mt-1 text-xs font-semibold text-rose-600">{photoError}</div> : null}
         </FieldLabel>
           {values.status === "in_progress" ? (
@@ -1533,17 +1528,16 @@ function MaintenanceRecordEditorPanel({ asset, record, onBack, onSubmit, saving 
     });
   }
 
-  function handlePhoto(file) {
+  async function handlePhoto(file) {
     setPhotoError("");
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setPhotoError("Upload an image file.");
-      return;
+    try {
+      const optimized = await optimizeImageFileForPreview(file);
+      update("photo_url", optimized.dataUrl);
+      update("previous_photo_url", record?.photo_url || "");
+    } catch (error) {
+      setPhotoError(error.message || "Unable to read this image.");
     }
-    const reader = new FileReader();
-    reader.onload = () => update("photo_url", reader.result);
-    reader.onerror = () => setPhotoError("Unable to read this image.");
-    reader.readAsDataURL(file);
   }
 
   return (
@@ -1611,7 +1605,7 @@ function MaintenanceRecordEditorPanel({ asset, record, onBack, onSubmit, saving 
             <div className="flex items-center gap-3">
               <label className="btn-secondary h-10 cursor-pointer px-3 text-xs">
                 <UploadCloud size={14} /> Upload Photo
-                <input className="sr-only" type="file" accept="image/*" onChange={(event) => handlePhoto(event.target.files?.[0])} />
+                <input className="sr-only" type="file" accept={IMAGE_UPLOAD_ACCEPT} onChange={(event) => handlePhoto(event.target.files?.[0])} />
               </label>
               {values.photo_url ? (
                 <button className="relative h-12 w-12 overflow-hidden rounded-xl border border-border" type="button" onClick={() => setPreviewOpen(true)}>
@@ -1619,7 +1613,7 @@ function MaintenanceRecordEditorPanel({ asset, record, onBack, onSubmit, saving 
                 </button>
               ) : null}
             </div>
-            {values.photo_url ? <button className="mt-2 text-xs font-bold text-text-muted hover:text-rose-600" type="button" onClick={() => update("photo_url", "")}>Remove photo</button> : null}
+            {values.photo_url ? <button className="mt-2 text-xs font-bold text-text-muted hover:text-rose-600" type="button" onClick={() => { update("previous_photo_url", record?.photo_url || ""); update("photo_url", ""); }}>Remove photo</button> : null}
             {photoError ? <div className="mt-1 text-xs font-semibold text-rose-600">{photoError}</div> : null}
           </FieldLabel>
           {values.status === "in_progress" ? (
@@ -1736,12 +1730,15 @@ function DifferenceBadge({ diff }) {
   return <span className="inline-flex rounded-full bg-rose-50 px-3 py-1 text-xs font-black text-rose-700">{Math.abs(diff)} Missing</span>;
 }
 
-function readEvidenceFiles(files, onDone) {
-  Array.from(files || []).filter((file) => file.type.startsWith("image/")).forEach((file) => {
-    const reader = new FileReader();
-    reader.onload = () => onDone({ image_url: reader.result || "", caption: file.name });
-    reader.readAsDataURL(file);
-  });
+async function readEvidenceFiles(files, onDone, onError) {
+  for (const file of Array.from(files || [])) {
+    try {
+      const optimized = await optimizeImageFileForPreview(file);
+      onDone({ image_url: optimized.dataUrl, caption: file.name });
+    } catch (error) {
+      onError?.(error.message || "Unable to read image.");
+    }
+  }
 }
 
 function safeInspectionAsset(row) {
@@ -1837,6 +1834,7 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
   const [inspectionDate, setInspectionDate] = useState(draftData.inspectionDate || draftInspection?.inspection_date || new Date().toISOString().slice(0, 10));
   const [notes, setNotes] = useState(draftData.notes || draftInspection?.notes || "");
   const [lightbox, setLightbox] = useState(null);
+  const [evidenceError, setEvidenceError] = useState("");
   const [assetPickerOpen, setAssetPickerOpen] = useState(false);
   const [assetPickerQuery, setAssetPickerQuery] = useState("");
   const [selectedAssetIds, setSelectedAssetIds] = useState([]);
@@ -2150,9 +2148,10 @@ function InspectionModal({ outletId, categories, assets, draftInspection, defaul
                           <input className="control h-10" value={row.remark} onChange={(event) => updateRow(rowAssetId, "remark", event.target.value)} placeholder={row.needsEvidence ? "Discrepancy explanation" : "Inspection note"} />
                           <label className="btn-secondary h-10 cursor-pointer px-3 text-xs">
                             Upload Evidence
-                            <input className="sr-only" type="file" accept="image/*" multiple capture="environment" onChange={(event) => readEvidenceFiles(event.target.files, (evidence) => addEvidence(rowAssetId, evidence))} />
+                            <input className="sr-only" type="file" accept={IMAGE_UPLOAD_ACCEPT} multiple capture="environment" onChange={(event) => readEvidenceFiles(event.target.files, (evidence) => { setEvidenceError(""); addEvidence(rowAssetId, evidence); }, setEvidenceError)} />
                           </label>
                         </div>
+                        {evidenceError ? <div className="text-xs font-semibold text-rose-600">{evidenceError}</div> : null}
                         <div className="flex flex-wrap gap-2">
                           {(row.evidence || []).map((evidence, evidenceIndex) => (
                             <button key={`${evidence.image_url}-${evidenceIndex}`} className="group relative" type="button" onClick={() => setLightbox({ images: row.evidence.map((item) => item.image_url), index: evidenceIndex })}>

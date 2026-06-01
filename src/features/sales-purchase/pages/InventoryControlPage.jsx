@@ -47,6 +47,8 @@ import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import { supabase } from "../../../lib/supabase.ts";
 import { productAnalyticsService } from "../../../services/productAnalyticsService.js";
 import { getAccessibleOutletOptions, getAccessibleOutlets, hasAllOutletAccess, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { IMAGE_UPLOAD_ACCEPT, isImageDataUrl as isStandardImageDataUrl, optimizeImageFileForPreview, removeStorageObjectFromPublicUrl, uploadOptimizedImage } from "../../../utils/imageUpload.js";
+import { buildDynamicYearOptions, yearsFromRecords } from "../../../utils/yearOptions.js";
 
 const STORAGE_KEY = "feedx.inventoryControl.v2";
 const LEGACY_STORAGE_KEYS = ["feedx.inventoryControl.v1"];
@@ -511,15 +513,6 @@ function stockCheckItemsForGroup(group = {}, items = []) {
     .sort((a, b) => a.name.localeCompare(b.name));
 }
 
-function readFileAsDataUrl(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => resolve(reader.result || "");
-    reader.onerror = () => reject(new Error("Unable to read image. Please try another file."));
-    reader.readAsDataURL(file);
-  });
-}
-
 function parseCsvLine(line = "") {
   const cells = [];
   let current = "";
@@ -641,49 +634,22 @@ async function parseXlsx(file) {
   return { headers, rows };
 }
 
-async function uploadInventoryItemPhoto(file, itemId = "draft") {
+async function uploadInventoryItemPhoto(file, itemId = "draft", previousPublicUrl = "") {
   const bucket = "inventory-item-photos";
-  const extension = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
-  const path = `${itemId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
-  const { data, error } = await supabase.storage
-    .from(bucket)
-    .upload(path, file, {
-      contentType: file.type || `image/${extension}`,
-      upsert: true,
-    });
-  if (error) throw error;
-  const { data: publicUrlData } = supabase.storage.from(bucket).getPublicUrl(data.path);
-  return { bucket, path: data.path, publicUrl: publicUrlData.publicUrl };
+  const path = `${itemId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
+  return uploadOptimizedImage(file, { bucket, path, previousPublicUrl });
 }
 
-async function uploadRecipePhoto(file, recipeId = "draft") {
+async function uploadRecipePhoto(file, recipeId = "draft", previousPublicUrl = "") {
   const bucket = "inventory-item-photos";
-  const extension = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
-  const path = `recipe_photos/${recipeId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
-  const { data, error } = await supabase.storage
-    .from(bucket)
-    .upload(path, file, {
-      contentType: file.type || `image/${extension}`,
-      upsert: true,
-    });
-  if (error) throw error;
-  const { data: publicUrlData } = supabase.storage.from(bucket).getPublicUrl(data.path);
-  return { bucket, path: data.path, publicUrl: publicUrlData.publicUrl };
+  const path = `recipe_photos/${recipeId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
+  return uploadOptimizedImage(file, { bucket, path, previousPublicUrl });
 }
 
-async function uploadWasteEvidencePhoto(file, wasteId = "draft") {
+async function uploadWasteEvidencePhoto(file, wasteId = "draft", previousPublicUrl = "") {
   const bucket = "inventory-item-photos";
-  const extension = (file.name.split(".").pop() || "png").toLowerCase().replace(/[^a-z0-9]/g, "") || "png";
-  const path = `waste_evidence/${wasteId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${extension}`;
-  const { data, error } = await supabase.storage
-    .from(bucket)
-    .upload(path, file, {
-      contentType: file.type || `image/${extension}`,
-      upsert: true,
-    });
-  if (error) throw error;
-  const { data: publicUrlData } = supabase.storage.from(bucket).getPublicUrl(data.path);
-  return { bucket, path: data.path, publicUrl: publicUrlData.publicUrl };
+  const path = `waste_evidence/${wasteId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
+  return uploadOptimizedImage(file, { bucket, path, previousPublicUrl });
 }
 
 function uniqueIds(values = []) {
@@ -697,7 +663,7 @@ function sameIdSet(first = [], second = []) {
 }
 
 function isImageDataUrl(value) {
-  return /^data:image\/[a-zA-Z0-9.+-]+;base64,/i.test(String(value || ""));
+  return isStandardImageDataUrl(value);
 }
 
 function isUuid(value) {
@@ -3233,18 +3199,9 @@ function ItemPhotoPicker({ value, onChange }) {
   async function handleFile(file) {
     setError("");
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setError("Please upload a PNG, JPG or WebP image.");
-      return;
-    }
-    if (file.size > 2 * 1024 * 1024) {
-      setError("Please use an image below 2MB.");
-      return;
-    }
-
     try {
-      const preview = await readFileAsDataUrl(file);
-      onChange(preview, { localPreview: true, uploadFailed: false, file });
+      const optimized = await optimizeImageFileForPreview(file);
+      onChange(optimized.dataUrl, { localPreview: true, uploadFailed: false, file });
     } catch (readError) {
       setError(readError.message || "Unable to read image. Please try another file.");
     }
@@ -3263,7 +3220,7 @@ function ItemPhotoPicker({ value, onChange }) {
               <div className="mt-2 flex flex-wrap gap-2">
                 <label className="btn-secondary h-8 cursor-pointer px-3 text-xs">
                   Replace photo
-                  <input className="sr-only" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handleFile(event.target.files?.[0])} />
+                  <input className="sr-only" type="file" accept={IMAGE_UPLOAD_ACCEPT} onChange={(event) => handleFile(event.target.files?.[0])} />
                 </label>
                 <button className="btn-secondary h-8 px-3 text-xs text-rose-600" type="button" onClick={() => { setError(""); onChange("", { removed: true, uploadFailed: false }); }}>Remove</button>
               </div>
@@ -3273,8 +3230,8 @@ function ItemPhotoPicker({ value, onChange }) {
           <label className="flex cursor-pointer flex-col items-center justify-center rounded-xl border border-dashed border-border bg-surface px-4 py-5 text-center transition hover:border-primary/40 hover:bg-primary/5">
             <Upload size={18} className="text-primary" />
             <span className="mt-2 type-body-sm font-bold text-text-primary">Upload item photo</span>
-            <span className="mt-0.5 type-caption text-text-muted">PNG/JPG/WebP</span>
-            <input className="sr-only" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => handleFile(event.target.files?.[0])} />
+            <span className="mt-0.5 type-caption text-text-muted">JPG/PNG/WebP · max 5MB</span>
+            <input className="sr-only" type="file" accept={IMAGE_UPLOAD_ACCEPT} onChange={(event) => handleFile(event.target.files?.[0])} />
           </label>
         )}
         {error ? <div className="mt-2 type-caption font-semibold text-amber-700">{error}</div> : null}
@@ -4552,13 +4509,9 @@ function WasteModal({ outlet, items, onClose, onSave }) {
   async function handlePhoto(file) {
     setPhotoError("");
     if (!file) return;
-    if (!file.type.startsWith("image/")) {
-      setPhotoError("Please upload an image file.");
-      return;
-    }
     try {
-      const preview = await readFileAsDataUrl(file);
-      setForm((current) => ({ ...current, photoUrl: preview, photoFile: file }));
+      const optimized = await optimizeImageFileForPreview(file);
+      setForm((current) => ({ ...current, photoUrl: optimized.dataUrl, photoFile: file }));
     } catch (error) {
       setPhotoError(error.message || "Unable to read image.");
     }
@@ -4606,7 +4559,7 @@ function WasteModal({ outlet, items, onClose, onSave }) {
           <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-slate-50 p-3">
             <label className="btn-secondary h-8 cursor-pointer px-3 text-xs">
               <Upload size={14} /> Upload Photo
-              <input className="sr-only" type="file" accept="image/*" onChange={(event) => handlePhoto(event.target.files?.[0])} />
+              <input className="sr-only" type="file" accept={IMAGE_UPLOAD_ACCEPT} onChange={(event) => handlePhoto(event.target.files?.[0])} />
             </label>
             {form.photoUrl ? (
               <>
@@ -5330,6 +5283,7 @@ function IngredientConsumptionModal({ rows = [], categories = [], filters, onFil
 function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existingRecipes = [], onClose, onSave }) {
   const [isSaving, setIsSaving] = useState(false);
   const [photoPreview, setPhotoPreview] = useState(recipe?.recipePhotoUrl || recipe?.recipe_photo_url || "");
+  const [photoError, setPhotoError] = useState("");
   const [touched, setTouched] = useState({});
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [duplicateCodeError, setDuplicateCodeError] = useState("");
@@ -5420,12 +5374,17 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existing
     .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0) || a.name.localeCompare(b.name))
     .map((category) => ({ value: category.name, label: category.name }));
   const safeCategoryOptions = categoryOptions.length ? categoryOptions : recipeMenuCategories.map((category) => ({ value: category, label: category }));
-  const handlePhotoChange = (event) => {
+  const handlePhotoChange = async (event) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    const preview = URL.createObjectURL(file);
-    setPhotoPreview(preview);
-    update("recipePhotoFile", file);
+    setPhotoError("");
+    try {
+      const optimized = await optimizeImageFileForPreview(file);
+      setPhotoPreview(optimized.dataUrl);
+      update("recipePhotoFile", file);
+    } catch (error) {
+      setPhotoError(error.message || "Unable to read image.");
+    }
   };
   const hasInvalidIngredients = !form.ingredients.length || form.ingredients.some((line) => !line.itemId || Number(line.quantityUsed || 0) <= 0);
   const invalid = Boolean(identityErrors.recipeCode || identityErrors.recipeNameEn || identityErrors.recipeNameCn || identityErrors.sellingPrice || !form.outletId || hasInvalidIngredients);
@@ -5599,7 +5558,8 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existing
                 <div className="flex aspect-square w-full items-center justify-center overflow-hidden rounded-2xl border border-border bg-slate-100">
                   {photoPreview ? <img className="h-full w-full object-contain p-2" src={photoPreview} alt="Recipe preview" /> : <div className="text-xs font-bold text-text-muted">No recipe photo</div>}
                 </div>
-                <input type="file" accept="image/*" onChange={handlePhotoChange} className="mt-3 block w-full text-xs text-text-secondary file:mr-3 file:rounded-xl file:border-0 file:bg-primary/10 file:px-3 file:py-2 file:text-xs file:font-bold file:text-primary" />
+                <input type="file" accept={IMAGE_UPLOAD_ACCEPT} onChange={handlePhotoChange} className="mt-3 block w-full text-xs text-text-secondary file:mr-3 file:rounded-xl file:border-0 file:bg-primary/10 file:px-3 file:py-2 file:text-xs file:font-bold file:text-primary" />
+                {photoError ? <div className="mt-2 type-caption font-semibold text-amber-700">{photoError}</div> : null}
               </div>
             </label>
             <TextArea label="Notes" value={form.notes} onChange={(value) => update("notes", value)} placeholder="Prep notes, yield assumptions or special handling." />
@@ -6585,7 +6545,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     };
     if (hasNewPhotoFile) {
       try {
-        const uploadResult = await uploadInventoryItemPhoto(item.photoFile, isCreate ? "draft" : item.id);
+        const uploadResult = await uploadInventoryItemPhoto(item.photoFile, isCreate ? "draft" : item.id, existingItem?.photo || existingItem?.photo_url || "");
         uploadedPhotoUrl = uploadResult.publicUrl;
         photoDebug = {
           ...photoDebug,
@@ -6665,6 +6625,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           : [remoteItem, ...current.items],
       }));
       const refreshedInventory = await refreshInventory();
+      if (!hasNewPhotoFile && !normalizedItem.photo && (existingItem?.photo || existingItem?.photo_url)) {
+        try {
+          await removeStorageObjectFromPublicUrl("inventory-item-photos", existingItem.photo || existingItem.photo_url);
+        } catch (removeError) {
+          debugLog("[InventoryPhotoSaveDebug]", { ...photoDebug, removeError });
+        }
+      }
       if (hasNewPhotoFile) {
         const refetchedItem = (refreshedInventory?.items || []).find((entry) => entry.id === remoteItem.id);
         const refetchedPhotoUrl = refetchedItem?.photo || refetchedItem?.photo_url || "";
@@ -7878,6 +7845,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   async function saveWaste(waste) {
     try {
       let evidenceUrl = waste.photoUrl || waste.photo_url || "";
+      const previousEvidenceUrl = waste.previousPhotoUrl || waste.previous_photo_url || "";
       const hasEvidenceFile = typeof File !== "undefined" && waste.photoFile instanceof File;
       let evidenceDebug = {
         wasteRecordId: waste.id || "new",
@@ -7887,7 +7855,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         displayEvidenceUrl: "",
       };
       if (hasEvidenceFile) {
-        const uploadResult = await uploadWasteEvidencePhoto(waste.photoFile, waste.id || "draft");
+        const uploadResult = await uploadWasteEvidencePhoto(waste.photoFile, waste.id || "draft", previousEvidenceUrl);
         evidenceUrl = uploadResult.publicUrl;
         evidenceDebug = { ...evidenceDebug, uploadSuccess: true, evidenceUrl };
       }
@@ -7929,9 +7897,10 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   async function saveRecipe(recipe) {
     try {
       let recipePhotoUrl = recipe.recipePhotoUrl || recipe.recipe_photo_url || "";
+      const previousRecipePhotoUrl = recipe.previousRecipePhotoUrl || recipe.previous_recipe_photo_url || (isUuid(recipe.id) ? data.recipes.find((entry) => entry.id === recipe.id)?.recipePhotoUrl || data.recipes.find((entry) => entry.id === recipe.id)?.recipe_photo_url || "" : "");
       const hasNewPhotoFile = typeof File !== "undefined" && recipe.recipePhotoFile instanceof File;
       if (hasNewPhotoFile) {
-        const uploadResult = await uploadRecipePhoto(recipe.recipePhotoFile, isUuid(recipe.id) ? recipe.id : "draft");
+        const uploadResult = await uploadRecipePhoto(recipe.recipePhotoFile, isUuid(recipe.id) ? recipe.id : "draft", previousRecipePhotoUrl);
         recipePhotoUrl = uploadResult.publicUrl;
         debugLog("[RecipePhotoSaveDebug]", { recipeId: recipe.id || "new", uploadResult, error: null });
       }
@@ -9906,12 +9875,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     const selectedReportLabel = formatMonthSerial(selectedReportSerial);
     const trendMonths = buildMonthSerialRange(monthSerial(recipeTrendYear, 1), monthSerial(recipeTrendYear, 12));
     const trendMonthSet = new Set(trendMonths);
-    const availableTrendYears = [...new Set([
+    const availableTrendYears = buildDynamicYearOptions([
       recipeTrendYear,
       Number(recipeReportYear),
-      Number(getBusinessDateInput("Asia/Kuala_Lumpur").slice(0, 4)),
-      ...recipeProductReports.map((report) => Number(report.report_year)).filter(Boolean),
-    ])].sort((a, b) => b - a);
+      ...yearsFromRecords(recipeProductReports, "report_year"),
+    ]);
     const availableReportYears = availableTrendYears;
     const reportById = new Map(recipeProductReports.map((report) => [report.id, report]));
     const buildProductSalesByName = (allowedSerials = null) => recipeProductItems.reduce((totals, item) => {

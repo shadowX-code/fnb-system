@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
+import { isImageDataUrl, removeStorageObjectFromPublicUrl, uploadOptimizedDataUrl } from "../utils/imageUpload.js";
 
 const categoryBaseFields = "id,name,description,sort_order,is_active,created_at,updated_at";
 const categoryFields = "id,name,description,sort_order,is_active,maintenance_enabled,created_at,updated_at";
@@ -48,58 +49,59 @@ function normalizeConditionValue(value) {
 }
 
 function isDataUrl(value) {
-  return /^data:image\/[a-zA-Z0-9.+-]+;base64,/.test(String(value || ""));
+  return isImageDataUrl(value);
 }
 
-function dataUrlExtension(value) {
-  const match = String(value || "").match(/^data:image\/([a-zA-Z0-9.+-]+);base64,/);
-  const type = match?.[1] || "png";
-  if (type === "jpeg") return "jpg";
-  return type.split("+")[0];
-}
-
-async function uploadAssetImageIfNeeded(asset, userId) {
+async function uploadAssetImageIfNeeded(asset, userId, previousPublicUrl = "") {
   if (!isDataUrl(asset.image_url)) return asset.image_url ?? "";
-  const extension = dataUrlExtension(asset.image_url);
-  const path = `${asset.outlet_id || "outlet"}/${asset.id || crypto.randomUUID()}-${Date.now()}.${extension}`;
+  const path = `${asset.outlet_id || "outlet"}/${asset.id || crypto.randomUUID()}-${Date.now()}.webp`;
   console.info("[AssetTracking] Uploading asset photo", { path, assetName: asset.name });
-  const response = await fetch(asset.image_url);
-  const blob = await response.blob();
-  const { data, error } = await supabase.storage
-    .from("asset-photos")
-    .upload(path, blob, {
-      contentType: blob.type || `image/${extension}`,
-      upsert: true,
+  try {
+    const upload = await uploadOptimizedDataUrl(asset.image_url, {
+      bucket: "asset-photos",
+      path,
+      previousPublicUrl,
       metadata: { uploaded_by: userId || "" },
     });
-  if (error) {
+    console.info("[AssetTracking] Asset photo uploaded", { path: upload.path, publicUrl: upload.publicUrl });
+    return upload.publicUrl;
+  } catch (error) {
     console.error("[AssetTracking] Asset photo upload failed", error);
-    throw new Error("Unable to upload asset photo. Please try again.");
+    throw new Error(error.message || "Unable to upload asset photo. Please try again.");
   }
-  const { data: publicUrlData } = supabase.storage.from("asset-photos").getPublicUrl(data.path);
-  console.info("[AssetTracking] Asset photo uploaded", { path: data.path, publicUrl: publicUrlData.publicUrl });
-  return publicUrlData.publicUrl;
 }
 
-async function uploadMaintenancePhotoIfNeeded(record, userId) {
+async function uploadMaintenancePhotoIfNeeded(record, userId, previousPublicUrl = "") {
   if (!isDataUrl(record.photo_url)) return record.photo_url ?? "";
-  const extension = dataUrlExtension(record.photo_url);
-  const path = `maintenance/${record.outlet_id || "outlet"}/${record.asset_id || "asset"}-${Date.now()}.${extension}`;
-  const response = await fetch(record.photo_url);
-  const blob = await response.blob();
-  const { data, error } = await supabase.storage
-    .from("asset-photos")
-    .upload(path, blob, {
-      contentType: blob.type || `image/${extension}`,
-      upsert: true,
+  const path = `maintenance/${record.outlet_id || "outlet"}/${record.asset_id || "asset"}-${Date.now()}.webp`;
+  try {
+    const upload = await uploadOptimizedDataUrl(record.photo_url, {
+      bucket: "asset-photos",
+      path,
+      previousPublicUrl,
       metadata: { uploaded_by: userId || "" },
     });
-  if (error) {
+    return upload.publicUrl;
+  } catch (error) {
     console.error("[AssetTracking] Maintenance photo upload failed", error);
-    throw new Error("Unable to upload maintenance photo. Please try again.");
+    throw new Error(error.message || "Unable to upload maintenance photo. Please try again.");
   }
-  const { data: publicUrlData } = supabase.storage.from("asset-photos").getPublicUrl(data.path);
-  return publicUrlData.publicUrl;
+}
+
+async function uploadInspectionEvidenceIfNeeded(evidence, context = {}, userId) {
+  if (!isDataUrl(evidence?.image_url)) return evidence?.image_url ?? "";
+  const path = `inspection_evidence/${context.outletId || "outlet"}/${context.inspectionId || "inspection"}/${context.assetId || "asset"}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
+  try {
+    const upload = await uploadOptimizedDataUrl(evidence.image_url, {
+      bucket: "asset-photos",
+      path,
+      metadata: { uploaded_by: userId || "" },
+    });
+    return upload.publicUrl;
+  } catch (error) {
+    console.error("[AssetTracking] Inspection evidence upload failed", error);
+    throw new Error(error.message || "Unable to upload inspection evidence. Please try again.");
+  }
 }
 
 function mapCategory(row) {
@@ -481,7 +483,14 @@ export const assetTrackingService = {
 
   async saveAsset(asset) {
     const userId = await currentUserId();
-    const imageUrl = await uploadAssetImageIfNeeded(asset, userId);
+    const imageUrl = await uploadAssetImageIfNeeded(asset, userId, asset.previous_image_url || asset.existing_image_url || "");
+    if (!imageUrl && (asset.previous_image_url || asset.existing_image_url)) {
+      try {
+        await removeStorageObjectFromPublicUrl("asset-photos", asset.previous_image_url || asset.existing_image_url);
+      } catch (removeError) {
+        console.warn("[AssetTracking] Unable to remove asset photo", removeError);
+      }
+    }
     const condition = normalizeConditionValue(asset.condition);
     console.info("[AssetTracking] Saving asset", { assetId: asset.id || "new", name: asset.name, condition, hasImage: Boolean(imageUrl) });
     const payload = {
@@ -605,7 +614,14 @@ export const assetTrackingService = {
 
   async saveMaintenanceRecord(asset, record) {
     const userId = await currentUserId();
-    const photoUrl = await uploadMaintenancePhotoIfNeeded({ ...record, asset_id: asset.id, outlet_id: asset.outlet_id }, userId);
+    const photoUrl = await uploadMaintenancePhotoIfNeeded({ ...record, asset_id: asset.id, outlet_id: asset.outlet_id }, userId, record.previous_photo_url || "");
+    if (!photoUrl && record.previous_photo_url) {
+      try {
+        await removeStorageObjectFromPublicUrl("asset-photos", record.previous_photo_url);
+      } catch (removeError) {
+        console.warn("[AssetTracking] Unable to remove maintenance photo", removeError);
+      }
+    }
     const status = ["scheduled", "in_progress", "completed"].includes(record.status) ? record.status : "scheduled";
     const today = new Date().toISOString().slice(0, 10);
     const payload = {
@@ -940,9 +956,14 @@ export const assetTrackingService = {
     for (const savedItem of savedItems ?? []) {
       const sourceRow = submissionRows.find((row) => (row.asset?.id ?? row.asset_id) === savedItem.asset_id);
       for (const evidence of sourceRow?.evidence ?? []) {
+        const imageUrl = await uploadInspectionEvidenceIfNeeded(evidence, {
+          outletId,
+          inspectionId: inspection.id,
+          assetId: savedItem.asset_id,
+        }, userId);
         evidencePayload.push({
           inspection_item_id: savedItem.id,
-          image_url: evidence.image_url,
+          image_url: imageUrl,
           caption: evidence.caption ?? "",
         });
       }

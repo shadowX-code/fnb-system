@@ -1,5 +1,6 @@
 import { months } from "../../features/sales-purchase/data/mockData.js";
 import { getAccessibleOutletOptions } from "../../utils/accessControl.js";
+import { buildDynamicYearOptions } from "../../utils/yearOptions.js";
 import SelectField from "./SelectField.jsx";
 
 export function FieldLabel({ label, children }) {
@@ -38,13 +39,14 @@ export function MonthSelector({ value, onChange }) {
   );
 }
 
-export function YearSelector({ value, onChange }) {
+export function YearSelector({ value, onChange, years = [] }) {
+  const options = buildDynamicYearOptions(years);
   return (
     <SelectField
       label="Year"
       value={value}
       className="min-w-32"
-      options={[2024, 2025, 2026, 2027].map((year) => ({ value: year, label: year }))}
+      options={options.map((year) => ({ value: year, label: year }))}
       onChange={(nextValue) => onChange(Number(nextValue))}
     />
   );

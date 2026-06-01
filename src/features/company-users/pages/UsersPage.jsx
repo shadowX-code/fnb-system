@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { BriefcaseBusiness, CreditCard, Edit3, Eye, KeyRound, MoreHorizontal, Plus, Power, Search, ShieldCheck, UserRound } from "lucide-react";
+import { BriefcaseBusiness, Cake, CreditCard, Edit3, Eye, Gift, KeyRound, MoreHorizontal, Plus, Power, Search, ShieldCheck, UserRound } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import Card from "../../../components/ui/Card.jsx";
@@ -161,6 +161,76 @@ function formatDateForView(value) {
   return `${day}/${month}/${year}`;
 }
 
+function pad(value) {
+  return String(value).padStart(2, "0");
+}
+
+function toDateInputValue(date) {
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`;
+}
+
+function todayDate() {
+  const now = new Date();
+  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+}
+
+function formatShortDate(dateString) {
+  if (!dateString) return "-";
+  const date = new Date(`${dateString}T00:00:00`);
+  return date.toLocaleDateString("en-MY", { day: "numeric", month: "short" });
+}
+
+function employeeBirthday(employee) {
+  return employee?.birthday || employee?.birth_date || employee?.date_of_birth || employee?.dob || "";
+}
+
+function validBirthdayParts(month, day) {
+  if (!Number.isInteger(month) || !Number.isInteger(day) || month < 1 || month > 12 || day < 1) return null;
+  const validationYear = 2000;
+  const date = new Date(validationYear, month - 1, day);
+  if (date.getMonth() !== month - 1 || date.getDate() !== day) return null;
+  return { monthIndex: month - 1, day };
+}
+
+function parseBirthdayParts(value) {
+  if (!value) return null;
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return { monthIndex: value.getMonth(), day: value.getDate() };
+  const text = String(value).trim();
+  if (!text) return null;
+  const isoMatch = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
+  if (isoMatch) return validBirthdayParts(Number(isoMatch[2]), Number(isoMatch[3]));
+  const separatedMatch = text.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
+  if (separatedMatch) {
+    const first = Number(separatedMatch[1]);
+    const second = Number(separatedMatch[2]);
+    const day = first > 12 ? first : second > 12 ? second : first;
+    const month = first > 12 ? second : second > 12 ? first : second;
+    return validBirthdayParts(month, day);
+  }
+  const parsed = new Date(text);
+  return Number.isNaN(parsed.getTime()) ? null : { monthIndex: parsed.getMonth(), day: parsed.getDate() };
+}
+
+function birthdayOccurrence(birthday, referenceDate = todayDate()) {
+  const parts = parseBirthdayParts(birthday);
+  if (!parts) return null;
+  let next = new Date(referenceDate.getFullYear(), parts.monthIndex, parts.day);
+  if (next < referenceDate) next = new Date(referenceDate.getFullYear() + 1, parts.monthIndex, parts.day);
+  const days = Math.round((next - referenceDate) / 86400000);
+  return { date: next, days };
+}
+
+function normalizeLookupValue(value) {
+  return String(value || "").trim().toLowerCase();
+}
+
+function resolveEmployeeOutletName(employee, outlets = []) {
+  const workplace = normalizeLookupValue(employee?.workplace);
+  if (!workplace) return employee?.workplace || "Outlet team";
+  const outlet = outlets.find((entry) => [entry.id, entry.name, entry.code].some((value) => normalizeLookupValue(value) === workplace));
+  return outlet?.name || employee?.workplace || "Outlet team";
+}
+
 function isValidDateInput(value) {
   if (!value) return false;
   const [year, month, day] = String(value).split("-").map(Number);
@@ -309,6 +379,77 @@ function StatCard({ label, value, helper, tone = "neutral" }) {
   );
 }
 
+function UpcomingCelebrationsCard({ celebrations, outlets }) {
+  const thisWeek = celebrations.upcoming.filter((item) => item.birthday.days <= 7);
+  const nextItems = celebrations.upcoming.filter((item) => item.birthday.days > 7);
+  return (
+    <Card title="Upcoming Celebrations" description="Team birthdays in the next 30 days. Work anniversaries can join this view later.">
+      <div className="space-y-4 p-4">
+        <div className="grid gap-3 sm:grid-cols-3">
+          <div className="rounded-2xl bg-primary/5 p-3">
+            <div className="flex items-center gap-2 text-primary"><Cake size={16} /><span className="text-xs font-bold">Next 30 Days</span></div>
+            <div className="mt-2 text-2xl font-semibold text-text-primary">{celebrations.upcoming.length}</div>
+          </div>
+          <div className="rounded-2xl bg-slate-50 p-3">
+            <div className="flex items-center gap-2 text-text-secondary"><Gift size={16} /><span className="text-xs font-bold">This Week</span></div>
+            <div className="mt-2 text-2xl font-semibold text-text-primary">{thisWeek.length}</div>
+          </div>
+          <div className="rounded-2xl bg-slate-50 p-3">
+            <div className="text-xs font-bold text-text-secondary">Future-ready</div>
+            <div className="mt-2 text-sm font-bold text-text-primary">Birthdays + anniversaries</div>
+            <div className="mt-1 text-xs text-text-muted">Anniversary reminders can use the same card later.</div>
+          </div>
+        </div>
+        {celebrations.upcoming.length ? (
+          <div className="grid gap-4 lg:grid-cols-2">
+            <div>
+              <div className="mb-2">
+                <div className="text-sm font-black text-text-primary">This Week</div>
+                <div className="text-xs text-text-secondary">Birthdays due within 7 days.</div>
+              </div>
+              <div className="space-y-2">
+                {(thisWeek.length ? thisWeek : []).slice(0, 4).map(({ employee, birthday }) => (
+                  <div key={employee.id} className="rounded-2xl border border-border bg-white p-3">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="font-bold text-text-primary">🎂 {employee.nickname || employee.full_name}</div>
+                        <div className="mt-1 text-xs font-semibold text-text-secondary">{employee.position || "Team member"} · {resolveEmployeeOutletName(employee, outlets)}</div>
+                      </div>
+                      <div className="text-right text-xs font-bold text-primary">{formatShortDate(toDateInputValue(birthday.date))}<br />in {birthday.days}d</div>
+                    </div>
+                  </div>
+                ))}
+                {!thisWeek.length ? <div className="rounded-2xl bg-slate-50 p-3 text-sm font-semibold text-text-secondary">No birthdays this week.</div> : null}
+              </div>
+            </div>
+            <div>
+              <div className="mb-2">
+                <div className="text-sm font-black text-text-primary">Upcoming Birthdays</div>
+                <div className="text-xs text-text-secondary">Next birthdays within 30 days.</div>
+              </div>
+              <div className="space-y-2">
+                {(nextItems.length ? nextItems : celebrations.upcoming).slice(0, 5).map(({ employee, birthday }) => (
+                  <div key={employee.id} className="flex items-center justify-between gap-3 rounded-2xl bg-slate-50 px-3 py-2 text-sm">
+                    <span className="min-w-0 truncate font-semibold text-text-secondary">{employee.nickname || employee.full_name}</span>
+                    <span className="shrink-0 text-xs font-bold text-text-muted">{formatShortDate(toDateInputValue(birthday.date))} · in {birthday.days}d</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-border bg-slate-50 p-4 text-center">
+            <div className="font-bold text-text-primary">No upcoming birthdays in the next 30 days.</div>
+            <div className="mt-1 text-sm text-text-secondary">
+              {celebrations.next ? `Next celebration: ${celebrations.next.employee.nickname || celebrations.next.employee.full_name} · ${formatShortDate(toDateInputValue(celebrations.next.birthday.date))}` : "Employee birthday reminders will appear after birthdays are saved."}
+            </div>
+          </div>
+        )}
+      </div>
+    </Card>
+  );
+}
+
 function FormField({ label, required = false, error, helper, children }) {
   return (
     <label className="flex flex-col gap-0.5">
@@ -325,7 +466,7 @@ function FormField({ label, required = false, error, helper, children }) {
 function FormSection({ title, icon: Icon, children }) {
   return (
     <section className="rounded-2xl border border-border bg-slate-50/60 p-3.5">
-      <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wide text-text-muted">
+      <div className="mb-3 flex items-center gap-2 text-xs font-black uppercase tracking-wide text-[#94A3B8]">
         <span className="flex h-7 w-7 items-center justify-center rounded-xl border border-border bg-white text-text-secondary">
           <Icon size={14} />
         </span>
@@ -1230,6 +1371,18 @@ export default function UsersPage({ ui, store, auth }) {
     resigned: users.filter((user) => user.employment_status === "resigned").length,
     terminated: users.filter((user) => user.employment_status === "terminated").length,
   };
+  const celebrations = useMemo(() => {
+    const today = todayDate();
+    const mapped = users
+      .filter((user) => user && user.is_active !== false && user.employment_status === "active")
+      .map((employee) => ({ employee, birthday: birthdayOccurrence(employeeBirthday(employee), today) }))
+      .filter((item) => item.birthday)
+      .sort((a, b) => a.birthday.days - b.birthday.days);
+    return {
+      upcoming: mapped.filter((item) => item.birthday.days <= 30),
+      next: mapped[0] ?? null,
+    };
+  }, [users]);
 
   async function updateUserAccount(userId, updates) {
     const current = users.find((user) => user.id === userId);
@@ -1585,13 +1738,13 @@ export default function UsersPage({ ui, store, auth }) {
         }
       />
 
-      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <StatCard label="Login Enabled" value={stats.loginEnabled} helper="Employees with system access configured" tone="success" />
+      <div className="grid gap-3 sm:grid-cols-3">
+        <StatCard label="System Access" value={stats.loginEnabled} helper="Employees with system access configured" tone="success" />
         <StatCard label="Access Active" value={stats.active} helper="Can access the system" tone="success" />
-        <StatCard label="Access Disabled" value={stats.disabled} helper="System access disabled" tone={stats.disabled ? "warning" : "neutral"} />
-        <StatCard label="Employment Active" value={stats.activeEmployment} helper="Currently employed" />
-        <StatCard label="Probation" value={stats.probation} helper="Employees in probation" />
+        <StatCard label="Active Employees" value={stats.activeEmployment} helper="Currently employed" />
       </div>
+
+      <UpcomingCelebrationsCard celebrations={celebrations} outlets={store?.outlets ?? []} />
 
       <FilterBar compact>
         <FieldLabel label="Search">

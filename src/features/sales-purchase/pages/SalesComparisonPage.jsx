@@ -14,6 +14,7 @@ import { months } from "../data/mockData.js";
 import { getOutletTaxConfig, getPreviousPeriod, getSalesBreakdown, percentageChange, sumAbsoluteAmount, sumAmount, toCurrency, toPercent, toSignedCurrency } from "../utils/analytics.js";
 import { salesRecordService } from "../../../services/salesRecordService.js";
 import { auditLogService } from "../../../services/auditLogService.js";
+import { buildDynamicYearOptions, yearsFromRecords } from "../../../utils/yearOptions.js";
 
 const deliveryChannels = new Set(["GrabFood", "FoodPanda", "ShopeeFood"]);
 const trendColors = ["#16a34a", "#0ea5e9", "#f59e0b", "#8b5cf6", "#ef4444", "#14b8a6", "#64748b", "#2563eb"];
@@ -446,6 +447,7 @@ function SalesMatrix({ rows, visibleMonths, selectedMonth, compareWith, compareL
 
 export default function SalesComparisonPage({ store, setStore, ui, auth }) {
   const filters = usePeriodFilters(store);
+  const yearOptions = useMemo(() => buildDynamicYearOptions(yearsFromRecords(store.salesRecords)), [store.salesRecords]);
   const [compareWith, setCompareWith] = useState("Previous Year");
   const [viewMode, setViewMode] = useState("Summary");
   const [selectedTrendChannels, setSelectedTrendChannels] = useState(() => new Set(["gross-sales", "net-sales"]));
@@ -650,7 +652,7 @@ export default function SalesComparisonPage({ store, setStore, ui, auth }) {
 
       <FilterBar compact>
         <OutletSelector outlets={store.outlets.filter((outlet) => outlet.status === "active")} value={filters.outletId} onChange={filters.setOutletId} auth={auth} />
-        <YearSelector value={filters.year} onChange={filters.setYear} />
+        <YearSelector value={filters.year} onChange={filters.setYear} years={yearOptions} />
         <FieldLabel label="Compare With">
           <SelectField value={compareWith} options={["Previous Year", "Previous Month", "3-Month Average"].map((item) => ({ value: item, label: item }))} onChange={setCompareWith} />
         </FieldLabel>

@@ -36,6 +36,7 @@ import {
 import { purchaseRecordService } from "../../../services/purchaseRecordService.js";
 import { salesRecordService } from "../../../services/salesRecordService.js";
 import { auditLogService } from "../../../services/auditLogService.js";
+import { buildDynamicYearOptions, yearsFromRecords } from "../../../utils/yearOptions.js";
 
 const statusTone = {
   normal: "success",
@@ -476,6 +477,7 @@ function InsightPanel({ warningCells, topSuppliers, biggestIncrease, stableSuppl
 
 export default function PurchaseComparisonPage({ store, setStore, ui, auth }) {
   const filters = usePeriodFilters(store);
+  const yearOptions = useMemo(() => buildDynamicYearOptions(yearsFromRecords(store.purchaseRecords)), [store.purchaseRecords]);
   const [viewMode, setViewMode] = useState("Category");
   const [compareWith, setCompareWith] = useState("3-Month Average");
   const [query, setQuery] = useState(() => {
@@ -964,7 +966,7 @@ export default function PurchaseComparisonPage({ store, setStore, ui, auth }) {
 
       <FilterBar compact className="py-2">
         <OutletSelector outlets={store.outlets.filter((outlet) => outlet.status === "active")} value={filters.outletId} onChange={filters.setOutletId} auth={auth} />
-        <YearSelector value={filters.year} onChange={filters.setYear} />
+        <YearSelector value={filters.year} onChange={filters.setYear} years={yearOptions} />
         <FieldLabel label="View Mode">
           <SelectField value={viewMode} options={["Category", "Supplier", "Full"].map((item) => ({ value: item, label: item }))} onChange={setViewMode} />
         </FieldLabel>

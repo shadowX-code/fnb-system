@@ -139,15 +139,31 @@ function fallbackGroupFromDepartment(department) {
 
 function templateTone(template) {
   const color = template?.color || "green";
+  const code = String(template?.code || "").trim().toUpperCase();
+  const shiftType = String(template?.shift_type || "").trim().toLowerCase();
+  const accent = code === "OFF" || shiftType === "off"
+    ? "off"
+    : code === "MC" || shiftType === "medical"
+      ? "mc"
+      : code === "AL" || shiftType === "leave"
+        ? "al"
+        : code === "FULL"
+          ? "full"
+          : color;
   const tones = {
-    green: "border-emerald-200 bg-emerald-50 text-emerald-800",
-    amber: "border-amber-200 bg-amber-50 text-amber-800",
-    red: "border-rose-200 bg-rose-50 text-rose-800",
-    blue: "border-blue-200 bg-blue-50 text-blue-800",
-    purple: "border-violet-200 bg-violet-50 text-violet-800",
-    gray: "border-slate-200 bg-slate-50 text-slate-600",
+    green: "border-emerald-200 border-l-4 bg-emerald-50 text-emerald-800 roster-template-card roster-template-green",
+    full: "border-emerald-200 border-l-4 bg-emerald-50 text-emerald-800 roster-template-card roster-template-full",
+    amber: "border-amber-200 border-l-4 bg-amber-50 text-amber-800 roster-template-card roster-template-amber",
+    red: "border-rose-200 border-l-4 bg-rose-50 text-rose-800 roster-template-card roster-template-red",
+    blue: "border-blue-200 border-l-4 bg-blue-50 text-blue-800 roster-template-card roster-template-blue",
+    al: "border-blue-200 border-l-4 bg-blue-50 text-blue-800 roster-template-card roster-template-al",
+    purple: "border-violet-200 border-l-4 bg-violet-50 text-violet-800 roster-template-card roster-template-purple",
+    mc: "border-violet-200 border-l-4 bg-violet-50 text-violet-800 roster-template-card roster-template-mc",
+    medical: "border-violet-200 border-l-4 bg-violet-50 text-violet-800 roster-template-card roster-template-medical",
+    gray: "border-slate-200 border-l-4 bg-slate-50 text-slate-600 roster-template-card roster-template-gray",
+    off: "border-slate-200 border-l-4 bg-slate-50 text-slate-600 roster-template-card roster-template-off",
   };
-  return tones[color] ?? tones.green;
+  return tones[accent] ?? tones[color] ?? tones.green;
 }
 
 function shiftTimeLabel(template) {
@@ -1032,9 +1048,7 @@ function RosterSettingsDrawer({ outletId, outlets, positions, mappings, template
   }
 
   function templateAccent(template) {
-    if (template.shift_type === "off" || template.code === "OFF") return "border-slate-200 bg-slate-50";
-    if (template.shift_type === "leave" || template.shift_type === "medical" || template.code === "AL" || template.code === "MC") return "border-violet-200 bg-violet-50";
-    return "border-emerald-200 bg-emerald-50";
+    return templateTone(template);
   }
 
   function dropTemplate(targetId) {

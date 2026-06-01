@@ -25,8 +25,8 @@ export default function MetricCard({
     : resolvedEmphasis === "urgent"
       ? "metric-card-urgent border-rose-200/80 bg-gradient-to-br from-white to-rose-50/45 shadow-[0_14px_34px_rgba(244,63,94,0.08)]"
       : "metric-card-normal bg-white";
-  const valueClass = resolvedEmphasis === "primary" ? "text-[clamp(20px,1.5vw,26px)]" : "type-metric";
-  const sizeClass = size === "compact" ? "min-h-[72px] px-3 py-2" : "min-h-[82px] px-3 py-2.5";
+  const valueClass = resolvedEmphasis === "primary" ? "text-[clamp(24px,1.8vw,30px)]" : "type-metric";
+  const sizeClass = size === "compact" ? "min-h-[72px] p-3" : "min-h-[86px] p-4";
   const hoverClass = onClick ? "cursor-pointer hover:border-primary/30 hover:bg-primary/5 hover:shadow-card focus:outline-none focus:ring-2 focus:ring-primary/15" : "hover:border-primary/20 hover:shadow-card";
   // Reserved for a future labeled mini-sparkline. Do not render decorative bars
   // unless the chart has clear labels, interaction, and trend meaning.
@@ -46,12 +46,12 @@ export default function MetricCard({
               <Icon size={12} />
             </span>
           ) : null}
-          <div className="truncate type-caption font-semibold text-text-secondary">{label || title}</div>
+          <div className="truncate text-xs font-semibold uppercase tracking-[0.06em] text-text-secondary">{label || title}</div>
         </div>
         {status ? <span className="shrink-0 rounded-full bg-slate-100 px-1.5 py-0.5 type-micro font-semibold text-text-secondary">{status}</span> : null}
       </div>
       <div className={`mt-0.5 min-w-0 break-words font-semibold leading-tight tracking-tight text-text-primary ${valueClass}`}>{value}</div>
-      <div className="mt-0.5 flex items-center justify-between gap-2 type-caption">
+      <div className="mt-0.5 flex items-center justify-between gap-2 text-xs">
         <span className="min-w-0 truncate text-text-secondary">{helper || subtitle}</span>
         {trend ? <span className={`font-semibold ${trendColor}`}>{trend}</span> : null}
       </div>

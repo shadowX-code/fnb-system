@@ -2,12 +2,10 @@ import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
   Bell,
-  Cake,
   ChevronRight,
   CheckCircle2,
   ClipboardList,
   Factory,
-  Gift,
   LineChart,
   PackageSearch,
   ShoppingCart,
@@ -96,52 +94,6 @@ function formatMonthYear(month, year) {
   return `${fullMonthName(month)} ${year}`;
 }
 
-function formatShortDate(dateString) {
-  if (!dateString) return "-";
-  const date = new Date(`${dateString}T00:00:00`);
-  return date.toLocaleDateString("en-MY", { day: "numeric", month: "short" });
-}
-
-function employeeBirthday(employee) {
-  return employee?.birthday || employee?.birth_date || employee?.date_of_birth || employee?.dob || "";
-}
-
-function normalizeLookupValue(value) {
-  return String(value || "").trim().toLowerCase();
-}
-
-function parseBirthdayParts(value) {
-  if (!value) return null;
-  if (value instanceof Date && !Number.isNaN(value.getTime())) {
-    return { monthIndex: value.getMonth(), day: value.getDate() };
-  }
-  const text = String(value).trim();
-  if (!text) return null;
-  const isoMatch = text.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/);
-  if (isoMatch) {
-    return validBirthdayParts(Number(isoMatch[2]), Number(isoMatch[3]));
-  }
-  const separatedMatch = text.match(/^(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})$/);
-  if (separatedMatch) {
-    const first = Number(separatedMatch[1]);
-    const second = Number(separatedMatch[2]);
-    // FeedX employee forms are Malaysia-first, so ambiguous dates default to DD/MM/YYYY.
-    const day = first > 12 ? first : second > 12 ? second : first;
-    const month = first > 12 ? second : second > 12 ? first : second;
-    return validBirthdayParts(month, day);
-  }
-  const parsed = new Date(text);
-  return Number.isNaN(parsed.getTime()) ? null : { monthIndex: parsed.getMonth(), day: parsed.getDate() };
-}
-
-function validBirthdayParts(month, day) {
-  if (!Number.isInteger(month) || !Number.isInteger(day) || month < 1 || month > 12 || day < 1) return null;
-  const validationYear = 2000; // Leap year keeps 29 Feb valid while still validating impossible dates.
-  const date = new Date(validationYear, month - 1, day);
-  if (date.getMonth() !== month - 1 || date.getDate() !== day) return null;
-  return { monthIndex: month - 1, day };
-}
-
 function outletCode(outlet) {
   if (outlet?.code) return outlet.code;
   return String(outlet?.name ?? "OUT")
@@ -160,40 +112,6 @@ function outletMeta(outlet, index = 0) {
     code: outletCode(outlet),
     color: outletColors[index % outletColors.length],
   };
-}
-
-function employeeMatchesOutletScope(employee, scopeOutletIds, outletById, { includeManagement = false } = {}) {
-  const workplace = normalizeLookupValue(employee?.workplace);
-  if (!workplace) return false;
-  if (workplace === "management") return includeManagement;
-  if (["all outlets", "all outlet", "hq", "headquarters"].includes(workplace)) return true;
-  return scopeOutletIds.some((outletId) => {
-    const outlet = outletById.get(outletId);
-    return [
-      outletId,
-      outlet?.id,
-      outlet?.name,
-      outlet?.code,
-    ].some((value) => normalizeLookupValue(value) === workplace);
-  });
-}
-
-function resolveEmployeeOutlet(employee, outletById) {
-  const workplace = normalizeLookupValue(employee?.workplace);
-  if (!workplace) return null;
-  for (const outlet of outletById.values()) {
-    if ([outlet.id, outlet.name, outlet.code].some((value) => normalizeLookupValue(value) === workplace)) {
-      return outlet;
-    }
-  }
-  return null;
-}
-
-function isActiveBirthdayEmployee(employee) {
-  if (!employee || employee.is_active === false) return false;
-  if (normalizeLookupValue(employee.employment_status) !== "active") return false;
-  if (employee.resigned_date) return false;
-  return true;
 }
 
 function OutletBadge({ outlet }) {
@@ -274,15 +192,6 @@ function isWorkingShift(roster) {
   const code = String(roster.template?.code || roster.template?.name || "").trim().toUpperCase().replace(/\s+/g, "_");
   const type = String(roster.template?.shift_type || "").toLowerCase();
   return !nonWorkingShiftCodes.has(code) && !["off", "leave", "medical"].includes(type);
-}
-
-function birthdayOccurrence(birthday, referenceDate = todayDate()) {
-  const parts = parseBirthdayParts(birthday);
-  if (!parts) return null;
-  let next = new Date(referenceDate.getFullYear(), parts.monthIndex, parts.day);
-  if (next < referenceDate) next = new Date(referenceDate.getFullYear() + 1, parts.monthIndex, parts.day);
-  const days = Math.round((next - referenceDate) / 86400000);
-  return { date: next, days };
 }
 
 function aggregateProducts(items = []) {
@@ -601,21 +510,6 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
     { label: "Roster not published", count: rosterIssueOutlets.length, route: "duty-roster" },
   ];
 
-  const birthdays = useMemo(() => {
-    const scopedEmployees = opsData.employees.filter((employee) => (
-      isActiveBirthdayEmployee(employee)
-      && employeeMatchesOutletScope(employee, scopeOutletIds, outletById, { includeManagement: selectedOutletId === "all" })
-    ));
-    const mapped = scopedEmployees
-      .map((employee) => ({ employee, birthday: birthdayOccurrence(employeeBirthday(employee), today) }))
-      .filter((item) => item.birthday)
-      .sort((a, b) => a.birthday.days - b.birthday.days);
-    return {
-      upcoming: mapped.filter((item) => item.birthday.days <= 30),
-      next: mapped[0],
-    };
-  }, [opsData.employees, outletById, scopeOutletIds, selectedOutletId, today]);
-
   const statusCounts = outletMonthlyRows.reduce((counts, row) => {
     counts[row.status] = (counts[row.status] || 0) + 1;
     return counts;
@@ -928,7 +822,7 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
         </Card>
       </div>
 
-      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(330px,0.75fr)_minmax(330px,0.75fr)]">
+      <div className="grid items-start gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(330px,0.75fr)]">
         <Card
           title="Top Product Signals (MTD)"
           description="Monthly uploaded Product Analytics data."
@@ -963,57 +857,6 @@ export default function DashboardOverviewPage({ store, auth, ui }) {
                 );
               })
             )}
-          </div>
-        </Card>
-
-        <Card title="Upcoming Celebrations" description="Team birthdays in the next 30 days.">
-          <div className="space-y-4 p-4">
-            <div className="grid grid-cols-2 gap-3">
-              <div className="rounded-2xl bg-primary/5 p-3">
-                <div className="flex items-center gap-2 text-primary"><Cake size={16} /><span className="text-xs font-bold">Next 30 Days</span></div>
-                <div className="mt-2 text-2xl font-semibold text-text-primary">{birthdays.upcoming.length}</div>
-              </div>
-              <div className="rounded-2xl bg-slate-50 p-3">
-                <div className="flex items-center gap-2 text-text-secondary"><Gift size={16} /><span className="text-xs font-bold">Outlets</span></div>
-                <div className="mt-2 text-2xl font-semibold text-text-primary">
-                  {new Set(birthdays.upcoming.map((item) => item.employee.workplace).filter(Boolean)).size}
-                </div>
-              </div>
-            </div>
-            {birthdays.upcoming.length ? (
-              <>
-                <SectionHeader title="This Week" subtitle="Birthdays due within 7 days." />
-                <div className="space-y-2">
-                  {birthdays.upcoming.filter((item) => item.birthday.days <= 7).slice(0, 4).map(({ employee, birthday }) => (
-                    <div key={employee.id} className="rounded-2xl border border-border bg-white p-3">
-                      <div className="flex items-start justify-between gap-3">
-                        <div>
-                          <div className="font-bold text-text-primary">🎂 {employee.nickname || employee.full_name}</div>
-                          <div className="mt-1 text-xs font-semibold text-text-secondary">{employee.position || "Team member"} · {resolveEmployeeOutlet(employee, outletById)?.name ?? employee.workplace ?? "Outlet team"}</div>
-                        </div>
-                        <div className="text-right text-xs font-bold text-primary">{formatShortDate(toDateInputValue(birthday.date))}<br />in {birthday.days}d</div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                <SectionHeader title="Next" />
-                <div className="space-y-2">
-                  {birthdays.upcoming.filter((item) => item.birthday.days > 7).slice(0, 3).map(({ employee, birthday }) => (
-                    <div key={employee.id} className="flex items-center justify-between rounded-2xl bg-slate-50 px-3 py-2 text-sm">
-                      <span className="font-semibold text-text-secondary">{employee.nickname || employee.full_name}</span>
-                      <span className="text-xs font-bold text-text-muted">{formatShortDate(toDateInputValue(birthday.date))} · in {birthday.days}d</span>
-                    </div>
-                  ))}
-                </div>
-              </>
-            ) : (
-              <EmptyState
-                title="No upcoming birthdays in the next 30 days."
-                message={birthdays.next ? `Next celebration: ${birthdays.next.employee.nickname || birthdays.next.employee.full_name} · ${formatShortDate(toDateInputValue(birthdays.next.birthday.date))}` : "Employee birthday reminders will appear after birthdays are saved."}
-                action={<div className="mt-4 inline-flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/10 text-primary"><Gift size={18} /></div>}
-              />
-            )}
-            <button className="btn-secondary w-full" type="button" onClick={() => ui?.navigate?.("employees")}>View Employees</button>
           </div>
         </Card>
 

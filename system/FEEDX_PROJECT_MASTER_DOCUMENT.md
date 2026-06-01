@@ -386,7 +386,7 @@ Current status:
 
 Purpose:
 
-Monthly HQ management overview workspace for owners/admins to review business health, outlet issues, alerts, pending actions, product signals, operational risks, and team birthday reminders.
+Monthly HQ management overview workspace for owners/admins to review business health, outlet issues, alerts, pending actions, product signals, and operational risks.
 
 Sidebar label:
 
@@ -406,7 +406,6 @@ Data:
 - Asset inspections
 - Asset maintenance records
 - Duty roster records
-- Employee birthdays
 
 Core rules:
 
@@ -414,7 +413,7 @@ Core rules:
 - Dashboard is separate from S&P Dashboard and must not replace the detailed sales/purchase analytics workspace.
 - Do not show daily, hourly, real-time POS, or last-7-days metrics.
 - Outlet scope supports All Outlets and individual accessible outlets.
-- Every outlet-specific alert, product signal, action, and birthday must show outlet identity.
+- Every outlet-specific alert, product signal, and action must show outlet identity.
 - Missing data shows helpful empty states instead of misleading zeros.
 - The dashboard greeting uses browser local time: 05:00-11:59 "Good morning", 12:00-17:59 "Good afternoon", 18:00-22:59 "Good evening", and 23:00-04:59 "Welcome back".
 - Dashboard greeting personalization uses `employees.nickname` first, then `employees.full_name`; if the employee profile is unavailable, it shows the greeting without a name.
@@ -430,7 +429,6 @@ Dashboard sections:
 - Pending Actions linking to the relevant module.
 - Top Product Signals using monthly Product Analytics uploads.
 - Business Pulse summary across the selected outlet scope.
-- Upcoming Celebrations using employee birthday fields.
 
 Chart rules:
 
@@ -487,6 +485,12 @@ Rules:
 Purpose:
 
 Upload monthly POS product sales reports and generate product performance analytics for management.
+
+Year selector rule:
+
+- Reporting year selectors must be data-driven, not fixed lists. Product Analytics uses distinct `report_year` values from uploaded Product Analytics reports, Sales Comparison uses distinct Sales record years, Purchase Comparison uses distinct Purchase record years, and Recipe Intelligence uses Product Analytics report years.
+- Year options merge historical data years with Current Year and Current Year + 1, then sort ascending. If no historical data exists, show Current Year - 1, Current Year, and Current Year + 1.
+- The same year-option strategy applies to Product Analytics upload/report filters, Sales Comparison, Purchase Comparison, and Recipe Intelligence trend/report selectors.
 
 Route:
 
@@ -1215,6 +1219,14 @@ Permissions:
 ---
 
 ## 5.13 Asset Tracking
+
+### FeedX Image Upload Standard
+
+- Image upload controls across Employees, Recipes, Master Inventory, Asset Tracking, Asset Inspection, Stock Check, Waste Records, and Purchase Receiving must accept only JPG/JPEG, PNG, and WebP images.
+- Maximum source file size is 5MB. Files above 5MB are rejected before upload with `Image exceeds 5MB limit.`
+- Accepted images are optimized client-side before Supabase Storage upload: longest side max 1920px, original aspect ratio preserved, WebP output quality approximately 80%, and only the optimized file is stored. Target stored image size is roughly 0.5MB-2MB depending on source content.
+- Replacing an existing stored image should remove the old Supabase Storage object when the old public URL belongs to the same bucket and is no longer referenced by the updated record.
+- Current storage buckets: Inventory item, Recipe, and Waste evidence photos use `inventory-item-photos`; Asset, Maintenance, and Asset Inspection evidence photos use `asset-photos`.
 
 Purpose:
 
@@ -2954,6 +2966,11 @@ Labels:
 
 Rules:
 
+- Employees KPI strip shows System Access, Access Active, and Active Employees. Access Disabled and Probation are not KPI cards.
+- Upcoming Celebrations lives on the Employees page between the KPI strip and Employee Directory.
+- Upcoming Celebrations reuses employee birthday logic for Next 30 Days, This Week, and Upcoming Birthdays.
+- The Employees page celebration card must not show a View Employees navigation action because the user is already inside the Employees module.
+- The celebration model is future-ready for birthdays and work anniversaries, but current production logic uses birthdays only.
 - Employment Type is the employee classification only: Probation, Full-Time, Part-Time, Intern, or Contract.
 - Employment Status is the HR lifecycle state only: Active, Resigned, or Terminated.
 - System Access controls login only and must remain separate from Employment Type and Employment Status.
@@ -4073,6 +4090,8 @@ Roster settings:
 - Break Duration is labeled clearly with minute options such as 60 mins unpaid.
 - sort_order controls quick template display order.
 - Templates are archived with is_active = false instead of hard deleted.
+- Dark mode roster template cards use neutral enterprise surfaces instead of fully colored card fills. Status is represented through a left accent border, badge/icon treatment, and readable text.
+- Duty Roster template accents are: Full/working green, OFF gray, MC medical leave purple, and AL annual leave blue. Medical Leave purple uses a restrained `rgba(168,85,247,0.12)` background and `#C084FC` text in dark mode.
 - Archived templates are hidden from quick assign but remain available for historical roster display.
 - Quick Shift Templates load from the selected outlet.
 - Month view uses compact shift codes for dense scheduling.
@@ -4232,6 +4251,7 @@ Design direction:
 - Light and dark mode support
 - Professional, not cyberpunk
 - Compact enterprise density with clear hierarchy.
+- Global visual density follows Linear / Stripe Dashboard / Vercel / Notion Enterprise references: compact, premium, readable, and never bulky.
 - Use weight, contrast, spacing, and status color instead of oversized text.
 - Tables should feel stable and scannable, not like spreadsheets.
 - Dashboard pages should prioritize workflow visibility and operational action.
@@ -4285,11 +4305,14 @@ Date picker rules:
 Dark mode semantic color rules:
 
 - Dark mode uses separate semantic tokens for success, warning, danger, info, neutral, primary, elevated surfaces, muted surfaces, subtle borders, and readable text.
+- Dark mode cards use neutral premium surfaces: card `#111827`, border `#1F2937`. Avoid full green, purple, blue, or white card fills for operational content.
+- Status should be represented with a left accent border, compact badge, and icon rather than a fully colored card background.
 - Light mode color treatment must remain unchanged; dark-mode overrides tune only dark surfaces, borders, and text contrast.
 - Info, warning, success, and danger cards use tinted dark backgrounds with lighter readable text. Do not use saturated blue text on dark blue backgrounds or dark red text on dark red backgrounds.
 - Insight cards, security notes, alert callouts, status badges, and operational summary tiles must use semantic dark surfaces instead of muddy light color translations.
 - Badge and status pill text must keep strong contrast in dark mode for Active, Completed, Draft, Warning, High, Info, Success, and Error states.
 - FeedX green remains the brand accent, but semantic warning/danger/info states must stay visually distinct from the brand color.
+- Employee profile section labels such as Personal Info and Employment Info use visible slate text (`#94A3B8`) in dark mode while keeping existing letter spacing.
 
 FloatingLayer migration status:
 
@@ -4310,14 +4333,14 @@ FloatingLayer migration status:
 Typography tokens:
 
 ```text
-type-page-title     page titles, 22-24px equivalent
+type-page-title     page titles, about 28-30px desktop
 type-section-title  dashboard and section headings, 15-16px equivalent
 type-card-title     compact card titles, 14-15px equivalent
-type-body           standard body copy, about 13px
+type-body           standard body copy, about 13-14px
 type-body-sm        secondary body copy, about 12px
 type-caption        metadata, badge text, helper text, about 11px
 type-micro          tiny labels, about 10px
-type-metric         KPI values
+type-metric         KPI values, about 26-30px maximum
 ```
 
 Typography rules:
@@ -4325,6 +4348,12 @@ Typography rules:
 - Shared components must use semantic type classes instead of raw `text-sm`, `text-lg`, or arbitrary text sizes.
 - Raw Tailwind typography is allowed only for one-off visual exceptions, not repeated UI patterns.
 - Page-level modules should migrate gradually through shared components rather than mass rewriting every text node.
+- Sidebar navigation uses 14px, medium-weight labels with 20px line height. Sidebar section labels use 11px, uppercase, 0.12em letter spacing, and 600 weight.
+- Sidebar user footer uses 14px for the name and 12px for the role.
+- Page header eyebrow labels use 12px uppercase text with 0.18em letter spacing. Page titles stay strong at about 28-30px with 700 weight, and subtitles use 14px muted text.
+- KPI card labels use 12px semibold uppercase treatment, values are capped around 26-30px, helper text uses 12-13px, and desktop padding should sit near 18-20px.
+- Filter labels use 12px semibold text. Input/select text uses 14px and controls stay usable around 40-44px high on desktop.
+- Chart labels, legends, and tooltips should be compact and avoid oversized legends.
 
 StatusBadge semantic map:
 
@@ -4351,6 +4380,10 @@ MetricCard rules:
 
 Table interaction rules:
 
+- Global table headers use 11-12px semibold uppercase text with about 0.08em letter spacing.
+- Table body primary text uses about 14px; secondary text uses about 12px muted text.
+- Table row padding should remain compact and scannable while preserving touch/readability. Avoid oversized vertical padding in dense management pages.
+- Table action buttons use compact 13px text and must not crowd the row edge.
 - Use `table-row-interactive` for stable hover rows.
 - Use `table-action-cell` for the View + overflow action pattern.
 - Table rows must not translate, scale, expand, or change height on hover.

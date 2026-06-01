@@ -14,6 +14,7 @@ import { months } from "../data/mockData.js";
 import { monthLabel, percentageChange, toCurrency, toPercent } from "../utils/analytics.js";
 import { canExport, canManage, getAccessibleOutletOptions, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { productAnalyticsService } from "../../../services/productAnalyticsService.js";
+import { buildDynamicYearOptions, yearsFromRecords } from "../../../utils/yearOptions.js";
 
 const productColumnAliases = {
   category: ["Category", "Cat", "Item Category", "Product Category", "Menu Category"],
@@ -684,6 +685,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
   const [fullTableOpen, setFullTableOpen] = useState(false);
   const [productSearch, setProductSearch] = useState("");
   const [productCategory, setProductCategory] = useState("all");
+  const yearOptions = useMemo(() => buildDynamicYearOptions(yearsFromRecords(reports, "report_year")), [reports]);
   const [productSort, setProductSort] = useState("net_sales");
   const [productPage, setProductPage] = useState(1);
   const [productViewMode, setProductViewMode] = useState("summary");
@@ -972,7 +974,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
           onChange={setOutletId}
         />
         <MonthSelector value={month} onChange={setMonth} />
-        <YearSelector value={year} onChange={setYear} />
+        <YearSelector value={year} onChange={setYear} years={yearOptions} />
         <SelectField
           label="Compare With"
           value={compareMode}
@@ -1305,7 +1307,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
           <div className="grid gap-4 md:grid-cols-3">
             <SelectField label="Outlet" value={uploadForm.outletId} searchable options={activeOutlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={(value) => setUploadForm((currentForm) => ({ ...currentForm, outletId: value }))} required />
             <MonthSelector value={uploadForm.month} onChange={(value) => setUploadForm((currentForm) => ({ ...currentForm, month: value }))} />
-            <YearSelector value={uploadForm.year} onChange={(value) => setUploadForm((currentForm) => ({ ...currentForm, year: value }))} />
+            <YearSelector value={uploadForm.year} onChange={(value) => setUploadForm((currentForm) => ({ ...currentForm, year: value }))} years={yearOptions} />
           </div>
           <div className="mt-4 rounded-2xl border border-dashed border-border bg-slate-50 p-5 text-center">
             <input ref={inputRef} hidden type="file" accept=".csv,.xlsx" onChange={(event) => handleFile(event.target.files?.[0])} />
