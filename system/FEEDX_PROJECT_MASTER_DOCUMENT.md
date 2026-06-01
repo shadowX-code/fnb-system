@@ -4377,6 +4377,7 @@ MetricCard rules:
 - KPI value typography is standardized globally through `text-primary-type-kpi-value`. Final value scale is 22.5px / 28px / 600 for a refined enterprise SaaS density. KPI values must not use page-title-sized utilities such as `text-4xl`, `text-5xl`, or custom 40px+ values.
 - Dashboard KPI cards use MetricCard.
 - Duty Roster and Outlet Duty Roster KPI summaries use MetricCard with semantic icons, compact 11-12px labels, the shared KPI value scale, and cleaned human-readable labels such as Scheduled Shifts, Working Staff, AL / MC Days, and Unscheduled Days.
+- People KPI summaries across Employees, Job Positions, Departments, and Roles & Permissions use MetricCard with semantic icons, compact 11-12px labels, muted label color, and the shared KPI value scale. Upcoming Celebrations mini stats follow the same icon + label language with softer secondary-card styling.
 - Analytics-heavy KPI strips, such as Product Analytics, should use `MetricCard variant="compact"` to reduce card height, icon footprint, and whitespace while keeping numeric values prominent.
 - Product Analytics KPI hierarchy: numeric KPI cards inherit `text-primary-type-kpi-value`; product/category names cap at `text-[22px] leading-[28px] font-semibold` with English primary and Chinese secondary where bilingual names exist; secondary helper text remains 12-13px.
 - Clickable summary cards must show pointer affordance and active state when filtering/drilling down.

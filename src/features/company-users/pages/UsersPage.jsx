@@ -3,6 +3,7 @@ import { BriefcaseBusiness, Cake, CreditCard, Edit3, Eye, Gift, KeyRound, MoreHo
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import Card from "../../../components/ui/Card.jsx";
+import MetricCard from "../../../components/ui/MetricCard.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
@@ -368,15 +369,8 @@ function findJobPosition(jobPositions, positionName) {
   return jobPositions.find((position) => position.name === positionName);
 }
 
-function StatCard({ label, value, helper, tone = "neutral" }) {
-  const toneClass = tone === "warning" ? "text-amber-700" : tone === "danger" ? "text-rose-700" : tone === "success" ? "text-emerald-700" : "text-text-primary";
-  return (
-    <Card className="p-3">
-      <div className="text-[11px] font-bold uppercase tracking-wide text-text-muted">{label}</div>
-      <div className={`mt-1 text-2xl font-semibold ${toneClass}`}>{value}</div>
-      <div className="mt-1 text-xs text-text-secondary">{helper}</div>
-    </Card>
-  );
+function StatCard({ label, value, helper, tone = "neutral", icon }) {
+  return <MetricCard label={label} value={value} helper={helper} tone={tone} icon={icon} size="compact" />;
 }
 
 function UpcomingCelebrationsCard({ celebrations, outlets }) {
@@ -387,15 +381,15 @@ function UpcomingCelebrationsCard({ celebrations, outlets }) {
       <div className="space-y-4 p-4">
         <div className="grid gap-3 sm:grid-cols-3">
           <div className="rounded-2xl bg-primary/5 p-3">
-            <div className="flex items-center gap-2 text-primary"><Cake size={16} /><span className="text-xs font-bold">Next 30 Days</span></div>
-            <div className="mt-2 text-2xl font-semibold text-text-primary">{celebrations.upcoming.length}</div>
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-primary"><Cake size={14} /><span>Next 30 Days</span></div>
+            <div className="mt-2 text-primary-type-kpi-value text-text-primary">{celebrations.upcoming.length}</div>
           </div>
           <div className="rounded-2xl bg-slate-50 p-3">
-            <div className="flex items-center gap-2 text-text-secondary"><Gift size={16} /><span className="text-xs font-bold">This Week</span></div>
-            <div className="mt-2 text-2xl font-semibold text-text-primary">{thisWeek.length}</div>
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary"><Gift size={14} /><span>This Week</span></div>
+            <div className="mt-2 text-primary-type-kpi-value text-text-primary">{thisWeek.length}</div>
           </div>
           <div className="rounded-2xl bg-slate-50 p-3">
-            <div className="text-xs font-bold text-text-secondary">Future-ready</div>
+            <div className="flex items-center gap-1.5 text-[11px] font-semibold uppercase tracking-[0.06em] text-text-secondary"><Gift size={14} /><span>Future-ready</span></div>
             <div className="mt-2 text-sm font-bold text-text-primary">Birthdays + anniversaries</div>
             <div className="mt-1 text-xs text-text-muted">Anniversary reminders can use the same card later.</div>
           </div>
@@ -1739,9 +1733,9 @@ export default function UsersPage({ ui, store, auth }) {
       />
 
       <div className="grid gap-3 sm:grid-cols-3">
-        <StatCard label="System Access" value={stats.loginEnabled} helper="Employees with system access configured" tone="success" />
-        <StatCard label="Access Active" value={stats.active} helper="Can access the system" tone="success" />
-        <StatCard label="Active Employees" value={stats.activeEmployment} helper="Currently employed" />
+        <StatCard label="System Access" value={stats.loginEnabled} helper="Employees with system access configured" tone="success" icon={KeyRound} />
+        <StatCard label="Access Active" value={stats.active} helper="Can access the system" tone="success" icon={ShieldCheck} />
+        <StatCard label="Active Employees" value={stats.activeEmployment} helper="Currently employed" icon={UserRound} />
       </div>
 
       <UpcomingCelebrationsCard celebrations={celebrations} outlets={store?.outlets ?? []} />

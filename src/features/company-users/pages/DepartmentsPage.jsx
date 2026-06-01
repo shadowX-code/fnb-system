@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Edit3, Eye, MoreHorizontal, Plus, Power, Search, Trash2 } from "lucide-react";
+import { BriefcaseBusiness, Building2, CheckCircle2, Edit3, Eye, MoreHorizontal, Plus, Power, Search, Trash2, Users } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import Card from "../../../components/ui/Card.jsx";
+import MetricCard from "../../../components/ui/MetricCard.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import FilterBar from "../../../components/forms/FilterBar.jsx";
@@ -85,15 +86,8 @@ function DepartmentModal({ mode, initialDepartment, onClose, onSubmit }) {
   );
 }
 
-function StatCard({ label, value, helper, tone = "neutral" }) {
-  const toneClass = tone === "success" ? "text-emerald-700" : tone === "warning" ? "text-amber-700" : "text-text-primary";
-  return (
-    <Card className="p-3">
-      <div className="text-[11px] font-bold uppercase tracking-wide text-text-muted">{label}</div>
-      <div className={`mt-1 text-2xl font-semibold ${toneClass}`}>{value}</div>
-      <div className="mt-1 text-xs text-text-secondary">{helper}</div>
-    </Card>
-  );
+function StatCard({ label, value, helper, tone = "neutral", icon }) {
+  return <MetricCard label={label} value={value} helper={helper} tone={tone} icon={icon} size="compact" />;
 }
 
 export default function DepartmentsPage({ ui, auth }) {
@@ -307,10 +301,10 @@ export default function DepartmentsPage({ ui, auth }) {
       />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Total Departments" value={stats.total} helper="Company grouping structure" />
-        <StatCard label="Active Departments" value={stats.active} helper="Available for positions" tone="success" />
-        <StatCard label="Assigned Positions" value={stats.assignedPositions} helper="Job titles linked" />
-        <StatCard label="Assigned Users" value={stats.assignedUsers} helper="Employees linked" />
+        <StatCard label="Total Departments" value={stats.total} helper="Company grouping structure" icon={Building2} />
+        <StatCard label="Active Departments" value={stats.active} helper="Available for positions" tone="success" icon={CheckCircle2} />
+        <StatCard label="Assigned Positions" value={stats.assignedPositions} helper="Job titles linked" icon={BriefcaseBusiness} />
+        <StatCard label="Assigned Users" value={stats.assignedUsers} helper="Employees linked" icon={Users} />
       </div>
 
       <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm font-semibold text-blue-900">

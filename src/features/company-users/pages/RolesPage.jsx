@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
-import { Check, Copy, Eye, Lock, MoreHorizontal, Plus, Search, Shield, ShieldAlert, Trash2 } from "lucide-react";
+import { Check, Copy, Eye, Lock, MoreHorizontal, Plus, Search, Shield, ShieldAlert, ShieldCheck, Trash2, Users } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import Card from "../../../components/ui/Card.jsx";
+import MetricCard from "../../../components/ui/MetricCard.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
@@ -129,15 +130,8 @@ function enrichRole(role) {
   };
 }
 
-function StatCard({ label, value, helper, tone = "neutral" }) {
-  const toneClass = tone === "danger" ? "text-rose-700" : tone === "warning" ? "text-amber-700" : tone === "success" ? "text-emerald-700" : "text-text-primary";
-  return (
-    <Card className="p-3">
-      <div className="text-[11px] font-bold uppercase tracking-wide text-text-muted">{label}</div>
-      <div className={`mt-1 text-2xl font-semibold ${toneClass}`}>{value}</div>
-      <div className="mt-1 text-xs text-text-secondary">{helper}</div>
-    </Card>
-  );
+function StatCard({ label, value, helper, tone = "neutral", icon }) {
+  return <MetricCard label={label} value={value} helper={helper} tone={tone} icon={icon} size="compact" />;
 }
 
 function RoleAccessLayout({ title, description, notice, actions, footer, onClose, children }) {
@@ -1161,10 +1155,10 @@ export default function RolesPage({ ui, store, auth }) {
       />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Total Roles" value={roles.length} helper="All active and inactive roles" />
-        <StatCard label="Protected Roles" value={protectedRoles.length} helper="Owner and admin only" tone="warning" />
-        <StatCard label="Custom Roles" value={customRoles.length} helper="Editable company roles" />
-        <StatCard label="Assigned Employees" value={assignedUserCount} helper="Employees linked to roles" />
+        <StatCard label="Total Roles" value={roles.length} helper="All active and inactive roles" icon={Shield} />
+        <StatCard label="Protected Roles" value={protectedRoles.length} helper="Owner and admin only" tone="warning" icon={Lock} />
+        <StatCard label="Custom Roles" value={customRoles.length} helper="Editable company roles" icon={ShieldCheck} />
+        <StatCard label="Assigned Employees" value={assignedUserCount} helper="Employees linked to roles" icon={Users} />
       </div>
 
       <div className="rounded-2xl border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-900">

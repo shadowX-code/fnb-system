@@ -1,7 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
-import { Edit3, Plus, Power, Search, Trash2 } from "lucide-react";
+import { BriefcaseBusiness, CheckCircle2, Edit3, Plus, Power, Search, Trash2, Users } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
+import MetricCard from "../../../components/ui/MetricCard.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import FilterBar from "../../../components/forms/FilterBar.jsx";
@@ -282,15 +283,8 @@ function formatLastUpdated(value) {
   return new Date(value).toLocaleString([], { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
 }
 
-function StatCard({ label, value, helper, tone = "neutral" }) {
-  const toneClass = tone === "success" ? "text-emerald-700" : tone === "warning" ? "text-amber-700" : "text-text-primary";
-  return (
-    <Card className="p-3">
-      <div className="text-[11px] font-bold uppercase tracking-wide text-text-muted">{label}</div>
-      <div className={`mt-1 text-2xl font-semibold ${toneClass}`}>{value}</div>
-      <div className="mt-1 text-xs text-text-secondary">{helper}</div>
-    </Card>
-  );
+function StatCard({ label, value, helper, tone = "neutral", icon }) {
+  return <MetricCard label={label} value={value} helper={helper} tone={tone} icon={icon} size="compact" />;
 }
 
 export default function JobPositionsPage({ store, ui, auth }) {
@@ -604,10 +598,10 @@ export default function JobPositionsPage({ store, ui, auth }) {
       />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard label="Total Positions" value={stats.total} helper="Configured HR titles" />
-        <StatCard label="Active Positions" value={stats.active} helper="Available for new users" tone="success" />
-        <StatCard label="Assigned Users" value={stats.assigned} helper="Current active assignments" />
-        <StatCard label="Inactive Positions" value={stats.inactive} helper="Hidden from new user forms" tone={stats.inactive ? "warning" : "neutral"} />
+        <StatCard label="Total Positions" value={stats.total} helper="Configured HR titles" icon={BriefcaseBusiness} />
+        <StatCard label="Active Positions" value={stats.active} helper="Available for new users" tone="success" icon={CheckCircle2} />
+        <StatCard label="Assigned Users" value={stats.assigned} helper="Current active assignments" icon={Users} />
+        <StatCard label="Inactive Positions" value={stats.inactive} helper="Hidden from new user forms" tone={stats.inactive ? "warning" : "neutral"} icon={Power} />
       </div>
 
       <FilterBar compact>
