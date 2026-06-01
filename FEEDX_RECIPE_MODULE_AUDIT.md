@@ -110,16 +110,18 @@ Status:
 - Mapping decisions support Pending, Mapped, and Ignored states.
 - Ignored products persist in `product_recipe_mappings` with `status = ignored`, `recipe_id = null`, ignored metadata, and are excluded from coverage denominator and Recipe Intelligence.
 - Coverage is calculated as Mapped / (Mapped + Pending), so intentional ignored POS items do not penalize mapping health.
+- Product Mapping uses a simplified table structure: Product, Sales, Suggested Match, Status, Recipe Mapping, and Action. The Sales column combines latest month, quantity sold, and net sales; Product shows Last Seen; Status includes both mapping state and Active/Inactive lifecycle.
+- Product lifecycle is based on Product Analytics visibility. Products seen within the last three selected reporting months are Active; products not seen recently are Inactive. Mapping decisions are retained even when a product disappears from the latest month and are reused automatically when that product returns.
 - Recipe Intelligence now focuses on profit and ingredient planning instead of repeated margin/revenue cards:
   - Recipe Gross Profit Trend
   - Top Gross Profit Recipes
   - Ingredient Demand Forecast
   - Top 10 Ingredient Consumption - Monthly
-  - Ingredient Consumption Trend - Monthly
+  - Ingredient Cost Trend
 - Ingredient analytics use mapped Product Analytics sales only. Pending products are excluded but flagged as mapping risk; Ignored products are excluded completely.
 - Trend charts use in-card year selectors and always render Jan-Dec with month-only axis labels and missing months as 0. Visible Month + Year filters drive monthly Matrix, Top Gross Profit Recipes, and Top 10 Ingredient Consumption; forecast averaging remains an internal Last 3 Months calculation for now.
 - Trend chart visuals use smooth FeedX styling with fixed circular markers, subtle area fill, compact y-axis labels, peak highlight, and hover tooltips.
-- Ingredient Consumption Trend uses compact removable ingredient chips, supports up to five selected ingredients, and its tooltip shows month, ingredient, estimated usage, UOM, and estimated cost. The redundant standalone Usage Estimate block was removed because ingredient analytics already apply that logic.
+- Ingredient Cost Trend uses compact removable ingredient chips, supports up to five selected ingredients, includes Total Cost / Usage / Growth % sorting, shows growth badges on selected chips, and uses a simplified Month / Ingredient / Estimated Cost tooltip. The redundant standalone Usage Estimate block was removed because ingredient analytics already apply that logic.
 - Top 10 Ingredient Consumption includes Total Cost and Cost Contribution %, with View All search/category/sort controls.
 - Future notification hook: Product Analytics imports that introduce new Pending products should trigger a Notification Center task such as `Recipe mapping required`.
 

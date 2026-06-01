@@ -5049,7 +5049,7 @@ function RecipeRankingTable({ rows = [], columns = [], emptyTitle, emptyDescript
 
 const recipeTrendPalette = ["#22c55e", "#38bdf8", "#f59e0b", "#a855f7", "#f43f5e"];
 
-function RecipeTrendChart({ series = [], months = [], valueFormatter = (value) => value, emptyTitle, emptyDescription, height = 280 }) {
+function RecipeTrendChart({ series = [], months = [], valueFormatter = (value) => value, emptyTitle, emptyDescription, height = 280, showLegend = true, tooltipVariant = "default" }) {
   const activeSeries = series.filter((entry) => entry?.values?.some((point) => Number(point.value || 0) > 0)).slice(0, 5);
   if (!activeSeries.length || !months.length) {
     return <RecipeIntelligencePlaceholder title={emptyTitle} description={emptyDescription} />;
@@ -5087,26 +5087,36 @@ function RecipeTrendChart({ series = [], months = [], valueFormatter = (value) =
       <div className="min-w-56 rounded-2xl border border-white/60 bg-white/95 p-3 text-xs text-slate-800 shadow-2xl backdrop-blur dark:border-white/10 dark:bg-slate-950/95 dark:text-slate-100">
         <div className="font-black">{label}</div>
         <div className="mt-2 space-y-2">
-          {rows.map((entry) => (
-            <div key={entry.dataKey}>
-              <div className="flex items-center justify-between gap-3">
-                <span className="font-bold" style={{ color: entry.color }}>{tooltipByKey[entry.dataKey]?.label || entry.name}</span>
-                <span className="font-black">{valueFormatter(entry.value)}</span>
-              </div>
-              {Array.isArray(entry.payload?.[`${entry.dataKey}Meta`]) ? (
-                <div className="mt-1.5 space-y-1 text-slate-500 dark:text-slate-300">
-                  {entry.payload[`${entry.dataKey}Meta`].map((item) => (
-                    <div key={item.label} className="flex justify-between gap-4">
-                      <span>{item.label}</span>
-                      <span className="font-bold text-slate-700 dark:text-slate-100">{item.value}</span>
-                    </div>
-                  ))}
+          {rows.map((entry) => {
+            if (tooltipVariant === "ingredient-cost") {
+              return (
+                <div key={entry.dataKey} className="grid grid-cols-[1fr_auto] gap-4">
+                  <span className="font-bold" style={{ color: entry.color }}>{tooltipByKey[entry.dataKey]?.label || entry.name}</span>
+                  <span className="font-black">{valueFormatter(entry.value)}</span>
                 </div>
-              ) : entry.payload?.[`${entry.dataKey}Tooltip`] ? (
-                <div className="mt-1 text-slate-500 dark:text-slate-300">{entry.payload[`${entry.dataKey}Tooltip`]}</div>
-              ) : null}
-            </div>
-          ))}
+              );
+            }
+            return (
+              <div key={entry.dataKey}>
+                <div className="flex items-center justify-between gap-3">
+                  <span className="font-bold" style={{ color: entry.color }}>{tooltipByKey[entry.dataKey]?.label || entry.name}</span>
+                  <span className="font-black">{valueFormatter(entry.value)}</span>
+                </div>
+                {Array.isArray(entry.payload?.[`${entry.dataKey}Meta`]) ? (
+                  <div className="mt-1.5 space-y-1 text-slate-500 dark:text-slate-300">
+                    {entry.payload[`${entry.dataKey}Meta`].map((item) => (
+                      <div key={item.label} className="flex justify-between gap-4">
+                        <span>{item.label}</span>
+                        <span className="font-bold text-slate-700 dark:text-slate-100">{item.value}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : entry.payload?.[`${entry.dataKey}Tooltip`] ? (
+                  <div className="mt-1 text-slate-500 dark:text-slate-300">{entry.payload[`${entry.dataKey}Tooltip`]}</div>
+                ) : null}
+              </div>
+            );
+          })}
         </div>
       </div>
     );
@@ -5115,7 +5125,7 @@ function RecipeTrendChart({ series = [], months = [], valueFormatter = (value) =
     const value = Number(payload?.[dataKey] || 0);
     if (!Number.isFinite(cx) || !Number.isFinite(cy)) return null;
     const isPeak = value > 0 && value === peakBySeries[dataKey];
-    const radius = isPeak ? 5 : value > 0 ? 3 : 2;
+    const radius = isPeak ? 5 : value > 0 ? 3 : 1.5;
     return (
       <circle
         cx={cx}
@@ -5124,7 +5134,7 @@ function RecipeTrendChart({ series = [], months = [], valueFormatter = (value) =
         fill={value > 0 ? stroke : "#94a3b8"}
         stroke={value > 0 ? "var(--surface, #fff)" : "#cbd5e1"}
         strokeWidth={isPeak ? 2 : 1.5}
-        opacity={value > 0 ? 1 : 0.45}
+        opacity={value > 0 ? 1 : 0.18}
       />
     );
   };
@@ -5162,19 +5172,27 @@ function RecipeTrendChart({ series = [], months = [], valueFormatter = (value) =
           </ComposedChart>
         </ResponsiveContainer>
       </div>
-      <div className="mt-3 flex flex-wrap gap-2">
-        {activeSeries.map((entry, index) => (
-          <span key={entry.id || entry.label} className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-2.5 py-1 type-caption font-bold text-text-secondary dark:bg-white/5">
-            <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: recipeTrendPalette[index % recipeTrendPalette.length] }} />
-            {entry.label}
-          </span>
-        ))}
-      </div>
+      {showLegend ? (
+        <div className="mt-3 flex flex-wrap gap-2">
+          {activeSeries.map((entry, index) => (
+            <span key={entry.id || entry.label} className="inline-flex items-center gap-2 rounded-full border border-border bg-background px-2.5 py-1 type-caption font-bold text-text-secondary dark:bg-white/5">
+              <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: recipeTrendPalette[index % recipeTrendPalette.length] }} />
+              {entry.label}
+            </span>
+          ))}
+        </div>
+      ) : null}
     </div>
   );
 }
 
-function IngredientSelectorPills({ rows = [], selectedIds = [], onToggle, search, onSearch }) {
+function formatGrowthPercent(value) {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric) || numeric === 0) return "0%";
+  return `${numeric > 0 ? "▲" : "▼"}${Math.abs(Math.round(numeric))}%`;
+}
+
+function IngredientSelectorPills({ rows = [], selectedIds = [], onToggle, search, onSearch, sort, onSort }) {
   const selectedRows = selectedIds
     .map((id) => rows.find((row) => row.id === id))
     .filter(Boolean);
@@ -5184,10 +5202,31 @@ function IngredientSelectorPills({ rows = [], selectedIds = [], onToggle, search
     .slice(0, 12);
   return (
     <div className="space-y-3">
-      <label>
-        <div className="mb-1 type-caption font-semibold text-text-secondary">Search ingredient</div>
-        <input className="control h-9 w-full text-[13px]" value={search} onChange={(event) => onSearch(event.target.value)} placeholder="Search ingredient to trend" />
-      </label>
+      <div className="grid gap-3 sm:grid-cols-[1fr_160px]">
+        <label>
+          <div className="mb-1 type-caption font-semibold text-text-secondary">Search ingredient</div>
+          <input
+            className="control h-9 w-full text-[13px]"
+            value={search}
+            list="recipe-ingredient-trend-options"
+            onChange={(event) => onSearch(event.target.value)}
+            placeholder="Type ingredient name"
+          />
+          <datalist id="recipe-ingredient-trend-options">
+            {rows.slice(0, 30).map((row) => <option key={row.id} value={row.ingredient} />)}
+          </datalist>
+        </label>
+        <SelectField
+          label="Sort"
+          value={sort}
+          options={[
+            { value: "cost", label: "Total Cost" },
+            { value: "usage", label: "Usage" },
+            { value: "growth", label: "Growth %" },
+          ]}
+          onChange={onSort}
+        />
+      </div>
       {selectedRows.length ? (
         <div className="flex flex-wrap gap-1.5">
           {selectedRows.map((row) => (
@@ -5199,6 +5238,9 @@ function IngredientSelectorPills({ rows = [], selectedIds = [], onToggle, search
               title={`Remove ${row.ingredient}`}
             >
               <span>{row.ingredient}</span>
+              <span className={Number(row.growthPercent || 0) >= 0 ? "text-emerald-700 dark:text-emerald-200" : "text-rose-700 dark:text-rose-200"}>
+                {formatGrowthPercent(row.growthPercent)}
+              </span>
               <X size={12} />
             </button>
           ))}
@@ -6172,6 +6214,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [recipeMappingSelections, setRecipeMappingSelections] = useState({});
   const [savingRecipeMappingKey, setSavingRecipeMappingKey] = useState("");
   const [ingredientTrendSearch, setIngredientTrendSearch] = useState("");
+  const [ingredientTrendSort, setIngredientTrendSort] = useState("cost");
   const [ingredientTrendSelectedIds, setIngredientTrendSelectedIds] = useState([]);
   const [ingredientConsumptionFilters, setIngredientConsumptionFilters] = useState({ search: "", category: "all", sort: "cost" });
   const [date, setDateState] = useState(initialStockCheckDate.date);
@@ -9871,14 +9914,15 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     ])].sort((a, b) => b - a);
     const availableReportYears = availableTrendYears;
     const reportById = new Map(recipeProductReports.map((report) => [report.id, report]));
-    const buildProductSalesByName = (allowedSerials) => recipeProductItems.reduce((totals, item) => {
+    const buildProductSalesByName = (allowedSerials = null) => recipeProductItems.reduce((totals, item) => {
         const key = normalizeProductRecipeKey(item.product_name);
         if (!key) return totals;
         const report = reportById.get(item.report_id);
         const monthValue = item.report_month || item.month || report?.report_month || "";
         const yearValue = item.report_year || item.year || report?.report_year || "";
         const serial = monthSerial(yearValue || 0, monthValue || 0);
-        if (!allowedSerials.has(serial)) return totals;
+        if (!serial || serial <= 0) return totals;
+        if (allowedSerials && !allowedSerials.has(serial)) return totals;
         const current = totals.get(key) || { productName: item.product_name, quantity: 0, revenue: 0, latestSerial: 0, latestMonth: "", monthly: new Map() };
         const quantity = Number(item.quantity || 0);
         const revenue = Number(item.nett_sales || item.revenue || 0);
@@ -9897,17 +9941,24 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       }, new Map());
     const analysisProductSalesByName = buildProductSalesByName(analysisMonthSet);
     const monthlyProductSalesByName = buildProductSalesByName(selectedReportMonthSet);
+    const allProductSalesByName = buildProductSalesByName();
     const productSalesByName = isRecipeIntelligencePage ? monthlyProductSalesByName : analysisProductSalesByName;
     const yearlyProductSalesByName = buildProductSalesByName(trendMonthSet);
     const recipeCostById = new Map(recipeCostRows.map((row) => [row.recipe.id, row]));
     const mappingByProductKey = new Map(recipeProductMappings.map((mapping) => [normalizeProductRecipeKey(mapping.product_name), mapping]).filter(([key]) => key));
     const mappedMappings = recipeProductMappings.filter((mapping) => mappingDecisionStatus(mapping) === "mapped");
-    const ignoredMappings = recipeProductMappings.filter((mapping) => mappingDecisionStatus(mapping) === "ignored");
-    const mappedProductKeys = new Set(mappedMappings.map((mapping) => normalizeProductRecipeKey(mapping.product_name)).filter(Boolean));
-    const ignoredProductKeys = new Set(ignoredMappings.map((mapping) => normalizeProductRecipeKey(mapping.product_name)).filter(Boolean));
     const mappingCandidateRecipes = filteredRecipes.filter((recipe) => recipe.status === "active");
-    const productMappingRows = [...productSalesByName.entries()]
-      .map(([key, product]) => {
+    const productMappingKeys = new Set([
+      ...productSalesByName.keys(),
+      ...allProductSalesByName.keys(),
+      ...recipeProductMappings.map((mapping) => normalizeProductRecipeKey(mapping.product_name)).filter(Boolean),
+    ]);
+    const productMappingRows = [...productMappingKeys]
+      .map((key) => {
+        const product = productSalesByName.get(key) || allProductSalesByName.get(key) || { productName: mappingByProductKey.get(key)?.product_name || "Product", quantity: 0, revenue: 0, latestSerial: 0, latestMonth: "", monthly: new Map() };
+        const allProduct = allProductSalesByName.get(key);
+        const lastSeenSerial = allProduct?.latestSerial || product.latestSerial || 0;
+        const latestBucket = lastSeenSerial ? allProduct?.monthly?.get(lastSeenSerial) || product.monthly?.get(lastSeenSerial) : null;
         const mapping = mappingByProductKey.get(key);
         const status = mappingDecisionStatus(mapping);
         const mappedRecipe = status === "mapped" ? recipeCostById.get(mapping?.recipe_id)?.recipe || data.recipes.find((recipe) => recipe.id === mapping?.recipe_id) : null;
@@ -9922,9 +9973,12 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         return {
           key,
           productName: product.productName,
-          quantity: product.quantity,
-          revenue: product.revenue,
-          latestMonth: product.latestMonth || "—",
+          quantity: Number(latestBucket?.quantity ?? product.quantity ?? 0),
+          revenue: Number(latestBucket?.revenue ?? product.revenue ?? 0),
+          latestMonth: lastSeenSerial ? formatMonthSerial(lastSeenSerial) : "—",
+          lastSeenSerial,
+          lastSeenLabel: lastSeenSerial ? formatMonthSerial(lastSeenSerial) : "—",
+          activityStatus: lastSeenSerial && lastSeenSerial >= selectedReportSerial - 2 ? "active" : "inactive",
           mapping,
           status,
           mappedRecipe,
@@ -9935,7 +9989,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         };
       })
       .sort((a, b) => Number(b.revenue || 0) - Number(a.revenue || 0));
-    const unmappedProductRows = productMappingRows.filter((row) => row.status === "pending");
     const recipeMappingSearch = recipeMappingFilters.search.trim().toLowerCase();
     const visibleProductMappingRows = productMappingRows.filter((row) => {
       const recipeText = `${recipeCode(row.mappedRecipe || row.suggestedRecipe)} ${recipeNameEn(row.mappedRecipe || row.suggestedRecipe)} ${recipeNameCn(row.mappedRecipe || row.suggestedRecipe)}`.toLowerCase();
@@ -9969,9 +10022,10 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     const mappedRecipeCount = new Set(mappedMappings
       .filter((mapping) => recipeCostById.has(mapping.recipe_id) && productSalesByName.has(normalizeProductRecipeKey(mapping.product_name)))
       .map((mapping) => mapping.recipe_id)).size;
-    const pendingProductCount = [...productSalesByName.keys()].filter((key) => !mappedProductKeys.has(key) && !ignoredProductKeys.has(key)).length;
-    const ignoredProductCount = [...productSalesByName.keys()].filter((key) => ignoredProductKeys.has(key)).length;
-    const mappingCoverage = (mappedProductKeys.size + pendingProductCount) ? Math.round((mappedProductKeys.size / (mappedProductKeys.size + pendingProductCount)) * 100) : 0;
+    const mappedProductCount = productMappingRows.filter((row) => row.status === "mapped").length;
+    const pendingProductCount = productMappingRows.filter((row) => row.status === "pending").length;
+    const ignoredProductCount = productMappingRows.filter((row) => row.status === "ignored").length;
+    const mappingCoverage = (mappedProductCount + pendingProductCount) ? Math.round((mappedProductCount / (mappedProductCount + pendingProductCount)) * 100) : 0;
     const reliableMenuEngineeringRows = mappedRecipeCount >= 10 ? menuEngineeringRows : [];
     const buildMappedRecipeAnalytics = (salesByName, months) => {
       const monthSet = new Set(months);
@@ -10090,15 +10144,32 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       .filter((row) => Number(row.forecastUsage || 0) > 0)
       .sort((a, b) => Number(b.forecastCost || 0) - Number(a.forecastCost || 0))
       .slice(0, 8);
-    const defaultTrendIngredientIds = [...yearlyAnalytics.ingredientConsumptionByMonth.values()]
-      .sort((a, b) => Number(b.totalCost || 0) - Number(a.totalCost || 0))
+    const trendIngredientRows = [...yearlyAnalytics.ingredientConsumptionByMonth.values()]
+      .map((row) => {
+        const monthlyBuckets = trendMonths.map((month) => row.monthly.get(month) || { month, usage: 0, cost: 0 });
+        const nonZeroBuckets = monthlyBuckets.filter((bucket) => Number(bucket.cost || 0) > 0);
+        const latest = nonZeroBuckets.at(-1);
+        const previous = nonZeroBuckets.slice(0, -1).at(-1);
+        const growthPercent = previous && Number(previous.cost || 0) > 0
+          ? ((Number(latest?.cost || 0) - Number(previous.cost || 0)) / Number(previous.cost || 0)) * 100
+          : latest ? 100 : 0;
+        return {
+          ...row,
+          totalUsage: monthlyBuckets.reduce((sum, bucket) => sum + Number(bucket.usage || 0), 0),
+          growthPercent,
+        };
+      })
+      .sort((a, b) => {
+        if (ingredientTrendSort === "usage") return Number(b.totalUsage || 0) - Number(a.totalUsage || 0);
+        if (ingredientTrendSort === "growth") return Number(b.growthPercent || 0) - Number(a.growthPercent || 0);
+        return Number(b.totalCost || 0) - Number(a.totalCost || 0);
+      });
+    const defaultTrendIngredientIds = trendIngredientRows
       .slice(0, 5)
       .map((row) => row.id);
     const activeTrendIngredientIds = (ingredientTrendSelectedIds.length ? ingredientTrendSelectedIds : defaultTrendIngredientIds)
       .filter((id) => yearlyAnalytics.ingredientConsumptionByMonth.has(id))
       .slice(0, 5);
-    const trendIngredientRows = [...yearlyAnalytics.ingredientConsumptionByMonth.values()]
-      .sort((a, b) => Number(b.totalCost || 0) - Number(a.totalCost || 0));
     const ingredientTrendSeries = activeTrendIngredientIds.map((id) => {
       const row = yearlyAnalytics.ingredientConsumptionByMonth.get(id);
       return {
@@ -10161,7 +10232,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               <MetricCard label="Total Recipes" value={filteredRecipes.length} helper="Current filters" size="compact" />
               <MetricCard label="Average Recipe Cost" value={toCurrency(averageRecipeCost)} helper="Ingredient + wastage" size="compact" />
               <MetricCard label="Average Margin" value={formatRecipeMargin(averageMargin)} helper="Priced recipes only" tone={recipeMarginTone(averageMargin)} size="compact" />
-              <MetricCard label="Highest Cost Recipe" value={highestCostRecipe ? recipeDisplayName(highestCostRecipe.recipe) : "—"} helper={highestCostRecipe ? toCurrency(highestCostRecipe.summary.totalCost) : "No recipes"} tone={highestCostRecipe?.summary?.totalCost ? "warning" : "neutral"} size="compact" />
+              <MetricCard
+                label="Highest Cost Recipe"
+                value={highestCostRecipe ? recipeNameEn(highestCostRecipe.recipe) || recipeCode(highestCostRecipe.recipe) || "Recipe" : "—"}
+                helper={highestCostRecipe ? `${recipeNameCn(highestCostRecipe.recipe) ? `${recipeNameCn(highestCostRecipe.recipe)} · ` : ""}${toCurrency(highestCostRecipe.summary.totalCost)}` : "No recipes"}
+                tone={highestCostRecipe?.summary?.totalCost ? "warning" : "neutral"}
+                size="compact"
+              />
             </div>
             <div className="flex flex-wrap gap-2 rounded-2xl border border-border bg-background p-2 shadow-sm">
               {recipeWorkspaceTabs.map((tab) => (
@@ -10263,7 +10340,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         >
           <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
             <MetricCard label="Total Products" value={productMappingRows.length} helper="Product Analytics products" size="compact" />
-            <MetricCard label="Mapped" value={mappedProductKeys.size} helper="Feeds Recipe Intelligence" tone={mappedProductKeys.size ? "success" : "neutral"} size="compact" />
+            <MetricCard label="Mapped" value={mappedProductCount} helper="Feeds Recipe Intelligence" tone={mappedProductCount ? "success" : "neutral"} size="compact" />
             <MetricCard label="Pending" value={pendingProductCount} helper="Needs mapping decision" tone={pendingProductCount ? "warning" : "success"} size="compact" />
             <MetricCard label="Ignored" value={ignoredProductCount} helper="Excluded intentionally" tone={ignoredProductCount ? "neutral" : "success"} size="compact" />
             <MetricCard label="Coverage %" value={`${mappingCoverage}%`} helper="Mapped / (Mapped + Pending)" tone={mappingCoverage >= 80 ? "success" : mappingCoverage >= 40 ? "warning" : "danger"} size="compact" />
@@ -10290,17 +10367,14 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           </div>
           <div className="mt-4 overflow-x-auto rounded-2xl border border-border">
             {visibleProductMappingRows.length ? (
-              <table className="w-full min-w-[1180px] text-left">
+              <table className="w-full min-w-[980px] text-left">
                 <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
                   <tr>
-                    <th className="px-3 py-2">Product Name</th>
-                    <th>Latest Month / Last Seen</th>
-                    <th>Qty Sold</th>
-                    <th>Net Sales</th>
-                    <th>Suggested Recipe Match</th>
-                    <th>Confidence</th>
+                    <th className="px-3 py-2">Product</th>
+                    <th>Sales</th>
+                    <th>Suggested Match</th>
                     <th>Status</th>
-                    <th>Manual Mapping</th>
+                    <th>Recipe Mapping</th>
                     <th className="pr-8 text-right">Action</th>
                   </tr>
                 </thead>
@@ -10314,25 +10388,29 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                         <td className="px-3 py-3">
                           <div className="font-bold text-text-primary">{row.productName}</div>
                           <div className="type-caption text-text-secondary">Outlet: {outletById.get(activeRecipeOutletId)?.name || "Selected outlet"}</div>
+                          <div className="type-caption text-text-muted">Last Seen: {row.lastSeenLabel}</div>
                         </td>
-                        <td className="font-bold text-text-secondary">{row.latestMonth}</td>
-                        <td className="font-black text-text-primary">{Number(row.quantity || 0).toLocaleString()}</td>
-                        <td className="font-black text-text-primary">{toCurrency(row.revenue)}</td>
+                        <td>
+                          <div className="font-bold text-text-primary">{row.latestMonth}</div>
+                          <div className="type-caption font-semibold text-text-secondary">{Number(row.quantity || 0).toLocaleString()} sold</div>
+                          <div className="type-caption font-black text-text-primary">{toCurrency(row.revenue)}</div>
+                        </td>
                         <td>
                           {displayRecipe ? (
                             <div>
                               <div className="font-bold text-text-primary">{recipeNameEn(displayRecipe) || recipeCode(displayRecipe)}</div>
                               <div className="type-caption text-text-muted">{recipeCode(displayRecipe)} · {recipeNameCn(displayRecipe) || "No CN name"}</div>
+                              {row.suggestedRecipe ? <div className="mt-1"><Badge tone={confidenceTone}>{mappingConfidenceLabel(row.confidence)}</Badge></div> : null}
                             </div>
                           ) : (
                             <span className="type-caption font-semibold text-text-muted">No suggestion</span>
                           )}
                         </td>
                         <td>
-                          {row.suggestedRecipe ? <Badge tone={confidenceTone}>{mappingConfidenceLabel(row.confidence)}</Badge> : <Badge tone="neutral">Manual</Badge>}
-                        </td>
-                        <td>
-                          <Badge tone={row.status === "mapped" ? "success" : row.status === "ignored" ? "neutral" : "warning"}>{toTitle(row.status)}</Badge>
+                          <div className="flex flex-col items-start gap-1">
+                            <Badge tone={row.status === "mapped" ? "success" : row.status === "ignored" ? "neutral" : "warning"}>{toTitle(row.status)}</Badge>
+                            <Badge tone={row.activityStatus === "active" ? "success" : "neutral"}>{row.activityStatus === "active" ? "Active" : "Inactive"}</Badge>
+                          </div>
                         </td>
                         <td>
                           <SelectField
@@ -10392,7 +10470,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           subtitle="Identify profitable menu items, highest cost recipes and key ingredient cost drivers."
         >
           <div className="mb-4 grid gap-3">
-            <RecipeMappingHealth mapped={mappedProductKeys.size} unmapped={pendingProductCount} totalRecipes={mappingCandidateRecipes.length} loading={recipeProductLoading} />
+            <RecipeMappingHealth mapped={mappedProductCount} unmapped={pendingProductCount} totalRecipes={mappingCandidateRecipes.length} loading={recipeProductLoading} />
           </div>
           {pendingProductCount > 0 ? (
             <div className="mb-4 rounded-2xl border border-amber-200 bg-amber-50 p-3 type-body-sm text-amber-900 dark:border-amber-400/30 dark:bg-amber-950/30 dark:text-amber-100">
@@ -10502,7 +10580,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                 />
               </RecipeIntelligenceCard>
               <RecipeIntelligenceCard
-                title="Ingredient Consumption Trend - Monthly"
+                title="Ingredient Cost Trend"
                 description={`Jan-Dec ${recipeTrendYear} estimated procurement cost trend by ingredient.`}
                 action={<RecipeYearSelector year={recipeTrendYear} years={availableTrendYears} onChange={setRecipeTrendYear} />}
               >
@@ -10511,6 +10589,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                   selectedIds={activeTrendIngredientIds}
                   search={ingredientTrendSearch}
                   onSearch={setIngredientTrendSearch}
+                  sort={ingredientTrendSort}
+                  onSort={setIngredientTrendSort}
                   onToggle={(id) => setIngredientTrendSelectedIds((current) => current.includes(id) ? current.filter((entry) => entry !== id) : [...current, id].slice(0, 5))}
                 />
                 <div className="mt-4">
@@ -10520,10 +10600,17 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                     valueFormatter={toCurrency}
                     emptyTitle="Map products to recipes to unlock ingredient cost trends."
                     emptyDescription="The trend uses estimated monthly procurement cost, not quantity."
+                    showLegend={false}
+                    tooltipVariant="ingredient-cost"
                   />
                   {highestIngredientCostPoint?.peak ? (
-                    <div className="mt-3 rounded-2xl border border-orange-200 bg-orange-50 p-3 type-body-sm text-orange-900 dark:border-orange-400/30 dark:bg-orange-950/30 dark:text-orange-100">
-                      Highest ingredient cost was {highestIngredientCostPoint.ingredient} in {formatMonthShort(highestIngredientCostPoint.peak.month)} at {toCurrency(highestIngredientCostPoint.peak.cost)}.
+                    <div className="mt-3 rounded-2xl border border-orange-200 bg-orange-50 p-3 dark:border-orange-400/30 dark:bg-orange-950/30">
+                      <div className="type-caption font-black uppercase tracking-wide text-orange-700 dark:text-orange-200">Top Cost Driver</div>
+                      <div className="mt-2 grid gap-3 sm:grid-cols-3">
+                        <MetricCard label="Ingredient" value={highestIngredientCostPoint.ingredient} helper={highestIngredientCostPoint.category || "Ingredient"} tone="warning" size="compact" />
+                        <MetricCard label="Month" value={formatMonthShort(highestIngredientCostPoint.peak.month)} helper={String(recipeTrendYear)} tone="warning" size="compact" />
+                        <MetricCard label="Cost" value={toCurrency(highestIngredientCostPoint.peak.cost)} helper="Estimated cost" tone="warning" size="compact" />
+                      </div>
                     </div>
                   ) : (
                     <div className="mt-3 rounded-2xl border border-border bg-slate-50 p-3 type-body-sm text-text-secondary dark:bg-white/5">
