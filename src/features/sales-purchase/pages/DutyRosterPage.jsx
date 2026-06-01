@@ -5,6 +5,7 @@ import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
+import MetricCard from "../../../components/ui/MetricCard.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import { employeeService } from "../../../services/employeeService.js";
@@ -2167,21 +2168,13 @@ export default function DutyRosterPage({ store, ui, auth }) {
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
         {[
-          ["Total Staff Scheduled", summary.staff, Users],
-          ["Total Working Hours", hoursLabel(summary.hours), Clock],
-          ["Off Days", summary.off, CalendarX],
-          ["Annual Leave", summary.al, Plane],
-          ["MC", summary.mc, HeartPulse],
-        ].map(([label, value, Icon]) => (
-          <Card key={label} className="p-4">
-            <div className="flex items-start justify-between gap-3">
-              <div>
-                <div className="text-[11px] font-bold uppercase tracking-wide text-text-muted">{label}</div>
-                <div className="mt-2 text-2xl font-semibold text-text-primary">{value}</div>
-              </div>
-              <div className="rounded-2xl bg-primary/10 p-2 text-primary"><Icon size={17} /></div>
-            </div>
-          </Card>
+          { label: "Staff Scheduled", value: summary.staff, icon: Users, helper: "Assigned this period" },
+          { label: "Working Hours", value: hoursLabel(summary.hours), icon: Clock, helper: "Scheduled working time" },
+          { label: "Off Days", value: summary.off, icon: CalendarX, helper: "OFF entries" },
+          { label: "Annual Leave", value: summary.al, icon: Plane, helper: "AL entries" },
+          { label: "MC", value: summary.mc, icon: HeartPulse, helper: "Medical leave entries" },
+        ].map((item) => (
+          <MetricCard key={item.label} label={item.label} value={item.value} helper={item.helper} icon={item.icon} />
         ))}
       </div>
 

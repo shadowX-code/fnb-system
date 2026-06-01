@@ -1,8 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { ChevronLeft, ChevronRight, Download, Search, X } from "lucide-react";
+import { CalendarDays, CalendarX, ChevronLeft, ChevronRight, Download, HeartPulse, Search, Users, X } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
+import MetricCard from "../../../components/ui/MetricCard.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import { employeeService } from "../../../services/employeeService.js";
@@ -523,16 +524,12 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
 
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {[
-          ["Total Scheduled Shifts", monthSummary.totalScheduledShifts, "All saved roster entries"],
-          ["Working Staff This Month", monthSummary.workingStaff, "Working shift assignments"],
-          ["AL / MC Days", monthSummary.leaveDays, "Leave and medical entries"],
-          ["Unscheduled Days", monthSummary.unscheduledDays, "No roster entries saved"],
-        ].map(([label, value, helper]) => (
-          <Card key={label} className="p-4">
-            <div className="text-[11px] font-black uppercase tracking-[0.16em] text-text-muted">{label}</div>
-            <div className="mt-2 text-2xl font-semibold text-text-primary">{value}</div>
-            <div className="mt-1 text-xs font-semibold text-text-secondary">{helper}</div>
-          </Card>
+          { label: "Scheduled Shifts", value: monthSummary.totalScheduledShifts, helper: "All saved roster entries", icon: CalendarDays },
+          { label: "Working Staff", value: monthSummary.workingStaff, helper: "Working shift assignments", icon: Users },
+          { label: "AL / MC Days", value: monthSummary.leaveDays, helper: "Leave and medical entries", icon: HeartPulse },
+          { label: "Unscheduled Days", value: monthSummary.unscheduledDays, helper: "No roster entries saved", icon: CalendarX },
+        ].map((item) => (
+          <MetricCard key={item.label} label={item.label} value={item.value} helper={item.helper} icon={item.icon} />
         ))}
       </div>
 
