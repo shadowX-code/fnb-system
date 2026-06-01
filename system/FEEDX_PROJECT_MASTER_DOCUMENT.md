@@ -4596,6 +4596,47 @@ Service rules:
 - Asset, inventory, and dashboard summary logic can drift if base scope and active drill-down filters are not documented in each module.
 - Status naming can drift if Condition, Status, Maintenance Status, Inspection Status, and Inventory Status are not kept separate.
 
+### 17.1 Production Readiness Status - 1 June 2026
+
+Current recommendation: **NOT READY for production cutover until release gates are completed.**
+
+This is not a feature-readiness failure. Core FeedX modules are implemented in the staging codebase and `npm run build` is expected to pass, but production cutover requires environment-level verification that was not completed by static code review alone.
+
+Production release gates:
+
+- Confirm all local Supabase migrations are applied to the production project and PostgREST schema cache has no stale-column errors.
+- Verify production RLS for owner/admin, all-outlet role, selected-outlet role, view-only role, and no-permission role.
+- Verify production Storage buckets and policies for `inventory-item-photos` and `asset-photos`.
+- Verify production Supabase Auth redirects, SMTP email delivery, forgot-password, invite/setup-password, and employee onboarding Edge Function.
+- Execute `FEEDX_PRODUCTION_UAT_CHECKLIST.md` before cutover.
+- Confirm no authenticated production workflow relies on browser-local operational records or fallback/demo data.
+
+Release governance documents:
+
+- `FEEDX_PRODUCTION_READINESS_AUDIT.md`
+- `FEEDX_PRODUCTION_UAT_CHECKLIST.md`
+- `FEEDX_RELEASE_CANDIDATE_REPORT.md`
+- `FEEDX_GO_LIVE_CHECKLIST.md`
+
+Production cutover branch/environment rule:
+
+- GitHub `main` is Production and GitHub `dev` is Staging.
+- Vercel `fnb-system` must deploy from `main` and must point only to Production Supabase `fnb-system`.
+- Vercel `fnb-system-staging` must deploy from `dev` and must point only to Staging Supabase `fnb-system-staging`.
+- Production schema promotion applies migrations to the Production Supabase project only; staging test data must never be copied into Production.
+- Supabase CLI must be explicitly linked to the Production Supabase project before any production `supabase db push --linked`.
+
+Implemented production-scope decisions documented as current:
+
+- Dashboard is the UI name for the Overview Dashboard route.
+- Supplier Categories is the UI name for supplier spend/category settings.
+- Wastage is the UI name for spoilage, expiry, damaged inventory, and kitchen wastage.
+- Recipe Intelligence is a standalone Inventory Control analytics page and uses Recipes & Usage view access for now.
+- Recipes & Usage contains Recipe BOM setup and Product Mapping setup.
+- Centralized Data Import is removed from active navigation; Sales Import and Purchase Import live inside their module pages.
+- Stock Requests remains deferred and out of current MVP scope.
+- Login, Forgot Password, Setup Password, and Reset Password share the modern FeedX auth visual system.
+
 ---
 
 ## 18. Acceptance Checklist for Future Changes
