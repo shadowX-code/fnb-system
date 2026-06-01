@@ -27,6 +27,23 @@ Git/environment update:
 - `supabase/.temp` files were removed from git tracking and must remain untracked before merging to `main`.
 - Vercel branch mapping and environment variables require dashboard/CLI verification before merge.
 
+Production auth onboarding hotfix on 2 June 2026:
+
+- Root cause: the deployed production `employee-auth-onboarding` Edge Function was older than local source and still used `await adminClient.from("audit_logs").insert(...).catch(...)`.
+- Supabase JS v2 PostgREST query builders do not expose `.catch()` in that runtime path, causing Generate Setup Link to fail with `adminClient.from(...).insert(...).catch is not a function`.
+- Fix deployed: production Edge Function `employee-auth-onboarding` redeployed as version `6`.
+- Local function also now accepts both env naming styles:
+  - `PROJECT_URL` or `SUPABASE_URL`
+  - `PROJECT_SERVICE_ROLE_KEY` or `SUPABASE_SERVICE_ROLE_KEY`
+- Verification passed with temporary production users that were deleted after the test:
+  - Generate Setup Link returned successfully.
+  - Setup token was redeemable.
+  - Password creation succeeded.
+  - `complete_employee_password_setup()` succeeded.
+  - Login with the newly created password succeeded.
+- Temporary verification users cleaned up: `feedx.smtp.%@example.com` employees/auth users = `0`.
+- Remaining auth configuration issue: Supabase redirected the invite token to `https://feedx-os.vercel.app` root instead of directly to `/setup-password`. The token flow works, but Auth URL configuration should still be reviewed so direct redirects land on `/setup-password`.
+
 ## Audit Summary
 
 | Area | Status | Risk | Notes |
@@ -34,7 +51,7 @@ Git/environment update:
 | Architecture | Conditional Pass | Medium | Centralized module registry and hash routes are in place. Inventory is still a large single page component and should be split after go-live. |
 | Routes | Pass | Low | Active routes come from `config/modules.ts`; Stock Requests and centralized Data Import are removed from active navigation. |
 | Permissions | Conditional Pass | High | Sidebar/direct route filtering uses registry permissions. Production roles/RLS must be verified with live accounts. |
-| Authentication | Conditional Pass | High | Supabase Auth setup/reset guard is implemented; production SMTP, redirect URLs, and onboarding Edge Function must be verified. |
+| Authentication | Conditional Pass | High | Setup-link generation hotfix is deployed and verified. SMTP delivery and direct `/setup-password` redirect URL configuration still need Dashboard/provider verification. |
 | Data Integrity | Conditional Pass | High | Core workflows are Supabase-backed, but production migration parity and seed/setup data must be confirmed. |
 | Supabase Policies | Conditional Pass | High | RLS exists across migrations, but the production policy set was not live-tested in this audit. |
 | Upload/Storage | Conditional Pass | High | Shared image upload standard exists; production buckets and storage policies must be verified. |
@@ -222,8 +239,8 @@ P0 release gates before production:
 2. **Production storage upload/read/delete flows not browser-tested after reset.**  
    Buckets exist, but image upload policies and replacement cleanup still need live verification.
 
-3. **Production auth redirect/SMTP/onboarding not verified after reset.**  
-   Confirm setup-password and forgot-password flows on the production domain.
+3. **Production auth SMTP delivery and direct redirect target not fully verified.**  
+   Generate Setup Link works after Edge Function version `6`, including password creation and login. SMTP delivery remains blocked pending provider/Dashboard checks, and Supabase currently redirects invite tokens to `https://feedx-os.vercel.app` root instead of directly to `/setup-password`.
 
 4. **Full production UAT checklist not yet executed.**  
    Use `FEEDX_PRODUCTION_UAT_CHECKLIST.md` before final cutover.

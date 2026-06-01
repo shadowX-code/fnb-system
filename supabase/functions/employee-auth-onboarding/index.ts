@@ -48,16 +48,16 @@ Deno.serve(async (request) => {
 });
 
 async function handleRequest(request: Request) {
-  const supabaseUrl = Deno.env.get("PROJECT_URL");
+  const supabaseUrl = Deno.env.get("PROJECT_URL") || Deno.env.get("SUPABASE_URL");
   const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
-  const serviceRoleKey = Deno.env.get("PROJECT_SERVICE_ROLE_KEY");
+  const serviceRoleKey = Deno.env.get("PROJECT_SERVICE_ROLE_KEY") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const siteUrl = Deno.env.get("FEEDX_SITE_URL") || Deno.env.get("SITE_URL") || Deno.env.get("PUBLIC_SITE_URL");
 
   if (!supabaseUrl || !anonKey || !serviceRoleKey) {
     const missing = [
-      !supabaseUrl ? "PROJECT_URL" : null,
+      !supabaseUrl ? "PROJECT_URL or SUPABASE_URL" : null,
       !anonKey ? "SUPABASE_ANON_KEY" : null,
-      !serviceRoleKey ? "PROJECT_SERVICE_ROLE_KEY" : null,
+      !serviceRoleKey ? "PROJECT_SERVICE_ROLE_KEY or SUPABASE_SERVICE_ROLE_KEY" : null,
     ].filter(Boolean);
 
     return json({
