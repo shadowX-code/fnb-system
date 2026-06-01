@@ -4374,7 +4374,7 @@ StatusBadge rules:
 
 MetricCard rules:
 
-- KPI value typography is standardized globally through `text-primary-type-kpi-value`, using the Purchase Comparison KPI cards as the approved reference. Current trial value scale is 26px / 32px / 700. KPI values must not use page-title-sized utilities such as `text-4xl`, `text-5xl`, or custom 40px+ values.
+- KPI value typography is standardized globally through `text-primary-type-kpi-value`. Final value scale is 22.5px / 28px / 600 for a refined enterprise SaaS density. KPI values must not use page-title-sized utilities such as `text-4xl`, `text-5xl`, or custom 40px+ values.
 - Dashboard KPI cards use MetricCard.
 - Analytics-heavy KPI strips, such as Product Analytics, should use `MetricCard variant="compact"` to reduce card height, icon footprint, and whitespace while keeping numeric values prominent.
 - Product Analytics KPI hierarchy: numeric KPI cards inherit `text-primary-type-kpi-value`; product/category names cap at `text-[22px] leading-[28px] font-semibold` with English primary and Chinese secondary where bilingual names exist; secondary helper text remains 12-13px.

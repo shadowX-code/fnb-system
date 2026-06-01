@@ -68,7 +68,7 @@ Updated shared styling rather than page-by-page overrides:
   - Eyebrow, page title, and subtitle now follow the target scale.
 - `src/components/ui/MetricCard.jsx`
   - Reduced standard card height/padding.
-  - Metric values now use the shared `text-primary-type-kpi-value` token based on the Purchase Comparison KPI scale. Current trial scale is 26px / 32px / 700.
+  - Metric values now use the shared `text-primary-type-kpi-value` token. Final scale is 22.5px / 28px / 600 for a lighter enterprise SaaS KPI hierarchy.
   - KPI label is now semibold uppercase 12px-style treatment.
   - Added `variant="compact"` for analytics-heavy KPI strips that need higher density without weakening global dashboard cards.
 - `src/components/tables/DataTable.jsx`
