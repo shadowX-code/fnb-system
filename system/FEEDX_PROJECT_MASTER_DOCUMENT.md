@@ -4376,6 +4376,7 @@ MetricCard rules:
 
 - Dashboard KPI cards use MetricCard.
 - Analytics-heavy KPI strips, such as Product Analytics, should use `MetricCard variant="compact"` to reduce card height, icon footprint, and whitespace while keeping numeric values prominent.
+- Product Analytics KPI hierarchy: numeric values use 30-34px; product/category names use 22-24px at medium-semibold weight with English primary and Chinese secondary where bilingual names exist; secondary helper text remains 12-13px.
 - Clickable summary cards must show pointer affordance and active state when filtering/drilling down.
 - Hover lift is allowed for standalone dashboard cards only.
 - MetricCard must not be used inside table rows with transform hover behavior.

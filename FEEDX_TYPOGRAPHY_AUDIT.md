@@ -77,7 +77,8 @@ Updated shared styling rather than page-by-page overrides:
   - Select button text uses exact 14px.
 - `src/features/sales-purchase/pages/ProductAnalyticsPage.jsx`
   - Page-local KPI cards were replaced with shared `MetricCard variant="compact"`.
-  - Numeric KPI values now target a compact 28-34px range, while long product/category names use a smaller 20-24px range to reduce wrapping.
+  - Numeric KPI values now target a compact 30-34px range.
+  - Product/category KPI values use a distinct name hierarchy: English primary at 22-24px/600, Chinese secondary at 13px muted text.
   - Icon footprint and vertical whitespace were reduced so more Product Analytics content appears above the fold.
 
 ## Page Impact Summary

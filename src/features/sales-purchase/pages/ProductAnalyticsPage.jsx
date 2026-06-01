@@ -213,6 +213,47 @@ function buildMissingFieldError(missingFields) {
   return `We could not detect these required fields:\n${missingFields.map((field) => `- ${productColumnLabels[field]}`).join("\n")}\n\nPlease check your POS export format.`;
 }
 
+const cjkPattern = /[\u3400-\u9fff\uf900-\ufaff]/;
+
+function hasCjk(value) {
+  return cjkPattern.test(String(value ?? ""));
+}
+
+function splitBilingualLabel(value) {
+  const text = String(value ?? "").replace(/\s+/g, " ").trim();
+  if (!text || text === "—") return { primary: "—", secondary: "" };
+
+  const separatedParts = text.split(/\s*(?:\/|\||\n)\s*/).map((part) => part.trim()).filter(Boolean);
+  if (separatedParts.length > 1) {
+    const englishPart = separatedParts.find((part) => !hasCjk(part));
+    const chinesePart = separatedParts.find((part) => hasCjk(part) && part !== englishPart);
+    return {
+      primary: englishPart || separatedParts[0],
+      secondary: chinesePart || "",
+    };
+  }
+
+  const firstCjkIndex = [...text].findIndex((char) => hasCjk(char));
+  if (firstCjkIndex > 0) {
+    return {
+      primary: text.slice(0, firstCjkIndex).trim(),
+      secondary: text.slice(firstCjkIndex).trim(),
+    };
+  }
+
+  return { primary: text, secondary: "" };
+}
+
+function KpiNameValue({ value }) {
+  const { primary, secondary } = splitBilingualLabel(value);
+  return (
+    <span className="block min-w-0">
+      <span className="block truncate text-[clamp(22px,1.55vw,24px)] font-semibold leading-tight text-text-primary">{primary}</span>
+      {secondary ? <span className="mt-0.5 block truncate text-[13px] font-medium leading-tight text-text-secondary">{secondary}</span> : null}
+    </span>
+  );
+}
+
 function extractFeedMeMetadata(rawRows) {
   const metadata = {};
   rawRows.slice(0, 20).forEach((row) => {
@@ -994,10 +1035,10 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
         <MetricCard variant="compact" label="Total Net Sales" value={toCurrency(current.totals.nett_sales)} helper={comparePeriod ? `${salesChange >= 0 ? "+" : ""}${toPercent(salesChange)} vs compare month` : "Current period"} icon={BarChart3} />
         <MetricCard variant="compact" label="Total Quantity Sold" value={current.totals.quantity.toLocaleString()} helper={comparePeriod ? `${qtyChange >= 0 ? "+" : ""}${toPercent(qtyChange)} quantity movement` : "Items sold"} icon={ArrowUpDown} />
         <MetricCard variant="compact" label="Average Spend / Item" value={toCurrency(avgSpend)} helper="Net sales divided by quantity" icon={PieChart} />
-        <MetricCard variant="compact" label="Best Selling Product" value={best?.product ?? "—"} helper={best ? `${best.quantity} sold` : "No product data"} icon={Sparkles} valueClassName="text-[clamp(20px,1.55vw,24px)]" />
-        <MetricCard variant="compact" label="Lowest Performer" value={lowest?.product ?? "—"} helper={lowest ? `${lowest.quantity} sold · ${toCurrency(lowest.nett_sales)}` : "No product data"} icon={Clock} valueClassName="text-[clamp(20px,1.55vw,24px)]" />
+        <MetricCard variant="compact" label="Best Selling Product" value={<KpiNameValue value={best?.product} />} helper={best ? `${best.quantity} sold` : "No product data"} icon={Sparkles} valueClassName="text-base" />
+        <MetricCard variant="compact" label="Lowest Performer" value={<KpiNameValue value={lowest?.product} />} helper={lowest ? `${lowest.quantity} sold · ${toCurrency(lowest.nett_sales)}` : "No product data"} icon={Clock} valueClassName="text-base" />
         <MetricCard variant="compact" label="Discount Given" value={toCurrency(current.totals.discount)} helper="Total discount in report" icon={Download} />
-        <MetricCard variant="compact" label="Top Category" value={topCategory?.name ?? "—"} helper={topCategory ? toCurrency(topCategory.nett_sales) : "No category data"} icon={PieChart} valueClassName="text-[clamp(20px,1.55vw,24px)]" />
+        <MetricCard variant="compact" label="Top Category" value={<KpiNameValue value={topCategory?.name} />} helper={topCategory ? toCurrency(topCategory.nett_sales) : "No category data"} icon={PieChart} valueClassName="text-base" />
         <MetricCard variant="compact" label="Menu Items Sold" value={current.products.length.toLocaleString()} helper="Unique products after variant grouping" icon={FileSpreadsheet} />
       </div>
 

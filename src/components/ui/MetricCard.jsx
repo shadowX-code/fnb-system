@@ -28,7 +28,7 @@ export default function MetricCard({
       ? "metric-card-urgent border-rose-200/80 bg-gradient-to-br from-white to-rose-50/45 shadow-[0_14px_34px_rgba(244,63,94,0.08)]"
       : "metric-card-normal bg-white";
   const valueClass = valueClassName || (compactVariant
-    ? "text-[clamp(28px,2.2vw,34px)]"
+    ? "text-[clamp(30px,2.2vw,34px)]"
     : resolvedEmphasis === "primary"
       ? "text-[clamp(24px,1.65vw,28px)]"
       : "type-metric");
