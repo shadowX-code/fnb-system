@@ -2999,6 +2999,8 @@ Rules:
 - Successful password setup changes state to active and writes `employees.setup_completed_at`.
 - Setup password links must redirect to `/setup-password`. They may create a temporary Supabase invite/recovery session, but that session must not enter the FeedX app while `access_state` is `not_sent` or `invited`. The auth guard must allow only the setup-password route until `supabase.auth.updateUser({ password })` and the `complete_employee_password_setup()` RPC both succeed.
 - Disabled access changes state to disabled.
+- Login, Forgot Password, Setup Password, and Reset Password share the FeedX auth visual system: desktop uses a split layout with a dark green brand/intelligence panel and a clean white auth card; mobile uses a compact dark green brand header so the form is visible without excessive scrolling.
+- Auth pages must not show unsupported social login actions. Forgot/reset/setup flows keep the existing Supabase auth logic and only change visual presentation unless explicitly scoped otherwise.
 - Employee workplace must be either a real outlet assignment or `Management`; it must never be `All Outlets`.
 - `Management` is an HQ/management workplace label, not an outlet. It is stored as `employees.workplace = 'Management'` until the future `employees.outlet_id` migration, has no outlet id, and remains separate from role outlet access.
 - Management employees appear in People directory and active People counts when `employment_status = active`, but they are excluded from outlet-specific roster staff lists unless explicitly supported later.

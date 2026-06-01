@@ -1,11 +1,15 @@
 import { useState } from "react";
-import { BarChart3, CheckCircle2, KeyRound, Lock } from "lucide-react";
+import { ArrowRight, CheckCircle2, Eye, EyeOff, KeyRound, Lock, ShieldCheck } from "lucide-react";
 import { useAuth } from "./AuthContext.jsx";
+import { AuthBrandPanel, FeedXLogo, ParticleField } from "./LoginPage.jsx";
 
 export default function SetNewPasswordPage() {
   const auth = useAuth();
+  const isRecovery = auth.source === "password-recovery";
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
@@ -27,9 +31,9 @@ export default function SetNewPasswordPage() {
     setIsSubmitting(true);
     try {
       await auth.completePasswordSetup(password);
-      setMessage("Password set successfully.");
+      setMessage(isRecovery ? "Password reset successfully." : "Password set successfully.");
     } catch (setupError) {
-      setError(setupError.message || "Unable to set up password. Please request a new setup link.");
+      setError(setupError.message || "Unable to update password. Please request a new link.");
     } finally {
       setIsSubmitting(false);
     }
@@ -47,97 +51,106 @@ export default function SetNewPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen bg-app-bg px-4 py-8 text-text-primary">
-      <div className="mx-auto flex min-h-[calc(100vh-4rem)] max-w-6xl items-center justify-center">
-        <div className="grid w-full overflow-hidden rounded-3xl border border-border bg-white shadow-sm lg:grid-cols-[1fr_430px]">
-          <section className="hidden border-r border-border bg-slate-50 p-10 lg:block">
-            <div className="flex items-center gap-3">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white">
-                <BarChart3 size={20} />
-              </div>
-              <div>
-                <div className="text-sm font-bold">FeedX</div>
-                <div className="text-xs text-text-secondary">F&amp;B Intelligence</div>
-              </div>
-            </div>
-            <div className="mt-16 max-w-xl">
-              <div className="text-xs font-bold uppercase tracking-[0.14em] text-primary">Secure Account Setup</div>
-              <h1 className="mt-4 text-3xl font-bold tracking-tight text-text-primary">Set up your password before entering the workspace.</h1>
-              <p className="mt-4 text-sm leading-6 text-text-secondary">
-                This secure link verifies your account. Choose a new password to continue into FeedX.
-              </p>
-            </div>
-          </section>
+    <main className="feedx-login-shell">
+      <ParticleField />
+      <div className="feedx-login-glow feedx-login-glow-a" />
+      <div className="feedx-login-glow feedx-login-glow-b" />
 
-          <section className="p-6 sm:p-8">
-            <div className="mb-8 lg:hidden">
-              <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-white">
-                  <BarChart3 size={20} />
-                </div>
-                <div>
-                  <div className="text-sm font-bold">FeedX</div>
-                  <div className="text-xs text-text-secondary">F&amp;B Intelligence</div>
-                </div>
-              </div>
+      <div className="feedx-login-grid">
+        <AuthBrandPanel />
+
+        <section className="feedx-auth-panel">
+          <div className="feedx-auth-card">
+            <div className="mb-8">
+              <FeedXLogo />
             </div>
 
             <div>
-              <div className="text-xs font-bold uppercase tracking-[0.12em] text-text-secondary">Password Setup</div>
-              <h2 className="mt-2 text-2xl font-bold text-text-primary">Create your password</h2>
-              <p className="mt-2 text-sm text-text-secondary">Use a secure password for your company login.</p>
+              <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-700/70">
+                {isRecovery ? "Password Reset" : "Secure Account Setup"}
+              </div>
+              <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950">
+                {isRecovery ? "Reset your password" : "Create your password"}
+              </h2>
+              <p className="mt-2 text-sm font-medium text-slate-500">
+                {isRecovery
+                  ? "Choose a new password before returning to your FeedX workspace."
+                  : "Create your password to activate secure access to FeedX."}
+              </p>
             </div>
 
-            <form className="mt-8 space-y-4" onSubmit={handleSubmit}>
+            <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
               <label className="block">
-                <span className="text-xs font-semibold text-text-secondary">New password</span>
-                <div className="relative mt-1">
-                  <Lock className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={16} />
+                <span className="text-xs font-bold text-slate-700">New password</span>
+                <div className="feedx-login-input-wrap mt-2">
+                  <Lock className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-emerald-700/45" size={17} />
                   <input
-                    className="control h-11 w-full pl-10"
-                    type="password"
+                    className="feedx-login-input px-11"
+                    type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     placeholder="At least 8 characters"
                     autoComplete="new-password"
                     required
                   />
+                  <button
+                    className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-xl text-slate-400 transition hover:bg-emerald-50 hover:text-emerald-700"
+                    type="button"
+                    onClick={() => setShowPassword((current) => !current)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
                 </div>
               </label>
 
               <label className="block">
-                <span className="text-xs font-semibold text-text-secondary">Confirm password</span>
-                <div className="relative mt-1">
-                  <KeyRound className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={16} />
+                <span className="text-xs font-bold text-slate-700">Confirm password</span>
+                <div className="feedx-login-input-wrap mt-2">
+                  <KeyRound className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-emerald-700/45" size={17} />
                   <input
-                    className="control h-11 w-full pl-10"
-                    type="password"
+                    className="feedx-login-input px-11"
+                    type={showConfirmPassword ? "text" : "password"}
                     value={confirmPassword}
                     onChange={(event) => setConfirmPassword(event.target.value)}
                     placeholder="Re-enter new password"
                     autoComplete="new-password"
                     required
                   />
+                  <button
+                    className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-xl text-slate-400 transition hover:bg-emerald-50 hover:text-emerald-700"
+                    type="button"
+                    onClick={() => setShowConfirmPassword((current) => !current)}
+                    aria-label={showConfirmPassword ? "Hide password" : "Show password"}
+                  >
+                    {showConfirmPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                  </button>
                 </div>
               </label>
 
-              {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
+              {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{error}</div> : null}
               {message ? (
-                <div className="flex items-center gap-2 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-700">
+                <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
                   <CheckCircle2 size={16} /> {message}
                 </div>
               ) : null}
 
-              <button className="btn-primary h-11 w-full justify-center" type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Saving password..." : "Save password"}
+              <button className="feedx-signin-button group" type="submit" disabled={isSubmitting}>
+                <span>{isSubmitting ? "Saving password..." : isRecovery ? "Reset password" : "Save password"}</span>
+                <ArrowRight className="transition group-hover:translate-x-1" size={18} />
               </button>
-              <button className="w-full rounded-xl px-3 py-2 text-sm font-bold text-text-secondary transition hover:bg-slate-50" type="button" onClick={handleCancel} disabled={isSubmitting}>
+              <button className="w-full rounded-2xl px-3 py-2 text-sm font-bold text-slate-500 transition hover:bg-slate-50 hover:text-slate-800" type="button" onClick={handleCancel} disabled={isSubmitting}>
                 Cancel and return to login
               </button>
             </form>
-          </section>
-        </div>
+
+            <div className="mt-7 flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50/80 px-4 py-3 text-xs font-semibold text-slate-600">
+              <ShieldCheck size={16} className="text-emerald-600" />
+              Password updates are protected by Supabase Auth
+            </div>
+          </div>
+        </section>
       </div>
-    </div>
+    </main>
   );
 }

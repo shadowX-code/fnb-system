@@ -459,7 +459,7 @@
     z-index: 2;
     display: grid;
     min-height: 100vh;
-    grid-template-columns: minmax(0, 1fr) minmax(420px, 560px);
+    grid-template-columns: minmax(0, 1fr) minmax(420px, 540px);
     padding-bottom: 3.5rem;
   }
 
@@ -489,29 +489,31 @@
     min-height: 100vh;
     flex-direction: column;
     justify-content: center;
-    border-left: 1px solid rgba(187, 247, 208, 0.1);
-    background: linear-gradient(180deg, rgba(2, 6, 4, 0.68), rgba(2, 8, 5, 0.9));
+    border-left: 1px solid rgba(15, 23, 42, 0.08);
+    background:
+      radial-gradient(circle at 20% 12%, rgba(34, 197, 94, 0.12), transparent 20rem),
+      linear-gradient(180deg, #f8fafc, #ffffff 48%, #f3faf6);
     padding: clamp(1.25rem, 4vw, 3.4rem);
   }
 
   .feedx-auth-card {
     position: relative;
     display: flex;
-    min-height: min(86vh, 55rem);
+    min-height: min(82vh, 49rem);
     flex-direction: column;
     justify-content: center;
     overflow: hidden;
-    border: 1px solid rgba(187, 247, 208, 0.16);
+    border: 1px solid rgba(15, 23, 42, 0.09);
     border-radius: 2rem;
-    background: linear-gradient(145deg, rgba(10, 20, 16, 0.82), rgba(4, 12, 8, 0.68));
+    background: rgba(255, 255, 255, 0.94);
     box-shadow:
-      0 28px 90px rgba(0, 0, 0, 0.42),
-      0 0 0 1px rgba(34, 197, 94, 0.04),
-      0 0 70px rgba(34, 197, 94, 0.12);
+      0 28px 80px rgba(15, 23, 42, 0.15),
+      0 12px 34px rgba(15, 23, 42, 0.08),
+      0 0 0 1px rgba(255, 255, 255, 0.75);
     margin-left: auto;
-    width: min(100%, 31.4rem);
-    padding: clamp(2.25rem, 4.2vw, 3.1rem);
-    backdrop-filter: blur(22px);
+    width: min(100%, 30.5rem);
+    padding: clamp(2rem, 4vw, 2.85rem);
+    backdrop-filter: blur(18px);
   }
 
   .feedx-auth-card::before {
@@ -520,8 +522,8 @@
     inset: 0;
     pointer-events: none;
     background:
-      linear-gradient(120deg, rgba(255, 255, 255, 0.08), transparent 28%),
-      radial-gradient(circle at 24% 0%, rgba(34, 197, 94, 0.14), transparent 20rem);
+      linear-gradient(120deg, rgba(255, 255, 255, 0.9), transparent 28%),
+      radial-gradient(circle at 22% 0%, rgba(34, 197, 94, 0.12), transparent 18rem);
   }
 
   .feedx-auth-card > * {
@@ -595,12 +597,20 @@
     color: white;
   }
 
+  .feedx-auth-card .feedx-logo-title {
+    color: #052e16;
+  }
+
   .feedx-logo-tagline {
     margin-top: 0.35rem;
     color: #00f06b;
     font-weight: 800;
     line-height: 1;
     letter-spacing: -0.01em;
+  }
+
+  .feedx-auth-card .feedx-logo-tagline {
+    color: #16a34a;
   }
 
   .feedx-login-input-wrap {
@@ -610,10 +620,10 @@
   .feedx-login-input {
     height: 3.15rem;
     width: 100%;
-    border: 1px solid rgba(187, 247, 208, 0.14);
+    border: 1px solid rgba(15, 23, 42, 0.11);
     border-radius: 1rem;
-    background: rgba(2, 8, 6, 0.72);
-    color: white;
+    background: rgba(255, 255, 255, 0.96);
+    color: #0f172a;
     font-size: 0.95rem;
     font-weight: 600;
     outline: none;
@@ -621,12 +631,12 @@
   }
 
   .feedx-login-input::placeholder {
-    color: rgba(148, 163, 184, 0.72);
+    color: rgba(100, 116, 139, 0.72);
   }
 
   .feedx-login-input:hover {
-    border-color: rgba(187, 247, 208, 0.25);
-    background: rgba(5, 15, 11, 0.86);
+    border-color: rgba(34, 197, 94, 0.28);
+    background: #ffffff;
   }
 
   .feedx-login-input:focus {
@@ -1204,29 +1214,101 @@
   }
 
   .feedx-brand-panel {
-    padding: 1rem 1rem 0;
+    gap: 0.85rem;
+    padding: 0.95rem 1rem 0.25rem;
+  }
+
+  .feedx-logo-xl .feedx-logo-mark {
+    height: 3rem;
+    width: 2.45rem;
+  }
+
+  .feedx-logo-xl .feedx-logo-title {
+    font-size: 2.05rem;
+  }
+
+  .feedx-logo-xl .feedx-logo-tagline {
+    font-size: 0.78rem;
+  }
+
+  .feedx-brand-panel h1 {
+    margin-top: 0.9rem !important;
+    font-size: 1.85rem !important;
+    line-height: 1.02 !important;
+  }
+
+  .feedx-brand-panel p {
+    margin-top: 0.7rem !important;
+    max-width: 21rem;
+    font-size: 0.84rem !important;
+    line-height: 1.45 !important;
   }
 
   .feedx-auth-panel {
-    padding: 1rem;
+    padding: 0.75rem 1rem 1rem;
   }
 
   .feedx-auth-card {
     border-radius: 1.5rem;
+    padding: 1.25rem;
   }
 
   .feedx-feature-list {
-    grid-template-columns: 1fr;
-    gap: 0.85rem;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 0.5rem;
+    max-width: none;
   }
 
   .feedx-feature-item {
-    grid-template-columns: 2.75rem minmax(0, 1fr);
+    display: flex;
+    min-height: 5.6rem;
+    flex-direction: column;
+    align-items: flex-start;
+    justify-content: center;
+    gap: 0.42rem;
+    border: 1px solid rgba(187, 247, 208, 0.12);
+    border-radius: 1rem;
+    background: rgba(255, 255, 255, 0.035);
+    padding: 0.62rem;
   }
 
   .feedx-feature-icon {
-    height: 2.75rem;
-    width: 2.75rem;
+    height: 2rem;
+    width: 2rem;
+  }
+
+  .feedx-feature-icon svg {
+    height: 1rem;
+    width: 1rem;
+  }
+
+  .feedx-feature-title {
+    font-size: 0.68rem;
+    line-height: 1.12;
+  }
+
+  .feedx-feature-text {
+    display: none;
+  }
+
+  .feedx-feature-item:nth-child(4) {
+    display: none;
+  }
+
+  .feedx-auth-card .mb-8 {
+    margin-bottom: 1rem;
+  }
+
+  .feedx-auth-card h2 {
+    font-size: 1.65rem !important;
+  }
+
+  .feedx-login-input {
+    height: 2.8rem;
+  }
+
+  .feedx-signin-button {
+    height: 2.95rem;
   }
 
   .feedx-login-footer {

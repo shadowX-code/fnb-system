@@ -2,7 +2,7 @@ import { useState } from "react";
 import { ArrowRight, BarChart3, Bell, Box, BriefcaseBusiness, Eye, EyeOff, Home, Lock, Mail, Settings, ShieldCheck, Users } from "lucide-react";
 import { useAuth } from "./AuthContext.jsx";
 
-function FeedXLogo({ size = "lg" }) {
+export function FeedXLogo({ size = "lg" }) {
   return (
     <div className={`feedx-logo ${size === "xl" ? "feedx-logo-xl" : ""}`}>
       <div className="feedx-logo-mark">
@@ -40,7 +40,7 @@ function FeatureList() {
   );
 }
 
-function ParticleField() {
+export function ParticleField() {
   return (
     <div className="feedx-particles" aria-hidden="true">
       {Array.from({ length: 20 }, (_, index) => (
@@ -195,6 +195,28 @@ function StatsStrip() {
     </div>
   );
 }
+
+export function AuthBrandPanel() {
+  return (
+    <section className="feedx-brand-panel">
+      <FeedXLogo size="xl" />
+      <div className="max-w-xl">
+        <h1 className="mt-7 text-[clamp(44px,5vw,76px)] font-black leading-[0.94] tracking-tight text-white">
+          Smart Operations.
+          <span className="mt-2 block bg-gradient-to-r from-emerald-200 via-lime-100 to-white bg-clip-text text-transparent">Stronger Business.</span>
+        </h1>
+        <p className="mt-6 max-w-lg text-base leading-7 text-slate-300">
+          All your F&amp;B operations, analytics and insights in one intelligent workspace.
+        </p>
+      </div>
+      <FeatureList />
+      <DashboardVisual />
+      <OutletNodeMap />
+      <StatsStrip />
+    </section>
+  );
+}
+
 export default function LoginPage() {
   const auth = useAuth();
   const [email, setEmail] = useState("");
@@ -241,22 +263,7 @@ export default function LoginPage() {
       <div className="feedx-login-glow feedx-login-glow-b" />
 
       <div className="feedx-login-grid">
-        <section className="feedx-brand-panel">
-          <FeedXLogo size="xl" />
-          <div className="max-w-xl">
-            <h1 className="mt-7 text-[clamp(44px,5vw,76px)] font-black leading-[0.94] tracking-tight text-white">
-              Smart Operations.
-              <span className="mt-2 block bg-gradient-to-r from-emerald-200 via-lime-100 to-white bg-clip-text text-transparent">Stronger Business.</span>
-            </h1>
-            <p className="mt-6 max-w-lg text-base leading-7 text-slate-300">
-              All your F&amp;B operations, analytics and insights in one intelligent workspace.
-            </p>
-          </div>
-          <FeatureList />
-          <DashboardVisual />
-          <OutletNodeMap />
-          <StatsStrip />
-        </section>
+        <AuthBrandPanel />
 
         <section className="feedx-auth-panel">
           <div className="feedx-auth-card">
@@ -265,16 +272,16 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-200/60">Account Login</div>
-              <h2 className="mt-3 text-3xl font-black tracking-tight text-white">Welcome back</h2>
-              <p className="mt-2 text-sm font-medium text-slate-400">Sign in to your FeedX workspace</p>
+              <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-700/70">Account Login</div>
+              <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950">Welcome Back</h2>
+              <p className="mt-2 text-sm font-medium text-slate-500">Sign in to your FeedX workspace</p>
             </div>
 
             <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
               <label className="block">
-                <span className="text-xs font-bold text-slate-300">Email</span>
+                <span className="text-xs font-bold text-slate-700">Email</span>
                 <div className="feedx-login-input-wrap mt-2">
-                  <Mail className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-emerald-200/50" size={17} />
+                  <Mail className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-emerald-700/45" size={17} />
                   <input
                     className="feedx-login-input pl-11"
                     type="email"
@@ -288,9 +295,9 @@ export default function LoginPage() {
               </label>
 
               <label className="block">
-                <span className="text-xs font-bold text-slate-300">Password</span>
+                <span className="text-xs font-bold text-slate-700">Password</span>
                 <div className="feedx-login-input-wrap mt-2">
-                  <Lock className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-emerald-200/50" size={17} />
+                  <Lock className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-emerald-700/45" size={17} />
                   <input
                     className="feedx-login-input px-11"
                     type={showPassword ? "text" : "password"}
@@ -301,7 +308,7 @@ export default function LoginPage() {
                     required
                   />
                   <button
-                    className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-xl text-slate-400 transition hover:bg-white/6 hover:text-emerald-100"
+                    className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-xl text-slate-400 transition hover:bg-emerald-50 hover:text-emerald-700"
                     type="button"
                     onClick={() => setShowPassword((current) => !current)}
                     aria-label={showPassword ? "Hide password" : "Show password"}
@@ -312,31 +319,31 @@ export default function LoginPage() {
               </label>
 
               <div className="flex items-center justify-between gap-3 text-sm">
-                <label className="flex cursor-pointer items-center gap-2 text-slate-300">
+                <label className="flex cursor-pointer items-center gap-2 text-slate-600">
                   <input
-                    className="h-4 w-4 rounded border-emerald-300/30 bg-slate-950 text-emerald-400 focus:ring-emerald-400/20"
+                    className="h-4 w-4 rounded border-emerald-200 bg-white text-emerald-600 focus:ring-emerald-500/20"
                     type="checkbox"
                     checked={rememberMe}
                     onChange={(event) => setRememberMe(event.target.checked)}
                   />
                   <span className="font-semibold">Remember me</span>
                 </label>
-                <button className="font-bold text-emerald-200 transition hover:text-white" type="button" onClick={handleResetPassword}>
+                <button className="font-bold text-emerald-700 transition hover:text-emerald-950" type="button" onClick={handleResetPassword}>
                   Forgot password?
                 </button>
               </div>
 
-              {error ? <div className="rounded-2xl border border-rose-300/20 bg-rose-500/10 px-4 py-3 text-sm font-semibold text-rose-100">{error}</div> : null}
-              {message ? <div className="rounded-2xl border border-emerald-300/20 bg-emerald-400/10 px-4 py-3 text-sm font-semibold text-emerald-100">{message}</div> : null}
+              {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{error}</div> : null}
+              {message ? <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">{message}</div> : null}
 
               <button className="feedx-signin-button group" type="submit" disabled={isSubmitting}>
-                <span>{isSubmitting ? "Signing in..." : "Sign in"}</span>
+                <span>{isSubmitting ? "Signing in..." : "Sign In"}</span>
                 <ArrowRight className="transition group-hover:translate-x-1" size={18} />
               </button>
             </form>
 
-            <div className="mt-7 flex items-center gap-2 rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-xs font-semibold text-slate-400">
-              <ShieldCheck size={16} className="text-emerald-300" />
+            <div className="mt-7 flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50/80 px-4 py-3 text-xs font-semibold text-slate-600">
+              <ShieldCheck size={16} className="text-emerald-600" />
               Your data is encrypted and secure
             </div>
           </div>
