@@ -9038,10 +9038,10 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           </label>
         </div>
         <div className="grid gap-3 sm:grid-cols-4">
-          <MetricCard label="Total Groups" value={filteredGroups.length} helper="Current filter scope" />
-          <MetricCard label="Due Today" value={dueToday} helper="Ready to count" tone={dueToday ? "warning" : "success"} />
-          <MetricCard label="Completed Today" value={completedToday} helper="Done for selected date" tone="success" />
-          <MetricCard label="Inactive Groups" value={inactiveGroups} helper="Archived or inactive" tone={inactiveGroups ? "neutral" : "success"} />
+          <MetricCard icon={ClipboardList} label="Total Groups" value={filteredGroups.length} helper="Current filter scope" />
+          <MetricCard icon={CalendarDays} label="Due Today" value={dueToday} helper="Ready to count" tone={dueToday ? "warning" : "success"} />
+          <MetricCard icon={CheckCircle2} label="Completed Today" value={completedToday} helper="Done for selected date" tone="success" />
+          <MetricCard icon={AlertTriangle} label="Inactive Groups" value={inactiveGroups} helper="Archived or inactive" tone={inactiveGroups ? "neutral" : "success"} />
         </div>
         <div className="card p-3">
           {filteredGroups.length ? (
@@ -9652,10 +9652,10 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         </SectionCard>
 
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="Purchase In" value={movementSummary.purchase} helper="Received inventory records" tone="success" size="compact" />
-          <MetricCard label="Transfer" value={movementSummary.transfer} helper="Transfer in/out records" tone="info" size="compact" />
-          <MetricCard label="Waste" value={movementSummary.waste} helper="Waste movement records" tone="warning" size="compact" />
-          <MetricCard label="Adjustments" value={movementSummary.adjustment} helper="Manual correction records" tone="neutral" size="compact" />
+          <MetricCard icon={PackagePlus} label="Purchase In" value={movementSummary.purchase} helper="Received inventory records" tone="success" size="compact" />
+          <MetricCard icon={Truck} label="Transfer" value={movementSummary.transfer} helper="Transfer in/out records" tone="info" size="compact" />
+          <MetricCard icon={Trash2} label="Waste" value={movementSummary.waste} helper="Waste movement records" tone="warning" size="compact" />
+          <MetricCard icon={Warehouse} label="Adjustments" value={movementSummary.adjustment} helper="Manual correction records" tone="neutral" size="compact" />
         </div>
 
         <SectionCard title="Movement Records" description={`Showing ${filteredMovements.length} record${filteredMovements.length === 1 ? "" : "s"}`}>
@@ -9761,10 +9761,10 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           </label>
         </div>
         <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard label="Waste Quantity" value={totalWasteQuantity} helper="Total recorded quantity" tone={totalWasteQuantity ? "warning" : "success"} />
-          <MetricCard label="Waste Records" value={filteredWaste.length} helper="Matching current filters" tone={filteredWaste.length ? "warning" : "success"} />
-          <MetricCard label="Highest Waste Item" value={topItem} helper="Based on quantity recorded" />
-          <MetricCard label="Unexplained Loss %" value="0%" helper="No unexplained loss logged" />
+          <MetricCard icon={Trash2} label="Waste Quantity" value={totalWasteQuantity} helper="Total recorded quantity" tone={totalWasteQuantity ? "warning" : "success"} />
+          <MetricCard icon={ClipboardList} label="Waste Records" value={filteredWaste.length} helper="Matching current filters" tone={filteredWaste.length ? "warning" : "success"} />
+          <MetricCard icon={AlertTriangle} label="Highest Waste Item" value={topItem} helper="Based on quantity recorded" />
+          <MetricCard icon={Sparkles} label="Unexplained Loss %" value="0%" helper="No unexplained loss logged" />
         </div>
         <DashboardSection title="Operational Insights" subtitle="Rule-based signals for leakage and stock variance.">
           <div className="grid gap-3 xl:grid-cols-3">
@@ -10197,10 +10197,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               </label>
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-              <MetricCard label="Total Recipes" value={filteredRecipes.length} helper="Current filters" size="compact" />
-              <MetricCard label="Average Recipe Cost" value={toCurrency(averageRecipeCost)} helper="Ingredient + wastage" size="compact" />
-              <MetricCard label="Average Margin" value={formatRecipeMargin(averageMargin)} helper="Priced recipes only" tone={recipeMarginTone(averageMargin)} size="compact" />
+              <MetricCard icon={FileText} label="Total Recipes" value={filteredRecipes.length} helper="Current filters" size="compact" />
+              <MetricCard icon={ShoppingCart} label="Average Recipe Cost" value={toCurrency(averageRecipeCost)} helper="Ingredient + wastage" size="compact" />
+              <MetricCard icon={Sparkles} label="Average Margin" value={formatRecipeMargin(averageMargin)} helper="Priced recipes only" tone={recipeMarginTone(averageMargin)} size="compact" />
               <MetricCard
+                icon={AlertTriangle}
                 label="Highest Cost Recipe"
                 value={highestCostRecipe ? recipeNameEn(highestCostRecipe.recipe) || recipeCode(highestCostRecipe.recipe) || "Recipe" : "—"}
                 helper={highestCostRecipe ? `${recipeNameCn(highestCostRecipe.recipe) ? `${recipeNameCn(highestCostRecipe.recipe)} · ` : ""}${toCurrency(highestCostRecipe.summary.totalCost)}` : "No recipes"}

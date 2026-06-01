@@ -3557,8 +3557,8 @@ export default function AssetTrackingPage({ store, ui, auth }) {
       ) : null}
 
       {activeOutlets.length ? <div className="grid gap-2.5 md:grid-cols-2 xl:grid-cols-2">
-        <MetricCard size="compact" label="Total Asset Items" value={summary.totalItems} helper="Assets in selected scope" />
-        <MetricCard size="compact" label="Last Inspection" value={summary.lastChecked ? formatFullDate(summary.lastChecked) : "No inspection yet"} helper={summary.lastInspectionDetail} />
+        <MetricCard icon={PackageCheck} size="compact" label="Total Asset Items" value={summary.totalItems} helper="Assets in selected scope" />
+        <MetricCard icon={ClipboardCheck} size="compact" label="Last Inspection" value={summary.lastChecked ? formatFullDate(summary.lastChecked) : "No inspection yet"} helper={summary.lastInspectionDetail} />
       </div> : null}
 
       {activeOutlets.length ? (
@@ -3579,31 +3579,29 @@ export default function AssetTrackingPage({ store, ui, auth }) {
           </DashboardSection>
 
           <DashboardSection title="Asset Operations Summary" subtitle="Current asset workflow signals." density="compact">
-            <div className="grid gap-1.5">
+            <div className="grid gap-2">
               {[
-                ["Scheduled Maintenance", operationalKpis.scheduledMaintenance, "Upcoming service tasks", { type: "quick", value: "scheduled_maintenance" }, "bg-cyan-50 text-cyan-700 border-cyan-100"],
-                ["Under Maintenance", operationalKpis.underMaintenance, "Active repair work", { type: "condition", value: "under_maintenance" }, "bg-blue-50 text-blue-700 border-blue-100"],
-                ["Needs Attention", operationalKpis.needsAttention, "Minor issue needs follow-up", { type: "condition", value: "needs_attention" }, "bg-amber-50 text-amber-700 border-amber-100"],
-                ["Low Quantity", operationalKpis.lowQuantity, "At or below minimum level", { type: "condition", value: "low_quantity" }, "bg-orange-50 text-orange-700 border-orange-100"],
-                ["Missing Asset", operationalKpis.missingAssets, "Unavailable or zero quantity", { type: "condition", value: "missing" }, "bg-rose-50 text-rose-700 border-rose-100"],
-                ["Disposed", operationalKpis.disposed, "Written off / no longer operational", { type: "condition", value: "disposed" }, "bg-slate-50 text-slate-600 border-slate-200"],
-                ["Recently Inspected", operationalKpis.recentlyInspected, "Checked today", { type: "quick", value: "inspected_today" }, "bg-emerald-50 text-emerald-700 border-emerald-100"],
-              ].map(([label, value, helper, filter, className]) => {
+                { label: "Scheduled Maintenance", value: operationalKpis.scheduledMaintenance, helper: "Upcoming service tasks", filter: { type: "quick", value: "scheduled_maintenance" }, tone: "info", icon: CalendarDays },
+                { label: "Under Maintenance", value: operationalKpis.underMaintenance, helper: "Active repair work", filter: { type: "condition", value: "under_maintenance" }, tone: "info", icon: Wrench },
+                { label: "Needs Attention", value: operationalKpis.needsAttention, helper: "Minor issue needs follow-up", filter: { type: "condition", value: "needs_attention" }, tone: "warning", icon: AlertTriangle },
+                { label: "Low Quantity", value: operationalKpis.lowQuantity, helper: "At or below minimum level", filter: { type: "condition", value: "low_quantity" }, tone: "warning", icon: SlidersHorizontal },
+                { label: "Missing Asset", value: operationalKpis.missingAssets, helper: "Unavailable or zero quantity", filter: { type: "condition", value: "missing" }, tone: "danger", icon: AlertTriangle },
+                { label: "Disposed", value: operationalKpis.disposed, helper: "Written off / no longer operational", filter: { type: "condition", value: "disposed" }, tone: "neutral", icon: X },
+                { label: "Recently Inspected", value: operationalKpis.recentlyInspected, helper: "Checked today", filter: { type: "quick", value: "inspected_today" }, tone: "success", icon: ClipboardCheck },
+              ].map(({ label, value, helper, filter, tone, icon }) => {
                 const active = quickFilter === filter.value;
-                const muted = Number(value) === 0;
                 return (
-                <button
+                <MetricCard
                   key={label}
-                  className={`flex items-center justify-between gap-3 rounded-xl border px-3 py-2 text-left transition-colors hover:shadow-sm ${className} ${active ? "ring-2 ring-primary/25 shadow-sm" : ""} ${muted && !active ? "opacity-65" : ""}`}
-                  type="button"
+                  icon={icon}
+                  label={label}
+                  value={value}
+                  helper={helper}
+                  tone={tone}
+                  size="compact"
+                  active={active}
                   onClick={() => filter.type === "condition" ? applyConditionFilter(filter.value) : applyOperationalFilter(filter.value)}
-                >
-                  <div className="min-w-0">
-                    <div className="text-xs font-black text-current">{label}</div>
-                    <div className="mt-0.5 truncate text-[11px] font-semibold opacity-75">{helper}</div>
-                  </div>
-                  <div className="shrink-0 text-lg font-black">{value}</div>
-                </button>
+                />
               );})}
             </div>
           </DashboardSection>

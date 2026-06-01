@@ -4378,6 +4378,7 @@ MetricCard rules:
 - Dashboard KPI cards use MetricCard.
 - Duty Roster and Outlet Duty Roster KPI summaries use MetricCard with semantic icons, compact 11-12px labels, the shared KPI value scale, and cleaned human-readable labels such as Scheduled Shifts, Working Staff, AL / MC Days, and Unscheduled Days.
 - People KPI summaries across Employees, Job Positions, Departments, and Roles & Permissions use MetricCard with semantic icons, compact 11-12px labels, muted label color, and the shared KPI value scale. Upcoming Celebrations mini stats follow the same icon + label language with softer secondary-card styling.
+- Inventory and operations KPI summaries across Waste & Variance, Recipes & Usage, Inventory Movements, Stock Check Groups, Asset Tracking, and Month Closing Control Center use MetricCard or the same MetricCard header/value language: a small semantic icon, 11-12px muted semibold label, and the shared compact KPI value scale.
 - Analytics-heavy KPI strips, such as Product Analytics, should use `MetricCard variant="compact"` to reduce card height, icon footprint, and whitespace while keeping numeric values prominent.
 - Product Analytics KPI hierarchy: numeric KPI cards inherit `text-primary-type-kpi-value`; product/category names cap at `text-[22px] leading-[28px] font-semibold` with English primary and Chinese secondary where bilingual names exist; secondary helper text remains 12-13px.
 - Clickable summary cards must show pointer affordance and active state when filtering/drilling down.

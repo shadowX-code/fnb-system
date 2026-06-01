@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Lock, LockOpen, ShieldCheck } from "lucide-react";
+import { ClipboardList, Lock, LockOpen, ShieldCheck, ShoppingCart } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
@@ -229,9 +229,9 @@ export default function DataHealthPage({ store, setStore, ui, auth }) {
       </div>
 
       <div className="grid gap-3 md:grid-cols-3">
-        <MetricCard label="Sales Records" value={`${uniqueSalesChannelCount} channels`} helper={salesRows.length ? `Last updated ${formatTime(latestSalesRecord?.updated_at)}` : "Missing"} tone={salesScore === 100 ? "success" : "warning"} />
-        <MetricCard label="Purchase Records" value={`${purchaseRows.length} suppliers`} helper={purchaseEmptyRows.length ? `${purchaseEmptyRows.length} incomplete rows` : "Required fields complete"} tone={purchaseScore === 100 ? "success" : "warning"} />
-        <MetricCard label="Month Status" value={monthStatus.label} helper={`${toCurrency(netSales)} sales · ${toCurrency(totalPurchase)} purchase`} tone={monthStatus.tone === "danger" ? "danger" : monthStatus.tone === "success" ? "success" : "warning"} />
+        <MetricCard icon={ClipboardList} label="Sales Records" value={`${uniqueSalesChannelCount} channels`} helper={salesRows.length ? `Last updated ${formatTime(latestSalesRecord?.updated_at)}` : "Missing"} tone={salesScore === 100 ? "success" : "warning"} />
+        <MetricCard icon={ShoppingCart} label="Purchase Records" value={`${purchaseRows.length} suppliers`} helper={purchaseEmptyRows.length ? `${purchaseEmptyRows.length} incomplete rows` : "Required fields complete"} tone={purchaseScore === 100 ? "success" : "warning"} />
+        <MetricCard icon={ShieldCheck} label="Month Status" value={monthStatus.label} helper={`${toCurrency(netSales)} sales · ${toCurrency(totalPurchase)} purchase`} tone={monthStatus.tone === "danger" ? "danger" : monthStatus.tone === "success" ? "success" : "warning"} />
       </div>
 
       {warnings.length ? (
