@@ -76,6 +76,7 @@
     --type-section-title: 0.95rem;
     --type-card-title: 0.875rem;
     --type-metric: 1.7rem;
+    --type-kpi-value: clamp(22px, 1.6vw, 28px);
     --type-title: 0.93rem;
     --type-body-lg: 0.95rem;
     --type-body: 0.875rem;
@@ -229,6 +230,13 @@
     font-size: var(--type-metric);
     line-height: 1.08;
     letter-spacing: 0;
+  }
+
+  .type-kpi-value {
+    font-size: var(--type-kpi-value);
+    line-height: 1.25;
+    font-weight: 600;
+    letter-spacing: -0.01em;
   }
 
   .type-title {

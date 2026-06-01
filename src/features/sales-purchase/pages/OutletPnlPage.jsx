@@ -136,7 +136,7 @@ function PnlKpiCard({ label, value, helper, icon: Icon, primary = false, tone = 
         </div>
         {badge}
       </div>
-      <div className={`mt-3 min-w-0 break-words font-semibold leading-tight tracking-tight ${primary ? "text-[clamp(28px,2.2vw,36px)]" : "text-[clamp(22px,1.6vw,28px)]"} ${isNegative ? "text-rose-600" : "text-text-primary"}`}>
+      <div className={`mt-3 min-w-0 break-words type-kpi-value ${isNegative ? "text-rose-600" : "text-text-primary"}`}>
         {value}
       </div>
       <div className="mt-2 text-xs font-semibold text-text-secondary">{helper}</div>

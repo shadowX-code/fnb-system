@@ -4374,9 +4374,10 @@ StatusBadge rules:
 
 MetricCard rules:
 
+- KPI value typography is standardized globally through `type-kpi-value`, using the Outlet P&L scale as the reference. KPI values must not use page-title-sized utilities such as `text-4xl`, `text-5xl`, or custom 40px+ values.
 - Dashboard KPI cards use MetricCard.
 - Analytics-heavy KPI strips, such as Product Analytics, should use `MetricCard variant="compact"` to reduce card height, icon footprint, and whitespace while keeping numeric values prominent.
-- Product Analytics KPI hierarchy: numeric KPI cards use the same value typography as Outlet P&L, `text-[clamp(22px,1.6vw,28px)] font-semibold leading-tight`; product/category names cap at `text-[22px] leading-[28px] font-semibold` with English primary and Chinese secondary where bilingual names exist; secondary helper text remains 12-13px.
+- Product Analytics KPI hierarchy: numeric KPI cards use `type-kpi-value`, the same value typography as Outlet P&L; product/category names cap at `text-[22px] leading-[28px] font-semibold` with English primary and Chinese secondary where bilingual names exist; secondary helper text remains 12-13px.
 - Clickable summary cards must show pointer affordance and active state when filtering/drilling down.
 - Hover lift is allowed for standalone dashboard cards only.
 - MetricCard must not be used inside table rows with transform hover behavior.
