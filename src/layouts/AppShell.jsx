@@ -1272,7 +1272,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
                       key={item.id}
                       type="button"
                       onClick={() => handleNavigate(item.id)}
-                      className={`relative flex h-9 w-full items-center gap-2.5 rounded-xl px-2.5 text-left text-sm font-medium leading-5 transition duration-150 ${
+                      className={`relative flex h-9 w-full items-center gap-2.5 rounded-xl px-2.5 text-left text-[13.5px] font-medium leading-5 transition duration-150 ${
                         active
                           ? "bg-gradient-to-r from-primary/9 to-primary/4 text-primary shadow-[inset_0_0_0_1px_rgba(34,197,94,0.08)]"
                           : "text-text-secondary hover:bg-slate-50 hover:text-text-primary"

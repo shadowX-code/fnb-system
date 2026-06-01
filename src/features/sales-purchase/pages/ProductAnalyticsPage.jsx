@@ -409,12 +409,12 @@ function aggregateItems(items, options = {}) {
 
 function KpiCard({ title, value, helper, icon: Icon }) {
   return (
-    <div className="card min-h-[116px] p-4 transition hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-card">
+    <div className="card min-h-[96px] p-3.5 transition hover:border-primary/25 hover:shadow-card">
       <div className="flex items-start justify-between gap-3">
-        <div className="text-xs font-bold uppercase tracking-wide text-text-secondary">{title}</div>
-        {Icon ? <span className="grid h-8 w-8 place-items-center rounded-xl bg-primary/10 text-primary"><Icon size={16} /></span> : null}
+        <div className="text-[11px] font-semibold uppercase tracking-[0.08em] text-text-secondary">{title}</div>
+        {Icon ? <span className="grid h-7 w-7 place-items-center rounded-xl bg-primary/10 text-primary"><Icon size={15} /></span> : null}
       </div>
-      <div className="mt-3 text-2xl font-bold text-text-primary">{value}</div>
+      <div className="mt-2 text-[26px] font-bold leading-tight text-text-primary">{value}</div>
       <div className="mt-1 text-xs font-medium text-text-muted">{helper}</div>
     </div>
   );

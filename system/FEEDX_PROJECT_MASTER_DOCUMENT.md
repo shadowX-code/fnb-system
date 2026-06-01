@@ -4348,10 +4348,11 @@ Typography rules:
 - Shared components must use semantic type classes instead of raw `text-sm`, `text-lg`, or arbitrary text sizes.
 - Raw Tailwind typography is allowed only for one-off visual exceptions, not repeated UI patterns.
 - Page-level modules should migrate gradually through shared components rather than mass rewriting every text node.
-- Sidebar navigation uses 14px, medium-weight labels with 20px line height. Sidebar section labels use 11px, uppercase, 0.12em letter spacing, and 600 weight.
+- Desktop density is tracked in `FEEDX_TYPOGRAPHY_AUDIT.md`; future typography changes should update that audit when they intentionally alter the global scale.
+- Sidebar navigation uses 13.5px-14px, medium-weight labels with 20px line height. Sidebar section labels use 11px, uppercase, 0.12em letter spacing, and 600 weight.
 - Sidebar user footer uses 14px for the name and 12px for the role.
-- Page header eyebrow labels use 12px uppercase text with 0.18em letter spacing. Page titles stay strong at about 28-30px with 700 weight, and subtitles use 14px muted text.
-- KPI card labels use 12px semibold uppercase treatment, values are capped around 26-30px, helper text uses 12-13px, and desktop padding should sit near 18-20px.
+- Page header eyebrow labels use 12px uppercase text with 0.18em letter spacing. Page titles stay strong at about 26-28px with 700 weight, and subtitles use 13-14px muted text.
+- KPI card labels use 11-12px semibold uppercase treatment, values are capped around 26-28px, helper text uses 12-13px, and desktop padding should sit near 14-18px depending on density.
 - Filter labels use 12px semibold text. Input/select text uses 14px and controls stay usable around 40-44px high on desktop.
 - Chart labels, legends, and tooltips should be compact and avoid oversized legends.
 

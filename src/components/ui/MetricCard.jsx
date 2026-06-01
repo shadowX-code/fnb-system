@@ -25,8 +25,8 @@ export default function MetricCard({
     : resolvedEmphasis === "urgent"
       ? "metric-card-urgent border-rose-200/80 bg-gradient-to-br from-white to-rose-50/45 shadow-[0_14px_34px_rgba(244,63,94,0.08)]"
       : "metric-card-normal bg-white";
-  const valueClass = resolvedEmphasis === "primary" ? "text-[clamp(24px,1.8vw,30px)]" : "type-metric";
-  const sizeClass = size === "compact" ? "min-h-[72px] p-3" : "min-h-[86px] p-4";
+  const valueClass = resolvedEmphasis === "primary" ? "text-[clamp(24px,1.65vw,28px)]" : "type-metric";
+  const sizeClass = size === "compact" ? "min-h-[70px] p-3" : "min-h-[82px] p-3.5";
   const hoverClass = onClick ? "cursor-pointer hover:border-primary/30 hover:bg-primary/5 hover:shadow-card focus:outline-none focus:ring-2 focus:ring-primary/15" : "hover:border-primary/20 hover:shadow-card";
   // Reserved for a future labeled mini-sparkline. Do not render decorative bars
   // unless the chart has clear labels, interaction, and trend meaning.
