@@ -61,7 +61,7 @@ export default function SetNewPasswordPage() {
 
         <section className="feedx-auth-panel">
           <div className="feedx-auth-card">
-            <div className="mb-8">
+            <div className="feedx-auth-card-logo mb-8">
               <FeedXLogo />
             </div>
 

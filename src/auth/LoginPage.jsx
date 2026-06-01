@@ -267,19 +267,18 @@ export default function LoginPage() {
 
         <section className="feedx-auth-panel">
           <div className="feedx-auth-card">
-            <div className="mb-8">
+            <div className="feedx-auth-card-logo mb-8">
               <FeedXLogo />
             </div>
 
             <div>
-              <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-700/70">Account Login</div>
-              <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950">Welcome Back</h2>
+              <h2 className="text-2xl font-black tracking-tight text-slate-950 sm:text-[1.7rem]">Welcome Back</h2>
               <p className="mt-2 text-sm font-medium text-slate-500">Sign in to your FeedX workspace</p>
             </div>
 
             <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
               <label className="block">
-                <span className="text-xs font-bold text-slate-700">Email</span>
+                <span className="text-xs font-medium text-slate-700">Email</span>
                 <div className="feedx-login-input-wrap mt-2">
                   <Mail className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-emerald-700/45" size={17} />
                   <input
@@ -295,7 +294,7 @@ export default function LoginPage() {
               </label>
 
               <label className="block">
-                <span className="text-xs font-bold text-slate-700">Password</span>
+                <span className="text-xs font-medium text-slate-700">Password</span>
                 <div className="feedx-login-input-wrap mt-2">
                   <Lock className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-emerald-700/45" size={17} />
                   <input
