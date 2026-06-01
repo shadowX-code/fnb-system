@@ -77,7 +77,7 @@ Updated shared styling rather than page-by-page overrides:
   - Select button text uses exact 14px.
 - `src/features/sales-purchase/pages/ProductAnalyticsPage.jsx`
   - Page-local KPI cards were replaced with shared `MetricCard variant="compact"`.
-  - Product Analytics numeric KPI values now use the exact page-level class `text-[30px] leading-[36px] font-bold` on the five numeric metric cards, instead of inheriting a generic compact value clamp.
+  - Product Analytics numeric KPI values now reuse the Outlet P&L KPI value scale: `text-[clamp(22px,1.6vw,28px)] font-semibold leading-tight` on the five numeric metric cards, instead of inheriting a generic compact value clamp.
   - Product/category KPI values use a distinct name hierarchy: English primary capped at `text-[22px] leading-[28px] font-semibold`, Chinese secondary at 13px muted text.
   - Icon footprint and vertical whitespace were reduced so more Product Analytics content appears above the fold.
 

@@ -254,7 +254,7 @@ function KpiNameValue({ value }) {
   );
 }
 
-const productAnalyticsNumericKpiClass = "text-[30px] leading-[36px] font-bold";
+const productAnalyticsNumericKpiClass = "text-[clamp(22px,1.6vw,28px)] font-semibold leading-tight";
 
 function extractFeedMeMetadata(rawRows) {
   const metadata = {};
