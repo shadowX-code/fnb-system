@@ -76,7 +76,7 @@
     --type-section-title: 0.95rem;
     --type-card-title: 0.875rem;
     --type-metric: 1.7rem;
-    --type-kpi-value: 30px;
+    --type-kpi-value: 26px;
     --type-title: 0.93rem;
     --type-body-lg: 0.95rem;
     --type-body: 0.875rem;
@@ -232,9 +232,10 @@
     letter-spacing: 0;
   }
 
-  .type-kpi-value {
+  .type-kpi-value,
+  .text-primary-type-kpi-value {
     font-size: var(--type-kpi-value);
-    line-height: 36px;
+    line-height: 32px;
     font-weight: 700;
     letter-spacing: -0.01em;
   }

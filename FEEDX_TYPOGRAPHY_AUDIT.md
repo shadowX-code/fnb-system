@@ -68,7 +68,7 @@ Updated shared styling rather than page-by-page overrides:
   - Eyebrow, page title, and subtitle now follow the target scale.
 - `src/components/ui/MetricCard.jsx`
   - Reduced standard card height/padding.
-  - Metric values now use the shared `type-kpi-value` token based on the Purchase Comparison KPI scale.
+  - Metric values now use the shared `text-primary-type-kpi-value` token based on the Purchase Comparison KPI scale. Current trial scale is 26px / 32px / 700.
   - KPI label is now semibold uppercase 12px-style treatment.
   - Added `variant="compact"` for analytics-heavy KPI strips that need higher density without weakening global dashboard cards.
 - `src/components/tables/DataTable.jsx`
@@ -77,7 +77,7 @@ Updated shared styling rather than page-by-page overrides:
   - Select button text uses exact 14px.
 - `src/features/sales-purchase/pages/ProductAnalyticsPage.jsx`
   - Page-local KPI cards were replaced with shared `MetricCard variant="compact"`.
-  - Product Analytics numeric KPI values now inherit the shared `type-kpi-value` standard from MetricCard, instead of carrying a page-specific compact value class.
+  - Product Analytics numeric KPI values now inherit the shared `text-primary-type-kpi-value` standard from MetricCard, instead of carrying a page-specific compact value class.
   - Product/category KPI values use a distinct name hierarchy: English primary capped at `text-[22px] leading-[28px] font-semibold`, Chinese secondary at 13px muted text.
   - Icon footprint and vertical whitespace were reduced so more Product Analytics content appears above the fold.
 

@@ -10912,7 +10912,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                   <div key={label} className="rounded-xl border border-border bg-white p-3">
                     <div className="type-micro font-black uppercase text-text-muted">{label}</div>
                     <div className="mt-1 flex items-center justify-between">
-                      <span className="type-kpi-value text-text-primary">{value}</span>
+                      <span className="text-primary-type-kpi-value text-text-primary">{value}</span>
                       <Badge tone={tone}>{label}</Badge>
                     </div>
                   </div>
