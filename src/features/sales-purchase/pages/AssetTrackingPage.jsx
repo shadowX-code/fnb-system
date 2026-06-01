@@ -2407,7 +2407,7 @@ function AssetDetailDrawer({ asset, outlet, movements = [], inspections = [], ma
               <div className="grid gap-3 md:grid-cols-2">
                 <div className="rounded-3xl border border-primary/15 bg-primary/5 p-5">
                   <div className="text-xs font-black uppercase tracking-wide text-primary">Current Quantity</div>
-                  <div className="mt-2 text-4xl font-semibold text-text-primary">{asset.current_quantity} <span className="text-base font-black text-text-muted">{asset.unit}</span></div>
+                  <div className="mt-2 type-kpi-value text-text-primary">{asset.current_quantity} <span className="text-base font-black text-text-muted">{asset.unit}</span></div>
                   <div className={`mt-3 inline-flex rounded-full border px-3 py-1 text-xs font-black ${quantityHint.className}`}>{quantityHint.text}</div>
                 </div>
                 <div className="rounded-3xl border border-border bg-white p-5 shadow-sm">

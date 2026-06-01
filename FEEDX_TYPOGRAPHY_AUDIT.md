@@ -96,7 +96,7 @@ Updated shared styling rather than page-by-page overrides:
 
 ## Remaining Technical Debt
 
-- Some large read-first detail views, especially Asset Tracking detail/inspection surfaces, still use page-local `text-2xl`, `text-3xl`, or `text-4xl`. These are intentional for hero/detail emphasis today, but should migrate to shared detail-view heading tokens later.
+- Some large read-first detail views, especially Asset Tracking detail/inspection surfaces, still use page-local `text-2xl` or `text-3xl`. These are intentional for hero/detail emphasis today, but should migrate to shared detail-view heading tokens later.
 - Product Analytics and Recipe Intelligence contain local chart label styling. Future chart work should centralize axis, legend, and tooltip typography in chart primitives.
 - Some older module-specific KPI cards remain outside `MetricCard`. They should be migrated opportunistically when those pages are next touched.
 
