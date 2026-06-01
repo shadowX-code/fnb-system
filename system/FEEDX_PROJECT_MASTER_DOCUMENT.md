@@ -92,7 +92,7 @@ SALES
 PURCHASES
 - Purchase Input
 - Suppliers
-- Purchase Categories
+- Supplier Categories
 
 OPERATIONS
 - Operating Expenses
@@ -109,7 +109,7 @@ INVENTORY CONTROL
 - Stock Check
 - Purchase Orders
 - Inventory Movements
-- Waste & Variance
+- Wastage
 - Recipes & Usage
 
 PEOPLE
@@ -193,7 +193,7 @@ inventory_groups        INVENTORY_CONTROL   Stock Check Groups     #inventory_gr
 inventory_stock_check   INVENTORY_CONTROL   Stock Check            #inventory_stock_check
 inventory_orders        INVENTORY_CONTROL   Purchase Orders        #inventory_orders
 inventory_movements     INVENTORY_CONTROL   Inventory Movements    #inventory_movements
-inventory_waste         INVENTORY_CONTROL   Waste & Variance       #inventory_waste
+inventory_waste         INVENTORY_CONTROL   Wastage                #inventory_waste
 inventory_recipes       INVENTORY_CONTROL   Recipes & Usage        #inventory_recipes
 recipe_intelligence     INVENTORY_CONTROL   Recipe Intelligence    #recipe_intelligence
 ```
@@ -399,7 +399,7 @@ Data:
 - Sales records
 - Purchase records
 - Sales channels
-- Purchase categories
+- Supplier categories
 - Suppliers
 - Product sales reports
 - Asset items
@@ -908,11 +908,11 @@ Delete protection:
 
 ---
 
-## 5.10 Purchase Categories
+## 5.10 Supplier Categories
 
 Purpose:
 
-Manage purchase category master data.
+Manage supplier category master data.
 
 Data table:
 
@@ -1751,7 +1751,7 @@ It covers:
 - Daily Stock Check workflow
 - Purchase Orders
 - Inventory Movements
-- Waste & Variance
+- Wastage
 - Recipes & Usage
 
 Sidebar placement:
@@ -2013,7 +2013,7 @@ Status as of 30 May 2026:
 - Full Receive browser verification passed on 29 May 2026: fresh PO `PO-180719-A7E` was submitted, Fill Remaining set all received quantities, Confirm Receive changed the order to Fully Received, refresh preserved Fully Received, Complete PO closed it as a fully fulfilled completed PO, refresh preserved Completed, receiving history showed the full quantity, and `inventory_movements` contained only the actual received quantities.
 - P1-A completed on 29 May 2026: Master Inventory Import is Supabase-backed, validates Category/UOM/Outlet Codes before commit, imports valid rows only, and writes through the same Add/Edit Item persistence path.
 - P1-A code path reverified on 30 May 2026: Import confirmation does not use local-only persistence; each valid preview row calls `persistRemoteInventoryItem()`, which writes `inventory_items` and `inventory_item_outlets`. Invalid Category/UOM/Outlet Code rows remain preview errors and are skipped/blocked before Supabase writes.
-- P1-B completed on 29 May 2026: Waste & Variance records are Supabase-backed through `inventory_waste_records`; Record Waste writes a matching `inventory_movements` row with `reference_type = waste`, refresh preserves the waste record, and the Waste Records table reads from Supabase.
+- P1-B completed on 29 May 2026: Wastage records are Supabase-backed through `inventory_waste_records`; Record Waste writes a matching `inventory_movements` row with `reference_type = waste`, refresh preserves the waste record, and the Waste Records table reads from Supabase.
 - P1-C completed on 29 May 2026: Recipes & Usage is Supabase-backed through `inventory_recipes` and `inventory_recipe_items`; Add/Edit replaces ingredient rows transaction-style at the app layer, Archive sets recipe status to inactive, refresh preserves recipe data, and the active recipe list reads from Supabase.
 - Master Inventory item create/edit/archive, import, and linked outlet saves are Supabase-backed.
 - Inventory Categories create/edit/archive/delete and drag sort are Supabase-backed.
@@ -2028,12 +2028,12 @@ Status as of 30 May 2026:
 - Purchase Orders submit, edit Draft PO, receive, partial receive, complete, and cancel are Supabase-backed through `inventory_purchase_orders`, `inventory_purchase_order_items`, `inventory_purchase_receipts`, `inventory_purchase_receipt_items`, and `inventory_movements`.
 - Inventory Movements created from Purchase Receive are Supabase-backed. Manual Inventory Movements entry is also Supabase-backed through `inventory_movements`.
 - Inventory Control P0 UAT completed on 29 May 2026. Report: `FEEDX_INVENTORY_UAT_REPORT.md`.
-- Waste & Variance create waste record is Supabase-backed through `inventory_waste_records` and creates a Waste movement row in `inventory_movements`.
+- Wastage create waste record is Supabase-backed through `inventory_waste_records` and creates a Waste movement row in `inventory_movements`.
 - Recipes & Usage create/edit/archive and ingredient mapping are Supabase-backed through `inventory_recipes` and `inventory_recipe_items`.
 - Production Readiness Cleanup Phase 1 completed on 30 May 2026:
   - Result: Full Green MVP for the current active Inventory Control workflow.
   - Risk level: Low for current MVP scope.
-  - Active pages verified as Supabase-backed: Inventory Dashboard, Master Inventory, Category Settings, UOM Settings, Par Levels, Stock Check Groups, Stock Check, Purchase Orders, Inventory Movements, Waste & Variance, and Recipes & Usage.
+  - Active pages verified as Supabase-backed: Inventory Dashboard, Master Inventory, Category Settings, UOM Settings, Par Levels, Stock Check Groups, Stock Check, Purchase Orders, Inventory Movements, Wastage, and Recipes & Usage.
   - No active Inventory Control page should create operational records from browser-local arrays.
   - Category and UOM fallback/demo lists are not used as authenticated staging source of truth; authenticated inventory data is loaded from Supabase.
   - `defaultData()` is development-only scaffolding and is hard-gated behind `import.meta.env.DEV`; authenticated staging/production inventory state must not merge fallback operational rows.
@@ -2044,7 +2044,7 @@ Persistence priorities:
 
 - P0: Completed for the core workflow covering Stock Check Groups, Stock Check, Purchase Suggestions, Purchase Orders, receiving, and Inventory Movements.
 - P1-A: Completed for Master Inventory Import remote persistence.
-- P1-B: Completed for Waste & Variance remote persistence.
+- P1-B: Completed for Wastage remote persistence.
 - P1-C: Completed for Recipes & Usage remote persistence.
 - Stock Requests remains deferred/out of current MVP scope and must stay hidden until it is either Supabase-backed or intentionally reintroduced.
 - P1: Add UOM drag sort persistence if sortable UOM ordering becomes part of the UI.
@@ -2460,7 +2460,7 @@ Movement records include:
 - reference
 - notes
 
-Waste & Variance:
+Wastage:
 
 Purpose:
 
@@ -2468,8 +2468,8 @@ Track wastage and operational leakage.
 
 Page behavior:
 
-- Waste & Variance uses a required single Outlet filter as the active operational context; All Outlets is not shown because every waste record must belong to one outlet.
-- The default Waste & Variance outlet is the first accessible outlet.
+- Wastage uses a required single Outlet filter as the active operational context; All Outlets is not shown because every waste record must belong to one outlet.
+- The default Wastage outlet is the first accessible outlet.
 - Record Waste uses the currently selected outlet context and does not ask for outlet inside the modal.
 - Waste dashboard metrics, Waste Types, Waste Records, and operational insights respond to outlet, waste type, date range, and search filters.
 - Waste Records are outlet-scoped and should show Date, Item, Category, Waste Type, Qty, Outlet, Recorded By, Notes, Evidence, and Actions.
@@ -2491,7 +2491,7 @@ Waste types:
 - Staff Consumption
 - Unknown
 
-Waste & Variance sections:
+Wastage sections:
 
 - Waste Quantity
 - Waste Records
@@ -3397,7 +3397,7 @@ Suppliers:
 - suppliers.edit
 - suppliers.delete
 
-Purchase Categories:
+Supplier Categories:
 
 - purchase_categories.view
 - purchase_categories.create
@@ -3499,7 +3499,7 @@ Inventory Movements:
 - inventory_movements.create
 - inventory_movements.export
 
-Waste & Variance:
+Wastage:
 
 - inventory_waste.view
 - inventory_waste.create
@@ -4378,7 +4378,7 @@ MetricCard rules:
 - Dashboard KPI cards use MetricCard.
 - Duty Roster and Outlet Duty Roster KPI summaries use MetricCard with semantic icons, compact 11-12px labels, the shared KPI value scale, and cleaned human-readable labels such as Scheduled Shifts, Working Staff, AL / MC Days, and Unscheduled Days.
 - People KPI summaries across Employees, Job Positions, Departments, and Roles & Permissions use MetricCard with semantic icons, compact 11-12px labels, muted label color, and the shared KPI value scale. Upcoming Celebrations mini stats follow the same icon + label language with softer secondary-card styling.
-- Inventory and operations KPI summaries across Waste & Variance, Recipes & Usage, Inventory Movements, Stock Check Groups, Asset Tracking, and Month Closing Control Center use MetricCard or the same MetricCard header/value language: a small semantic icon, 11-12px muted semibold label, and the shared compact KPI value scale.
+- Inventory and operations KPI summaries across Wastage, Recipes & Usage, Inventory Movements, Stock Check Groups, Asset Tracking, and Month Closing Control Center use MetricCard or the same MetricCard header/value language: a small semantic icon, 11-12px muted semibold label, and the shared compact KPI value scale.
 - Analytics-heavy KPI strips, such as Product Analytics, should use `MetricCard variant="compact"` to reduce card height, icon footprint, and whitespace while keeping numeric values prominent.
 - Product Analytics KPI hierarchy: numeric KPI cards inherit `text-primary-type-kpi-value`; product/category names cap at `text-[22px] leading-[28px] font-semibold` with English primary and Chinese secondary where bilingual names exist; secondary helper text remains 12-13px.
 - Clickable summary cards must show pointer affordance and active state when filtering/drilling down.

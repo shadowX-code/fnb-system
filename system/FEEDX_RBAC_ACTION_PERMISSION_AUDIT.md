@@ -92,7 +92,7 @@ Corrected broad grouped permission checks:
 | Purchase Input | Create/Edit | `purchase_input.create` / `purchase_input.edit` | Aligned via write helper |
 | Suppliers | View/Create/Edit/Delete | `suppliers.*` | Aligned |
 | Suppliers | Deactivate | `suppliers.deactivate` or `suppliers.edit` | Alias/fallback used; registry lacks deactivate |
-| Purchase Categories | View/Create/Edit/Delete | `purchase_categories.*` | Aligned |
+| Supplier Categories | View/Create/Edit/Delete | `purchase_categories.*` | Aligned |
 | Operating Expenses | View/Create/Edit | `operating_expenses.*` | Aligned via write helper |
 | Duty Roster | View/Create/Edit/Delete/Manage/Export | `duty_roster.*` | Aligned |
 | Asset Tracking | View/Create/Edit/Delete/Manage/Export | `asset_tracking.*` | Aligned |
@@ -104,7 +104,7 @@ Corrected broad grouped permission checks:
 | Stock Check | View/Create/Edit/Review/Audit/Export | `inventory_stock_check.*` | Aligned |
 | Purchase Orders | View/Create/Edit/Submit/Receive/Complete/Cancel/Export | `inventory_orders.*` | Fixed |
 | Inventory Movements | View/Create/Export | `inventory_movements.*` | Aligned |
-| Waste & Variance | View/Create/Manage/Export | `inventory_waste.*` | Aligned |
+| Wastage | View/Create/Manage/Export | `inventory_waste.*` | Aligned |
 | Recipes & Usage | View/Create/Edit/Delete/Manage/Export | `inventory_recipes.*` | Fixed |
 
 ## Remaining Follow-Up

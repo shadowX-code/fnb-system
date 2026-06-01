@@ -1248,7 +1248,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
           return (
             <div key={section.label}>
               <button
-                className="mb-1.5 flex w-full items-center justify-between rounded-lg px-2.5 py-0.5 text-left text-[11px] font-semibold uppercase leading-4 tracking-[0.12em] text-text-muted transition hover:bg-slate-50 hover:text-text-secondary"
+                className="mb-1.5 flex w-full items-center justify-between rounded-lg px-2.5 py-0.5 text-left text-[10px] font-semibold uppercase leading-4 tracking-[0.14em] text-text-muted transition hover:bg-slate-50 hover:text-text-secondary"
                 type="button"
                 aria-expanded={isOpen}
                 onClick={() => toggleSection(section.label)}
@@ -1260,7 +1260,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
                 {section.items.map((item) => {
                   if (item.type === "label") {
                     return (
-                      <div key={item.id} className="px-3 pb-1 pt-2 text-[11px] font-semibold uppercase leading-4 tracking-[0.12em] text-text-muted">
+                      <div key={item.id} className="px-3 pb-1 pt-2 text-[10px] font-semibold uppercase leading-4 tracking-[0.14em] text-text-muted">
                         {item.label}
                       </div>
                     );
@@ -1272,7 +1272,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
                       key={item.id}
                       type="button"
                       onClick={() => handleNavigate(item.id)}
-                      className={`relative flex h-9 w-full items-center gap-2.5 rounded-xl px-2.5 text-left text-[13.5px] font-medium leading-5 transition duration-150 ${
+                      className={`relative flex h-9 w-full items-center gap-2.5 rounded-xl px-2.5 text-left text-[13px] font-medium leading-5 transition duration-150 ${
                         active
                           ? "bg-gradient-to-r from-primary/9 to-primary/4 text-primary shadow-[inset_0_0_0_1px_rgba(34,197,94,0.08)]"
                           : "text-text-secondary hover:bg-slate-50 hover:text-text-primary"
@@ -1309,7 +1309,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
             {getProfileInitials(auth?.profile, auth?.user)}
           </div>
           <div className="min-w-0">
-            <div className="truncate text-sm font-medium">{getProfileDisplayName(auth?.profile, auth?.user)}</div>
+            <div className="truncate text-[12px] font-medium leading-4">{getProfileDisplayName(auth?.profile, auth?.user)}</div>
             <div className="truncate text-xs text-text-secondary">{auth?.profile?.role_name ?? "Authenticated"}</div>
           </div>
           <ChevronDown size={15} className={`ml-auto text-text-muted transition-transform ${sidebarProfileOpen ? "rotate-180" : ""}`} />

@@ -96,8 +96,8 @@ const pageMeta = {
     description: "Track purchases, transfers, waste, usage and adjustments.",
   },
   waste: {
-    title: "Waste & Variance",
-    description: "Identify wastage, stock leakage and unusual variance.",
+    title: "Wastage",
+    description: "Record spoilage, expiry, damaged inventory and kitchen wastage.",
   },
   recipes: {
     title: "Recipes & Usage",
@@ -1408,7 +1408,7 @@ async function loadRemoteInventoryMaster() {
   if (purchaseReceiptsResult.error) console.warn("[InventoryControl] Purchase receipts unavailable. Receiving history will render empty until persistence is configured.", purchaseReceiptsResult.error);
   if (purchaseReceiptItemsResult.error) console.warn("[InventoryControl] Purchase receipt items unavailable.", purchaseReceiptItemsResult.error);
   if (movementsResult.error) console.warn("[InventoryControl] Inventory movements unavailable. Movement history will render empty until persistence is configured.", movementsResult.error);
-  if (wasteResult.error) console.warn("[InventoryControl] Waste records unavailable. Waste & Variance will render empty until persistence is configured.", wasteResult.error);
+  if (wasteResult.error) console.warn("[InventoryControl] Waste records unavailable. Wastage will render empty until persistence is configured.", wasteResult.error);
   if (menuCategoriesResult.error) console.warn("[InventoryControl] Menu categories unavailable. Recipes & Usage will use default menu category labels.", menuCategoriesResult.error);
   if (recipesResult.error) console.warn("[InventoryControl] Recipes unavailable. Recipes & Usage will render empty until persistence is configured.", recipesResult.error);
   if (recipeItemsResult.error) console.warn("[InventoryControl] Recipe ingredients unavailable.", recipeItemsResult.error);
@@ -9714,7 +9714,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   function renderWaste() {
     if (!can.viewWaste) {
-      return <EmptyState title="Permission required" description="You do not have permission to view Waste & Variance." />;
+      return <EmptyState title="Permission required" description="You do not have permission to view Wastage." />;
     }
     const outletOptions = getAccessibleOutletOptions(auth, outlets).filter((option) => option.value !== "all");
     const activeWasteOutletId = selectedOutletId === "all" ? (outletOptions[0]?.value || "") : selectedOutletId;

@@ -878,7 +878,7 @@ export function DataImportWorkspace({
         for (const [name, resolution] of Object.entries(categoryResolutions)) {
           if (resolution.action !== "create") continue;
           if (!canCreateImportCategory) {
-            throw new Error("You do not have permission to create purchase categories during import.");
+            throw new Error("You do not have permission to create supplier categories during import.");
           }
           const category = await purchaseCategoryService.savePurchaseCategory({
             name,
@@ -1183,7 +1183,7 @@ export function DataImportWorkspace({
               <div className="space-y-4">
                 <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
                   <div className="font-bold">Unknown Category Review Required</div>
-                  <p className="mt-1 text-xs">The Category column is mapped, but these category values do not match purchase category master data. Map them, create new categories, or skip affected rows.</p>
+                  <p className="mt-1 text-xs">The Category column is mapped, but these category values do not match supplier category master data. Map them, create new categories, or skip affected rows.</p>
                 </div>
                 {unknownCategories.map((item) => {
                   const resolution = categoryResolutions[item.name] || { action: "map", category_id: "" };
@@ -1497,7 +1497,7 @@ export function DataImportWorkspace({
                               { key: "outlet", header: "Outlet", render: (row) => getRawValue(row, ["Outlet", "Branch", "Outlet Code"]) || "-" },
                               { key: "period", header: "Month / Year", render: (row) => `${getRawValue(row, ["Month"]) || "-"} ${getRawValue(row, ["Year"]) || ""}` },
                               { key: "supplier", header: "Supplier", render: (row) => getRawValue(row, ["Supplier", "Supplier Name"]) || "-" },
-                              { key: "category", header: "Category", render: (row) => getRawValue(row, ["Category", "Purchase Category"]) || "-" },
+                              { key: "category", header: "Category", render: (row) => getRawValue(row, ["Category", "Supplier Category", "Purchase Category"]) || "-" },
                               { key: "amount", header: "Amount", align: "right", render: (row) => getRawValue(row, ["Amount", "Purchase Amount"]) || "-" },
                             ]),
                         { key: "action", header: "Action", render: (row) => <Badge tone={row.action === "failed" ? "danger" : row.action === "update" ? "warning" : row.action === "skip" ? "neutral" : "success"}>{row.action}</Badge> },

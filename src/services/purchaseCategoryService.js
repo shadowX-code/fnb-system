@@ -72,7 +72,7 @@ export const purchaseCategoryService = {
       action: category.id ? "purchase_category_updated" : "purchase_category_created",
       module: "purchase-categories",
       target: data.name,
-      description: category.id ? "Purchase category updated." : "Purchase category created.",
+      description: category.id ? "Supplier category updated." : "Supplier category created.",
       after: data,
     }).catch(() => {});
 
@@ -178,8 +178,8 @@ export const purchaseCategoryService = {
     await auditLogService.createAuditLog({
       action: "purchase_category_reordered",
       module: "purchase-categories",
-      target: "Purchase Categories",
-      description: "Purchase category sort order updated.",
+      target: "Supplier Categories",
+      description: "Supplier category sort order updated.",
       after: updates,
     }).catch(() => {});
 
@@ -211,7 +211,7 @@ export const purchaseCategoryService = {
       action: "purchase_category_deleted",
       module: "purchase-categories",
       target: category.name,
-      description: "Purchase category deleted.",
+      description: "Supplier category deleted.",
       before: category,
     }).catch(() => {});
 

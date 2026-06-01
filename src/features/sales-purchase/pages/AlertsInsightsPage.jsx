@@ -63,7 +63,7 @@ function relatedRecords(alert, store) {
 }
 
 function investigationChecklist(alert) {
-  if (alert.alert_type?.includes("cogs")) return ["Compare supplier invoices against receiving records", "Check wastage and stock movement", "Review high-value purchase categories"];
+  if (alert.alert_type?.includes("cogs")) return ["Compare supplier invoices against receiving records", "Check wastage and stock movement", "Review high-value supplier categories"];
   if (alert.alert_type?.includes("supplier")) return ["Check invoice quantity and unit price", "Confirm whether this was a bulk purchase", "Compare against supplier purchase history"];
   if (alert.alert_type?.includes("sales")) return ["Check outlet traffic and operating hours", "Review channel mix movement", "Compare against promotions or special events"];
   if (alert.alert_type?.includes("sst")) return ["Compare SST entry with expected tax amount", "Review refunds, voids, or adjustments", "Confirm outlet tax configuration"];

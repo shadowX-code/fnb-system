@@ -76,7 +76,7 @@ const routeDetails = {
     component: SupplierManagementPage,
   },
   "purchase-categories": {
-    description: "Manage structured purchase categories used by suppliers and imports.",
+    description: "Manage structured supplier categories used by suppliers and imports.",
     component: SettingsPage,
     props: { initialTab: "categories", settingsMode: "purchase-categories" },
   },
@@ -184,7 +184,7 @@ const routeDetails = {
     props: { initialTab: "movements" },
   },
   inventory_waste: {
-    description: "Identify wastage, stock leakage and unusual variance.",
+    description: "Record spoilage, expiry, damaged inventory and kitchen wastage.",
     component: InventoryControlPage,
     permission: "inventory_waste.view",
     props: { initialTab: "waste" },

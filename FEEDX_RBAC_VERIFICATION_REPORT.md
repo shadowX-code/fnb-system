@@ -29,7 +29,7 @@ Critical fixes applied during this verification:
 | Tax Settings | `tax_settings.view/edit` | View and edit only | Registry aligned | Pass | No create/delete permissions exposed. |
 | Purchase Input | `purchase_input.view/create/edit/delete/approve` | Purchase entry and Import Purchase actions use child keys | Registry aligned | Pass | Import Purchase requires create or edit; supplier context bootstrap includes purchase permissions. |
 | Suppliers | `suppliers.view/create/edit/delete` | Supplier actions use child keys | Registry aligned | Pass | Supplier page also treats deactivate as edit-compatible where used. |
-| Purchase Categories | `purchase_categories.view/create/edit/delete` | CRUD actions use child keys | Registry aligned | Pass | No parent purchase permission detected. |
+| Supplier Categories | `purchase_categories.view/create/edit/delete` | CRUD actions use child keys | Registry aligned | Pass | No parent purchase permission detected. |
 | Operating Expenses | `operating_expenses.view/create/edit/delete` | Page/action gating by child keys | Registry aligned | Pass | Outlet bootstrap includes operating expenses. |
 | Duty Roster | `duty_roster.view/create/edit/delete/manage/export` | Roster actions use child keys | Registry aligned | Pass | Detailed action browser UAT recommended. |
 | Asset Tracking | `asset_tracking.view/create/edit/delete/manage/export` | Asset page/actions use child keys | Registry aligned | Pass | No protected-role-only action gate found in registry. |
@@ -43,7 +43,7 @@ Critical fixes applied during this verification:
 | Stock Requests | N/A | Deferred and absent from active UI/matrix | Removed from active route/sidebar/registry | Pass | Legacy tables/code may remain inaccessible. |
 | Purchase Orders | `inventory_orders.view/create/edit/submit/receive/complete/cancel/export` | PO workflow actions use exact status permission keys | Action map uses exact keys | Pass | Receive/complete/cancel RLS is outlet-scoped. |
 | Inventory Movements | `inventory_movements.view/create/export` | Movement list/create/export use child keys | Action map uses create/export; route uses view | Pass | Movement rows are Supabase-backed. |
-| Waste & Variance | `inventory_waste.view/create/manage/export` | View and record waste separated | Action map uses view/create/manage/export | Pass | Manage covers edit/archive for current scope. |
+| Wastage | `inventory_waste.view/create/manage/export` | View and record waste separated | Action map uses view/create/manage/export | Pass | Manage covers edit/archive for current scope. |
 | Recipes & Usage | `inventory_recipes.view/create/edit/delete/manage/export` | View/export and recipe management gated | Current UI uses `manage` for create/edit/archive | Pass with note | Registry exposes granular create/edit/delete too; UI currently treats manage as operational write gate. |
 | Employees | `employees.view/create/edit/deactivate/enable_login/reset_password` | Employee access/actions use child keys | Registry and known action checks aligned | Pass | Employee role save had earlier fix; browser recheck recommended. |
 | Job Positions | `job_positions.view/create/edit/delete` | CRUD actions use child keys | Registry aligned via route mapping | Pass | Module id hyphen maps to underscore permission prefix. |

@@ -175,7 +175,7 @@ export const moduleRegistry: AppModule[] = [
   {
     id: "purchase-categories",
     section: "Purchases",
-    label: "Purchase Categories",
+    label: "Supplier Categories",
     route: "/purchases/categories",
     icon: "settings",
     sidebar: true,
@@ -328,7 +328,7 @@ export const moduleRegistry: AppModule[] = [
   {
     id: "inventory_waste",
     section: "Inventory Control",
-    label: "Waste & Variance",
+    label: "Wastage",
     route: "/inventory/waste",
     icon: "inventory-waste",
     sidebar: true,

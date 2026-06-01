@@ -247,7 +247,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
   const categoryColumns = [
     {
       key: "name",
-      header: "Purchase Category",
+      header: "Supplier Category",
       sticky: true,
       width: "42%",
       render: (row) => (
@@ -292,7 +292,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
               open={categoryActionId === row.id}
               onOpenChange={(nextOpen) => setCategoryActionId(nextOpen ? row.id : null)}
               width={224}
-              ariaLabel="Purchase category actions"
+              ariaLabel="Supplier category actions"
               trigger={({ toggle, ariaLabel }) => (
                 <button className="icon-btn" type="button" aria-label={ariaLabel} disabled={!canEditSettings} onClick={toggle}>
                   <MoreHorizontal size={15} />
@@ -397,7 +397,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
   const pageMeta = isChannels
     ? { section: "Sales", title: "Sales Channels", description: "Manage structured sales channels used by sales input, comparison and import templates." }
     : isCategories
-      ? { section: "Purchases", title: "Purchase Categories", description: "Manage purchase categories used by supplier records, purchase comparison and import templates." }
+      ? { section: "Purchases", title: "Supplier Categories", description: "Manage supplier categories used by supplier records, purchase comparison and import templates." }
       : { section: "Sales", title: "Tax Settings", description: "Manage outlet-level tax configuration history with effective dates." };
 
   useEffect(() => {
@@ -412,7 +412,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
         if (!cancelled) setCategoryUsage(usageMap);
       })
       .catch((error) => {
-        console.error("Unable to load purchase category usage", error);
+        console.error("Unable to load supplier category usage", error);
       });
     return () => {
       cancelled = true;
@@ -521,9 +521,9 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
     try {
       const saved = await purchaseCategoryService.updatePurchaseCategorySortOrder(optimistic);
       setStore((current) => ({ ...current, purchaseCategories: saved }));
-      ui.notify({ title: "Purchase category order updated", message: "Saved successfully." });
+      ui.notify({ title: "Supplier category order updated", message: "Saved successfully." });
     } catch (error) {
-      console.error("Unable to reorder purchase categories", error);
+      console.error("Unable to reorder supplier categories", error);
       setStore((current) => ({ ...current, purchaseCategories: currentOrder }));
       ui.notify({ title: "Unable to reorder categories", message: error.message, tone: "error" });
     }
@@ -531,7 +531,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
 
   async function handleCategoryStatus(row, nextActive) {
     if (!canEditPurchaseCategory) {
-      notifyPermissionDenied(ui, "edit purchase categories");
+      notifyPermissionDenied(ui, "edit supplier categories");
       return;
     }
     try {
@@ -543,16 +543,16 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
           .sort((a, b) => (a.sort_order - b.sort_order) || a.name.localeCompare(b.name)),
       }));
       setCategoryConfirm(null);
-      ui.notify({ title: nextActive ? "Purchase category reactivated" : "Purchase category deactivated", message: "Saved successfully." });
+      ui.notify({ title: nextActive ? "Supplier category reactivated" : "Supplier category deactivated", message: "Saved successfully." });
     } catch (error) {
-      console.error("Unable to update purchase category status", error);
-      ui.notify({ title: "Unable to update purchase category", message: error.message, tone: "error" });
+      console.error("Unable to update supplier category status", error);
+      ui.notify({ title: "Unable to update supplier category", message: error.message, tone: "error" });
     }
   }
 
   async function handleCategoryDelete(row) {
     if (!canDeletePurchaseCategory) {
-      notifyPermissionDenied(ui, "delete purchase categories");
+      notifyPermissionDenied(ui, "delete supplier categories");
       return;
     }
     try {
@@ -562,10 +562,10 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
         purchaseCategories: current.purchaseCategories.filter((category) => category.id !== row.id),
       }));
       setCategoryConfirm(null);
-      ui.notify({ title: "Purchase category deleted", message: "Saved successfully." });
+      ui.notify({ title: "Supplier category deleted", message: "Saved successfully." });
     } catch (error) {
-      console.error("Unable to delete purchase category", error);
-      ui.notify({ title: "Unable to delete purchase category", message: error.message, tone: "error" });
+      console.error("Unable to delete supplier category", error);
+      ui.notify({ title: "Unable to delete supplier category", message: error.message, tone: "error" });
     }
   }
 
@@ -617,7 +617,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
         <div className="card flex items-center p-2">
           <div className="flex gap-2">
             <button className={`h-10 rounded-xl px-4 text-sm font-semibold ${isChannels ? "bg-primary text-white" : "text-text-secondary hover:bg-slate-50"}`} onClick={() => setTab("channels")}>Sales Channels</button>
-            <button className={`h-10 rounded-xl px-4 text-sm font-semibold ${isCategories ? "bg-primary text-white" : "text-text-secondary hover:bg-slate-50"}`} onClick={() => setTab("categories")}>Purchase Categories</button>
+            <button className={`h-10 rounded-xl px-4 text-sm font-semibold ${isCategories ? "bg-primary text-white" : "text-text-secondary hover:bg-slate-50"}`} onClick={() => setTab("categories")}>Supplier Categories</button>
             <button className={`h-10 rounded-xl px-4 text-sm font-semibold ${isTax ? "bg-primary text-white" : "text-text-secondary hover:bg-slate-50"}`} onClick={() => setTab("tax")}>Tax Settings</button>
           </div>
         </div>
@@ -664,7 +664,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
         </>
       ) : null}
       <Card
-        title={isChannels ? "Sales Channels" : isCategories ? "Purchase Categories" : "SST Configuration History"}
+        title={isChannels ? "Sales Channels" : isCategories ? "Supplier Categories" : "SST Configuration History"}
         description={isTax ? "Effective-date based tax history prevents future changes from rewriting historical months." : isCategories ? "Drag rows to set category order. Supplier counts and delete protection use current purchase data." : "Structured master data powers future dashboards and imports."}
         action={isTax ? (
           <SelectField
@@ -691,7 +691,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
             </button>
           </div>
         ) : isCategories && !rows.length ? (
-          <div className="p-6 text-sm font-semibold text-text-secondary">No purchase categories found.</div>
+          <div className="p-6 text-sm font-semibold text-text-secondary">No supplier categories found.</div>
         ) : (
           <DataTable
             columns={isTax ? taxColumns : isCategories ? categoryColumns : masterColumns}
@@ -757,7 +757,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
 
       {modal ? (
         <EntityModal
-          title={`${modal.mode === "add" ? "Add" : "Edit"} ${isChannels ? "Sales Channel" : "Purchase Category"}`}
+          title={`${modal.mode === "add" ? "Add" : "Edit"} ${isChannels ? "Sales Channel" : "Supplier Category"}`}
           fields={fields}
           initialValues={modal.row ?? { name: "", type: "channel", sort_order: rows.length + 1, status: "active" }}
           onClose={() => setModal(null)}
@@ -767,7 +767,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
 
       {categoryConfirm ? (
         <Modal
-          title={categoryConfirm.type === "delete" ? "Delete purchase category?" : `${categoryConfirm.nextActive ? "Reactivate" : "Deactivate"} ${categoryConfirm.row.name}?`}
+          title={categoryConfirm.type === "delete" ? "Delete supplier category?" : `${categoryConfirm.nextActive ? "Reactivate" : "Deactivate"} ${categoryConfirm.row.name}?`}
           description={
             categoryConfirm.type === "delete"
               ? "This permanently removes the category. This is only allowed when it has no linked suppliers or purchase records."
@@ -803,7 +803,7 @@ export default function SettingsPage({ store, setStore, ui, auth, initialTab = "
       {categorySuppliers ? (
         <Modal
           title={`${categorySuppliers.row.name} suppliers`}
-          description="Suppliers linked to this purchase category."
+          description="Suppliers linked to this supplier category."
           onClose={() => setCategorySuppliers(null)}
           footer={<button className="btn-secondary" type="button" onClick={() => setCategorySuppliers(null)}>Close</button>}
         >
