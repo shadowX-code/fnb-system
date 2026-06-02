@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { ArrowRight, CheckCircle2, Eye, EyeOff, KeyRound, Lock, ShieldCheck } from "lucide-react";
 import { useAuth } from "./AuthContext.jsx";
-import { AuthBrandPanel, FeedXLogo, ParticleField } from "./LoginPage.jsx";
+import { AuthBrandPanel, HolographicRing, ParticleField } from "./LoginPage.jsx";
 
 export default function SetNewPasswordPage() {
   const auth = useAuth();
@@ -58,21 +58,18 @@ export default function SetNewPasswordPage() {
 
       <div className="feedx-login-grid">
         <AuthBrandPanel />
+        <HolographicRing />
 
         <section className="feedx-auth-panel">
           <div className="feedx-auth-card">
-            <div className="feedx-auth-card-logo mb-8">
-              <FeedXLogo />
-            </div>
-
             <div>
-              <div className="text-xs font-black uppercase tracking-[0.2em] text-emerald-700/70">
+              <div className="feedx-auth-eyebrow">
                 {isRecovery ? "Password Reset" : "Secure Account Setup"}
               </div>
-              <h2 className="mt-3 text-3xl font-black tracking-tight text-slate-950">
+              <h2 className="feedx-auth-title mt-3">
                 {isRecovery ? "Reset your password" : "Create your password"}
               </h2>
-              <p className="mt-2 text-sm font-medium text-slate-500">
+              <p className="feedx-auth-subtitle">
                 {isRecovery
                   ? "Choose a new password before returning to your FeedX workspace."
                   : "Create your password to activate secure access to FeedX."}
@@ -81,9 +78,9 @@ export default function SetNewPasswordPage() {
 
             <form className="mt-8 space-y-5" onSubmit={handleSubmit}>
               <label className="block">
-                <span className="text-xs font-bold text-slate-700">New password</span>
+                <span className="feedx-auth-label">New password</span>
                 <div className="feedx-login-input-wrap mt-2">
-                  <Lock className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-emerald-700/45" size={17} />
+                  <Lock className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-emerald-200/55" size={17} />
                   <input
                     className="feedx-login-input px-11"
                     type={showPassword ? "text" : "password"}
@@ -94,7 +91,7 @@ export default function SetNewPasswordPage() {
                     required
                   />
                   <button
-                    className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-xl text-slate-400 transition hover:bg-emerald-50 hover:text-emerald-700"
+                    className="feedx-password-toggle"
                     type="button"
                     onClick={() => setShowPassword((current) => !current)}
                     aria-label={showPassword ? "Hide password" : "Show password"}
@@ -105,9 +102,9 @@ export default function SetNewPasswordPage() {
               </label>
 
               <label className="block">
-                <span className="text-xs font-bold text-slate-700">Confirm password</span>
+                <span className="feedx-auth-label">Confirm password</span>
                 <div className="feedx-login-input-wrap mt-2">
-                  <KeyRound className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-emerald-700/45" size={17} />
+                  <KeyRound className="pointer-events-none absolute left-4 top-1/2 -translate-y-1/2 text-emerald-200/55" size={17} />
                   <input
                     className="feedx-login-input px-11"
                     type={showConfirmPassword ? "text" : "password"}
@@ -118,7 +115,7 @@ export default function SetNewPasswordPage() {
                     required
                   />
                   <button
-                    className="absolute right-3 top-1/2 flex h-8 w-8 -translate-y-1/2 items-center justify-center rounded-xl text-slate-400 transition hover:bg-emerald-50 hover:text-emerald-700"
+                    className="feedx-password-toggle"
                     type="button"
                     onClick={() => setShowConfirmPassword((current) => !current)}
                     aria-label={showConfirmPassword ? "Hide password" : "Show password"}
@@ -128,9 +125,9 @@ export default function SetNewPasswordPage() {
                 </div>
               </label>
 
-              {error ? <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{error}</div> : null}
+              {error ? <div className="feedx-auth-alert feedx-auth-alert-error">{error}</div> : null}
               {message ? (
-                <div className="flex items-center gap-2 rounded-2xl border border-emerald-200 bg-emerald-50 px-4 py-3 text-sm font-semibold text-emerald-700">
+                <div className="feedx-auth-alert feedx-auth-alert-success flex items-center gap-2">
                   <CheckCircle2 size={16} /> {message}
                 </div>
               ) : null}
@@ -139,13 +136,13 @@ export default function SetNewPasswordPage() {
                 <span>{isSubmitting ? "Saving password..." : isRecovery ? "Reset password" : "Save password"}</span>
                 <ArrowRight className="transition group-hover:translate-x-1" size={18} />
               </button>
-              <button className="w-full rounded-2xl px-3 py-2 text-sm font-bold text-slate-500 transition hover:bg-slate-50 hover:text-slate-800" type="button" onClick={handleCancel} disabled={isSubmitting}>
+              <button className="feedx-cancel-button" type="button" onClick={handleCancel} disabled={isSubmitting}>
                 Cancel and return to login
               </button>
             </form>
 
-            <div className="mt-7 flex items-center gap-2 rounded-2xl border border-emerald-100 bg-emerald-50/80 px-4 py-3 text-xs font-semibold text-slate-600">
-              <ShieldCheck size={16} className="text-emerald-600" />
+            <div className="feedx-security-note">
+              <ShieldCheck size={16} />
               Password updates are protected by Supabase Auth
             </div>
           </div>

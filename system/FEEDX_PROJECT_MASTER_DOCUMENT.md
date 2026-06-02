@@ -2999,7 +2999,8 @@ Rules:
 - Successful password setup changes state to active and writes `employees.setup_completed_at`.
 - Setup password links must redirect to `/setup-password`. They may create a temporary Supabase invite/recovery session, but that session must not enter the FeedX app while `access_state` is `not_sent` or `invited`. The auth guard must allow only the setup-password route until `supabase.auth.updateUser({ password })` and the `complete_employee_password_setup()` RPC both succeed.
 - Disabled access changes state to disabled.
-- Login, Forgot Password, Setup Password, and Reset Password share the FeedX auth visual system: desktop uses a split layout with a dark green brand/intelligence panel and a clean white auth card; mobile uses a compact dark green brand header, avoids duplicate logo treatment inside the card, and keeps the form visible without excessive scrolling.
+- Login, Forgot Password, Setup Password, and Reset Password share the FeedX auth visual system: desktop uses a minimal dark futuristic layout with a left brand/intelligence panel, a central CSS holographic ring operations portal, and a right dark glassmorphism auth card. Mobile uses a compact brand header and keeps the form visible without excessive scrolling; the holographic visual may be hidden on small screens.
+- Auth pages must not show dashboard mockups, bottom customer logo bars, duplicated logos inside the auth card, unsupported SSO buttons, or floating feature-module cards around the central visual.
 - Auth pages must not show unsupported social login actions. Forgot/reset/setup flows keep the existing Supabase auth logic and only change visual presentation unless explicitly scoped otherwise.
 - Employee workplace must be either a real outlet assignment or `Management`; it must never be `All Outlets`.
 - `Management` is an HQ/management workplace label, not an outlet. It is stored as `employees.workplace = 'Management'` until the future `employees.outlet_id` migration, has no outlet id, and remains separate from role outlet access.
@@ -4618,13 +4619,28 @@ Release governance documents:
 - `FEEDX_RELEASE_CANDIDATE_REPORT.md`
 - `FEEDX_GO_LIVE_CHECKLIST.md`
 
-Production cutover branch/environment rule:
+FeedX development policy:
 
-- GitHub `main` is Production and GitHub `dev` is Staging.
-- Vercel `fnb-system` must deploy from `main` and must point only to Production Supabase `fnb-system`.
-- Vercel `fnb-system-staging` must deploy from `dev` and must point only to Staging Supabase `fnb-system-staging`.
+- Production:
+  - Git branch: `main`
+  - Vercel project: `fnb-system`
+  - Supabase project: `fnb-system`
+- Staging:
+  - Git branch: `dev`
+  - Vercel project: `fnb-system-staging`
+  - Supabase project: `fnb-system-staging`
+- All development happens on `dev`.
+- Never develop directly on `main`.
+- Never modify Production Supabase directly unless the operator explicitly approves that production action.
+- All schema changes must be migration-based.
+- Before merge, run:
+  - `npm run build`
+  - `git diff --check`
+- Before production release, update this master document.
+- After approval, merge `dev` into `main`.
+- Production deploys only from `main`.
 - Production schema promotion applies migrations to the Production Supabase project only; staging test data must never be copied into Production.
-- Supabase CLI must be explicitly linked to the Production Supabase project before any production `supabase db push --linked`.
+- Supabase CLI must be explicitly linked to the intended Supabase project before any environment-specific command.
 
 Implemented production-scope decisions documented as current:
 
