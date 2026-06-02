@@ -628,6 +628,46 @@
     color: #86efac;
   }
 
+  .feedx-home-logo {
+    position: relative;
+    width: clamp(11.25rem, 13vw, 13.75rem);
+    height: clamp(3.9rem, 4.7vw, 4.8rem);
+    overflow: hidden;
+    border-radius: 0.5rem;
+    isolation: isolate;
+  }
+
+  .feedx-home-logo img {
+    position: absolute;
+    left: 50%;
+    top: 50%;
+    display: block;
+    width: 200%;
+    height: auto;
+    max-width: none;
+    transform: translate(-50%, -49%);
+    object-fit: contain;
+    user-select: none;
+  }
+
+  .feedx-hero-title {
+    margin-top: 1.75rem;
+    color: white;
+    font-size: clamp(4rem, 4.3vw, 4.5rem);
+    font-weight: 700;
+    letter-spacing: -0.055em;
+    line-height: 0.96;
+  }
+
+  .feedx-hero-description {
+    margin-top: 1.55rem;
+    max-width: 33rem;
+    color: rgb(203 213 225 / 0.82);
+    font-size: 1.125rem;
+    font-weight: 450;
+    line-height: 1.6;
+  }
+
   .feedx-auth-title {
     color: #f8fafc;
     font-size: clamp(1.85rem, 2.4vw, 2.45rem);
@@ -847,7 +887,7 @@
     position: relative;
     z-index: 2;
     display: grid;
-    min-height: min(68vh, 42rem);
+    min-height: min(88vh, 58rem);
     place-items: center;
     isolation: isolate;
     overflow: visible;
@@ -864,30 +904,38 @@
   }
 
   .feedx-hologram::before {
-    width: clamp(34rem, 42vw, 45rem);
-    height: clamp(34rem, 42vw, 45rem);
-    background:
-      radial-gradient(circle, rgba(187, 247, 208, 0.2), transparent 38%),
-      radial-gradient(circle, rgba(34, 197, 94, 0.17), transparent 68%);
-    filter: blur(24px);
-    opacity: 0.88;
+    display: none;
   }
 
   .feedx-hologram::after {
     bottom: 11%;
-    width: clamp(21rem, 31vw, 30rem);
-    height: 6.5rem;
+    width: clamp(58rem, 80vw, 88rem);
+    height: 15rem;
     background:
-      radial-gradient(ellipse at center, rgba(187, 247, 208, 0.48), rgba(34, 197, 94, 0.16) 36%, transparent 72%);
-    filter: blur(9px);
+      radial-gradient(ellipse at center, rgba(187, 247, 208, 0.18), rgba(34, 197, 94, 0.08) 38%, transparent 72%);
+    filter: blur(20px);
     transform: perspective(620px) rotateX(66deg);
-    opacity: 0.82;
+    opacity: 0.42;
+    animation: feedxBeamPulse 6.5s ease-in-out infinite;
+  }
+
+  .feedx-hologram-core-glow {
+    position: absolute;
+    z-index: 4;
+    width: clamp(13rem, 15vw, 18rem);
+    height: clamp(2rem, 3vw, 3.5rem);
+    border-radius: 999px;
+    background: radial-gradient(ellipse at center, rgba(187, 247, 208, 0.16), rgba(34, 197, 94, 0.08) 45%, transparent 76%);
+    filter: blur(16px);
+    mix-blend-mode: screen;
+    opacity: 0.2;
+    animation: feedxCorePulse 4.8s ease-in-out infinite;
   }
 
   .feedx-hologram-art-wrap {
     position: absolute;
     z-index: 2;
-    width: clamp(35rem, 42vw, 47.5rem);
+    width: clamp(92rem, 108vw, 112.5rem);
     max-width: none;
     aspect-ratio: 16 / 10;
     transform: translateX(0);
@@ -900,9 +948,9 @@
     position: absolute;
     inset: 5% 16% 6% 7%;
     border-radius: 999px;
-    background: radial-gradient(circle, rgba(134, 239, 172, 0.26), transparent 62%);
-    filter: blur(36px);
-    opacity: 0.76;
+    background: radial-gradient(circle, rgba(134, 239, 172, 0.08), transparent 68%);
+    filter: blur(82px);
+    opacity: 0.16;
   }
 
   .feedx-hologram-art {
@@ -928,11 +976,37 @@
       radial-gradient(circle at 42% 52%, #000 0 45%, rgba(0, 0, 0, 0.86) 56%, rgba(0, 0, 0, 0.18) 66%, transparent 75%);
   }
 
+  .feedx-hologram-scan {
+    position: absolute;
+    z-index: 5;
+    width: clamp(45rem, 50vw, 53rem);
+    height: clamp(28rem, 32vw, 34rem);
+    overflow: hidden;
+    border-radius: 999px;
+    pointer-events: none;
+    opacity: 0.12;
+    mix-blend-mode: screen;
+    -webkit-mask-image: radial-gradient(circle at 50% 50%, #000 0 56%, transparent 73%);
+    mask-image: radial-gradient(circle at 50% 50%, #000 0 56%, transparent 73%);
+  }
+
+  .feedx-hologram-scan::before {
+    content: "";
+    position: absolute;
+    left: -18%;
+    right: -18%;
+    top: -24%;
+    height: 18%;
+    background: linear-gradient(180deg, transparent, rgba(187, 247, 208, 0.18), transparent);
+    filter: blur(7px);
+    animation: feedxScanSweep 12s ease-in-out infinite;
+  }
+
   .feedx-hologram-particles {
     position: absolute;
     z-index: 3;
-    width: clamp(35rem, 42vw, 47.5rem);
-    height: clamp(22rem, 26vw, 27rem);
+    width: clamp(92rem, 108vw, 112.5rem);
+    height: clamp(58rem, 68vw, 70rem);
     pointer-events: none;
     opacity: 0.72;
   }
@@ -1192,7 +1266,7 @@
   .feedx-feature-title {
     color: white;
     font-size: 1rem;
-    font-weight: 900;
+    font-weight: 700;
   }
 
   .feedx-feature-text {
@@ -1425,6 +1499,23 @@
   50% { transform: translate3d(10px, -14px, 0) scale(1); }
 }
 
+@keyframes feedxCorePulse {
+  0%, 100% { opacity: 0.12; transform: scale(0.98); }
+  50% { opacity: 0.22; transform: scale(1.02); }
+}
+
+@keyframes feedxBeamPulse {
+  0%, 100% { opacity: 0.2; transform: perspective(620px) rotateX(66deg) scaleX(0.98); }
+  50% { opacity: 0.34; transform: perspective(620px) rotateX(66deg) scaleX(1.02); }
+}
+
+@keyframes feedxScanSweep {
+  0% { transform: translateY(-60%) rotate(-8deg); opacity: 0; }
+  20% { opacity: 0.48; }
+  64% { opacity: 0.28; }
+  100% { transform: translateY(660%) rotate(-8deg); opacity: 0; }
+}
+
 @media (max-width: 1023px) {
   .feedx-login-grid {
     min-height: 100vh;
@@ -1500,13 +1591,18 @@
     font-size: 0.78rem;
   }
 
-  .feedx-brand-panel h1 {
+  .feedx-home-logo {
+    width: clamp(8.75rem, 44vw, 10.625rem);
+    height: clamp(3.05rem, 15vw, 3.7rem);
+  }
+
+  .feedx-hero-title {
     margin-top: 0.72rem !important;
     font-size: 1.62rem !important;
     line-height: 1.02 !important;
   }
 
-  .feedx-brand-panel p {
+  .feedx-hero-description {
     margin-top: 0.55rem !important;
     max-width: 21rem;
     font-size: 0.8rem !important;
@@ -1600,6 +1696,9 @@
 @media (prefers-reduced-motion: reduce) {
   .feedx-brand-panel::before,
   .feedx-dashboard-visual,
+  .feedx-hologram-core-glow,
+  .feedx-hologram-scan::before,
+  .feedx-hologram::after,
   .feedx-hologram-art-wrap,
   .feedx-hologram-particles span,
   .feedx-light-trail,

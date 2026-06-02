@@ -61,6 +61,7 @@ export function ParticleField() {
 export function HolographicRing() {
   return (
     <div className="feedx-hologram" aria-hidden="true">
+      <div className="feedx-hologram-core-glow" />
       <div className="feedx-hologram-art-wrap">
         <img
           src="/holographic-ring.webp"
@@ -69,6 +70,7 @@ export function HolographicRing() {
           draggable="false"
         />
       </div>
+      <div className="feedx-hologram-scan" />
       <div className="feedx-hologram-particles">
         {Array.from({ length: 18 }, (_, index) => <span key={index} style={{ "--index": index }} />)}
       </div>
@@ -79,13 +81,15 @@ export function HolographicRing() {
 export function AuthBrandPanel() {
   return (
     <section className="feedx-brand-panel">
-      <FeedXLogo size="xl" />
+      <div className="feedx-home-logo" aria-label="FeedX F&B Intelligence">
+        <img src="/design-homepage/logo.png" alt="FeedX F&B Intelligence" draggable="false" />
+      </div>
       <div className="max-w-xl">
-        <h1 className="mt-7 text-[clamp(44px,5vw,76px)] font-black leading-[0.94] tracking-tight text-white">
+        <h1 className="feedx-hero-title">
           Smart Operations.
           <span className="mt-2 block bg-gradient-to-r from-emerald-200 via-lime-100 to-white bg-clip-text text-transparent">Stronger Business.</span>
         </h1>
-        <p className="mt-6 max-w-lg text-base leading-7 text-slate-300">
+        <p className="feedx-hero-description">
           All your F&amp;B operations, analytics and insights in one intelligent workspace.
         </p>
       </div>

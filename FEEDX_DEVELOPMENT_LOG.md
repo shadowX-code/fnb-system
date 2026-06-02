@@ -67,6 +67,12 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Removed dashboard mockup, bottom logo bar, duplicate auth-card logo, and unsupported SSO-style visual clutter.
 - Refined the auth hero visual to use `public/holographic-ring.webp` as the central image asset with green glow, dark edge masking, reduced red/magenta artifacts, and subtle particle/pulse motion.
 - Fixed holographic asset integration so the hero visual blends as a light layer instead of rendering as a rectangular image block.
+- Adjusted login layout hierarchy so hero copy is lighter and the holographic ring becomes the primary visual focal point.
+- Enlarged the login holographic visual to better match the reference image proportion.
+- Doubled the login holographic visual scale for a stronger command-center focal point.
+- Landing login page refined with final holographic motion and updated brand logo asset.
+- Cleaned up login holographic motion layers to remove heavy filled glow disks and keep only lightweight orbit, scan, beam, and particle effects.
+- Removed fan/turbine-like rotating holographic layers so the login portal reads as a mostly static premium asset with subtle life.
 
 ### UI
 - Replaced the sidebar brand icon with the new `public/logo-icon.jpg` asset while preserving FeedX wordmark, subtitle, spacing, and layout.
