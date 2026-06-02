@@ -4659,9 +4659,16 @@ FeedX documentation policy:
 
 Required documentation after development:
 
-- Every completed feature/change updates `FEEDX_DEVELOPMENT_LOG.md`.
-- Business logic changes update `FEEDX_PROJECT_MASTER_DOCUMENT.md`.
-- Production merges/releases create or update the matching release note under `docs/releases/`.
+- Every completed development task must update `FEEDX_DEVELOPMENT_LOG.md`.
+  - Required fields: Date, Module, Summary of changes, Notes.
+  - Applies to UI changes, bug fixes, new features, auth changes, schema changes, and production operations changes.
+- Business logic changes must update `FEEDX_PROJECT_MASTER_DOCUMENT.md`.
+- Production merges/releases must create or update the matching release note under `docs/releases/`.
+- Before reporting task completion, documentation updates must be confirmed.
+- A feature/change is not complete until:
+  - code is updated,
+  - build is verified when applicable,
+  - documentation is updated.
 
 Implemented production-scope decisions documented as current:
 
