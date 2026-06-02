@@ -61,19 +61,16 @@ export function ParticleField() {
 export function HolographicRing() {
   return (
     <div className="feedx-hologram" aria-hidden="true">
+      <div className="feedx-hologram-art-wrap">
+        <img
+          src="/design-homepage/holographic-ring.webp"
+          alt=""
+          className="feedx-hologram-art"
+          draggable="false"
+        />
+      </div>
       <div className="feedx-hologram-orbit feedx-hologram-orbit-a" />
       <div className="feedx-hologram-orbit feedx-hologram-orbit-b" />
-      <div className="feedx-hologram-orbit feedx-hologram-orbit-c" />
-      <div className="feedx-hologram-ring">
-        {Array.from({ length: 24 }, (_, index) => <span key={index} style={{ "--index": index }} />)}
-      </div>
-      <div className="feedx-hologram-core">
-        <span>F</span>
-        <span>E</span>
-        <span>E</span>
-        <span>D</span>
-        <span>X</span>
-      </div>
       <svg className="feedx-hologram-lines" viewBox="0 0 620 620">
         <defs>
           <radialGradient id="feedx-holo-dot" cx="50%" cy="50%" r="50%">
@@ -91,7 +88,6 @@ export function HolographicRing() {
           return <circle key={`dot-${index}`} className="feedx-holo-node" cx={x} cy={y} r={index % 4 === 0 ? 5 : 3} />;
         })}
       </svg>
-      <div className="feedx-hologram-base" />
     </div>
   );
 }
@@ -166,7 +162,7 @@ export default function LoginPage() {
         <section className="feedx-auth-panel">
           <div className="feedx-auth-card">
             <div>
-              <h2 className="feedx-auth-title">Access Your Operations Center</h2>
+              <h2 className="feedx-auth-title">Access Your <span>Operations Center</span></h2>
               <p className="feedx-auth-subtitle">Sign in to continue to FeedX</p>
             </div>
 
