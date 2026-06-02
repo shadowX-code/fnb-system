@@ -77,3 +77,7 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 
 ### UI
 - Replaced the sidebar brand icon with the new `public/logo-icon.jpg` asset while preserving FeedX wordmark, subtitle, spacing, and layout.
+
+### Inventory Control
+- Fixed fresh Production empty-state handling so fetched UOMs and categories remain visible even when inventory items and stock check groups are empty.
+- Added a friendly duplicate UOM code error message for Supabase `inventory_uoms_code_key` conflicts.

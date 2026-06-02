@@ -1809,6 +1809,16 @@ async function persistRemoteInventoryUom(uom) {
   return mapRemoteUom(result.data);
 }
 
+function isDuplicateUomCodeError(error) {
+  const message = String(error?.message || error?.details || "");
+  return error?.code === "23505" || message.includes("inventory_uoms_code_key");
+}
+
+function uomSaveErrorMessage(error) {
+  if (isDuplicateUomCodeError(error)) return "UOM code already exists. Please use another code.";
+  return error?.message || "Please try again.";
+}
+
 async function countRemoteInventoryItemsForUom(code) {
   const rawCode = String(code || "").trim();
   if (!rawCode) return 0;
@@ -2947,8 +2957,13 @@ function useInventoryData(outlets, suppliers) {
   useEffect(() => {
     if (!outlets.length) return;
     setData((current) => {
-      if (current.items?.length || current.groups?.length) return normalizeInventoryData(current, outlets, suppliers, { allowEmptyMaster: true });
-      return normalizeInventoryData({ categories: [], items: [], uoms: [] }, outlets, suppliers, { allowEmptyMaster: true });
+      return normalizeInventoryData({
+        ...current,
+        categories: current.categories ?? [],
+        items: current.items ?? [],
+        uoms: current.uoms ?? [],
+        groups: current.groups ?? [],
+      }, outlets, suppliers, { allowEmptyMaster: true });
     });
   }, [outlets, suppliers, meta.dataSource]);
 
@@ -6959,8 +6974,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     } catch (error) {
       console.warn("[InventoryControl] Unable to save UOM.", error);
       debugLog("[UomSaveDebug]", { action: isUuid(normalized.id) ? "update" : "create", payload: normalized, result: null, error });
-      setUomWriteStatus(`Failed: ${error.message || "Unable to save"}`);
-      notify("Unable to save UOM", error.message || "Please try again.", "error");
+      const message = uomSaveErrorMessage(error);
+      setUomWriteStatus(`Failed: ${message}`);
+      notify("Unable to save UOM", message, "error");
       return null;
     }
   }
@@ -6990,8 +7006,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     } catch (error) {
       console.warn("[InventoryControl] Unable to save quick UOM.", error);
       debugLog("[UomSaveDebug]", { action: "create", payload: normalized, result: null, error });
-      setUomWriteStatus(`Failed: ${error.message || "Unable to save"}`);
-      notify("Unable to save UOM", error.message || "Please try again.", "error");
+      const message = uomSaveErrorMessage(error);
+      setUomWriteStatus(`Failed: ${message}`);
+      notify("Unable to save UOM", message, "error");
       return null;
     }
   }
