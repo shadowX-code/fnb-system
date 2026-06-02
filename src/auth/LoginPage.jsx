@@ -63,31 +63,15 @@ export function HolographicRing() {
     <div className="feedx-hologram" aria-hidden="true">
       <div className="feedx-hologram-art-wrap">
         <img
-          src="/design-homepage/holographic-ring.webp"
+          src="/holographic-ring.webp"
           alt=""
           className="feedx-hologram-art"
           draggable="false"
         />
       </div>
-      <div className="feedx-hologram-orbit feedx-hologram-orbit-a" />
-      <div className="feedx-hologram-orbit feedx-hologram-orbit-b" />
-      <svg className="feedx-hologram-lines" viewBox="0 0 620 620">
-        <defs>
-          <radialGradient id="feedx-holo-dot" cx="50%" cy="50%" r="50%">
-            <stop offset="0" stopColor="#bbf7d0" stopOpacity="1" />
-            <stop offset="1" stopColor="#22c55e" stopOpacity="0" />
-          </radialGradient>
-        </defs>
-        {Array.from({ length: 9 }, (_, index) => (
-          <circle key={index} cx="310" cy="310" r={92 + index * 28} />
-        ))}
-        {Array.from({ length: 16 }, (_, index) => {
-          const angle = (Math.PI * 2 * index) / 16;
-          const x = 310 + Math.cos(angle) * (165 + (index % 3) * 38);
-          const y = 310 + Math.sin(angle) * (165 + (index % 3) * 38);
-          return <circle key={`dot-${index}`} className="feedx-holo-node" cx={x} cy={y} r={index % 4 === 0 ? 5 : 3} />;
-        })}
-      </svg>
+      <div className="feedx-hologram-particles">
+        {Array.from({ length: 18 }, (_, index) => <span key={index} style={{ "--index": index }} />)}
+      </div>
     </div>
   );
 }
