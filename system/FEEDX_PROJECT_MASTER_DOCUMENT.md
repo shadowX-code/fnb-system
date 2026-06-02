@@ -4618,8 +4618,10 @@ Release governance documents:
 - `FEEDX_PRODUCTION_UAT_CHECKLIST.md`
 - `FEEDX_RELEASE_CANDIDATE_REPORT.md`
 - `FEEDX_GO_LIVE_CHECKLIST.md`
+- `FEEDX_DEVELOPMENT_LOG.md`
+- `docs/releases/`
 
-FeedX development policy:
+FeedX production operations development governance:
 
 - Production:
   - Git branch: `main`
@@ -4629,18 +4631,37 @@ FeedX development policy:
   - Git branch: `dev`
   - Vercel project: `fnb-system-staging`
   - Supabase project: `fnb-system-staging`
-- All development happens on `dev`.
+- All development, fixes, UI work, schema work, and testing happen on `dev`.
 - Never develop directly on `main`.
 - Never modify Production Supabase directly unless the operator explicitly approves that production action.
 - All schema changes must be migration-based.
 - Before merge, run:
   - `npm run build`
   - `git diff --check`
-- Before production release, update this master document.
-- After approval, merge `dev` into `main`.
+- Update required documentation before merge.
+- Production releases move `dev` to `main` only after approval.
 - Production deploys only from `main`.
 - Production schema promotion applies migrations to the Production Supabase project only; staging test data must never be copied into Production.
 - Supabase CLI must be explicitly linked to the intended Supabase project before any environment-specific command.
+
+FeedX documentation policy:
+
+- Layer 1: `FEEDX_PROJECT_MASTER_DOCUMENT.md`
+  - Source of truth for final business logic, architecture decisions, permissions, workflows, system rules, and production architecture.
+  - Do not use as a daily change log.
+- Layer 2: `FEEDX_DEVELOPMENT_LOG.md`
+  - Concise development history.
+  - Update after every meaningful completed development session.
+  - Format: Date, Module, Changes, Notes.
+- Layer 3: `docs/releases/`
+  - One release note file per production release that reaches `main`/Production.
+  - Format: Version, Date, Changes, Migration Impact, Deployment Notes.
+
+Required documentation after development:
+
+- Every completed feature/change updates `FEEDX_DEVELOPMENT_LOG.md`.
+- Business logic changes update `FEEDX_PROJECT_MASTER_DOCUMENT.md`.
+- Production merges/releases create or update the matching release note under `docs/releases/`.
 
 Implemented production-scope decisions documented as current:
 

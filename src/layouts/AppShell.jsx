@@ -1212,8 +1212,13 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
   const sidebarContent = (isMobile = false) => (
     <>
       <div className="flex h-14 items-center gap-2.5 px-4">
-        <div className="flex h-8 w-8 items-center justify-center rounded-xl bg-primary text-white shadow-sm">
-          <BarChart3 size={16} />
+        <div className="flex h-8 w-8 items-center justify-center overflow-hidden rounded-xl bg-primary text-white shadow-sm">
+          <img
+            src="/logo-icon.jpg"
+            alt=""
+            aria-hidden="true"
+            className="h-full w-full object-cover"
+          />
         </div>
         <div className="min-w-0">
           <div className="type-body-sm font-bold text-text-primary">FeedX</div>
