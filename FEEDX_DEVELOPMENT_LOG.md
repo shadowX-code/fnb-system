@@ -66,6 +66,7 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Refreshed public login/setup/reset visual system with dark futuristic Holographic Ring direction.
 - Removed dashboard mockup, bottom logo bar, duplicate auth-card logo, and unsupported SSO-style visual clutter.
 - Refined the auth hero visual to use `public/holographic-ring.webp` as the central image asset with green glow, dark edge masking, reduced red/magenta artifacts, and subtle particle/pulse motion.
+- Fixed holographic asset integration so the hero visual blends as a light layer instead of rendering as a rectangular image block.
 
 ### UI
 - Replaced the sidebar brand icon with the new `public/logo-icon.jpg` asset while preserving FeedX wordmark, subtitle, spacing, and layout.
