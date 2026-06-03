@@ -49,6 +49,12 @@ const productColumnLabels = {
 
 const requiredProductFields = ["productName", "quantity", "nettSales"];
 
+function previousCompletedProductPeriod(referenceDate = new Date()) {
+  const monthIndex = referenceDate.getMonth();
+  if (monthIndex === 0) return { month: 12, year: referenceDate.getFullYear() - 1 };
+  return { month: monthIndex, year: referenceDate.getFullYear() };
+}
+
 function canonical(value) {
   return String(value ?? "").trim().toLowerCase().replace(/&/g, "and").replace(/[^a-z0-9]+/g, "");
 }
@@ -701,9 +707,10 @@ function PerformanceMatrix({ products, total, categoryFilter, onCategoryFilter, 
 export default function ProductAnalyticsPage({ store, ui, auth }) {
   const inputRef = useRef(null);
   const activeOutlets = useMemo(() => store.outlets.filter((outlet) => outlet.status === "active"), [store.outlets]);
+  const defaultPeriod = useMemo(() => previousCompletedProductPeriod(), []);
   const [outletId, setOutletId] = useState("all");
-  const [month, setMonth] = useState(new Date().getMonth() + 1);
-  const [year, setYear] = useState(new Date().getFullYear());
+  const [month, setMonth] = useState(defaultPeriod.month);
+  const [year, setYear] = useState(defaultPeriod.year);
   const [compareMode, setCompareMode] = useState("previous");
   const [reports, setReports] = useState([]);
   const [items, setItems] = useState([]);

@@ -500,7 +500,7 @@ function stockCheckItemsForGroup(group = {}, items = []) {
   if (group.stockCheckType === "audit" && selectedItemIds.length) {
     const selected = new Set(selectedItemIds);
     return items
-      .filter((item) => item.status === "active")
+      .filter(isActiveInventoryItem)
       .filter((item) => selected.has(item.id))
       .filter((item) => itemHasActiveOutletLink(item, group.outletId))
       .sort((a, b) => a.name.localeCompare(b.name));
@@ -508,7 +508,7 @@ function stockCheckItemsForGroup(group = {}, items = []) {
   const selectedCategories = new Set(groupCategoryIds(group, items));
   if (!selectedCategories.size) return [];
   return items
-    .filter((item) => item.status === "active")
+    .filter(isActiveInventoryItem)
     .filter((item) => selectedCategories.has(item.categoryId))
     .filter((item) => itemHasActiveOutletLink(item, group.outletId))
     .sort((a, b) => a.name.localeCompare(b.name));
@@ -849,7 +849,10 @@ function normalizeInventoryItem(item = {}) {
   const rawCost = item.cost ?? item.defaultCost ?? item.default_cost ?? "";
   const cost = rawCost === "" || rawCost === null || rawCost === undefined ? "" : Number(rawCost);
   const description = item.description ?? "";
-  const status = String(item.status ?? "active").toLowerCase();
+  const rawActiveFlag = item.isActive ?? item.is_active;
+  const rawStatus = String(item.status ?? "").toLowerCase();
+  const status = rawActiveFlag === false ? "inactive" : rawStatus || "active";
+  const isActive = rawActiveFlag ?? status !== "inactive";
   const createdAt = item.createdAt ?? item.created_at ?? "";
   const updatedAt = item.updatedAt ?? item.updated_at ?? "";
   return {
@@ -876,6 +879,8 @@ function normalizeInventoryItem(item = {}) {
     costUpdatedBy: item.costUpdatedBy ?? item.cost_updated_by ?? "",
     cost_updated_by: item.costUpdatedBy ?? item.cost_updated_by ?? "",
     status,
+    isActive,
+    is_active: isActive,
     photo: photoUrl,
     photo_url: photoUrl,
     linkedOutlets,
@@ -888,6 +893,12 @@ function normalizeInventoryItem(item = {}) {
     updatedAt,
     updated_at: updatedAt,
   };
+}
+
+function isActiveInventoryItem(item = {}) {
+  const normalized = normalizeInventoryItem(item);
+  const status = String(normalized.status || "active").toLowerCase();
+  return normalized.isActive !== false && !["inactive", "archived", "deleted"].includes(status);
 }
 
 function normalizeUom(uom = {}) {
@@ -1444,7 +1455,7 @@ async function loadRemoteInventoryMaster() {
   });
   const itemRows = itemsResult.data || [];
   const normalizedItems = itemRows.map((item) => mapRemoteInventoryItem(item, configsByItem.get(item.id) || [], categoryById, supplierIdsByConfigId));
-  const activeItems = normalizedItems.filter((item) => String(item.status || "").toLowerCase() === "active");
+  const activeItems = normalizedItems.filter(isActiveInventoryItem);
   const categoryIdsByGroupId = new Map();
   (stockGroupCategoriesResult.data || []).forEach((link) => {
     const list = categoryIdsByGroupId.get(link.group_id) || [];
@@ -4306,7 +4317,7 @@ function GroupModal({ group, outletId, outlets, items, categories, onClose, onSa
   const categoryCounts = useMemo(() => {
     const counts = new Map();
     items
-      .filter((item) => item.status === "active")
+      .filter(isActiveInventoryItem)
       .filter((item) => itemHasActiveOutletLink(item, form.outletId))
       .forEach((item) => counts.set(item.categoryId, (counts.get(item.categoryId) || 0) + 1));
     return counts;
@@ -4436,7 +4447,7 @@ function AuditStockCheckModal({ outlets, categories, items, onClose, onStart }) 
     notes: "",
   });
 
-  const outletItems = items.filter((item) => item.status === "active" && itemHasActiveOutletLink(item, form.outletId));
+  const outletItems = items.filter((item) => isActiveInventoryItem(item) && itemHasActiveOutletLink(item, form.outletId));
   const selectedCategories = new Set(form.categoryIds);
   const selectedLinkedItemCount = outletItems.filter((item) => selectedCategories.has(item.categoryId)).length;
   const canStart = form.outletId && form.auditName.trim() && form.auditType && selectedLinkedItemCount > 0;
@@ -4538,11 +4549,12 @@ function MovementModal({ outlets, items, movements = [], movement, onClose, onSa
   const incomingTransfer = isTransferEdit && movementKey === "transfer_out" ? pairedTransfer : movement;
   const initialType = isTransferEdit ? "transfer" : movementKey === "waste" ? "waste" : movementKey === "purchase" ? "purchase" : "adjustment";
   const initialDirection = Number(movement?.quantity || 0) < 0 ? "decrease" : "increase";
+  const selectableItems = items.filter(isActiveInventoryItem);
   const [form, setForm] = useState({
     id: isTransferEdit ? outgoingTransfer?.id || movement?.id || "" : movement?.id || "",
     pairMovementId: isTransferEdit ? incomingTransfer?.id || "" : "",
     date: movement?.date || todayInput(),
-    itemId: movement?.itemId || items[0]?.id || "",
+    itemId: movement?.itemId || selectableItems[0]?.id || "",
     type: initialType,
     direction: initialDirection,
     quantity: movement?.quantity ? Math.abs(Number(movement.quantity)) : "",
@@ -4635,7 +4647,7 @@ function MovementModal({ outlets, items, movements = [], movement, onClose, onSa
         ) : (
           <SelectField label="Outlet" value={form.outletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={(value) => update("outletId", value)} searchable />
         )}
-        <SelectField label="Item" value={form.itemId} options={items.map((item) => ({ value: item.id, label: `${item.name}${item.sku ? ` · ${item.sku}` : ""}` }))} onChange={(value) => update("itemId", value)} searchable />
+        <SelectField label="Item" value={form.itemId} options={selectableItems.map((item) => ({ value: item.id, label: `${item.name}${item.sku ? ` · ${item.sku}` : ""}` }))} onChange={(value) => update("itemId", value)} searchable />
         <SelectField label="Movement Type" value={form.type} options={movementTypeOptions} onChange={(value) => update("type", value)} />
         {form.type === "adjustment" ? (
           <SelectField label="Adjustment Direction" value={form.direction} options={[{ value: "increase", label: "Increase" }, { value: "decrease", label: "Decrease" }]} onChange={(value) => update("direction", value)} />
@@ -5485,7 +5497,7 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existing
       remark: line.remark || "",
     })),
   }));
-  const availableItems = items.filter((item) => item.status === "active" && itemHasActiveOutletLink(item, form.outletId));
+  const availableItems = items.filter((item) => isActiveInventoryItem(item) && itemHasActiveOutletLink(item, form.outletId));
   const update = (key, value) => setForm((current) => {
     return { ...current, [key]: value };
   });
@@ -6062,7 +6074,7 @@ function PurchaseOrderEditModal({ order, suppliers, items, onClose, onSave }) {
     ...current,
     lines: current.lines.map((line, lineIndex) => lineIndex === index ? { ...line, ...patch } : line),
   }));
-  const availableItems = items.filter((item) => item.status === "active" && item.linkedOutletIds?.includes(form.outletId || form.outletIds?.[0]));
+  const availableItems = items.filter((item) => isActiveInventoryItem(item) && item.linkedOutletIds?.includes(form.outletId || form.outletIds?.[0]));
 
   return (
     <Modal
@@ -6602,8 +6614,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     debugLog("[InventoryMissingAnalysis]", {
       allInventoryItemsCount: inventoryMeta.rawItemsCount || data.items.length,
       allInventoryItemNames: data.items.map((item) => item.name),
-      afterStatusFilterCount: data.items.filter((item) => String(item.status || "").toLowerCase() === "active").length,
-      afterStatusFilterNames: data.items.filter((item) => String(item.status || "").toLowerCase() === "active").map((item) => item.name),
+      afterStatusFilterCount: data.items.filter(isActiveInventoryItem).length,
+      afterStatusFilterNames: data.items.filter(isActiveInventoryItem).map((item) => item.name),
       afterJoinMappingCount: inventoryMeta.normalizedItemsCount || data.items.length,
       afterJoinMappingNames: data.items.map((item) => item.name),
       finalVisibleCount: visibleItems.length,
@@ -8591,7 +8603,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     const masterSummary = {
       totalItems: visibleItems.length,
       categories: new Set(visibleItems.map((item) => item.categoryId || item.category_id || item.categoryName || item.category_name).filter(Boolean)).size,
-      activeItems: visibleItems.filter((item) => String(item.status || "").toLowerCase() === "active").length,
+      activeItems: visibleItems.filter(isActiveInventoryItem).length,
       outletsLinked: new Set(visibleItems.flatMap((item) => item.linkedOutletIds || [])).size,
     };
 
@@ -8868,13 +8880,14 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   function renderParLevels() {
     const activeOutletId = parLevelOutletId || outlets[0]?.id || "";
-    const outletScopedItems = data.items.filter((item) => {
+    const operationalItems = data.items.filter(isActiveInventoryItem);
+    const outletScopedItems = operationalItems.filter((item) => {
       const matchesOutlet = item.linkedOutletIds?.includes(activeOutletId);
       const matchesQuery = !query.trim() || `${item.name} ${item.sku}`.toLowerCase().includes(query.trim().toLowerCase());
       const matchesCategory = categoryFilter === "all" || item.categoryId === categoryFilter;
       return matchesOutlet && matchesQuery && matchesCategory;
     });
-    const parItems = data.items.filter((item) => {
+    const parItems = operationalItems.filter((item) => {
       const hasLinkedOutlet = item.linkedOutletIds?.length;
       const matchesQuery = !query.trim() || `${item.name} ${item.sku}`.toLowerCase().includes(query.trim().toLowerCase());
       const matchesCategory = categoryFilter === "all" || item.categoryId === categoryFilter;
@@ -11083,7 +11096,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       {modal?.type === "waste" ? (
         <WasteModal
           outlet={outletById.get(modal.outletId || selectedOutletId)}
-          items={data.items.filter((item) => item.status === "active" && itemHasActiveOutletLink(item, modal.outletId || selectedOutletId))}
+          items={data.items.filter((item) => isActiveInventoryItem(item) && itemHasActiveOutletLink(item, modal.outletId || selectedOutletId))}
           onClose={() => setModal(null)}
           onSave={saveWaste}
         />

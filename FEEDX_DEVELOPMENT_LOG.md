@@ -2,6 +2,17 @@
 
 Purpose: concise development history for meaningful FeedX development sessions. The master document remains the source of truth for final logic and architecture; release notes under `docs/releases/` document production releases.
 
+## 2026-06-03
+
+### Product Sales Analytics
+- Changed the Product Sales Analytics default reporting filter to the previous completed month while preserving manual month/year selection and existing compare-month behavior.
+
+### Purchase Import
+- Added supplier default-category auto-fill for purchase import rows with blank Category values, counting those rows as warnings while keeping rows failed when neither the upload nor supplier profile provides a valid category.
+
+### Build Tooling
+- Fixed Tailwind v4 build hangs by disabling automatic source detection and relying on explicit `@source` paths for app files.
+
 ## 2026-05-22
 
 ### People
@@ -79,5 +90,6 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Replaced the sidebar brand icon with the new `public/logo-icon.jpg` asset while preserving FeedX wordmark, subtitle, spacing, and layout.
 
 ### Inventory Control
+- Hid inactive inventory items from Par Levels, Stock Check item generation, Purchase Order item selectors, Inventory Movement selectors, Wastage selectors, and Recipe ingredient selectors while preserving inactive item visibility in Master Inventory for historical reference and reactivation.
 - Fixed fresh Production empty-state handling so fetched UOMs and categories remain visible even when inventory items and stock check groups are empty.
 - Added a friendly duplicate UOM code error message for Supabase `inventory_uoms_code_key` conflicts.

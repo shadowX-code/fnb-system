@@ -1,7 +1,10 @@
-@import "tailwindcss";
+@import "tailwindcss" source(none);
 
 @source "../../index.html";
-@source "../**/*.{js,jsx,ts,tsx}";
+@source "../**/*.js";
+@source "../**/*.jsx";
+@source "../**/*.ts";
+@source "../**/*.tsx";
 
 @theme {
   --color-primary: var(--theme-primary);

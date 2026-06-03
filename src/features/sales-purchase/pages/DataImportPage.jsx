@@ -34,7 +34,7 @@ const importModeDetails = {
   Purchases: {
     title: "Purchase Import",
     description: "Monthly supplier purchase records",
-    required: "Required: Outlet, Month, Year, Supplier, Category, Amount",
+    required: "Required: Outlet, Month, Year, Supplier, Amount. Category can be auto-filled from supplier profile.",
     confirmation: "Please confirm this file is a Purchase Import file.",
     banner: "You are importing monthly supplier purchase data.",
     template: "Download Purchase Import Template",
@@ -247,6 +247,15 @@ function findCategoryByName(items, value) {
     || items.find((item) => canonicalSingular(item.name) === singular);
 }
 
+function supplierDefaultPurchaseCategory(categories = [], supplier = {}) {
+  if (!supplier) return null;
+  const categoryId = supplier.default_category_id ?? supplier.category_id ?? "";
+  const byId = categoryId ? categories.find((category) => category.id === categoryId) : null;
+  const byName = supplier.category ? findCategoryByName(categories, supplier.category) : null;
+  const category = byId || byName;
+  return category ? { category, name: category.name } : null;
+}
+
 function pendingCategoryId(name) {
   return `__new_category__:${name}`;
 }
@@ -270,7 +279,18 @@ function affectedRange(records) {
 }
 
 function buildErrorReport(failures) {
-  return ["Row,Status,Detail", ...failures.map((item) => `${item.row},"${item.severity}","${item.message.replace(/"/g, '""')}"`)].join("\n");
+  const rows = [
+    ["Row", "Status", "Raw Supplier", "Original Category", "Resolved Category", "Detail"],
+    ...failures.map((item) => [
+      item.row,
+      item.severity,
+      item.rawSupplier || "",
+      item.rawCategory || "",
+      item.resolvedCategory || "",
+      item.message,
+    ]),
+  ];
+  return rows.map((row) => row.map(csvCell).join(",")).join("\n");
 }
 
 function csvCell(value) {
@@ -279,18 +299,20 @@ function csvCell(value) {
 
 function buildImportReport(preview) {
   const rows = [
-    ["Row", "Status", "Action", "Record", "Amount", "Detail"],
+    ["Row", "Status", "Action", "Record", "Amount", "Original Category", "Resolved Category", "Detail"],
     ...preview.validationRows.map((row) => [
       row.sourceRow,
       "valid",
       row.action,
       row.channel_name || `${row.supplier_name} / ${row.category_name}`,
       row.amount,
+      row.originalCategoryName || "",
+      row.resolvedCategoryName || "",
       row.message,
     ]),
-    ...(preview.skippedRows ?? []).map((row) => [row.row, "skipped", "skip", "", "", row.message]),
-    ...preview.warnings.map((row) => [row.row, "warning", "", "", "", row.message]),
-    ...preview.failures.map((row) => [row.row, "failed", "failed", "", "", row.message]),
+    ...(preview.skippedRows ?? []).map((row) => [row.row, "skipped", "skip", "", "", row.rawCategory || "", row.resolvedCategory || "", row.message]),
+    ...preview.warnings.map((row) => [row.row, "warning", "", "", "", row.rawCategory || "", row.resolvedCategory || "", row.message]),
+    ...preview.failures.map((row) => [row.row, "failed", "failed", "", "", row.rawCategory || "", row.resolvedCategory || "", row.message]),
   ];
   return rows.map((row) => row.map(csvCell).join(",")).join("\n");
 }
@@ -553,7 +575,7 @@ export function DataImportWorkspace({
     const unknowns = new Map();
     const categoryUnknowns = new Map();
     const skippedRows = [];
-    const required = ["Outlet", "Month", "Year", "Supplier", "Category", "Amount"];
+    const required = ["Outlet", "Month", "Year", "Supplier", "Amount"];
     required.filter((field) => !Object.values(mappings).includes(field)).forEach((field) => {
       issues.push({ row: "-", severity: "error", message: `Missing required column: ${field}` });
     });
@@ -563,23 +585,31 @@ export function DataImportWorkspace({
       const month = parseMonth(mappedValue(row, mappings, "Month"));
       const year = Number(mappedValue(row, mappings, "Year"));
       const supplierName = normalize(mappedValue(row, mappings, "Supplier"));
-      const categoryName = normalize(mappedValue(row, mappings, "Category"));
+      const rawCategoryName = normalize(mappedValue(row, mappings, "Category"));
       const amount = parseAmount(mappedValue(row, mappings, "Amount"));
       const supplier = findByName(store.suppliers, supplierName) || createdSupplierMap[supplierName];
-      const categoryResolution = categoryResolutions[categoryName];
-      const category = findCategoryByName(store.purchaseCategories, categoryName)
+      const resolution = supplierResolutions[supplierName];
+      const supplierForCategory = supplier
+        || store.suppliers.find((item) => item.id === resolution?.supplier_id || item.id === resolution?.existingSupplierId)
+        || createdSupplierMap[supplierName];
+      const supplierDefaultCategory = !rawCategoryName ? supplierDefaultPurchaseCategory(store.purchaseCategories, supplierForCategory) : null;
+      const categoryName = rawCategoryName || supplierDefaultCategory?.name || "";
+      const categoryResolution = rawCategoryName ? categoryResolutions[categoryName] : null;
+      const category = supplierDefaultCategory?.category
+        || findCategoryByName(store.purchaseCategories, categoryName)
         || store.purchaseCategories.find((item) => item.id === categoryResolution?.category_id)
         || createdCategoryMap[categoryName]
-        || (options.allowPendingCategoryCreate && categoryResolution?.action === "create"
+        || (rawCategoryName && options.allowPendingCategoryCreate && categoryResolution?.action === "create"
           ? { id: pendingCategoryId(categoryName), name: categoryName }
           : null);
       const rowIssues = [];
-      const resolution = supplierResolutions[supplierName];
+      const autoFilledCategory = !rawCategoryName && Boolean(supplierDefaultCategory?.category);
       console.info("[Import:category-resolution]", {
         row: row.__row,
-        rawCategory: categoryName,
+        rawCategory: rawCategoryName,
         normalizedCategory: canonicalSingular(categoryName),
         matchedCategoryId: category?.id ?? null,
+        autoFilledCategory,
         resolution: categoryResolution?.action ?? null,
       });
 
@@ -617,8 +647,8 @@ export function DataImportWorkspace({
           default_category_id: supplier.default_category_id || category?.id || "",
         });
       }
-      if (!categoryName) rowIssues.push("Missing category");
-      if (categoryName && !category && !categoryResolution) {
+      if (!rawCategoryName && !category) rowIssues.push("Missing category and supplier has no default category.");
+      if (rawCategoryName && !category && !categoryResolution) {
         const current = categoryUnknowns.get(categoryName) ?? { name: categoryName, rows: [] };
         categoryUnknowns.set(categoryName, { ...current, rows: [...current.rows, row.__row] });
       }
@@ -629,7 +659,7 @@ export function DataImportWorkspace({
       if (!supplier && resolution?.action === "map" && !resolution.supplier_id) rowIssues.push("Unresolved supplier mapping");
       if (!supplier && resolution?.action === "create" && !resolution.category_id) rowIssues.push("New supplier category required");
       if (!category && categoryResolution?.action === "map" && !categoryResolution.category_id) rowIssues.push(`Unresolved category mapping for "${categoryName}"`);
-      if (!category && categoryName) rowIssues.push(`Unknown category "${categoryName}"`);
+      if (!category && rawCategoryName) rowIssues.push(`Unknown category "${categoryName}"`);
       if (amount === null) rowIssues.push("Invalid number format");
       if (amount !== null && amount < 0) rowIssues.push("Negative purchase value");
       if (amount !== null && amount > highAmountThreshold) {
@@ -637,8 +667,27 @@ export function DataImportWorkspace({
       }
 
       if (rowIssues.length) {
-        issues.push({ row: row.__row, severity: "error", message: rowIssues.join("; ") });
+        issues.push({
+          row: row.__row,
+          severity: "error",
+          message: rowIssues.join("; "),
+          rawSupplier: supplierName,
+          rawCategory: rawCategoryName,
+          resolvedCategory: category?.name || "",
+          rawRow: row,
+        });
         return;
+      }
+      if (autoFilledCategory) {
+        issues.push({
+          row: row.__row,
+          severity: "warning",
+          message: "Category auto-filled from supplier profile.",
+          rawSupplier: supplierName,
+          rawCategory: rawCategoryName,
+          resolvedCategory: category.name,
+          rawRow: row,
+        });
       }
 
       const finalSupplier = supplier || store.suppliers.find((item) => item.id === resolution?.supplier_id) || createdSupplierMap[supplierName] || (
@@ -647,7 +696,7 @@ export function DataImportWorkspace({
           : null
       );
       if (!finalSupplier) {
-        issues.push({ row: row.__row, severity: "error", message: "Supplier resolution failed", rawSupplier: supplierName, rawCategory: categoryName, rawRow: row });
+        issues.push({ row: row.__row, severity: "error", message: "Supplier resolution failed", rawSupplier: supplierName, rawCategory: rawCategoryName, resolvedCategory: category?.name || "", rawRow: row });
         return;
       }
       const linkResolutionAllowed = resolution?.action === "link" && resolution.existingSupplierId === finalSupplier.id;
@@ -657,7 +706,8 @@ export function DataImportWorkspace({
           severity: "error",
           message: `Supplier "${finalSupplier.name}" is not assigned to ${outlet.name}. Link this supplier to the outlet or map to another supplier.`,
           rawSupplier: supplierName,
-          rawCategory: categoryName,
+          rawCategory: rawCategoryName,
+          resolvedCategory: category?.name || "",
           rawRow: row,
         });
         return;
@@ -674,6 +724,9 @@ export function DataImportWorkspace({
         supplier_name: finalSupplier.name,
         category_id: category.id,
         category_name: category.name,
+        originalCategoryName: rawCategoryName,
+        resolvedCategoryName: category.name,
+        categoryAutoFilled: autoFilledCategory,
         amount,
         remark: mappedValue(row, mappings, "Remark") || "",
       });
@@ -1009,10 +1062,23 @@ export function DataImportWorkspace({
   const previewColumns = [
     { key: "sourceRow", header: "Row", align: "right" },
     { key: "period", header: "Period", render: (row) => row.isFailure ? "-" : `${row.outletCode || row.outletName} · ${monthLabel(row.month)} ${row.year}` },
-    { key: "record", header: "Record", render: (row) => row.isFailure ? row.record : importType === "Sales" ? row.channel_name : `${row.supplier_name} / ${row.category_name}` },
+    {
+      key: "record",
+      header: "Record",
+      render: (row) => {
+        if (row.isFailure) return row.record;
+        if (importType === "Sales") return row.channel_name;
+        return (
+          <div className="space-y-1">
+            <div>{row.supplier_name} / {row.category_name}</div>
+            {row.categoryAutoFilled ? <Badge tone="warning">Auto-filled</Badge> : null}
+          </div>
+        );
+      },
+    },
     { key: "amount", header: "Amount", align: "right", render: (row) => row.isFailure ? "-" : `RM ${Number(row.amount || 0).toLocaleString("en-MY", { minimumFractionDigits: 2 })}` },
     { key: "action", header: "Action", render: (row) => <Badge tone={row.isFailure ? "danger" : row.action === "update" ? "warning" : "success"}>{row.action}</Badge> },
-    { key: "message", header: "Validation", render: (row) => <span className="text-xs text-text-secondary">{row.message}</span> },
+    { key: "message", header: "Validation", render: (row) => <span className="text-xs text-text-secondary">{row.categoryAutoFilled ? "Category auto-filled from supplier profile." : row.message}</span> },
   ];
   const batchColumns = [
     { key: "source_filename", header: "File" },
@@ -1340,7 +1406,7 @@ export function DataImportWorkspace({
                 ) : null}
                 {preview.warnings.length ? (
                   <div className="rounded-2xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                    <div className="flex items-center gap-2 font-bold"><AlertTriangle size={15} /> Records that will update existing data</div>
+                    <div className="flex items-center gap-2 font-bold"><AlertTriangle size={15} /> Import warnings</div>
                     <ul className="mt-2 space-y-1 text-xs">{preview.warnings.slice(0, 6).map((item) => <li key={`${item.row}-${item.message}`}>Row {item.row}: {item.message}</li>)}</ul>
                   </div>
                 ) : null}
