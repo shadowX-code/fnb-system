@@ -93,3 +93,14 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Hid inactive inventory items from Par Levels, Stock Check item generation, Purchase Order item selectors, Inventory Movement selectors, Wastage selectors, and Recipe ingredient selectors while preserving inactive item visibility in Master Inventory for historical reference and reactivation.
 - Fixed fresh Production empty-state handling so fetched UOMs and categories remain visible even when inventory items and stock check groups are empty.
 - Added a friendly duplicate UOM code error message for Supabase `inventory_uoms_code_key` conflicts.
+
+## 2026-06-03
+
+### Factory
+- Added Restaurant / Factory workspace switching to the shared FeedX shell.
+- Registered Factory sidebar modules, route metadata, permissions, and audit scopes through the central module registry.
+- Added Factory Phase 1A Supabase foundation for dashboard, job orders, raw materials, raw material receiving, raw material movements, finished goods, production, recipes, stock checks, SOP, RLS policies, and permissions.
+- Implemented Phase 1A working UI for Factory Dashboard, Job Orders CRUD, and Raw Material Receiving CRUD.
+
+### Documentation
+- Updated the master document with Factory workspace architecture, Phase 1A scope, Factory tables, RLS approach, and current exclusions.

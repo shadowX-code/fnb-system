@@ -3,7 +3,7 @@ import ConfirmDialog from "../components/feedback/ConfirmDialog.jsx";
 import ToastViewport from "../components/feedback/ToastViewport.jsx";
 import AppShell from "../layouts/AppShell.jsx";
 import { operationsService } from "../features/sales-purchase/services/operationsService.js";
-import { salesPurchaseRoutes, sidebarSections } from "./routes.jsx";
+import { salesPurchaseRoutes } from "./routes.jsx";
 import { outletService } from "../services/outletService.js";
 import { supplierService } from "../services/supplierService.js";
 import { purchaseCategoryService } from "../services/purchaseCategoryService.js";
@@ -16,6 +16,7 @@ import { useAuth } from "../auth/AuthContext.jsx";
 import LoginPage from "../auth/LoginPage.jsx";
 import SetNewPasswordPage from "../auth/SetNewPasswordPage.jsx";
 import { filterOutletScopedRows, getAccessibleOutlets } from "../utils/accessControl.js";
+import { getSidebarSections } from "../../config/modules.ts";
 
 const outletCacheKey = "feedx.cachedOutlets";
 
@@ -154,6 +155,10 @@ const BOOTSTRAP_LOADS = [
   { key: "operatingExpenses", label: "Operating Expenses", table: "operating_expenses", operation: "SELECT", permission: "operating_expenses.view OR outlet_pnl.view" },
 ];
 
+function workspaceForRoute(routeId) {
+  return String(routeId || "").startsWith("factory_") ? "factory" : "restaurant";
+}
+
 function RbacDiagnosticsPanel({ auth, loads }) {
   if (!import.meta.env.DEV) return null;
 
@@ -272,6 +277,15 @@ export default function App() {
   const [activeRouteId, setActiveRouteId] = useState(
     salesPurchaseRoutes.some((route) => route.id === initialRoute) ? initialRoute : "dashboard",
   );
+  const [workspace, setWorkspace] = useState(() => {
+    const routeWorkspace = workspaceForRoute(initialRoute);
+    if (routeWorkspace === "factory") return "factory";
+    try {
+      return localStorage.getItem("feedx.workspace") === "factory" ? "factory" : "restaurant";
+    } catch {
+      return "restaurant";
+    }
+  });
   const [store, setStore] = useState(() => {
     const cachedOutlets = loadCachedOutlets();
     return {
@@ -291,7 +305,8 @@ export default function App() {
   const [toasts, setToasts] = useState([]);
   const [confirmRequest, setConfirmRequest] = useState(null);
   const accessibleRoutes = useMemo(() => filterRoutesByPermission(salesPurchaseRoutes, auth), [auth.permissions]);
-  const accessibleSections = useMemo(() => filterSectionsByPermission(sidebarSections, salesPurchaseRoutes, auth), [auth.permissions]);
+  const workspaceSections = useMemo(() => getSidebarSections(workspace), [workspace]);
+  const accessibleSections = useMemo(() => filterSectionsByPermission(workspaceSections, salesPurchaseRoutes, auth), [auth.permissions, workspaceSections]);
   const activeRoute = useMemo(
     () => accessibleRoutes.find((route) => route.id === activeRouteId) ?? accessibleRoutes[0] ?? salesPurchaseRoutes[0],
     [accessibleRoutes, activeRouteId],
@@ -491,9 +506,30 @@ export default function App() {
     }
   }, [accessibleRoutes, activeRouteId, auth.contextLoading, auth.loading, auth.session]);
 
+  useEffect(() => {
+    const nextWorkspace = workspaceForRoute(activeRouteId);
+    if (nextWorkspace !== workspace) setWorkspace(nextWorkspace);
+  }, [activeRouteId, workspace]);
+
+  useEffect(() => {
+    try {
+      localStorage.setItem("feedx.workspace", workspace);
+    } catch {
+      // Workspace selection is a local navigation preference only.
+    }
+  }, [workspace]);
+
   function navigate(routeId) {
     setActiveRouteId(routeId);
     window.history.replaceState(null, "", `#${routeId}`);
+  }
+
+  function handleWorkspaceChange(nextWorkspace) {
+    setWorkspace(nextWorkspace);
+    const sections = getSidebarSections(nextWorkspace);
+    const permittedSections = filterSectionsByPermission(sections, salesPurchaseRoutes, auth);
+    const firstRoute = permittedSections.flatMap((section) => section.items).find((item) => item.type !== "label");
+    if (firstRoute) navigate(firstRoute.id);
   }
 
   function notify({ title, message = "", tone = "success" }) {
@@ -560,6 +596,8 @@ export default function App() {
         activeRoute={activeRoute}
         activeRouteId={activeRouteId}
         sections={accessibleSections}
+        workspace={workspace}
+        onWorkspaceChange={handleWorkspaceChange}
         onNavigate={navigate}
         store={effectiveStore}
         auth={auth}

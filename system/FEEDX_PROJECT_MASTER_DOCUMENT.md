@@ -1,6 +1,6 @@
 # FeedX Project Master Document
 
-Last updated: 2026-05-28  
+Last updated: 2026-06-03
 Document owner: FeedX product / engineering workspace  
 Document purpose: Permanent project source-of-truth for requirements, architecture, modules, fields, business rules, permissions, integrations, and development plan.
 
@@ -122,6 +122,36 @@ SYSTEM
 - Audit Logs
 ```
 
+FeedX supports workspace-level navigation. The Restaurant workspace remains the default active workspace. The Factory workspace is a separate operational workspace for factory production, raw material warehouse operations, finished goods movement, factory recipes and SOPs. The workspace switcher changes sidebar modules only; it does not change authenticated user, company, Supabase project, or permission model.
+
+Factory workspace sidebar structure:
+
+```text
+FACTORY
+- Factory Dashboard
+- Job Orders
+- Production Records
+- Production Reports
+
+WAREHOUSE
+- Finished Goods
+- Product Movements
+- Product Stock Check
+
+RAW MATERIAL
+- Raw Material Receiving
+- Raw Material Inventory
+- Raw Material Stock Check
+
+MASTER DATA
+- Product Recipes
+- Production SOP
+
+SYSTEM
+- Factory Audit Logs
+- Factory Settings
+```
+
 Architecture rule:
 
 Sidebar navigation, route metadata, permission matrix rows, role coverage chips, and audit scope labels must come from the centralized module registry.
@@ -146,6 +176,7 @@ Each module is defined as:
   route: string,
   icon?: string,
   sidebar: boolean,
+  workspace?: "restaurant" | "factory",
   permissions: {
     view?: boolean,
     create?: boolean,
@@ -2641,6 +2672,83 @@ RBAC and outlet scope:
 - Service-layer queries and RLS policies must enforce outlet scope, not just UI filters.
 
 ---
+
+## 5.13B Factory Workspace
+
+Purpose:
+
+Factory Workspace is a separate FeedX operational workspace for factory production and warehouse processes. It is intentionally separate from Restaurant Inventory Control so outlet-facing stock operations do not mix with factory raw material, finished goods, SOP, and production planning workflows.
+
+Workspace behavior:
+
+- Restaurant is the default workspace.
+- Factory is selected through the sidebar workspace switcher.
+- Switching workspace changes sidebar modules and default route only.
+- Permissions remain centralized in `config/modules.ts`.
+- Routes remain hash-based module IDs, for example `#factory_dashboard`, `#factory_job_orders`, and `#factory_raw_receiving`.
+- Factory modules use Supabase persistence only; no local/demo operational data is used.
+
+Factory Phase 1A implemented scope:
+
+- Workspace switcher: Restaurant / Factory.
+- Factory Dashboard UI.
+- Job Orders CRUD.
+- Raw Material Receiving CRUD.
+- Raw material receiving creates raw material master rows when needed.
+- Raw material receiving adjusts raw material balance.
+- Raw material receiving creates raw material movement history.
+- Audit logs are written for business-critical job order and raw receiving actions.
+
+Factory sidebar modules:
+
+- Factory Dashboard
+- Job Orders
+- Production Records
+- Production Reports
+- Finished Goods
+- Product Movements
+- Product Stock Check
+- Raw Material Receiving
+- Raw Material Inventory
+- Raw Material Stock Check
+- Product Recipes
+- Production SOP
+- Factory Audit Logs
+- Factory Settings
+
+Factory data model foundation:
+
+- `factory_job_orders`
+- `factory_productions`
+- `factory_production_material_usage`
+- `factory_raw_materials`
+- `factory_raw_material_receivings`
+- `factory_raw_material_movements`
+- `factory_finished_goods`
+- `factory_product_stock_movements`
+- `factory_product_stock_checks`
+- `factory_raw_material_stock_checks`
+- `factory_product_recipes`
+- `factory_product_recipe_items`
+- `factory_production_sops`
+- `factory_production_sop_steps`
+
+Factory RLS and permissions:
+
+- Factory permissions use module-action codes such as `factory_job_orders.view` and `factory_raw_receiving.create`.
+- Owner and Admin receive Factory permissions by default through migration seed.
+- Custom roles must be assigned Factory permissions through Roles & Permissions.
+- Factory tables enforce RLS through `current_user_has_permission(...)`.
+
+Phase 1A exclusions:
+
+- Production execution workflow.
+- Finished goods receipt and shipment workflow.
+- Product stock check item-level submission workflow.
+- Raw material stock check item-level submission workflow.
+- Product recipe BOM editor.
+- Production SOP editor.
+- Factory analytics beyond Phase 1A dashboard KPIs.
 
 ## 5.14 Outlets
 

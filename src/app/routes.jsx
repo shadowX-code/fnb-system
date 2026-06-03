@@ -21,6 +21,7 @@ import JobPositionsPage from "../features/company-users/pages/JobPositionsPage.j
 import DepartmentsPage from "../features/company-users/pages/DepartmentsPage.jsx";
 import RolesPage from "../features/company-users/pages/RolesPage.jsx";
 import AuditLogsPage from "../features/company-users/pages/AuditLogsPage.jsx";
+import FactoryWorkspacePage from "../features/factory/pages/FactoryWorkspacePage.jsx";
 import { getSidebarSections, moduleRegistry, viewPermission } from "../../config/modules.ts";
 
 function ModulePlaceholderPage({ moduleLabel = "Module", moduleSection = "Workspace" }) {
@@ -208,6 +209,24 @@ const routeDetails = {
   "audit-logs": {
     description: "Review authentication, access, employee and operational audit events.",
     component: AuditLogsPage,
+  },
+  factory_dashboard: {
+    description: "Factory operations dashboard for production, warehouse and raw material readiness.",
+    component: FactoryWorkspacePage,
+    permission: "factory_dashboard.view",
+    props: { initialTab: "dashboard" },
+  },
+  factory_job_orders: {
+    description: "Create and manage factory production job orders.",
+    component: FactoryWorkspacePage,
+    permission: "factory_job_orders.view",
+    props: { initialTab: "job-orders" },
+  },
+  factory_raw_receiving: {
+    description: "Record supplier deliveries into factory raw material stock.",
+    component: FactoryWorkspacePage,
+    permission: "factory_raw_receiving.view",
+    props: { initialTab: "raw-receiving" },
   },
 };
 

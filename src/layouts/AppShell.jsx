@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, BarChart3, Bell, Boxes, Building2, CalendarDays, Check, ChevronsDownUp, ChevronsUpDown, ChevronDown, ClipboardCheck, ClipboardList, Download, Eye, EyeOff, FileText, KeyRound, LogOut, Menu, Monitor, Moon, PackageCheck, PackagePlus, PieChart, RefreshCw, Settings, Shield, ShoppingCart, Sun, Truck, UserRound, Users, Wallet, X } from "lucide-react";
+import { AlertTriangle, BarChart3, Bell, Boxes, Building2, CalendarDays, Check, ChevronsDownUp, ChevronsUpDown, ChevronDown, ClipboardCheck, ClipboardList, Download, Eye, EyeOff, Factory, FileText, FlaskConical, KeyRound, LogOut, Menu, Monitor, Moon, PackageCheck, PackagePlus, PieChart, RefreshCw, Settings, Shield, ShoppingCart, Sun, Truck, UserRound, Users, Wallet, Warehouse, X } from "lucide-react";
 import Modal from "../components/feedback/Modal.jsx";
 import Badge from "../components/ui/Badge.jsx";
 import FloatingLayer from "../components/ui/FloatingLayer.jsx";
@@ -43,6 +43,20 @@ const iconMap = {
   "job-positions": ClipboardList,
   departments: Building2,
   roles: Shield,
+  "factory-dashboard": Factory,
+  "factory-job-orders": ClipboardCheck,
+  "factory-production": Factory,
+  "factory-reports": BarChart3,
+  "factory-finished-goods": Boxes,
+  "factory-product-movements": RefreshCw,
+  "factory-product-stock-check": ClipboardCheck,
+  "factory-raw-receiving": Truck,
+  "factory-raw-inventory": Warehouse,
+  "factory-raw-stock-check": ClipboardList,
+  "factory-product-recipes": FlaskConical,
+  "factory-sop": FileText,
+  "factory-audit-logs": KeyRound,
+  "factory-settings": Settings,
 };
 
 function latestPeriod(store) {
@@ -903,7 +917,7 @@ function SidebarProfilePopover({ auth, onViewProfile, onChangePassword, onSignOu
   );
 }
 
-export default function AppShell({ activeRoute, activeRouteId, sections, onNavigate, children, store, auth, onLogout, onNotify }) {
+export default function AppShell({ activeRoute, activeRouteId, sections, workspace = "restaurant", onWorkspaceChange, onNavigate, children, store, auth, onLogout, onNotify }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationTab, setNotificationTab] = useState("All");
   const [notificationContext, setNotificationContext] = useState({});
@@ -1245,6 +1259,31 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
             {allSectionsExpanded ? <ChevronsDownUp size={16} /> : <ChevronsUpDown size={16} />}
           </button>
         )}
+      </div>
+
+      <div className="px-3 pb-2">
+        <div className="grid grid-cols-2 rounded-2xl border border-border bg-slate-50 p-1">
+          {[
+            { id: "restaurant", label: "Restaurant", icon: Building2 },
+            { id: "factory", label: "Factory", icon: Factory },
+          ].map((option) => {
+            const Icon = option.icon;
+            const active = workspace === option.id;
+            return (
+              <button
+                key={option.id}
+                className={`flex items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-[12px] font-semibold transition ${
+                  active ? "bg-white text-primary shadow-sm ring-1 ring-primary/10" : "text-text-secondary hover:bg-white/70 hover:text-text-primary"
+                }`}
+                type="button"
+                onClick={() => onWorkspaceChange?.(option.id)}
+              >
+                <Icon size={13} />
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <nav className="flex-1 space-y-2 overflow-y-auto px-3 py-2.5">

@@ -25,6 +25,7 @@ export type AppModule = {
   route: string;
   icon?: string;
   sidebar: boolean;
+  workspace?: "restaurant" | "factory";
   permissions: Partial<Record<ModuleAction, boolean>>;
 };
 
@@ -70,7 +71,26 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   export: "Export",
 };
 
-export const moduleSectionOrder = ["Overview", "Sales", "Purchases", "Operations", "Inventory Control", "People", "System"];
+export type WorkspaceKey = "restaurant" | "factory";
+
+export const workspaceLabels: Record<WorkspaceKey, string> = {
+  restaurant: "Restaurant",
+  factory: "Factory",
+};
+
+export const moduleSectionOrder = [
+  "Overview",
+  "Sales",
+  "Purchases",
+  "Operations",
+  "Inventory Control",
+  "Factory",
+  "Warehouse",
+  "Raw Material",
+  "Master Data",
+  "People",
+  "System",
+];
 
 export const moduleRegistry: AppModule[] = [
   {
@@ -397,7 +417,151 @@ export const moduleRegistry: AppModule[] = [
     sidebar: true,
     permissions: { view: true, export: true },
   },
+  {
+    id: "factory_dashboard",
+    section: "Factory",
+    label: "Factory Dashboard",
+    route: "/factory/dashboard",
+    icon: "factory-dashboard",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, export: true },
+  },
+  {
+    id: "factory_job_orders",
+    section: "Factory",
+    label: "Job Orders",
+    route: "/factory/job-orders",
+    icon: "factory-job-orders",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, create: true, edit: true, delete: true, cancel: true, complete: true, export: true },
+  },
+  {
+    id: "factory_production",
+    section: "Factory",
+    label: "Production Records",
+    route: "/factory/production",
+    icon: "factory-production",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, create: true, edit: true, complete: true, export: true },
+  },
+  {
+    id: "factory_production_reports",
+    section: "Factory",
+    label: "Production Reports",
+    route: "/factory/reports",
+    icon: "factory-reports",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, export: true },
+  },
+  {
+    id: "factory_finished_goods",
+    section: "Warehouse",
+    label: "Finished Goods",
+    route: "/factory/finished-goods",
+    icon: "factory-finished-goods",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, create: true, edit: true, export: true },
+  },
+  {
+    id: "factory_product_movements",
+    section: "Warehouse",
+    label: "Product Movements",
+    route: "/factory/product-movements",
+    icon: "factory-product-movements",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, create: true, edit: true, export: true },
+  },
+  {
+    id: "factory_product_stock_check",
+    section: "Warehouse",
+    label: "Product Stock Check",
+    route: "/factory/product-stock-check",
+    icon: "factory-product-stock-check",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, create: true, edit: true, submit: true, export: true },
+  },
+  {
+    id: "factory_raw_receiving",
+    section: "Raw Material",
+    label: "Raw Material Receiving",
+    route: "/factory/raw-receiving",
+    icon: "factory-raw-receiving",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, create: true, edit: true, delete: true, export: true },
+  },
+  {
+    id: "factory_raw_inventory",
+    section: "Raw Material",
+    label: "Raw Material Inventory",
+    route: "/factory/raw-inventory",
+    icon: "factory-raw-inventory",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, create: true, edit: true, export: true },
+  },
+  {
+    id: "factory_raw_stock_check",
+    section: "Raw Material",
+    label: "Raw Material Stock Check",
+    route: "/factory/raw-stock-check",
+    icon: "factory-raw-stock-check",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, create: true, edit: true, submit: true, export: true },
+  },
+  {
+    id: "factory_product_recipes",
+    section: "Master Data",
+    label: "Product Recipes",
+    route: "/factory/product-recipes",
+    icon: "factory-product-recipes",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, create: true, edit: true, delete: true, manage: true, export: true },
+  },
+  {
+    id: "factory_production_sop",
+    section: "Master Data",
+    label: "Production SOP",
+    route: "/factory/production-sop",
+    icon: "factory-sop",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, create: true, edit: true, delete: true, manage: true, export: true },
+  },
+  {
+    id: "factory_audit_logs",
+    section: "System",
+    label: "Factory Audit Logs",
+    route: "/factory/audit-logs",
+    icon: "factory-audit-logs",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, export: true },
+  },
+  {
+    id: "factory_settings",
+    section: "System",
+    label: "Factory Settings",
+    route: "/factory/settings",
+    icon: "factory-settings",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, edit: true, manage: true },
+  },
 ];
+
+export function moduleWorkspace(module: AppModule): WorkspaceKey {
+  return module.workspace ?? "restaurant";
+}
 
 export function permissionPrefix(moduleId: string) {
   return moduleId.replace(/-/g, "_");
@@ -456,9 +620,9 @@ export function getPermissionGroups() {
   return groups.sort((a, b) => moduleSectionOrder.indexOf(a.label) - moduleSectionOrder.indexOf(b.label));
 }
 
-export function getSidebarSections() {
+export function getSidebarSections(workspace: WorkspaceKey = "restaurant") {
   const sections = moduleRegistry
-    .filter((module) => module.sidebar)
+    .filter((module) => module.sidebar && moduleWorkspace(module) === workspace)
     .reduce((sections, module) => {
       const section = sections.find((item) => item.label === module.section);
       const item = { id: module.id, label: module.label };
