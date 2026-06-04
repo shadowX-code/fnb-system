@@ -2779,6 +2779,34 @@ Factory sidebar modules:
 - Factory Audit Logs
 - Factory Settings
 
+Current functional Factory modules after Phase 1D:
+
+- Factory Dashboard.
+- Job Orders.
+- Production Records.
+- Production Reports / Batch Traceability.
+- Product Stock Check.
+- Raw Material Receiving.
+- Raw Material Stock Check.
+- Production SOP.
+
+Current registered Factory placeholder modules:
+
+- Finished Goods.
+- Product Movements.
+- Raw Material Inventory.
+- Product Recipes.
+- Factory Audit Logs.
+- Factory Settings.
+
+Placeholder modules remain registered for navigation, permissions, route protection and audit scope. Their pages must show a clear placeholder message until the working workflow is implemented.
+
+Factory data loading rule:
+
+- Factory pages should load only datasets needed for the active tab wherever possible.
+- Optional or permission-blocked datasets should fail softly with an empty state or scoped warning.
+- A role with `factory_dashboard.view` only must be able to load Factory Dashboard without unrelated stock check, SOP, or other module RLS failures crashing the page.
+
 Factory data model foundation:
 
 - `factory_job_orders`

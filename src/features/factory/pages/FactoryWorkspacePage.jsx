@@ -119,6 +119,18 @@ function FactoryTable({ columns, rows, emptyTitle, emptyDescription }) {
   );
 }
 
+function AccessIssueNotice({ issues }) {
+  if (!issues?.length) return null;
+  return (
+    <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+      <div className="font-bold">Some Factory data is hidden by your current role.</div>
+      <div className="mt-1 text-xs font-semibold text-amber-800">
+        {issues.map((issue) => issue.label).join(", ")}
+      </div>
+    </div>
+  );
+}
+
 function JobOrderModal({ initialValue, onClose, onSave }) {
   const [form, setForm] = useState(() => ({
     product_name: "",
@@ -947,14 +959,18 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, onClose, 
 }
 
 export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, auth }) {
-  const [data, setData] = useState({ jobOrders: [], rawMaterials: [], receivings: [], productions: [], finishedGoods: [], productMovements: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [] });
+  const [data, setData] = useState({ jobOrders: [], rawMaterials: [], receivings: [], productions: [], finishedGoods: [], productMovements: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [], accessIssues: [] });
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
+  const can = (code) => Boolean(auth?.hasPermission?.(code));
 
   async function loadData() {
     setLoading(true);
     try {
-      const nextData = await factoryService.listFactoryData();
+      const nextData = await factoryService.listFactoryData({
+        scope: initialTab,
+        hasPermission: (code) => auth?.hasPermission?.(code),
+      });
       setData(nextData);
     } catch (error) {
       ui?.notify?.({ title: "Failed to load Factory data", message: error.message, tone: "error" });
@@ -965,7 +981,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [initialTab, auth?.permissions?.length]);
 
   const metrics = useMemo(() => {
     const openJobs = data.jobOrders.filter((job) => !["completed", "cancelled"].includes(job.status));
@@ -1103,9 +1119,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const dashboardActions = (
     <>
       <button className="btn-secondary" type="button" onClick={loadData}><RefreshCw size={15} /> Refresh</button>
-      <button className="btn-primary" type="button" onClick={() => setModal({ type: "job" })}><Plus size={15} /> Job Order</button>
-      <button className="btn-secondary" type="button" onClick={() => setModal({ type: "receiving" })}><Truck size={15} /> Receive Raw Material</button>
-      <button className="btn-secondary" type="button" onClick={() => setModal({ type: "stock-check", stockType: "raw" })}><ClipboardCheck size={15} /> Raw Check</button>
+      {can("factory_job_orders.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "job" })}><Plus size={15} /> Job Order</button> : null}
+      {can("factory_raw_receiving.create") ? <button className="btn-secondary" type="button" onClick={() => setModal({ type: "receiving" })}><Truck size={15} /> Receive Raw Material</button> : null}
+      {can("factory_raw_stock_check.create") ? <button className="btn-secondary" type="button" onClick={() => setModal({ type: "stock-check", stockType: "raw" })}><ClipboardCheck size={15} /> Raw Check</button> : null}
     </>
   );
 
@@ -1117,11 +1133,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{row.status.replace(/_/g, " ")}</Badge> },
     { key: "actions", label: "Actions", align: "right", render: (row) => (
       <div className="flex justify-end gap-2">
-        {!["completed", "cancelled"].includes(row.status) ? (
+        {!["completed", "cancelled"].includes(row.status) && can("factory_production.complete") ? (
           <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production", job: row })}><Play size={13} /> Start Production</button>
         ) : null}
-        <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "job", value: row })}>Edit</button>
-        <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => deleteJobOrder(row)}>Delete</button>
+        {can("factory_job_orders.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "job", value: row })}>Edit</button> : null}
+        {can("factory_job_orders.delete") ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => deleteJobOrder(row)}>Delete</button> : null}
       </div>
     ) },
   ];
@@ -1132,7 +1148,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     { key: "supplier_name", label: "Supplier", render: (row) => row.supplier_name || "—" },
     { key: "qty", label: "Quantity", render: (row) => quantity(row.received_qty, row.uom) },
     { key: "total_cost", label: "Value", align: "right", render: (row) => money(row.total_cost) },
-    { key: "actions", label: "Actions", align: "right", render: (row) => <div className="flex justify-end gap-2"><button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "receiving", value: row })}>Edit</button><button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => deleteReceiving(row)}>Delete</button></div> },
+    { key: "actions", label: "Actions", align: "right", render: (row) => <div className="flex justify-end gap-2">{can("factory_raw_receiving.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "receiving", value: row })}>Edit</button> : null}{can("factory_raw_receiving.delete") ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => deleteReceiving(row)}>Delete</button> : null}</div> },
   ];
 
   const lowStockColumns = [
@@ -1168,7 +1184,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     { key: "steps", label: "Steps", render: (row) => row.steps?.length || 0 },
     { key: "qc", label: "QC Checkpoints", render: (row) => <Badge tone={row.steps?.some((step) => step.is_qc_checkpoint) ? "warning" : "neutral"}>{(row.steps || []).filter((step) => step.is_qc_checkpoint).length}</Badge> },
     { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge> },
-    { key: "actions", label: "Actions", align: "right", render: (row) => <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "sop", value: row })}>Edit</button> },
+    { key: "actions", label: "Actions", align: "right", render: (row) => can("factory_production_sop.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "sop", value: row })}>Edit</button> : null },
   ];
 
   function stockCheckColumns(stockType) {
@@ -1187,7 +1203,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       { key: "actions", label: "Actions", align: "right", render: (row) => (
         <div className="flex justify-end gap-2">
           <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "stock-check", stockType, value: row })}>{row.status === "draft" ? "Edit" : "View"}</button>
-          {row.status === "submitted" ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => approveStockCheck(stockType, row)}>Approve</button> : null}
+          {row.status === "submitted" && can(stockType === "raw" ? "factory_raw_stock_check.approve" : "factory_product_stock_check.approve") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => approveStockCheck(stockType, row)}>Approve</button> : null}
         </div>
       ) },
     ];
@@ -1351,7 +1367,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           section="Factory"
           title="Job Orders"
           description="Create, update and monitor factory production job orders."
-          actions={<button className="btn-primary" type="button" onClick={() => setModal({ type: "job" })}><Plus size={15} /> Create Job Order</button>}
+          actions={can("factory_job_orders.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "job" })}><Plus size={15} /> Create Job Order</button> : null}
         />
         <Card title="Job Order Records" description={`Showing ${data.jobOrders.length} job order(s).`}>
           <FactoryTable columns={jobColumns} rows={data.jobOrders} emptyTitle="No job orders" emptyDescription="Create your first factory job order." />
@@ -1367,7 +1383,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           section="Raw Material"
           title="Raw Material Receiving"
           description="Record supplier deliveries into factory raw material warehouse stock."
-          actions={<button className="btn-primary" type="button" onClick={() => setModal({ type: "receiving" })}><Plus size={15} /> Record Receiving</button>}
+          actions={can("factory_raw_receiving.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "receiving" })}><Plus size={15} /> Record Receiving</button> : null}
         />
         <div className="grid gap-3 md:grid-cols-3">
           <MetricCard icon={Truck} label="Receipts" value={data.receivings.length} helper="Recorded receiving rows" />
@@ -1388,7 +1404,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           section="Raw Material"
           title="Raw Material Stock Check"
           description="Count raw material stock, submit variance for review and approve inventory adjustments."
-          actions={<button className="btn-primary" type="button" onClick={() => setModal({ type: "stock-check", stockType: "raw" })}><Plus size={15} /> New Stock Check</button>}
+          actions={can("factory_raw_stock_check.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "stock-check", stockType: "raw" })}><Plus size={15} /> New Stock Check</button> : null}
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={Warehouse} label="Raw Materials" value={data.rawMaterials.length} helper="Available for count" />
@@ -1410,7 +1426,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           section="Master Data"
           title="Production SOP"
           description="Manage standard process references, product steps and QC checkpoint flags."
-          actions={<button className="btn-primary" type="button" onClick={() => setModal({ type: "sop" })}><Plus size={15} /> Create SOP</button>}
+          actions={can("factory_production_sop.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "sop" })}><Plus size={15} /> Create SOP</button> : null}
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={ClipboardCheck} label="SOPs" value={data.sops.length} helper="Standard process references" />
@@ -1433,7 +1449,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           section="Factory"
           title="Production Records"
           description="Execute job orders, capture actual material usage, deduct raw stock and stock in finished goods."
-          actions={readyJobs[0] ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "production", job: readyJobs[0] })}><Play size={15} /> Start Next Job</button> : null}
+          actions={readyJobs[0] && can("factory_production.complete") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "production", job: readyJobs[0] })}><Play size={15} /> Start Next Job</button> : null}
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={Factory} label="Completed Runs" value={metrics.completedProductions.length} helper="Production completions" />
@@ -1555,7 +1571,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           section="Warehouse"
           title="Product Stock Check"
           description="Count finished goods stock, submit variance for review and approve inventory adjustments."
-          actions={<button className="btn-primary" type="button" onClick={() => setModal({ type: "stock-check", stockType: "product" })}><Plus size={15} /> New Stock Check</button>}
+          actions={can("factory_product_stock_check.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "stock-check", stockType: "product" })}><Plus size={15} /> New Stock Check</button> : null}
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={PackageCheck} label="Finished Goods" value={data.finishedGoods.length} helper="Available for count" />
@@ -1576,6 +1592,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   return (
     <>
+      <AccessIssueNotice issues={data.accessIssues} />
       {initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "batch-traceability" ? renderBatchTraceability() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "production-sop" ? renderProductionSop() : renderDashboard()}
       {modal?.type === "job" ? (
         <JobOrderModal

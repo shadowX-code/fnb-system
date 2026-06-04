@@ -341,85 +341,128 @@ async function ensureRawMaterial(receiving) {
   return data.id;
 }
 
+function emptyFactoryData() {
+  return {
+    jobOrders: [],
+    rawMaterials: [],
+    receivings: [],
+    productions: [],
+    finishedGoods: [],
+    productMovements: [],
+    rawStockChecks: [],
+    productStockChecks: [],
+    recipes: [],
+    sops: [],
+    accessIssues: [],
+  };
+}
+
+const productionSelectBasic = "id,job_order_id,production_no,product_name,batch_no,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,operator_id,operator_name,start_time,end_time,qc_status,production_sop_id,sop_version,status,notes,created_by,completed_at,created_at,updated_at";
+const productionSelectDetailed = `${productionSelectBasic},material_usage:factory_production_material_usage(id,production_id,raw_material_id,raw_material_receiving_id,raw_material_lot_no,quantity_used,standard_usage,actual_usage,variance_qty,variance_percent,variance_reason,uom,wastage_quantity,notes,created_at,updated_at,raw_material:factory_raw_materials(name,uom),raw_receiving:factory_raw_material_receivings(receipt_no,batch_no,supplier_name,received_date)),qc_checkpoints:factory_production_qc_checkpoints(id,production_id,production_sop_id,sop_step_id,step_no,process_name,control_point,qc_status,notes,created_at,updated_at)`;
+
+function factoryDataPlan(scope, hasPermission) {
+  const can = (code) => !hasPermission || hasPermission(code);
+  const isDashboard = scope === "dashboard";
+  const isJobOrders = scope === "job-orders";
+  const isRawReceiving = scope === "raw-receiving";
+  const isRawStockCheck = scope === "raw-stock-check";
+  const isProduction = scope === "production";
+  const isBatchTraceability = scope === "batch-traceability";
+  const isProductStockCheck = scope === "product-stock-check";
+  const isProductionSop = scope === "production-sop";
+  const needsProductionSummary = isDashboard || isProduction || isBatchTraceability;
+  const needsProductionDetails = isProduction || isBatchTraceability;
+  return {
+    jobOrders: (isDashboard && can("factory_dashboard.view")) || (isJobOrders && can("factory_job_orders.view")) || ((isProduction || isBatchTraceability) && (can("factory_production.view") || can("factory_production_reports.view"))),
+    rawMaterials: (isDashboard && can("factory_dashboard.view")) || (isRawReceiving && can("factory_raw_receiving.view")) || (isRawStockCheck && can("factory_raw_stock_check.view")) || (isProduction && (can("factory_raw_inventory.view") || can("factory_product_recipes.view") || can("factory_dashboard.view"))),
+    receivings: (isDashboard && can("factory_dashboard.view")) || (isRawReceiving && can("factory_raw_receiving.view")) || (isProduction && can("factory_raw_receiving.view")),
+    productions: needsProductionSummary && (can("factory_dashboard.view") || can("factory_production.view") || can("factory_production_reports.view")),
+    productionDetails: needsProductionDetails,
+    finishedGoods: (isDashboard && can("factory_dashboard.view")) || (isProduction && can("factory_finished_goods.view")) || (isProductStockCheck && can("factory_product_stock_check.view")),
+    productMovements: (isDashboard && can("factory_dashboard.view")) || (isProduction && can("factory_product_movements.view")) || (isBatchTraceability && can("factory_product_movements.view")),
+    rawStockChecks: isRawStockCheck && can("factory_raw_stock_check.view"),
+    productStockChecks: isProductStockCheck && can("factory_product_stock_check.view"),
+    recipes: isProduction && can("factory_product_recipes.view"),
+    sops: (isProduction || isProductionSop) && can("factory_production_sop.view"),
+  };
+}
+
 export const factoryService = {
-  async listFactoryData() {
-    const [jobOrdersResult, materialsResult, receivingResult, productionsResult, finishedGoodsResult, productMovementsResult, rawStockChecksResult, productStockChecksResult, recipesResult, sopsResult] = await Promise.all([
-      supabase
-        .from("factory_job_orders")
-        .select("id,job_order_no,product_name,target_quantity,produced_quantity,uom,planned_date,due_date,priority,status,assigned_team,remarks,created_by,created_at,updated_at")
-        .order("planned_date", { ascending: false })
-        .limit(150),
-      supabase
-        .from("factory_raw_materials")
-        .select("id,material_code,name,category,uom,current_balance,min_stock_level,storage_location,status,created_at,updated_at")
-        .order("name", { ascending: true })
-        .limit(300),
-      supabase
-        .from("factory_raw_material_receivings")
-        .select("id,receipt_no,raw_material_id,supplier_name,batch_no,received_qty,uom,unit_cost,total_cost,invoice_no,received_date,expiry_date,storage_location,remarks,received_by,created_at,updated_at,raw_material:factory_raw_materials(name,uom)")
-        .order("received_date", { ascending: false })
-        .limit(150),
-      supabase
-        .from("factory_productions")
-        .select("id,job_order_id,production_no,product_name,batch_no,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,operator_id,operator_name,start_time,end_time,qc_status,production_sop_id,sop_version,status,notes,created_by,completed_at,created_at,updated_at,production_sop:factory_production_sops(sop_code,title,version),material_usage:factory_production_material_usage(id,production_id,raw_material_id,raw_material_receiving_id,raw_material_lot_no,quantity_used,standard_usage,actual_usage,variance_qty,variance_percent,variance_reason,uom,wastage_quantity,notes,created_at,updated_at,raw_material:factory_raw_materials(name,uom),raw_receiving:factory_raw_material_receivings(receipt_no,batch_no,supplier_name,received_date)),qc_checkpoints:factory_production_qc_checkpoints(id,production_id,production_sop_id,sop_step_id,step_no,process_name,control_point,qc_status,notes,created_at,updated_at)")
-        .order("production_date", { ascending: false })
-        .limit(150),
-      supabase
-        .from("factory_finished_goods")
-        .select("id,product_code,product_name,category,uom,current_balance,min_stock_level,status,created_at,updated_at")
-        .order("product_name", { ascending: true })
-        .limit(300),
-      supabase
-        .from("factory_product_stock_movements")
-        .select("id,finished_good_id,product_name,movement_type,quantity,uom,reference_type,reference_id,reference_no,movement_date,notes,created_by,created_at,finished_good:factory_finished_goods(product_name,uom)")
-        .order("movement_date", { ascending: false })
-        .limit(150),
-      supabase
-        .from("factory_raw_material_stock_checks")
-        .select("id,check_no,check_date,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at,items:factory_raw_material_stock_check_items(id,stock_check_id,raw_material_id,system_qty,physical_qty,variance_qty,variance_percent,variance_status,variance_reason,uom,created_at,updated_at,raw_material:factory_raw_materials(name,uom))")
-        .order("check_date", { ascending: false })
-        .limit(100),
-      supabase
-        .from("factory_product_stock_checks")
-        .select("id,check_no,check_date,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at,items:factory_product_stock_check_items(id,stock_check_id,finished_good_id,system_qty,physical_qty,variance_qty,variance_percent,variance_status,variance_reason,uom,created_at,updated_at,finished_good:factory_finished_goods(product_name,uom))")
-        .order("check_date", { ascending: false })
-        .limit(100),
-      supabase
-        .from("factory_product_recipes")
-        .select("id,recipe_code,product_name,yield_quantity,uom,status,items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,notes,raw_material:factory_raw_materials(name,uom))")
-        .eq("status", "active")
-        .order("product_name", { ascending: true })
-        .limit(150),
-      supabase
-        .from("factory_production_sops")
-        .select("id,sop_code,title,product_name,version,effective_date,equipment,status,notes,created_by,created_at,updated_at,steps:factory_production_sop_steps(id,sop_id,step_no,instruction,process_name,description,control_point,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,safety_note,created_at,updated_at)")
-        .order("product_name", { ascending: true })
-        .limit(150),
-    ]);
-
-    throwSupabaseError("factory.job_orders.list", jobOrdersResult.error);
-    throwSupabaseError("factory.raw_materials.list", materialsResult.error);
-    throwSupabaseError("factory.receivings.list", receivingResult.error);
-    throwSupabaseError("factory.productions.list", productionsResult.error);
-    throwSupabaseError("factory.finished_goods.list", finishedGoodsResult.error);
-    throwSupabaseError("factory.product_movements.list", productMovementsResult.error);
-    throwSupabaseError("factory.raw_stock_checks.list", rawStockChecksResult.error);
-    throwSupabaseError("factory.product_stock_checks.list", productStockChecksResult.error);
-    throwSupabaseError("factory.recipes.list", recipesResult.error);
-    throwSupabaseError("factory.sops.list", sopsResult.error);
-
-    return {
-      jobOrders: (jobOrdersResult.data ?? []).map(mapJobOrder),
-      rawMaterials: (materialsResult.data ?? []).map(mapRawMaterial),
-      receivings: (receivingResult.data ?? []).map(mapReceiving),
-      productions: (productionsResult.data ?? []).map(mapProduction),
-      finishedGoods: (finishedGoodsResult.data ?? []).map(mapFinishedGood),
-      productMovements: (productMovementsResult.data ?? []).map(mapProductMovement),
-      rawStockChecks: (rawStockChecksResult.data ?? []).map((row) => mapStockCheck(row, "raw")),
-      productStockChecks: (productStockChecksResult.data ?? []).map((row) => mapStockCheck(row, "product")),
-      recipes: (recipesResult.data ?? []).map(mapRecipe),
-      sops: (sopsResult.data ?? []).map(mapProductionSop),
+  async listFactoryData({ scope = "dashboard", hasPermission } = {}) {
+    const data = emptyFactoryData();
+    const plan = factoryDataPlan(scope, hasPermission);
+    const tasks = [];
+    const addTask = (enabled, key, label, query, mapper) => {
+      if (!enabled) return;
+      tasks.push({ key, label, query, mapper });
     };
+
+    addTask(plan.jobOrders, "jobOrders", "Job Orders", () => supabase
+      .from("factory_job_orders")
+      .select("id,job_order_no,product_name,target_quantity,produced_quantity,uom,planned_date,due_date,priority,status,assigned_team,remarks,created_by,created_at,updated_at")
+      .order("planned_date", { ascending: false })
+      .limit(150), (rows) => rows.map(mapJobOrder));
+    addTask(plan.rawMaterials, "rawMaterials", "Raw Materials", () => supabase
+      .from("factory_raw_materials")
+      .select("id,material_code,name,category,uom,current_balance,min_stock_level,storage_location,status,created_at,updated_at")
+      .order("name", { ascending: true })
+      .limit(300), (rows) => rows.map(mapRawMaterial));
+    addTask(plan.receivings, "receivings", "Raw Material Receiving", () => supabase
+      .from("factory_raw_material_receivings")
+      .select("id,receipt_no,raw_material_id,supplier_name,batch_no,received_qty,uom,unit_cost,total_cost,invoice_no,received_date,expiry_date,storage_location,remarks,received_by,created_at,updated_at,raw_material:factory_raw_materials(name,uom)")
+      .order("received_date", { ascending: false })
+      .limit(150), (rows) => rows.map(mapReceiving));
+    addTask(plan.productions, "productions", "Production Records", () => supabase
+      .from("factory_productions")
+      .select(plan.productionDetails ? productionSelectDetailed : productionSelectBasic)
+      .order("production_date", { ascending: false })
+      .limit(150), (rows) => rows.map(mapProduction));
+    addTask(plan.finishedGoods, "finishedGoods", "Finished Goods", () => supabase
+      .from("factory_finished_goods")
+      .select("id,product_code,product_name,category,uom,current_balance,min_stock_level,status,created_at,updated_at")
+      .order("product_name", { ascending: true })
+      .limit(300), (rows) => rows.map(mapFinishedGood));
+    addTask(plan.productMovements, "productMovements", "Product Movements", () => supabase
+      .from("factory_product_stock_movements")
+      .select("id,finished_good_id,product_name,movement_type,quantity,uom,reference_type,reference_id,reference_no,movement_date,notes,created_by,created_at,finished_good:factory_finished_goods(product_name,uom)")
+      .order("movement_date", { ascending: false })
+      .limit(150), (rows) => rows.map(mapProductMovement));
+    addTask(plan.rawStockChecks, "rawStockChecks", "Raw Material Stock Check", () => supabase
+      .from("factory_raw_material_stock_checks")
+      .select("id,check_no,check_date,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at,items:factory_raw_material_stock_check_items(id,stock_check_id,raw_material_id,system_qty,physical_qty,variance_qty,variance_percent,variance_status,variance_reason,uom,created_at,updated_at,raw_material:factory_raw_materials(name,uom))")
+      .order("check_date", { ascending: false })
+      .limit(100), (rows) => rows.map((row) => mapStockCheck(row, "raw")));
+    addTask(plan.productStockChecks, "productStockChecks", "Product Stock Check", () => supabase
+      .from("factory_product_stock_checks")
+      .select("id,check_no,check_date,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at,items:factory_product_stock_check_items(id,stock_check_id,finished_good_id,system_qty,physical_qty,variance_qty,variance_percent,variance_status,variance_reason,uom,created_at,updated_at,finished_good:factory_finished_goods(product_name,uom))")
+      .order("check_date", { ascending: false })
+      .limit(100), (rows) => rows.map((row) => mapStockCheck(row, "product")));
+    addTask(plan.recipes, "recipes", "Product Recipes", () => supabase
+      .from("factory_product_recipes")
+      .select("id,recipe_code,product_name,yield_quantity,uom,status,items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,notes,raw_material:factory_raw_materials(name,uom))")
+      .eq("status", "active")
+      .order("product_name", { ascending: true })
+      .limit(150), (rows) => rows.map(mapRecipe));
+    addTask(plan.sops, "sops", "Production SOP", () => supabase
+      .from("factory_production_sops")
+      .select("id,sop_code,title,product_name,version,effective_date,equipment,status,notes,created_by,created_at,updated_at,steps:factory_production_sop_steps(id,sop_id,step_no,instruction,process_name,description,control_point,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,safety_note,created_at,updated_at)")
+      .order("product_name", { ascending: true })
+      .limit(150), (rows) => rows.map(mapProductionSop));
+
+    const results = await Promise.allSettled(tasks.map((task) => task.query()));
+    results.forEach((result, index) => {
+      const task = tasks[index];
+      if (result.status === "rejected") {
+        data.accessIssues.push({ key: task.key, label: task.label, message: result.reason?.message || "Unable to load this Factory dataset." });
+        return;
+      }
+      if (result.value.error) {
+        data.accessIssues.push({ key: task.key, label: task.label, message: result.value.error.message || "Unable to load this Factory dataset." });
+        return;
+      }
+      data[task.key] = task.mapper(result.value.data ?? []);
+    });
+    return data;
   },
 
   async saveJobOrder(order, employeeId) {

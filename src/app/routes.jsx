@@ -24,13 +24,16 @@ import AuditLogsPage from "../features/company-users/pages/AuditLogsPage.jsx";
 import FactoryWorkspacePage from "../features/factory/pages/FactoryWorkspacePage.jsx";
 import { getSidebarSections, moduleRegistry, viewPermission } from "../../config/modules.ts";
 
-function ModulePlaceholderPage({ moduleLabel = "Module", moduleSection = "Workspace" }) {
+function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSection = "Workspace" }) {
+  const isFactoryModule = String(moduleId).startsWith("factory_");
   return (
     <div className="card p-6">
       <div className="text-xs font-bold uppercase tracking-wide text-text-muted">{moduleSection}</div>
       <h2 className="mt-2 text-xl font-semibold text-text-primary">{moduleLabel}</h2>
       <p className="mt-2 text-sm text-text-secondary">
-        This module is registered for navigation, permissions, route protection and audit scope, but its working page has not been implemented yet.
+        {isFactoryModule
+          ? "This Factory module is registered for navigation, permissions and audit scope, but it is not part of the current functional Factory 1A-1D workflow yet."
+          : "This module is registered for navigation, permissions, route protection and audit scope, but its working page has not been implemented yet."}
       </p>
     </div>
   );
