@@ -110,6 +110,35 @@ function isLocalBatch(batch) {
   return String(batch?.id ?? "").startsWith("local-");
 }
 
+function buildHistoryRawRow(record) {
+  const raw = record.rawRow && typeof record.rawRow === "object" ? { ...record.rawRow } : {};
+  if (record.channel_name) {
+    return {
+      ...raw,
+      Outlet: record.outletCode || record.outletName || raw.Outlet || "",
+      Month: record.month ?? raw.Month ?? "",
+      Year: record.year ?? raw.Year ?? "",
+      Channel: record.channel_name,
+      Amount: record.amount,
+      imported_channel: record.channel_name,
+      imported_amount: record.amount,
+    };
+  }
+  if (record.supplier_name || record.category_name) {
+    return {
+      ...raw,
+      Outlet: record.outletCode || record.outletName || raw.Outlet || "",
+      Month: record.month ?? raw.Month ?? "",
+      Year: record.year ?? raw.Year ?? "",
+      Supplier: record.supplier_name || raw.Supplier || "",
+      Category: record.category_name || raw.Category || "",
+      Amount: record.amount,
+      imported_amount: record.amount,
+    };
+  }
+  return raw;
+}
+
 async function createImportBatch({ importType, fileName, records, createdCount, updatedCount, failedCount, warningCount, status = "pending" }) {
   const range = getPeriodRange(records);
   const outletIds = [...new Set(records.map((record) => record.outlet_id).filter(Boolean))];
@@ -195,7 +224,7 @@ function buildRowDetails({ batch, records, savedRows, conflicts, keyFn, skippedR
     return {
       batch_id: batch.id,
       source_row: record.sourceRow,
-      raw_row: record.rawRow ?? record,
+      raw_row: buildHistoryRawRow(record),
       action: conflicts.has(key) ? "update" : "create",
       validation_result: saved ? "success" : "failed",
       imported_record_id: saved?.id ?? null,
@@ -291,7 +320,7 @@ export const importService = {
     return data ?? [];
   },
 
-  async listImportBatchRows(batchId) {
+  async listImportBatchRows(batchId, importType = "") {
     if (!batchId || isLocalBatch({ id: batchId })) return [];
     const { data, error } = await supabase
       .from("import_batch_rows")
@@ -305,7 +334,35 @@ export const importService = {
     }
 
     throwSupabaseError("import_batch_rows.list", error);
-    return data ?? [];
+    const rows = data ?? [];
+    if (String(importType).toLowerCase() !== "sales") return rows;
+
+    const recordIds = [...new Set(rows.map((row) => row.imported_record_id).filter(Boolean))];
+    if (!recordIds.length) return rows;
+
+    const { data: salesRecords, error: salesError } = await supabase
+      .from("sales_records")
+      .select("id,outlet_id,year,month,channel_id,channel_name,amount,remark")
+      .in("id", recordIds);
+    throwSupabaseError("import_batch_rows.sales_records", salesError);
+
+    const salesById = new Map((salesRecords ?? []).map((record) => [record.id, record]));
+    return rows.map((row) => {
+      const record = salesById.get(row.imported_record_id);
+      if (!record) return row;
+      return {
+        ...row,
+        raw_row: {
+          ...(row.raw_row ?? {}),
+          Month: record.month,
+          Year: record.year,
+          Channel: record.channel_name,
+          Amount: record.amount,
+          imported_channel: record.channel_name,
+          imported_amount: record.amount,
+        },
+      };
+    });
   },
 
   async detectSalesConflicts(records) {
@@ -366,7 +423,7 @@ export const importService = {
       }).catch(() => {});
       await insertImportBatchRows(batch, records.map((record) => ({
         source_row: record.sourceRow,
-        raw_row: record.rawRow ?? record,
+        raw_row: buildHistoryRawRow(record),
         action: conflicts.has(salesKey(record)) ? "update" : "create",
         validation_result: "failed",
         failure_reason: error.message,
@@ -432,7 +489,7 @@ export const importService = {
       }).catch(() => {});
       await insertImportBatchRows(batch, records.map((record) => ({
         source_row: record.sourceRow,
-        raw_row: record.rawRow ?? record,
+        raw_row: buildHistoryRawRow(record),
         action: conflicts.has(purchaseKey(record)) ? "update" : "create",
         validation_result: "failed",
         failure_reason: error.message,

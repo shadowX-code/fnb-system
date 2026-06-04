@@ -336,6 +336,12 @@ function getRawValue(row, candidates) {
   return "";
 }
 
+function formatImportAmount(value) {
+  const amount = parseAmount(value);
+  if (amount === null) return value || "-";
+  return `RM ${amount.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 function getImportBatchPeriod(row) {
   if (!row?.year || !row?.month_start) return "-";
   if (row.month_start === row.month_end) return `${monthLabel(row.month_start)} ${row.year}`;
@@ -1063,7 +1069,7 @@ export function DataImportWorkspace({
     setImportDetail({ row, view, loading: view === "rows", rows: [], error: "" });
     if (view !== "rows") return;
     try {
-      const rows = await importService.listImportBatchRows(row.id);
+      const rows = await importService.listImportBatchRows(row.id, row.import_type);
       setImportDetail({ row, view, loading: false, rows, error: "" });
     } catch (error) {
       console.error("Unable to load import row details", error);
@@ -1568,15 +1574,15 @@ export function DataImportWorkspace({
                           ? [
                               { key: "outlet", header: "Outlet", render: (row) => getRawValue(row, ["Outlet", "Branch", "Outlet Code"]) || "-" },
                               { key: "period", header: "Month / Year", render: (row) => `${getRawValue(row, ["Month"]) || "-"} ${getRawValue(row, ["Year"]) || ""}` },
-                              { key: "channel", header: "Channel", render: (row) => getRawValue(row, ["Channel", "Dine In", "FoodPanda", "GrabFood", "ShopeeFood", "Takeaway"]) || "-" },
-                              { key: "amount", header: "Amount", align: "right", render: (row) => getRawValue(row, ["Amount", "Dine In", "FoodPanda", "GrabFood", "ShopeeFood", "Takeaway"]) || "-" },
+                              { key: "channel", header: "Channel", render: (row) => getRawValue(row, ["imported_channel", "Channel"]) || "-" },
+                              { key: "amount", header: "Amount", align: "right", render: (row) => formatImportAmount(getRawValue(row, ["imported_amount", "Amount"])) },
                             ]
                           : [
                               { key: "outlet", header: "Outlet", render: (row) => getRawValue(row, ["Outlet", "Branch", "Outlet Code"]) || "-" },
                               { key: "period", header: "Month / Year", render: (row) => `${getRawValue(row, ["Month"]) || "-"} ${getRawValue(row, ["Year"]) || ""}` },
                               { key: "supplier", header: "Supplier", render: (row) => getRawValue(row, ["Supplier", "Supplier Name"]) || "-" },
                               { key: "category", header: "Category", render: (row) => getRawValue(row, ["Category", "Supplier Category", "Purchase Category"]) || "-" },
-                              { key: "amount", header: "Amount", align: "right", render: (row) => getRawValue(row, ["Amount", "Purchase Amount"]) || "-" },
+                              { key: "amount", header: "Amount", align: "right", render: (row) => formatImportAmount(getRawValue(row, ["imported_amount", "Amount", "Purchase Amount"])) },
                             ]),
                         { key: "action", header: "Action", render: (row) => <Badge tone={row.action === "failed" ? "danger" : row.action === "update" ? "warning" : row.action === "skip" ? "neutral" : "success"}>{row.action}</Badge> },
                         { key: "failure_reason", header: "Error", render: (row) => row.failure_reason || "-" },
