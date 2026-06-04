@@ -71,7 +71,11 @@ function mapProductionUsage(row) {
     id: row.id,
     production_id: row.production_id,
     raw_material_id: row.raw_material_id,
+    raw_material_receiving_id: row.raw_material_receiving_id || "",
     raw_material_name: row.raw_material?.name || "",
+    raw_material_lot_no: row.raw_material_lot_no || row.raw_receiving?.batch_no || "",
+    receiving_ref: row.raw_receiving?.receipt_no || "",
+    supplier_name: row.raw_receiving?.supplier_name || "",
     standard_usage: normalizeNumber(row.standard_usage),
     actual_usage: normalizeNumber(row.actual_usage || row.quantity_used),
     variance_qty: normalizeNumber(row.variance_qty),
@@ -79,6 +83,22 @@ function mapProductionUsage(row) {
     variance_reason: row.variance_reason || "",
     uom: row.uom || row.raw_material?.uom || "",
     wastage_quantity: normalizeNumber(row.wastage_quantity),
+    notes: row.notes || "",
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function mapProductionQcCheckpoint(row) {
+  return {
+    id: row.id,
+    production_id: row.production_id,
+    production_sop_id: row.production_sop_id || "",
+    sop_step_id: row.sop_step_id || "",
+    step_no: normalizeNumber(row.step_no),
+    process_name: row.process_name || "",
+    control_point: row.control_point || "",
+    qc_status: row.qc_status || "Pending",
     notes: row.notes || "",
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -103,6 +123,10 @@ function mapProduction(row) {
     start_time: row.start_time || "",
     end_time: row.end_time || "",
     qc_status: row.qc_status || "Pending",
+    production_sop_id: row.production_sop_id || "",
+    sop_version: row.sop_version || row.production_sop?.version || "",
+    sop_title: row.production_sop?.title || "",
+    sop_code: row.production_sop?.sop_code || "",
     status: row.status || "draft",
     notes: row.notes || "",
     created_by: row.created_by || "",
@@ -110,6 +134,7 @@ function mapProduction(row) {
     created_at: row.created_at,
     updated_at: row.updated_at,
     material_usage: (row.material_usage ?? []).map(mapProductionUsage),
+    qc_checkpoints: (row.qc_checkpoints ?? []).map(mapProductionQcCheckpoint),
   };
 }
 
@@ -208,6 +233,38 @@ function mapRecipe(row) {
   };
 }
 
+function mapProductionSop(row) {
+  return {
+    id: row.id,
+    sop_code: row.sop_code || "",
+    title: row.title || "",
+    product_name: row.product_name || "",
+    version: row.version || "v1",
+    effective_date: row.effective_date || "",
+    equipment: row.equipment || "",
+    status: row.status || "active",
+    notes: row.notes || "",
+    created_by: row.created_by || "",
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    steps: (row.steps ?? []).map((step) => ({
+      id: step.id,
+      sop_id: step.sop_id,
+      step_no: normalizeNumber(step.step_no),
+      process_name: step.process_name || step.instruction || "",
+      description: step.description || step.instruction || "",
+      control_point: step.control_point || "",
+      materials: step.materials || "",
+      equipment: step.equipment || "",
+      estimated_time_minutes: normalizeNumber(step.estimated_time_minutes || step.expected_duration_minutes),
+      is_qc_checkpoint: Boolean(step.is_qc_checkpoint),
+      safety_note: step.safety_note || "",
+      created_at: step.created_at,
+      updated_at: step.updated_at,
+    })).sort((a, b) => a.step_no - b.step_no),
+  };
+}
+
 function makeFactoryRef(prefix) {
   const date = new Date();
   const stamp = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
@@ -286,7 +343,7 @@ async function ensureRawMaterial(receiving) {
 
 export const factoryService = {
   async listFactoryData() {
-    const [jobOrdersResult, materialsResult, receivingResult, productionsResult, finishedGoodsResult, productMovementsResult, rawStockChecksResult, productStockChecksResult, recipesResult] = await Promise.all([
+    const [jobOrdersResult, materialsResult, receivingResult, productionsResult, finishedGoodsResult, productMovementsResult, rawStockChecksResult, productStockChecksResult, recipesResult, sopsResult] = await Promise.all([
       supabase
         .from("factory_job_orders")
         .select("id,job_order_no,product_name,target_quantity,produced_quantity,uom,planned_date,due_date,priority,status,assigned_team,remarks,created_by,created_at,updated_at")
@@ -304,7 +361,7 @@ export const factoryService = {
         .limit(150),
       supabase
         .from("factory_productions")
-        .select("id,job_order_id,production_no,product_name,batch_no,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,operator_id,operator_name,start_time,end_time,qc_status,status,notes,created_by,completed_at,created_at,updated_at,material_usage:factory_production_material_usage(id,production_id,raw_material_id,quantity_used,standard_usage,actual_usage,variance_qty,variance_percent,variance_reason,uom,wastage_quantity,notes,created_at,updated_at,raw_material:factory_raw_materials(name,uom))")
+        .select("id,job_order_id,production_no,product_name,batch_no,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,operator_id,operator_name,start_time,end_time,qc_status,production_sop_id,sop_version,status,notes,created_by,completed_at,created_at,updated_at,production_sop:factory_production_sops(sop_code,title,version),material_usage:factory_production_material_usage(id,production_id,raw_material_id,raw_material_receiving_id,raw_material_lot_no,quantity_used,standard_usage,actual_usage,variance_qty,variance_percent,variance_reason,uom,wastage_quantity,notes,created_at,updated_at,raw_material:factory_raw_materials(name,uom),raw_receiving:factory_raw_material_receivings(receipt_no,batch_no,supplier_name,received_date)),qc_checkpoints:factory_production_qc_checkpoints(id,production_id,production_sop_id,sop_step_id,step_no,process_name,control_point,qc_status,notes,created_at,updated_at)")
         .order("production_date", { ascending: false })
         .limit(150),
       supabase
@@ -333,6 +390,11 @@ export const factoryService = {
         .eq("status", "active")
         .order("product_name", { ascending: true })
         .limit(150),
+      supabase
+        .from("factory_production_sops")
+        .select("id,sop_code,title,product_name,version,effective_date,equipment,status,notes,created_by,created_at,updated_at,steps:factory_production_sop_steps(id,sop_id,step_no,instruction,process_name,description,control_point,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,safety_note,created_at,updated_at)")
+        .order("product_name", { ascending: true })
+        .limit(150),
     ]);
 
     throwSupabaseError("factory.job_orders.list", jobOrdersResult.error);
@@ -344,6 +406,7 @@ export const factoryService = {
     throwSupabaseError("factory.raw_stock_checks.list", rawStockChecksResult.error);
     throwSupabaseError("factory.product_stock_checks.list", productStockChecksResult.error);
     throwSupabaseError("factory.recipes.list", recipesResult.error);
+    throwSupabaseError("factory.sops.list", sopsResult.error);
 
     return {
       jobOrders: (jobOrdersResult.data ?? []).map(mapJobOrder),
@@ -355,6 +418,7 @@ export const factoryService = {
       rawStockChecks: (rawStockChecksResult.data ?? []).map((row) => mapStockCheck(row, "raw")),
       productStockChecks: (productStockChecksResult.data ?? []).map((row) => mapStockCheck(row, "product")),
       recipes: (recipesResult.data ?? []).map(mapRecipe),
+      sops: (sopsResult.data ?? []).map(mapProductionSop),
     };
   },
 
@@ -511,6 +575,8 @@ export const factoryService = {
   async completeProduction(production, employeeId) {
     const usageItems = (production.material_usage ?? []).map((item) => ({
       raw_material_id: item.raw_material_id,
+      raw_material_receiving_id: item.raw_material_receiving_id || "",
+      raw_material_lot_no: item.raw_material_lot_no || "",
       standard_usage: normalizeNumber(item.standard_usage),
       actual_usage: normalizeNumber(item.actual_usage),
       variance_reason: item.variance_reason || "",
@@ -534,6 +600,8 @@ export const factoryService = {
       p_wastage_qty: normalizeNumber(production.wastage_qty),
       p_uom: production.uom || "",
       p_qc_status: production.qc_status || "Pending",
+      p_production_sop_id: production.production_sop_id || null,
+      p_sop_version: production.sop_version || "",
       p_notes: production.notes || "",
       p_created_by: employeeId || null,
       p_usage_items: usageItems,
@@ -542,7 +610,7 @@ export const factoryService = {
 
     const { data, error: fetchError } = await supabase
       .from("factory_productions")
-      .select("id,job_order_id,production_no,product_name,batch_no,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,operator_id,operator_name,start_time,end_time,qc_status,status,notes,created_by,completed_at,created_at,updated_at,material_usage:factory_production_material_usage(id,production_id,raw_material_id,quantity_used,standard_usage,actual_usage,variance_qty,variance_percent,variance_reason,uom,wastage_quantity,notes,created_at,updated_at,raw_material:factory_raw_materials(name,uom))")
+      .select("id,job_order_id,production_no,product_name,batch_no,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,operator_id,operator_name,start_time,end_time,qc_status,production_sop_id,sop_version,status,notes,created_by,completed_at,created_at,updated_at,production_sop:factory_production_sops(sop_code,title,version),material_usage:factory_production_material_usage(id,production_id,raw_material_id,raw_material_receiving_id,raw_material_lot_no,quantity_used,standard_usage,actual_usage,variance_qty,variance_percent,variance_reason,uom,wastage_quantity,notes,created_at,updated_at,raw_material:factory_raw_materials(name,uom),raw_receiving:factory_raw_material_receivings(receipt_no,batch_no,supplier_name,received_date)),qc_checkpoints:factory_production_qc_checkpoints(id,production_id,production_sop_id,sop_step_id,step_no,process_name,control_point,qc_status,notes,created_at,updated_at)")
       .eq("id", productionId)
       .single();
     throwSupabaseError("factory.production.fetch_completed", fetchError);
@@ -554,6 +622,86 @@ export const factoryService = {
       after: data,
     });
     return mapProduction(data);
+  },
+
+  async saveProductionSop(sop, employeeId) {
+    const isUpdate = Boolean(sop.id);
+    const steps = (sop.steps ?? [])
+      .map((step, index) => ({
+        step_no: normalizeNumber(step.step_no, index + 1),
+        process_name: String(step.process_name || "").trim(),
+        description: String(step.description || "").trim(),
+        control_point: String(step.control_point || "").trim(),
+        materials: String(step.materials || "").trim(),
+        equipment: String(step.equipment || "").trim(),
+        estimated_time_minutes: normalizeNumber(step.estimated_time_minutes),
+        is_qc_checkpoint: Boolean(step.is_qc_checkpoint),
+        safety_note: String(step.safety_note || "").trim(),
+      }))
+      .filter((step) => step.process_name || step.description);
+
+    if (!String(sop.title || "").trim()) throw new Error("SOP title is required.");
+    if (!String(sop.product_name || "").trim()) throw new Error("Product name is required.");
+    if (!steps.length) throw new Error("At least one SOP step is required.");
+
+    const payload = {
+      sop_code: sop.sop_code || makeFactoryRef("SOP"),
+      title: String(sop.title || "").trim(),
+      product_name: String(sop.product_name || "").trim(),
+      version: String(sop.version || "v1").trim(),
+      effective_date: sop.effective_date || null,
+      equipment: String(sop.equipment || "").trim(),
+      status: sop.status || "active",
+      notes: String(sop.notes || "").trim(),
+      updated_at: new Date().toISOString(),
+    };
+    if (!isUpdate) payload.created_by = employeeId || null;
+
+    const query = isUpdate
+      ? supabase.from("factory_production_sops").update(payload).eq("id", sop.id)
+      : supabase.from("factory_production_sops").insert(payload);
+
+    const { data, error } = await query
+      .select("id,sop_code,title,product_name,version,effective_date,equipment,status,notes,created_by,created_at,updated_at")
+      .single();
+    throwSupabaseError("factory.sop.save", error);
+
+    if (isUpdate) {
+      const deleteResult = await supabase.from("factory_production_sop_steps").delete().eq("sop_id", data.id);
+      throwSupabaseError("factory.sop.steps_delete", deleteResult.error);
+    }
+
+    const insertResult = await supabase.from("factory_production_sop_steps").insert(steps.map((step) => ({
+      sop_id: data.id,
+      step_no: step.step_no,
+      instruction: step.description || step.process_name,
+      process_name: step.process_name,
+      description: step.description,
+      control_point: step.control_point,
+      materials: step.materials,
+      equipment: step.equipment,
+      expected_duration_minutes: step.estimated_time_minutes,
+      estimated_time_minutes: step.estimated_time_minutes,
+      is_qc_checkpoint: step.is_qc_checkpoint,
+      safety_note: step.safety_note,
+      updated_at: new Date().toISOString(),
+    })));
+    throwSupabaseError("factory.sop.steps_insert", insertResult.error);
+
+    const { data: saved, error: fetchError } = await supabase
+      .from("factory_production_sops")
+      .select("id,sop_code,title,product_name,version,effective_date,equipment,status,notes,created_by,created_at,updated_at,steps:factory_production_sop_steps(id,sop_id,step_no,instruction,process_name,description,control_point,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,safety_note,created_at,updated_at)")
+      .eq("id", data.id)
+      .single();
+    throwSupabaseError("factory.sop.fetch_saved", fetchError);
+
+    await logFactoryAction({
+      action: isUpdate ? "factory_production_sop_updated" : "factory_production_sop_created",
+      target: saved.sop_code,
+      description: isUpdate ? "Factory Production SOP updated." : "Factory Production SOP created.",
+      after: saved,
+    });
+    return mapProductionSop(saved);
   },
 
   async saveStockCheck(stockType, stockCheck, employeeId) {

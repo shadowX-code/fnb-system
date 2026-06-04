@@ -2737,6 +2737,31 @@ Factory Phase 1C implemented scope:
 - Factory Dashboard includes stock check variance alerts and submitted stock checks awaiting approval.
 - Recent Factory Activity includes stock check submitted and approved events.
 
+Factory Phase 1D implemented scope:
+
+- Production SOP management working page.
+- SOPs are product-scoped standard process references with version, status, effective date, notes and default equipment.
+- SOP steps capture Step No, Process Name, Description, Control Point, Materials, Equipment and Estimated Time.
+- SOP steps can be flagged as QC checkpoints.
+- SOP is a standard process reference and is not an actual production result.
+- Actual production can reference the SOP version used through `factory_productions.production_sop_id` and `factory_productions.sop_version`.
+- Production completion can capture raw material receiving lot references for actual material usage rows.
+- Raw material lot usage is stored on `factory_production_material_usage` and remains part of actual production traceability.
+- QC checkpoints are recorded separately from stock check through production QC checkpoint snapshots.
+- When production references an SOP, flagged SOP QC checkpoint steps are copied to production-specific `factory_production_qc_checkpoints` rows.
+- Batch traceability connects:
+  - Batch No.
+  - Product.
+  - Job Order.
+  - Production date.
+  - Operator.
+  - Raw material lots used.
+  - Finished goods stock-in movement.
+  - SOP version used.
+  - QC status and production QC checkpoints.
+- Factory Dashboard includes quick alerts for batches with Pending, Hold, or Failed QC status.
+- Batch traceability must not modify Recipe, SOP, stock check or Production Actual Usage records; it is a connected read view over production data.
+
 Factory sidebar modules:
 
 - Factory Dashboard
@@ -2759,6 +2784,7 @@ Factory data model foundation:
 - `factory_job_orders`
 - `factory_productions`
 - `factory_production_material_usage`
+- `factory_production_qc_checkpoints`
 - `factory_raw_materials`
 - `factory_raw_material_receivings`
 - `factory_raw_material_movements`
@@ -2780,12 +2806,12 @@ Factory RLS and permissions:
 - Custom roles must be assigned Factory permissions through Roles & Permissions.
 - Factory tables enforce RLS through `current_user_has_permission(...)`.
 
-Current Factory exclusions after Phase 1C:
+Current Factory exclusions after Phase 1D:
 
 - Finished goods receipt and shipment workflow.
 - Product recipe BOM editor.
-- Production SOP editor.
-- Factory analytics beyond Phase 1C dashboard, production execution KPIs, and stock check variance alerts.
+- Full QC result editing/checklist completion workflow beyond checkpoint snapshots and batch QC status.
+- Factory analytics beyond Phase 1D dashboard, production execution KPIs, stock check variance alerts, and batch traceability.
 
 ## 5.14 Outlets
 

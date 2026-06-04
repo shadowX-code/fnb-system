@@ -320,6 +320,8 @@ function buildInitialUsageRows(job, rawMaterials, recipes) {
         raw_material_id: item.raw_material_id,
         standard_usage: Number(standardUsage.toFixed(4)),
         actual_usage: Number(standardUsage.toFixed(4)),
+        raw_material_receiving_id: "",
+        raw_material_lot_no: "",
         uom: item.uom || rawMaterials.find((material) => material.id === item.raw_material_id)?.uom || "",
         variance_reason: "",
         notes: item.notes || "",
@@ -329,7 +331,8 @@ function buildInitialUsageRows(job, rawMaterials, recipes) {
   return [];
 }
 
-function ProductionExecutionModal({ job, rawMaterials, recipes, auth, onClose, onSave }) {
+function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops, auth, onClose, onSave }) {
+  const matchingSop = sops.find((sop) => sop.status !== "inactive" && sop.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
   const [form, setForm] = useState(() => ({
     job_order_id: job.id,
     production_no: "",
@@ -345,6 +348,8 @@ function ProductionExecutionModal({ job, rawMaterials, recipes, auth, onClose, o
     wastage_qty: 0,
     uom: job.uom || "",
     qc_status: "Pending",
+    production_sop_id: matchingSop?.id || "",
+    sop_version: matchingSop?.version || "",
     notes: "",
     material_usage: buildInitialUsageRows(job, rawMaterials, recipes),
   }));
@@ -360,6 +365,8 @@ function ProductionExecutionModal({ job, rawMaterials, recipes, auth, onClose, o
         {
           id: `manual-${Date.now()}`,
           raw_material_id: "",
+          raw_material_receiving_id: "",
+          raw_material_lot_no: "",
           standard_usage: 0,
           actual_usage: "",
           uom: "",
@@ -456,6 +463,24 @@ function ProductionExecutionModal({ job, rawMaterials, recipes, auth, onClose, o
               {qcStatusOptions.map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
           </Field>
+          <Field label="SOP Used">
+            <select
+              className={inputClass()}
+              value={form.production_sop_id || ""}
+              onChange={(event) => {
+                const sop = sops.find((item) => item.id === event.target.value);
+                setForm((current) => ({ ...current, production_sop_id: event.target.value, sop_version: sop?.version || "" }));
+              }}
+            >
+              <option value="">No SOP reference</option>
+              {sops.filter((sop) => sop.status !== "inactive").map((sop) => (
+                <option key={sop.id} value={sop.id}>{sop.product_name} · {sop.title} · {sop.version}</option>
+              ))}
+            </select>
+          </Field>
+          <Field label="SOP Version">
+            <input className={inputClass()} value={form.sop_version || ""} onChange={(event) => setForm((current) => ({ ...current, sop_version: event.target.value }))} />
+          </Field>
           <Field label="Actual Produced Qty">
             <input className={inputClass()} type="number" min="0" step="0.01" value={form.actual_produced_qty} onChange={(event) => setForm((current) => ({ ...current, actual_produced_qty: event.target.value }))} />
           </Field>
@@ -476,6 +501,7 @@ function ProductionExecutionModal({ job, rawMaterials, recipes, auth, onClose, o
               <thead>
                 <tr className="border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">
                   <th className="px-4 py-2.5">Raw Material</th>
+                  <th className="px-4 py-2.5">Lot Used</th>
                   <th className="px-4 py-2.5">Standard</th>
                   <th className="px-4 py-2.5">Actual</th>
                   <th className="px-4 py-2.5">Variance</th>
@@ -487,6 +513,7 @@ function ProductionExecutionModal({ job, rawMaterials, recipes, auth, onClose, o
               <tbody>
                 {form.material_usage.map((row) => {
                   const material = rawMaterials.find((item) => item.id === row.raw_material_id);
+                  const materialLots = receivings.filter((item) => item.raw_material_id === row.raw_material_id && item.batch_no);
                   const { variance, variancePercent } = varianceFor(row.standard_usage, row.actual_usage);
                   const needsReason = Math.abs(variancePercent) > varianceThresholdPercent;
                   const showReasonError = submitAttempted && needsReason && !String(row.variance_reason || "").trim();
@@ -498,7 +525,7 @@ function ProductionExecutionModal({ job, rawMaterials, recipes, auth, onClose, o
                           value={row.raw_material_id}
                           onChange={(event) => {
                             const nextMaterial = rawMaterials.find((item) => item.id === event.target.value);
-                            updateUsageRow(row.id, { raw_material_id: event.target.value, uom: nextMaterial?.uom || row.uom });
+                            updateUsageRow(row.id, { raw_material_id: event.target.value, raw_material_receiving_id: "", raw_material_lot_no: "", uom: nextMaterial?.uom || row.uom });
                           }}
                         >
                           <option value="">Select material</option>
@@ -507,6 +534,22 @@ function ProductionExecutionModal({ job, rawMaterials, recipes, auth, onClose, o
                           ))}
                         </select>
                         <div className="mt-1 text-xs text-text-secondary">On hand: {material ? quantity(material.current_balance, material.uom) : "—"}</div>
+                      </td>
+                      <td className="px-4 py-3">
+                        <select
+                          className={inputClass()}
+                          value={row.raw_material_receiving_id || ""}
+                          onChange={(event) => {
+                            const lot = materialLots.find((item) => item.id === event.target.value);
+                            updateUsageRow(row.id, { raw_material_receiving_id: event.target.value, raw_material_lot_no: lot?.batch_no || "" });
+                          }}
+                        >
+                          <option value="">No lot selected</option>
+                          {materialLots.map((lot) => (
+                            <option key={lot.id} value={lot.id}>{lot.batch_no} · {lot.receipt_no}</option>
+                          ))}
+                        </select>
+                        <div className="mt-1 text-xs text-text-secondary">{row.raw_material_lot_no || "Trace lot optional"}</div>
                       </td>
                       <td className="px-4 py-3">
                         <input className={inputClass()} type="number" min="0" step="0.0001" value={row.standard_usage} onChange={(event) => updateUsageRow(row.id, { standard_usage: event.target.value })} />
@@ -547,6 +590,183 @@ function ProductionExecutionModal({ job, rawMaterials, recipes, auth, onClose, o
           </div>
         </Card>
         <Field label="Production Notes">
+          <textarea className={inputClass()} rows={3} value={form.notes || ""} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} />
+        </Field>
+      </form>
+    </Modal>
+  );
+}
+
+function ProductionSopModal({ initialValue, onClose, onSave }) {
+  const [form, setForm] = useState(() => ({
+    sop_code: "",
+    title: "",
+    product_name: "",
+    version: "v1",
+    effective_date: todayInput(),
+    equipment: "",
+    status: "active",
+    notes: "",
+    steps: [
+      {
+        id: "step-1",
+        step_no: 1,
+        process_name: "",
+        description: "",
+        control_point: "",
+        materials: "",
+        equipment: "",
+        estimated_time_minutes: "",
+        is_qc_checkpoint: false,
+      },
+    ],
+    ...initialValue,
+  }));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  function updateStep(rowId, patch) {
+    setForm((current) => ({
+      ...current,
+      steps: current.steps.map((step) => (step.id === rowId ? { ...step, ...patch } : step)),
+    }));
+  }
+
+  function addStep() {
+    setForm((current) => ({
+      ...current,
+      steps: [
+        ...current.steps,
+        {
+          id: `step-${Date.now()}`,
+          step_no: current.steps.length + 1,
+          process_name: "",
+          description: "",
+          control_point: "",
+          materials: "",
+          equipment: "",
+          estimated_time_minutes: "",
+          is_qc_checkpoint: false,
+        },
+      ],
+    }));
+  }
+
+  function removeStep(rowId) {
+    setForm((current) => ({
+      ...current,
+      steps: current.steps.filter((step) => step.id !== rowId).map((step, index) => ({ ...step, step_no: index + 1 })),
+    }));
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    setError("");
+    if (!String(form.title || "").trim()) {
+      setError("SOP title is required.");
+      return;
+    }
+    if (!String(form.product_name || "").trim()) {
+      setError("Product name is required.");
+      return;
+    }
+    if (!form.steps.some((step) => String(step.process_name || step.description || "").trim())) {
+      setError("At least one SOP step is required.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave(form);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      title={initialValue?.id ? "Edit Production SOP" : "Create Production SOP"}
+      description="SOP is the standard process reference. Actual production records can reference the SOP version used."
+      size="xl"
+      onClose={saving ? undefined : onClose}
+      footer={(
+        <>
+          <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
+          <button className="btn-primary" type="submit" form="factory-sop-form" disabled={saving}>{saving ? "Saving..." : "Save SOP"}</button>
+        </>
+      )}
+    >
+      <form id="factory-sop-form" className="space-y-5" onSubmit={submit}>
+        {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
+        <div className="grid gap-3 md:grid-cols-3">
+          <Field label="SOP Title">
+            <input className={inputClass()} value={form.title || ""} onChange={(event) => setForm((current) => ({ ...current, title: event.target.value }))} />
+          </Field>
+          <Field label="Product">
+            <input className={inputClass()} value={form.product_name || ""} onChange={(event) => setForm((current) => ({ ...current, product_name: event.target.value }))} />
+          </Field>
+          <Field label="Version">
+            <input className={inputClass()} value={form.version || ""} onChange={(event) => setForm((current) => ({ ...current, version: event.target.value }))} />
+          </Field>
+          <Field label="SOP Code">
+            <input className={inputClass()} value={form.sop_code || "Generated on save"} onChange={(event) => setForm((current) => ({ ...current, sop_code: event.target.value }))} />
+          </Field>
+          <Field label="Effective Date">
+            <input className={inputClass()} type="date" value={form.effective_date || ""} onChange={(event) => setForm((current) => ({ ...current, effective_date: event.target.value }))} />
+          </Field>
+          <Field label="Status">
+            <select className={inputClass()} value={form.status || "active"} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
+              <option value="active">active</option>
+              <option value="inactive">inactive</option>
+            </select>
+          </Field>
+        </div>
+        <Field label="Default Equipment">
+          <input className={inputClass()} value={form.equipment || ""} onChange={(event) => setForm((current) => ({ ...current, equipment: event.target.value }))} />
+        </Field>
+        <Card
+          title="SOP Steps"
+          description="QC checkpoint flags create production QC checkpoint snapshots when this SOP is attached to a batch."
+          action={<button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={addStep}><Plus size={14} /> Add Step</button>}
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[1180px] text-left">
+              <thead>
+                <tr className="border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">
+                  <th className="px-4 py-2.5">Step</th>
+                  <th className="px-4 py-2.5">Process Name</th>
+                  <th className="px-4 py-2.5">Description</th>
+                  <th className="px-4 py-2.5">Control Point</th>
+                  <th className="px-4 py-2.5">Materials</th>
+                  <th className="px-4 py-2.5">Equipment</th>
+                  <th className="px-4 py-2.5">Est. Time</th>
+                  <th className="px-4 py-2.5">QC</th>
+                  <th className="px-4 py-2.5 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {form.steps.map((step) => (
+                  <tr key={step.id} className="border-b border-border last:border-0">
+                    <td className="px-4 py-3"><input className={inputClass()} type="number" min="1" value={step.step_no} onChange={(event) => updateStep(step.id, { step_no: event.target.value })} /></td>
+                    <td className="px-4 py-3"><input className={inputClass()} value={step.process_name || ""} onChange={(event) => updateStep(step.id, { process_name: event.target.value })} /></td>
+                    <td className="px-4 py-3"><input className={inputClass()} value={step.description || ""} onChange={(event) => updateStep(step.id, { description: event.target.value })} /></td>
+                    <td className="px-4 py-3"><input className={inputClass()} value={step.control_point || ""} onChange={(event) => updateStep(step.id, { control_point: event.target.value })} /></td>
+                    <td className="px-4 py-3"><input className={inputClass()} value={step.materials || ""} onChange={(event) => updateStep(step.id, { materials: event.target.value })} /></td>
+                    <td className="px-4 py-3"><input className={inputClass()} value={step.equipment || ""} onChange={(event) => updateStep(step.id, { equipment: event.target.value })} /></td>
+                    <td className="px-4 py-3"><input className={inputClass()} type="number" min="0" value={step.estimated_time_minutes || ""} onChange={(event) => updateStep(step.id, { estimated_time_minutes: event.target.value })} /></td>
+                    <td className="px-4 py-3">
+                      <label className="inline-flex items-center gap-2 text-sm font-semibold text-text-secondary">
+                        <input type="checkbox" checked={Boolean(step.is_qc_checkpoint)} onChange={(event) => updateStep(step.id, { is_qc_checkpoint: event.target.checked })} />
+                        Checkpoint
+                      </label>
+                    </td>
+                    <td className="px-4 py-3 text-right"><button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => removeStep(step.id)}>Remove</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+        <Field label="Notes">
           <textarea className={inputClass()} rows={3} value={form.notes || ""} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} />
         </Field>
       </form>
@@ -727,7 +947,7 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, onClose, 
 }
 
 export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, auth }) {
-  const [data, setData] = useState({ jobOrders: [], rawMaterials: [], receivings: [], productions: [], finishedGoods: [], productMovements: [], rawStockChecks: [], productStockChecks: [], recipes: [] });
+  const [data, setData] = useState({ jobOrders: [], rawMaterials: [], receivings: [], productions: [], finishedGoods: [], productMovements: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [] });
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
 
@@ -764,7 +984,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const approvedStockChecks = allStockChecks.filter((check) => check.status === "approved");
     const stockCheckVarianceRows = allStockChecks.flatMap((check) => (check.items || []).map((item) => ({ ...item, check }))).filter((item) => item.variance_status !== "Normal");
     const criticalStockCheckRows = stockCheckVarianceRows.filter((item) => item.variance_status === "Critical");
-    return { openJobs, completedJobs, lowStock, receivingValue, completedProductions, totalGoodOutput, totalWastage, highVarianceUsage, allStockChecks, submittedStockChecks, approvedStockChecks, stockCheckVarianceRows, criticalStockCheckRows };
+    const qcAlertBatches = completedProductions.filter((production) => ["Pending", "Hold", "Failed"].includes(production.qc_status));
+    return { openJobs, completedJobs, lowStock, receivingValue, completedProductions, totalGoodOutput, totalWastage, highVarianceUsage, allStockChecks, submittedStockChecks, approvedStockChecks, stockCheckVarianceRows, criticalStockCheckRows, qcAlertBatches };
   }, [data]);
 
   async function saveJobOrder(form) {
@@ -828,6 +1049,18 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to save stock check", message: error.message, tone: "error" });
+      throw error;
+    }
+  }
+
+  async function saveProductionSop(form) {
+    try {
+      await factoryService.saveProductionSop(form, auth?.profile?.id);
+      ui?.notify?.({ title: form.id ? "Production SOP updated" : "Production SOP created", tone: "success" });
+      setModal(null);
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to save Production SOP", message: error.message, tone: "error" });
       throw error;
     }
   }
@@ -928,6 +1161,16 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge> },
   ];
 
+  const sopColumns = [
+    { key: "sop", label: "SOP", render: (row) => <div><div className="font-bold text-text-primary">{row.sop_code}</div><div className="text-xs text-text-secondary">{row.title}</div></div> },
+    { key: "product_name", label: "Product", render: (row) => row.product_name },
+    { key: "version", label: "Version", render: (row) => <Badge tone="info">{row.version}</Badge> },
+    { key: "steps", label: "Steps", render: (row) => row.steps?.length || 0 },
+    { key: "qc", label: "QC Checkpoints", render: (row) => <Badge tone={row.steps?.some((step) => step.is_qc_checkpoint) ? "warning" : "neutral"}>{(row.steps || []).filter((step) => step.is_qc_checkpoint).length}</Badge> },
+    { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge> },
+    { key: "actions", label: "Actions", align: "right", render: (row) => <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "sop", value: row })}>Edit</button> },
+  ];
+
   function stockCheckColumns(stockType) {
     return [
       { key: "check", label: "Check", render: (row) => <div><div className="font-bold text-text-primary">{row.check_no}</div><div className="text-xs text-text-secondary">{row.check_date}</div></div> },
@@ -1022,7 +1265,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard icon={ClipboardCheck} label="Open Jobs" value={metrics.openJobs.length} helper="Planned or in progress" />
           <MetricCard icon={CheckCircle2} label="Completed Production" value={metrics.completedProductions.length} helper={`${quantity(metrics.totalGoodOutput, "")} good output`} />
-          <MetricCard icon={AlertTriangle} label="Low Raw Materials" value={metrics.lowStock.length} helper="At or below minimum stock" tone={metrics.lowStock.length ? "warning" : "success"} />
+          <MetricCard icon={AlertTriangle} label="QC Alerts" value={metrics.qcAlertBatches.length} helper="Pending, hold or failed batches" tone={metrics.qcAlertBatches.length ? "danger" : "success"} />
           <MetricCard icon={Activity} label="Stock Check Variance" value={metrics.stockCheckVarianceRows.length} helper={`${metrics.criticalStockCheckRows.length} critical row(s)`} tone={metrics.criticalStockCheckRows.length ? "danger" : metrics.stockCheckVarianceRows.length ? "warning" : "success"} />
         </div>
         <div className="grid gap-4 xl:grid-cols-2">
@@ -1051,6 +1294,20 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
               <p className="mt-1 text-sm text-text-secondary">{metrics.submittedStockChecks.length ? `${metrics.submittedStockChecks.length} submitted stock check(s) awaiting approval.` : "No stock checks awaiting approval."}</p>
             </div>
           </div>
+        </Card>
+        <Card title="Batch QC Alerts" description="Batches with Pending, Hold or Failed QC status need follow-up outside stock check workflows.">
+          <FactoryTable
+            columns={[
+              { key: "batch", label: "Batch", render: (row) => <div><div className="font-bold text-text-primary">{row.batch_no || "No batch"}</div><div className="text-xs text-text-secondary">{row.production_no}</div></div> },
+              { key: "product_name", label: "Product", render: (row) => row.product_name },
+              { key: "production_date", label: "Date", render: (row) => row.production_date || "—" },
+              { key: "operator", label: "Operator", render: (row) => row.operator_name || "—" },
+              { key: "qc_status", label: "QC", render: (row) => <Badge tone={row.qc_status === "Failed" ? "danger" : row.qc_status === "Hold" ? "warning" : "neutral"}>{row.qc_status}</Badge> },
+            ]}
+            rows={metrics.qcAlertBatches.slice(0, 8)}
+            emptyTitle="No batch QC alerts"
+            emptyDescription="Completed production batches with QC Pass are clear."
+          />
         </Card>
         <Card title="Stock Check Variance Alerts" description="Physical count variance is separate from production recipe variance and actual usage.">
           <FactoryTable
@@ -1146,6 +1403,28 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     );
   }
 
+  function renderProductionSop() {
+    return (
+      <div className="space-y-5">
+        <PageHeader
+          section="Master Data"
+          title="Production SOP"
+          description="Manage standard process references, product steps and QC checkpoint flags."
+          actions={<button className="btn-primary" type="button" onClick={() => setModal({ type: "sop" })}><Plus size={15} /> Create SOP</button>}
+        />
+        <div className="grid gap-3 md:grid-cols-4">
+          <MetricCard icon={ClipboardCheck} label="SOPs" value={data.sops.length} helper="Standard process references" />
+          <MetricCard icon={Factory} label="Products" value={new Set(data.sops.map((sop) => sop.product_name)).size} helper="With SOP coverage" />
+          <MetricCard icon={Activity} label="QC Checkpoints" value={data.sops.flatMap((sop) => sop.steps || []).filter((step) => step.is_qc_checkpoint).length} helper="Flagged SOP steps" />
+          <MetricCard icon={CheckCircle2} label="Active SOPs" value={data.sops.filter((sop) => sop.status === "active").length} helper="Available for production" />
+        </div>
+        <Card title="Production SOP Records" description="SOPs are standard process references and do not represent actual production results.">
+          <FactoryTable columns={sopColumns} rows={data.sops} emptyTitle="No Production SOPs" emptyDescription="Create SOP steps before attaching a standard process to production batches." />
+        </Card>
+      </div>
+    );
+  }
+
   function renderProduction() {
     const readyJobs = data.jobOrders.filter((job) => !["completed", "cancelled"].includes(job.status));
     return (
@@ -1191,6 +1470,84 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     );
   }
 
+  function renderBatchTraceability() {
+    const rows = data.productions.map((production) => {
+      const job = data.jobOrders.find((item) => item.id === production.job_order_id);
+      const stockInMovements = data.productMovements.filter((movement) => movement.reference_type === "production" && movement.reference_id === production.id);
+      return { ...production, job, stockInMovements };
+    });
+    return (
+      <div className="space-y-5">
+        <PageHeader
+          section="Factory"
+          title="Batch Traceability"
+          description="Trace a production batch across job order, SOP, raw material lots, QC and finished goods stock-in."
+          actions={<button className="btn-secondary" type="button" onClick={loadData}><RefreshCw size={15} /> Refresh</button>}
+        />
+        <div className="grid gap-3 md:grid-cols-4">
+          <MetricCard icon={Factory} label="Batches" value={rows.length} helper="Completed production runs" />
+          <MetricCard icon={PackageCheck} label="Stock-In Links" value={rows.reduce((sum, row) => sum + row.stockInMovements.length, 0)} helper="Finished goods movements" />
+          <MetricCard icon={Truck} label="Material Lots" value={rows.flatMap((row) => row.material_usage || []).filter((item) => item.raw_material_lot_no).length} helper="Lot-tagged usage rows" />
+          <MetricCard icon={AlertTriangle} label="QC Alerts" value={metrics.qcAlertBatches.length} helper="Pending, hold or failed" tone={metrics.qcAlertBatches.length ? "danger" : "success"} />
+        </div>
+        <Card title="Batch Traceability Records" description="Batch traceability connects product, production, raw material usage and finished goods movement.">
+          <div className="space-y-4 p-4">
+            {rows.length ? rows.map((row) => (
+              <div key={row.id} className="rounded-2xl border border-border bg-white p-4">
+                <div className="flex flex-wrap items-start justify-between gap-3">
+                  <div>
+                    <div className="text-xs font-semibold uppercase tracking-wide text-text-muted">Batch No</div>
+                    <div className="mt-1 text-lg font-bold text-text-primary">{row.batch_no || "No batch"}</div>
+                    <div className="text-sm text-text-secondary">{row.product_name} · {row.production_no}</div>
+                  </div>
+                  <Badge tone={row.qc_status === "Pass" ? "success" : row.qc_status === "Failed" ? "danger" : row.qc_status === "Hold" ? "warning" : "neutral"}>{row.qc_status}</Badge>
+                </div>
+                <div className="mt-4 grid gap-3 md:grid-cols-4">
+                  <div><div className="text-xs font-semibold text-text-muted">Job Order</div><div className="text-sm font-semibold text-text-primary">{row.job?.job_order_no || "—"}</div></div>
+                  <div><div className="text-xs font-semibold text-text-muted">Production Date</div><div className="text-sm font-semibold text-text-primary">{row.production_date || "—"}</div></div>
+                  <div><div className="text-xs font-semibold text-text-muted">Operator</div><div className="text-sm font-semibold text-text-primary">{row.operator_name || "—"}</div></div>
+                  <div><div className="text-xs font-semibold text-text-muted">SOP Used</div><div className="text-sm font-semibold text-text-primary">{row.sop_title ? `${row.sop_title} ${row.sop_version}` : "—"}</div></div>
+                </div>
+                <div className="mt-4 grid gap-4 lg:grid-cols-3">
+                  <div className="rounded-xl border border-border bg-slate-50 p-3">
+                    <div className="text-sm font-bold text-text-primary">Raw Material Lots Used</div>
+                    <div className="mt-2 space-y-2">
+                      {(row.material_usage || []).length ? row.material_usage.map((item) => (
+                        <div key={item.id} className="text-xs text-text-secondary">
+                          <span className="font-semibold text-text-primary">{item.raw_material_name}</span> · {quantity(item.actual_usage, item.uom)} · Lot {item.raw_material_lot_no || "—"} {item.receiving_ref ? `· ${item.receiving_ref}` : ""}
+                        </div>
+                      )) : <div className="text-xs text-text-secondary">No material usage rows.</div>}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-border bg-slate-50 p-3">
+                    <div className="text-sm font-bold text-text-primary">Finished Goods Stock-In</div>
+                    <div className="mt-2 space-y-2">
+                      {row.stockInMovements.length ? row.stockInMovements.map((movement) => (
+                        <div key={movement.id} className="text-xs text-text-secondary">
+                          <span className="font-semibold text-text-primary">{movement.reference_no}</span> · {quantity(movement.quantity, movement.uom)} · {movement.movement_date}
+                        </div>
+                      )) : <div className="text-xs text-text-secondary">No finished goods movement linked.</div>}
+                    </div>
+                  </div>
+                  <div className="rounded-xl border border-border bg-slate-50 p-3">
+                    <div className="text-sm font-bold text-text-primary">QC Checkpoints</div>
+                    <div className="mt-2 space-y-2">
+                      {(row.qc_checkpoints || []).length ? row.qc_checkpoints.map((checkpoint) => (
+                        <div key={checkpoint.id} className="text-xs text-text-secondary">
+                          <span className="font-semibold text-text-primary">Step {checkpoint.step_no}: {checkpoint.process_name}</span> · {checkpoint.control_point || "No control point"} · {checkpoint.qc_status}
+                        </div>
+                      )) : <div className="text-xs text-text-secondary">No SOP QC checkpoints attached.</div>}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )) : <EmptyState title="No batch traceability records" description="Complete production to create batch traceability records." />}
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   function renderProductStockCheck() {
     return (
       <div className="space-y-5">
@@ -1219,7 +1576,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   return (
     <>
-      {initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "product-stock-check" ? renderProductStockCheck() : renderDashboard()}
+      {initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "batch-traceability" ? renderBatchTraceability() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "production-sop" ? renderProductionSop() : renderDashboard()}
       {modal?.type === "job" ? (
         <JobOrderModal
           initialValue={modal.value}
@@ -1238,10 +1595,19 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <ProductionExecutionModal
           job={modal.job}
           rawMaterials={data.rawMaterials}
+          receivings={data.receivings}
           recipes={data.recipes}
+          sops={data.sops}
           auth={auth}
           onClose={() => setModal(null)}
           onSave={completeProduction}
+        />
+      ) : null}
+      {modal?.type === "sop" ? (
+        <ProductionSopModal
+          initialValue={modal.value}
+          onClose={() => setModal(null)}
+          onSave={saveProductionSop}
         />
       ) : null}
       {modal?.type === "stock-check" ? (

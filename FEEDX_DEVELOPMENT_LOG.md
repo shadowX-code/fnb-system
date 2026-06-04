@@ -115,6 +115,10 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Stock check records now capture system quantity, physical count, variance quantity, variance percent, Normal/Warning/Critical variance status, and required reasons for Warning/Critical rows.
 - Only approved stock checks apply inventory balance adjustments and create raw material or finished goods movement logs.
 - Added dashboard stock check variance alerts and recent submitted/approved stock check activity.
+- Added Factory Phase 1D Production SOP management with product SOP versions, process steps, control points, materials, equipment, estimated time, and QC checkpoint flags.
+- Production completion can now reference the SOP version used and raw material lots used by actual material usage rows.
+- Added production QC checkpoint snapshots separate from stock checks and a Batch Traceability view connecting batch, product, job order, production date, operator, raw material lots, finished goods stock-in, SOP and QC status.
+- Added dashboard quick alerts for batches with Pending, Hold, or Failed QC status.
 
 ### Documentation
-- Updated the master document with Factory Phase 1B execution rules, variance threshold, actual-usage stock deduction rule, Recipe BOM separation, and Phase 1C stock check approval rules.
+- Updated the master document with Factory Phase 1B execution rules, variance threshold, actual-usage stock deduction rule, Recipe BOM separation, Phase 1C stock check approval rules, and Phase 1D SOP/QC/batch traceability rules.

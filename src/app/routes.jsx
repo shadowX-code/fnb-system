@@ -240,11 +240,23 @@ const routeDetails = {
     permission: "factory_production.view",
     props: { initialTab: "production" },
   },
+  factory_production_reports: {
+    description: "Trace production batches across job orders, raw material lots, QC and finished goods stock-in.",
+    component: FactoryWorkspacePage,
+    permission: "factory_production_reports.view",
+    props: { initialTab: "batch-traceability" },
+  },
   factory_product_stock_check: {
     description: "Count finished goods stock, review variance and approve controlled adjustments.",
     component: FactoryWorkspacePage,
     permission: "factory_product_stock_check.view",
     props: { initialTab: "product-stock-check" },
+  },
+  factory_production_sop: {
+    description: "Manage standard production SOP steps and QC checkpoint references by product.",
+    component: FactoryWorkspacePage,
+    permission: "factory_production_sop.view",
+    props: { initialTab: "production-sop" },
   },
 };
 
