@@ -92,18 +92,82 @@ function stockVarianceTone(status) {
 }
 
 function latestReceivingCost(receivings, rawMaterialId) {
+  return latestReceivingCostInfo(receivings, rawMaterialId).unitCost;
+}
+
+function latestReceivingCostInfo(receivings, rawMaterialId) {
   const rows = receivings
     .filter((row) => row.raw_material_id === rawMaterialId && Number(row.unit_cost || 0) > 0)
     .sort((a, b) => new Date(b.received_date || b.created_at || 0) - new Date(a.received_date || a.created_at || 0));
-  return Number(rows[0]?.unit_cost || 0);
+  const row = rows[0];
+  return {
+    unitCost: Number(row?.unit_cost || 0),
+    receiptNo: row?.receipt_no || "",
+    supplierName: row?.supplier_name || "",
+    receivedDate: row?.received_date || "",
+    missingCost: !row,
+  };
 }
 
 function usageUnitCost(usage, receivings) {
-  return Number(usage.unit_cost || 0) || latestReceivingCost(receivings, usage.raw_material_id);
+  return usageUnitCostInfo(usage, receivings).unitCost;
+}
+
+function usageUnitCostInfo(usage, receivings) {
+  const recordedCost = Number(usage.unit_cost || 0);
+  if (recordedCost > 0) return { unitCost: recordedCost, source: usage.receiving_ref || "Recorded receiving", missingCost: false };
+  const latestCost = latestReceivingCostInfo(receivings, usage.raw_material_id);
+  return { unitCost: latestCost.unitCost, source: latestCost.receiptNo || "Missing Cost", missingCost: latestCost.missingCost };
 }
 
 function productionCost(production, receivings) {
-  return (production.material_usage || []).reduce((sum, usage) => sum + Number(usage.actual_usage || 0) * usageUnitCost(usage, receivings), 0);
+  return productionCostInfo(production, receivings).cost;
+}
+
+function productionCostInfo(production, receivings) {
+  return (production.material_usage || []).reduce((summary, usage) => {
+    const costInfo = usageUnitCostInfo(usage, receivings);
+    summary.cost += Number(usage.actual_usage || 0) * costInfo.unitCost;
+    if (costInfo.missingCost) summary.missingCostRows += 1;
+    return summary;
+  }, { cost: 0, missingCostRows: 0 });
+}
+
+function recipeCostInfo(recipe, receivings) {
+  const itemRows = (recipe.items || []).map((item) => {
+    const latestCost = latestReceivingCostInfo(receivings, item.raw_material_id);
+    const quantityWithWastage = Number(item.quantity_used || 0) * (1 + Number(item.wastage_percent || 0) / 100);
+    return {
+      ...item,
+      quantity_with_wastage: quantityWithWastage,
+      unit_cost: latestCost.unitCost,
+      cost_source: latestCost.receiptNo || "Missing Cost",
+      supplier_name: latestCost.supplierName,
+      received_date: latestCost.receivedDate,
+      missing_cost: latestCost.missingCost,
+      standard_cost: quantityWithWastage * latestCost.unitCost,
+    };
+  });
+  const standardCost = itemRows.reduce((sum, item) => sum + item.standard_cost, 0);
+  const yieldQuantity = Number(recipe.yield_quantity || 0);
+  return {
+    itemRows,
+    standardCost,
+    costPerUnit: yieldQuantity ? standardCost / yieldQuantity : 0,
+    missingCostRows: itemRows.filter((item) => item.missing_cost).length,
+  };
+}
+
+function costVarianceInfo(standardCost, actualCost) {
+  const standard = Number(standardCost || 0);
+  const actual = Number(actualCost || 0);
+  const variance = actual - standard;
+  const variancePercent = standard ? (variance / standard) * 100 : 0;
+  return { variance, variancePercent };
+}
+
+function costDisplay(value, missingCostRows = 0) {
+  return missingCostRows ? "Missing Cost" : money(value);
 }
 
 function productionYieldPercent(production) {
@@ -1038,6 +1102,56 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const productionYield = totalActualProduced ? (totalGoodOutput / totalActualProduced) * 100 : 0;
     const materialVariancePercent = weightedMaterialVariancePercent(completedProductions);
     const estimatedProductionCost = completedProductions.reduce((sum, row) => sum + productionCost(row, data.receivings), 0);
+    const recipeCostRows = data.recipes.map((recipe) => {
+      const cost = recipeCostInfo(recipe, data.receivings);
+      return { ...recipe, ...cost };
+    });
+    const recipeByProduct = new Map(recipeCostRows.map((recipe) => [String(recipe.product_name || "").toLowerCase(), recipe]));
+    const productionCostRows = completedProductions.map((production) => {
+      const recipe = recipeByProduct.get(String(production.product_name || "").toLowerCase());
+      const actualCost = productionCostInfo(production, data.receivings);
+      const standardCost = recipe ? Number(recipe.costPerUnit || 0) * Number(production.good_output_qty || production.actual_produced_qty || production.produced_quantity || 0) : 0;
+      const variance = costVarianceInfo(standardCost, actualCost.cost);
+      return {
+        ...production,
+        recipe_code: recipe?.recipe_code || "",
+        standard_cost: standardCost,
+        actual_cost: actualCost.cost,
+        variance_rm: variance.variance,
+        variance_percent: variance.variancePercent,
+        missing_cost_rows: actualCost.missingCostRows + (recipe?.missingCostRows || 0),
+      };
+    });
+    const totalStandardCost = productionCostRows.reduce((sum, row) => sum + Number(row.standard_cost || 0), 0);
+    const totalActualCost = productionCostRows.reduce((sum, row) => sum + Number(row.actual_cost || 0), 0);
+    const totalMissingCostRows = productionCostRows.reduce((sum, row) => sum + Number(row.missing_cost_rows || 0), 0);
+    const costVariance = costVarianceInfo(totalStandardCost, totalActualCost);
+    const mostExpensiveRecipe = [...recipeCostRows].sort((a, b) => Number(b.standardCost || 0) - Number(a.standardCost || 0))[0] || null;
+    const receivingByMaterial = new Map();
+    data.receivings.forEach((row) => {
+      if (Number(row.unit_cost || 0) <= 0) return;
+      const rows = receivingByMaterial.get(row.raw_material_id) || [];
+      rows.push(row);
+      receivingByMaterial.set(row.raw_material_id, rows);
+    });
+    const costIncreaseRows = [...receivingByMaterial.entries()].map(([rawMaterialId, rows]) => {
+      const sorted = rows.sort((a, b) => new Date(b.received_date || b.created_at || 0) - new Date(a.received_date || a.created_at || 0));
+      const latest = sorted[0];
+      const previous = sorted[1];
+      const increase = previous ? Number(latest.unit_cost || 0) - Number(previous.unit_cost || 0) : 0;
+      const increasePercent = previous && Number(previous.unit_cost || 0) ? (increase / Number(previous.unit_cost || 0)) * 100 : 0;
+      return {
+        id: rawMaterialId,
+        raw_material_name: latest?.raw_material_name || "Raw material",
+        latest_cost: Number(latest?.unit_cost || 0),
+        previous_cost: Number(previous?.unit_cost || 0),
+        increase,
+        increase_percent: increasePercent,
+        supplier_name: latest?.supplier_name || "",
+        received_date: latest?.received_date || "",
+      };
+    }).filter((row) => row.increase > 0);
+    const highestCostIncreaseMaterial = costIncreaseRows.sort((a, b) => b.increase_percent - a.increase_percent || b.increase - a.increase)[0] || null;
     const varianceByMaterial = new Map();
     completedProductions.forEach((production) => {
       (production.material_usage || []).forEach((usage) => {
@@ -1049,7 +1163,34 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       });
     });
     const topVarianceRawMaterials = [...varianceByMaterial.values()].sort((a, b) => Math.abs(b.variance_qty) - Math.abs(a.variance_qty)).slice(0, 5);
-    return { openJobs, completedJobs, lowStock, receivingValue, completedProductions, totalGoodOutput, totalWastage, highVarianceUsage, allStockChecks, submittedStockChecks, approvedStockChecks, stockCheckVarianceRows, criticalStockCheckRows, qcAlertBatches, productionYield, materialVariancePercent, estimatedProductionCost, topVarianceRawMaterials };
+    return {
+      openJobs,
+      completedJobs,
+      lowStock,
+      receivingValue,
+      completedProductions,
+      totalGoodOutput,
+      totalWastage,
+      highVarianceUsage,
+      allStockChecks,
+      submittedStockChecks,
+      approvedStockChecks,
+      stockCheckVarianceRows,
+      criticalStockCheckRows,
+      qcAlertBatches,
+      productionYield,
+      materialVariancePercent,
+      estimatedProductionCost,
+      topVarianceRawMaterials,
+      recipeCostRows,
+      productionCostRows,
+      totalStandardCost,
+      totalActualCost,
+      totalMissingCostRows,
+      costVariance,
+      mostExpensiveRecipe,
+      highestCostIncreaseMaterial,
+    };
   }, [data]);
 
   async function saveJobOrder(form) {
@@ -1331,6 +1472,28 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={Activity} label="Material Variance" value={percent(metrics.materialVariancePercent)} helper="Usage-row variance; review UOM mix" tone={Math.abs(metrics.materialVariancePercent) > 5 ? "warning" : "success"} />
           <MetricCard icon={PackageCheck} label="Est. Production Cost" value={money(metrics.estimatedProductionCost)} helper="Actual usage cost" />
           <MetricCard icon={AlertTriangle} label="QC Alerts" value={metrics.qcAlertBatches.length} helper="Pending, hold or failed batches" tone={metrics.qcAlertBatches.length ? "danger" : "success"} />
+        </div>
+        <div className="grid gap-3 md:grid-cols-3">
+          <MetricCard
+            icon={Truck}
+            label="Highest Cost Increase"
+            value={metrics.highestCostIncreaseMaterial ? percent(metrics.highestCostIncreaseMaterial.increase_percent) : "None"}
+            helper={metrics.highestCostIncreaseMaterial?.raw_material_name || "No supplier cost increase"}
+            tone={metrics.highestCostIncreaseMaterial ? "warning" : "success"}
+          />
+          <MetricCard
+            icon={PackageCheck}
+            label="Most Expensive Recipe"
+            value={metrics.mostExpensiveRecipe ? costDisplay(metrics.mostExpensiveRecipe.standardCost, metrics.mostExpensiveRecipe.missingCostRows) : "Missing Cost"}
+            helper={metrics.mostExpensiveRecipe?.product_name || "No active recipe cost"}
+          />
+          <MetricCard
+            icon={Activity}
+            label="Actual vs Standard"
+            value={metrics.totalMissingCostRows ? "Missing Cost" : money(metrics.costVariance?.variance || 0)}
+            helper={metrics.totalMissingCostRows ? "Complete receiving costs" : `${percent(metrics.costVariance?.variancePercent || 0)} cost variance`}
+            tone={Math.abs(metrics.costVariance?.variancePercent || 0) > 5 ? "warning" : "success"}
+          />
         </div>
         <div className="grid gap-4 xl:grid-cols-2">
           <Card title="Open Job Orders" description="Factory production work that still needs action.">
@@ -1626,18 +1789,19 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   function renderReports() {
     const productionRows = data.productions.map((production) => {
-      const cost = productionCost(production, data.receivings);
+      const cost = productionCostInfo(production, data.receivings);
       const goodOutput = Number(production.good_output_qty || 0);
       return {
         ...production,
-        cost_per_batch: cost,
-        cost_per_unit: goodOutput ? cost / goodOutput : 0,
+        cost_per_batch: cost.cost,
+        cost_per_unit: goodOutput ? cost.cost / goodOutput : 0,
+        missing_cost_rows: cost.missingCostRows,
         yield_percent: productionYieldPercent(production),
         material_variance_percent: weightedMaterialVariancePercent([production]),
       };
     });
     const usageRows = data.productions.flatMap((production) => (production.material_usage || []).map((usage) => {
-      const unitCost = usageUnitCost(usage, data.receivings);
+      const unitCost = usageUnitCostInfo(usage, data.receivings);
       return {
         id: `${production.id}-${usage.id}`,
         production_no: production.production_no,
@@ -1649,8 +1813,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         actual_usage: usage.actual_usage,
         variance_qty: usage.variance_qty,
         variance_percent: usage.variance_percent,
-        unit_cost: unitCost,
-        actual_usage_cost: Number(usage.actual_usage || 0) * unitCost,
+        unit_cost: unitCost.unitCost,
+        actual_usage_cost: Number(usage.actual_usage || 0) * unitCost.unitCost,
+        missing_cost: unitCost.missingCost,
         uom: usage.uom,
       };
     }));
@@ -1669,6 +1834,23 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       ...movement,
       id: `movement-${movement.id}`,
     }));
+    const recipeRows = metrics.recipeCostRows || [];
+    const productionCostRows = metrics.productionCostRows || [];
+    const costTrendRows = data.receivings.map((row) => {
+      const materialReceivings = data.receivings
+        .filter((item) => item.raw_material_id === row.raw_material_id && Number(item.unit_cost || 0) > 0)
+        .sort((a, b) => new Date(a.received_date || a.created_at || 0) - new Date(b.received_date || b.created_at || 0));
+      const index = materialReceivings.findIndex((item) => item.id === row.id);
+      const previous = index > 0 ? materialReceivings[index - 1] : null;
+      const change = previous ? Number(row.unit_cost || 0) - Number(previous.unit_cost || 0) : 0;
+      const changePercent = previous && Number(previous.unit_cost || 0) ? (change / Number(previous.unit_cost || 0)) * 100 : 0;
+      return {
+        ...row,
+        previous_cost: previous ? Number(previous.unit_cost || 0) : null,
+        cost_change: change,
+        cost_change_percent: changePercent,
+      };
+    });
     return (
       <div className="space-y-5">
         <PageHeader
@@ -1683,29 +1865,76 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={Activity} label="Material Variance" value={percent(metrics.materialVariancePercent)} helper="Usage-row variance; review UOM mix" tone={Math.abs(metrics.materialVariancePercent) > 5 ? "warning" : "success"} />
           <MetricCard icon={PackageCheck} label="Actual Cost" value={money(metrics.estimatedProductionCost)} helper="Known-cost actual usage" />
         </div>
-        <Card title="Production Summary Report" description="Completed production totals with actual usage costing. Cost remains RM0 where no recorded or latest receiving cost exists.">
+        <div className="grid gap-4 xl:grid-cols-2">
+          <Card title="Recipe Costing Report" description="Standard recipe cost is a read-only reference based on recipe quantities and latest receiving cost.">
+            <FactoryTable
+              columns={[
+                { key: "recipe", label: "Recipe", render: (row) => <div><div className="font-bold text-text-primary">{row.recipe_code}</div><div className="text-xs text-text-secondary">{row.product_name}</div></div> },
+                { key: "yield", label: "Yield", render: (row) => quantity(row.yield_quantity, row.uom) },
+                { key: "items", label: "Items", render: (row) => row.items?.length || 0 },
+                { key: "standardCost", label: "Standard Cost", align: "right", render: (row) => costDisplay(row.standardCost, row.missingCostRows) },
+                { key: "costPerUnit", label: "Cost / Unit", align: "right", render: (row) => costDisplay(row.costPerUnit, row.missingCostRows) },
+              ]}
+              rows={recipeRows}
+              emptyTitle="No active recipe costing"
+              emptyDescription="Active recipes with item quantities and receiving costs will appear here."
+            />
+          </Card>
+          <Card title="Actual vs Standard Cost Variance" description="Actual production cost remains based on actual material usage; standard cost is recipe reference scaled to output.">
+            <FactoryTable
+              columns={[
+                { key: "production", label: "Production", render: (row) => <div><div className="font-bold text-text-primary">{row.production_no}</div><div className="text-xs text-text-secondary">{row.batch_no || "No batch"}</div></div> },
+                { key: "product_name", label: "Product", render: (row) => row.product_name },
+                { key: "standard_cost", label: "Standard", align: "right", render: (row) => costDisplay(row.standard_cost, row.missing_cost_rows) },
+                { key: "actual_cost", label: "Actual", align: "right", render: (row) => costDisplay(row.actual_cost, row.missing_cost_rows) },
+                { key: "variance_rm", label: "Variance", align: "right", render: (row) => costDisplay(row.variance_rm, row.missing_cost_rows) },
+                { key: "variance_percent", label: "Variance %", render: (row) => row.missing_cost_rows ? "Missing Cost" : percent(row.variance_percent) },
+              ]}
+              rows={productionCostRows}
+              emptyTitle="No production cost variance"
+              emptyDescription="Complete production for products with active recipes to compare standard and actual cost."
+            />
+          </Card>
+        </div>
+        <Card title="Raw Material Cost Trend Report" description="Receiving records provide raw material cost history and supplier cost trend by material.">
+          <FactoryTable
+            columns={[
+              { key: "raw_material_name", label: "Raw Material", render: (row) => row.raw_material_name },
+              { key: "supplier_name", label: "Supplier", render: (row) => row.supplier_name || "—" },
+              { key: "received_date", label: "Received", render: (row) => row.received_date || "—" },
+              { key: "unit_cost", label: "Unit Cost", align: "right", render: (row) => Number(row.unit_cost || 0) > 0 ? money(row.unit_cost) : "Missing Cost" },
+              { key: "previous_cost", label: "Previous", align: "right", render: (row) => row.previous_cost == null ? "—" : money(row.previous_cost) },
+              { key: "cost_change", label: "Change", align: "right", render: (row) => row.previous_cost == null ? "—" : money(row.cost_change) },
+              { key: "cost_change_percent", label: "Change %", render: (row) => row.previous_cost == null ? "—" : percent(row.cost_change_percent) },
+            ]}
+            rows={costTrendRows}
+            emptyTitle="No raw material cost history"
+            emptyDescription="Raw material receiving records with unit cost will populate this trend report."
+          />
+        </Card>
+        <Card title="Production Summary Report" description="Completed production totals with actual usage costing. Missing receiving cost is shown instead of RM0 where the cost source is unavailable.">
           <FactoryTable
             columns={[
               { key: "production", label: "Production", render: (row) => <div><div className="font-bold text-text-primary">{row.production_no}</div><div className="text-xs text-text-secondary">{row.batch_no || "No batch"} · {row.production_date}</div></div> },
               { key: "product_name", label: "Product", render: (row) => row.product_name },
               { key: "output", label: "Good Output", render: (row) => quantity(row.good_output_qty, row.uom) },
               { key: "yield_percent", label: "Yield", render: (row) => percent(row.yield_percent) },
-              { key: "cost_per_batch", label: "Batch Cost", align: "right", render: (row) => money(row.cost_per_batch) },
-              { key: "cost_per_unit", label: "Cost / Unit", align: "right", render: (row) => money(row.cost_per_unit) },
+              { key: "cost_per_batch", label: "Batch Cost", align: "right", render: (row) => costDisplay(row.cost_per_batch, row.missing_cost_rows) },
+              { key: "cost_per_unit", label: "Cost / Unit", align: "right", render: (row) => costDisplay(row.cost_per_unit, row.missing_cost_rows) },
             ]}
             rows={productionRows}
             emptyTitle="No production summary"
             emptyDescription="Complete production to populate this read-only report."
           />
         </Card>
-        <Card title="Raw Material Usage Report" description="Actual material usage cost uses recorded receiving unit cost when available, otherwise latest receiving cost by raw material. Unit cost remains RM0 when no cost source exists.">
+        <Card title="Raw Material Usage Report" description="Actual material usage cost uses recorded receiving unit cost when available, otherwise latest receiving cost by raw material. Missing cost is shown when no cost source exists.">
           <FactoryTable
             columns={[
               { key: "production_no", label: "Production", render: (row) => <div><div className="font-bold text-text-primary">{row.production_no}</div><div className="text-xs text-text-secondary">{row.batch_no || "No batch"}</div></div> },
               { key: "raw_material_name", label: "Raw Material", render: (row) => row.raw_material_name },
               { key: "actual_usage", label: "Actual Usage", render: (row) => quantity(row.actual_usage, row.uom) },
-              { key: "unit_cost", label: "Unit Cost", align: "right", render: (row) => money(row.unit_cost) },
-              { key: "actual_usage_cost", label: "Actual Usage Cost", align: "right", render: (row) => money(row.actual_usage_cost) },
+              { key: "unit_cost", label: "Unit Cost", align: "right", render: (row) => row.missing_cost ? "Missing Cost" : money(row.unit_cost) },
+              { key: "actual_usage_cost", label: "Actual Usage Cost", align: "right", render: (row) => row.missing_cost ? "Missing Cost" : money(row.actual_usage_cost) },
             ]}
             rows={usageRows}
             emptyTitle="No raw material usage"

@@ -127,6 +127,12 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Fixed Factory UAT blocker by exposing Batch Traceability as its own reachable Factory sidebar module and route (`factory_batch_traceability`) with dedicated view/export permissions.
 - Added Batch Traceability RLS coverage for production, job order, material usage, QC checkpoint, and finished goods movement read data.
 - Clarified Factory report costing/variance wording so RM0 cost-source gaps and mixed-UOM variance interpretation are visible to users.
+- Added Factory Phase 1F recipe costing and raw material cost history foundation.
+- Added read-only standard recipe cost rollup using recipe item quantities, wastage allowance, and latest raw material receiving cost.
+- Added actual production cost comparison against standard recipe reference cost with variance RM and variance %.
+- Added raw material cost trend reporting from receiving records, including supplier/date/unit cost movement.
+- Added dashboard cost cards for highest cost increase material, most expensive product recipe, and actual-vs-standard cost variance.
+- Added read-only RLS coverage for Factory Reports/Dashboard to load recipe and receiving cost source rows without granting mutation rights.
 
 ### Documentation
-- Updated the master document with Factory Phase 1B execution rules, variance threshold, actual-usage stock deduction rule, Recipe BOM separation, Phase 1C stock check approval rules, Phase 1D SOP/QC/batch traceability rules, Phase 1E reports/costing rules, the Batch Traceability route/RBAC UAT fix, and functional-vs-placeholder Factory module status.
+- Updated the master document with Factory Phase 1B execution rules, variance threshold, actual-usage stock deduction rule, Recipe BOM separation, Phase 1C stock check approval rules, Phase 1D SOP/QC/batch traceability rules, Phase 1E reports/costing rules, Phase 1F recipe costing/cost history rules, the Batch Traceability route/RBAC UAT fix, and functional-vs-placeholder Factory module status.

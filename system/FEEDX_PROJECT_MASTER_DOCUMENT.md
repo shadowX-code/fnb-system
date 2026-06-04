@@ -2778,12 +2778,38 @@ Factory Phase 1E implemented scope:
 - Costing uses Actual Usage, not Standard Recipe.
 - Recipe cost remains a standard reference and is not overwritten by production reports.
 - Actual production cost is calculated as actual material usage multiplied by recorded receiving unit cost when available; otherwise latest available receiving unit cost for the raw material is used.
-- If no recorded or latest receiving cost exists for a usage row, report costing remains RM0 for that row until a valid cost source is available.
+- If no recorded or latest receiving cost exists for a usage row, Factory reports show Missing Cost where possible until a valid cost source is available.
 - Material variance dashboard/report totals are usage-row summaries; mixed UOMs should be reviewed by material/UOM before operational decisions.
 - Factory Dashboard analytics cards include Production Yield %, Material Variance %, Estimated Production Cost, and Top Variance Raw Materials.
 - Factory Reports are read-only.
 - Factory Reports must not adjust stock.
 - Factory Reports must not modify Recipe, Production, Stock Check, or SOP records.
+
+Factory Phase 1F implemented scope:
+
+- Recipe costing and raw material cost history foundation inside Factory Reports and Factory Dashboard analytics.
+- Product Recipe Cost Rollup.
+- Standard Recipe Cost based on recipe item quantities, wastage allowance and latest raw material receiving cost.
+- Actual Production Cost comparison against the Phase 1E actual usage cost.
+- Raw Material Cost History from receiving records.
+- Supplier Cost Trend by raw material.
+- Cost variance reporting:
+  - Standard Cost.
+  - Actual Cost.
+  - Variance RM.
+  - Variance %.
+- Factory Dashboard cost cards:
+  - Highest Cost Increase Material.
+  - Most Expensive Product Recipe.
+  - Actual vs Standard Cost Variance.
+- Factory Reports cost sections:
+  - Recipe Costing Report.
+  - Raw Material Cost Trend Report.
+- Standard recipe cost is a reference cost only.
+- Actual production cost remains based on actual material usage.
+- Cost reports are read-only.
+- Costing must not modify recipe, production, receiving or stock records.
+- If latest receiving cost is missing, Factory cost reports show Missing Cost where possible instead of treating the row as RM0.
 
 Factory sidebar modules:
 
