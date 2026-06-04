@@ -2785,6 +2785,19 @@ Factory Phase 1E implemented scope:
 - Factory Reports must not adjust stock.
 - Factory Reports must not modify Recipe, Production, Stock Check, or SOP records.
 
+Factory Warehouse visibility implemented scope:
+
+- Finished Goods is a functional read-only warehouse management page through `factory_finished_goods`.
+- Finished Goods listing shows product/SKU name, UOM, current balance, last production date, last movement date and status.
+- Finished Goods dashboard cards show Total SKUs, Total Finished Goods Stock, Low Stock Items and Out of Stock Items.
+- Finished Goods detail shows current balance, production history, movement history, batch history and actual-cost summary when cost data is available.
+- Product Movements is a functional read-only movement history page through `factory_product_movements`.
+- Product Movements shows movement type, product, quantity, batch/source context, date and source.
+- Warehouse filters support product, status, batch and movement type where relevant.
+- Finished Goods and Product Movements must not create duplicate stock balance logic.
+- Warehouse views are read-only and use `factory_finished_goods`, `factory_product_stock_movements` and production header history for context.
+- Empty states must guide users to complete production first.
+
 Factory Phase 1F implemented scope:
 
 - Recipe costing and raw material cost history foundation inside Factory Reports and Factory Dashboard analytics.
@@ -2829,13 +2842,15 @@ Factory sidebar modules:
 - Factory Audit Logs
 - Factory Settings
 
-Current functional Factory modules after Phase 1E:
+Current functional Factory modules after Factory warehouse visibility optimization:
 
 - Factory Dashboard.
 - Job Orders.
 - Production Records.
 - Production Reports / Factory Reports.
 - Batch Traceability.
+- Finished Goods.
+- Product Movements.
 - Product Stock Check.
 - Raw Material Receiving.
 - Raw Material Stock Check.
@@ -2843,8 +2858,6 @@ Current functional Factory modules after Phase 1E:
 
 Current registered Factory placeholder modules:
 
-- Finished Goods.
-- Product Movements.
 - Raw Material Inventory.
 - Product Recipes.
 - Factory Audit Logs.

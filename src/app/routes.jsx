@@ -255,6 +255,18 @@ const routeDetails = {
     permission: "factory_batch_traceability.view",
     props: { initialTab: "batch-traceability" },
   },
+  factory_finished_goods: {
+    description: "Review finished goods SKU balances, production history, batches and movement activity.",
+    component: FactoryWorkspacePage,
+    permission: "factory_finished_goods.view",
+    props: { initialTab: "finished-goods" },
+  },
+  factory_product_movements: {
+    description: "Review read-only finished goods stock movement history.",
+    component: FactoryWorkspacePage,
+    permission: "factory_product_movements.view",
+    props: { initialTab: "product-movements" },
+  },
   factory_product_stock_check: {
     description: "Count finished goods stock, review variance and approve controlled adjustments.",
     component: FactoryWorkspacePage,

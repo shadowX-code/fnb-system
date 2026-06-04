@@ -170,6 +170,11 @@ function costDisplay(value, missingCostRows = 0) {
   return missingCostRows ? "Missing Cost" : money(value);
 }
 
+function includesText(value, search) {
+  if (!search) return true;
+  return String(value || "").toLowerCase().includes(String(search).toLowerCase());
+}
+
 function productionYieldPercent(production) {
   const actualProduced = Number(production.actual_produced_qty || production.produced_quantity || 0);
   if (!actualProduced) return 0;
@@ -225,6 +230,70 @@ function AccessIssueNotice({ issues }) {
         {issues.map((issue) => issue.label).join(", ")}
       </div>
     </div>
+  );
+}
+
+function FinishedGoodDetailModal({ product, productions, movements, productionCosts, onClose }) {
+  const productKey = String(product.product_name || "").toLowerCase();
+  const productProductions = productions.filter((row) => String(row.product_name || "").toLowerCase() === productKey);
+  const productMovements = movements.filter((row) => row.finished_good_id === product.id || String(row.product_name || "").toLowerCase() === productKey);
+  const costRows = productionCosts.filter((row) => String(row.product_name || "").toLowerCase() === productKey);
+  const totalActualCost = costRows.reduce((sum, row) => sum + Number(row.actual_cost || 0), 0);
+  const totalGoodOutput = productProductions.reduce((sum, row) => sum + Number(row.good_output_qty || row.produced_quantity || 0), 0);
+  const averageCost = totalGoodOutput ? totalActualCost / totalGoodOutput : 0;
+  const hasCostData = costRows.some((row) => (row.material_usage || []).length);
+  const hasMissingCost = !hasCostData || costRows.some((row) => row.missing_cost_rows);
+  const batchRows = productProductions.filter((row) => row.batch_no);
+  return (
+    <Modal title={product.product_name} description="Finished goods stock, production and movement detail" onClose={onClose} size="2xl">
+      <div className="space-y-4">
+        <div className="grid gap-3 md:grid-cols-4">
+          <MetricCard icon={PackageCheck} label="Current Balance" value={quantity(product.current_balance, product.uom)} helper={product.product_code || "Finished good"} />
+          <MetricCard icon={Factory} label="Production Runs" value={productProductions.length} helper="Completed history" />
+          <MetricCard icon={Activity} label="Movements" value={productMovements.length} helper="Stock movement rows" />
+          <MetricCard icon={Truck} label="Avg Actual Cost" value={hasMissingCost ? "Missing Cost" : money(averageCost)} helper="From actual usage" />
+        </div>
+        <Card title="Production History" description="Completed production records for this finished good.">
+          <FactoryTable
+            columns={[
+              { key: "production", label: "Production", render: (row) => <div><div className="font-bold text-text-primary">{row.production_no}</div><div className="text-xs text-text-secondary">{row.batch_no || "No batch"}</div></div> },
+              { key: "production_date", label: "Date", render: (row) => row.production_date || "—" },
+              { key: "output", label: "Good Output", render: (row) => quantity(row.good_output_qty || row.produced_quantity, row.uom) },
+              { key: "qc_status", label: "QC", render: (row) => <Badge tone={row.qc_status === "Pass" ? "success" : row.qc_status === "Failed" ? "danger" : row.qc_status === "Hold" ? "warning" : "neutral"}>{row.qc_status}</Badge> },
+            ]}
+            rows={productProductions}
+            emptyTitle="No production history"
+            emptyDescription="Complete production first to create finished goods production history."
+          />
+        </Card>
+        <Card title="Movement History" description="Finished goods stock movements linked to this SKU.">
+          <FactoryTable
+            columns={[
+              { key: "reference_no", label: "Reference", render: (row) => <div><div className="font-bold text-text-primary">{row.reference_no || "—"}</div><div className="text-xs text-text-secondary">{row.reference_type || "No source"}</div></div> },
+              { key: "movement_type", label: "Movement", render: (row) => <Badge tone={row.quantity >= 0 ? "success" : "warning"}>{row.movement_type}</Badge> },
+              { key: "quantity", label: "Qty", render: (row) => quantity(row.quantity, row.uom) },
+              { key: "movement_date", label: "Date", render: (row) => row.movement_date || "—" },
+            ]}
+            rows={productMovements}
+            emptyTitle="No movement history"
+            emptyDescription="Production stock-in and stock check adjustments will appear here."
+          />
+        </Card>
+        <Card title="Batch History" description="Batch numbers from completed production runs.">
+          <FactoryTable
+            columns={[
+              { key: "batch_no", label: "Batch", render: (row) => row.batch_no || "—" },
+              { key: "production_no", label: "Production", render: (row) => row.production_no },
+              { key: "production_date", label: "Date", render: (row) => row.production_date || "—" },
+              { key: "operator_name", label: "Operator", render: (row) => row.operator_name || "—" },
+            ]}
+            rows={batchRows}
+            emptyTitle="No batch history"
+            emptyDescription="Complete production with a batch number to populate batch history."
+          />
+        </Card>
+      </div>
+    </Modal>
   );
 }
 
@@ -1059,6 +1128,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const [data, setData] = useState({ jobOrders: [], rawMaterials: [], receivings: [], productions: [], finishedGoods: [], productMovements: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [], accessIssues: [] });
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
+  const [warehouseFilters, setWarehouseFilters] = useState({ product: "", status: "", batch: "", movementType: "" });
   const can = (code) => Boolean(auth?.hasPermission?.(code));
 
   async function loadData() {
@@ -1396,6 +1466,76 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         </div>
       ) },
     ];
+  }
+
+  function finishedGoodRows() {
+    return data.finishedGoods.map((product) => {
+      const productKey = String(product.product_name || "").toLowerCase();
+      const productProductions = data.productions.filter((row) => String(row.product_name || "").toLowerCase() === productKey);
+      const productMovements = data.productMovements.filter((row) => row.finished_good_id === product.id || String(row.product_name || "").toLowerCase() === productKey);
+      const lastProduction = [...productProductions].sort((a, b) => new Date(b.production_date || b.created_at || 0) - new Date(a.production_date || a.created_at || 0))[0];
+      const lastMovement = [...productMovements].sort((a, b) => new Date(b.movement_date || b.created_at || 0) - new Date(a.movement_date || a.created_at || 0))[0];
+      return {
+        ...product,
+        last_production_date: lastProduction?.production_date || "",
+        last_movement_date: lastMovement?.movement_date || "",
+        production_count: productProductions.length,
+        movement_count: productMovements.length,
+      };
+    });
+  }
+
+  function filteredFinishedGoodRows() {
+    return finishedGoodRows().filter((row) => {
+      const productKey = String(row.product_name || "").toLowerCase();
+      const productProductions = data.productions.filter((production) => String(production.product_name || "").toLowerCase() === productKey);
+      const productMovements = data.productMovements.filter((movement) => movement.finished_good_id === row.id || String(movement.product_name || "").toLowerCase() === productKey);
+      const batchMatch = !warehouseFilters.batch || productProductions.some((production) => includesText(production.batch_no, warehouseFilters.batch));
+      const movementTypeMatch = !warehouseFilters.movementType || productMovements.some((movement) => movement.movement_type === warehouseFilters.movementType);
+      return includesText(row.product_name, warehouseFilters.product) && (!warehouseFilters.status || row.status === warehouseFilters.status) && batchMatch && movementTypeMatch;
+    });
+  }
+
+  function filteredProductMovements() {
+    return data.productMovements.filter((row) => {
+      const linkedProduction = data.productions.find((production) => production.id === row.reference_id || production.production_no === row.reference_no);
+      const batchMatch = !warehouseFilters.batch || includesText(linkedProduction?.batch_no, warehouseFilters.batch) || includesText(row.reference_no, warehouseFilters.batch);
+      return includesText(row.product_name, warehouseFilters.product)
+        && (!warehouseFilters.movementType || row.movement_type === warehouseFilters.movementType)
+        && batchMatch;
+    });
+  }
+
+  function warehouseFilterControls({ showStatus = true } = {}) {
+    const statuses = [...new Set(data.finishedGoods.map((row) => row.status).filter(Boolean))];
+    const movementTypes = [...new Set(data.productMovements.map((row) => row.movement_type).filter(Boolean))];
+    return (
+      <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 md:grid-cols-4">
+        <Field label="Product">
+          <input className={inputClass()} value={warehouseFilters.product} onChange={(event) => setWarehouseFilters((current) => ({ ...current, product: event.target.value }))} placeholder="Search product" />
+        </Field>
+        {showStatus ? (
+          <Field label="Status">
+            <select className={inputClass()} value={warehouseFilters.status} onChange={(event) => setWarehouseFilters((current) => ({ ...current, status: event.target.value }))}>
+              <option value="">All statuses</option>
+              {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
+            </select>
+          </Field>
+        ) : null}
+        <Field label="Batch">
+          <input className={inputClass()} value={warehouseFilters.batch} onChange={(event) => setWarehouseFilters((current) => ({ ...current, batch: event.target.value }))} placeholder="Search batch/source" />
+        </Field>
+        <Field label="Movement Type">
+          <select className={inputClass()} value={warehouseFilters.movementType} onChange={(event) => setWarehouseFilters((current) => ({ ...current, movementType: event.target.value }))}>
+            <option value="">All movements</option>
+            {movementTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+          </select>
+        </Field>
+        <div className="flex items-end">
+          <button className="btn-secondary w-full" type="button" onClick={() => setWarehouseFilters({ product: "", status: "", batch: "", movementType: "" })}>Clear</button>
+        </div>
+      </div>
+    );
   }
 
   const recentActivity = useMemo(() => {
@@ -1990,6 +2130,86 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     );
   }
 
+  function renderFinishedGoods() {
+    const rows = filteredFinishedGoodRows();
+    const totalStock = data.finishedGoods.reduce((sum, row) => sum + Number(row.current_balance || 0), 0);
+    const outOfStockItems = data.finishedGoods.filter((row) => Number(row.current_balance || 0) <= 0);
+    const lowStockItems = data.finishedGoods.filter((row) => Number(row.current_balance || 0) > 0 && Number(row.current_balance || 0) <= Number(row.min_stock_level || 0));
+    return (
+      <div className="space-y-5">
+        <PageHeader
+          section="Warehouse"
+          title="Finished Goods"
+          description="Read-only finished goods SKU balances, production history, batches and stock movements."
+          actions={<button className="btn-secondary" type="button" onClick={loadData}><RefreshCw size={15} /> Refresh</button>}
+        />
+        <div className="grid gap-3 md:grid-cols-4">
+          <MetricCard icon={PackageCheck} label="Total SKUs" value={data.finishedGoods.length} helper="Finished goods products" />
+          <MetricCard icon={Warehouse} label="Total Stock" value={quantity(totalStock, "")} helper="Current balance total" />
+          <MetricCard icon={AlertTriangle} label="Low Stock Items" value={lowStockItems.length} helper="Above zero, at or below min" tone={lowStockItems.length ? "warning" : "success"} />
+          <MetricCard icon={Clock3} label="Out of Stock" value={outOfStockItems.length} helper="Current balance zero" tone={outOfStockItems.length ? "danger" : "success"} />
+        </div>
+        {warehouseFilterControls()}
+        <Card title="Finished Goods Listing" description="Balances are created by production stock-in and approved finished goods stock checks. This page is read-only.">
+          <FactoryTable
+            columns={[
+              { key: "product_name", label: "Product", render: (row) => <div><div className="font-bold text-text-primary">{row.product_name}</div><div className="text-xs text-text-secondary">{row.product_code || row.category || "No SKU code"}</div></div> },
+              { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
+              { key: "current_balance", label: "Current Balance", render: (row) => quantity(row.current_balance, row.uom) },
+              { key: "last_production_date", label: "Last Production", render: (row) => row.last_production_date || "—" },
+              { key: "last_movement_date", label: "Last Movement", render: (row) => row.last_movement_date || "—" },
+              { key: "status", label: "Status", render: (row) => <Badge tone={Number(row.current_balance || 0) <= 0 ? "danger" : Number(row.current_balance || 0) <= Number(row.min_stock_level || 0) ? "warning" : row.status === "active" ? "success" : "neutral"}>{Number(row.current_balance || 0) <= 0 ? "out of stock" : Number(row.current_balance || 0) <= Number(row.min_stock_level || 0) ? "low stock" : row.status}</Badge> },
+              { key: "actions", label: "Detail", align: "right", render: (row) => <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-detail", product: row })}>View Detail</button> },
+            ]}
+            rows={rows}
+            emptyTitle="No finished goods stock"
+            emptyDescription="Complete production first to stock in finished goods and populate this warehouse view."
+          />
+        </Card>
+      </div>
+    );
+  }
+
+  function renderProductMovements() {
+    const rows = filteredProductMovements().map((movement) => {
+      const linkedProduction = data.productions.find((production) => production.id === movement.reference_id || production.production_no === movement.reference_no);
+      return { ...movement, batch_no: linkedProduction?.batch_no || "" };
+    });
+    return (
+      <div className="space-y-5">
+        <PageHeader
+          section="Warehouse"
+          title="Product Movements"
+          description="Read-only finished goods movement history from production stock-in and approved adjustments."
+          actions={<button className="btn-secondary" type="button" onClick={loadData}><RefreshCw size={15} /> Refresh</button>}
+        />
+        <div className="grid gap-3 md:grid-cols-4">
+          <MetricCard icon={Activity} label="Movements" value={data.productMovements.length} helper="Finished goods movement rows" />
+          <MetricCard icon={PackageCheck} label="Stock In Rows" value={data.productMovements.filter((row) => Number(row.quantity || 0) > 0).length} helper="Positive movements" tone="success" />
+          <MetricCard icon={AlertTriangle} label="Stock Out Rows" value={data.productMovements.filter((row) => Number(row.quantity || 0) < 0).length} helper="Negative movements" tone="warning" />
+          <MetricCard icon={Factory} label="Production Sources" value={data.productMovements.filter((row) => row.reference_type === "production").length} helper="Created by production" />
+        </div>
+        {warehouseFilterControls({ showStatus: false })}
+        <Card title="Finished Goods Movement History" description="Movement logs are read-only here; stock balance remains managed by production completion and approved stock checks.">
+          <FactoryTable
+            columns={[
+              { key: "movement", label: "Movement", render: (row) => <div><div className="font-bold text-text-primary">{row.reference_no || "—"}</div><div className="text-xs text-text-secondary">{row.reference_type || "No source"}</div></div> },
+              { key: "movement_type", label: "Type", render: (row) => <Badge tone={row.quantity >= 0 ? "success" : "warning"}>{row.movement_type}</Badge> },
+              { key: "product_name", label: "Product", render: (row) => row.product_name },
+              { key: "quantity", label: "Qty", render: (row) => quantity(row.quantity, row.uom) },
+              { key: "batch_no", label: "Batch", render: (row) => row.batch_no || "—" },
+              { key: "movement_date", label: "Date", render: (row) => row.movement_date || "—" },
+              { key: "source", label: "Source", render: (row) => row.notes || row.reference_type || "—" },
+            ]}
+            rows={rows}
+            emptyTitle="No finished goods movements"
+            emptyDescription="Complete production first to create finished goods stock-in movement history."
+          />
+        </Card>
+      </div>
+    );
+  }
+
   function renderProductStockCheck() {
     return (
       <div className="space-y-5">
@@ -2019,7 +2239,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   return (
     <>
       <AccessIssueNotice issues={data.accessIssues} />
-      {initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? renderBatchTraceability() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "production-sop" ? renderProductionSop() : renderDashboard()}
+      {initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? renderBatchTraceability() : initialTab === "finished-goods" ? renderFinishedGoods() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "production-sop" ? renderProductionSop() : renderDashboard()}
       {modal?.type === "job" ? (
         <JobOrderModal
           initialValue={modal.value}
@@ -2061,6 +2281,15 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           stockItems={modal.stockType === "raw" ? data.rawMaterials : data.finishedGoods}
           onClose={() => setModal(null)}
           onSave={(form) => saveStockCheck(modal.stockType, form)}
+        />
+      ) : null}
+      {modal?.type === "finished-good-detail" ? (
+        <FinishedGoodDetailModal
+          product={modal.product}
+          productions={data.productions}
+          movements={data.productMovements}
+          productionCosts={metrics.productionCostRows}
+          onClose={() => setModal(null)}
         />
       ) : null}
     </>
