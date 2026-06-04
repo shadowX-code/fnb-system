@@ -145,3 +145,11 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 
 ### Documentation
 - Updated the master document with Factory Phase 1B execution rules, variance threshold, actual-usage stock deduction rule, Recipe BOM separation, Phase 1C stock check approval rules, Phase 1D SOP/QC/batch traceability rules, Phase 1E reports/costing rules, Phase 1F recipe costing/cost history rules, Finished Goods Master and warehouse visibility/UX rules, the Batch Traceability route/RBAC UAT fix, Owner/Admin Factory RLS alignment, and functional-vs-placeholder Factory module status.
+
+## 2026-06-05
+
+### RBAC
+- Added explicit `sales_input.import` and `purchase_input.import` permissions so Sales Input and Purchase Input imports can be enabled independently from create/edit access.
+- Updated import workflow permission checks and `import_batches` / `import_batch_rows` RLS coverage so module imports require the owning module import permission, while preserving Owner/Admin protected-role behavior.
+- Added Recipe Intelligence `view` and `manage` permissions, routed Recipe Intelligence through its own view permission, and guarded Product Mapping decisions with Recipe Intelligence manage access.
+- Improved the Role Management permission matrix scrolling so action headers remain visible while reviewing long permission tables.

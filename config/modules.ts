@@ -136,7 +136,7 @@ export const moduleRegistry: AppModule[] = [
     route: "/sales/input",
     icon: "sales-input",
     sidebar: true,
-    permissions: { view: true, create: true, edit: true, delete: true },
+    permissions: { view: true, create: true, edit: true, delete: true, import: true },
   },
   {
     id: "sales-comparison",
@@ -172,7 +172,7 @@ export const moduleRegistry: AppModule[] = [
     route: "/purchases/input",
     icon: "purchase-input",
     sidebar: true,
-    permissions: { view: true, create: true, edit: true, delete: true, approve: true },
+    permissions: { view: true, create: true, edit: true, delete: true, approve: true, import: true },
   },
   {
     id: "purchase-comparison",
@@ -370,7 +370,7 @@ export const moduleRegistry: AppModule[] = [
     route: "/inventory/recipe-intelligence",
     icon: "recipe-intelligence",
     sidebar: true,
-    permissions: {},
+    permissions: { view: true, manage: true },
   },
   {
     id: "outlets",

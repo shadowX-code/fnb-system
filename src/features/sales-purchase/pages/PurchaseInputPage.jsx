@@ -27,7 +27,7 @@ import { DataImportWorkspace } from "./DataImportPage.jsx";
 import usePeriodFilters from "../hooks/usePeriodFilters.js";
 import { purchaseRecordService } from "../../../services/purchaseRecordService.js";
 import { supplierService } from "../../../services/supplierService.js";
-import { canCreate, canWrite, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { canCreate, canImport, canWrite, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { months } from "../data/mockData.js";
 import {
   getCategoryName,
@@ -412,6 +412,7 @@ export default function PurchaseInputPage({ store, setStore, ui, auth, masterDat
   const previous = getPreviousPeriod(filters.month, filters.year);
   const isLocked = Boolean(getLock(store, filters.outletId, filters.month, filters.year)?.is_locked);
   const canWritePurchase = canWrite(auth, "purchase_input");
+  const canImportPurchase = canImport(auth, "purchase_input");
   const canCreateSupplier = canCreate(auth, "suppliers");
   const netSales = getNetSales(store.salesRecords, filters.outletId, filters.month, filters.year, store.salesChannels);
   const totalPurchase = sumAmount(rows);
@@ -797,11 +798,15 @@ export default function PurchaseInputPage({ store, setStore, ui, auth, masterDat
           }`}>
             {saveStatusLabel}
           </span>
-          {canWritePurchase ? (
+          {canImportPurchase ? (
             <>
               <button className="btn-secondary" type="button" onClick={() => setImportModalOpen(true)}>
                 <Upload size={16} /> Import Purchase
               </button>
+            </>
+          ) : null}
+          {canWritePurchase ? (
+            <>
               <button className="btn-secondary" type="button" disabled={isLocked} onClick={() => setDuplicateModal(true)}>
                 <Copy size={16} /> Duplicate Previous Month
               </button>

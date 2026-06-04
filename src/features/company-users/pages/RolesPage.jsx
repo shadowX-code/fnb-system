@@ -435,13 +435,13 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
                 ) : null}
               </div>
 
-              <div className="overflow-x-auto">
+              <div className="max-h-[70vh] overflow-auto">
                 <table className="min-w-[1240px] w-full border-separate border-spacing-0 text-sm">
-                  <thead className="sticky top-0 z-10 bg-white">
+                  <thead className="sticky top-0 z-30 bg-white shadow-[0_1px_0_rgba(15,23,42,0.08)]">
                     <tr>
-                      <th className="sticky left-0 z-20 w-[210px] border-b border-border bg-white px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wide text-text-secondary">Module</th>
+                      <th className="sticky left-0 top-0 z-40 w-[210px] border-b border-border bg-white px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wide text-text-secondary">Module</th>
                       {roleEditorActions.map((action) => (
-                        <th key={action.key} className="border-b border-border px-3 py-3 text-center text-[11px] font-bold uppercase tracking-wide text-text-secondary">{action.label}</th>
+                        <th key={action.key} className="sticky top-0 z-30 border-b border-border bg-white px-3 py-3 text-center text-[11px] font-bold uppercase tracking-wide text-text-secondary">{action.label}</th>
                       ))}
                     </tr>
                   </thead>
@@ -635,13 +635,13 @@ function RoleDetailModal({ role, onClose, onEditRole, outlets, canEditRole, edit
                 </div>
               </div>
 
-                <div className="overflow-x-auto">
+                <div className="max-h-[70vh] overflow-auto">
                   <table className="min-w-[1240px] w-full border-separate border-spacing-0 text-sm">
-                    <thead className="sticky top-0 z-10 bg-white">
+                    <thead className="sticky top-0 z-30 bg-white shadow-[0_1px_0_rgba(15,23,42,0.08)]">
                       <tr>
-                        <th className="sticky left-0 z-20 w-[210px] border-b border-border bg-white px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wide text-text-secondary">Module</th>
+                        <th className="sticky left-0 top-0 z-40 w-[210px] border-b border-border bg-white px-4 py-3 text-left text-[11px] font-bold uppercase tracking-wide text-text-secondary">Module</th>
                         {roleEditorActions.map((action) => (
-                          <th key={action.key} className="border-b border-border px-3 py-3 text-center text-[11px] font-bold uppercase tracking-wide text-text-secondary">{action.label}</th>
+                          <th key={action.key} className="sticky top-0 z-30 border-b border-border bg-white px-3 py-3 text-center text-[11px] font-bold uppercase tracking-wide text-text-secondary">{action.label}</th>
                         ))}
                       </tr>
                     </thead>

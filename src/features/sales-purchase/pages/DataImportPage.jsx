@@ -9,7 +9,7 @@ import { importService } from "../../../services/importService.js";
 import { purchaseCategoryService } from "../../../services/purchaseCategoryService.js";
 import { supplierService } from "../../../services/supplierService.js";
 import { monthLabel } from "../utils/analytics.js";
-import { canCreate, canImport, canWrite, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { canCreate, canImport, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { getEmployeeDisplayName } from "../../../utils/userDisplay.js";
 
 const monthAliases = {
@@ -411,9 +411,9 @@ export function DataImportWorkspace({
     currentUser: auth?.user,
   });
   const canRunImport = importType === "Sales"
-    ? canWrite(auth, "sales_input")
+    ? canImport(auth, "sales_input")
     : importType === "Purchases"
-      ? canWrite(auth, "purchase_input")
+      ? canImport(auth, "purchase_input")
       : canImport(auth, "data_import");
   const canCreateImportSupplier = canCreate(auth, "suppliers");
   const canCreateImportCategory = canCreate(auth, "purchase_categories");
@@ -1136,7 +1136,7 @@ export function DataImportWorkspace({
       )}
       {!canRunImport ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
-          Read-only access. You need {importType === "Sales" ? "Sales Input create or edit" : importType === "Purchases" ? "Purchase Input create or edit" : "Data Import"} permission to validate and import files.
+          Read-only access. You need {importType === "Sales" ? "Sales Input import" : importType === "Purchases" ? "Purchase Input import" : "Data Import"} permission to validate and import files.
         </div>
       ) : null}
 

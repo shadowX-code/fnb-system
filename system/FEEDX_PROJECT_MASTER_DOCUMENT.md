@@ -1893,6 +1893,8 @@ Inventory Control permissions:
 - inventory_recipes.delete
 - inventory_recipes.manage
 - inventory_recipes.export
+- recipe_intelligence.view
+- recipe_intelligence.manage
 
 RBAC verification status:
 
@@ -2626,7 +2628,7 @@ Rules:
 - Product Mapping rows use a compact management table: Product, Sales, Suggested Match, Status, Recipe Mapping, and Action. Sales combines latest period, quantity sold, and net sales. Product rows show Last Seen and an Activity Status where Active means the product was seen within the last three selected reporting months; Inactive means it has not appeared recently.
 - Product Mapping lifecycle is durable. If a product disappears from the latest Product Analytics month, its Pending, Mapped, or Ignored decision remains visible through the existing mapping record and Last Seen date. If the product returns in a later import, the saved mapping decision is reused automatically.
 - Product Mapping Health uses Total Products, Mapped, Pending, Ignored, and Coverage %. Coverage is calculated as `Mapped / (Mapped + Pending)`, so Ignored products do not reduce coverage.
-- Recipe Intelligence is a standalone Inventory Control page at `#recipe_intelligence` because it is management analytics work, not recipe setup work. It uses the same `inventory_recipes.view` access requirement for now and appears below Recipes & Usage in the Inventory Control sidebar.
+- Recipe Intelligence is a standalone Inventory Control page at `#recipe_intelligence` because it is management analytics work, not recipe setup work. It uses `recipe_intelligence.view` for page access and `recipe_intelligence.manage` for Product Mapping decisions, while recipe BOM setup remains under Recipes & Usage permissions.
 - Recipe Intelligence page filters are Outlet, Month, and Year. The monthly management tables use this exact selected month/year: Top Gross Profit Recipes and Top 10 Ingredient Consumption titles include the selected month label, and their quantities/revenue/ingredient usage are calculated only from Product Analytics rows for that month.
 - Recipe Mapping Health uses a wide card with Coverage %, Mapped Recipes, Pending Products, Products / Recipes count, guidance copy, and a progress bar. It should guide operators to map more products before relying on menu insights.
 - Menu Engineering Matrix uses Product Analytics as its only sales data source. X axis is Product Analytics Qty Sold, Y axis is recipe Margin %, and bubble size is Product Analytics Revenue / Net Sales. The chart uses dynamic average Qty Sold and average Margin % as quadrant split lines for Star, Puzzle, Workhorse, and Dog categories. Bubble tooltips show Recipe, Qty Sold, Revenue, Cost, Price, Profit, and Margin %. The matrix chart is hidden until at least 10 mapped recipes exist, then shows a locked/warming-up state with `Need at least 10 mapped recipes.` and the number of additional mappings needed.
@@ -3654,6 +3656,7 @@ Sales Input:
 - sales_input.view
 - sales_input.create
 - sales_input.edit
+- sales_input.import
 - sales_input.delete
 
 Sales Channels:
@@ -3675,6 +3678,7 @@ Purchase Input:
 - purchase_input.view
 - purchase_input.create
 - purchase_input.edit
+- purchase_input.import
 - purchase_input.delete
 - purchase_input.approve
 
@@ -3802,6 +3806,11 @@ Recipes & Usage:
 - inventory_recipes.delete
 - inventory_recipes.manage
 - inventory_recipes.export
+
+Recipe Intelligence:
+
+- recipe_intelligence.view
+- recipe_intelligence.manage
 
 Outlets:
 
@@ -4182,15 +4191,15 @@ Transaction records:
 Sales records:
 
 - SELECT: sales_input.view OR sales_comparison.view OR dashboard.view
-- INSERT: sales_input.create
-- UPDATE: sales_input.edit
+- INSERT: sales_input.create OR sales_input.import
+- UPDATE: sales_input.edit OR sales_input.import
 - DELETE: sales_input.delete
 
 Purchase records:
 
 - SELECT: purchase_input.view OR purchase_comparison.view OR dashboard.view
-- INSERT: purchase_input.create
-- UPDATE: purchase_input.edit
+- INSERT: purchase_input.create OR purchase_input.import
+- UPDATE: purchase_input.edit OR purchase_input.import
 - DELETE: purchase_input.delete
 
 Asset records:
@@ -4306,8 +4315,9 @@ Open owning module
 
 Rules:
 
-- Sales import is launched from Sales Input and requires `sales_input.create` or `sales_input.edit`.
-- Purchase import is launched from Purchase Input and requires `purchase_input.create` or `purchase_input.edit`.
+- Sales import is launched from Sales Input and requires `sales_input.import`.
+- Purchase import is launched from Purchase Input and requires `purchase_input.import`.
+- Import batch history is scoped by owning module and outlet; `import_batches` / `import_batch_rows` allow Sales Input import users to write sales batches and Purchase Input import users to write purchase batches without granting unrelated module import access.
 - The centralized Data Import page is not active in current navigation.
 
 ### 12.6 Duty Roster Weekly Scheduling
@@ -4954,7 +4964,7 @@ Implemented production-scope decisions documented as current:
 - Dashboard is the UI name for the Overview Dashboard route.
 - Supplier Categories is the UI name for supplier spend/category settings.
 - Wastage is the UI name for spoilage, expiry, damaged inventory, and kitchen wastage.
-- Recipe Intelligence is a standalone Inventory Control analytics page and uses Recipes & Usage view access for now.
+- Recipe Intelligence is a standalone Inventory Control analytics page with its own `recipe_intelligence.view` and `recipe_intelligence.manage` permissions.
 - Recipes & Usage contains Recipe BOM setup and Product Mapping setup.
 - Centralized Data Import is removed from active navigation; Sales Import and Purchase Import live inside their module pages.
 - Stock Requests remains deferred and out of current MVP scope.
