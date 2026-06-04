@@ -228,11 +228,23 @@ const routeDetails = {
     permission: "factory_raw_receiving.view",
     props: { initialTab: "raw-receiving" },
   },
+  factory_raw_stock_check: {
+    description: "Count factory raw material stock, review variance and approve controlled adjustments.",
+    component: FactoryWorkspacePage,
+    permission: "factory_raw_stock_check.view",
+    props: { initialTab: "raw-stock-check" },
+  },
   factory_production: {
     description: "Execute production jobs, capture actual material usage and stock in finished goods.",
     component: FactoryWorkspacePage,
     permission: "factory_production.view",
     props: { initialTab: "production" },
+  },
+  factory_product_stock_check: {
+    description: "Count finished goods stock, review variance and approve controlled adjustments.",
+    component: FactoryWorkspacePage,
+    permission: "factory_product_stock_check.view",
+    props: { initialTab: "product-stock-check" },
   },
 };
 

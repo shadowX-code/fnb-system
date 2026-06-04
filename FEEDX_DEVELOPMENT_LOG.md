@@ -111,6 +111,10 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Added Factory Phase 1B production execution workflow from Job Orders.
 - Production completion now records batch/date/operator/times, actual produced quantity, good output, wastage, QC status, material usage, variance, raw material deductions, finished goods stock-in, product stock movement, and job order completion.
 - Added production dashboard/activity updates and Production Records UI.
+- Added Factory Phase 1C raw material and finished goods stock check workflows with Draft, Submitted, and Approved statuses.
+- Stock check records now capture system quantity, physical count, variance quantity, variance percent, Normal/Warning/Critical variance status, and required reasons for Warning/Critical rows.
+- Only approved stock checks apply inventory balance adjustments and create raw material or finished goods movement logs.
+- Added dashboard stock check variance alerts and recent submitted/approved stock check activity.
 
 ### Documentation
-- Updated the master document with Factory Phase 1B execution rules, variance threshold, actual-usage stock deduction rule, and Recipe BOM separation.
+- Updated the master document with Factory Phase 1B execution rules, variance threshold, actual-usage stock deduction rule, Recipe BOM separation, and Phase 1C stock check approval rules.

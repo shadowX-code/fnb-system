@@ -13,6 +13,8 @@ const jobStatusOptions = ["draft", "planned", "in_progress", "completed", "cance
 const commonUoms = ["kg", "g", "litre", "ml", "pcs", "carton", "pail", "bottle", "pack"];
 const qcStatusOptions = ["Pending", "Pass", "Hold", "Failed"];
 const varianceThresholdPercent = 5;
+const stockCheckWarningPercent = 2;
+const stockCheckCriticalPercent = 5;
 
 function todayInput() {
   const date = new Date();
@@ -41,6 +43,8 @@ function employeeDisplayName(auth) {
 }
 
 function statusTone(status) {
+  if (status === "approved") return "success";
+  if (status === "submitted") return "info";
   if (status === "completed") return "success";
   if (status === "cancelled") return "danger";
   if (status === "in_progress" || status === "planned") return "info";
@@ -69,6 +73,22 @@ function varianceFor(standardUsage, actualUsage) {
   const variance = actual - standard;
   const variancePercent = standard === 0 ? (actual === 0 ? 0 : 100) : (variance / standard) * 100;
   return { variance, variancePercent };
+}
+
+function stockCheckVariance(systemQty, physicalQty) {
+  const system = Number(systemQty || 0);
+  const physical = Number(physicalQty || 0);
+  const variance = physical - system;
+  const variancePercent = system === 0 ? (physical === 0 ? 0 : 100) : (variance / system) * 100;
+  const absPercent = Math.abs(variancePercent);
+  const status = absPercent > stockCheckCriticalPercent ? "Critical" : absPercent > stockCheckWarningPercent ? "Warning" : "Normal";
+  return { variance, variancePercent, status };
+}
+
+function stockVarianceTone(status) {
+  if (status === "Critical") return "danger";
+  if (status === "Warning") return "warning";
+  return "success";
 }
 
 function FactoryTable({ columns, rows, emptyTitle, emptyDescription }) {
@@ -534,8 +554,180 @@ function ProductionExecutionModal({ job, rawMaterials, recipes, auth, onClose, o
   );
 }
 
+function buildStockCheckRows(stockType, stockItems, initialValue) {
+  if (initialValue?.items?.length) {
+    return initialValue.items.map((item) => ({
+      id: item.id,
+      raw_material_id: item.raw_material_id || "",
+      finished_good_id: item.finished_good_id || "",
+      item_name: item.item_name || "",
+      system_qty: item.system_qty,
+      physical_qty: item.physical_qty,
+      variance_reason: item.variance_reason || "",
+      uom: item.uom || "",
+    }));
+  }
+  return stockItems.filter((item) => item.status !== "inactive").map((item) => ({
+    id: `${stockType}-${item.id}`,
+    raw_material_id: stockType === "raw" ? item.id : "",
+    finished_good_id: stockType === "product" ? item.id : "",
+    item_name: stockType === "raw" ? item.name : item.product_name,
+    system_qty: Number(item.current_balance || 0),
+    physical_qty: Number(item.current_balance || 0),
+    variance_reason: "",
+    uom: item.uom || "",
+  }));
+}
+
+function StockCheckModal({ stockType, title, initialValue, stockItems, onClose, onSave }) {
+  const [form, setForm] = useState(() => ({
+    check_date: todayInput(),
+    status: "draft",
+    notes: "",
+    ...initialValue,
+    items: buildStockCheckRows(stockType, stockItems, initialValue),
+  }));
+  const [savingAction, setSavingAction] = useState("");
+  const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [error, setError] = useState("");
+  const itemIdKey = stockType === "raw" ? "raw_material_id" : "finished_good_id";
+  const itemLabel = stockType === "raw" ? "Raw Material" : "Finished Good";
+
+  function updateRow(rowId, patch) {
+    setForm((current) => ({
+      ...current,
+      items: current.items.map((row) => (row.id === rowId ? { ...row, ...patch } : row)),
+    }));
+  }
+
+  function validate() {
+    if (!form.items.length) return "Stock check requires at least one counted item.";
+    const invalidRow = form.items.find((row) => !row[itemIdKey] || Number(row.physical_qty || 0) < 0);
+    if (invalidRow) return "Every row needs an item and physical count.";
+    const missingReason = form.items.find((row) => {
+      const variance = stockCheckVariance(row.system_qty, row.physical_qty);
+      return variance.status !== "Normal" && !String(row.variance_reason || "").trim();
+    });
+    if (missingReason) return "Variance reason is required for Warning and Critical rows.";
+    return "";
+  }
+
+  async function submit(nextStatus) {
+    setSubmitAttempted(true);
+    const validationError = validate();
+    setError(validationError);
+    if (validationError) return;
+    setSavingAction(nextStatus);
+    try {
+      await onSave({ ...form, status: nextStatus });
+    } finally {
+      setSavingAction("");
+    }
+  }
+
+  const varianceRows = form.items.filter((row) => stockCheckVariance(row.system_qty, row.physical_qty).status !== "Normal");
+  const criticalRows = form.items.filter((row) => stockCheckVariance(row.system_qty, row.physical_qty).status === "Critical");
+  const isLocked = ["submitted", "approved"].includes(form.status);
+
+  return (
+    <Modal
+      title={initialValue?.id ? `View ${title}` : `Create ${title}`}
+      description="Draft and submitted stock checks do not adjust inventory. Approval creates the adjustment movement."
+      size="xl"
+      onClose={savingAction ? undefined : onClose}
+      footer={(
+        <>
+          <button className="btn-secondary" type="button" disabled={Boolean(savingAction)} onClick={onClose}>Close</button>
+          {!isLocked ? <button className="btn-secondary" type="button" disabled={Boolean(savingAction)} onClick={() => submit("draft")}>{savingAction === "draft" ? "Saving..." : "Save Draft"}</button> : null}
+          {!isLocked ? <button className="btn-primary" type="button" disabled={Boolean(savingAction)} onClick={() => submit("submitted")}>{savingAction === "submitted" ? "Submitting..." : "Submit Check"}</button> : null}
+        </>
+      )}
+    >
+      <div className="space-y-5">
+        {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
+        <div className="grid gap-3 md:grid-cols-4">
+          <MetricCard icon={ClipboardCheck} label="Counted Items" value={form.items.length} helper={itemLabel} />
+          <MetricCard icon={Activity} label="Variance Rows" value={varianceRows.length} helper="Above 2%" tone={varianceRows.length ? "warning" : "success"} />
+          <MetricCard icon={AlertTriangle} label="Critical Rows" value={criticalRows.length} helper="Above 5%" tone={criticalRows.length ? "danger" : "success"} />
+          <MetricCard icon={CheckCircle2} label="Status" value={form.status} helper={form.check_no || "New check"} />
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <Field label="Check Date">
+            <input className={inputClass()} type="date" value={form.check_date || ""} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, check_date: event.target.value }))} />
+          </Field>
+          <Field label="Reference">
+            <input className={inputClass()} value={form.check_no || "Generated on save"} readOnly />
+          </Field>
+        </div>
+        <Card title={`${itemLabel} Count`} description="System quantity is snapshotted at check creation; physical count drives variance for approval review.">
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[980px] text-left">
+              <thead>
+                <tr className="border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">
+                  <th className="px-4 py-2.5">{itemLabel}</th>
+                  <th className="px-4 py-2.5">System Qty</th>
+                  <th className="px-4 py-2.5">Physical Count</th>
+                  <th className="px-4 py-2.5">Variance Qty</th>
+                  <th className="px-4 py-2.5">Variance %</th>
+                  <th className="px-4 py-2.5">Status</th>
+                  <th className="px-4 py-2.5">Reason</th>
+                </tr>
+              </thead>
+              <tbody>
+                {form.items.map((row) => {
+                  const variance = stockCheckVariance(row.system_qty, row.physical_qty);
+                  const showReasonError = submitAttempted && variance.status !== "Normal" && !String(row.variance_reason || "").trim();
+                  return (
+                    <tr key={row.id} className={`border-b border-border last:border-0 ${showReasonError ? "bg-amber-50" : ""}`}>
+                      <td className="px-4 py-3">
+                        <div className="font-semibold text-text-primary">{row.item_name || "Item"}</div>
+                        <div className="text-xs text-text-secondary">{row.uom || "uom"}</div>
+                      </td>
+                      <td className="px-4 py-3 text-sm font-semibold text-text-secondary">{quantity(row.system_qty, row.uom)}</td>
+                      <td className="px-4 py-3">
+                        <input
+                          className={inputClass(submitAttempted && Number(row.physical_qty || 0) < 0)}
+                          type="number"
+                          min="0"
+                          step="0.01"
+                          disabled={isLocked}
+                          value={row.physical_qty}
+                          onChange={(event) => updateRow(row.id, { physical_qty: event.target.value })}
+                        />
+                      </td>
+                      <td className={`px-4 py-3 text-sm font-semibold ${variance.variance > 0 ? "text-amber-600" : variance.variance < 0 ? "text-rose-600" : "text-text-secondary"}`}>
+                        {quantity(variance.variance, row.uom)}
+                      </td>
+                      <td className="px-4 py-3 text-sm font-semibold text-text-secondary">{percent(variance.variancePercent)}</td>
+                      <td className="px-4 py-3"><Badge tone={stockVarianceTone(variance.status)}>{variance.status}</Badge></td>
+                      <td className="px-4 py-3">
+                        <input
+                          className={inputClass(showReasonError)}
+                          disabled={isLocked}
+                          placeholder={variance.status === "Normal" ? "Optional" : "Reason required"}
+                          value={row.variance_reason || ""}
+                          onChange={(event) => updateRow(row.id, { variance_reason: event.target.value })}
+                        />
+                        {showReasonError ? <div className="mt-1 text-xs font-semibold text-amber-700">Required for Warning/Critical.</div> : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          {!form.items.length ? <EmptyState title="No stock items" description="Create inventory records before running stock check." /> : null}
+        </Card>
+        <Field label="Notes">
+          <textarea className={inputClass()} rows={3} disabled={isLocked} value={form.notes || ""} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} />
+        </Field>
+      </div>
+    </Modal>
+  );
+}
+
 export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, auth }) {
-  const [data, setData] = useState({ jobOrders: [], rawMaterials: [], receivings: [], productions: [], finishedGoods: [], productMovements: [], recipes: [] });
+  const [data, setData] = useState({ jobOrders: [], rawMaterials: [], receivings: [], productions: [], finishedGoods: [], productMovements: [], rawStockChecks: [], productStockChecks: [], recipes: [] });
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
 
@@ -564,7 +756,15 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const totalGoodOutput = completedProductions.reduce((sum, row) => sum + Number(row.good_output_qty || row.produced_quantity || 0), 0);
     const totalWastage = completedProductions.reduce((sum, row) => sum + Number(row.wastage_qty || 0), 0);
     const highVarianceUsage = completedProductions.flatMap((production) => production.material_usage || []).filter((row) => Math.abs(Number(row.variance_percent || 0)) > varianceThresholdPercent);
-    return { openJobs, completedJobs, lowStock, receivingValue, completedProductions, totalGoodOutput, totalWastage, highVarianceUsage };
+    const allStockChecks = [
+      ...data.rawStockChecks.map((check) => ({ ...check, stockType: "raw" })),
+      ...data.productStockChecks.map((check) => ({ ...check, stockType: "product" })),
+    ];
+    const submittedStockChecks = allStockChecks.filter((check) => check.status === "submitted");
+    const approvedStockChecks = allStockChecks.filter((check) => check.status === "approved");
+    const stockCheckVarianceRows = allStockChecks.flatMap((check) => (check.items || []).map((item) => ({ ...item, check }))).filter((item) => item.variance_status !== "Normal");
+    const criticalStockCheckRows = stockCheckVarianceRows.filter((item) => item.variance_status === "Critical");
+    return { openJobs, completedJobs, lowStock, receivingValue, completedProductions, totalGoodOutput, totalWastage, highVarianceUsage, allStockChecks, submittedStockChecks, approvedStockChecks, stockCheckVarianceRows, criticalStockCheckRows };
   }, [data]);
 
   async function saveJobOrder(form) {
@@ -620,6 +820,36 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     }
   }
 
+  async function saveStockCheck(stockType, form) {
+    try {
+      await factoryService.saveStockCheck(stockType, form, auth?.profile?.id);
+      ui?.notify?.({ title: form.status === "submitted" ? "Stock check submitted" : "Stock check draft saved", tone: "success" });
+      setModal(null);
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to save stock check", message: error.message, tone: "error" });
+      throw error;
+    }
+  }
+
+  async function approveStockCheck(stockType, check) {
+    const label = stockType === "raw" ? "Raw Material Stock Check" : "Finished Goods Stock Check";
+    const confirmed = await ui?.confirm?.({
+      title: `Approve ${label}?`,
+      message: `${check.check_no} will adjust inventory balances and create movement logs. Draft and submitted checks do not adjust stock until this approval.`,
+      confirmLabel: "Approve",
+      tone: "warning",
+    });
+    if (!confirmed) return;
+    try {
+      await factoryService.approveStockCheck(stockType, check, auth?.profile?.id);
+      ui?.notify?.({ title: "Stock check approved", message: "Inventory adjustment movement created.", tone: "success" });
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to approve stock check", message: error.message, tone: "error" });
+    }
+  }
+
   async function deleteReceiving(receiving) {
     const confirmed = await ui?.confirm?.({
       title: "Delete Raw Material Receiving?",
@@ -642,6 +872,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       <button className="btn-secondary" type="button" onClick={loadData}><RefreshCw size={15} /> Refresh</button>
       <button className="btn-primary" type="button" onClick={() => setModal({ type: "job" })}><Plus size={15} /> Job Order</button>
       <button className="btn-secondary" type="button" onClick={() => setModal({ type: "receiving" })}><Truck size={15} /> Receive Raw Material</button>
+      <button className="btn-secondary" type="button" onClick={() => setModal({ type: "stock-check", stockType: "raw" })}><ClipboardCheck size={15} /> Raw Check</button>
     </>
   );
 
@@ -697,6 +928,28 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge> },
   ];
 
+  function stockCheckColumns(stockType) {
+    return [
+      { key: "check", label: "Check", render: (row) => <div><div className="font-bold text-text-primary">{row.check_no}</div><div className="text-xs text-text-secondary">{row.check_date}</div></div> },
+      { key: "items", label: "Items", render: (row) => row.items?.length || 0 },
+      { key: "variance", label: "Variance", render: (row) => {
+        const warningCount = (row.items || []).filter((item) => item.variance_status === "Warning").length;
+        const criticalCount = (row.items || []).filter((item) => item.variance_status === "Critical").length;
+        if (criticalCount) return <Badge tone="danger">{criticalCount} critical</Badge>;
+        if (warningCount) return <Badge tone="warning">{warningCount} warning</Badge>;
+        return <Badge tone="success">Normal</Badge>;
+      } },
+      { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{row.status}</Badge> },
+      { key: "notes", label: "Notes", render: (row) => row.notes || "—" },
+      { key: "actions", label: "Actions", align: "right", render: (row) => (
+        <div className="flex justify-end gap-2">
+          <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "stock-check", stockType, value: row })}>{row.status === "draft" ? "Edit" : "View"}</button>
+          {row.status === "submitted" ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => approveStockCheck(stockType, row)}>Approve</button> : null}
+        </div>
+      ) },
+    ];
+  }
+
   const recentActivity = useMemo(() => {
     const productionRows = data.productions.map((row) => ({
       id: `production-${row.id}`,
@@ -719,11 +972,43 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       timestamp: row.updated_at || row.created_at,
       tone: row.status === "completed" ? "success" : "neutral",
     }));
-    return [...productionRows, ...receivingRows, ...jobRows]
+    const rawStockRows = data.rawStockChecks.flatMap((row) => [
+      row.submitted_at ? {
+        id: `raw-stock-submitted-${row.id}`,
+        title: "Raw Stock Check Submitted",
+        description: `${row.check_no} · ${row.items?.length || 0} item(s)`,
+        timestamp: row.submitted_at,
+        tone: "info",
+      } : null,
+      row.approved_at ? {
+        id: `raw-stock-approved-${row.id}`,
+        title: "Raw Stock Check Approved",
+        description: `${row.check_no} · adjustment movement created`,
+        timestamp: row.approved_at,
+        tone: "success",
+      } : null,
+    ].filter(Boolean));
+    const productStockRows = data.productStockChecks.flatMap((row) => [
+      row.submitted_at ? {
+        id: `product-stock-submitted-${row.id}`,
+        title: "Finished Goods Check Submitted",
+        description: `${row.check_no} · ${row.items?.length || 0} item(s)`,
+        timestamp: row.submitted_at,
+        tone: "info",
+      } : null,
+      row.approved_at ? {
+        id: `product-stock-approved-${row.id}`,
+        title: "Finished Goods Check Approved",
+        description: `${row.check_no} · adjustment movement created`,
+        timestamp: row.approved_at,
+        tone: "success",
+      } : null,
+    ].filter(Boolean));
+    return [...productionRows, ...receivingRows, ...jobRows, ...rawStockRows, ...productStockRows]
       .filter((row) => row.timestamp)
       .sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp))
       .slice(0, 8);
-  }, [data.jobOrders, data.productions, data.receivings]);
+  }, [data.jobOrders, data.productions, data.productStockChecks, data.rawStockChecks, data.receivings]);
 
   function renderDashboard() {
     return (
@@ -738,7 +1023,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={ClipboardCheck} label="Open Jobs" value={metrics.openJobs.length} helper="Planned or in progress" />
           <MetricCard icon={CheckCircle2} label="Completed Production" value={metrics.completedProductions.length} helper={`${quantity(metrics.totalGoodOutput, "")} good output`} />
           <MetricCard icon={AlertTriangle} label="Low Raw Materials" value={metrics.lowStock.length} helper="At or below minimum stock" tone={metrics.lowStock.length ? "warning" : "success"} />
-          <MetricCard icon={Activity} label="Material Variance" value={metrics.highVarianceUsage.length} helper="Rows above 5% variance" tone={metrics.highVarianceUsage.length ? "warning" : "success"} />
+          <MetricCard icon={Activity} label="Stock Check Variance" value={metrics.stockCheckVarianceRows.length} helper={`${metrics.criticalStockCheckRows.length} critical row(s)`} tone={metrics.criticalStockCheckRows.length ? "danger" : metrics.stockCheckVarianceRows.length ? "warning" : "success"} />
         </div>
         <div className="grid gap-4 xl:grid-cols-2">
           <Card title="Open Job Orders" description="Factory production work that still needs action.">
@@ -748,7 +1033,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             <FactoryTable columns={lowStockColumns} rows={metrics.lowStock.slice(0, 6)} emptyTitle="No low stock raw materials" emptyDescription="Raw material stock is currently healthy." />
           </Card>
         </div>
-        <Card title="Factory Smart Alerts" description="Phase 1A operational signals from job orders and receiving.">
+        <Card title="Factory Smart Alerts" description="Operational signals from production, receiving and stock check approval.">
           <div className="grid gap-3 p-4 md:grid-cols-3">
             <div className="rounded-2xl border border-border bg-slate-50 p-4">
               <Factory size={18} className="text-primary" />
@@ -762,10 +1047,25 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             </div>
             <div className="rounded-2xl border border-border bg-slate-50 p-4">
               <PackageCheck size={18} className="text-primary" />
-              <div className="mt-3 text-sm font-bold text-text-primary">Finished Goods</div>
-              <p className="mt-1 text-sm text-text-secondary">Finished goods production and movement tracking is registered for the next phase.</p>
+              <div className="mt-3 text-sm font-bold text-text-primary">Stock Check Approval</div>
+              <p className="mt-1 text-sm text-text-secondary">{metrics.submittedStockChecks.length ? `${metrics.submittedStockChecks.length} submitted stock check(s) awaiting approval.` : "No stock checks awaiting approval."}</p>
             </div>
           </div>
+        </Card>
+        <Card title="Stock Check Variance Alerts" description="Physical count variance is separate from production recipe variance and actual usage.">
+          <FactoryTable
+            columns={[
+              { key: "check", label: "Check", render: (row) => <div><div className="font-bold text-text-primary">{row.check.check_no}</div><div className="text-xs text-text-secondary">{row.check.stockType === "raw" ? "Raw Material" : "Finished Goods"}</div></div> },
+              { key: "item_name", label: "Item", render: (row) => row.item_name },
+              { key: "variance_qty", label: "Variance Qty", render: (row) => quantity(row.variance_qty, row.uom) },
+              { key: "variance_percent", label: "Variance %", render: (row) => percent(row.variance_percent) },
+              { key: "variance_status", label: "Status", render: (row) => <Badge tone={stockVarianceTone(row.variance_status)}>{row.variance_status}</Badge> },
+              { key: "variance_reason", label: "Reason", render: (row) => row.variance_reason || "—" },
+            ]}
+            rows={metrics.stockCheckVarianceRows.slice(0, 8)}
+            emptyTitle="No stock check variance alerts"
+            emptyDescription="Submitted and approved stock checks with variance above 2% will appear here."
+          />
         </Card>
         <Card title="Recent Factory Activity" description="Latest job orders, raw receiving and production completion activity.">
           <div className="divide-y divide-border">
@@ -824,6 +1124,28 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     );
   }
 
+  function renderRawStockCheck() {
+    return (
+      <div className="space-y-5">
+        <PageHeader
+          section="Raw Material"
+          title="Raw Material Stock Check"
+          description="Count raw material stock, submit variance for review and approve inventory adjustments."
+          actions={<button className="btn-primary" type="button" onClick={() => setModal({ type: "stock-check", stockType: "raw" })}><Plus size={15} /> New Stock Check</button>}
+        />
+        <div className="grid gap-3 md:grid-cols-4">
+          <MetricCard icon={Warehouse} label="Raw Materials" value={data.rawMaterials.length} helper="Available for count" />
+          <MetricCard icon={ClipboardCheck} label="Checks" value={data.rawStockChecks.length} helper="Raw material checks" />
+          <MetricCard icon={Clock3} label="Submitted" value={data.rawStockChecks.filter((row) => row.status === "submitted").length} helper="Awaiting approval" tone={data.rawStockChecks.some((row) => row.status === "submitted") ? "warning" : "success"} />
+          <MetricCard icon={AlertTriangle} label="Variance Rows" value={data.rawStockChecks.flatMap((row) => row.items || []).filter((item) => item.variance_status !== "Normal").length} helper="Above 2%" tone="warning" />
+        </div>
+        <Card title="Raw Material Stock Checks" description="Draft and submitted checks do not adjust stock. Approval applies the variance adjustment.">
+          <FactoryTable columns={stockCheckColumns("raw")} rows={data.rawStockChecks} emptyTitle="No raw material stock checks" emptyDescription="Create a stock check to capture physical counts." />
+        </Card>
+      </div>
+    );
+  }
+
   function renderProduction() {
     const readyJobs = data.jobOrders.filter((job) => !["completed", "cancelled"].includes(job.status));
     return (
@@ -869,13 +1191,35 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     );
   }
 
+  function renderProductStockCheck() {
+    return (
+      <div className="space-y-5">
+        <PageHeader
+          section="Warehouse"
+          title="Product Stock Check"
+          description="Count finished goods stock, submit variance for review and approve inventory adjustments."
+          actions={<button className="btn-primary" type="button" onClick={() => setModal({ type: "stock-check", stockType: "product" })}><Plus size={15} /> New Stock Check</button>}
+        />
+        <div className="grid gap-3 md:grid-cols-4">
+          <MetricCard icon={PackageCheck} label="Finished Goods" value={data.finishedGoods.length} helper="Available for count" />
+          <MetricCard icon={ClipboardCheck} label="Checks" value={data.productStockChecks.length} helper="Finished goods checks" />
+          <MetricCard icon={Clock3} label="Submitted" value={data.productStockChecks.filter((row) => row.status === "submitted").length} helper="Awaiting approval" tone={data.productStockChecks.some((row) => row.status === "submitted") ? "warning" : "success"} />
+          <MetricCard icon={AlertTriangle} label="Variance Rows" value={data.productStockChecks.flatMap((row) => row.items || []).filter((item) => item.variance_status !== "Normal").length} helper="Above 2%" tone="warning" />
+        </div>
+        <Card title="Finished Goods Stock Checks" description="Draft and submitted checks do not adjust stock. Approval applies the variance adjustment.">
+          <FactoryTable columns={stockCheckColumns("product")} rows={data.productStockChecks} emptyTitle="No finished goods stock checks" emptyDescription="Create a stock check to capture physical counts." />
+        </Card>
+      </div>
+    );
+  }
+
   if (loading) {
     return <div className="card p-6 text-sm font-semibold text-text-secondary">Loading Factory workspace...</div>;
   }
 
   return (
     <>
-      {initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "production" ? renderProduction() : renderDashboard()}
+      {initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "product-stock-check" ? renderProductStockCheck() : renderDashboard()}
       {modal?.type === "job" ? (
         <JobOrderModal
           initialValue={modal.value}
@@ -898,6 +1242,16 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           auth={auth}
           onClose={() => setModal(null)}
           onSave={completeProduction}
+        />
+      ) : null}
+      {modal?.type === "stock-check" ? (
+        <StockCheckModal
+          stockType={modal.stockType}
+          title={modal.stockType === "raw" ? "Raw Material Stock Check" : "Finished Goods Stock Check"}
+          initialValue={modal.value}
+          stockItems={modal.stockType === "raw" ? data.rawMaterials : data.finishedGoods}
+          onClose={() => setModal(null)}
+          onSave={(form) => saveStockCheck(modal.stockType, form)}
         />
       ) : null}
     </>

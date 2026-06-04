@@ -1,6 +1,6 @@
 # FeedX Project Master Document
 
-Last updated: 2026-06-03
+Last updated: 2026-06-04
 Document owner: FeedX product / engineering workspace  
 Document purpose: Permanent project source-of-truth for requirements, architecture, modules, fields, business rules, permissions, integrations, and development plan.
 
@@ -2717,6 +2717,26 @@ Factory Phase 1B implemented scope:
   - Factory Job Order status update to `completed`.
 - Production dashboard and activity cards include completed production, good output and high-variance usage signals.
 
+Factory Phase 1C implemented scope:
+
+- Raw Material Stock Check working page and workflow.
+- Finished Goods Stock Check working page and workflow.
+- Stock check rows capture system quantity, physical count, variance quantity and variance percent.
+- Stock check variance status is calculated independently from production recipe variance:
+  - `Normal`: absolute variance percent is less than or equal to 2%.
+  - `Warning`: absolute variance percent is greater than 2% and less than or equal to 5%.
+  - `Critical`: absolute variance percent is greater than 5%.
+- Variance reason is required for Warning and Critical stock check rows.
+- Stock check lifecycle is Draft, Submitted, Approved.
+- Draft and Submitted stock checks must not adjust inventory balances.
+- Only Approved stock checks create inventory adjustments.
+- Approved Raw Material Stock Check creates raw material balance adjustments and `factory_raw_material_movements` rows.
+- Approved Finished Goods Stock Check creates finished goods balance adjustments and `factory_product_stock_movements` rows.
+- Stock Check variance is separate from Recipe Variance and must not modify Factory Product Recipes.
+- Stock Check variance must not modify Production Actual Usage or production material usage records.
+- Factory Dashboard includes stock check variance alerts and submitted stock checks awaiting approval.
+- Recent Factory Activity includes stock check submitted and approved events.
+
 Factory sidebar modules:
 
 - Factory Dashboard
@@ -2745,7 +2765,9 @@ Factory data model foundation:
 - `factory_finished_goods`
 - `factory_product_stock_movements`
 - `factory_product_stock_checks`
+- `factory_product_stock_check_items`
 - `factory_raw_material_stock_checks`
+- `factory_raw_material_stock_check_items`
 - `factory_product_recipes`
 - `factory_product_recipe_items`
 - `factory_production_sops`
@@ -2758,14 +2780,12 @@ Factory RLS and permissions:
 - Custom roles must be assigned Factory permissions through Roles & Permissions.
 - Factory tables enforce RLS through `current_user_has_permission(...)`.
 
-Current Factory exclusions after Phase 1B:
+Current Factory exclusions after Phase 1C:
 
 - Finished goods receipt and shipment workflow.
-- Product stock check item-level submission workflow.
-- Raw material stock check item-level submission workflow.
 - Product recipe BOM editor.
 - Production SOP editor.
-- Factory analytics beyond Phase 1B dashboard and production execution KPIs.
+- Factory analytics beyond Phase 1C dashboard, production execution KPIs, and stock check variance alerts.
 
 ## 5.14 Outlets
 

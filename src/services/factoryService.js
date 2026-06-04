@@ -146,6 +146,48 @@ function mapProductMovement(row) {
   };
 }
 
+function normalizeStockCheckItem(row, stockType) {
+  const itemName = stockType === "raw" ? row.raw_material?.name : row.finished_good?.product_name;
+  const systemQty = normalizeNumber(row.system_qty);
+  const physicalQty = normalizeNumber(row.physical_qty);
+  const varianceQty = normalizeNumber(row.variance_qty, physicalQty - systemQty);
+  const variancePercent = normalizeNumber(row.variance_percent);
+  return {
+    id: row.id,
+    stock_check_id: row.stock_check_id,
+    raw_material_id: row.raw_material_id || "",
+    finished_good_id: row.finished_good_id || "",
+    item_name: itemName || "",
+    system_qty: systemQty,
+    physical_qty: physicalQty,
+    variance_qty: varianceQty,
+    variance_percent: variancePercent,
+    variance_status: row.variance_status || "Normal",
+    variance_reason: row.variance_reason || "",
+    uom: row.uom || row.raw_material?.uom || row.finished_good?.uom || "",
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function mapStockCheck(row, stockType) {
+  return {
+    id: row.id,
+    check_no: row.check_no || "",
+    check_date: row.check_date || "",
+    status: row.status || "draft",
+    notes: row.notes || "",
+    created_by: row.created_by || "",
+    submitted_by: row.submitted_by || "",
+    submitted_at: row.submitted_at || "",
+    approved_by: row.approved_by || "",
+    approved_at: row.approved_at || "",
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    items: (row.items ?? []).map((item) => normalizeStockCheckItem(item, stockType)),
+  };
+}
+
 function mapRecipe(row) {
   return {
     id: row.id,
@@ -171,6 +213,27 @@ function makeFactoryRef(prefix) {
   const stamp = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
   const random = Math.random().toString(36).slice(2, 6).toUpperCase();
   return `${prefix}-${stamp}-${random}`;
+}
+
+function stockCheckVariance(systemQty, physicalQty) {
+  const system = normalizeNumber(systemQty);
+  const physical = normalizeNumber(physicalQty);
+  const varianceQty = physical - system;
+  const variancePercent = system === 0 ? (physical === 0 ? 0 : 100) : (varianceQty / system) * 100;
+  const absPercent = Math.abs(variancePercent);
+  const varianceStatus = absPercent > 5 ? "Critical" : absPercent > 2 ? "Warning" : "Normal";
+  return { varianceQty, variancePercent, varianceStatus };
+}
+
+function validateStockCheckItems(items) {
+  if (!items.length) throw new Error("Stock check requires at least one counted item.");
+  const invalid = items.find((item) => !item.itemId || normalizeNumber(item.physical_qty, -1) < 0);
+  if (invalid) throw new Error("Every stock check row needs an item and physical count.");
+  const missingReason = items.find((item) => {
+    const { varianceStatus } = stockCheckVariance(item.system_qty, item.physical_qty);
+    return varianceStatus !== "Normal" && !String(item.variance_reason || "").trim();
+  });
+  if (missingReason) throw new Error("Variance reason is required for Warning and Critical stock check items.");
 }
 
 async function logFactoryAction({ action, target, description, after, before }) {
@@ -223,7 +286,7 @@ async function ensureRawMaterial(receiving) {
 
 export const factoryService = {
   async listFactoryData() {
-    const [jobOrdersResult, materialsResult, receivingResult, productionsResult, finishedGoodsResult, productMovementsResult, recipesResult] = await Promise.all([
+    const [jobOrdersResult, materialsResult, receivingResult, productionsResult, finishedGoodsResult, productMovementsResult, rawStockChecksResult, productStockChecksResult, recipesResult] = await Promise.all([
       supabase
         .from("factory_job_orders")
         .select("id,job_order_no,product_name,target_quantity,produced_quantity,uom,planned_date,due_date,priority,status,assigned_team,remarks,created_by,created_at,updated_at")
@@ -255,6 +318,16 @@ export const factoryService = {
         .order("movement_date", { ascending: false })
         .limit(150),
       supabase
+        .from("factory_raw_material_stock_checks")
+        .select("id,check_no,check_date,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at,items:factory_raw_material_stock_check_items(id,stock_check_id,raw_material_id,system_qty,physical_qty,variance_qty,variance_percent,variance_status,variance_reason,uom,created_at,updated_at,raw_material:factory_raw_materials(name,uom))")
+        .order("check_date", { ascending: false })
+        .limit(100),
+      supabase
+        .from("factory_product_stock_checks")
+        .select("id,check_no,check_date,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at,items:factory_product_stock_check_items(id,stock_check_id,finished_good_id,system_qty,physical_qty,variance_qty,variance_percent,variance_status,variance_reason,uom,created_at,updated_at,finished_good:factory_finished_goods(product_name,uom))")
+        .order("check_date", { ascending: false })
+        .limit(100),
+      supabase
         .from("factory_product_recipes")
         .select("id,recipe_code,product_name,yield_quantity,uom,status,items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,notes,raw_material:factory_raw_materials(name,uom))")
         .eq("status", "active")
@@ -268,6 +341,8 @@ export const factoryService = {
     throwSupabaseError("factory.productions.list", productionsResult.error);
     throwSupabaseError("factory.finished_goods.list", finishedGoodsResult.error);
     throwSupabaseError("factory.product_movements.list", productMovementsResult.error);
+    throwSupabaseError("factory.raw_stock_checks.list", rawStockChecksResult.error);
+    throwSupabaseError("factory.product_stock_checks.list", productStockChecksResult.error);
     throwSupabaseError("factory.recipes.list", recipesResult.error);
 
     return {
@@ -277,6 +352,8 @@ export const factoryService = {
       productions: (productionsResult.data ?? []).map(mapProduction),
       finishedGoods: (finishedGoodsResult.data ?? []).map(mapFinishedGood),
       productMovements: (productMovementsResult.data ?? []).map(mapProductMovement),
+      rawStockChecks: (rawStockChecksResult.data ?? []).map((row) => mapStockCheck(row, "raw")),
+      productStockChecks: (productStockChecksResult.data ?? []).map((row) => mapStockCheck(row, "product")),
       recipes: (recipesResult.data ?? []).map(mapRecipe),
     };
   },
@@ -477,5 +554,94 @@ export const factoryService = {
       after: data,
     });
     return mapProduction(data);
+  },
+
+  async saveStockCheck(stockType, stockCheck, employeeId) {
+    const isRaw = stockType === "raw";
+    const table = isRaw ? "factory_raw_material_stock_checks" : "factory_product_stock_checks";
+    const itemTable = isRaw ? "factory_raw_material_stock_check_items" : "factory_product_stock_check_items";
+    const itemIdColumn = isRaw ? "raw_material_id" : "finished_good_id";
+    const refPrefix = isRaw ? "RMSC" : "FGSC";
+    const isUpdate = Boolean(stockCheck.id);
+    const status = stockCheck.status === "submitted" ? "submitted" : "draft";
+    const items = (stockCheck.items ?? []).map((item) => {
+      const itemId = isRaw ? item.raw_material_id : item.finished_good_id;
+      const variance = stockCheckVariance(item.system_qty, item.physical_qty);
+      return {
+        itemId,
+        [itemIdColumn]: itemId,
+        system_qty: normalizeNumber(item.system_qty),
+        physical_qty: normalizeNumber(item.physical_qty),
+        variance_qty: Number(variance.varianceQty.toFixed(4)),
+        variance_percent: Number(variance.variancePercent.toFixed(4)),
+        variance_status: variance.varianceStatus,
+        variance_reason: item.variance_reason || "",
+        uom: item.uom || "",
+      };
+    });
+    validateStockCheckItems(items);
+
+    const payload = {
+      check_no: stockCheck.check_no || makeFactoryRef(refPrefix),
+      check_date: stockCheck.check_date || new Date().toISOString().slice(0, 10),
+      status,
+      notes: stockCheck.notes || "",
+      updated_at: new Date().toISOString(),
+    };
+    if (!isUpdate) payload.created_by = employeeId || null;
+    if (status === "submitted") {
+      payload.submitted_by = employeeId || null;
+      payload.submitted_at = new Date().toISOString();
+    }
+
+    const query = isUpdate
+      ? supabase.from(table).update(payload).eq("id", stockCheck.id)
+      : supabase.from(table).insert(payload);
+    const { data, error } = await query
+      .select("id,check_no,check_date,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at")
+      .single();
+    throwSupabaseError(`factory.${stockType}_stock_check.save`, error);
+
+    if (isUpdate) {
+      const deleteResult = await supabase.from(itemTable).delete().eq("stock_check_id", data.id);
+      throwSupabaseError(`factory.${stockType}_stock_check.items_delete`, deleteResult.error);
+    }
+
+    const insertResult = await supabase.from(itemTable).insert(items.map((item) => ({
+      stock_check_id: data.id,
+      [itemIdColumn]: item[itemIdColumn],
+      system_qty: item.system_qty,
+      physical_qty: item.physical_qty,
+      variance_qty: item.variance_qty,
+      variance_percent: item.variance_percent,
+      variance_status: item.variance_status,
+      variance_reason: item.variance_reason,
+      uom: item.uom,
+      updated_at: new Date().toISOString(),
+    })));
+    throwSupabaseError(`factory.${stockType}_stock_check.items_insert`, insertResult.error);
+
+    await logFactoryAction({
+      action: status === "submitted" ? `factory_${stockType}_stock_check_submitted` : `factory_${stockType}_stock_check_saved`,
+      target: data.check_no,
+      description: status === "submitted" ? "Factory stock check submitted for approval." : "Factory stock check draft saved.",
+      after: { ...data, items },
+    });
+    return mapStockCheck({ ...data, items }, stockType);
+  },
+
+  async approveStockCheck(stockType, stockCheck, employeeId) {
+    const rpcName = stockType === "raw" ? "factory_approve_raw_material_stock_check" : "factory_approve_product_stock_check";
+    const { error } = await supabase.rpc(rpcName, {
+      p_stock_check_id: stockCheck.id,
+      p_approved_by: employeeId || null,
+    });
+    throwSupabaseError(`factory.${stockType}_stock_check.approve`, error);
+    await logFactoryAction({
+      action: `factory_${stockType}_stock_check_approved`,
+      target: stockCheck.check_no,
+      description: "Factory stock check approved and inventory adjustment movement created.",
+      after: stockCheck,
+    });
   },
 };
