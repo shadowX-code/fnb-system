@@ -4317,8 +4317,10 @@ Rules:
 
 - Sales import is launched from Sales Input and requires `sales_input.import`.
 - Purchase import is launched from Purchase Input and requires `purchase_input.import`.
+- Embedded Purchase Import launched from Purchase Input is outlet-scoped to the currently selected Purchase Input outlet. The modal shows `Import Target Outlet: [Outlet Name]`, validates every uploaded row against that selected outlet, and blocks import when a file contains a different outlet code/name. Month and Year are not inherited from the Purchase Input page filters; they are derived from each imported file row so multi-month imports are allowed.
 - Purchase Import unknown supplier review must carry the selected default category into preview validation. If an import row has no category and the operator chooses Create supplier with a category, that category fills the row for preview and is saved as the new supplier default during confirmed import.
-- Import batch history is scoped by owning module and outlet; `import_batches` / `import_batch_rows` allow Sales Input import users to write sales batches and Purchase Input import users to write purchase batches without granting unrelated module import access.
+- Recent import history is scoped by owning module and selected outlet only, not by the current Month/Year page filters.
+- Import batch history is scoped by owning module and outlet; `import_batches` / `import_batch_rows` allow Sales Input import users to write sales batches and Purchase Input import users to write purchase batches without granting unrelated module import access. The original uploaded filename is audit metadata and must remain immutable; optional display names, remarks, archive, void, and revert workflows are future controlled correction flows rather than hard-delete behavior.
 - The centralized Data Import page is not active in current navigation.
 
 ### 12.6 Duty Roster Weekly Scheduling

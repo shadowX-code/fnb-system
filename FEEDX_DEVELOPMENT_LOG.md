@@ -156,3 +156,4 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Fixed Purchase Import unknown-supplier review so the selected default category for a newly created supplier resolves blank-category purchase rows during preview and final import rebuild.
 - Added a follow-up Sales/Purchase import RLS migration after confirming staging still has `202606050001` pending; Sales import batch writes require `sales_input.import`, and Purchase import batch writes require `purchase_input.import`.
 - Fixed Sales Import history row display so View Imported Rows shows normalized sales channel names and matching channel amounts instead of reading uploaded amount columns as channel labels.
+- Scoped embedded Purchase Import to the Purchase Input selected outlet, added target-outlet validation and banner copy, kept month/year file-derived for multi-month imports, and filtered recent import history by selected outlet across months.

@@ -47,6 +47,11 @@ const importBatchSelect = `
   created_at
 `;
 
+const importTypeAliases = {
+  sales: ["sales", "sale", "Sales", "Sales Input", "sales input", "sales_input"],
+  purchase: ["purchase", "purchases", "Purchase", "Purchases", "Purchase Input", "purchase input", "purchase_input"],
+};
+
 function salesPayload(record) {
   return {
     outlet_id: record.outlet_id,
@@ -304,12 +309,15 @@ async function detectPurchaseConflictsForRecords(records) {
 }
 
 export const importService = {
-  async listImportBatches() {
-    const { data, error } = await supabase
+  async listImportBatches({ importType = "", outletId = "" } = {}) {
+    let query = supabase
       .from("import_batches")
       .select(importBatchSelect)
       .order("created_at", { ascending: false })
       .limit(50);
+    if (importType) query = query.in("import_type", importTypeAliases[importType] || [importType]);
+    if (outletId) query = query.eq("outlet_id", outletId);
+    const { data, error } = await query;
 
     if (isMissingImportInfrastructure(error)) {
       console.warn("[Supabase:import_batches.list] import batch schema is missing or outdated. Apply import batch migration to enable import history.", error);

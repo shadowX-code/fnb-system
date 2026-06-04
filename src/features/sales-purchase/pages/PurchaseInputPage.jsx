@@ -1021,6 +1021,7 @@ export default function PurchaseInputPage({ store, setStore, ui, auth, masterDat
               ui={ui}
               auth={auth}
               fixedImportType="Purchases"
+              targetOutletId={filters.outletId}
               embedded
               onImported={() => {
                 setImportRefreshKey((value) => value + 1);

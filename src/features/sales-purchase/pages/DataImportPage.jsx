@@ -21,6 +21,10 @@ const monthAliases = {
 const salesFields = ["Ignore", "Outlet", "Month", "Year", "Dine In", "FoodPanda", "GrabFood", "ShopeeFood", "Takeaway"];
 const purchaseFields = ["Ignore", "Outlet", "Month", "Year", "Supplier", "Category", "Amount", "Remark"];
 const salesImportChannels = ["Dine In", "FoodPanda", "GrabFood", "ShopeeFood", "Takeaway"];
+const importTypeAliases = {
+  sales: new Set(["sales", "sale", "sales input", "sales_input"]),
+  purchase: new Set(["purchase", "purchases", "purchase input", "purchase_input"]),
+};
 const highAmountThreshold = 1_000_000;
 const importModeDetails = {
   Sales: {
@@ -398,6 +402,7 @@ export function DataImportWorkspace({
   auth,
   initialImportType = "Sales",
   fixedImportType = "",
+  targetOutletId = "",
   embedded = false,
   onImported,
 }) {
@@ -432,15 +437,29 @@ export function DataImportWorkspace({
       : canImport(auth, "data_import");
   const canCreateImportSupplier = canCreate(auth, "suppliers");
   const canCreateImportCategory = canCreate(auth, "purchase_categories");
+  const targetOutlet = useMemo(() => (
+    targetOutletId ? store.outlets.find((outlet) => outlet.id === targetOutletId) || null : null
+  ), [store.outlets, targetOutletId]);
+  const targetOutletLabel = targetOutlet ? `${targetOutlet.name}${targetOutlet.code ? ` (${targetOutlet.code})` : ""}` : "";
+  const importTypeKey = importType === "Sales" ? "sales" : "purchase";
+
+  function targetOutletMismatchMessage(fileOutletValue, detectedOutlet) {
+    if (!targetOutlet) return "";
+    if (detectedOutlet?.id === targetOutlet.id) return "";
+    const detected = detectedOutlet
+      ? `${detectedOutlet.name}${detectedOutlet.code ? ` (${detectedOutlet.code})` : ""}`
+      : normalize(fileOutletValue) || "blank/unknown";
+    return `Selected outlet: ${targetOutletLabel}. Detected file outlet: ${detected}. Upload a file for the selected outlet.`;
+  }
 
   useEffect(() => {
-    importService.listImportBatches()
+    importService.listImportBatches({ importType: importTypeKey, outletId: targetOutletId })
       .then(setAllRecentImports)
       .catch((error) => {
         console.error("Unable to load import batches", error);
         setAllRecentImports([]);
       });
-  }, []);
+  }, [importTypeKey, targetOutletId]);
 
   useEffect(() => {
     if (fixedImportType) switchImportType(fixedImportType);
@@ -449,9 +468,11 @@ export function DataImportWorkspace({
   const fieldOptions = importType === "Sales" ? salesFields : purchaseFields;
   const modeDetail = importModeDetails[importType];
   const recentImports = useMemo(() => {
-    const importTypeKey = importType === "Sales" ? "sales" : "purchase";
-    return allRecentImports.filter((batch) => String(batch.import_type || "").toLowerCase() === importTypeKey);
-  }, [allRecentImports, importType]);
+    return allRecentImports.filter((batch) => (
+      importTypeAliases[importTypeKey]?.has(String(batch.import_type || "").toLowerCase())
+      && (!targetOutletId || batch.outlet_id === targetOutletId)
+    ));
+  }, [allRecentImports, importTypeKey, targetOutletId]);
   const likelyImportType = useMemo(() => detectLikelyImportType(parsed.headers, mappings), [mappings, parsed.headers]);
   const mismatchMessage = modeMismatchMessage(importType, likelyImportType);
   const unresolvedUnknownSuppliers = unknownSuppliers.filter((item) => {
@@ -535,11 +556,14 @@ export function DataImportWorkspace({
     }
 
     parsed.rows.forEach((row) => {
-      const outlet = findOutlet(store.outlets, mappedValue(row, mappings, "Outlet"));
+      const rawOutletValue = mappedValue(row, mappings, "Outlet");
+      const outlet = findOutlet(store.outlets, rawOutletValue);
       const month = parseMonth(mappedValue(row, mappings, "Month"));
       const year = Number(mappedValue(row, mappings, "Year"));
       const rowIssues = [];
-      if (!outlet) rowIssues.push("Invalid outlet");
+      const outletMismatch = targetOutletMismatchMessage(rawOutletValue, outlet);
+      if (outletMismatch) rowIssues.push(outletMismatch);
+      else if (!outlet) rowIssues.push("Invalid outlet");
       if (!month) rowIssues.push("Invalid month");
       if (!Number.isInteger(year) || year < 2020) rowIssues.push("Invalid year");
       if (outlet && month && year && isLocked(store, outlet.id, month, year)) rowIssues.push("Locked month protection");
@@ -596,7 +620,8 @@ export function DataImportWorkspace({
     });
 
     parsed.rows.forEach((row) => {
-      const outlet = findOutlet(store.outlets, mappedValue(row, mappings, "Outlet"));
+      const rawOutletValue = mappedValue(row, mappings, "Outlet");
+      const outlet = findOutlet(store.outlets, rawOutletValue);
       const month = parseMonth(mappedValue(row, mappings, "Month"));
       const year = Number(mappedValue(row, mappings, "Year"));
       const supplierName = normalize(mappedValue(row, mappings, "Supplier"));
@@ -631,11 +656,25 @@ export function DataImportWorkspace({
         resolution: categoryResolution?.action ?? null,
       });
 
-      if (!outlet) rowIssues.push("Invalid outlet");
+      const outletMismatch = targetOutletMismatchMessage(rawOutletValue, outlet);
+      if (outletMismatch) rowIssues.push(outletMismatch);
+      else if (!outlet) rowIssues.push("Invalid outlet");
       if (!month) rowIssues.push("Invalid month");
       if (!Number.isInteger(year) || year < 2020) rowIssues.push("Invalid year");
       if (outlet && month && year && isLocked(store, outlet.id, month, year)) rowIssues.push("Locked month protection");
       if (!supplierName) rowIssues.push("Missing supplier");
+      if (outletMismatch) {
+        issues.push({
+          row: row.__row,
+          severity: "error",
+          message: rowIssues.join("; "),
+          rawSupplier: supplierName,
+          rawCategory: rawCategoryName,
+          resolvedCategory: category?.name || "",
+          rawRow: row,
+        });
+        return;
+      }
       if (categoryResolution?.action === "skip") {
         skippedRows.push({ row: row.__row, severity: "skipped", message: `Skipped unknown category: ${categoryName}`, rawRow: row });
         return;
@@ -785,6 +824,11 @@ export function DataImportWorkspace({
         unknownCategories: base.unknownCategories?.length ?? 0,
         unknownSuppliers: base.unknownSuppliers?.length ?? 0,
       });
+      const hasTargetOutletFailure = targetOutlet && base.issues.some((issue) => issue.severity === "error" && String(issue.message || "").includes("Upload a file for the selected outlet."));
+      if (hasTargetOutletFailure) {
+        await withTimeout(buildPreview(base.records, base.issues, base.skippedRows ?? []), "Import target outlet validation");
+        return;
+      }
       if (importType === "Purchases" && base.unknownCategories?.length) {
         setValidationState({ loading: false, message: "", error: "" });
         setUnknownCategories(base.unknownCategories);
@@ -1155,6 +1199,12 @@ export function DataImportWorkspace({
       {!canRunImport ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
           Read-only access. You need {importType === "Sales" ? "Sales Input import" : importType === "Purchases" ? "Purchase Input import" : "Data Import"} permission to validate and import files.
+        </div>
+      ) : null}
+      {targetOutlet ? (
+        <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
+          <div className="font-black text-text-primary">Import Target Outlet: {targetOutletLabel}</div>
+          <div className="mt-1 text-xs font-semibold text-text-secondary">Outlet is locked to this import. Month and year will be read from the uploaded file rows.</div>
         </div>
       ) : null}
 
