@@ -144,10 +144,23 @@ function mapFinishedGood(row) {
     id: row.id,
     product_code: row.product_code || "",
     product_name: row.product_name || "",
-    category: row.category || "",
+    category_id: row.category_id || "",
+    category: row.category_ref?.name || row.category || "",
     uom: row.uom || "",
     current_balance: normalizeNumber(row.current_balance),
     min_stock_level: normalizeNumber(row.min_stock_level),
+    status: row.status || "active",
+    remarks: row.remarks || "",
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function mapFinishedGoodCategory(row) {
+  return {
+    id: row.id,
+    name: row.name || "",
+    description: row.description || "",
     status: row.status || "active",
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -349,6 +362,7 @@ function emptyFactoryData() {
     receivings: [],
     productions: [],
     finishedGoods: [],
+    finishedGoodCategories: [],
     productMovements: [],
     rawStockChecks: [],
     productStockChecks: [],
@@ -384,7 +398,8 @@ function factoryDataPlan(scope, hasPermission) {
     receivings: (isDashboard && can("factory_dashboard.view")) || (isRawReceiving && can("factory_raw_receiving.view")) || (isReports && can("factory_production_reports.view")) || ((isProduction || isBatchTraceability) && can("factory_raw_receiving.view")),
     productions: needsProductionSummary && (can("factory_dashboard.view") || can("factory_production.view") || canReadProductionReports || can("factory_finished_goods.view") || can("factory_product_movements.view")),
     productionDetails: needsProductionDetails,
-    finishedGoods: (isDashboard && can("factory_dashboard.view")) || ((isProduction || isFinishedGoods || isProductMovements) && can("factory_finished_goods.view")) || (isProductStockCheck && can("factory_product_stock_check.view")),
+    finishedGoods: (isDashboard && can("factory_dashboard.view")) || ((isProduction || isFinishedGoods || isProductMovements) && can("factory_finished_goods.view")) || (isProduction && can("factory_production.complete")) || (isProductStockCheck && can("factory_product_stock_check.view")),
+    finishedGoodCategories: isFinishedGoods && can("factory_finished_goods.view"),
     productMovements: (isDashboard && can("factory_dashboard.view")) || ((isProduction || isProductMovements) && can("factory_product_movements.view")) || (isFinishedGoods && can("factory_finished_goods.view")) || (isReports && can("factory_product_movements.view")) || (isBatchTraceability && canTraceBatches),
     rawStockChecks: isRawStockCheck && can("factory_raw_stock_check.view"),
     productStockChecks: isProductStockCheck && can("factory_product_stock_check.view"),
@@ -425,9 +440,14 @@ export const factoryService = {
       .limit(150), (rows) => rows.map(mapProduction));
     addTask(plan.finishedGoods, "finishedGoods", "Finished Goods", () => supabase
       .from("factory_finished_goods")
-      .select("id,product_code,product_name,category,uom,current_balance,min_stock_level,status,created_at,updated_at")
+      .select("id,product_code,product_name,category_id,category,uom,current_balance,min_stock_level,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name)")
       .order("product_name", { ascending: true })
       .limit(300), (rows) => rows.map(mapFinishedGood));
+    addTask(plan.finishedGoodCategories, "finishedGoodCategories", "Finished Good Categories", () => supabase
+      .from("factory_finished_good_categories")
+      .select("id,name,description,status,created_at,updated_at")
+      .order("name", { ascending: true })
+      .limit(150), (rows) => rows.map(mapFinishedGoodCategory));
     addTask(plan.productMovements, "productMovements", "Product Movements", () => supabase
       .from("factory_product_stock_movements")
       .select("id,finished_good_id,product_name,movement_type,quantity,uom,reference_type,reference_id,reference_no,movement_date,notes,created_by,created_at,finished_good:factory_finished_goods(product_name,uom)")
@@ -619,6 +639,104 @@ export const factoryService = {
       description: "Factory raw material receiving deleted.",
       before: receiving,
     });
+  },
+
+  async saveFinishedGood(product, employeeId) {
+    const isUpdate = Boolean(product.id);
+    const payload = {
+      product_code: String(product.product_code || "").trim() || null,
+      product_name: String(product.product_name || "").trim(),
+      category_id: product.category_id || null,
+      category: String(product.category || "").trim(),
+      uom: product.uom || "",
+      min_stock_level: normalizeNumber(product.min_stock_level),
+      status: product.status || "active",
+      remarks: String(product.remarks || "").trim(),
+      updated_at: new Date().toISOString(),
+    };
+    if (!payload.product_name) throw new Error("Product name is required.");
+    if (!payload.uom) throw new Error("UOM is required.");
+    if (!["active", "archived"].includes(payload.status)) payload.status = "active";
+    if (!isUpdate) payload.created_by = employeeId || null;
+
+    const query = isUpdate
+      ? supabase.from("factory_finished_goods").update(payload).eq("id", product.id)
+      : supabase.from("factory_finished_goods").insert(payload);
+
+    const { data, error } = await query
+      .select("id,product_code,product_name,category_id,category,uom,current_balance,min_stock_level,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name)")
+      .single();
+    throwSupabaseError("factory.finished_good.save", error);
+    await logFactoryAction({
+      action: isUpdate ? "factory_finished_good_updated" : "factory_finished_good_created",
+      target: data.product_name,
+      description: isUpdate ? "Factory finished good updated." : "Factory finished good created.",
+      after: data,
+    });
+    return mapFinishedGood(data);
+  },
+
+  async archiveFinishedGood(product) {
+    const { data, error } = await supabase
+      .from("factory_finished_goods")
+      .update({ status: "archived", updated_at: new Date().toISOString() })
+      .eq("id", product.id)
+      .select("id,product_code,product_name,category_id,category,uom,current_balance,min_stock_level,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name)")
+      .single();
+    throwSupabaseError("factory.finished_good.archive", error);
+    await logFactoryAction({
+      action: "factory_finished_good_archived",
+      target: data.product_name,
+      description: "Factory finished good archived.",
+      after: data,
+    });
+    return mapFinishedGood(data);
+  },
+
+  async saveFinishedGoodCategory(category, employeeId) {
+    const isUpdate = Boolean(category.id);
+    const payload = {
+      name: String(category.name || "").trim(),
+      description: String(category.description || "").trim(),
+      status: category.status || "active",
+      updated_at: new Date().toISOString(),
+    };
+    if (!payload.name) throw new Error("Category name is required.");
+    if (!["active", "archived"].includes(payload.status)) payload.status = "active";
+    if (!isUpdate) payload.created_by = employeeId || null;
+
+    const query = isUpdate
+      ? supabase.from("factory_finished_good_categories").update(payload).eq("id", category.id)
+      : supabase.from("factory_finished_good_categories").insert(payload);
+
+    const { data, error } = await query
+      .select("id,name,description,status,created_at,updated_at")
+      .single();
+    throwSupabaseError("factory.finished_good_category.save", error);
+    await logFactoryAction({
+      action: isUpdate ? "factory_finished_good_category_updated" : "factory_finished_good_category_created",
+      target: data.name,
+      description: isUpdate ? "Factory finished good category updated." : "Factory finished good category created.",
+      after: data,
+    });
+    return mapFinishedGoodCategory(data);
+  },
+
+  async archiveFinishedGoodCategory(category) {
+    const { data, error } = await supabase
+      .from("factory_finished_good_categories")
+      .update({ status: "archived", updated_at: new Date().toISOString() })
+      .eq("id", category.id)
+      .select("id,name,description,status,created_at,updated_at")
+      .single();
+    throwSupabaseError("factory.finished_good_category.archive", error);
+    await logFactoryAction({
+      action: "factory_finished_good_category_archived",
+      target: data.name,
+      description: "Factory finished good category archived.",
+      after: data,
+    });
+    return mapFinishedGoodCategory(data);
   },
 
   async completeProduction(production, employeeId) {

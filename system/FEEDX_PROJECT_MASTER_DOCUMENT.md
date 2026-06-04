@@ -2712,9 +2712,10 @@ Factory Phase 1B implemented scope:
   - `factory_production_material_usage` actual usage and variance records.
   - `factory_raw_material_movements` deduction rows using actual usage.
   - raw material balance deductions through `factory_adjust_raw_material_balance(...)`.
-  - `factory_finished_goods` stock record when needed.
+  - finished goods balance increase for an existing active `factory_finished_goods` master product.
   - `factory_product_stock_movements` finished goods stock-in row.
   - Factory Job Order status update to `completed`.
+- Production completion must not auto-create finished goods master products. A Finished Goods product must be created and active before production stock-in.
 - Production dashboard and activity cards include completed production, good output and high-variance usage signals.
 
 Factory Phase 1C implemented scope:
@@ -2785,18 +2786,23 @@ Factory Phase 1E implemented scope:
 - Factory Reports must not adjust stock.
 - Factory Reports must not modify Recipe, Production, Stock Check, or SOP records.
 
-Factory Warehouse visibility implemented scope:
+Factory Finished Goods Master and Warehouse implemented scope:
 
-- Finished Goods is a functional read-only warehouse management page through `factory_finished_goods`.
-- Finished Goods listing shows product/SKU name, UOM, current balance, last production date, last movement date and status.
+- Finished Goods is a functional master-plus-warehouse page through `factory_finished_goods`.
+- Finished Goods product setup supports Create, Edit and Archive.
+- Finished Goods product fields include Product Name, SKU Code, Category, UOM, Min Stock Level, Active/Archived status and Remarks.
+- Finished Good Category setup supports Create, Edit and Archive through `factory_finished_good_categories`.
+- Category fields include Category Name, Description and Active/Archived status.
+- Finished Goods listing shows product/SKU name, category, UOM, current balance, last production date, last movement date and status.
 - Finished Goods dashboard cards show Total SKUs, Total Finished Goods Stock, Low Stock Items and Out of Stock Items.
 - Finished Goods detail shows current balance, production history, movement history, batch history and actual-cost summary when cost data is available.
+- Production completion can stock-in only to active Finished Goods master products.
+- Finished Goods empty state must say: "Create a finished good product before production stock-in."
 - Product Movements is a functional read-only movement history page through `factory_product_movements`.
 - Product Movements shows movement type, product, quantity, batch/source context, date and source.
 - Warehouse filters support product, status, batch and movement type where relevant.
 - Finished Goods and Product Movements must not create duplicate stock balance logic.
-- Warehouse views are read-only and use `factory_finished_goods`, `factory_product_stock_movements` and production header history for context.
-- Empty states must guide users to complete production first.
+- Product Movements remains read-only and uses `factory_product_stock_movements` and production header history for context.
 
 Factory Phase 1F implemented scope:
 
@@ -2842,7 +2848,7 @@ Factory sidebar modules:
 - Factory Audit Logs
 - Factory Settings
 
-Current functional Factory modules after Factory warehouse visibility optimization:
+Current functional Factory modules after Factory Finished Goods Master optimization:
 
 - Factory Dashboard.
 - Job Orders.
@@ -2884,6 +2890,7 @@ Factory data model foundation:
 - `factory_raw_materials`
 - `factory_raw_material_receivings`
 - `factory_raw_material_movements`
+- `factory_finished_good_categories`
 - `factory_finished_goods`
 - `factory_product_stock_movements`
 - `factory_product_stock_checks`

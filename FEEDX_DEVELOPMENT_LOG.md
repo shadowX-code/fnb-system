@@ -138,6 +138,9 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Turned Factory Finished Goods into a read-only warehouse management page with SKU listing, stock KPIs, filters, production/movement/batch detail and clear production-first empty states.
 - Turned Factory Product Movements into a read-only movement history page showing movement type, product, quantity, batch/source context and movement date.
 - Added read-only warehouse RLS coverage so Finished Goods and Product Movements users can load production headers for last production date and batch history.
+- Upgraded Factory Finished Goods into a master-plus-warehouse page with Finished Goods product create/edit/archive, category create/edit/archive, SKU/UOM/min-stock/status/remarks fields, live balance context, and product detail history.
+- Added Finished Good category persistence and RLS through `factory_finished_good_categories`.
+- Updated production completion so finished goods stock-in requires an existing active Finished Goods master product instead of auto-creating a stock record during production.
 
 ### Documentation
-- Updated the master document with Factory Phase 1B execution rules, variance threshold, actual-usage stock deduction rule, Recipe BOM separation, Phase 1C stock check approval rules, Phase 1D SOP/QC/batch traceability rules, Phase 1E reports/costing rules, Phase 1F recipe costing/cost history rules, read-only Finished Goods/Product Movements warehouse visibility, the Batch Traceability route/RBAC UAT fix, Owner/Admin Factory RLS alignment, and functional-vs-placeholder Factory module status.
+- Updated the master document with Factory Phase 1B execution rules, variance threshold, actual-usage stock deduction rule, Recipe BOM separation, Phase 1C stock check approval rules, Phase 1D SOP/QC/batch traceability rules, Phase 1E reports/costing rules, Phase 1F recipe costing/cost history rules, Finished Goods Master and warehouse visibility, the Batch Traceability route/RBAC UAT fix, Owner/Admin Factory RLS alignment, and functional-vs-placeholder Factory module status.

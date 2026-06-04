@@ -297,6 +297,150 @@ function FinishedGoodDetailModal({ product, productions, movements, productionCo
   );
 }
 
+function FinishedGoodMasterModal({ initialValue, categories, onClose, onSave }) {
+  const [form, setForm] = useState(() => ({
+    product_code: "",
+    product_name: "",
+    category_id: "",
+    category: "",
+    uom: "kg",
+    min_stock_level: 0,
+    status: "active",
+    remarks: "",
+    ...initialValue,
+  }));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const activeCategories = categories.filter((category) => category.status === "active" || category.id === form.category_id);
+
+  async function submit(event) {
+    event.preventDefault();
+    setError("");
+    if (!String(form.product_name || "").trim()) {
+      setError("Product name is required.");
+      return;
+    }
+    if (!String(form.uom || "").trim()) {
+      setError("UOM is required.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const selectedCategory = categories.find((category) => category.id === form.category_id);
+      await onSave({ ...form, category: selectedCategory?.name || form.category || "" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      title={initialValue?.id ? "Edit Finished Good" : "Create Finished Good"}
+      description="Finished goods master records must exist before production stock-in."
+      size="lg"
+      onClose={saving ? undefined : onClose}
+      footer={(
+        <>
+          <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
+          <button className="btn-primary" type="submit" form="factory-finished-good-form" disabled={saving}>{saving ? "Saving..." : "Save Finished Good"}</button>
+        </>
+      )}
+    >
+      <form id="factory-finished-good-form" className="space-y-4" onSubmit={submit}>
+        {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
+        <div className="grid gap-3 md:grid-cols-2">
+          <Field label="Product Name">
+            <input className={inputClass()} value={form.product_name} onChange={(event) => setForm((current) => ({ ...current, product_name: event.target.value }))} />
+          </Field>
+          <Field label="SKU Code">
+            <input className={inputClass()} value={form.product_code || ""} onChange={(event) => setForm((current) => ({ ...current, product_code: event.target.value }))} />
+          </Field>
+          <Field label="Category">
+            <select className={inputClass()} value={form.category_id || ""} onChange={(event) => setForm((current) => ({ ...current, category_id: event.target.value }))}>
+              <option value="">Uncategorized</option>
+              {activeCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+            </select>
+          </Field>
+          <Field label="UOM">
+            <select className={inputClass()} value={form.uom} onChange={(event) => setForm((current) => ({ ...current, uom: event.target.value }))}>
+              {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
+            </select>
+          </Field>
+          <Field label="Min Stock Level">
+            <input className={inputClass()} type="number" min="0" step="0.01" value={form.min_stock_level} onChange={(event) => setForm((current) => ({ ...current, min_stock_level: event.target.value }))} />
+          </Field>
+          <Field label="Status">
+            <select className={inputClass()} value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
+              <option value="active">Active</option>
+              <option value="archived">Archived</option>
+            </select>
+          </Field>
+        </div>
+        <Field label="Remarks">
+          <textarea className={inputClass()} rows={3} value={form.remarks || ""} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
+        </Field>
+      </form>
+    </Modal>
+  );
+}
+
+function FinishedGoodCategoryModal({ initialValue, onClose, onSave }) {
+  const [form, setForm] = useState(() => ({
+    name: "",
+    description: "",
+    status: "active",
+    ...initialValue,
+  }));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(event) {
+    event.preventDefault();
+    setError("");
+    if (!String(form.name || "").trim()) {
+      setError("Category name is required.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave(form);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      title={initialValue?.id ? "Edit Finished Good Category" : "Create Finished Good Category"}
+      description="Group finished goods products for warehouse visibility and filtering."
+      size="md"
+      onClose={saving ? undefined : onClose}
+      footer={(
+        <>
+          <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
+          <button className="btn-primary" type="submit" form="factory-finished-good-category-form" disabled={saving}>{saving ? "Saving..." : "Save Category"}</button>
+        </>
+      )}
+    >
+      <form id="factory-finished-good-category-form" className="space-y-4" onSubmit={submit}>
+        {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
+        <Field label="Category Name">
+          <input className={inputClass()} value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} />
+        </Field>
+        <Field label="Description">
+          <textarea className={inputClass()} rows={3} value={form.description || ""} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} />
+        </Field>
+        <Field label="Status">
+          <select className={inputClass()} value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
+            <option value="active">Active</option>
+            <option value="archived">Archived</option>
+          </select>
+        </Field>
+      </form>
+    </Modal>
+  );
+}
+
 function JobOrderModal({ initialValue, onClose, onSave }) {
   const [form, setForm] = useState(() => ({
     product_name: "",
@@ -509,12 +653,14 @@ function buildInitialUsageRows(job, rawMaterials, recipes) {
   return [];
 }
 
-function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops, auth, onClose, onSave }) {
+function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops, finishedGoods = [], auth, onClose, onSave }) {
+  const activeFinishedGoods = finishedGoods.filter((product) => product.status === "active");
+  const matchingFinishedGood = activeFinishedGoods.find((product) => product.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
   const matchingSop = sops.find((sop) => sop.status !== "inactive" && sop.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
   const [form, setForm] = useState(() => ({
     job_order_id: job.id,
     production_no: "",
-    product_name: job.product_name || "",
+    product_name: matchingFinishedGood?.product_name || job.product_name || "",
     batch_no: "",
     production_date: todayInput(),
     operator_id: auth?.profile?.id || "",
@@ -524,7 +670,7 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
     actual_produced_qty: job.target_quantity || "",
     good_output_qty: job.target_quantity || "",
     wastage_qty: 0,
-    uom: job.uom || "",
+    uom: matchingFinishedGood?.uom || job.uom || "",
     qc_status: "Pending",
     production_sop_id: matchingSop?.id || "",
     sop_version: matchingSop?.version || "",
@@ -571,6 +717,8 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
 
   function validate() {
     if (!String(form.product_name || "").trim()) return "Product name is required.";
+    const finishedGood = activeFinishedGoods.find((product) => product.product_name.toLowerCase() === String(form.product_name || "").trim().toLowerCase());
+    if (!finishedGood) return "Create a finished good product before production stock-in.";
     if (Number(form.good_output_qty || 0) <= 0) return "Good output quantity must be greater than 0.";
     if (!form.material_usage.length) return "At least one material usage row is required.";
     const invalidRow = form.material_usage.find((row) => !row.raw_material_id || Number(row.actual_usage || 0) < 0);
@@ -621,6 +769,21 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
           <MetricCard icon={AlertTriangle} label="High Variance" value={highVarianceRows.length} helper="Requires reason above 5%" tone={highVarianceRows.length ? "warning" : "success"} />
         </div>
         <div className="grid gap-3 md:grid-cols-3">
+          <Field label="Finished Good Product">
+            <select
+              className={inputClass(submitAttempted && !activeFinishedGoods.some((product) => product.product_name.toLowerCase() === String(form.product_name || "").trim().toLowerCase()))}
+              value={form.product_name || ""}
+              onChange={(event) => {
+                const product = activeFinishedGoods.find((item) => item.product_name === event.target.value);
+                setForm((current) => ({ ...current, product_name: event.target.value, uom: product?.uom || current.uom }));
+              }}
+            >
+              <option value="">{activeFinishedGoods.length ? "Select finished good" : "No active finished goods"}</option>
+              {activeFinishedGoods.map((product) => (
+                <option key={product.id} value={product.product_name}>{product.product_name} · {product.product_code || product.category || "No SKU"}</option>
+              ))}
+            </select>
+          </Field>
           <Field label="Batch No.">
             <input className={inputClass()} value={form.batch_no || ""} onChange={(event) => setForm((current) => ({ ...current, batch_no: event.target.value }))} />
           </Field>
@@ -1125,7 +1288,7 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, onClose, 
 }
 
 export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, auth }) {
-  const [data, setData] = useState({ jobOrders: [], rawMaterials: [], receivings: [], productions: [], finishedGoods: [], productMovements: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [], accessIssues: [] });
+  const [data, setData] = useState({ jobOrders: [], rawMaterials: [], receivings: [], productions: [], finishedGoods: [], finishedGoodCategories: [], productMovements: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [], accessIssues: [] });
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [warehouseFilters, setWarehouseFilters] = useState({ product: "", status: "", batch: "", movementType: "" });
@@ -1337,6 +1500,64 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     } catch (error) {
       ui?.notify?.({ title: "Failed to save Production SOP", message: error.message, tone: "error" });
       throw error;
+    }
+  }
+
+  async function saveFinishedGood(form) {
+    try {
+      await factoryService.saveFinishedGood(form, auth?.profile?.id);
+      ui?.notify?.({ title: form.id ? "Finished good updated" : "Finished good created", tone: "success" });
+      setModal(null);
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to save finished good", message: error.message, tone: "error" });
+      throw error;
+    }
+  }
+
+  async function archiveFinishedGood(product) {
+    const confirmed = await ui?.confirm?.({
+      title: "Archive Finished Good?",
+      message: `${product.product_name} will no longer be available for production stock-in.`,
+      confirmLabel: "Archive",
+      tone: "warning",
+    });
+    if (!confirmed) return;
+    try {
+      await factoryService.archiveFinishedGood(product);
+      ui?.notify?.({ title: "Finished good archived", tone: "success" });
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to archive finished good", message: error.message, tone: "error" });
+    }
+  }
+
+  async function saveFinishedGoodCategory(form) {
+    try {
+      await factoryService.saveFinishedGoodCategory(form, auth?.profile?.id);
+      ui?.notify?.({ title: form.id ? "Finished good category updated" : "Finished good category created", tone: "success" });
+      setModal(null);
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to save finished good category", message: error.message, tone: "error" });
+      throw error;
+    }
+  }
+
+  async function archiveFinishedGoodCategory(category) {
+    const confirmed = await ui?.confirm?.({
+      title: "Archive Finished Good Category?",
+      message: `${category.name} will remain on existing products but cannot be selected for new active setup.`,
+      confirmLabel: "Archive",
+      tone: "warning",
+    });
+    if (!confirmed) return;
+    try {
+      await factoryService.archiveFinishedGoodCategory(category);
+      ui?.notify?.({ title: "Finished good category archived", tone: "success" });
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to archive finished good category", message: error.message, tone: "error" });
     }
   }
 
@@ -2135,13 +2356,20 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const totalStock = data.finishedGoods.reduce((sum, row) => sum + Number(row.current_balance || 0), 0);
     const outOfStockItems = data.finishedGoods.filter((row) => Number(row.current_balance || 0) <= 0);
     const lowStockItems = data.finishedGoods.filter((row) => Number(row.current_balance || 0) > 0 && Number(row.current_balance || 0) <= Number(row.min_stock_level || 0));
+    const canManageFinishedGoods = can("factory_finished_goods.create") || can("factory_finished_goods.edit");
     return (
       <div className="space-y-5">
         <PageHeader
           section="Warehouse"
           title="Finished Goods"
-          description="Read-only finished goods SKU balances, production history, batches and stock movements."
-          actions={<button className="btn-secondary" type="button" onClick={loadData}><RefreshCw size={15} /> Refresh</button>}
+          description="Finished goods master setup with live warehouse balances, production history, batches and stock movements."
+          actions={(
+            <div className="flex flex-wrap gap-2">
+              <button className="btn-secondary" type="button" onClick={loadData}><RefreshCw size={15} /> Refresh</button>
+              {can("factory_finished_goods.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "finished-good" })}><Plus size={15} /> Finished Good</button> : null}
+              {canManageFinishedGoods ? <button className="btn-secondary" type="button" onClick={() => setModal({ type: "finished-good-category" })}><Plus size={15} /> Category</button> : null}
+            </div>
+          )}
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={PackageCheck} label="Total SKUs" value={data.finishedGoods.length} helper="Finished goods products" />
@@ -2150,20 +2378,50 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={Clock3} label="Out of Stock" value={outOfStockItems.length} helper="Current balance zero" tone={outOfStockItems.length ? "danger" : "success"} />
         </div>
         {warehouseFilterControls()}
-        <Card title="Finished Goods Listing" description="Balances are created by production stock-in and approved finished goods stock checks. This page is read-only.">
+        <Card title="Finished Goods Master and Warehouse" description="Master products define the valid stock-in SKUs. Balances are updated by production stock-in and approved stock checks.">
           <FactoryTable
             columns={[
               { key: "product_name", label: "Product", render: (row) => <div><div className="font-bold text-text-primary">{row.product_name}</div><div className="text-xs text-text-secondary">{row.product_code || row.category || "No SKU code"}</div></div> },
+              { key: "category", label: "Category", render: (row) => row.category || "Uncategorized" },
               { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
               { key: "current_balance", label: "Current Balance", render: (row) => quantity(row.current_balance, row.uom) },
               { key: "last_production_date", label: "Last Production", render: (row) => row.last_production_date || "—" },
               { key: "last_movement_date", label: "Last Movement", render: (row) => row.last_movement_date || "—" },
-              { key: "status", label: "Status", render: (row) => <Badge tone={Number(row.current_balance || 0) <= 0 ? "danger" : Number(row.current_balance || 0) <= Number(row.min_stock_level || 0) ? "warning" : row.status === "active" ? "success" : "neutral"}>{Number(row.current_balance || 0) <= 0 ? "out of stock" : Number(row.current_balance || 0) <= Number(row.min_stock_level || 0) ? "low stock" : row.status}</Badge> },
-              { key: "actions", label: "Detail", align: "right", render: (row) => <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-detail", product: row })}>View Detail</button> },
+              { key: "status", label: "Status", render: (row) => (
+                <div className="flex flex-wrap gap-1.5">
+                  <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge>
+                  <Badge tone={Number(row.current_balance || 0) <= 0 ? "danger" : Number(row.current_balance || 0) <= Number(row.min_stock_level || 0) ? "warning" : "success"}>{Number(row.current_balance || 0) <= 0 ? "out of stock" : Number(row.current_balance || 0) <= Number(row.min_stock_level || 0) ? "low stock" : "stock ok"}</Badge>
+                </div>
+              ) },
+              { key: "actions", label: "Actions", align: "right", render: (row) => (
+                <div className="flex flex-wrap justify-end gap-2">
+                  <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-detail", product: row })}>Detail</button>
+                  {can("factory_finished_goods.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good", value: row })}>Edit</button> : null}
+                  {can("factory_finished_goods.edit") && row.status !== "archived" ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => archiveFinishedGood(row)}>Archive</button> : null}
+                </div>
+              ) },
             ]}
             rows={rows}
-            emptyTitle="No finished goods stock"
-            emptyDescription="Complete production first to stock in finished goods and populate this warehouse view."
+            emptyTitle="No finished goods products"
+            emptyDescription="Create a finished good product before production stock-in."
+          />
+        </Card>
+        <Card title="Finished Good Categories" description="Create, edit or archive categories used to group finished goods master products.">
+          <FactoryTable
+            columns={[
+              { key: "name", label: "Category", render: (row) => <div><div className="font-bold text-text-primary">{row.name}</div><div className="text-xs text-text-secondary">{row.description || "No description"}</div></div> },
+              { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge> },
+              { key: "updated_at", label: "Updated", render: (row) => row.updated_at ? new Date(row.updated_at).toLocaleDateString() : "—" },
+              { key: "actions", label: "Actions", align: "right", render: (row) => (
+                <div className="flex flex-wrap justify-end gap-2">
+                  {can("factory_finished_goods.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-category", value: row })}>Edit</button> : null}
+                  {can("factory_finished_goods.edit") && row.status !== "archived" ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => archiveFinishedGoodCategory(row)}>Archive</button> : null}
+                </div>
+              ) },
+            ]}
+            rows={data.finishedGoodCategories}
+            emptyTitle="No finished good categories"
+            emptyDescription="Create a category to organize finished goods products."
           />
         </Card>
       </div>
@@ -2261,6 +2519,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           receivings={data.receivings}
           recipes={data.recipes}
           sops={data.sops}
+          finishedGoods={data.finishedGoods}
           auth={auth}
           onClose={() => setModal(null)}
           onSave={completeProduction}
@@ -2290,6 +2549,21 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           movements={data.productMovements}
           productionCosts={metrics.productionCostRows}
           onClose={() => setModal(null)}
+        />
+      ) : null}
+      {modal?.type === "finished-good" ? (
+        <FinishedGoodMasterModal
+          initialValue={modal.value}
+          categories={data.finishedGoodCategories}
+          onClose={() => setModal(null)}
+          onSave={saveFinishedGood}
+        />
+      ) : null}
+      {modal?.type === "finished-good-category" ? (
+        <FinishedGoodCategoryModal
+          initialValue={modal.value}
+          onClose={() => setModal(null)}
+          onSave={saveFinishedGoodCategory}
         />
       ) : null}
     </>
