@@ -373,15 +373,17 @@ function factoryDataPlan(scope, hasPermission) {
   const isProductStockCheck = scope === "product-stock-check";
   const isProductionSop = scope === "production-sop";
   const needsProductionSummary = isDashboard || isProduction || isReports || isBatchTraceability;
-  const needsProductionDetails = isProduction || isReports || isBatchTraceability || (isDashboard && (can("factory_production.view") || can("factory_production_reports.view")));
+  const canTraceBatches = can("factory_batch_traceability.view");
+  const canReadProductionReports = can("factory_production_reports.view") || canTraceBatches;
+  const needsProductionDetails = isProduction || isReports || isBatchTraceability || (isDashboard && (can("factory_production.view") || canReadProductionReports));
   return {
-    jobOrders: (isDashboard && can("factory_dashboard.view")) || (isJobOrders && can("factory_job_orders.view")) || ((isProduction || isReports || isBatchTraceability) && (can("factory_production.view") || can("factory_production_reports.view"))),
+    jobOrders: (isDashboard && can("factory_dashboard.view")) || (isJobOrders && can("factory_job_orders.view")) || ((isProduction || isReports || isBatchTraceability) && (can("factory_production.view") || canReadProductionReports)),
     rawMaterials: (isDashboard && can("factory_dashboard.view")) || (isRawReceiving && can("factory_raw_receiving.view")) || (isRawStockCheck && can("factory_raw_stock_check.view")) || (isProduction && (can("factory_raw_inventory.view") || can("factory_product_recipes.view") || can("factory_dashboard.view"))),
     receivings: (isDashboard && can("factory_dashboard.view")) || (isRawReceiving && can("factory_raw_receiving.view")) || ((isProduction || isReports || isBatchTraceability) && can("factory_raw_receiving.view")),
-    productions: needsProductionSummary && (can("factory_dashboard.view") || can("factory_production.view") || can("factory_production_reports.view")),
+    productions: needsProductionSummary && (can("factory_dashboard.view") || can("factory_production.view") || canReadProductionReports),
     productionDetails: needsProductionDetails,
     finishedGoods: (isDashboard && can("factory_dashboard.view")) || (isProduction && can("factory_finished_goods.view")) || (isProductStockCheck && can("factory_product_stock_check.view")),
-    productMovements: (isDashboard && can("factory_dashboard.view")) || (isProduction && can("factory_product_movements.view")) || ((isReports || isBatchTraceability) && can("factory_product_movements.view")),
+    productMovements: (isDashboard && can("factory_dashboard.view")) || (isProduction && can("factory_product_movements.view")) || (isReports && can("factory_product_movements.view")) || (isBatchTraceability && canTraceBatches),
     rawStockChecks: isRawStockCheck && can("factory_raw_stock_check.view"),
     productStockChecks: isProductStockCheck && can("factory_product_stock_check.view"),
     recipes: isProduction && can("factory_product_recipes.view"),

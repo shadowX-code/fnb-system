@@ -2765,6 +2765,7 @@ Factory Phase 1D implemented scope:
 Factory Phase 1E implemented scope:
 
 - Factory Reports working page through `factory_production_reports`.
+- Batch Traceability working page through `factory_batch_traceability`.
 - Production Summary Report.
 - Raw Material Usage Report.
 - Recipe Standard vs Actual Usage Report.
@@ -2777,6 +2778,8 @@ Factory Phase 1E implemented scope:
 - Costing uses Actual Usage, not Standard Recipe.
 - Recipe cost remains a standard reference and is not overwritten by production reports.
 - Actual production cost is calculated as actual material usage multiplied by recorded receiving unit cost when available; otherwise latest available receiving unit cost for the raw material is used.
+- If no recorded or latest receiving cost exists for a usage row, report costing remains RM0 for that row until a valid cost source is available.
+- Material variance dashboard/report totals are usage-row summaries; mixed UOMs should be reviewed by material/UOM before operational decisions.
 - Factory Dashboard analytics cards include Production Yield %, Material Variance %, Estimated Production Cost, and Top Variance Raw Materials.
 - Factory Reports are read-only.
 - Factory Reports must not adjust stock.
@@ -2788,6 +2791,7 @@ Factory sidebar modules:
 - Job Orders
 - Production Records
 - Production Reports
+- Batch Traceability
 - Finished Goods
 - Product Movements
 - Product Stock Check
@@ -2804,7 +2808,8 @@ Current functional Factory modules after Phase 1E:
 - Factory Dashboard.
 - Job Orders.
 - Production Records.
-- Production Reports / Factory Reports / Batch Traceability.
+- Production Reports / Factory Reports.
+- Batch Traceability.
 - Product Stock Check.
 - Raw Material Receiving.
 - Raw Material Stock Check.

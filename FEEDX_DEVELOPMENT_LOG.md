@@ -124,6 +124,9 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Factory Reports now includes Production Summary, Raw Material Usage, Recipe Standard vs Actual Usage, Production Yield, and Finished Goods Stock Movement reports.
 - Added actual-usage costing calculations for raw material usage cost, cost per batch, and cost per finished unit using recorded/latest receiving unit cost where available.
 - Added dashboard analytics cards for Production Yield %, Material Variance %, Estimated Production Cost, and Top Variance Raw Materials.
+- Fixed Factory UAT blocker by exposing Batch Traceability as its own reachable Factory sidebar module and route (`factory_batch_traceability`) with dedicated view/export permissions.
+- Added Batch Traceability RLS coverage for production, job order, material usage, QC checkpoint, and finished goods movement read data.
+- Clarified Factory report costing/variance wording so RM0 cost-source gaps and mixed-UOM variance interpretation are visible to users.
 
 ### Documentation
-- Updated the master document with Factory Phase 1B execution rules, variance threshold, actual-usage stock deduction rule, Recipe BOM separation, Phase 1C stock check approval rules, Phase 1D SOP/QC/batch traceability rules, Phase 1E reports/costing rules, and functional-vs-placeholder Factory module status.
+- Updated the master document with Factory Phase 1B execution rules, variance threshold, actual-usage stock deduction rule, Recipe BOM separation, Phase 1C stock check approval rules, Phase 1D SOP/QC/batch traceability rules, Phase 1E reports/costing rules, the Batch Traceability route/RBAC UAT fix, and functional-vs-placeholder Factory module status.

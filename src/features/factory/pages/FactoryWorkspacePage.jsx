@@ -1328,7 +1328,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         />
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
           <MetricCard icon={CheckCircle2} label="Production Yield" value={percent(metrics.productionYield)} helper={`${quantity(metrics.totalGoodOutput, "")} good output`} tone={metrics.productionYield >= 90 ? "success" : "warning"} />
-          <MetricCard icon={Activity} label="Material Variance" value={percent(metrics.materialVariancePercent)} helper="Actual vs standard usage" tone={Math.abs(metrics.materialVariancePercent) > 5 ? "warning" : "success"} />
+          <MetricCard icon={Activity} label="Material Variance" value={percent(metrics.materialVariancePercent)} helper="Usage-row variance; review UOM mix" tone={Math.abs(metrics.materialVariancePercent) > 5 ? "warning" : "success"} />
           <MetricCard icon={PackageCheck} label="Est. Production Cost" value={money(metrics.estimatedProductionCost)} helper="Actual usage cost" />
           <MetricCard icon={AlertTriangle} label="QC Alerts" value={metrics.qcAlertBatches.length} helper="Pending, hold or failed batches" tone={metrics.qcAlertBatches.length ? "danger" : "success"} />
         </div>
@@ -1373,7 +1373,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             emptyDescription="Completed production batches with QC Pass are clear."
           />
         </Card>
-        <Card title="Top Variance Raw Materials" description="Ranked by absolute actual-vs-standard usage variance. Costing uses actual usage and receiving cost where available.">
+        <Card title="Top Variance Raw Materials" description="Ranked by absolute actual-vs-standard usage variance per material. Costing uses actual usage and receiving cost where available.">
           <FactoryTable
             columns={[
               { key: "raw_material_name", label: "Raw Material", render: (row) => row.raw_material_name },
@@ -1680,10 +1680,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={Factory} label="Production Runs" value={productionRows.length} helper="Completed records" />
           <MetricCard icon={CheckCircle2} label="Yield" value={percent(metrics.productionYield)} helper="Good output / actual produced" tone={metrics.productionYield >= 90 ? "success" : "warning"} />
-          <MetricCard icon={Activity} label="Material Variance" value={percent(metrics.materialVariancePercent)} helper="Actual vs standard" tone={Math.abs(metrics.materialVariancePercent) > 5 ? "warning" : "success"} />
-          <MetricCard icon={PackageCheck} label="Actual Cost" value={money(metrics.estimatedProductionCost)} helper="Actual material usage cost" />
+          <MetricCard icon={Activity} label="Material Variance" value={percent(metrics.materialVariancePercent)} helper="Usage-row variance; review UOM mix" tone={Math.abs(metrics.materialVariancePercent) > 5 ? "warning" : "success"} />
+          <MetricCard icon={PackageCheck} label="Actual Cost" value={money(metrics.estimatedProductionCost)} helper="Known-cost actual usage" />
         </div>
-        <Card title="Production Summary Report" description="Completed production totals with actual usage costing.">
+        <Card title="Production Summary Report" description="Completed production totals with actual usage costing. Cost remains RM0 where no recorded or latest receiving cost exists.">
           <FactoryTable
             columns={[
               { key: "production", label: "Production", render: (row) => <div><div className="font-bold text-text-primary">{row.production_no}</div><div className="text-xs text-text-secondary">{row.batch_no || "No batch"} · {row.production_date}</div></div> },
@@ -1698,7 +1698,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             emptyDescription="Complete production to populate this read-only report."
           />
         </Card>
-        <Card title="Raw Material Usage Report" description="Actual material usage cost uses recorded receiving unit cost when available, otherwise latest receiving cost by raw material.">
+        <Card title="Raw Material Usage Report" description="Actual material usage cost uses recorded receiving unit cost when available, otherwise latest receiving cost by raw material. Unit cost remains RM0 when no cost source exists.">
           <FactoryTable
             columns={[
               { key: "production_no", label: "Production", render: (row) => <div><div className="font-bold text-text-primary">{row.production_no}</div><div className="text-xs text-text-secondary">{row.batch_no || "No batch"}</div></div> },
@@ -1712,7 +1712,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             emptyDescription="Complete production with actual material usage to populate this report."
           />
         </Card>
-        <Card title="Recipe Standard vs Actual Usage Report" description="Recipe remains the standard reference; this report compares standard usage against actual production usage without modifying either.">
+        <Card title="Recipe Standard vs Actual Usage Report" description="Recipe remains the standard reference; compare variance by material/UOM to avoid mixed-unit interpretation.">
           <FactoryTable
             columns={[
               { key: "production_no", label: "Production", render: (row) => row.production_no },

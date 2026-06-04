@@ -458,6 +458,16 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, export: true },
   },
   {
+    id: "factory_batch_traceability",
+    section: "Factory",
+    label: "Batch Traceability",
+    route: "/factory/batch-traceability",
+    icon: "factory-batch-traceability",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, export: true },
+  },
+  {
     id: "factory_finished_goods",
     section: "Warehouse",
     label: "Finished Goods",

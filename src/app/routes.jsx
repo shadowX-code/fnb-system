@@ -32,7 +32,7 @@ function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSe
       <h2 className="mt-2 text-xl font-semibold text-text-primary">{moduleLabel}</h2>
       <p className="mt-2 text-sm text-text-secondary">
         {isFactoryModule
-          ? "This Factory module is registered for navigation, permissions and audit scope, but it is not part of the current functional Factory 1A-1D workflow yet."
+          ? "This Factory module is registered for navigation, permissions and audit scope, but it is not part of the current functional Factory 1A-1E workflow yet."
           : "This module is registered for navigation, permissions, route protection and audit scope, but its working page has not been implemented yet."}
       </p>
     </div>
@@ -248,6 +248,12 @@ const routeDetails = {
     component: FactoryWorkspacePage,
     permission: "factory_production_reports.view",
     props: { initialTab: "reports" },
+  },
+  factory_batch_traceability: {
+    description: "Trace production batches across job order, raw material usage, QC and finished goods stock-in.",
+    component: FactoryWorkspacePage,
+    permission: "factory_batch_traceability.view",
+    props: { initialTab: "batch-traceability" },
   },
   factory_product_stock_check: {
     description: "Count finished goods stock, review variance and approve controlled adjustments.",
