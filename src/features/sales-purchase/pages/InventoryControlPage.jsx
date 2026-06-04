@@ -6547,10 +6547,11 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     recordWaste: hasPermission(auth, "inventory_waste.create") || hasPermission(auth, "inventory_waste.manage"),
     viewWaste: hasPermission(auth, "inventory_waste.view"),
     viewInsights: hasPermission(auth, "inventory_dashboard.view"),
-    viewRecipes: hasPermission(auth, "inventory_recipes.view"),
+    viewRecipes: activeTab === "recipe-intelligence" ? hasPermission(auth, "recipe_intelligence.view") : hasPermission(auth, "inventory_recipes.view"),
+    manageRecipeIntelligence: hasPermission(auth, "recipe_intelligence.manage"),
     manageRecipes: hasPermission(auth, "inventory_recipes.manage"),
     exportRecipes: hasPermission(auth, "inventory_recipes.export"),
-  }), [auth]);
+  }), [activeTab, auth]);
 
   const sortedCategories = useMemo(() => [...data.categories].sort((a, b) => Number(a.sortOrder ?? 0) - Number(b.sortOrder ?? 0) || a.name.localeCompare(b.name)), [data.categories]);
   const sortedActiveCategories = useMemo(() => sortedCategories.filter((category) => String(category.status || "active").toLowerCase() === "active"), [sortedCategories]);
@@ -8202,6 +8203,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }
 
   async function saveRecipeProductMapping(productName, recipeId) {
+    if (!requirePermission(can.manageRecipeIntelligence, "manage Recipe Intelligence mappings")) return;
     const productKey = normalizeProductRecipeKey(productName);
     if (!activeRecipeOutletId || !productKey || !isUuid(recipeId)) {
       notify("Failed to map Product to Recipe", "Choose a recipe before saving the mapping.", "error");
@@ -8246,6 +8248,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }
 
   async function ignoreRecipeProductMapping(productName, reason = "Excluded from recipe intelligence") {
+    if (!requirePermission(can.manageRecipeIntelligence, "manage Recipe Intelligence mappings")) return;
     const productKey = normalizeProductRecipeKey(productName);
     if (!activeRecipeOutletId || !productKey) {
       notify("Failed to ignore Product", "Product name is missing.", "error");
@@ -8290,6 +8293,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }
 
   async function clearRecipeProductMapping(productName) {
+    if (!requirePermission(can.manageRecipeIntelligence, "manage Recipe Intelligence mappings")) return;
     const productKey = normalizeProductRecipeKey(productName);
     const existing = recipeProductMappings.find((mapping) => normalizeProductRecipeKey(mapping.product_name) === productKey);
     if (!existing?.id) return;
@@ -10677,21 +10681,21 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                           <div className="flex justify-end gap-2">
                             {row.status === "mapped" ? (
                               <>
-                                <button className="btn-primary h-8 px-3 text-xs" type="button" disabled={!row.selectedRecipeId || savingRecipeMappingKey === row.key} onClick={() => saveRecipeProductMapping(row.productName, row.selectedRecipeId)}>
+                                <button className="btn-primary h-8 px-3 text-xs" type="button" disabled={!can.manageRecipeIntelligence || !row.selectedRecipeId || savingRecipeMappingKey === row.key} onClick={() => saveRecipeProductMapping(row.productName, row.selectedRecipeId)}>
                                   {savingRecipeMappingKey === row.key ? "Saving..." : "Change Mapping"}
                                 </button>
-                                <button className="btn-secondary h-8 px-3 text-xs" type="button" disabled={savingRecipeMappingKey === row.key} onClick={() => clearRecipeProductMapping(row.productName)}>Unmap</button>
+                                <button className="btn-secondary h-8 px-3 text-xs" type="button" disabled={!can.manageRecipeIntelligence || savingRecipeMappingKey === row.key} onClick={() => clearRecipeProductMapping(row.productName)}>Unmap</button>
                               </>
                             ) : row.status === "ignored" ? (
-                              <button className="btn-secondary h-8 px-3 text-xs" type="button" disabled={savingRecipeMappingKey === row.key} onClick={() => clearRecipeProductMapping(row.productName)}>
+                              <button className="btn-secondary h-8 px-3 text-xs" type="button" disabled={!can.manageRecipeIntelligence || savingRecipeMappingKey === row.key} onClick={() => clearRecipeProductMapping(row.productName)}>
                                 Restore to Pending
                               </button>
                             ) : (
                               <>
-                                <button className="btn-primary h-8 px-3 text-xs" type="button" disabled={!row.selectedRecipeId || savingRecipeMappingKey === row.key} onClick={() => saveRecipeProductMapping(row.productName, row.selectedRecipeId)}>
+                                <button className="btn-primary h-8 px-3 text-xs" type="button" disabled={!can.manageRecipeIntelligence || !row.selectedRecipeId || savingRecipeMappingKey === row.key} onClick={() => saveRecipeProductMapping(row.productName, row.selectedRecipeId)}>
                                   {savingRecipeMappingKey === row.key ? "Mapping..." : "Map"}
                                 </button>
-                                <button className="btn-secondary h-8 px-3 text-xs" type="button" disabled={savingRecipeMappingKey === row.key} onClick={() => ignoreRecipeProductMapping(row.productName)}>
+                                <button className="btn-secondary h-8 px-3 text-xs" type="button" disabled={!can.manageRecipeIntelligence || savingRecipeMappingKey === row.key} onClick={() => ignoreRecipeProductMapping(row.productName)}>
                                   Ignore
                                 </button>
                               </>

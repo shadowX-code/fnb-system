@@ -9,7 +9,7 @@ import { importService } from "../../../services/importService.js";
 import { purchaseCategoryService } from "../../../services/purchaseCategoryService.js";
 import { supplierService } from "../../../services/supplierService.js";
 import { monthLabel } from "../utils/analytics.js";
-import { canCreate, canImport, canWrite, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { canCreate, canImport, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { getEmployeeDisplayName } from "../../../utils/userDisplay.js";
 
 const monthAliases = {
@@ -21,6 +21,10 @@ const monthAliases = {
 const salesFields = ["Ignore", "Outlet", "Month", "Year", "Dine In", "FoodPanda", "GrabFood", "ShopeeFood", "Takeaway"];
 const purchaseFields = ["Ignore", "Outlet", "Month", "Year", "Supplier", "Category", "Amount", "Remark"];
 const salesImportChannels = ["Dine In", "FoodPanda", "GrabFood", "ShopeeFood", "Takeaway"];
+const importTypeAliases = {
+  sales: new Set(["sales", "sale", "sales input", "sales_input"]),
+  purchase: new Set(["purchase", "purchases", "purchase input", "purchase_input"]),
+};
 const highAmountThreshold = 1_000_000;
 const importModeDetails = {
   Sales: {
@@ -256,6 +260,15 @@ function supplierDefaultPurchaseCategory(categories = [], supplier = {}) {
   return category ? { category, name: category.name } : null;
 }
 
+function supplierResolutionPurchaseCategory(categories = [], resolution = {}, createdCategoryMap = {}) {
+  if (resolution?.action !== "create" || !resolution.category_id) return null;
+  const pendingName = pendingCategoryName(resolution.category_id);
+  const category = categories.find((item) => item.id === resolution.category_id)
+    || createdCategoryMap[pendingName]
+    || null;
+  return category ? { category, name: category.name } : null;
+}
+
 function pendingCategoryId(name) {
   return `__new_category__:${name}`;
 }
@@ -327,6 +340,12 @@ function getRawValue(row, candidates) {
   return "";
 }
 
+function formatImportAmount(value) {
+  const amount = parseAmount(value);
+  if (amount === null) return value || "-";
+  return `RM ${amount.toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 function getImportBatchPeriod(row) {
   if (!row?.year || !row?.month_start) return "-";
   if (row.month_start === row.month_end) return `${monthLabel(row.month_start)} ${row.year}`;
@@ -383,6 +402,7 @@ export function DataImportWorkspace({
   auth,
   initialImportType = "Sales",
   fixedImportType = "",
+  targetOutletId = "",
   embedded = false,
   onImported,
 }) {
@@ -411,21 +431,35 @@ export function DataImportWorkspace({
     currentUser: auth?.user,
   });
   const canRunImport = importType === "Sales"
-    ? canWrite(auth, "sales_input")
+    ? canImport(auth, "sales_input")
     : importType === "Purchases"
-      ? canWrite(auth, "purchase_input")
+      ? canImport(auth, "purchase_input")
       : canImport(auth, "data_import");
   const canCreateImportSupplier = canCreate(auth, "suppliers");
   const canCreateImportCategory = canCreate(auth, "purchase_categories");
+  const targetOutlet = useMemo(() => (
+    targetOutletId ? store.outlets.find((outlet) => outlet.id === targetOutletId) || null : null
+  ), [store.outlets, targetOutletId]);
+  const targetOutletLabel = targetOutlet ? `${targetOutlet.name}${targetOutlet.code ? ` (${targetOutlet.code})` : ""}` : "";
+  const importTypeKey = importType === "Sales" ? "sales" : "purchase";
+
+  function targetOutletMismatchMessage(fileOutletValue, detectedOutlet) {
+    if (!targetOutlet) return "";
+    if (detectedOutlet?.id === targetOutlet.id) return "";
+    const detected = detectedOutlet
+      ? `${detectedOutlet.name}${detectedOutlet.code ? ` (${detectedOutlet.code})` : ""}`
+      : normalize(fileOutletValue) || "blank/unknown";
+    return `Selected outlet: ${targetOutletLabel}. Detected file outlet: ${detected}. Upload a file for the selected outlet.`;
+  }
 
   useEffect(() => {
-    importService.listImportBatches()
+    importService.listImportBatches({ importType: importTypeKey, outletId: targetOutletId })
       .then(setAllRecentImports)
       .catch((error) => {
         console.error("Unable to load import batches", error);
         setAllRecentImports([]);
       });
-  }, []);
+  }, [importTypeKey, targetOutletId]);
 
   useEffect(() => {
     if (fixedImportType) switchImportType(fixedImportType);
@@ -434,9 +468,11 @@ export function DataImportWorkspace({
   const fieldOptions = importType === "Sales" ? salesFields : purchaseFields;
   const modeDetail = importModeDetails[importType];
   const recentImports = useMemo(() => {
-    const importTypeKey = importType === "Sales" ? "sales" : "purchase";
-    return allRecentImports.filter((batch) => String(batch.import_type || "").toLowerCase() === importTypeKey);
-  }, [allRecentImports, importType]);
+    return allRecentImports.filter((batch) => (
+      importTypeAliases[importTypeKey]?.has(String(batch.import_type || "").toLowerCase())
+      && (!targetOutletId || batch.outlet_id === targetOutletId)
+    ));
+  }, [allRecentImports, importTypeKey, targetOutletId]);
   const likelyImportType = useMemo(() => detectLikelyImportType(parsed.headers, mappings), [mappings, parsed.headers]);
   const mismatchMessage = modeMismatchMessage(importType, likelyImportType);
   const unresolvedUnknownSuppliers = unknownSuppliers.filter((item) => {
@@ -520,11 +556,14 @@ export function DataImportWorkspace({
     }
 
     parsed.rows.forEach((row) => {
-      const outlet = findOutlet(store.outlets, mappedValue(row, mappings, "Outlet"));
+      const rawOutletValue = mappedValue(row, mappings, "Outlet");
+      const outlet = findOutlet(store.outlets, rawOutletValue);
       const month = parseMonth(mappedValue(row, mappings, "Month"));
       const year = Number(mappedValue(row, mappings, "Year"));
       const rowIssues = [];
-      if (!outlet) rowIssues.push("Invalid outlet");
+      const outletMismatch = targetOutletMismatchMessage(rawOutletValue, outlet);
+      if (outletMismatch) rowIssues.push(outletMismatch);
+      else if (!outlet) rowIssues.push("Invalid outlet");
       if (!month) rowIssues.push("Invalid month");
       if (!Number.isInteger(year) || year < 2020) rowIssues.push("Invalid year");
       if (outlet && month && year && isLocked(store, outlet.id, month, year)) rowIssues.push("Locked month protection");
@@ -581,7 +620,8 @@ export function DataImportWorkspace({
     });
 
     parsed.rows.forEach((row) => {
-      const outlet = findOutlet(store.outlets, mappedValue(row, mappings, "Outlet"));
+      const rawOutletValue = mappedValue(row, mappings, "Outlet");
+      const outlet = findOutlet(store.outlets, rawOutletValue);
       const month = parseMonth(mappedValue(row, mappings, "Month"));
       const year = Number(mappedValue(row, mappings, "Year"));
       const supplierName = normalize(mappedValue(row, mappings, "Supplier"));
@@ -592,7 +632,10 @@ export function DataImportWorkspace({
       const supplierForCategory = supplier
         || store.suppliers.find((item) => item.id === resolution?.supplier_id || item.id === resolution?.existingSupplierId)
         || createdSupplierMap[supplierName];
-      const supplierDefaultCategory = !rawCategoryName ? supplierDefaultPurchaseCategory(store.purchaseCategories, supplierForCategory) : null;
+      const supplierDefaultCategory = !rawCategoryName
+        ? supplierDefaultPurchaseCategory(store.purchaseCategories, supplierForCategory)
+          || supplierResolutionPurchaseCategory(store.purchaseCategories, resolution, createdCategoryMap)
+        : null;
       const categoryName = rawCategoryName || supplierDefaultCategory?.name || "";
       const categoryResolution = rawCategoryName ? categoryResolutions[categoryName] : null;
       const category = supplierDefaultCategory?.category
@@ -613,11 +656,25 @@ export function DataImportWorkspace({
         resolution: categoryResolution?.action ?? null,
       });
 
-      if (!outlet) rowIssues.push("Invalid outlet");
+      const outletMismatch = targetOutletMismatchMessage(rawOutletValue, outlet);
+      if (outletMismatch) rowIssues.push(outletMismatch);
+      else if (!outlet) rowIssues.push("Invalid outlet");
       if (!month) rowIssues.push("Invalid month");
       if (!Number.isInteger(year) || year < 2020) rowIssues.push("Invalid year");
       if (outlet && month && year && isLocked(store, outlet.id, month, year)) rowIssues.push("Locked month protection");
       if (!supplierName) rowIssues.push("Missing supplier");
+      if (outletMismatch) {
+        issues.push({
+          row: row.__row,
+          severity: "error",
+          message: rowIssues.join("; "),
+          rawSupplier: supplierName,
+          rawCategory: rawCategoryName,
+          resolvedCategory: category?.name || "",
+          rawRow: row,
+        });
+        return;
+      }
       if (categoryResolution?.action === "skip") {
         skippedRows.push({ row: row.__row, severity: "skipped", message: `Skipped unknown category: ${categoryName}`, rawRow: row });
         return;
@@ -767,6 +824,11 @@ export function DataImportWorkspace({
         unknownCategories: base.unknownCategories?.length ?? 0,
         unknownSuppliers: base.unknownSuppliers?.length ?? 0,
       });
+      const hasTargetOutletFailure = targetOutlet && base.issues.some((issue) => issue.severity === "error" && String(issue.message || "").includes("Upload a file for the selected outlet."));
+      if (hasTargetOutletFailure) {
+        await withTimeout(buildPreview(base.records, base.issues, base.skippedRows ?? []), "Import target outlet validation");
+        return;
+      }
       if (importType === "Purchases" && base.unknownCategories?.length) {
         setValidationState({ loading: false, message: "", error: "" });
         setUnknownCategories(base.unknownCategories);
@@ -1051,7 +1113,7 @@ export function DataImportWorkspace({
     setImportDetail({ row, view, loading: view === "rows", rows: [], error: "" });
     if (view !== "rows") return;
     try {
-      const rows = await importService.listImportBatchRows(row.id);
+      const rows = await importService.listImportBatchRows(row.id, row.import_type);
       setImportDetail({ row, view, loading: false, rows, error: "" });
     } catch (error) {
       console.error("Unable to load import row details", error);
@@ -1136,7 +1198,13 @@ export function DataImportWorkspace({
       )}
       {!canRunImport ? (
         <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">
-          Read-only access. You need {importType === "Sales" ? "Sales Input create or edit" : importType === "Purchases" ? "Purchase Input create or edit" : "Data Import"} permission to validate and import files.
+          Read-only access. You need {importType === "Sales" ? "Sales Input import" : importType === "Purchases" ? "Purchase Input import" : "Data Import"} permission to validate and import files.
+        </div>
+      ) : null}
+      {targetOutlet ? (
+        <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm">
+          <div className="font-black text-text-primary">Import Target Outlet: {targetOutletLabel}</div>
+          <div className="mt-1 text-xs font-semibold text-text-secondary">Outlet is locked to this import. Month and year will be read from the uploaded file rows.</div>
         </div>
       ) : null}
 
@@ -1361,7 +1429,7 @@ export function DataImportWorkspace({
                       {resolution.action === "create" ? (
                         <div className="mt-3 space-y-2">
                           <SelectField className="w-full" searchable placeholder="Default category for new supplier" value={resolution.category_id} options={supplierCategoryOptions} onChange={(category_id) => setSupplierResolutions((current) => ({ ...current, [item.name]: { ...resolution, category_id } }))} />
-                          <p className="text-xs font-medium text-text-secondary">This sets the supplier’s default category. Purchase rows will still use their imported category.</p>
+                          <p className="text-xs font-medium text-text-secondary">This sets the supplier’s default category and fills blank-category purchase rows for this import.</p>
                         </div>
                       ) : null}
                     </div>
@@ -1556,15 +1624,15 @@ export function DataImportWorkspace({
                           ? [
                               { key: "outlet", header: "Outlet", render: (row) => getRawValue(row, ["Outlet", "Branch", "Outlet Code"]) || "-" },
                               { key: "period", header: "Month / Year", render: (row) => `${getRawValue(row, ["Month"]) || "-"} ${getRawValue(row, ["Year"]) || ""}` },
-                              { key: "channel", header: "Channel", render: (row) => getRawValue(row, ["Channel", "Dine In", "FoodPanda", "GrabFood", "ShopeeFood", "Takeaway"]) || "-" },
-                              { key: "amount", header: "Amount", align: "right", render: (row) => getRawValue(row, ["Amount", "Dine In", "FoodPanda", "GrabFood", "ShopeeFood", "Takeaway"]) || "-" },
+                              { key: "channel", header: "Channel", render: (row) => getRawValue(row, ["imported_channel", "Channel"]) || "-" },
+                              { key: "amount", header: "Amount", align: "right", render: (row) => formatImportAmount(getRawValue(row, ["imported_amount", "Amount"])) },
                             ]
                           : [
                               { key: "outlet", header: "Outlet", render: (row) => getRawValue(row, ["Outlet", "Branch", "Outlet Code"]) || "-" },
                               { key: "period", header: "Month / Year", render: (row) => `${getRawValue(row, ["Month"]) || "-"} ${getRawValue(row, ["Year"]) || ""}` },
                               { key: "supplier", header: "Supplier", render: (row) => getRawValue(row, ["Supplier", "Supplier Name"]) || "-" },
                               { key: "category", header: "Category", render: (row) => getRawValue(row, ["Category", "Supplier Category", "Purchase Category"]) || "-" },
-                              { key: "amount", header: "Amount", align: "right", render: (row) => getRawValue(row, ["Amount", "Purchase Amount"]) || "-" },
+                              { key: "amount", header: "Amount", align: "right", render: (row) => formatImportAmount(getRawValue(row, ["imported_amount", "Amount", "Purchase Amount"])) },
                             ]),
                         { key: "action", header: "Action", render: (row) => <Badge tone={row.action === "failed" ? "danger" : row.action === "update" ? "warning" : row.action === "skip" ? "neutral" : "success"}>{row.action}</Badge> },
                         { key: "failure_reason", header: "Error", render: (row) => row.failure_reason || "-" },
