@@ -2790,12 +2790,17 @@ Factory Finished Goods Master and Warehouse implemented scope:
 
 - Finished Goods is a functional master-plus-warehouse page through `factory_finished_goods`.
 - Finished Goods product setup supports Create, Edit and Archive.
-- Finished Goods product fields include Product Name, SKU Code, Category, UOM, Min Stock Level, Active/Archived status and Remarks.
+- Finished Goods product fields include Product Name EN, Product Name CN, Product Name BM, SKU Code, Category, UOM, Min Stock Level, Active/Archived status and Remarks.
+- Product Name EN is the canonical production stock-in name and is mirrored to `factory_finished_goods.product_name` for existing production matching.
+- Finished Goods category selection must use a searchable FeedX-style selector, show "Select Category" before selection, and require a category before save.
 - Finished Good Category setup supports Create, Edit and Archive through `factory_finished_good_categories`.
+- Finished Good Categories must be managed inside the Category modal/drawer only, not as a main-page table.
 - Category fields include Category Name, Description and Active/Archived status.
-- Finished Goods listing shows product/SKU name, category, UOM, current balance, last production date, last movement date and status.
+- Finished Goods listing shows Product Name EN/CN/BM where available, SKU, category, UOM, current balance, batch count, latest batch, last production date, last movement date, status and actions.
 - Finished Goods dashboard cards show Total SKUs, Total Finished Goods Stock, Low Stock Items and Out of Stock Items.
+- Finished Goods warehouse insight panels include Stock Distribution by Product, Top Produced Products for the last 30 days, Production In vs Stock Out movement summary, Batch Count/latest batch, and Days Coverage when stock-out movement data is available.
 - Finished Goods detail shows current balance, production history, movement history, batch history and actual-cost summary when cost data is available.
+- Finished Goods archive is blocked while current balance is greater than zero and must show: "Cannot archive while stock balance is greater than zero."
 - Production completion can stock-in only to active Finished Goods master products.
 - Finished Goods empty state must say: "Create a finished good product before production stock-in."
 - Product Movements is a functional read-only movement history page through `factory_product_movements`.

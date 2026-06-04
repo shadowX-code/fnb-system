@@ -67,6 +67,65 @@ function inputClass(error) {
   }`;
 }
 
+function SearchableSelect({ value, options, placeholder, onChange, error }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const selected = options.find((option) => option.value === value);
+  const visibleOptions = options.filter((option) => `${option.label} ${option.helper || ""}`.toLowerCase().includes(query.toLowerCase()));
+
+  return (
+    <div className="relative">
+      <button className={`${inputClass(error)} flex items-center justify-between text-left`} type="button" onClick={() => setOpen((current) => !current)}>
+        <span className={selected ? "text-text-primary" : "text-text-muted"}>{selected?.label || placeholder}</span>
+        <span className="text-xs text-text-muted">Search</span>
+      </button>
+      {open ? (
+        <div className="absolute left-0 right-0 z-40 mt-2 rounded-xl border border-border bg-white p-2 shadow-xl">
+          <input className={inputClass()} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search category" autoFocus />
+          <div className="mt-2 max-h-56 overflow-y-auto">
+            {visibleOptions.length ? visibleOptions.map((option) => (
+              <button
+                key={option.value}
+                className={`block w-full rounded-lg px-3 py-2 text-left text-sm transition hover:bg-primary/10 ${option.value === value ? "bg-primary/10 font-bold text-primary" : "text-text-primary"}`}
+                type="button"
+                onClick={() => {
+                  onChange(option.value);
+                  setQuery("");
+                  setOpen(false);
+                }}
+              >
+                <span className="block">{option.label}</span>
+                {option.helper ? <span className="block text-xs text-text-secondary">{option.helper}</span> : null}
+              </button>
+            )) : <div className="px-3 py-4 text-sm font-semibold text-text-secondary">No matching categories</div>}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function WarehouseBarList({ rows, valueLabel }) {
+  const maxValue = Math.max(...rows.map((row) => Number(row.value || 0)), 1);
+  if (!rows.length) return <EmptyState title="No warehouse data" description="Complete production or stock movements to populate this view." />;
+  return (
+    <div className="space-y-3 p-4">
+      {rows.map((row) => (
+        <div key={row.id || row.label}>
+          <div className="flex items-center justify-between gap-3 text-xs font-semibold">
+            <span className="truncate text-text-primary">{row.label}</span>
+            <span className="shrink-0 text-text-secondary">{valueLabel ? valueLabel(row.value, row) : row.value}</span>
+          </div>
+          <div className="mt-1 h-2 rounded-full bg-slate-100">
+            <div className="h-2 rounded-full bg-primary" style={{ width: `${Math.max(6, (Number(row.value || 0) / maxValue) * 100)}%` }} />
+          </div>
+          {row.helper ? <div className="mt-1 text-xs text-text-muted">{row.helper}</div> : null}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 function varianceFor(standardUsage, actualUsage) {
   const standard = Number(standardUsage || 0);
   const actual = Number(actualUsage || 0);
@@ -297,10 +356,13 @@ function FinishedGoodDetailModal({ product, productions, movements, productionCo
   );
 }
 
-function FinishedGoodMasterModal({ initialValue, categories, onClose, onSave }) {
+function FinishedGoodMasterModal({ initialValue, categories, onClose, onSave, onArchive }) {
   const [form, setForm] = useState(() => ({
     product_code: "",
-    product_name: "",
+    product_name: initialValue?.product_name || "",
+    product_name_en: initialValue?.product_name_en || initialValue?.product_name || "",
+    product_name_cn: "",
+    product_name_bm: "",
     category_id: "",
     category: "",
     uom: "kg",
@@ -312,12 +374,17 @@ function FinishedGoodMasterModal({ initialValue, categories, onClose, onSave }) 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const activeCategories = categories.filter((category) => category.status === "active" || category.id === form.category_id);
+  const categoryOptions = activeCategories.map((category) => ({ value: category.id, label: category.name, helper: category.description || category.status }));
 
   async function submit(event) {
     event.preventDefault();
     setError("");
-    if (!String(form.product_name || "").trim()) {
-      setError("Product name is required.");
+    if (!String(form.product_name_en || "").trim()) {
+      setError("Product Name EN is required.");
+      return;
+    }
+    if (!form.category_id) {
+      setError("Category is required.");
       return;
     }
     if (!String(form.uom || "").trim()) {
@@ -327,7 +394,17 @@ function FinishedGoodMasterModal({ initialValue, categories, onClose, onSave }) 
     setSaving(true);
     try {
       const selectedCategory = categories.find((category) => category.id === form.category_id);
-      await onSave({ ...form, category: selectedCategory?.name || form.category || "" });
+      await onSave({ ...form, product_name: form.product_name_en, category: selectedCategory?.name || "" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function archive() {
+    if (!onArchive || !initialValue?.id) return;
+    setSaving(true);
+    try {
+      await onArchive(initialValue);
     } finally {
       setSaving(false);
     }
@@ -341,25 +418,37 @@ function FinishedGoodMasterModal({ initialValue, categories, onClose, onSave }) 
       onClose={saving ? undefined : onClose}
       footer={(
         <>
-          <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="submit" form="factory-finished-good-form" disabled={saving}>{saving ? "Saving..." : "Save Finished Good"}</button>
+          {initialValue?.id && initialValue.status !== "archived" ? <button className="btn-danger" type="button" disabled={saving} onClick={archive}>Archive</button> : <span />}
+          <div className="flex gap-2">
+            <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
+            <button className="btn-primary" type="submit" form="factory-finished-good-form" disabled={saving}>{saving ? "Saving..." : "Save Finished Good"}</button>
+          </div>
         </>
       )}
     >
       <form id="factory-finished-good-form" className="space-y-4" onSubmit={submit}>
         {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
         <div className="grid gap-3 md:grid-cols-2">
-          <Field label="Product Name">
-            <input className={inputClass()} value={form.product_name} onChange={(event) => setForm((current) => ({ ...current, product_name: event.target.value }))} />
+          <Field label="Product Name EN">
+            <input className={inputClass()} value={form.product_name_en || ""} onChange={(event) => setForm((current) => ({ ...current, product_name_en: event.target.value, product_name: event.target.value }))} />
+          </Field>
+          <Field label="Product Name CN">
+            <input className={inputClass()} value={form.product_name_cn || ""} onChange={(event) => setForm((current) => ({ ...current, product_name_cn: event.target.value }))} />
+          </Field>
+          <Field label="Product Name BM">
+            <input className={inputClass()} value={form.product_name_bm || ""} onChange={(event) => setForm((current) => ({ ...current, product_name_bm: event.target.value }))} />
           </Field>
           <Field label="SKU Code">
             <input className={inputClass()} value={form.product_code || ""} onChange={(event) => setForm((current) => ({ ...current, product_code: event.target.value }))} />
           </Field>
-          <Field label="Category">
-            <select className={inputClass()} value={form.category_id || ""} onChange={(event) => setForm((current) => ({ ...current, category_id: event.target.value }))}>
-              <option value="">Uncategorized</option>
-              {activeCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-            </select>
+          <Field label="Category" error={!form.category_id && error.includes("Category") ? "Category is required." : ""}>
+            <SearchableSelect
+              value={form.category_id || ""}
+              options={categoryOptions}
+              placeholder="Select Category"
+              error={!form.category_id && error.includes("Category")}
+              onChange={(categoryId) => setForm((current) => ({ ...current, category_id: categoryId }))}
+            />
           </Field>
           <Field label="UOM">
             <select className={inputClass()} value={form.uom} onChange={(event) => setForm((current) => ({ ...current, uom: event.target.value }))}>
@@ -384,12 +473,11 @@ function FinishedGoodMasterModal({ initialValue, categories, onClose, onSave }) 
   );
 }
 
-function FinishedGoodCategoryModal({ initialValue, onClose, onSave }) {
+function FinishedGoodCategoryModal({ categories, onClose, onSave, onArchive }) {
   const [form, setForm] = useState(() => ({
     name: "",
     description: "",
     status: "active",
-    ...initialValue,
   }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -404,6 +492,22 @@ function FinishedGoodCategoryModal({ initialValue, onClose, onSave }) {
     setSaving(true);
     try {
       await onSave(form);
+      setForm({ name: "", description: "", status: "active" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function edit(category) {
+    setForm({ id: category.id, name: category.name || "", description: category.description || "", status: category.status || "active" });
+    setError("");
+  }
+
+  async function archive(category) {
+    setSaving(true);
+    try {
+      await onArchive(category);
+      if (form.id === category.id) setForm({ name: "", description: "", status: "active" });
     } finally {
       setSaving(false);
     }
@@ -411,32 +515,50 @@ function FinishedGoodCategoryModal({ initialValue, onClose, onSave }) {
 
   return (
     <Modal
-      title={initialValue?.id ? "Edit Finished Good Category" : "Create Finished Good Category"}
+      title="Finished Good Categories"
       description="Group finished goods products for warehouse visibility and filtering."
-      size="md"
+      size="lg"
       onClose={saving ? undefined : onClose}
       footer={(
-        <>
-          <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="submit" form="factory-finished-good-category-form" disabled={saving}>{saving ? "Saving..." : "Save Category"}</button>
-        </>
+        <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Close</button>
       )}
     >
-      <form id="factory-finished-good-category-form" className="space-y-4" onSubmit={submit}>
-        {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
-        <Field label="Category Name">
-          <input className={inputClass()} value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} />
-        </Field>
-        <Field label="Description">
-          <textarea className={inputClass()} rows={3} value={form.description || ""} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} />
-        </Field>
-        <Field label="Status">
-          <select className={inputClass()} value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
-            <option value="active">Active</option>
-            <option value="archived">Archived</option>
-          </select>
-        </Field>
-      </form>
+      <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+        <form id="factory-finished-good-category-form" className="space-y-4 rounded-xl border border-border bg-slate-50 p-4" onSubmit={submit}>
+          {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
+          <Field label="Category Name">
+            <input className={inputClass()} value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} />
+          </Field>
+          <Field label="Description">
+            <textarea className={inputClass()} rows={3} value={form.description || ""} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} />
+          </Field>
+          <Field label="Status">
+            <select className={inputClass()} value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
+              <option value="active">Active</option>
+              <option value="archived">Archived</option>
+            </select>
+          </Field>
+          <div className="flex flex-wrap gap-2">
+            <button className="btn-primary" type="submit" disabled={saving}>{saving ? "Saving..." : form.id ? "Update Category" : "Create Category"}</button>
+            {form.id ? <button className="btn-secondary" type="button" disabled={saving} onClick={() => setForm({ name: "", description: "", status: "active" })}>New</button> : null}
+          </div>
+        </form>
+        <div className="max-h-[460px] overflow-y-auto rounded-xl border border-border bg-white">
+          {categories.length ? categories.map((category) => (
+            <div key={category.id} className="flex items-start justify-between gap-3 border-b border-border p-4 last:border-0">
+              <div>
+                <div className="font-bold text-text-primary">{category.name}</div>
+                <div className="mt-1 text-sm text-text-secondary">{category.description || "No description"}</div>
+                <div className="mt-2"><Badge tone={category.status === "active" ? "success" : "neutral"}>{category.status}</Badge></div>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={saving} onClick={() => edit(category)}>Edit</button>
+                {category.status !== "archived" ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" disabled={saving} onClick={() => archive(category)}>Archive</button> : null}
+              </div>
+            </div>
+          )) : <EmptyState title="No categories" description="Create a category before saving finished good products." />}
+        </div>
+      </div>
     </Modal>
   );
 }
@@ -780,7 +902,7 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
             >
               <option value="">{activeFinishedGoods.length ? "Select finished good" : "No active finished goods"}</option>
               {activeFinishedGoods.map((product) => (
-                <option key={product.id} value={product.product_name}>{product.product_name} · {product.product_code || product.category || "No SKU"}</option>
+                <option key={product.id} value={product.product_name}>{product.product_name_en || product.product_name} · {product.product_name_cn || product.product_name_bm || product.product_code || "No local name"}</option>
               ))}
             </select>
           </Field>
@@ -1516,6 +1638,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   async function archiveFinishedGood(product) {
+    if (Number(product.current_balance || 0) > 0) {
+      ui?.notify?.({ title: "Cannot archive finished good", message: "Cannot archive while stock balance is greater than zero.", tone: "error" });
+      return;
+    }
     const confirmed = await ui?.confirm?.({
       title: "Archive Finished Good?",
       message: `${product.product_name} will no longer be available for production stock-in.`,
@@ -1532,11 +1658,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     }
   }
 
-  async function saveFinishedGoodCategory(form) {
+  async function saveFinishedGoodCategory(form, options = {}) {
     try {
       await factoryService.saveFinishedGoodCategory(form, auth?.profile?.id);
       ui?.notify?.({ title: form.id ? "Finished good category updated" : "Finished good category created", tone: "success" });
-      setModal(null);
+      if (!options.keepOpen) setModal(null);
       await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to save finished good category", message: error.message, tone: "error" });
@@ -1544,7 +1670,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     }
   }
 
-  async function archiveFinishedGoodCategory(category) {
+  async function archiveFinishedGoodCategory(category, options = {}) {
     const confirmed = await ui?.confirm?.({
       title: "Archive Finished Good Category?",
       message: `${category.name} will remain on existing products but cannot be selected for new active setup.`,
@@ -1555,6 +1681,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     try {
       await factoryService.archiveFinishedGoodCategory(category);
       ui?.notify?.({ title: "Finished good category archived", tone: "success" });
+      if (!options.keepOpen) setModal(null);
       await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to archive finished good category", message: error.message, tone: "error" });
@@ -1702,6 +1829,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         last_movement_date: lastMovement?.movement_date || "",
         production_count: productProductions.length,
         movement_count: productMovements.length,
+        batch_count: new Set(productProductions.map((production) => production.batch_no).filter(Boolean)).size,
+        latest_batch_no: lastProduction?.batch_no || "",
       };
     });
   }
@@ -2357,6 +2486,27 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const outOfStockItems = data.finishedGoods.filter((row) => Number(row.current_balance || 0) <= 0);
     const lowStockItems = data.finishedGoods.filter((row) => Number(row.current_balance || 0) > 0 && Number(row.current_balance || 0) <= Number(row.min_stock_level || 0));
     const canManageFinishedGoods = can("factory_finished_goods.create") || can("factory_finished_goods.edit");
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const recentProductions = data.productions.filter((production) => new Date(production.production_date || production.created_at || 0) >= thirtyDaysAgo);
+    const producedByProduct = [...recentProductions.reduce((map, production) => {
+      const key = production.product_name || "Unknown product";
+      const current = map.get(key) || { id: key, label: key, value: 0, helper: "Last 30 days" };
+      current.value += Number(production.good_output_qty || production.produced_quantity || 0);
+      map.set(key, current);
+      return map;
+    }, new Map()).values()].sort((a, b) => b.value - a.value).slice(0, 5);
+    const stockDistribution = [...data.finishedGoods]
+      .sort((a, b) => Number(b.current_balance || 0) - Number(a.current_balance || 0))
+      .slice(0, 6)
+      .map((product) => ({ id: product.id, label: product.product_name_en || product.product_name, value: Number(product.current_balance || 0), helper: product.uom }));
+    const recentMovements = data.productMovements.filter((movement) => new Date(movement.movement_date || movement.created_at || 0) >= thirtyDaysAgo);
+    const productionInQty = recentMovements.filter((movement) => Number(movement.quantity || 0) > 0 && String(movement.movement_type || "").toLowerCase().includes("production")).reduce((sum, movement) => sum + Number(movement.quantity || 0), 0);
+    const stockOutQty = Math.abs(recentMovements.filter((movement) => Number(movement.quantity || 0) < 0).reduce((sum, movement) => sum + Number(movement.quantity || 0), 0));
+    const latestBatch = [...data.productions].filter((production) => production.batch_no).sort((a, b) => new Date(b.production_date || b.created_at || 0) - new Date(a.production_date || a.created_at || 0))[0];
+    const batchCount = new Set(data.productions.map((production) => production.batch_no).filter(Boolean)).size;
+    const dailyOut = stockOutQty / 30;
+    const daysCoverage = dailyOut > 0 ? totalStock / dailyOut : null;
     return (
       <div className="space-y-5">
         <PageHeader
@@ -2365,7 +2515,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           description="Finished goods master setup with live warehouse balances, production history, batches and stock movements."
           actions={(
             <div className="flex flex-wrap gap-2">
-              <button className="btn-secondary" type="button" onClick={loadData}><RefreshCw size={15} /> Refresh</button>
               {can("factory_finished_goods.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "finished-good" })}><Plus size={15} /> Finished Good</button> : null}
               {canManageFinishedGoods ? <button className="btn-secondary" type="button" onClick={() => setModal({ type: "finished-good-category" })}><Plus size={15} /> Category</button> : null}
             </div>
@@ -2377,14 +2526,41 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={AlertTriangle} label="Low Stock Items" value={lowStockItems.length} helper="Above zero, at or below min" tone={lowStockItems.length ? "warning" : "success"} />
           <MetricCard icon={Clock3} label="Out of Stock" value={outOfStockItems.length} helper="Current balance zero" tone={outOfStockItems.length ? "danger" : "success"} />
         </div>
+        <div className="grid gap-4 xl:grid-cols-3">
+          <Card title="Stock Distribution by Product" description="Current finished goods balance by SKU.">
+            <WarehouseBarList rows={stockDistribution} valueLabel={(value, row) => quantity(value, row.helper)} />
+          </Card>
+          <Card title="Top Produced Products" description="Good output from completed production in the last 30 days.">
+            <WarehouseBarList rows={producedByProduct} valueLabel={(value) => quantity(value, "")} />
+          </Card>
+          <Card title="Movement and Batch Summary" description="Production stock-in versus stock-out movement signals.">
+            <div className="grid gap-3 p-4 sm:grid-cols-2">
+              {[
+                { label: "Production In", value: quantity(productionInQty, ""), helper: "Last 30 days" },
+                { label: "Stock Out", value: quantity(stockOutQty, ""), helper: "Last 30 days" },
+                { label: "Batch Count", value: batchCount, helper: latestBatch?.batch_no ? `Latest ${latestBatch.batch_no}` : "No batches yet" },
+                { label: "Days Coverage", value: daysCoverage == null ? "No outflow" : `${Math.round(daysCoverage)} days`, helper: "Based on 30-day stock-out rate" },
+              ].map((item) => (
+                <div key={item.label} className="rounded-xl border border-border bg-slate-50 p-3">
+                  <div className="text-xs font-semibold uppercase tracking-wide text-text-muted">{item.label}</div>
+                  <div className="mt-1 text-lg font-bold text-text-primary">{item.value}</div>
+                  <div className="mt-1 text-xs text-text-secondary">{item.helper}</div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </div>
         {warehouseFilterControls()}
         <Card title="Finished Goods Master and Warehouse" description="Master products define the valid stock-in SKUs. Balances are updated by production stock-in and approved stock checks.">
           <FactoryTable
             columns={[
-              { key: "product_name", label: "Product", render: (row) => <div><div className="font-bold text-text-primary">{row.product_name}</div><div className="text-xs text-text-secondary">{row.product_code || row.category || "No SKU code"}</div></div> },
-              { key: "category", label: "Category", render: (row) => row.category || "Uncategorized" },
+              { key: "product_name", label: "Product", render: (row) => <div><div className="font-bold text-text-primary">{row.product_name_en || row.product_name}</div><div className="text-xs text-text-secondary">{[row.product_name_cn, row.product_name_bm].filter(Boolean).join(" · ") || "No CN/BM name"}</div></div> },
+              { key: "product_code", label: "SKU", render: (row) => row.product_code || "—" },
+              { key: "category", label: "Category", render: (row) => row.category || "No category" },
               { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
               { key: "current_balance", label: "Current Balance", render: (row) => quantity(row.current_balance, row.uom) },
+              { key: "batch_count", label: "Batch Count", render: (row) => row.batch_count || 0 },
+              { key: "latest_batch_no", label: "Latest Batch", render: (row) => row.latest_batch_no || "—" },
               { key: "last_production_date", label: "Last Production", render: (row) => row.last_production_date || "—" },
               { key: "last_movement_date", label: "Last Movement", render: (row) => row.last_movement_date || "—" },
               { key: "status", label: "Status", render: (row) => (
@@ -2397,31 +2573,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                 <div className="flex flex-wrap justify-end gap-2">
                   <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-detail", product: row })}>Detail</button>
                   {can("factory_finished_goods.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good", value: row })}>Edit</button> : null}
-                  {can("factory_finished_goods.edit") && row.status !== "archived" ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => archiveFinishedGood(row)}>Archive</button> : null}
                 </div>
               ) },
             ]}
             rows={rows}
             emptyTitle="No finished goods products"
             emptyDescription="Create a finished good product before production stock-in."
-          />
-        </Card>
-        <Card title="Finished Good Categories" description="Create, edit or archive categories used to group finished goods master products.">
-          <FactoryTable
-            columns={[
-              { key: "name", label: "Category", render: (row) => <div><div className="font-bold text-text-primary">{row.name}</div><div className="text-xs text-text-secondary">{row.description || "No description"}</div></div> },
-              { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge> },
-              { key: "updated_at", label: "Updated", render: (row) => row.updated_at ? new Date(row.updated_at).toLocaleDateString() : "—" },
-              { key: "actions", label: "Actions", align: "right", render: (row) => (
-                <div className="flex flex-wrap justify-end gap-2">
-                  {can("factory_finished_goods.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-category", value: row })}>Edit</button> : null}
-                  {can("factory_finished_goods.edit") && row.status !== "archived" ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => archiveFinishedGoodCategory(row)}>Archive</button> : null}
-                </div>
-              ) },
-            ]}
-            rows={data.finishedGoodCategories}
-            emptyTitle="No finished good categories"
-            emptyDescription="Create a category to organize finished goods products."
           />
         </Card>
       </div>
@@ -2557,13 +2714,15 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           categories={data.finishedGoodCategories}
           onClose={() => setModal(null)}
           onSave={saveFinishedGood}
+          onArchive={archiveFinishedGood}
         />
       ) : null}
       {modal?.type === "finished-good-category" ? (
         <FinishedGoodCategoryModal
-          initialValue={modal.value}
+          categories={data.finishedGoodCategories}
           onClose={() => setModal(null)}
-          onSave={saveFinishedGoodCategory}
+          onSave={(form) => saveFinishedGoodCategory(form, { keepOpen: true })}
+          onArchive={(category) => archiveFinishedGoodCategory(category, { keepOpen: true })}
         />
       ) : null}
     </>

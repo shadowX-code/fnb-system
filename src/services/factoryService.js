@@ -144,6 +144,9 @@ function mapFinishedGood(row) {
     id: row.id,
     product_code: row.product_code || "",
     product_name: row.product_name || "",
+    product_name_en: row.product_name_en || row.product_name || "",
+    product_name_cn: row.product_name_cn || "",
+    product_name_bm: row.product_name_bm || "",
     category_id: row.category_id || "",
     category: row.category_ref?.name || row.category || "",
     uom: row.uom || "",
@@ -440,7 +443,7 @@ export const factoryService = {
       .limit(150), (rows) => rows.map(mapProduction));
     addTask(plan.finishedGoods, "finishedGoods", "Finished Goods", () => supabase
       .from("factory_finished_goods")
-      .select("id,product_code,product_name,category_id,category,uom,current_balance,min_stock_level,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name)")
+      .select("id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,category_id,category,uom,current_balance,min_stock_level,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name)")
       .order("product_name", { ascending: true })
       .limit(300), (rows) => rows.map(mapFinishedGood));
     addTask(plan.finishedGoodCategories, "finishedGoodCategories", "Finished Good Categories", () => supabase
@@ -643,9 +646,13 @@ export const factoryService = {
 
   async saveFinishedGood(product, employeeId) {
     const isUpdate = Boolean(product.id);
+    const productNameEn = String(product.product_name_en || product.product_name || "").trim();
     const payload = {
       product_code: String(product.product_code || "").trim() || null,
-      product_name: String(product.product_name || "").trim(),
+      product_name: productNameEn,
+      product_name_en: productNameEn,
+      product_name_cn: String(product.product_name_cn || "").trim(),
+      product_name_bm: String(product.product_name_bm || "").trim(),
       category_id: product.category_id || null,
       category: String(product.category || "").trim(),
       uom: product.uom || "",
@@ -655,6 +662,7 @@ export const factoryService = {
       updated_at: new Date().toISOString(),
     };
     if (!payload.product_name) throw new Error("Product name is required.");
+    if (!payload.category_id) throw new Error("Category is required.");
     if (!payload.uom) throw new Error("UOM is required.");
     if (!["active", "archived"].includes(payload.status)) payload.status = "active";
     if (!isUpdate) payload.created_by = employeeId || null;
@@ -664,7 +672,7 @@ export const factoryService = {
       : supabase.from("factory_finished_goods").insert(payload);
 
     const { data, error } = await query
-      .select("id,product_code,product_name,category_id,category,uom,current_balance,min_stock_level,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name)")
+      .select("id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,category_id,category,uom,current_balance,min_stock_level,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name)")
       .single();
     throwSupabaseError("factory.finished_good.save", error);
     await logFactoryAction({
@@ -677,11 +685,14 @@ export const factoryService = {
   },
 
   async archiveFinishedGood(product) {
+    if (normalizeNumber(product.current_balance) > 0) {
+      throw new Error("Cannot archive while stock balance is greater than zero.");
+    }
     const { data, error } = await supabase
       .from("factory_finished_goods")
       .update({ status: "archived", updated_at: new Date().toISOString() })
       .eq("id", product.id)
-      .select("id,product_code,product_name,category_id,category,uom,current_balance,min_stock_level,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name)")
+      .select("id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,category_id,category,uom,current_balance,min_stock_level,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name)")
       .single();
     throwSupabaseError("factory.finished_good.archive", error);
     await logFactoryAction({
