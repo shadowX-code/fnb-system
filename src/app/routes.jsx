@@ -244,10 +244,10 @@ const routeDetails = {
     props: { initialTab: "production" },
   },
   factory_production_reports: {
-    description: "Trace production batches across job orders, raw material lots, QC and finished goods stock-in.",
+    description: "Review read-only factory production, material usage, yield, costing and stock movement reports.",
     component: FactoryWorkspacePage,
     permission: "factory_production_reports.view",
-    props: { initialTab: "batch-traceability" },
+    props: { initialTab: "reports" },
   },
   factory_product_stock_check: {
     description: "Count finished goods stock, review variance and approve controlled adjustments.",

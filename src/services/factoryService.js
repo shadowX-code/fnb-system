@@ -76,6 +76,7 @@ function mapProductionUsage(row) {
     raw_material_lot_no: row.raw_material_lot_no || row.raw_receiving?.batch_no || "",
     receiving_ref: row.raw_receiving?.receipt_no || "",
     supplier_name: row.raw_receiving?.supplier_name || "",
+    unit_cost: normalizeNumber(row.raw_receiving?.unit_cost),
     standard_usage: normalizeNumber(row.standard_usage),
     actual_usage: normalizeNumber(row.actual_usage || row.quantity_used),
     variance_qty: normalizeNumber(row.variance_qty),
@@ -358,7 +359,7 @@ function emptyFactoryData() {
 }
 
 const productionSelectBasic = "id,job_order_id,production_no,product_name,batch_no,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,operator_id,operator_name,start_time,end_time,qc_status,production_sop_id,sop_version,status,notes,created_by,completed_at,created_at,updated_at";
-const productionSelectDetailed = `${productionSelectBasic},material_usage:factory_production_material_usage(id,production_id,raw_material_id,raw_material_receiving_id,raw_material_lot_no,quantity_used,standard_usage,actual_usage,variance_qty,variance_percent,variance_reason,uom,wastage_quantity,notes,created_at,updated_at,raw_material:factory_raw_materials(name,uom),raw_receiving:factory_raw_material_receivings(receipt_no,batch_no,supplier_name,received_date)),qc_checkpoints:factory_production_qc_checkpoints(id,production_id,production_sop_id,sop_step_id,step_no,process_name,control_point,qc_status,notes,created_at,updated_at)`;
+const productionSelectDetailed = `${productionSelectBasic},material_usage:factory_production_material_usage(id,production_id,raw_material_id,raw_material_receiving_id,raw_material_lot_no,quantity_used,standard_usage,actual_usage,variance_qty,variance_percent,variance_reason,uom,wastage_quantity,notes,created_at,updated_at,raw_material:factory_raw_materials(name,uom),raw_receiving:factory_raw_material_receivings(receipt_no,batch_no,supplier_name,received_date,unit_cost)),qc_checkpoints:factory_production_qc_checkpoints(id,production_id,production_sop_id,sop_step_id,step_no,process_name,control_point,qc_status,notes,created_at,updated_at)`;
 
 function factoryDataPlan(scope, hasPermission) {
   const can = (code) => !hasPermission || hasPermission(code);
@@ -367,19 +368,20 @@ function factoryDataPlan(scope, hasPermission) {
   const isRawReceiving = scope === "raw-receiving";
   const isRawStockCheck = scope === "raw-stock-check";
   const isProduction = scope === "production";
+  const isReports = scope === "reports";
   const isBatchTraceability = scope === "batch-traceability";
   const isProductStockCheck = scope === "product-stock-check";
   const isProductionSop = scope === "production-sop";
-  const needsProductionSummary = isDashboard || isProduction || isBatchTraceability;
-  const needsProductionDetails = isProduction || isBatchTraceability;
+  const needsProductionSummary = isDashboard || isProduction || isReports || isBatchTraceability;
+  const needsProductionDetails = isProduction || isReports || isBatchTraceability || (isDashboard && (can("factory_production.view") || can("factory_production_reports.view")));
   return {
-    jobOrders: (isDashboard && can("factory_dashboard.view")) || (isJobOrders && can("factory_job_orders.view")) || ((isProduction || isBatchTraceability) && (can("factory_production.view") || can("factory_production_reports.view"))),
+    jobOrders: (isDashboard && can("factory_dashboard.view")) || (isJobOrders && can("factory_job_orders.view")) || ((isProduction || isReports || isBatchTraceability) && (can("factory_production.view") || can("factory_production_reports.view"))),
     rawMaterials: (isDashboard && can("factory_dashboard.view")) || (isRawReceiving && can("factory_raw_receiving.view")) || (isRawStockCheck && can("factory_raw_stock_check.view")) || (isProduction && (can("factory_raw_inventory.view") || can("factory_product_recipes.view") || can("factory_dashboard.view"))),
-    receivings: (isDashboard && can("factory_dashboard.view")) || (isRawReceiving && can("factory_raw_receiving.view")) || (isProduction && can("factory_raw_receiving.view")),
+    receivings: (isDashboard && can("factory_dashboard.view")) || (isRawReceiving && can("factory_raw_receiving.view")) || ((isProduction || isReports || isBatchTraceability) && can("factory_raw_receiving.view")),
     productions: needsProductionSummary && (can("factory_dashboard.view") || can("factory_production.view") || can("factory_production_reports.view")),
     productionDetails: needsProductionDetails,
     finishedGoods: (isDashboard && can("factory_dashboard.view")) || (isProduction && can("factory_finished_goods.view")) || (isProductStockCheck && can("factory_product_stock_check.view")),
-    productMovements: (isDashboard && can("factory_dashboard.view")) || (isProduction && can("factory_product_movements.view")) || (isBatchTraceability && can("factory_product_movements.view")),
+    productMovements: (isDashboard && can("factory_dashboard.view")) || (isProduction && can("factory_product_movements.view")) || ((isReports || isBatchTraceability) && can("factory_product_movements.view")),
     rawStockChecks: isRawStockCheck && can("factory_raw_stock_check.view"),
     productStockChecks: isProductStockCheck && can("factory_product_stock_check.view"),
     recipes: isProduction && can("factory_product_recipes.view"),

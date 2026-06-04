@@ -120,6 +120,10 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Added production QC checkpoint snapshots separate from stock checks and a Batch Traceability view connecting batch, product, job order, production date, operator, raw material lots, finished goods stock-in, SOP and QC status.
 - Added dashboard quick alerts for batches with Pending, Hold, or Failed QC status.
 - Hardened Factory UAT readiness by making Factory data loading tab-scoped and permission-aware, adding scoped access warnings for optional blocked datasets, and gating Factory action buttons by existing permissions.
+- Added Factory Phase 1E read-only Factory Reports and production analytics foundation.
+- Factory Reports now includes Production Summary, Raw Material Usage, Recipe Standard vs Actual Usage, Production Yield, and Finished Goods Stock Movement reports.
+- Added actual-usage costing calculations for raw material usage cost, cost per batch, and cost per finished unit using recorded/latest receiving unit cost where available.
+- Added dashboard analytics cards for Production Yield %, Material Variance %, Estimated Production Cost, and Top Variance Raw Materials.
 
 ### Documentation
-- Updated the master document with Factory Phase 1B execution rules, variance threshold, actual-usage stock deduction rule, Recipe BOM separation, Phase 1C stock check approval rules, Phase 1D SOP/QC/batch traceability rules, and functional-vs-placeholder Factory module status.
+- Updated the master document with Factory Phase 1B execution rules, variance threshold, actual-usage stock deduction rule, Recipe BOM separation, Phase 1C stock check approval rules, Phase 1D SOP/QC/batch traceability rules, Phase 1E reports/costing rules, and functional-vs-placeholder Factory module status.

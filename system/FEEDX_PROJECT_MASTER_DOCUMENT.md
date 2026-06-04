@@ -2762,6 +2762,26 @@ Factory Phase 1D implemented scope:
 - Factory Dashboard includes quick alerts for batches with Pending, Hold, or Failed QC status.
 - Batch traceability must not modify Recipe, SOP, stock check or Production Actual Usage records; it is a connected read view over production data.
 
+Factory Phase 1E implemented scope:
+
+- Factory Reports working page through `factory_production_reports`.
+- Production Summary Report.
+- Raw Material Usage Report.
+- Recipe Standard vs Actual Usage Report.
+- Production Yield Report.
+- Finished Goods Stock Movement Report.
+- Basic production cost calculation foundation:
+  - Raw material actual usage cost.
+  - Cost per batch.
+  - Cost per finished unit.
+- Costing uses Actual Usage, not Standard Recipe.
+- Recipe cost remains a standard reference and is not overwritten by production reports.
+- Actual production cost is calculated as actual material usage multiplied by recorded receiving unit cost when available; otherwise latest available receiving unit cost for the raw material is used.
+- Factory Dashboard analytics cards include Production Yield %, Material Variance %, Estimated Production Cost, and Top Variance Raw Materials.
+- Factory Reports are read-only.
+- Factory Reports must not adjust stock.
+- Factory Reports must not modify Recipe, Production, Stock Check, or SOP records.
+
 Factory sidebar modules:
 
 - Factory Dashboard
@@ -2779,12 +2799,12 @@ Factory sidebar modules:
 - Factory Audit Logs
 - Factory Settings
 
-Current functional Factory modules after Phase 1D:
+Current functional Factory modules after Phase 1E:
 
 - Factory Dashboard.
 - Job Orders.
 - Production Records.
-- Production Reports / Batch Traceability.
+- Production Reports / Factory Reports / Batch Traceability.
 - Product Stock Check.
 - Raw Material Receiving.
 - Raw Material Stock Check.
@@ -2834,12 +2854,12 @@ Factory RLS and permissions:
 - Custom roles must be assigned Factory permissions through Roles & Permissions.
 - Factory tables enforce RLS through `current_user_has_permission(...)`.
 
-Current Factory exclusions after Phase 1D:
+Current Factory exclusions after Phase 1E:
 
 - Finished goods receipt and shipment workflow.
 - Product recipe BOM editor.
 - Full QC result editing/checklist completion workflow beyond checkpoint snapshots and batch QC status.
-- Factory analytics beyond Phase 1D dashboard, production execution KPIs, stock check variance alerts, and batch traceability.
+- Advanced Factory analytics beyond Phase 1E read-only report foundations.
 
 ## 5.14 Outlets
 

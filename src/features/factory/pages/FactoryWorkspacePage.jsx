@@ -91,6 +91,39 @@ function stockVarianceTone(status) {
   return "success";
 }
 
+function latestReceivingCost(receivings, rawMaterialId) {
+  const rows = receivings
+    .filter((row) => row.raw_material_id === rawMaterialId && Number(row.unit_cost || 0) > 0)
+    .sort((a, b) => new Date(b.received_date || b.created_at || 0) - new Date(a.received_date || a.created_at || 0));
+  return Number(rows[0]?.unit_cost || 0);
+}
+
+function usageUnitCost(usage, receivings) {
+  return Number(usage.unit_cost || 0) || latestReceivingCost(receivings, usage.raw_material_id);
+}
+
+function productionCost(production, receivings) {
+  return (production.material_usage || []).reduce((sum, usage) => sum + Number(usage.actual_usage || 0) * usageUnitCost(usage, receivings), 0);
+}
+
+function productionYieldPercent(production) {
+  const actualProduced = Number(production.actual_produced_qty || production.produced_quantity || 0);
+  if (!actualProduced) return 0;
+  return (Number(production.good_output_qty || 0) / actualProduced) * 100;
+}
+
+function weightedMaterialVariancePercent(productions) {
+  let standard = 0;
+  let variance = 0;
+  productions.forEach((production) => {
+    (production.material_usage || []).forEach((usage) => {
+      standard += Number(usage.standard_usage || 0);
+      variance += Number(usage.variance_qty || 0);
+    });
+  });
+  return standard ? (variance / standard) * 100 : 0;
+}
+
 function FactoryTable({ columns, rows, emptyTitle, emptyDescription }) {
   if (!rows.length) return <div className="p-4"><EmptyState title={emptyTitle} description={emptyDescription} /></div>;
   return (
@@ -1001,7 +1034,22 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const stockCheckVarianceRows = allStockChecks.flatMap((check) => (check.items || []).map((item) => ({ ...item, check }))).filter((item) => item.variance_status !== "Normal");
     const criticalStockCheckRows = stockCheckVarianceRows.filter((item) => item.variance_status === "Critical");
     const qcAlertBatches = completedProductions.filter((production) => ["Pending", "Hold", "Failed"].includes(production.qc_status));
-    return { openJobs, completedJobs, lowStock, receivingValue, completedProductions, totalGoodOutput, totalWastage, highVarianceUsage, allStockChecks, submittedStockChecks, approvedStockChecks, stockCheckVarianceRows, criticalStockCheckRows, qcAlertBatches };
+    const totalActualProduced = completedProductions.reduce((sum, row) => sum + Number(row.actual_produced_qty || row.produced_quantity || 0), 0);
+    const productionYield = totalActualProduced ? (totalGoodOutput / totalActualProduced) * 100 : 0;
+    const materialVariancePercent = weightedMaterialVariancePercent(completedProductions);
+    const estimatedProductionCost = completedProductions.reduce((sum, row) => sum + productionCost(row, data.receivings), 0);
+    const varianceByMaterial = new Map();
+    completedProductions.forEach((production) => {
+      (production.material_usage || []).forEach((usage) => {
+        const current = varianceByMaterial.get(usage.raw_material_id) || { id: usage.raw_material_id, raw_material_name: usage.raw_material_name || "Raw material", variance_qty: 0, variance_cost: 0, uom: usage.uom || "" };
+        current.variance_qty += Number(usage.variance_qty || 0);
+        current.variance_cost += Number(usage.variance_qty || 0) * usageUnitCost(usage, data.receivings);
+        if (!current.uom) current.uom = usage.uom || "";
+        varianceByMaterial.set(usage.raw_material_id, current);
+      });
+    });
+    const topVarianceRawMaterials = [...varianceByMaterial.values()].sort((a, b) => Math.abs(b.variance_qty) - Math.abs(a.variance_qty)).slice(0, 5);
+    return { openJobs, completedJobs, lowStock, receivingValue, completedProductions, totalGoodOutput, totalWastage, highVarianceUsage, allStockChecks, submittedStockChecks, approvedStockChecks, stockCheckVarianceRows, criticalStockCheckRows, qcAlertBatches, productionYield, materialVariancePercent, estimatedProductionCost, topVarianceRawMaterials };
   }, [data]);
 
   async function saveJobOrder(form) {
@@ -1279,10 +1327,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           actions={dashboardActions}
         />
         <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-          <MetricCard icon={ClipboardCheck} label="Open Jobs" value={metrics.openJobs.length} helper="Planned or in progress" />
-          <MetricCard icon={CheckCircle2} label="Completed Production" value={metrics.completedProductions.length} helper={`${quantity(metrics.totalGoodOutput, "")} good output`} />
+          <MetricCard icon={CheckCircle2} label="Production Yield" value={percent(metrics.productionYield)} helper={`${quantity(metrics.totalGoodOutput, "")} good output`} tone={metrics.productionYield >= 90 ? "success" : "warning"} />
+          <MetricCard icon={Activity} label="Material Variance" value={percent(metrics.materialVariancePercent)} helper="Actual vs standard usage" tone={Math.abs(metrics.materialVariancePercent) > 5 ? "warning" : "success"} />
+          <MetricCard icon={PackageCheck} label="Est. Production Cost" value={money(metrics.estimatedProductionCost)} helper="Actual usage cost" />
           <MetricCard icon={AlertTriangle} label="QC Alerts" value={metrics.qcAlertBatches.length} helper="Pending, hold or failed batches" tone={metrics.qcAlertBatches.length ? "danger" : "success"} />
-          <MetricCard icon={Activity} label="Stock Check Variance" value={metrics.stockCheckVarianceRows.length} helper={`${metrics.criticalStockCheckRows.length} critical row(s)`} tone={metrics.criticalStockCheckRows.length ? "danger" : metrics.stockCheckVarianceRows.length ? "warning" : "success"} />
         </div>
         <div className="grid gap-4 xl:grid-cols-2">
           <Card title="Open Job Orders" description="Factory production work that still needs action.">
@@ -1323,6 +1371,18 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             rows={metrics.qcAlertBatches.slice(0, 8)}
             emptyTitle="No batch QC alerts"
             emptyDescription="Completed production batches with QC Pass are clear."
+          />
+        </Card>
+        <Card title="Top Variance Raw Materials" description="Ranked by absolute actual-vs-standard usage variance. Costing uses actual usage and receiving cost where available.">
+          <FactoryTable
+            columns={[
+              { key: "raw_material_name", label: "Raw Material", render: (row) => row.raw_material_name },
+              { key: "variance_qty", label: "Variance Qty", render: (row) => quantity(row.variance_qty, row.uom) },
+              { key: "variance_cost", label: "Variance Cost", align: "right", render: (row) => money(row.variance_cost) },
+            ]}
+            rows={metrics.topVarianceRawMaterials}
+            emptyTitle="No material variance yet"
+            emptyDescription="Complete production with material usage to see variance analytics."
           />
         </Card>
         <Card title="Stock Check Variance Alerts" description="Physical count variance is separate from production recipe variance and actual usage.">
@@ -1522,7 +1582,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                   <div><div className="text-xs font-semibold text-text-muted">Job Order</div><div className="text-sm font-semibold text-text-primary">{row.job?.job_order_no || "—"}</div></div>
                   <div><div className="text-xs font-semibold text-text-muted">Production Date</div><div className="text-sm font-semibold text-text-primary">{row.production_date || "—"}</div></div>
                   <div><div className="text-xs font-semibold text-text-muted">Operator</div><div className="text-sm font-semibold text-text-primary">{row.operator_name || "—"}</div></div>
-                  <div><div className="text-xs font-semibold text-text-muted">SOP Used</div><div className="text-sm font-semibold text-text-primary">{row.sop_title ? `${row.sop_title} ${row.sop_version}` : "—"}</div></div>
+                  <div><div className="text-xs font-semibold text-text-muted">SOP Used</div><div className="text-sm font-semibold text-text-primary">{row.sop_title ? `${row.sop_title} ${row.sop_version}` : row.sop_version || "—"}</div></div>
                 </div>
                 <div className="mt-4 grid gap-4 lg:grid-cols-3">
                   <div className="rounded-xl border border-border bg-slate-50 p-3">
@@ -1564,6 +1624,143 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     );
   }
 
+  function renderReports() {
+    const productionRows = data.productions.map((production) => {
+      const cost = productionCost(production, data.receivings);
+      const goodOutput = Number(production.good_output_qty || 0);
+      return {
+        ...production,
+        cost_per_batch: cost,
+        cost_per_unit: goodOutput ? cost / goodOutput : 0,
+        yield_percent: productionYieldPercent(production),
+        material_variance_percent: weightedMaterialVariancePercent([production]),
+      };
+    });
+    const usageRows = data.productions.flatMap((production) => (production.material_usage || []).map((usage) => {
+      const unitCost = usageUnitCost(usage, data.receivings);
+      return {
+        id: `${production.id}-${usage.id}`,
+        production_no: production.production_no,
+        batch_no: production.batch_no,
+        production_date: production.production_date,
+        product_name: production.product_name,
+        raw_material_name: usage.raw_material_name,
+        standard_usage: usage.standard_usage,
+        actual_usage: usage.actual_usage,
+        variance_qty: usage.variance_qty,
+        variance_percent: usage.variance_percent,
+        unit_cost: unitCost,
+        actual_usage_cost: Number(usage.actual_usage || 0) * unitCost,
+        uom: usage.uom,
+      };
+    }));
+    const yieldRows = productionRows.map((row) => ({
+      id: `yield-${row.id}`,
+      production_no: row.production_no,
+      batch_no: row.batch_no,
+      product_name: row.product_name,
+      actual_produced_qty: row.actual_produced_qty,
+      good_output_qty: row.good_output_qty,
+      wastage_qty: row.wastage_qty,
+      yield_percent: row.yield_percent,
+      uom: row.uom,
+    }));
+    const movementRows = data.productMovements.map((movement) => ({
+      ...movement,
+      id: `movement-${movement.id}`,
+    }));
+    return (
+      <div className="space-y-5">
+        <PageHeader
+          section="Factory"
+          title="Factory Reports"
+          description="Read-only production, material usage, costing, yield and finished goods movement reports."
+          actions={<button className="btn-secondary" type="button" onClick={loadData}><RefreshCw size={15} /> Refresh</button>}
+        />
+        <div className="grid gap-3 md:grid-cols-4">
+          <MetricCard icon={Factory} label="Production Runs" value={productionRows.length} helper="Completed records" />
+          <MetricCard icon={CheckCircle2} label="Yield" value={percent(metrics.productionYield)} helper="Good output / actual produced" tone={metrics.productionYield >= 90 ? "success" : "warning"} />
+          <MetricCard icon={Activity} label="Material Variance" value={percent(metrics.materialVariancePercent)} helper="Actual vs standard" tone={Math.abs(metrics.materialVariancePercent) > 5 ? "warning" : "success"} />
+          <MetricCard icon={PackageCheck} label="Actual Cost" value={money(metrics.estimatedProductionCost)} helper="Actual material usage cost" />
+        </div>
+        <Card title="Production Summary Report" description="Completed production totals with actual usage costing.">
+          <FactoryTable
+            columns={[
+              { key: "production", label: "Production", render: (row) => <div><div className="font-bold text-text-primary">{row.production_no}</div><div className="text-xs text-text-secondary">{row.batch_no || "No batch"} · {row.production_date}</div></div> },
+              { key: "product_name", label: "Product", render: (row) => row.product_name },
+              { key: "output", label: "Good Output", render: (row) => quantity(row.good_output_qty, row.uom) },
+              { key: "yield_percent", label: "Yield", render: (row) => percent(row.yield_percent) },
+              { key: "cost_per_batch", label: "Batch Cost", align: "right", render: (row) => money(row.cost_per_batch) },
+              { key: "cost_per_unit", label: "Cost / Unit", align: "right", render: (row) => money(row.cost_per_unit) },
+            ]}
+            rows={productionRows}
+            emptyTitle="No production summary"
+            emptyDescription="Complete production to populate this read-only report."
+          />
+        </Card>
+        <Card title="Raw Material Usage Report" description="Actual material usage cost uses recorded receiving unit cost when available, otherwise latest receiving cost by raw material.">
+          <FactoryTable
+            columns={[
+              { key: "production_no", label: "Production", render: (row) => <div><div className="font-bold text-text-primary">{row.production_no}</div><div className="text-xs text-text-secondary">{row.batch_no || "No batch"}</div></div> },
+              { key: "raw_material_name", label: "Raw Material", render: (row) => row.raw_material_name },
+              { key: "actual_usage", label: "Actual Usage", render: (row) => quantity(row.actual_usage, row.uom) },
+              { key: "unit_cost", label: "Unit Cost", align: "right", render: (row) => money(row.unit_cost) },
+              { key: "actual_usage_cost", label: "Actual Usage Cost", align: "right", render: (row) => money(row.actual_usage_cost) },
+            ]}
+            rows={usageRows}
+            emptyTitle="No raw material usage"
+            emptyDescription="Complete production with actual material usage to populate this report."
+          />
+        </Card>
+        <Card title="Recipe Standard vs Actual Usage Report" description="Recipe remains the standard reference; this report compares standard usage against actual production usage without modifying either.">
+          <FactoryTable
+            columns={[
+              { key: "production_no", label: "Production", render: (row) => row.production_no },
+              { key: "raw_material_name", label: "Raw Material", render: (row) => row.raw_material_name },
+              { key: "standard_usage", label: "Standard", render: (row) => quantity(row.standard_usage, row.uom) },
+              { key: "actual_usage", label: "Actual", render: (row) => quantity(row.actual_usage, row.uom) },
+              { key: "variance_qty", label: "Variance", render: (row) => quantity(row.variance_qty, row.uom) },
+              { key: "variance_percent", label: "Variance %", render: (row) => percent(row.variance_percent) },
+            ]}
+            rows={usageRows}
+            emptyTitle="No standard vs actual usage"
+            emptyDescription="Production material usage rows will appear here."
+          />
+        </Card>
+        <div className="grid gap-4 xl:grid-cols-2">
+          <Card title="Production Yield Report" description="Yield is good output divided by actual produced quantity.">
+            <FactoryTable
+              columns={[
+                { key: "production_no", label: "Production", render: (row) => row.production_no },
+                { key: "product_name", label: "Product", render: (row) => row.product_name },
+                { key: "actual_produced_qty", label: "Actual Produced", render: (row) => quantity(row.actual_produced_qty, row.uom) },
+                { key: "good_output_qty", label: "Good Output", render: (row) => quantity(row.good_output_qty, row.uom) },
+                { key: "yield_percent", label: "Yield", render: (row) => percent(row.yield_percent) },
+              ]}
+              rows={yieldRows}
+              emptyTitle="No yield records"
+              emptyDescription="Complete production to populate yield reporting."
+            />
+          </Card>
+          <Card title="Finished Goods Stock Movement Report" description="Read-only finished goods stock movement history.">
+            <FactoryTable
+              columns={[
+                { key: "reference_no", label: "Reference", render: (row) => row.reference_no || "—" },
+                { key: "product_name", label: "Product", render: (row) => row.product_name },
+                { key: "movement_type", label: "Movement", render: (row) => <Badge tone={row.quantity >= 0 ? "success" : "warning"}>{row.movement_type}</Badge> },
+                { key: "quantity", label: "Qty", render: (row) => quantity(row.quantity, row.uom) },
+                { key: "movement_date", label: "Date", render: (row) => row.movement_date || "—" },
+              ]}
+              rows={movementRows}
+              emptyTitle="No finished goods movements"
+              emptyDescription="Production stock-in and future product movements will appear here."
+            />
+          </Card>
+        </div>
+      </div>
+    );
+  }
+
   function renderProductStockCheck() {
     return (
       <div className="space-y-5">
@@ -1593,7 +1790,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   return (
     <>
       <AccessIssueNotice issues={data.accessIssues} />
-      {initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "batch-traceability" ? renderBatchTraceability() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "production-sop" ? renderProductionSop() : renderDashboard()}
+      {initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? renderBatchTraceability() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "production-sop" ? renderProductionSop() : renderDashboard()}
       {modal?.type === "job" ? (
         <JobOrderModal
           initialValue={modal.value}
