@@ -12,7 +12,7 @@ import SummaryPanel from "../components/SummaryPanel.jsx";
 import usePeriodFilters from "../hooks/usePeriodFilters.js";
 import { salesRecordService } from "../../../services/salesRecordService.js";
 import { salesChannelService } from "../../../services/salesChannelService.js";
-import { canWrite, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { canImport, canWrite, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import {
   getPreviousPeriod,
   getOutletTaxConfig,
@@ -105,6 +105,7 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
   const sstRate = Number(sstConfig.rate || 0);
   const isLocked = Boolean(getLock(store, filters.outletId, filters.month, filters.year)?.is_locked);
   const canWriteSales = canWrite(auth, "sales_input");
+  const canImportSales = canImport(auth, "sales_input");
   const inputDisabled = isLocked || salesRecordsLoading || !canWriteSales;
   const hasSavedRecord = liveSalesRecords.length > 0;
   const visibleRows = rows.filter((row) => sstEnabled || !sstChannelNames.includes(row.channelName));
@@ -633,7 +634,7 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
         actions={
           <>
             <span className={`text-xs font-semibold ${saveStatusClass}`}>{saveStatusLabel}</span>
-            {canWriteSales ? (
+            {canImportSales ? (
               <button className="btn-secondary" type="button" onClick={() => setImportModalOpen(true)}>
                 <Upload size={15} /> Import Sales
               </button>
