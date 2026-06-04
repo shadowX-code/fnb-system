@@ -2857,6 +2857,10 @@ Factory data loading rule:
 - Factory pages should load only datasets needed for the active tab wherever possible.
 - Optional or permission-blocked datasets should fail softly with an empty state or scoped warning.
 - A role with `factory_dashboard.view` only must be able to load Factory Dashboard without unrelated stock check, SOP, or other module RLS failures crashing the page.
+- Owner/Admin are protected roles and must resolve as full Factory access in both frontend permission checks and Supabase RLS.
+- Supabase `current_user_has_permission()` must recognize protected Owner/Admin roles case-insensitively from both employees-linked identities and legacy `user_profiles` identities.
+- Normal custom roles must continue to rely on explicit `role_permissions`; protected-role bypass must not weaken RLS for custom roles.
+- Factory permission seeding for Owner/Admin must use case-insensitive role-name matching for `factory_%` permission codes.
 
 Factory data model foundation:
 

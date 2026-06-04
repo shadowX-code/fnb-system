@@ -133,6 +133,8 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Added raw material cost trend reporting from receiving records, including supplier/date/unit cost movement.
 - Added dashboard cost cards for highest cost increase material, most expensive product recipe, and actual-vs-standard cost variance.
 - Added read-only RLS coverage for Factory Reports/Dashboard to load recipe and receiving cost source rows without granting mutation rights.
+- Fixed Factory Owner/Admin RLS permission mismatch by hardening `current_user_has_permission()` protected-role bypass for both employees-linked and legacy user profile identities.
+- Updated Factory Owner/Admin permission seeding to use case-insensitive role name matching for all `factory_%` permission codes.
 
 ### Documentation
-- Updated the master document with Factory Phase 1B execution rules, variance threshold, actual-usage stock deduction rule, Recipe BOM separation, Phase 1C stock check approval rules, Phase 1D SOP/QC/batch traceability rules, Phase 1E reports/costing rules, Phase 1F recipe costing/cost history rules, the Batch Traceability route/RBAC UAT fix, and functional-vs-placeholder Factory module status.
+- Updated the master document with Factory Phase 1B execution rules, variance threshold, actual-usage stock deduction rule, Recipe BOM separation, Phase 1C stock check approval rules, Phase 1D SOP/QC/batch traceability rules, Phase 1E reports/costing rules, Phase 1F recipe costing/cost history rules, the Batch Traceability route/RBAC UAT fix, Owner/Admin Factory RLS alignment, and functional-vs-placeholder Factory module status.
