@@ -66,6 +66,106 @@ function mapReceiving(row) {
   };
 }
 
+function mapProductionUsage(row) {
+  return {
+    id: row.id,
+    production_id: row.production_id,
+    raw_material_id: row.raw_material_id,
+    raw_material_name: row.raw_material?.name || "",
+    standard_usage: normalizeNumber(row.standard_usage),
+    actual_usage: normalizeNumber(row.actual_usage || row.quantity_used),
+    variance_qty: normalizeNumber(row.variance_qty),
+    variance_percent: normalizeNumber(row.variance_percent),
+    variance_reason: row.variance_reason || "",
+    uom: row.uom || row.raw_material?.uom || "",
+    wastage_quantity: normalizeNumber(row.wastage_quantity),
+    notes: row.notes || "",
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function mapProduction(row) {
+  return {
+    id: row.id,
+    job_order_id: row.job_order_id || "",
+    production_no: row.production_no || "",
+    product_name: row.product_name || "",
+    batch_no: row.batch_no || "",
+    produced_quantity: normalizeNumber(row.produced_quantity),
+    actual_produced_qty: normalizeNumber(row.actual_produced_qty || row.produced_quantity),
+    good_output_qty: normalizeNumber(row.good_output_qty || row.produced_quantity),
+    wastage_qty: normalizeNumber(row.wastage_qty),
+    uom: row.uom || "",
+    production_date: row.production_date || "",
+    operator_id: row.operator_id || "",
+    operator_name: row.operator_name || "",
+    start_time: row.start_time || "",
+    end_time: row.end_time || "",
+    qc_status: row.qc_status || "Pending",
+    status: row.status || "draft",
+    notes: row.notes || "",
+    created_by: row.created_by || "",
+    completed_at: row.completed_at || "",
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+    material_usage: (row.material_usage ?? []).map(mapProductionUsage),
+  };
+}
+
+function mapFinishedGood(row) {
+  return {
+    id: row.id,
+    product_code: row.product_code || "",
+    product_name: row.product_name || "",
+    category: row.category || "",
+    uom: row.uom || "",
+    current_balance: normalizeNumber(row.current_balance),
+    min_stock_level: normalizeNumber(row.min_stock_level),
+    status: row.status || "active",
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function mapProductMovement(row) {
+  return {
+    id: row.id,
+    finished_good_id: row.finished_good_id || "",
+    product_name: row.finished_good?.product_name || row.product_name || "",
+    movement_type: row.movement_type || "",
+    quantity: normalizeNumber(row.quantity),
+    uom: row.uom || row.finished_good?.uom || "",
+    reference_type: row.reference_type || "",
+    reference_id: row.reference_id || "",
+    reference_no: row.reference_no || "",
+    movement_date: row.movement_date || "",
+    notes: row.notes || "",
+    created_by: row.created_by || "",
+    created_at: row.created_at,
+  };
+}
+
+function mapRecipe(row) {
+  return {
+    id: row.id,
+    recipe_code: row.recipe_code || "",
+    product_name: row.product_name || "",
+    yield_quantity: normalizeNumber(row.yield_quantity, 1),
+    uom: row.uom || "",
+    status: row.status || "active",
+    items: (row.items ?? []).map((item) => ({
+      id: item.id,
+      raw_material_id: item.raw_material_id,
+      raw_material_name: item.raw_material?.name || "",
+      quantity_used: normalizeNumber(item.quantity_used),
+      uom: item.uom || item.raw_material?.uom || "",
+      wastage_percent: normalizeNumber(item.wastage_percent),
+      notes: item.notes || "",
+    })),
+  };
+}
+
 function makeFactoryRef(prefix) {
   const date = new Date();
   const stamp = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
@@ -123,7 +223,7 @@ async function ensureRawMaterial(receiving) {
 
 export const factoryService = {
   async listFactoryData() {
-    const [jobOrdersResult, materialsResult, receivingResult] = await Promise.all([
+    const [jobOrdersResult, materialsResult, receivingResult, productionsResult, finishedGoodsResult, productMovementsResult, recipesResult] = await Promise.all([
       supabase
         .from("factory_job_orders")
         .select("id,job_order_no,product_name,target_quantity,produced_quantity,uom,planned_date,due_date,priority,status,assigned_team,remarks,created_by,created_at,updated_at")
@@ -139,16 +239,45 @@ export const factoryService = {
         .select("id,receipt_no,raw_material_id,supplier_name,batch_no,received_qty,uom,unit_cost,total_cost,invoice_no,received_date,expiry_date,storage_location,remarks,received_by,created_at,updated_at,raw_material:factory_raw_materials(name,uom)")
         .order("received_date", { ascending: false })
         .limit(150),
+      supabase
+        .from("factory_productions")
+        .select("id,job_order_id,production_no,product_name,batch_no,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,operator_id,operator_name,start_time,end_time,qc_status,status,notes,created_by,completed_at,created_at,updated_at,material_usage:factory_production_material_usage(id,production_id,raw_material_id,quantity_used,standard_usage,actual_usage,variance_qty,variance_percent,variance_reason,uom,wastage_quantity,notes,created_at,updated_at,raw_material:factory_raw_materials(name,uom))")
+        .order("production_date", { ascending: false })
+        .limit(150),
+      supabase
+        .from("factory_finished_goods")
+        .select("id,product_code,product_name,category,uom,current_balance,min_stock_level,status,created_at,updated_at")
+        .order("product_name", { ascending: true })
+        .limit(300),
+      supabase
+        .from("factory_product_stock_movements")
+        .select("id,finished_good_id,product_name,movement_type,quantity,uom,reference_type,reference_id,reference_no,movement_date,notes,created_by,created_at,finished_good:factory_finished_goods(product_name,uom)")
+        .order("movement_date", { ascending: false })
+        .limit(150),
+      supabase
+        .from("factory_product_recipes")
+        .select("id,recipe_code,product_name,yield_quantity,uom,status,items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,notes,raw_material:factory_raw_materials(name,uom))")
+        .eq("status", "active")
+        .order("product_name", { ascending: true })
+        .limit(150),
     ]);
 
     throwSupabaseError("factory.job_orders.list", jobOrdersResult.error);
     throwSupabaseError("factory.raw_materials.list", materialsResult.error);
     throwSupabaseError("factory.receivings.list", receivingResult.error);
+    throwSupabaseError("factory.productions.list", productionsResult.error);
+    throwSupabaseError("factory.finished_goods.list", finishedGoodsResult.error);
+    throwSupabaseError("factory.product_movements.list", productMovementsResult.error);
+    throwSupabaseError("factory.recipes.list", recipesResult.error);
 
     return {
       jobOrders: (jobOrdersResult.data ?? []).map(mapJobOrder),
       rawMaterials: (materialsResult.data ?? []).map(mapRawMaterial),
       receivings: (receivingResult.data ?? []).map(mapReceiving),
+      productions: (productionsResult.data ?? []).map(mapProduction),
+      finishedGoods: (finishedGoodsResult.data ?? []).map(mapFinishedGood),
+      productMovements: (productMovementsResult.data ?? []).map(mapProductMovement),
+      recipes: (recipesResult.data ?? []).map(mapRecipe),
     };
   },
 
@@ -300,5 +429,53 @@ export const factoryService = {
       description: "Factory raw material receiving deleted.",
       before: receiving,
     });
+  },
+
+  async completeProduction(production, employeeId) {
+    const usageItems = (production.material_usage ?? []).map((item) => ({
+      raw_material_id: item.raw_material_id,
+      standard_usage: normalizeNumber(item.standard_usage),
+      actual_usage: normalizeNumber(item.actual_usage),
+      variance_reason: item.variance_reason || "",
+      uom: item.uom || "",
+      wastage_quantity: normalizeNumber(item.wastage_quantity),
+      notes: item.notes || "",
+    }));
+    const productionNo = production.production_no || makeFactoryRef("PRD");
+    const { data: productionId, error } = await supabase.rpc("factory_complete_production", {
+      p_job_order_id: production.job_order_id || null,
+      p_production_no: productionNo,
+      p_product_name: String(production.product_name || "").trim(),
+      p_batch_no: production.batch_no || "",
+      p_production_date: production.production_date || new Date().toISOString().slice(0, 10),
+      p_operator_id: production.operator_id || employeeId || null,
+      p_operator_name: production.operator_name || "",
+      p_start_time: production.start_time || null,
+      p_end_time: production.end_time || null,
+      p_actual_produced_qty: normalizeNumber(production.actual_produced_qty),
+      p_good_output_qty: normalizeNumber(production.good_output_qty),
+      p_wastage_qty: normalizeNumber(production.wastage_qty),
+      p_uom: production.uom || "",
+      p_qc_status: production.qc_status || "Pending",
+      p_notes: production.notes || "",
+      p_created_by: employeeId || null,
+      p_usage_items: usageItems,
+    });
+    throwSupabaseError("factory.production.complete", error);
+
+    const { data, error: fetchError } = await supabase
+      .from("factory_productions")
+      .select("id,job_order_id,production_no,product_name,batch_no,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,operator_id,operator_name,start_time,end_time,qc_status,status,notes,created_by,completed_at,created_at,updated_at,material_usage:factory_production_material_usage(id,production_id,raw_material_id,quantity_used,standard_usage,actual_usage,variance_qty,variance_percent,variance_reason,uom,wastage_quantity,notes,created_at,updated_at,raw_material:factory_raw_materials(name,uom))")
+      .eq("id", productionId)
+      .single();
+    throwSupabaseError("factory.production.fetch_completed", fetchError);
+
+    await logFactoryAction({
+      action: "factory_production_completed",
+      target: data.production_no,
+      description: "Factory production completed with actual material usage and finished goods stock-in.",
+      after: data,
+    });
+    return mapProduction(data);
   },
 };

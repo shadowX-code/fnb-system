@@ -104,3 +104,13 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 
 ### Documentation
 - Updated the master document with Factory workspace architecture, Phase 1A scope, Factory tables, RLS approach, and current exclusions.
+
+## 2026-06-04
+
+### Factory
+- Added Factory Phase 1B production execution workflow from Job Orders.
+- Production completion now records batch/date/operator/times, actual produced quantity, good output, wastage, QC status, material usage, variance, raw material deductions, finished goods stock-in, product stock movement, and job order completion.
+- Added production dashboard/activity updates and Production Records UI.
+
+### Documentation
+- Updated the master document with Factory Phase 1B execution rules, variance threshold, actual-usage stock deduction rule, and Recipe BOM separation.

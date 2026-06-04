@@ -2699,6 +2699,24 @@ Factory Phase 1A implemented scope:
 - Raw material receiving creates raw material movement history.
 - Audit logs are written for business-critical job order and raw receiving actions.
 
+Factory Phase 1B implemented scope:
+
+- Production execution starts from a Factory Job Order.
+- Production completion captures batch number, production date, operator, start time, end time, actual produced quantity, good output quantity, wastage quantity, QC status and notes.
+- Production material usage captures raw material, standard usage, actual usage, variance quantity, variance percent and variance reason.
+- Actual material usage is the source of truth for raw material deduction.
+- Product Recipe remains the standard BOM only and is never overwritten by actual production usage.
+- Variance reason is required when material usage variance exceeds 5%.
+- Completing production creates:
+  - `factory_productions` completed production record.
+  - `factory_production_material_usage` actual usage and variance records.
+  - `factory_raw_material_movements` deduction rows using actual usage.
+  - raw material balance deductions through `factory_adjust_raw_material_balance(...)`.
+  - `factory_finished_goods` stock record when needed.
+  - `factory_product_stock_movements` finished goods stock-in row.
+  - Factory Job Order status update to `completed`.
+- Production dashboard and activity cards include completed production, good output and high-variance usage signals.
+
 Factory sidebar modules:
 
 - Factory Dashboard
@@ -2740,15 +2758,14 @@ Factory RLS and permissions:
 - Custom roles must be assigned Factory permissions through Roles & Permissions.
 - Factory tables enforce RLS through `current_user_has_permission(...)`.
 
-Phase 1A exclusions:
+Current Factory exclusions after Phase 1B:
 
-- Production execution workflow.
 - Finished goods receipt and shipment workflow.
 - Product stock check item-level submission workflow.
 - Raw material stock check item-level submission workflow.
 - Product recipe BOM editor.
 - Production SOP editor.
-- Factory analytics beyond Phase 1A dashboard KPIs.
+- Factory analytics beyond Phase 1B dashboard and production execution KPIs.
 
 ## 5.14 Outlets
 

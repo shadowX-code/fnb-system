@@ -228,6 +228,12 @@ const routeDetails = {
     permission: "factory_raw_receiving.view",
     props: { initialTab: "raw-receiving" },
   },
+  factory_production: {
+    description: "Execute production jobs, capture actual material usage and stock in finished goods.",
+    component: FactoryWorkspacePage,
+    permission: "factory_production.view",
+    props: { initialTab: "production" },
+  },
 };
 
 export const salesPurchaseRoutes = moduleRegistry.map((module) => {
