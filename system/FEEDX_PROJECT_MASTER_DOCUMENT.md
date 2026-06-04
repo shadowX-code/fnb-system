@@ -4317,6 +4317,7 @@ Rules:
 
 - Sales import is launched from Sales Input and requires `sales_input.import`.
 - Purchase import is launched from Purchase Input and requires `purchase_input.import`.
+- Purchase Import unknown supplier review must carry the selected default category into preview validation. If an import row has no category and the operator chooses Create supplier with a category, that category fills the row for preview and is saved as the new supplier default during confirmed import.
 - Import batch history is scoped by owning module and outlet; `import_batches` / `import_batch_rows` allow Sales Input import users to write sales batches and Purchase Input import users to write purchase batches without granting unrelated module import access.
 - The centralized Data Import page is not active in current navigation.
 

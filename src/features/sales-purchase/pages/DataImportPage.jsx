@@ -256,6 +256,15 @@ function supplierDefaultPurchaseCategory(categories = [], supplier = {}) {
   return category ? { category, name: category.name } : null;
 }
 
+function supplierResolutionPurchaseCategory(categories = [], resolution = {}, createdCategoryMap = {}) {
+  if (resolution?.action !== "create" || !resolution.category_id) return null;
+  const pendingName = pendingCategoryName(resolution.category_id);
+  const category = categories.find((item) => item.id === resolution.category_id)
+    || createdCategoryMap[pendingName]
+    || null;
+  return category ? { category, name: category.name } : null;
+}
+
 function pendingCategoryId(name) {
   return `__new_category__:${name}`;
 }
@@ -592,7 +601,10 @@ export function DataImportWorkspace({
       const supplierForCategory = supplier
         || store.suppliers.find((item) => item.id === resolution?.supplier_id || item.id === resolution?.existingSupplierId)
         || createdSupplierMap[supplierName];
-      const supplierDefaultCategory = !rawCategoryName ? supplierDefaultPurchaseCategory(store.purchaseCategories, supplierForCategory) : null;
+      const supplierDefaultCategory = !rawCategoryName
+        ? supplierDefaultPurchaseCategory(store.purchaseCategories, supplierForCategory)
+          || supplierResolutionPurchaseCategory(store.purchaseCategories, resolution, createdCategoryMap)
+        : null;
       const categoryName = rawCategoryName || supplierDefaultCategory?.name || "";
       const categoryResolution = rawCategoryName ? categoryResolutions[categoryName] : null;
       const category = supplierDefaultCategory?.category
@@ -1361,7 +1373,7 @@ export function DataImportWorkspace({
                       {resolution.action === "create" ? (
                         <div className="mt-3 space-y-2">
                           <SelectField className="w-full" searchable placeholder="Default category for new supplier" value={resolution.category_id} options={supplierCategoryOptions} onChange={(category_id) => setSupplierResolutions((current) => ({ ...current, [item.name]: { ...resolution, category_id } }))} />
-                          <p className="text-xs font-medium text-text-secondary">This sets the supplier’s default category. Purchase rows will still use their imported category.</p>
+                          <p className="text-xs font-medium text-text-secondary">This sets the supplier’s default category and fills blank-category purchase rows for this import.</p>
                         </div>
                       ) : null}
                     </div>

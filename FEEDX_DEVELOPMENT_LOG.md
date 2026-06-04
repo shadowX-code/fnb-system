@@ -153,3 +153,5 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Updated import workflow permission checks and `import_batches` / `import_batch_rows` RLS coverage so module imports require the owning module import permission, while preserving Owner/Admin protected-role behavior.
 - Added Recipe Intelligence `view` and `manage` permissions, routed Recipe Intelligence through its own view permission, and guarded Product Mapping decisions with Recipe Intelligence manage access.
 - Improved the Role Management permission matrix scrolling so action headers remain visible while reviewing long permission tables.
+- Fixed Purchase Import unknown-supplier review so the selected default category for a newly created supplier resolves blank-category purchase rows during preview and final import rebuild.
+- Added a follow-up Sales/Purchase import RLS migration after confirming staging still has `202606050001` pending; Sales import batch writes require `sales_input.import`, and Purchase import batch writes require `purchase_input.import`.
