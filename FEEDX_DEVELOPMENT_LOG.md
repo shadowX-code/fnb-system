@@ -155,6 +155,10 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Hardened production completion so finished goods stock-in uses the selected active Finished Goods master product, creates the production/material/movement records, updates the Job Order to completed, and preserves batch traceability.
 - Completed Factory Product Recipes with Finished Good-linked recipe management, draft/active/archived lifecycle, BOM material rows, one-active-recipe guardrails, and recipe activation/archive actions.
 - Production completion now prefills material usage from the active Finished Good recipe where available, scaling standard usage by job target quantity while leaving actual usage editable for stock deduction and variance tracking.
+- Completed Factory Raw Material Inventory as a master-plus-inventory page with Raw Material create/edit/archive, category create/edit/archive, multilingual EN/CN/BM names, code, default UOM, min stock, preferred supplier, storage location, status and remarks.
+- Updated Raw Material Receiving so stock-in must select an active Raw Material Master record instead of using free-text material creation; UOM and storage location default from the selected material where available.
+- Added Raw Material Inventory KPIs, filters, low-stock/recent-receiving/recent-consumption panels, recipe-based can-produce estimates and raw material detail history for receiving, consumption, stock checks and cost trend.
+- Added Factory Raw Material category persistence/RLS through `factory_raw_material_categories` and extended raw material RLS coverage for inventory, receiving, movements, stock checks, product recipes and production usage.
 
 ### RBAC
 - Added explicit `sales_input.import` and `purchase_input.import` permissions so Sales Input and Purchase Input imports can be enabled independently from create/edit access.

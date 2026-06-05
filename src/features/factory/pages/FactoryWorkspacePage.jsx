@@ -114,6 +114,14 @@ function finishedGoodHelper(product) {
   return [product?.product_code, product?.product_name_cn || product?.product_name_bm, product?.uom].filter(Boolean).join(" · ");
 }
 
+function rawMaterialLabel(material) {
+  return material?.name_en || material?.name || "";
+}
+
+function rawMaterialHelper(material) {
+  return [material?.material_code, material?.name_cn || material?.name_bm, material?.uom].filter(Boolean).join(" · ");
+}
+
 function WarehouseBarList({ rows, valueLabel }) {
   const maxValue = Math.max(...rows.map((row) => Number(row.value || 0)), 1);
   if (!rows.length) return <EmptyState title="No warehouse data" description="Complete production or stock movements to populate this view." />;
@@ -572,6 +580,296 @@ function FinishedGoodCategoryModal({ categories, onClose, onSave, onArchive }) {
   );
 }
 
+function RawMaterialDetailModal({ material, receivings, movements, stockChecks, onClose }) {
+  const materialReceivings = receivings.filter((row) => row.raw_material_id === material.id);
+  const materialMovements = movements.filter((row) => row.raw_material_id === material.id);
+  const materialChecks = stockChecks
+    .flatMap((check) => (check.items || []).filter((item) => item.raw_material_id === material.id).map((item) => ({ ...item, check_no: check.check_no, check_date: check.check_date, status: check.status })));
+  const latestCost = latestReceivingCostInfo(receivings, material.id);
+  const consumptionRows = materialMovements.filter((row) => Number(row.quantity || 0) < 0 || String(row.movement_type || "").toLowerCase().includes("production"));
+  const costTrendRows = materialReceivings.filter((row) => Number(row.unit_cost || 0) > 0).slice(0, 8);
+  return (
+    <Modal title={rawMaterialLabel(material)} description="Raw material stock, receiving, consumption and count detail" onClose={onClose} size="2xl">
+      <div className="space-y-4">
+        <div className="grid gap-3 md:grid-cols-4">
+          <MetricCard icon={Warehouse} label="Current Balance" value={quantity(material.current_balance, material.uom)} helper={material.material_code || "Raw material"} />
+          <MetricCard icon={Truck} label="Receiving Rows" value={materialReceivings.length} helper="Supplier deliveries" />
+          <MetricCard icon={Factory} label="Consumption Rows" value={consumptionRows.length} helper="Production usage / stock-out" />
+          <MetricCard icon={PackageCheck} label="Latest Unit Cost" value={latestCost.missingCost ? "Missing Cost" : money(latestCost.unitCost)} helper={latestCost.receivedDate || "No receiving cost"} />
+        </div>
+        <Card title="Receiving History" description="Supplier receiving rows linked to this raw material.">
+          <FactoryTable
+            columns={[
+              { key: "receipt", label: "Receipt", render: (row) => <div><div className="font-bold text-text-primary">{row.receipt_no}</div><div className="text-xs text-text-secondary">{row.received_date}</div></div> },
+              { key: "supplier_name", label: "Supplier", render: (row) => row.supplier_name || "—" },
+              { key: "batch_no", label: "Batch", render: (row) => row.batch_no || "—" },
+              { key: "qty", label: "Qty", render: (row) => quantity(row.received_qty, row.uom) },
+              { key: "unit_cost", label: "Unit Cost", align: "right", render: (row) => money(row.unit_cost) },
+            ]}
+            rows={materialReceivings}
+            emptyTitle="No receiving history"
+            emptyDescription="Record receiving for this raw material to populate receiving history."
+          />
+        </Card>
+        <Card title="Consumption and Movement History" description="Movement log from receiving, production actual usage and approved stock checks.">
+          <FactoryTable
+            columns={[
+              { key: "reference", label: "Reference", render: (row) => <div><div className="font-bold text-text-primary">{row.reference_no || "—"}</div><div className="text-xs text-text-secondary">{row.reference_type || "No source"}</div></div> },
+              { key: "movement_type", label: "Movement", render: (row) => <Badge tone={row.quantity >= 0 ? "success" : "warning"}>{row.movement_type}</Badge> },
+              { key: "quantity", label: "Qty", render: (row) => quantity(row.quantity, row.uom) },
+              { key: "movement_date", label: "Date", render: (row) => row.movement_date || "—" },
+              { key: "notes", label: "Notes", render: (row) => row.notes || "—" },
+            ]}
+            rows={materialMovements}
+            emptyTitle="No movement history"
+            emptyDescription="Receiving, production usage and approved stock checks will create movement history."
+          />
+        </Card>
+        <Card title="Stock Check History" description="Physical count rows for this raw material.">
+          <FactoryTable
+            columns={[
+              { key: "check_no", label: "Check", render: (row) => <div><div className="font-bold text-text-primary">{row.check_no}</div><div className="text-xs text-text-secondary">{row.check_date}</div></div> },
+              { key: "variance_qty", label: "Variance Qty", render: (row) => quantity(row.variance_qty, row.uom) },
+              { key: "variance_percent", label: "Variance %", render: (row) => percent(row.variance_percent) },
+              { key: "variance_status", label: "Variance", render: (row) => <Badge tone={stockVarianceTone(row.variance_status)}>{row.variance_status}</Badge> },
+              { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{row.status}</Badge> },
+            ]}
+            rows={materialChecks}
+            emptyTitle="No stock check history"
+            emptyDescription="Approved and submitted raw stock checks for this material will appear here."
+          />
+        </Card>
+        <Card title="Supplier Cost Trend" description="Recent receiving unit cost by supplier.">
+          <FactoryTable
+            columns={[
+              { key: "received_date", label: "Date", render: (row) => row.received_date || "—" },
+              { key: "supplier_name", label: "Supplier", render: (row) => row.supplier_name || "—" },
+              { key: "batch_no", label: "Batch", render: (row) => row.batch_no || "—" },
+              { key: "unit_cost", label: "Unit Cost", align: "right", render: (row) => money(row.unit_cost) },
+            ]}
+            rows={costTrendRows}
+            emptyTitle="No cost trend"
+            emptyDescription="Receiving rows with unit cost will populate supplier cost trend."
+          />
+        </Card>
+      </div>
+    </Modal>
+  );
+}
+
+function RawMaterialMasterModal({ initialValue, categories, onClose, onSave, onArchive }) {
+  const [form, setForm] = useState(() => ({
+    material_code: "",
+    name: initialValue?.name || "",
+    name_en: initialValue?.name_en || initialValue?.name || "",
+    name_cn: "",
+    name_bm: "",
+    category_id: "",
+    category: "",
+    uom: "kg",
+    min_stock_level: 0,
+    preferred_supplier: "",
+    storage_location: "",
+    status: "active",
+    remarks: "",
+    ...initialValue,
+  }));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const activeCategories = categories.filter((category) => category.status === "active" || category.id === form.category_id);
+  const categoryOptions = activeCategories.map((category) => ({ value: category.id, label: category.name, helper: category.description || category.status }));
+
+  async function submit(event) {
+    event.preventDefault();
+    setError("");
+    if (!String(form.name_en || "").trim()) {
+      setError("Raw Material Name EN is required.");
+      return;
+    }
+    if (!form.category_id) {
+      setError("Category is required.");
+      return;
+    }
+    if (!String(form.uom || "").trim()) {
+      setError("Default UOM is required.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const selectedCategory = categories.find((category) => category.id === form.category_id);
+      await onSave({ ...form, name: form.name_en, category: selectedCategory?.name || "" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function archive() {
+    if (!onArchive || !initialValue?.id) return;
+    setSaving(true);
+    try {
+      await onArchive(initialValue);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      title={initialValue?.id ? "Edit Raw Material" : "Create Raw Material"}
+      description="Raw Material Master defines valid materials for receiving, recipes and production usage."
+      size="lg"
+      onClose={saving ? undefined : onClose}
+      footer={(
+        <>
+          {initialValue?.id && initialValue.status !== "archived" ? <button className="btn-danger" type="button" disabled={saving} onClick={archive}>Archive</button> : <span />}
+          <div className="flex gap-2">
+            <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
+            <button className="btn-primary" type="submit" form="factory-raw-material-form" disabled={saving}>{saving ? "Saving..." : "Save Raw Material"}</button>
+          </div>
+        </>
+      )}
+    >
+      <form id="factory-raw-material-form" className="space-y-4" onSubmit={submit}>
+        {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
+        <div className="grid gap-3 md:grid-cols-2">
+          <Field label="Raw Material Name EN">
+            <input className={inputClass()} value={form.name_en || ""} onChange={(event) => setForm((current) => ({ ...current, name_en: event.target.value, name: event.target.value }))} />
+          </Field>
+          <Field label="Raw Material Name CN">
+            <input className={inputClass()} value={form.name_cn || ""} onChange={(event) => setForm((current) => ({ ...current, name_cn: event.target.value }))} />
+          </Field>
+          <Field label="Raw Material Name BM">
+            <input className={inputClass()} value={form.name_bm || ""} onChange={(event) => setForm((current) => ({ ...current, name_bm: event.target.value }))} />
+          </Field>
+          <Field label="Raw Material Code">
+            <input className={inputClass()} value={form.material_code || ""} onChange={(event) => setForm((current) => ({ ...current, material_code: event.target.value }))} />
+          </Field>
+          <Field label="Category" error={!form.category_id && error.includes("Category") ? "Category is required." : ""}>
+            <SearchableSelect
+              value={form.category_id || ""}
+              options={categoryOptions}
+              placeholder="Select Category"
+              error={!form.category_id && error.includes("Category")}
+              onChange={(categoryId) => setForm((current) => ({ ...current, category_id: categoryId }))}
+            />
+          </Field>
+          <Field label="Default UOM">
+            <select className={inputClass()} value={form.uom} onChange={(event) => setForm((current) => ({ ...current, uom: event.target.value }))}>
+              {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
+            </select>
+          </Field>
+          <Field label="Min Stock Level">
+            <input className={inputClass()} type="number" min="0" step="0.01" value={form.min_stock_level} onChange={(event) => setForm((current) => ({ ...current, min_stock_level: event.target.value }))} />
+          </Field>
+          <Field label="Preferred Supplier">
+            <input className={inputClass()} value={form.preferred_supplier || ""} onChange={(event) => setForm((current) => ({ ...current, preferred_supplier: event.target.value }))} />
+          </Field>
+          <Field label="Storage Location">
+            <input className={inputClass()} value={form.storage_location || ""} onChange={(event) => setForm((current) => ({ ...current, storage_location: event.target.value }))} />
+          </Field>
+          <Field label="Status">
+            <select className={inputClass()} value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
+              <option value="active">Active</option>
+              <option value="archived">Archived</option>
+            </select>
+          </Field>
+        </div>
+        <Field label="Remarks">
+          <textarea className={inputClass()} rows={3} value={form.remarks || ""} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
+        </Field>
+      </form>
+    </Modal>
+  );
+}
+
+function RawMaterialCategoryModal({ categories, onClose, onSave, onArchive }) {
+  const [form, setForm] = useState(() => ({
+    name: "",
+    description: "",
+    status: "active",
+  }));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(event) {
+    event.preventDefault();
+    setError("");
+    if (!String(form.name || "").trim()) {
+      setError("Category name is required.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave(form);
+      setForm({ name: "", description: "", status: "active" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function edit(category) {
+    setForm({ id: category.id, name: category.name || "", description: category.description || "", status: category.status || "active" });
+    setError("");
+  }
+
+  async function archive(category) {
+    setSaving(true);
+    try {
+      await onArchive(category);
+      if (form.id === category.id) setForm({ name: "", description: "", status: "active" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      title="Raw Material Categories"
+      description="Group raw material master records for warehouse visibility and setup."
+      size="lg"
+      onClose={saving ? undefined : onClose}
+      footer={<button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Close</button>}
+    >
+      <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
+        <form id="factory-raw-material-category-form" className="space-y-4 rounded-xl border border-border bg-slate-50 p-4" onSubmit={submit}>
+          {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
+          <Field label="Category Name">
+            <input className={inputClass()} value={form.name} onChange={(event) => setForm((current) => ({ ...current, name: event.target.value }))} />
+          </Field>
+          <Field label="Description">
+            <textarea className={inputClass()} rows={3} value={form.description || ""} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} />
+          </Field>
+          <Field label="Status">
+            <select className={inputClass()} value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
+              <option value="active">Active</option>
+              <option value="archived">Archived</option>
+            </select>
+          </Field>
+          <div className="flex flex-wrap gap-2">
+            <button className="btn-primary" type="submit" disabled={saving}>{saving ? "Saving..." : form.id ? "Update Category" : "Create Category"}</button>
+            {form.id ? <button className="btn-secondary" type="button" disabled={saving} onClick={() => setForm({ name: "", description: "", status: "active" })}>New</button> : null}
+          </div>
+        </form>
+        <div className="max-h-[460px] overflow-y-auto rounded-xl border border-border bg-white">
+          {categories.length ? categories.map((category) => (
+            <div key={category.id} className="flex items-start justify-between gap-3 border-b border-border p-4 last:border-0">
+              <div>
+                <div className="font-bold text-text-primary">{category.name}</div>
+                <div className="mt-1 text-sm text-text-secondary">{category.description || "No description"}</div>
+                <div className="mt-2"><Badge tone={category.status === "active" ? "success" : "neutral"}>{category.status}</Badge></div>
+              </div>
+              <div className="flex shrink-0 gap-2">
+                <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={saving} onClick={() => edit(category)}>Edit</button>
+                {category.status !== "archived" ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" disabled={saving} onClick={() => archive(category)}>Archive</button> : null}
+              </div>
+            </div>
+          )) : <EmptyState title="No categories" description="Create a category before saving raw material master records." />}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function JobOrderModal({ initialValue, finishedGoods, onClose, onSave }) {
   const [form, setForm] = useState(() => ({
     finished_good_id: "",
@@ -699,9 +997,10 @@ function JobOrderModal({ initialValue, finishedGoods, onClose, onSave }) {
   );
 }
 
-function RawReceivingModal({ initialValue, onClose, onSave }) {
+function RawReceivingModal({ initialValue, rawMaterials, onClose, onSave }) {
   const [form, setForm] = useState(() => ({
     supplier_name: "",
+    raw_material_id: "",
     raw_material_name: "",
     batch_no: "",
     received_qty: "",
@@ -717,12 +1016,18 @@ function RawReceivingModal({ initialValue, onClose, onSave }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const totalCost = Number(form.received_qty || 0) * Number(form.unit_cost || 0);
+  const activeRawMaterials = rawMaterials.filter((material) => material.status === "active" || material.id === form.raw_material_id);
+  const rawMaterialOptions = activeRawMaterials.map((material) => ({
+    value: material.id,
+    label: rawMaterialLabel(material),
+    helper: `${rawMaterialHelper(material)}${material.current_balance != null ? ` · On hand ${quantity(material.current_balance, material.uom)}` : ""}`,
+  }));
 
   async function submit(event) {
     event.preventDefault();
     setError("");
-    if (!String(form.raw_material_name || "").trim()) {
-      setError("Raw material name is required.");
+    if (!form.raw_material_id) {
+      setError("Select an active raw material.");
       return;
     }
     if (Number(form.received_qty || 0) <= 0) {
@@ -756,8 +1061,25 @@ function RawReceivingModal({ initialValue, onClose, onSave }) {
           <Field label="Supplier">
             <input className={inputClass()} value={form.supplier_name || ""} onChange={(event) => setForm((current) => ({ ...current, supplier_name: event.target.value }))} />
           </Field>
-          <Field label="Raw Material">
-            <input className={inputClass()} value={form.raw_material_name || ""} onChange={(event) => setForm((current) => ({ ...current, raw_material_name: event.target.value }))} />
+          <Field label="Raw Material" error={!form.raw_material_id && error.includes("raw material") ? "Raw material is required." : ""}>
+            <SearchableSelect
+              value={form.raw_material_id || ""}
+              options={rawMaterialOptions}
+              placeholder={activeRawMaterials.length ? "Select Raw Material" : "Create an active Raw Material first"}
+              searchPlaceholder="Search raw materials"
+              emptyText="No matching raw materials"
+              error={!form.raw_material_id && error.includes("raw material")}
+              onChange={(rawMaterialId) => {
+                const material = activeRawMaterials.find((item) => item.id === rawMaterialId);
+                setForm((current) => ({
+                  ...current,
+                  raw_material_id: rawMaterialId,
+                  raw_material_name: rawMaterialLabel(material),
+                  uom: material?.uom || current.uom,
+                  storage_location: current.storage_location || material?.storage_location || "",
+                }));
+              }}
+            />
           </Field>
           <Field label="Batch No.">
             <input className={inputClass()} value={form.batch_no || ""} onChange={(event) => setForm((current) => ({ ...current, batch_no: event.target.value }))} />
@@ -1001,8 +1323,8 @@ function ProductRecipeModal({ initialValue, finishedGoods, rawMaterials, onClose
                           }}
                         >
                           <option value="">Select raw material</option>
-                          {rawMaterials.filter((row) => row.status !== "inactive").map((materialOption) => (
-                            <option key={materialOption.id} value={materialOption.id}>{materialOption.name} · {quantity(materialOption.current_balance, materialOption.uom)}</option>
+                          {rawMaterials.filter((row) => row.status === "active" || row.id === item.raw_material_id).map((materialOption) => (
+                            <option key={materialOption.id} value={materialOption.id}>{rawMaterialLabel(materialOption)} · {quantity(materialOption.current_balance, materialOption.uom)}</option>
                           ))}
                         </select>
                         <div className="mt-1 text-xs text-text-secondary">{material?.category || "Raw material BOM item"}</div>
@@ -1258,8 +1580,8 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
                           }}
                         >
                           <option value="">Select material</option>
-                          {rawMaterials.filter((item) => item.status !== "inactive").map((item) => (
-                            <option key={item.id} value={item.id}>{item.name} · {quantity(item.current_balance, item.uom)}</option>
+                          {rawMaterials.filter((item) => item.status === "active" || item.id === row.raw_material_id).map((item) => (
+                            <option key={item.id} value={item.id}>{rawMaterialLabel(item)} · {quantity(item.current_balance, item.uom)}</option>
                           ))}
                         </select>
                         <div className="mt-1 text-xs text-text-secondary">On hand: {material ? quantity(material.current_balance, material.uom) : "—"}</div>
@@ -1516,11 +1838,11 @@ function buildStockCheckRows(stockType, stockItems, initialValue) {
       uom: item.uom || "",
     }));
   }
-  return stockItems.filter((item) => item.status !== "inactive").map((item) => ({
+  return stockItems.filter((item) => item.status === "active").map((item) => ({
     id: `${stockType}-${item.id}`,
     raw_material_id: stockType === "raw" ? item.id : "",
     finished_good_id: stockType === "product" ? item.id : "",
-    item_name: stockType === "raw" ? item.name : item.product_name,
+    item_name: stockType === "raw" ? rawMaterialLabel(item) : item.product_name,
     system_qty: Number(item.current_balance || 0),
     physical_qty: Number(item.current_balance || 0),
     variance_reason: "",
@@ -1676,10 +1998,11 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, onClose, 
 }
 
 export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, auth }) {
-  const [data, setData] = useState({ jobOrders: [], rawMaterials: [], receivings: [], productions: [], finishedGoods: [], finishedGoodCategories: [], productMovements: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [], accessIssues: [] });
+  const [data, setData] = useState({ jobOrders: [], rawMaterials: [], rawMaterialCategories: [], rawMaterialMovements: [], receivings: [], productions: [], finishedGoods: [], finishedGoodCategories: [], productMovements: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [], accessIssues: [] });
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [warehouseFilters, setWarehouseFilters] = useState({ product: "", status: "", batch: "", movementType: "" });
+  const [rawMaterialFilters, setRawMaterialFilters] = useState({ material: "", status: "", category: "" });
   const can = (code) => Boolean(auth?.hasPermission?.(code));
 
   async function loadData() {
@@ -1709,7 +2032,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const today = todayInput();
     const overdueJobs = data.jobOrders.filter((job) => job.due_date && job.due_date < today && !["completed", "cancelled"].includes(job.status));
     const completedJobs = data.jobOrders.filter((job) => job.status === "completed");
-    const lowStock = data.rawMaterials.filter((item) => item.status !== "inactive" && Number(item.current_balance || 0) <= Number(item.min_stock_level || 0));
+    const lowStock = data.rawMaterials.filter((item) => item.status === "active" && Number(item.current_balance || 0) > 0 && Number(item.current_balance || 0) <= Number(item.min_stock_level || 0));
     const receivingValue = data.receivings.reduce((sum, row) => sum + Number(row.total_cost || 0), 0);
     const completedProductions = data.productions.filter((production) => production.status === "completed");
     const totalGoodOutput = completedProductions.reduce((sum, row) => sum + Number(row.good_output_qty || row.produced_quantity || 0), 0);
@@ -1862,6 +2185,69 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     } catch (error) {
       ui?.notify?.({ title: "Failed to save raw material receiving", message: error.message, tone: "error" });
       throw error;
+    }
+  }
+
+  async function saveRawMaterial(form) {
+    try {
+      await factoryService.saveRawMaterial(form, auth?.profile?.id);
+      ui?.notify?.({ title: form.id ? "Raw material updated" : "Raw material created", tone: "success" });
+      setModal(null);
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to save raw material", message: error.message, tone: "error" });
+      throw error;
+    }
+  }
+
+  async function archiveRawMaterial(material) {
+    if (Number(material.current_balance || 0) > 0) {
+      ui?.notify?.({ title: "Cannot archive raw material", message: "Cannot archive while stock balance is greater than zero.", tone: "error" });
+      return;
+    }
+    const confirmed = await ui?.confirm?.({
+      title: "Archive Raw Material?",
+      message: `${rawMaterialLabel(material)} will no longer be available for receiving, recipe BOM setup or production usage.`,
+      confirmLabel: "Archive",
+      tone: "warning",
+    });
+    if (!confirmed) return;
+    try {
+      await factoryService.archiveRawMaterial(material);
+      ui?.notify?.({ title: "Raw material archived", tone: "success" });
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to archive raw material", message: error.message, tone: "error" });
+    }
+  }
+
+  async function saveRawMaterialCategory(form, options = {}) {
+    try {
+      await factoryService.saveRawMaterialCategory(form, auth?.profile?.id);
+      ui?.notify?.({ title: form.id ? "Raw material category updated" : "Raw material category created", tone: "success" });
+      if (!options.keepOpen) setModal(null);
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to save raw material category", message: error.message, tone: "error" });
+      throw error;
+    }
+  }
+
+  async function archiveRawMaterialCategory(category, options = {}) {
+    const confirmed = await ui?.confirm?.({
+      title: "Archive Raw Material Category?",
+      message: `${category.name} will remain on existing raw materials but cannot be selected for new active setup.`,
+      confirmLabel: "Archive",
+      tone: "warning",
+    });
+    if (!confirmed) return;
+    try {
+      await factoryService.archiveRawMaterialCategory(category);
+      ui?.notify?.({ title: "Raw material category archived", tone: "success" });
+      if (!options.keepOpen) setModal(null);
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to archive raw material category", message: error.message, tone: "error" });
     }
   }
 
@@ -2083,8 +2469,31 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     { key: "actions", label: "Actions", align: "right", render: (row) => <div className="flex justify-end gap-2">{can("factory_raw_receiving.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "receiving", value: row })}>Edit</button> : null}{can("factory_raw_receiving.delete") ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => deleteReceiving(row)}>Delete</button> : null}</div> },
   ];
 
+  const rawMaterialInventoryColumns = [
+    { key: "name", label: "Raw Material", render: (row) => <div><div className="font-bold text-text-primary">{rawMaterialLabel(row)}</div><div className="text-xs text-text-secondary">{[row.name_cn, row.name_bm].filter(Boolean).join(" · ") || "No CN/BM name"}</div></div> },
+    { key: "material_code", label: "Code", render: (row) => row.material_code || "—" },
+    { key: "category", label: "Category", render: (row) => row.category || "No category" },
+    { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
+    { key: "current_balance", label: "Current Balance", render: (row) => quantity(row.current_balance, row.uom) },
+    { key: "min_stock_level", label: "Min Stock", render: (row) => quantity(row.min_stock_level, row.uom) },
+    { key: "last_receiving_date", label: "Last Receiving", render: (row) => row.last_receiving_date || "—" },
+    { key: "last_consumption_date", label: "Last Consumption", render: (row) => row.last_consumption_date || "—" },
+    { key: "status", label: "Status", render: (row) => (
+      <div className="flex flex-wrap gap-1.5">
+        <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge>
+        <Badge tone={row.stock_status === "Out of Stock" ? "danger" : row.stock_status === "Low Stock" ? "warning" : "success"}>{row.stock_status}</Badge>
+      </div>
+    ) },
+    { key: "actions", label: "Actions", align: "right", render: (row) => (
+      <div className="flex flex-wrap justify-end gap-2">
+        <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "raw-material-detail", material: row })}>Detail</button>
+        {can("factory_raw_inventory.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "raw-material", value: row })}>Edit</button> : null}
+      </div>
+    ) },
+  ];
+
   const lowStockColumns = [
-    { key: "name", label: "Raw Material", render: (row) => <div><div className="font-semibold text-text-primary">{row.name}</div><div className="text-xs text-text-secondary">{row.category || "Uncategorized"} · {row.storage_location || "No location"}</div></div> },
+    { key: "name", label: "Raw Material", render: (row) => <div><div className="font-semibold text-text-primary">{rawMaterialLabel(row)}</div><div className="text-xs text-text-secondary">{row.category || "Uncategorized"} · {row.storage_location || "No location"}</div></div> },
     { key: "current_balance", label: "On Hand", render: (row) => quantity(row.current_balance, row.uom) },
     { key: "min_stock_level", label: "Min Stock", render: (row) => quantity(row.min_stock_level, row.uom) },
     { key: "status", label: "Status", render: () => <Badge tone="warning">Low Stock</Badge> },
@@ -2224,6 +2633,59 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         </Field>
         <div className="flex items-end">
           <button className="btn-secondary w-full" type="button" onClick={() => setWarehouseFilters({ product: "", status: "", batch: "", movementType: "" })}>Clear</button>
+        </div>
+      </div>
+    );
+  }
+
+  function rawMaterialRows() {
+    return data.rawMaterials.map((material) => {
+      const materialReceivings = data.receivings.filter((row) => row.raw_material_id === material.id);
+      const materialMovements = data.rawMaterialMovements.filter((row) => row.raw_material_id === material.id);
+      const consumptionRows = materialMovements.filter((row) => Number(row.quantity || 0) < 0 || String(row.movement_type || "").toLowerCase().includes("production"));
+      const lastReceiving = [...materialReceivings].sort((a, b) => new Date(b.received_date || b.created_at || 0) - new Date(a.received_date || a.created_at || 0))[0];
+      const lastConsumption = [...consumptionRows].sort((a, b) => new Date(b.movement_date || b.created_at || 0) - new Date(a.movement_date || a.created_at || 0))[0];
+      const balance = Number(material.current_balance || 0);
+      const minStock = Number(material.min_stock_level || 0);
+      return {
+        ...material,
+        last_receiving_date: lastReceiving?.received_date || "",
+        last_consumption_date: lastConsumption?.movement_date || "",
+        stock_status: balance <= 0 ? "Out of Stock" : minStock > 0 && balance <= minStock ? "Low Stock" : "In Stock",
+      };
+    });
+  }
+
+  function filteredRawMaterialRows() {
+    return rawMaterialRows().filter((row) => includesText(`${row.name} ${row.name_en} ${row.name_cn} ${row.name_bm} ${row.material_code}`, rawMaterialFilters.material)
+      && (!rawMaterialFilters.status || row.status === rawMaterialFilters.status)
+      && (!rawMaterialFilters.category || row.category_id === rawMaterialFilters.category || row.category === rawMaterialFilters.category));
+  }
+
+  function rawMaterialFilterControls() {
+    const statuses = [...new Set(data.rawMaterials.map((row) => row.status).filter(Boolean))];
+    const categories = data.rawMaterialCategories.length
+      ? data.rawMaterialCategories
+      : [...new Set(data.rawMaterials.map((row) => row.category).filter(Boolean))].map((name) => ({ id: name, name }));
+    return (
+      <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 md:grid-cols-4">
+        <Field label="Raw Material">
+          <input className={inputClass()} value={rawMaterialFilters.material} onChange={(event) => setRawMaterialFilters((current) => ({ ...current, material: event.target.value }))} placeholder="Search material/code" />
+        </Field>
+        <Field label="Status">
+          <select className={inputClass()} value={rawMaterialFilters.status} onChange={(event) => setRawMaterialFilters((current) => ({ ...current, status: event.target.value }))}>
+            <option value="">All statuses</option>
+            {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
+          </select>
+        </Field>
+        <Field label="Category">
+          <select className={inputClass()} value={rawMaterialFilters.category} onChange={(event) => setRawMaterialFilters((current) => ({ ...current, category: event.target.value }))}>
+            <option value="">All categories</option>
+            {categories.map((category) => <option key={category.id || category.name} value={category.id || category.name}>{category.name}</option>)}
+          </select>
+        </Field>
+        <div className="flex items-end">
+          <button className="btn-secondary w-full" type="button" onClick={() => setRawMaterialFilters({ material: "", status: "", category: "" })}>Clear</button>
         </div>
       </div>
     );
@@ -2457,6 +2919,99 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     );
   }
 
+  function renderRawInventory() {
+    const rows = filteredRawMaterialRows();
+    const activeRows = data.rawMaterials.filter((item) => item.status === "active");
+    const totalStock = activeRows.reduce((sum, item) => sum + Number(item.current_balance || 0), 0);
+    const lowStockItems = activeRows.filter((item) => Number(item.current_balance || 0) > 0 && Number(item.current_balance || 0) <= Number(item.min_stock_level || 0));
+    const outOfStockItems = activeRows.filter((item) => Number(item.current_balance || 0) <= 0);
+    const lowStockRows = rawMaterialRows().filter((item) => item.status === "active" && item.stock_status !== "In Stock").slice(0, 8);
+    const recentReceiving = [...data.receivings].sort((a, b) => new Date(b.received_date || b.created_at || 0) - new Date(a.received_date || a.created_at || 0)).slice(0, 8);
+    const recentConsumption = data.rawMaterialMovements
+      .filter((movement) => Number(movement.quantity || 0) < 0 || String(movement.movement_type || "").toLowerCase().includes("production"))
+      .slice(0, 8);
+    const canProduceRows = data.recipes.filter((recipe) => recipe.status === "active" && recipe.items?.length).map((recipe) => {
+      const possibleUnits = recipe.items.map((item) => {
+        const material = data.rawMaterials.find((raw) => raw.id === item.raw_material_id);
+        const perRecipe = Number(item.quantity_used || 0) * (1 + Number(item.wastage_percent || 0) / 100);
+        if (!material || perRecipe <= 0) return Infinity;
+        return Math.floor(Number(material.current_balance || 0) / perRecipe) * Number(recipe.yield_quantity || 1);
+      });
+      const estimated = Math.max(0, Math.min(...possibleUnits.filter(Number.isFinite)));
+      return { id: recipe.id, recipe_name: recipe.recipe_name || recipe.recipe_code, product_name: recipe.product_name, can_produce_qty: estimated, uom: recipe.uom };
+    }).sort((a, b) => Number(a.can_produce_qty || 0) - Number(b.can_produce_qty || 0)).slice(0, 8);
+    return (
+      <div className="space-y-5">
+        <PageHeader
+          section="Raw Material"
+          title="Raw Material Inventory"
+          description="Manage raw material master data and monitor live factory raw material balances."
+          actions={(
+            <div className="flex flex-wrap gap-2">
+              {can("factory_raw_inventory.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "raw-material" })}><Plus size={15} /> Raw Material</button> : null}
+              {can("factory_raw_inventory.create") || can("factory_raw_inventory.edit") ? <button className="btn-secondary" type="button" onClick={() => setModal({ type: "raw-material-category" })}><Plus size={15} /> Category</button> : null}
+            </div>
+          )}
+        />
+        <div className="grid gap-3 md:grid-cols-4">
+          <MetricCard icon={Warehouse} label="Total Raw Materials" value={activeRows.length} helper="Active master records" />
+          <MetricCard icon={PackageCheck} label="Total Stock Qty" value={quantity(totalStock, "")} helper="Current balance total" />
+          <MetricCard icon={AlertTriangle} label="Low Stock Items" value={lowStockItems.length} helper="Above zero, at or below min" tone={lowStockItems.length ? "warning" : "success"} />
+          <MetricCard icon={Clock3} label="Out of Stock" value={outOfStockItems.length} helper="Current balance zero" tone={outOfStockItems.length ? "danger" : "success"} />
+        </div>
+        <div className="grid gap-4 xl:grid-cols-4">
+          <Card title="Low Stock List" description="Materials needing replenishment before production.">
+            <FactoryTable columns={lowStockColumns} rows={lowStockRows} emptyTitle="No low stock raw materials" emptyDescription="Raw material stock is currently healthy." />
+          </Card>
+          <Card title="Recent Receiving" description="Latest supplier stock-in rows.">
+            <FactoryTable
+              columns={[
+                { key: "receipt_no", label: "Receipt", render: (row) => <div><div className="font-bold text-text-primary">{row.receipt_no}</div><div className="text-xs text-text-secondary">{row.received_date}</div></div> },
+                { key: "raw_material_name", label: "Raw Material", render: (row) => row.raw_material_name },
+                { key: "qty", label: "Qty", render: (row) => quantity(row.received_qty, row.uom) },
+              ]}
+              rows={recentReceiving}
+              emptyTitle="No receiving yet"
+              emptyDescription="Record receiving by selecting a Raw Material master record."
+            />
+          </Card>
+          <Card title="Recent Consumption" description="Latest production usage and stock-out movements.">
+            <FactoryTable
+              columns={[
+                { key: "reference_no", label: "Reference", render: (row) => <div><div className="font-bold text-text-primary">{row.reference_no || "—"}</div><div className="text-xs text-text-secondary">{row.movement_date}</div></div> },
+                { key: "raw_material_name", label: "Raw Material", render: (row) => row.raw_material_name },
+                { key: "quantity", label: "Qty", render: (row) => quantity(row.quantity, row.uom) },
+              ]}
+              rows={recentConsumption}
+              emptyTitle="No consumption yet"
+              emptyDescription="Production actual usage deductions will appear here."
+            />
+          </Card>
+          <Card title="Can Produce Estimate" description="Estimated output from active recipes and current raw stock.">
+            <FactoryTable
+              columns={[
+                { key: "recipe_name", label: "Recipe", render: (row) => <div><div className="font-bold text-text-primary">{row.recipe_name}</div><div className="text-xs text-text-secondary">{row.product_name}</div></div> },
+                { key: "can_produce_qty", label: "Estimate", render: (row) => quantity(row.can_produce_qty, row.uom) },
+              ]}
+              rows={canProduceRows}
+              emptyTitle="No recipe estimate"
+              emptyDescription="Create active Product Recipes to estimate production capacity from raw stock."
+            />
+          </Card>
+        </div>
+        {rawMaterialFilterControls()}
+        <Card title="Raw Material Master and Inventory" description="Master records define valid materials. Balances are updated by receiving, production actual usage and approved stock checks.">
+          <FactoryTable
+            columns={rawMaterialInventoryColumns}
+            rows={rows}
+            emptyTitle="No raw materials"
+            emptyDescription="Create a raw material before receiving stock or building Product Recipes."
+          />
+        </Card>
+      </div>
+    );
+  }
+
   function renderRawStockCheck() {
     return (
       <div className="space-y-5">
@@ -2543,7 +3098,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   function renderProduction() {
-    const recipeForJob = (job) => data.recipes.find((recipe) => recipe.status === "active" && recipe.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
+    const recipeForJob = (job) => data.recipes.find((recipe) => recipe.status === "active" && recipe.finished_good_id === job.finished_good_id)
+      || data.recipes.find((recipe) => recipe.status === "active" && recipe.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
     const sopForJob = (job) => data.sops.find((sop) => sop.status !== "inactive" && sop.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
     const readinessForJob = (job) => {
       const recipe = recipeForJob(job);
@@ -3074,7 +3630,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   return (
     <>
       <AccessIssueNotice issues={data.accessIssues} />
-      {initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? renderBatchTraceability() : initialTab === "finished-goods" ? renderFinishedGoods() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? renderProductRecipes() : initialTab === "production-sop" ? renderProductionSop() : renderDashboard()}
+      {initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-inventory" ? renderRawInventory() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? renderBatchTraceability() : initialTab === "finished-goods" ? renderFinishedGoods() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? renderProductRecipes() : initialTab === "production-sop" ? renderProductionSop() : renderDashboard()}
       {modal?.type === "job" ? (
         <JobOrderModal
           initialValue={modal.value}
@@ -3086,8 +3642,35 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       {modal?.type === "receiving" ? (
         <RawReceivingModal
           initialValue={modal.value}
+          rawMaterials={data.rawMaterials}
           onClose={() => setModal(null)}
           onSave={saveReceiving}
+        />
+      ) : null}
+      {modal?.type === "raw-material-detail" ? (
+        <RawMaterialDetailModal
+          material={modal.material}
+          receivings={data.receivings}
+          movements={data.rawMaterialMovements}
+          stockChecks={data.rawStockChecks}
+          onClose={() => setModal(null)}
+        />
+      ) : null}
+      {modal?.type === "raw-material" ? (
+        <RawMaterialMasterModal
+          initialValue={modal.value}
+          categories={data.rawMaterialCategories}
+          onClose={() => setModal(null)}
+          onSave={saveRawMaterial}
+          onArchive={archiveRawMaterial}
+        />
+      ) : null}
+      {modal?.type === "raw-material-category" ? (
+        <RawMaterialCategoryModal
+          categories={data.rawMaterialCategories}
+          onClose={() => setModal(null)}
+          onSave={(form) => saveRawMaterialCategory(form, { keepOpen: true })}
+          onArchive={(category) => archiveRawMaterialCategory(category, { keepOpen: true })}
         />
       ) : null}
       {modal?.type === "production" ? (

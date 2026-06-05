@@ -2696,7 +2696,7 @@ Factory Phase 1A implemented scope:
 - Factory Dashboard UI.
 - Job Orders CRUD.
 - Raw Material Receiving CRUD.
-- Raw material receiving creates raw material master rows when needed.
+- Raw material receiving uses Raw Material Master records as the valid material source.
 - Raw material receiving adjusts raw material balance.
 - Raw material receiving creates raw material movement history.
 - Audit logs are written for business-critical job order and raw receiving actions.
@@ -2821,6 +2821,26 @@ Factory Finished Goods Master and Warehouse implemented scope:
 - Finished Goods and Product Movements must not create duplicate stock balance logic.
 - Product Movements remains read-only and uses `factory_product_stock_movements` and production header history for context.
 
+Factory Raw Material Master and Inventory implemented scope:
+
+- Raw Material Inventory is a functional master-plus-inventory page through `factory_raw_inventory`.
+- Raw Material Master setup supports Create, Edit and Archive.
+- Raw Material fields include Raw Material Name EN, Raw Material Name CN, Raw Material Name BM, Raw Material Code, Category, Default UOM, Min Stock Level, Preferred Supplier, Storage Location, Active/Archived status and Remarks.
+- Raw Material Name EN is the canonical material name and is mirrored to `factory_raw_materials.name` for existing production/report matching.
+- Raw Material category selection must use a searchable FeedX-style selector, show "Select Category" before selection, and require a category before save.
+- Raw Material Category setup supports Create, Edit and Archive through `factory_raw_material_categories`.
+- Raw Material Categories must be managed inside the Category modal/drawer only, not as a main-page table.
+- Raw Material Inventory listing shows Product Name EN/CN/BM equivalent raw material names where available, raw material code, category, UOM, current balance, min stock, last receiving date, last consumption date, status, stock status and actions.
+- Raw Material Inventory dashboard cards show Total Raw Materials, Total Stock Qty, Low Stock Items and Out of Stock Items.
+- Raw Material Inventory insight panels include Low Stock List, Recent Receiving, Recent Consumption and Can Produce Estimate when active Product Recipe data is available.
+- Raw Material detail shows current balance, receiving history, consumption/movement history, stock check history, latest unit cost and supplier cost trend when receiving cost data is available.
+- Raw Material archive is blocked while current balance is greater than zero and must show: "Cannot archive while stock balance is greater than zero."
+- Raw Material Receiving must select an active Raw Material Master record and must not allow free-text raw material stock-in when master records exist.
+- Receiving defaults UOM and storage location from the selected Raw Material where available, but receiving UOM remains editable for operational receipt differences.
+- Product Recipe BOM and Production material usage must select active Raw Material Master records where possible.
+- Production actual usage remains the source of raw material stock deduction.
+- Raw Material Master and Inventory must not create duplicate stock balance logic; balances remain updated by receiving, production actual usage and approved stock check adjustments through existing movement/balance helpers.
+
 Factory Product Recipes implemented scope:
 
 - Product Recipes is a functional Factory Master Data page through `factory_product_recipes`.
@@ -2885,7 +2905,7 @@ Factory sidebar modules:
 - Factory Audit Logs
 - Factory Settings
 
-Current functional Factory modules after Factory Finished Goods Master optimization:
+Current functional Factory modules after Raw Material Master optimization:
 
 - Factory Dashboard.
 - Job Orders.
@@ -2896,13 +2916,13 @@ Current functional Factory modules after Factory Finished Goods Master optimizat
 - Product Movements.
 - Product Stock Check.
 - Raw Material Receiving.
+- Raw Material Inventory.
 - Raw Material Stock Check.
+- Product Recipes.
 - Production SOP.
 
 Current registered Factory placeholder modules:
 
-- Raw Material Inventory.
-- Product Recipes.
 - Factory Audit Logs.
 - Factory Settings.
 

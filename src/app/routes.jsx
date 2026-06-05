@@ -231,6 +231,12 @@ const routeDetails = {
     permission: "factory_raw_receiving.view",
     props: { initialTab: "raw-receiving" },
   },
+  factory_raw_inventory: {
+    description: "Manage raw material master data and monitor factory raw material balances.",
+    component: FactoryWorkspacePage,
+    permission: "factory_raw_inventory.view",
+    props: { initialTab: "raw-inventory" },
+  },
   factory_raw_stock_check: {
     description: "Count factory raw material stock, review variance and approve controlled adjustments.",
     component: FactoryWorkspacePage,
