@@ -148,6 +148,12 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 
 ## 2026-06-05
 
+### Factory
+- Linked Factory Job Orders to active Finished Goods Master products through `finished_good_id`, replacing free-text product planning for new job orders.
+- Updated Job Orders UX with Finished Good searchable selection, planning KPI cards, requested planning columns, locked completed/cancelled edit behavior, and active Finished Good validation.
+- Updated Production Records so ready jobs are limited to planned/in-progress Job Orders and completion starts from the selected Job Order with Finished Good, target quantity, UOM, recipe and SOP references auto-filled where available.
+- Hardened production completion so finished goods stock-in uses the selected active Finished Goods master product, creates the production/material/movement records, updates the Job Order to completed, and preserves batch traceability.
+
 ### RBAC
 - Added explicit `sales_input.import` and `purchase_input.import` permissions so Sales Input and Purchase Input imports can be enabled independently from create/edit access.
 - Updated import workflow permission checks and `import_batches` / `import_batch_rows` RLS coverage so module imports require the owning module import permission, while preserving Owner/Admin protected-role behavior.

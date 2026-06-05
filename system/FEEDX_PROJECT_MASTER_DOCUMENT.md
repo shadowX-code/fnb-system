@@ -2704,6 +2704,15 @@ Factory Phase 1A implemented scope:
 Factory Phase 1B implemented scope:
 
 - Production execution starts from a Factory Job Order.
+- A Factory Job Order is a production planning task, not an actual production result.
+- New Factory Job Orders must select an active Finished Goods Master item from `factory_finished_goods`.
+- Job Orders store `finished_good_id`, `target_quantity`, `uom`, `planned_date`, `due_date`, `priority`, `assigned_team`, `status` and `remarks`.
+- Finished Goods Master is the valid SKU source for production planning; new Job Orders must not rely on free-text product names when Finished Goods Master exists.
+- Archived Finished Goods products cannot be selected for new Job Orders.
+- Completed and cancelled Job Orders are operationally closed; only remarks should be changed after closure.
+- Production Records represent actual execution/completion.
+- Production Records list ready Job Orders with `planned` and `in_progress` statuses.
+- Production completion starts from a selected Job Order and auto-fills Finished Good, target quantity, UOM, and available Recipe/SOP reference by product.
 - Production completion captures batch number, production date, operator, start time, end time, actual produced quantity, good output quantity, wastage quantity, QC status and notes.
 - Production material usage captures raw material, standard usage, actual usage, variance quantity, variance percent and variance reason.
 - Actual material usage is the source of truth for raw material deduction.
@@ -2717,6 +2726,7 @@ Factory Phase 1B implemented scope:
   - finished goods balance increase for an existing active `factory_finished_goods` master product.
   - `factory_product_stock_movements` finished goods stock-in row.
   - Factory Job Order status update to `completed`.
+- Production completion must stock-in to the Finished Goods product linked to the selected Job Order and must not stock-in to a free-text product.
 - Production completion must not auto-create finished goods master products. A Finished Goods product must be created and active before production stock-in.
 - Production dashboard and activity cards include completed production, good output and high-variance usage signals.
 

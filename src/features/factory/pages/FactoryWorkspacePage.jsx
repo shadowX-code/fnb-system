@@ -67,7 +67,7 @@ function inputClass(error) {
   }`;
 }
 
-function SearchableSelect({ value, options, placeholder, onChange, error }) {
+function SearchableSelect({ value, options, placeholder, onChange, error, searchPlaceholder = "Search", emptyText = "No matching options", disabled = false }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const selected = options.find((option) => option.value === value);
@@ -75,13 +75,13 @@ function SearchableSelect({ value, options, placeholder, onChange, error }) {
 
   return (
     <div className="relative">
-      <button className={`${inputClass(error)} flex items-center justify-between text-left`} type="button" onClick={() => setOpen((current) => !current)}>
+      <button className={`${inputClass(error)} flex items-center justify-between text-left disabled:cursor-not-allowed disabled:opacity-70`} type="button" disabled={disabled} onClick={() => setOpen((current) => !current)}>
         <span className={selected ? "text-text-primary" : "text-text-muted"}>{selected?.label || placeholder}</span>
         <span className="text-xs text-text-muted">Search</span>
       </button>
       {open ? (
         <div className="absolute left-0 right-0 z-40 mt-2 rounded-xl border border-border bg-white p-2 shadow-xl">
-          <input className={inputClass()} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search category" autoFocus />
+          <input className={inputClass()} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={searchPlaceholder} autoFocus />
           <div className="mt-2 max-h-56 overflow-y-auto">
             {visibleOptions.length ? visibleOptions.map((option) => (
               <button
@@ -97,12 +97,20 @@ function SearchableSelect({ value, options, placeholder, onChange, error }) {
                 <span className="block">{option.label}</span>
                 {option.helper ? <span className="block text-xs text-text-secondary">{option.helper}</span> : null}
               </button>
-            )) : <div className="px-3 py-4 text-sm font-semibold text-text-secondary">No matching categories</div>}
+            )) : <div className="px-3 py-4 text-sm font-semibold text-text-secondary">{emptyText}</div>}
           </div>
         </div>
       ) : null}
     </div>
   );
+}
+
+function finishedGoodLabel(product) {
+  return product?.product_name_en || product?.product_name || "";
+}
+
+function finishedGoodHelper(product) {
+  return [product?.product_code, product?.product_name_cn || product?.product_name_bm, product?.uom].filter(Boolean).join(" · ");
 }
 
 function WarehouseBarList({ rows, valueLabel }) {
@@ -563,8 +571,9 @@ function FinishedGoodCategoryModal({ categories, onClose, onSave, onArchive }) {
   );
 }
 
-function JobOrderModal({ initialValue, onClose, onSave }) {
+function JobOrderModal({ initialValue, finishedGoods, onClose, onSave }) {
   const [form, setForm] = useState(() => ({
+    finished_good_id: "",
     product_name: "",
     target_quantity: "",
     produced_quantity: 0,
@@ -579,12 +588,28 @@ function JobOrderModal({ initialValue, onClose, onSave }) {
   }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const isClosed = ["completed", "cancelled"].includes(initialValue?.status);
+  const activeFinishedGoods = finishedGoods.filter((product) => product.status === "active" || product.id === form.finished_good_id);
+  const finishedGoodOptions = activeFinishedGoods.map((product) => ({
+    value: product.id,
+    label: finishedGoodLabel(product),
+    helper: finishedGoodHelper(product),
+  }));
 
   async function submit(event) {
     event.preventDefault();
     setError("");
-    if (!String(form.product_name || "").trim()) {
-      setError("Product name is required.");
+    if (isClosed) {
+      setSaving(true);
+      try {
+        await onSave(form);
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+    if (!form.finished_good_id) {
+      setError("Select an active finished good product.");
       return;
     }
     if (Number(form.target_quantity || 0) <= 0) {
@@ -593,7 +618,8 @@ function JobOrderModal({ initialValue, onClose, onSave }) {
     }
     setSaving(true);
     try {
-      await onSave(form);
+      const selectedProduct = activeFinishedGoods.find((product) => product.id === form.finished_good_id);
+      await onSave({ ...form, product_name: selectedProduct?.product_name || form.product_name, uom: form.uom || selectedProduct?.uom || "" });
     } finally {
       setSaving(false);
     }
@@ -608,40 +634,58 @@ function JobOrderModal({ initialValue, onClose, onSave }) {
       footer={(
         <>
           <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="submit" form="factory-job-order-form" disabled={saving}>{saving ? "Saving..." : "Save Job Order"}</button>
+          <button className="btn-primary" type="submit" form="factory-job-order-form" disabled={saving}>{saving ? "Saving..." : isClosed ? "Update Remarks" : "Save Job Order"}</button>
         </>
       )}
     >
       <form id="factory-job-order-form" className="space-y-4" onSubmit={submit}>
         {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
+        {isClosed ? <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">Completed and cancelled job orders are locked. Only remarks can be updated.</div> : null}
         <div className="grid gap-3 md:grid-cols-2">
-          <Field label="Product Name">
-            <input className={inputClass()} value={form.product_name} onChange={(event) => setForm((current) => ({ ...current, product_name: event.target.value }))} />
+          <Field label="Finished Good" error={!form.finished_good_id && error.includes("finished good") ? "Finished good is required." : ""}>
+            <SearchableSelect
+              value={form.finished_good_id || ""}
+              options={finishedGoodOptions}
+              placeholder={activeFinishedGoods.length ? "Select Finished Good" : "Create an active Finished Good first"}
+              searchPlaceholder="Search finished goods"
+              emptyText="No matching finished goods"
+              error={!form.finished_good_id && error.includes("finished good")}
+              disabled={isClosed}
+              onChange={(finishedGoodId) => {
+                const product = activeFinishedGoods.find((item) => item.id === finishedGoodId);
+                setForm((current) => ({
+                  ...current,
+                  finished_good_id: finishedGoodId,
+                  product_name: product?.product_name || "",
+                  uom: product?.uom || current.uom,
+                }));
+              }}
+            />
           </Field>
           <Field label="Assigned Team">
-            <input className={inputClass()} value={form.assigned_team || ""} onChange={(event) => setForm((current) => ({ ...current, assigned_team: event.target.value }))} />
+            <input className={inputClass()} value={form.assigned_team || ""} disabled={isClosed} onChange={(event) => setForm((current) => ({ ...current, assigned_team: event.target.value }))} />
           </Field>
           <Field label="Target Quantity">
-            <input className={inputClass()} type="number" min="0" step="0.01" value={form.target_quantity} onChange={(event) => setForm((current) => ({ ...current, target_quantity: event.target.value }))} />
+            <input className={inputClass()} type="number" min="0" step="0.01" value={form.target_quantity} disabled={isClosed} onChange={(event) => setForm((current) => ({ ...current, target_quantity: event.target.value }))} />
           </Field>
           <Field label="UOM">
-            <select className={inputClass()} value={form.uom} onChange={(event) => setForm((current) => ({ ...current, uom: event.target.value }))}>
+            <select className={inputClass()} value={form.uom} disabled={isClosed} onChange={(event) => setForm((current) => ({ ...current, uom: event.target.value }))}>
               {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
             </select>
           </Field>
           <Field label="Planned Date">
-            <input className={inputClass()} type="date" value={form.planned_date || ""} onChange={(event) => setForm((current) => ({ ...current, planned_date: event.target.value }))} />
+            <input className={inputClass()} type="date" value={form.planned_date || ""} disabled={isClosed} onChange={(event) => setForm((current) => ({ ...current, planned_date: event.target.value }))} />
           </Field>
           <Field label="Due Date">
-            <input className={inputClass()} type="date" value={form.due_date || ""} onChange={(event) => setForm((current) => ({ ...current, due_date: event.target.value }))} />
+            <input className={inputClass()} type="date" value={form.due_date || ""} disabled={isClosed} onChange={(event) => setForm((current) => ({ ...current, due_date: event.target.value }))} />
           </Field>
           <Field label="Priority">
-            <select className={inputClass()} value={form.priority} onChange={(event) => setForm((current) => ({ ...current, priority: event.target.value }))}>
+            <select className={inputClass()} value={form.priority} disabled={isClosed} onChange={(event) => setForm((current) => ({ ...current, priority: event.target.value }))}>
               {priorityOptions.map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
           </Field>
           <Field label="Status">
-            <select className={inputClass()} value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
+            <select className={inputClass()} value={form.status} disabled={isClosed} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
               {jobStatusOptions.map((option) => <option key={option} value={option}>{option.replace(/_/g, " ")}</option>)}
             </select>
           </Field>
@@ -777,10 +821,11 @@ function buildInitialUsageRows(job, rawMaterials, recipes) {
 
 function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops, finishedGoods = [], auth, onClose, onSave }) {
   const activeFinishedGoods = finishedGoods.filter((product) => product.status === "active");
-  const matchingFinishedGood = activeFinishedGoods.find((product) => product.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
+  const matchingFinishedGood = activeFinishedGoods.find((product) => product.id === job.finished_good_id) || activeFinishedGoods.find((product) => product.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
   const matchingSop = sops.find((sop) => sop.status !== "inactive" && sop.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
   const [form, setForm] = useState(() => ({
     job_order_id: job.id,
+    finished_good_id: matchingFinishedGood?.id || job.finished_good_id || "",
     production_no: "",
     product_name: matchingFinishedGood?.product_name || job.product_name || "",
     batch_no: "",
@@ -838,9 +883,9 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
   }
 
   function validate() {
-    if (!String(form.product_name || "").trim()) return "Product name is required.";
-    const finishedGood = activeFinishedGoods.find((product) => product.product_name.toLowerCase() === String(form.product_name || "").trim().toLowerCase());
-    if (!finishedGood) return "Create a finished good product before production stock-in.";
+    if (!form.job_order_id) return "Select a job order before completing production.";
+    const finishedGood = activeFinishedGoods.find((product) => product.id === form.finished_good_id);
+    if (!finishedGood) return "Production must start from a job order linked to an active finished good.";
     if (Number(form.good_output_qty || 0) <= 0) return "Good output quantity must be greater than 0.";
     if (!form.material_usage.length) return "At least one material usage row is required.";
     const invalidRow = form.material_usage.find((row) => !row.raw_material_id || Number(row.actual_usage || 0) < 0);
@@ -890,21 +935,20 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
           <MetricCard icon={Factory} label="Good Output" value={quantity(form.good_output_qty, form.uom)} helper="Finished goods stock-in" />
           <MetricCard icon={AlertTriangle} label="High Variance" value={highVarianceRows.length} helper="Requires reason above 5%" tone={highVarianceRows.length ? "warning" : "success"} />
         </div>
+        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+          <div className="text-xs font-semibold uppercase tracking-wide text-primary">Selected Job Order</div>
+          <div className="mt-1 text-lg font-bold text-text-primary">{job.job_order_no} · {finishedGoodLabel(matchingFinishedGood) || job.product_name}</div>
+          <div className="mt-1 text-sm font-semibold text-text-secondary">
+            Target {quantity(job.target_quantity, job.uom)} · Due {job.due_date || "No due date"} · SKU {job.product_code || "No SKU"}
+          </div>
+        </div>
         <div className="grid gap-3 md:grid-cols-3">
           <Field label="Finished Good Product">
-            <select
-              className={inputClass(submitAttempted && !activeFinishedGoods.some((product) => product.product_name.toLowerCase() === String(form.product_name || "").trim().toLowerCase()))}
-              value={form.product_name || ""}
-              onChange={(event) => {
-                const product = activeFinishedGoods.find((item) => item.product_name === event.target.value);
-                setForm((current) => ({ ...current, product_name: event.target.value, uom: product?.uom || current.uom }));
-              }}
-            >
-              <option value="">{activeFinishedGoods.length ? "Select finished good" : "No active finished goods"}</option>
-              {activeFinishedGoods.map((product) => (
-                <option key={product.id} value={product.product_name}>{product.product_name_en || product.product_name} · {product.product_name_cn || product.product_name_bm || product.product_code || "No local name"}</option>
-              ))}
-            </select>
+            <input
+              className={inputClass(submitAttempted && !matchingFinishedGood)}
+              value={matchingFinishedGood ? `${finishedGoodLabel(matchingFinishedGood)}${matchingFinishedGood.product_code ? ` · ${matchingFinishedGood.product_code}` : ""}` : "No active linked finished good"}
+              readOnly
+            />
           </Field>
           <Field label="Batch No.">
             <input className={inputClass()} value={form.batch_no || ""} onChange={(event) => setForm((current) => ({ ...current, batch_no: event.target.value }))} />
@@ -1437,6 +1481,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   const metrics = useMemo(() => {
     const openJobs = data.jobOrders.filter((job) => !["completed", "cancelled"].includes(job.status));
+    const draftJobs = data.jobOrders.filter((job) => job.status === "draft");
+    const plannedJobs = data.jobOrders.filter((job) => job.status === "planned");
+    const inProgressJobs = data.jobOrders.filter((job) => job.status === "in_progress");
+    const today = todayInput();
+    const overdueJobs = data.jobOrders.filter((job) => job.due_date && job.due_date < today && !["completed", "cancelled"].includes(job.status));
     const completedJobs = data.jobOrders.filter((job) => job.status === "completed");
     const lowStock = data.rawMaterials.filter((item) => item.status !== "inactive" && Number(item.current_balance || 0) <= Number(item.min_stock_level || 0));
     const receivingValue = data.receivings.reduce((sum, row) => sum + Number(row.total_cost || 0), 0);
@@ -1520,6 +1569,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const topVarianceRawMaterials = [...varianceByMaterial.values()].sort((a, b) => Math.abs(b.variance_qty) - Math.abs(a.variance_qty)).slice(0, 5);
     return {
       openJobs,
+      draftJobs,
+      plannedJobs,
+      inProgressJobs,
+      overdueJobs,
       completedJobs,
       lowStock,
       receivingValue,
@@ -1733,18 +1786,21 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   );
 
   const jobColumns = [
-    { key: "job", label: "Job Order", render: (row) => <div><div className="font-bold text-text-primary">{row.job_order_no}</div><div className="text-xs text-text-secondary">{row.product_name}</div></div> },
-    { key: "target", label: "Target", render: (row) => quantity(row.target_quantity, row.uom) },
+    { key: "job_order_no", label: "JO No", render: (row) => <div className="font-bold text-text-primary">{row.job_order_no}</div> },
+    { key: "finished_good", label: "Finished Good", render: (row) => <div><div className="font-semibold text-text-primary">{row.product_name}</div><div className="text-xs text-text-secondary">{row.product_name_cn || row.product_name_bm || "Master product"}</div></div> },
+    { key: "product_code", label: "SKU", render: (row) => row.product_code || "—" },
+    { key: "target", label: "Target Qty", render: (row) => quantity(row.target_quantity, row.uom) },
     { key: "planned_date", label: "Planned Date", render: (row) => row.planned_date || "—" },
+    { key: "due_date", label: "Due Date", render: (row) => row.due_date || "—" },
     { key: "priority", label: "Priority", render: (row) => <Badge tone={row.priority === "Urgent" || row.priority === "High" ? "warning" : "neutral"}>{row.priority}</Badge> },
     { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{row.status.replace(/_/g, " ")}</Badge> },
     { key: "actions", label: "Actions", align: "right", render: (row) => (
       <div className="flex justify-end gap-2">
-        {!["completed", "cancelled"].includes(row.status) && can("factory_production.complete") ? (
+        {["planned", "in_progress"].includes(row.status) && can("factory_production.complete") ? (
           <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production", job: row })}><Play size={13} /> Start Production</button>
         ) : null}
-        {can("factory_job_orders.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "job", value: row })}>Edit</button> : null}
-        {can("factory_job_orders.delete") ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => deleteJobOrder(row)}>Delete</button> : null}
+        {can("factory_job_orders.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "job", value: row })}>{["completed", "cancelled"].includes(row.status) ? "Remarks" : "Edit"}</button> : null}
+        {!["completed", "cancelled"].includes(row.status) && can("factory_job_orders.delete") ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => deleteJobOrder(row)}>Delete</button> : null}
       </div>
     ) },
   ];
@@ -2082,8 +2138,14 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           description="Create, update and monitor factory production job orders."
           actions={can("factory_job_orders.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "job" })}><Plus size={15} /> Create Job Order</button> : null}
         />
+        <div className="grid gap-3 md:grid-cols-4">
+          <MetricCard icon={ClipboardCheck} label="Draft" value={metrics.draftJobs.length} helper="Planning not released" />
+          <MetricCard icon={Clock3} label="Planned" value={metrics.plannedJobs.length} helper="Ready for production" tone={metrics.plannedJobs.length ? "info" : "neutral"} />
+          <MetricCard icon={Factory} label="In Progress" value={metrics.inProgressJobs.length} helper="Production started" tone={metrics.inProgressJobs.length ? "warning" : "neutral"} />
+          <MetricCard icon={AlertTriangle} label="Overdue" value={metrics.overdueJobs.length} helper="Past due date" tone={metrics.overdueJobs.length ? "danger" : "success"} />
+        </div>
         <Card title="Job Order Records" description={`Showing ${data.jobOrders.length} job order(s).`}>
-          <FactoryTable columns={jobColumns} rows={data.jobOrders} emptyTitle="No job orders" emptyDescription="Create your first factory job order." />
+          <FactoryTable columns={jobColumns} rows={data.jobOrders} emptyTitle="No job orders" emptyDescription="Create a finished good product first, then plan production demand with a job order." />
         </Card>
       </div>
     );
@@ -2155,7 +2217,39 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   function renderProduction() {
-    const readyJobs = data.jobOrders.filter((job) => !["completed", "cancelled"].includes(job.status));
+    const recipeForJob = (job) => data.recipes.find((recipe) => recipe.status === "active" && recipe.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
+    const sopForJob = (job) => data.sops.find((sop) => sop.status !== "inactive" && sop.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
+    const readinessForJob = (job) => {
+      const recipe = recipeForJob(job);
+      if (!recipe?.items?.length) return { label: "No recipe", tone: "warning" };
+      const shortages = recipe.items.filter((item) => {
+        const material = data.rawMaterials.find((raw) => raw.id === item.raw_material_id);
+        const required = (Number(item.quantity_used || 0) * Number(job.target_quantity || 0)) / (Number(recipe.yield_quantity || 1) || 1);
+        return Number(material?.current_balance || 0) < required;
+      });
+      if (shortages.length) return { label: `${shortages.length} shortage`, tone: "danger" };
+      return { label: "Ready", tone: "success" };
+    };
+    const readyJobs = data.jobOrders.filter((job) => ["planned", "in_progress"].includes(job.status));
+    const productionReadyJobColumns = [
+      { key: "job", label: "Job Order", render: (row) => <div><div className="font-bold text-text-primary">{row.job_order_no}</div><div className="text-xs text-text-secondary">{row.priority} · {row.status.replace(/_/g, " ")}</div></div> },
+      { key: "finished_good", label: "Finished Good", render: (row) => <div><div className="font-semibold text-text-primary">{row.product_name}</div><div className="text-xs text-text-secondary">{row.product_code || "No SKU"}</div></div> },
+      { key: "target", label: "Target Qty", render: (row) => quantity(row.target_quantity, row.uom) },
+      { key: "due_date", label: "Due Date", render: (row) => row.due_date || "—" },
+      { key: "recipe", label: "Recipe", render: (row) => {
+        const recipe = recipeForJob(row);
+        return <Badge tone={recipe ? "success" : "warning"}>{recipe ? recipe.recipe_code || "Available" : "Missing"}</Badge>;
+      } },
+      { key: "sop", label: "SOP", render: (row) => {
+        const sop = sopForJob(row);
+        return <Badge tone={sop ? "success" : "neutral"}>{sop ? sop.version || "Available" : "No SOP"}</Badge>;
+      } },
+      { key: "readiness", label: "RM Readiness", render: (row) => {
+        const readiness = readinessForJob(row);
+        return <Badge tone={readiness.tone}>{readiness.label}</Badge>;
+      } },
+      { key: "actions", label: "Actions", align: "right", render: (row) => can("factory_production.complete") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production", job: row })}><Play size={13} /> Start</button> : null },
+    ];
     return (
       <div className="space-y-5">
         <PageHeader
@@ -2172,7 +2266,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         </div>
         <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
           <Card title="Ready Job Orders" description="Start production from a planned or in-progress job order.">
-            <FactoryTable columns={jobColumns} rows={readyJobs} emptyTitle="No jobs ready for production" emptyDescription="Create or reopen a job order before starting production." />
+            <FactoryTable columns={productionReadyJobColumns} rows={readyJobs} emptyTitle="No jobs ready for production" emptyDescription="Plan a job order and set it to planned or in progress before production execution." />
           </Card>
           <Card title="Finished Goods Stock" description="Balances created from completed production stock-in movements.">
             <FactoryTable columns={finishedGoodsColumns} rows={data.finishedGoods.slice(0, 8)} emptyTitle="No finished goods stock" emptyDescription="Complete production to stock in finished goods." />
@@ -2658,6 +2752,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       {modal?.type === "job" ? (
         <JobOrderModal
           initialValue={modal.value}
+          finishedGoods={data.finishedGoods}
           onClose={() => setModal(null)}
           onSave={saveJobOrder}
         />

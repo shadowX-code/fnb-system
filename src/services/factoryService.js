@@ -8,13 +8,20 @@ function normalizeNumber(value, fallback = 0) {
 }
 
 function mapJobOrder(row) {
+  const finishedGood = row.finished_good || {};
   return {
     id: row.id,
     job_order_no: row.job_order_no,
-    product_name: row.product_name,
+    finished_good_id: row.finished_good_id || "",
+    product_code: finishedGood.product_code || "",
+    product_name: finishedGood.product_name || row.product_name || "",
+    product_name_en: finishedGood.product_name_en || finishedGood.product_name || row.product_name || "",
+    product_name_cn: finishedGood.product_name_cn || "",
+    product_name_bm: finishedGood.product_name_bm || "",
+    finished_good_status: finishedGood.status || "",
     target_quantity: normalizeNumber(row.target_quantity),
     produced_quantity: normalizeNumber(row.produced_quantity),
-    uom: row.uom || "",
+    uom: row.uom || finishedGood.uom || "",
     planned_date: row.planned_date || "",
     due_date: row.due_date || "",
     priority: row.priority || "Normal",
@@ -110,8 +117,14 @@ function mapProduction(row) {
   return {
     id: row.id,
     job_order_id: row.job_order_id || "",
+    finished_good_id: row.finished_good_id || row.job_order?.finished_good_id || "",
     production_no: row.production_no || "",
-    product_name: row.product_name || "",
+    product_code: row.finished_good?.product_code || row.job_order?.finished_good?.product_code || "",
+    product_name: row.finished_good?.product_name || row.product_name || row.job_order?.product_name || "",
+    product_name_en: row.finished_good?.product_name_en || row.finished_good?.product_name || row.product_name || "",
+    product_name_cn: row.finished_good?.product_name_cn || "",
+    product_name_bm: row.finished_good?.product_name_bm || "",
+    job_order_no: row.job_order?.job_order_no || "",
     batch_no: row.batch_no || "",
     produced_quantity: normalizeNumber(row.produced_quantity),
     actual_produced_qty: normalizeNumber(row.actual_produced_qty || row.produced_quantity),
@@ -375,7 +388,9 @@ function emptyFactoryData() {
   };
 }
 
-const productionSelectBasic = "id,job_order_id,production_no,product_name,batch_no,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,operator_id,operator_name,start_time,end_time,qc_status,production_sop_id,sop_version,status,notes,created_by,completed_at,created_at,updated_at";
+const finishedGoodSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,uom,status";
+const jobOrderSelect = `id,job_order_no,finished_good_id,product_name,target_quantity,produced_quantity,uom,planned_date,due_date,priority,status,assigned_team,remarks,created_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect})`;
+const productionSelectBasic = `id,job_order_id,finished_good_id,production_no,product_name,batch_no,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,operator_id,operator_name,start_time,end_time,qc_status,production_sop_id,sop_version,status,notes,created_by,completed_at,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),job_order:factory_job_orders(job_order_no,finished_good_id,product_name,finished_good:factory_finished_goods(product_code,product_name))`;
 const productionSelectDetailed = `${productionSelectBasic},material_usage:factory_production_material_usage(id,production_id,raw_material_id,raw_material_receiving_id,raw_material_lot_no,quantity_used,standard_usage,actual_usage,variance_qty,variance_percent,variance_reason,uom,wastage_quantity,notes,created_at,updated_at,raw_material:factory_raw_materials(name,uom),raw_receiving:factory_raw_material_receivings(receipt_no,batch_no,supplier_name,received_date,unit_cost)),qc_checkpoints:factory_production_qc_checkpoints(id,production_id,production_sop_id,sop_step_id,step_no,process_name,control_point,qc_status,notes,created_at,updated_at)`;
 
 function factoryDataPlan(scope, hasPermission) {
@@ -401,7 +416,7 @@ function factoryDataPlan(scope, hasPermission) {
     receivings: (isDashboard && can("factory_dashboard.view")) || (isRawReceiving && can("factory_raw_receiving.view")) || (isReports && can("factory_production_reports.view")) || ((isProduction || isBatchTraceability) && can("factory_raw_receiving.view")),
     productions: needsProductionSummary && (can("factory_dashboard.view") || can("factory_production.view") || canReadProductionReports || can("factory_finished_goods.view") || can("factory_product_movements.view")),
     productionDetails: needsProductionDetails,
-    finishedGoods: (isDashboard && can("factory_dashboard.view")) || ((isProduction || isFinishedGoods || isProductMovements) && can("factory_finished_goods.view")) || (isProduction && can("factory_production.complete")) || (isProductStockCheck && can("factory_product_stock_check.view")),
+    finishedGoods: (isDashboard && can("factory_dashboard.view")) || (isJobOrders && (can("factory_job_orders.view") || can("factory_job_orders.create") || can("factory_job_orders.edit"))) || ((isProduction || isFinishedGoods || isProductMovements) && can("factory_finished_goods.view")) || (isProduction && can("factory_production.complete")) || (isProductStockCheck && can("factory_product_stock_check.view")),
     finishedGoodCategories: isFinishedGoods && can("factory_finished_goods.view"),
     productMovements: (isDashboard && can("factory_dashboard.view")) || ((isProduction || isProductMovements) && can("factory_product_movements.view")) || (isFinishedGoods && can("factory_finished_goods.view")) || (isReports && can("factory_product_movements.view")) || (isBatchTraceability && canTraceBatches),
     rawStockChecks: isRawStockCheck && can("factory_raw_stock_check.view"),
@@ -423,7 +438,7 @@ export const factoryService = {
 
     addTask(plan.jobOrders, "jobOrders", "Job Orders", () => supabase
       .from("factory_job_orders")
-      .select("id,job_order_no,product_name,target_quantity,produced_quantity,uom,planned_date,due_date,priority,status,assigned_team,remarks,created_by,created_at,updated_at")
+      .select(jobOrderSelect)
       .order("planned_date", { ascending: false })
       .limit(150), (rows) => rows.map(mapJobOrder));
     addTask(plan.rawMaterials, "rawMaterials", "Raw Materials", () => supabase
@@ -496,12 +511,55 @@ export const factoryService = {
 
   async saveJobOrder(order, employeeId) {
     const isUpdate = Boolean(order.id);
+    let finishedGood = null;
+    if (order.finished_good_id) {
+      const { data, error } = await supabase
+        .from("factory_finished_goods")
+        .select("id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,uom,status")
+        .eq("id", order.finished_good_id)
+        .single();
+      throwSupabaseError("factory.job_order.finished_good_lookup", error);
+      finishedGood = data;
+    }
+    if (!finishedGood?.id) throw new Error("Select an active finished good product.");
+    if (String(finishedGood.status || "").toLowerCase() !== "active") throw new Error("Archived Finished Goods cannot be selected.");
+
+    if (isUpdate) {
+      const { data: current, error: currentError } = await supabase
+        .from("factory_job_orders")
+        .select("id,status")
+        .eq("id", order.id)
+        .single();
+      throwSupabaseError("factory.job_order.current", currentError);
+      if (["completed", "cancelled"].includes(current?.status)) {
+        const remarksPayload = {
+          remarks: String(order.remarks || "").trim(),
+          updated_at: new Date().toISOString(),
+        };
+        const { data, error } = await supabase
+          .from("factory_job_orders")
+          .update(remarksPayload)
+          .eq("id", order.id)
+          .select(jobOrderSelect)
+          .single();
+        throwSupabaseError("factory.job_order.remarks", error);
+        await logFactoryAction({
+          action: "factory_job_order_remarks_updated",
+          target: data.job_order_no,
+          description: "Factory job order remarks updated after closure.",
+          after: data,
+        });
+        return mapJobOrder(data);
+      }
+    }
+
     const payload = {
       job_order_no: order.job_order_no || makeFactoryRef("JO"),
-      product_name: String(order.product_name || "").trim(),
+      finished_good_id: finishedGood.id,
+      product_name: finishedGood.product_name,
       target_quantity: normalizeNumber(order.target_quantity),
       produced_quantity: normalizeNumber(order.produced_quantity),
-      uom: order.uom || "",
+      uom: order.uom || finishedGood.uom || "",
       planned_date: order.planned_date || null,
       due_date: order.due_date || null,
       priority: order.priority || "Normal",
@@ -510,7 +568,6 @@ export const factoryService = {
       remarks: order.remarks || "",
       updated_at: new Date().toISOString(),
     };
-    if (!payload.product_name) throw new Error("Product name is required.");
     if (payload.target_quantity <= 0) throw new Error("Target quantity must be greater than 0.");
     if (!isUpdate) payload.created_by = employeeId || null;
 
@@ -519,7 +576,7 @@ export const factoryService = {
       : supabase.from("factory_job_orders").insert(payload);
 
     const { data, error } = await query
-      .select("id,job_order_no,product_name,target_quantity,produced_quantity,uom,planned_date,due_date,priority,status,assigned_team,remarks,created_by,created_at,updated_at")
+      .select(jobOrderSelect)
       .single();
     throwSupabaseError("factory.job_order.save", error);
     await logFactoryAction({
@@ -765,6 +822,7 @@ export const factoryService = {
     const productionNo = production.production_no || makeFactoryRef("PRD");
     const { data: productionId, error } = await supabase.rpc("factory_complete_production", {
       p_job_order_id: production.job_order_id || null,
+      p_finished_good_id: production.finished_good_id || null,
       p_production_no: productionNo,
       p_product_name: String(production.product_name || "").trim(),
       p_batch_no: production.batch_no || "",
@@ -788,7 +846,7 @@ export const factoryService = {
 
     const { data, error: fetchError } = await supabase
       .from("factory_productions")
-      .select("id,job_order_id,production_no,product_name,batch_no,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,operator_id,operator_name,start_time,end_time,qc_status,production_sop_id,sop_version,status,notes,created_by,completed_at,created_at,updated_at,production_sop:factory_production_sops(sop_code,title,version),material_usage:factory_production_material_usage(id,production_id,raw_material_id,raw_material_receiving_id,raw_material_lot_no,quantity_used,standard_usage,actual_usage,variance_qty,variance_percent,variance_reason,uom,wastage_quantity,notes,created_at,updated_at,raw_material:factory_raw_materials(name,uom),raw_receiving:factory_raw_material_receivings(receipt_no,batch_no,supplier_name,received_date)),qc_checkpoints:factory_production_qc_checkpoints(id,production_id,production_sop_id,sop_step_id,step_no,process_name,control_point,qc_status,notes,created_at,updated_at)")
+      .select(`${productionSelectDetailed},production_sop:factory_production_sops(sop_code,title,version)`)
       .eq("id", productionId)
       .single();
     throwSupabaseError("factory.production.fetch_completed", fetchError);
