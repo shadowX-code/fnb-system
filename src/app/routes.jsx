@@ -273,6 +273,12 @@ const routeDetails = {
     permission: "factory_product_stock_check.view",
     props: { initialTab: "product-stock-check" },
   },
+  factory_product_recipes: {
+    description: "Manage standard raw material BOMs for Finished Goods production defaults.",
+    component: FactoryWorkspacePage,
+    permission: "factory_product_recipes.view",
+    props: { initialTab: "product-recipes" },
+  },
   factory_production_sop: {
     description: "Manage standard production SOP steps and QC checkpoint references by product.",
     component: FactoryWorkspacePage,

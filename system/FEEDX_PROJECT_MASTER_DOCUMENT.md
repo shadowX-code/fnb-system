@@ -2821,6 +2821,26 @@ Factory Finished Goods Master and Warehouse implemented scope:
 - Finished Goods and Product Movements must not create duplicate stock balance logic.
 - Product Movements remains read-only and uses `factory_product_stock_movements` and production header history for context.
 
+Factory Product Recipes implemented scope:
+
+- Product Recipes is a functional Factory Master Data page through `factory_product_recipes`.
+- Product Recipes define the standard raw material BOM for Finished Goods production.
+- A Product Recipe must select an active Finished Goods Master product through `finished_good_id`.
+- Recipe header fields include Finished Good, Recipe Name, Version, Expected Yield Qty, Yield UOM, Draft/Active/Archived status and Remarks.
+- Recipe material rows are stored in `factory_product_recipe_items` and capture Raw Material, Standard Qty, UOM, Wastage %, Remarks and Sort Order.
+- One Finished Good can have only one active recipe version at a time.
+- Draft recipes can be edited; active and archived recipes remain readable for history.
+- Activating a recipe makes it the production material-usage default for that Finished Good.
+- Archiving a recipe removes it from production defaults but preserves history.
+- Production completion from a Job Order looks for the active recipe linked to the selected Finished Good.
+- If an active recipe exists, Production material usage rows are prefilled from recipe materials.
+- Standard usage defaults scale from recipe expected yield to the Job Order target quantity; Actual Usage defaults to Standard Usage but remains editable by staff.
+- Actual Usage remains the source of raw material stock deduction.
+- Product Recipe remains the standard reference only and must not be modified by production completion or actual usage variance.
+- If no active recipe exists, Production shows: "No active recipe found. Add material usage manually or create a Product Recipe first."
+- Existing production usage validation still requires at least one actual material usage row before completion.
+- Factory costing/reporting uses active Product Recipe BOM rows as the standard recipe source while actual production cost remains based on actual material usage.
+
 Factory Phase 1F implemented scope:
 
 - Recipe costing and raw material cost history foundation inside Factory Reports and Factory Dashboard analytics.

@@ -153,6 +153,8 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Updated Job Orders UX with Finished Good searchable selection, planning KPI cards, requested planning columns, locked completed/cancelled edit behavior, and active Finished Good validation.
 - Updated Production Records so ready jobs are limited to planned/in-progress Job Orders and completion starts from the selected Job Order with Finished Good, target quantity, UOM, recipe and SOP references auto-filled where available.
 - Hardened production completion so finished goods stock-in uses the selected active Finished Goods master product, creates the production/material/movement records, updates the Job Order to completed, and preserves batch traceability.
+- Completed Factory Product Recipes with Finished Good-linked recipe management, draft/active/archived lifecycle, BOM material rows, one-active-recipe guardrails, and recipe activation/archive actions.
+- Production completion now prefills material usage from the active Finished Good recipe where available, scaling standard usage by job target quantity while leaving actual usage editable for stock deduction and variance tracking.
 
 ### RBAC
 - Added explicit `sales_input.import` and `purchase_input.import` permissions so Sales Input and Purchase Input imports can be enabled independently from create/edit access.

@@ -10,6 +10,7 @@ import { factoryService } from "../../../services/factoryService.js";
 
 const priorityOptions = ["Low", "Normal", "High", "Urgent"];
 const jobStatusOptions = ["draft", "planned", "in_progress", "completed", "cancelled"];
+const recipeStatusOptions = ["draft", "active", "archived"];
 const commonUoms = ["kg", "g", "litre", "ml", "pcs", "carton", "pail", "bottle", "pack"];
 const qcStatusOptions = ["Pending", "Pass", "Hold", "Failed"];
 const varianceThresholdPercent = 5;
@@ -797,14 +798,16 @@ function RawReceivingModal({ initialValue, onClose, onSave }) {
 }
 
 function buildInitialUsageRows(job, rawMaterials, recipes) {
-  const matchingRecipe = recipes.find((recipe) => recipe.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
+  const matchingRecipe = recipes.find((recipe) => recipe.status === "active" && recipe.finished_good_id === job.finished_good_id)
+    || recipes.find((recipe) => recipe.status === "active" && recipe.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
   if (matchingRecipe?.items?.length) {
-    const targetQuantity = Number(job.target_quantity || 0);
+    const targetQuantity = Number(job.actual_produced_qty || job.target_quantity || 0);
     const recipeYield = Number(matchingRecipe.yield_quantity || 1) || 1;
     return matchingRecipe.items.map((item) => {
       const standardUsage = (Number(item.quantity_used || 0) * targetQuantity) / recipeYield;
       return {
         id: `recipe-${item.id}`,
+        recipe_item_id: item.id,
         raw_material_id: item.raw_material_id,
         standard_usage: Number(standardUsage.toFixed(4)),
         actual_usage: Number(standardUsage.toFixed(4)),
@@ -819,9 +822,219 @@ function buildInitialUsageRows(job, rawMaterials, recipes) {
   return [];
 }
 
+function ProductRecipeModal({ initialValue, finishedGoods, rawMaterials, onClose, onSave }) {
+  const [form, setForm] = useState(() => ({
+    recipe_code: "",
+    finished_good_id: "",
+    recipe_name: "",
+    version: "v1",
+    yield_quantity: "",
+    uom: "kg",
+    status: "draft",
+    remarks: "",
+    ...initialValue,
+    items: initialValue?.items?.length ? initialValue.items.map((item, index) => ({ ...item, remarks: item.remarks || item.notes || "", sort_order: item.sort_order || index + 1 })) : [
+      { id: "item-1", raw_material_id: "", quantity_used: "", uom: "kg", wastage_percent: 0, remarks: "", sort_order: 1 },
+    ],
+  }));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const isLocked = initialValue?.status && initialValue.status !== "draft";
+  const activeFinishedGoods = finishedGoods.filter((product) => product.status === "active" || product.id === form.finished_good_id);
+  const finishedGoodOptions = activeFinishedGoods.map((product) => ({ value: product.id, label: finishedGoodLabel(product), helper: finishedGoodHelper(product) }));
+
+  function updateItem(rowId, patch) {
+    setForm((current) => ({
+      ...current,
+      items: current.items.map((item) => (item.id === rowId ? { ...item, ...patch } : item)),
+    }));
+  }
+
+  function addItem() {
+    setForm((current) => ({
+      ...current,
+      items: [
+        ...current.items,
+        { id: `item-${Date.now()}`, raw_material_id: "", quantity_used: "", uom: "kg", wastage_percent: 0, remarks: "", sort_order: current.items.length + 1 },
+      ],
+    }));
+  }
+
+  function removeItem(rowId) {
+    setForm((current) => ({
+      ...current,
+      items: current.items.filter((item) => item.id !== rowId).map((item, index) => ({ ...item, sort_order: index + 1 })),
+    }));
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    setError("");
+    if (isLocked) {
+      setError("Only draft recipes can be edited.");
+      return;
+    }
+    if (!form.finished_good_id) {
+      setError("Finished Good is required.");
+      return;
+    }
+    if (!String(form.recipe_name || "").trim()) {
+      setError("Recipe name is required.");
+      return;
+    }
+    if (Number(form.yield_quantity || 0) <= 0) {
+      setError("Expected yield quantity must be greater than 0.");
+      return;
+    }
+    const validItems = form.items.filter((item) => item.raw_material_id || Number(item.quantity_used || 0) > 0);
+    if (!validItems.length || validItems.some((item) => !item.raw_material_id || Number(item.quantity_used || 0) <= 0)) {
+      setError("Every material row needs a raw material and standard quantity greater than 0.");
+      return;
+    }
+    setSaving(true);
+    try {
+      const finishedGood = activeFinishedGoods.find((product) => product.id === form.finished_good_id);
+      await onSave({
+        ...form,
+        product_name: finishedGood?.product_name || form.product_name,
+        uom: form.uom || finishedGood?.uom || "",
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      title={initialValue?.id ? "Edit Product Recipe" : "Create Product Recipe"}
+      description="Recipes define the standard raw material BOM for finished goods. Actual production usage remains adjustable."
+      size="xl"
+      onClose={saving ? undefined : onClose}
+      footer={(
+        <>
+          <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
+          <button className="btn-primary" type="submit" form="factory-product-recipe-form" disabled={saving || isLocked}>{saving ? "Saving..." : "Save Recipe"}</button>
+        </>
+      )}
+    >
+      <form id="factory-product-recipe-form" className="space-y-5" onSubmit={submit}>
+        {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
+        {isLocked ? <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">Only draft recipes can be edited. Active and archived recipes remain readable for history.</div> : null}
+        <div className="grid gap-3 md:grid-cols-3">
+          <Field label="Finished Good">
+            <SearchableSelect
+              value={form.finished_good_id || ""}
+              options={finishedGoodOptions}
+              placeholder="Select Finished Good"
+              searchPlaceholder="Search finished goods"
+              emptyText="No matching finished goods"
+              disabled={isLocked}
+              onChange={(finishedGoodId) => {
+                const product = activeFinishedGoods.find((item) => item.id === finishedGoodId);
+                setForm((current) => ({
+                  ...current,
+                  finished_good_id: finishedGoodId,
+                  product_name: product?.product_name || "",
+                  uom: product?.uom || current.uom,
+                }));
+              }}
+            />
+          </Field>
+          <Field label="Recipe Name">
+            <input className={inputClass()} value={form.recipe_name || ""} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, recipe_name: event.target.value }))} />
+          </Field>
+          <Field label="Version">
+            <input className={inputClass()} value={form.version || ""} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, version: event.target.value }))} />
+          </Field>
+          <Field label="Recipe Code">
+            <input className={inputClass()} value={form.recipe_code || "Generated on save"} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, recipe_code: event.target.value }))} />
+          </Field>
+          <Field label="Expected Yield Qty">
+            <input className={inputClass()} type="number" min="0" step="0.01" value={form.yield_quantity || ""} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, yield_quantity: event.target.value }))} />
+          </Field>
+          <Field label="Yield UOM">
+            <select className={inputClass()} value={form.uom || "kg"} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, uom: event.target.value }))}>
+              {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
+            </select>
+          </Field>
+          <Field label="Status">
+            <select className={inputClass()} value={form.status || "draft"} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
+              {recipeStatusOptions.map((status) => <option key={status} value={status}>{status}</option>)}
+            </select>
+          </Field>
+        </div>
+        <Field label="Remarks">
+          <textarea className={inputClass()} rows={3} value={form.remarks || ""} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
+        </Field>
+        <Card
+          title="Recipe Materials / BOM"
+          description="Standard quantities are scaled into production material usage. Operators can adjust actual usage during completion."
+          action={!isLocked ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={addItem}><Plus size={14} /> Add Material</button> : null}
+        >
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[980px] text-left">
+              <thead>
+                <tr className="border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">
+                  <th className="px-4 py-2.5">Sort</th>
+                  <th className="px-4 py-2.5">Raw Material</th>
+                  <th className="px-4 py-2.5">Standard Qty</th>
+                  <th className="px-4 py-2.5">UOM</th>
+                  <th className="px-4 py-2.5">Wastage %</th>
+                  <th className="px-4 py-2.5">Remarks</th>
+                  <th className="px-4 py-2.5 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {form.items.map((item) => {
+                  const material = rawMaterials.find((row) => row.id === item.raw_material_id);
+                  return (
+                    <tr key={item.id} className="border-b border-border last:border-0">
+                      <td className="px-4 py-3"><input className={inputClass()} type="number" min="1" value={item.sort_order || ""} disabled={isLocked} onChange={(event) => updateItem(item.id, { sort_order: event.target.value })} /></td>
+                      <td className="px-4 py-3">
+                        <select
+                          className={inputClass()}
+                          value={item.raw_material_id || ""}
+                          disabled={isLocked}
+                          onChange={(event) => {
+                            const nextMaterial = rawMaterials.find((row) => row.id === event.target.value);
+                            updateItem(item.id, { raw_material_id: event.target.value, uom: nextMaterial?.uom || item.uom });
+                          }}
+                        >
+                          <option value="">Select raw material</option>
+                          {rawMaterials.filter((row) => row.status !== "inactive").map((materialOption) => (
+                            <option key={materialOption.id} value={materialOption.id}>{materialOption.name} · {quantity(materialOption.current_balance, materialOption.uom)}</option>
+                          ))}
+                        </select>
+                        <div className="mt-1 text-xs text-text-secondary">{material?.category || "Raw material BOM item"}</div>
+                      </td>
+                      <td className="px-4 py-3"><input className={inputClass()} type="number" min="0" step="0.0001" value={item.quantity_used || ""} disabled={isLocked} onChange={(event) => updateItem(item.id, { quantity_used: event.target.value })} /></td>
+                      <td className="px-4 py-3">
+                        <select className={inputClass()} value={item.uom || material?.uom || "kg"} disabled={isLocked} onChange={(event) => updateItem(item.id, { uom: event.target.value })}>
+                          {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
+                        </select>
+                      </td>
+                      <td className="px-4 py-3"><input className={inputClass()} type="number" min="0" step="0.01" value={item.wastage_percent || 0} disabled={isLocked} onChange={(event) => updateItem(item.id, { wastage_percent: event.target.value })} /></td>
+                      <td className="px-4 py-3"><input className={inputClass()} value={item.remarks || ""} disabled={isLocked} onChange={(event) => updateItem(item.id, { remarks: event.target.value })} /></td>
+                      <td className="px-4 py-3 text-right">
+                        {!isLocked ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => removeItem(item.id)}>Remove</button> : null}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </Card>
+      </form>
+    </Modal>
+  );
+}
+
 function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops, finishedGoods = [], auth, onClose, onSave }) {
   const activeFinishedGoods = finishedGoods.filter((product) => product.status === "active");
   const matchingFinishedGood = activeFinishedGoods.find((product) => product.id === job.finished_good_id) || activeFinishedGoods.find((product) => product.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
+  const matchingRecipe = recipes.find((recipe) => recipe.status === "active" && recipe.finished_good_id === job.finished_good_id)
+    || recipes.find((recipe) => recipe.status === "active" && recipe.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
   const matchingSop = sops.find((sop) => sop.status !== "inactive" && sop.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
   const [form, setForm] = useState(() => ({
     job_order_id: job.id,
@@ -942,6 +1155,15 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
             Target {quantity(job.target_quantity, job.uom)} · Due {job.due_date || "No due date"} · SKU {job.product_code || "No SKU"}
           </div>
         </div>
+        {matchingRecipe ? (
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">
+            Recipe default loaded: {matchingRecipe.recipe_name || matchingRecipe.recipe_code} · {matchingRecipe.version || "v1"}.
+          </div>
+        ) : (
+          <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">
+            No active recipe found. Add material usage manually or create a Product Recipe first.
+          </div>
+        )}
         <div className="grid gap-3 md:grid-cols-3">
           <Field label="Finished Good Product">
             <input
@@ -1506,13 +1728,14 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const productionYield = totalActualProduced ? (totalGoodOutput / totalActualProduced) * 100 : 0;
     const materialVariancePercent = weightedMaterialVariancePercent(completedProductions);
     const estimatedProductionCost = completedProductions.reduce((sum, row) => sum + productionCost(row, data.receivings), 0);
-    const recipeCostRows = data.recipes.map((recipe) => {
+    const recipeCostRows = data.recipes.filter((recipe) => recipe.status === "active").map((recipe) => {
       const cost = recipeCostInfo(recipe, data.receivings);
       return { ...recipe, ...cost };
     });
+    const recipeByFinishedGood = new Map(recipeCostRows.filter((recipe) => recipe.finished_good_id).map((recipe) => [recipe.finished_good_id, recipe]));
     const recipeByProduct = new Map(recipeCostRows.map((recipe) => [String(recipe.product_name || "").toLowerCase(), recipe]));
     const productionCostRows = completedProductions.map((production) => {
-      const recipe = recipeByProduct.get(String(production.product_name || "").toLowerCase());
+      const recipe = recipeByFinishedGood.get(production.finished_good_id) || recipeByProduct.get(String(production.product_name || "").toLowerCase());
       const actualCost = productionCostInfo(production, data.receivings);
       const standardCost = recipe ? Number(recipe.costPerUnit || 0) * Number(production.good_output_qty || production.actual_produced_qty || production.produced_quantity || 0) : 0;
       const variance = costVarianceInfo(standardCost, actualCost.cost);
@@ -1675,6 +1898,52 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     } catch (error) {
       ui?.notify?.({ title: "Failed to save Production SOP", message: error.message, tone: "error" });
       throw error;
+    }
+  }
+
+  async function saveProductRecipe(form) {
+    try {
+      await factoryService.saveProductRecipe(form, auth?.profile?.id);
+      ui?.notify?.({ title: form.id ? "Product recipe updated" : "Product recipe created", tone: "success" });
+      setModal(null);
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to save product recipe", message: error.message, tone: "error" });
+      throw error;
+    }
+  }
+
+  async function activateProductRecipe(recipe) {
+    const confirmed = await ui?.confirm?.({
+      title: "Activate Product Recipe?",
+      message: `${recipe.recipe_name || recipe.recipe_code} will become the production default for ${recipe.product_name}.`,
+      confirmLabel: "Activate",
+      tone: "warning",
+    });
+    if (!confirmed) return;
+    try {
+      await factoryService.activateProductRecipe(recipe);
+      ui?.notify?.({ title: "Product recipe activated", tone: "success" });
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to activate product recipe", message: error.message, tone: "error" });
+    }
+  }
+
+  async function archiveProductRecipe(recipe) {
+    const confirmed = await ui?.confirm?.({
+      title: "Archive Product Recipe?",
+      message: `${recipe.recipe_name || recipe.recipe_code} will remain readable for history but will not prefill production usage.`,
+      confirmLabel: "Archive",
+      tone: "warning",
+    });
+    if (!confirmed) return;
+    try {
+      await factoryService.archiveProductRecipe(recipe);
+      ui?.notify?.({ title: "Product recipe archived", tone: "success" });
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to archive product recipe", message: error.message, tone: "error" });
     }
   }
 
@@ -1848,6 +2117,22 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     { key: "qc", label: "QC Checkpoints", render: (row) => <Badge tone={row.steps?.some((step) => step.is_qc_checkpoint) ? "warning" : "neutral"}>{(row.steps || []).filter((step) => step.is_qc_checkpoint).length}</Badge> },
     { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge> },
     { key: "actions", label: "Actions", align: "right", render: (row) => can("factory_production_sop.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "sop", value: row })}>Edit</button> : null },
+  ];
+
+  const recipeColumns = [
+    { key: "recipe", label: "Recipe", render: (row) => <div><div className="font-bold text-text-primary">{row.recipe_name || row.recipe_code}</div><div className="text-xs text-text-secondary">{row.recipe_code} · {row.version || "v1"}</div></div> },
+    { key: "finished_good", label: "Finished Good", render: (row) => <div><div className="font-semibold text-text-primary">{row.product_name}</div><div className="text-xs text-text-secondary">{row.product_code || "No SKU"}</div></div> },
+    { key: "yield", label: "Expected Yield", render: (row) => quantity(row.yield_quantity, row.uom) },
+    { key: "items", label: "Materials", render: (row) => row.items?.length || 0 },
+    { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : row.status === "draft" ? "info" : "neutral"}>{row.status}</Badge> },
+    { key: "remarks", label: "Remarks", render: (row) => row.remarks || row.notes || "—" },
+    { key: "actions", label: "Actions", align: "right", render: (row) => (
+      <div className="flex justify-end gap-2">
+        {row.status === "draft" && can("factory_product_recipes.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "recipe", value: row })}>Edit</button> : null}
+        {row.status === "draft" && can("factory_product_recipes.manage") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => activateProductRecipe(row)}>Activate</button> : null}
+        {row.status !== "archived" && can("factory_product_recipes.delete") ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => archiveProductRecipe(row)}>Archive</button> : null}
+      </div>
+    ) },
   ];
 
   function stockCheckColumns(stockType) {
@@ -2211,6 +2496,47 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         </div>
         <Card title="Production SOP Records" description="SOPs are standard process references and do not represent actual production results.">
           <FactoryTable columns={sopColumns} rows={data.sops} emptyTitle="No Production SOPs" emptyDescription="Create SOP steps before attaching a standard process to production batches." />
+        </Card>
+      </div>
+    );
+  }
+
+  function renderProductRecipes() {
+    const draftRecipes = data.recipes.filter((recipe) => recipe.status === "draft");
+    const activeRecipes = data.recipes.filter((recipe) => recipe.status === "active");
+    const archivedRecipes = data.recipes.filter((recipe) => recipe.status === "archived");
+    const finishedGoodsWithActiveRecipe = new Set(activeRecipes.map((recipe) => recipe.finished_good_id).filter(Boolean));
+    const activeFinishedGoodsWithoutRecipe = data.finishedGoods.filter((product) => product.status === "active" && !finishedGoodsWithActiveRecipe.has(product.id));
+    return (
+      <div className="space-y-5">
+        <PageHeader
+          section="Master Data"
+          title="Product Recipes"
+          description="Manage standard raw material BOMs for Finished Goods. Production uses active recipes as default material usage."
+          actions={can("factory_product_recipes.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "recipe" })}><Plus size={15} /> Create Recipe</button> : null}
+        />
+        <div className="grid gap-3 md:grid-cols-4">
+          <MetricCard icon={ClipboardCheck} label="Draft" value={draftRecipes.length} helper="Editable recipe versions" />
+          <MetricCard icon={CheckCircle2} label="Active" value={activeRecipes.length} helper="Production defaults" tone="success" />
+          <MetricCard icon={PackageCheck} label="FG Without Recipe" value={activeFinishedGoodsWithoutRecipe.length} helper="Active products needing BOM" tone={activeFinishedGoodsWithoutRecipe.length ? "warning" : "success"} />
+          <MetricCard icon={Clock3} label="Archived" value={archivedRecipes.length} helper="Historical versions" />
+        </div>
+        <Card title="Product Recipe Records" description="One Finished Good can have one active recipe version. Drafts can be edited before activation.">
+          <FactoryTable columns={recipeColumns} rows={data.recipes} emptyTitle="No Product Recipes" emptyDescription="Create a Product Recipe to prefill production material usage from a standard BOM." />
+        </Card>
+        <Card title="Recipe Materials Preview" description="Active recipe BOM rows used for production material usage defaults.">
+          <FactoryTable
+            columns={[
+              { key: "recipe", label: "Recipe", render: (row) => <div><div className="font-bold text-text-primary">{row.recipe_name || row.recipe_code}</div><div className="text-xs text-text-secondary">{row.product_name}</div></div> },
+              { key: "raw_material_name", label: "Raw Material", render: (row) => row.raw_material_name },
+              { key: "quantity_used", label: "Standard Qty", render: (row) => quantity(row.quantity_used, row.uom) },
+              { key: "wastage_percent", label: "Wastage %", render: (row) => percent(row.wastage_percent) },
+              { key: "remarks", label: "Remarks", render: (row) => row.remarks || "—" },
+            ]}
+            rows={activeRecipes.flatMap((recipe) => (recipe.items || []).map((item) => ({ ...item, id: `${recipe.id}-${item.id}`, recipe_name: recipe.recipe_name, recipe_code: recipe.recipe_code, product_name: recipe.product_name })))}
+            emptyTitle="No active recipe materials"
+            emptyDescription="Activate a Product Recipe with raw material rows to populate this preview."
+          />
         </Card>
       </div>
     );
@@ -2748,7 +3074,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   return (
     <>
       <AccessIssueNotice issues={data.accessIssues} />
-      {initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? renderBatchTraceability() : initialTab === "finished-goods" ? renderFinishedGoods() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "production-sop" ? renderProductionSop() : renderDashboard()}
+      {initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? renderBatchTraceability() : initialTab === "finished-goods" ? renderFinishedGoods() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? renderProductRecipes() : initialTab === "production-sop" ? renderProductionSop() : renderDashboard()}
       {modal?.type === "job" ? (
         <JobOrderModal
           initialValue={modal.value}
@@ -2782,6 +3108,15 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           initialValue={modal.value}
           onClose={() => setModal(null)}
           onSave={saveProductionSop}
+        />
+      ) : null}
+      {modal?.type === "recipe" ? (
+        <ProductRecipeModal
+          initialValue={modal.value}
+          finishedGoods={data.finishedGoods}
+          rawMaterials={data.rawMaterials}
+          onClose={() => setModal(null)}
+          onSave={saveProductRecipe}
         />
       ) : null}
       {modal?.type === "stock-check" ? (

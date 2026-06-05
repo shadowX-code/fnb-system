@@ -244,13 +244,26 @@ function mapStockCheck(row, stockType) {
 }
 
 function mapRecipe(row) {
+  const finishedGood = row.finished_good || {};
   return {
     id: row.id,
     recipe_code: row.recipe_code || "",
-    product_name: row.product_name || "",
+    finished_good_id: row.finished_good_id || "",
+    product_code: finishedGood.product_code || "",
+    recipe_name: row.recipe_name || row.recipe_code || "",
+    product_name: finishedGood.product_name || row.product_name || "",
+    product_name_en: finishedGood.product_name_en || finishedGood.product_name || row.product_name || "",
+    product_name_cn: finishedGood.product_name_cn || "",
+    product_name_bm: finishedGood.product_name_bm || "",
+    version: row.version || "v1",
     yield_quantity: normalizeNumber(row.yield_quantity, 1),
     uom: row.uom || "",
-    status: row.status || "active",
+    status: row.status || "draft",
+    notes: row.notes || "",
+    remarks: row.remarks || row.notes || "",
+    created_by: row.created_by || "",
+    created_at: row.created_at,
+    updated_at: row.updated_at,
     items: (row.items ?? []).map((item) => ({
       id: item.id,
       raw_material_id: item.raw_material_id,
@@ -258,8 +271,10 @@ function mapRecipe(row) {
       quantity_used: normalizeNumber(item.quantity_used),
       uom: item.uom || item.raw_material?.uom || "",
       wastage_percent: normalizeNumber(item.wastage_percent),
+      sort_order: normalizeNumber(item.sort_order),
       notes: item.notes || "",
-    })),
+      remarks: item.remarks || item.notes || "",
+    })).sort((a, b) => a.sort_order - b.sort_order),
   };
 }
 
@@ -402,6 +417,7 @@ function factoryDataPlan(scope, hasPermission) {
   const isProduction = scope === "production";
   const isReports = scope === "reports";
   const isBatchTraceability = scope === "batch-traceability";
+  const isProductRecipes = scope === "product-recipes";
   const isFinishedGoods = scope === "finished-goods";
   const isProductMovements = scope === "product-movements";
   const isProductStockCheck = scope === "product-stock-check";
@@ -412,16 +428,16 @@ function factoryDataPlan(scope, hasPermission) {
   const needsProductionDetails = isProduction || isReports || isBatchTraceability || (isDashboard && (can("factory_production.view") || canReadProductionReports));
   return {
     jobOrders: (isDashboard && can("factory_dashboard.view")) || (isJobOrders && can("factory_job_orders.view")) || ((isProduction || isReports || isBatchTraceability) && (can("factory_production.view") || canReadProductionReports)),
-    rawMaterials: (isDashboard && can("factory_dashboard.view")) || (isRawReceiving && can("factory_raw_receiving.view")) || (isRawStockCheck && can("factory_raw_stock_check.view")) || (isProduction && (can("factory_raw_inventory.view") || can("factory_product_recipes.view") || can("factory_dashboard.view"))),
+    rawMaterials: (isDashboard && can("factory_dashboard.view")) || (isRawReceiving && can("factory_raw_receiving.view")) || (isRawStockCheck && can("factory_raw_stock_check.view")) || (isProductRecipes && can("factory_product_recipes.view")) || (isProduction && (can("factory_raw_inventory.view") || can("factory_product_recipes.view") || can("factory_production.complete") || can("factory_dashboard.view"))),
     receivings: (isDashboard && can("factory_dashboard.view")) || (isRawReceiving && can("factory_raw_receiving.view")) || (isReports && can("factory_production_reports.view")) || ((isProduction || isBatchTraceability) && can("factory_raw_receiving.view")),
     productions: needsProductionSummary && (can("factory_dashboard.view") || can("factory_production.view") || canReadProductionReports || can("factory_finished_goods.view") || can("factory_product_movements.view")),
     productionDetails: needsProductionDetails,
-    finishedGoods: (isDashboard && can("factory_dashboard.view")) || (isJobOrders && (can("factory_job_orders.view") || can("factory_job_orders.create") || can("factory_job_orders.edit"))) || ((isProduction || isFinishedGoods || isProductMovements) && can("factory_finished_goods.view")) || (isProduction && can("factory_production.complete")) || (isProductStockCheck && can("factory_product_stock_check.view")),
+    finishedGoods: (isDashboard && can("factory_dashboard.view")) || (isJobOrders && (can("factory_job_orders.view") || can("factory_job_orders.create") || can("factory_job_orders.edit"))) || (isProductRecipes && can("factory_product_recipes.view")) || ((isProduction || isFinishedGoods || isProductMovements) && can("factory_finished_goods.view")) || (isProduction && can("factory_production.complete")) || (isProductStockCheck && can("factory_product_stock_check.view")),
     finishedGoodCategories: isFinishedGoods && can("factory_finished_goods.view"),
     productMovements: (isDashboard && can("factory_dashboard.view")) || ((isProduction || isProductMovements) && can("factory_product_movements.view")) || (isFinishedGoods && can("factory_finished_goods.view")) || (isReports && can("factory_product_movements.view")) || (isBatchTraceability && canTraceBatches),
     rawStockChecks: isRawStockCheck && can("factory_raw_stock_check.view"),
     productStockChecks: isProductStockCheck && can("factory_product_stock_check.view"),
-    recipes: (isDashboard && can("factory_dashboard.view")) || (isProduction && can("factory_product_recipes.view")) || (isReports && can("factory_production_reports.view")),
+    recipes: (isDashboard && can("factory_dashboard.view")) || (isProductRecipes && can("factory_product_recipes.view")) || (isProduction && (can("factory_product_recipes.view") || can("factory_production.complete"))) || (isReports && can("factory_production_reports.view")),
     sops: (isProduction || isProductionSop) && can("factory_production_sop.view"),
   };
 }
@@ -483,8 +499,7 @@ export const factoryService = {
       .limit(100), (rows) => rows.map((row) => mapStockCheck(row, "product")));
     addTask(plan.recipes, "recipes", "Product Recipes", () => supabase
       .from("factory_product_recipes")
-      .select("id,recipe_code,product_name,yield_quantity,uom,status,items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,notes,raw_material:factory_raw_materials(name,uom))")
-      .eq("status", "active")
+      .select(`id,recipe_code,finished_good_id,recipe_name,product_name,version,yield_quantity,uom,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(name,uom))`)
       .order("product_name", { ascending: true })
       .limit(150), (rows) => rows.map(mapRecipe));
     addTask(plan.sops, "sops", "Production SOP", () => supabase
@@ -805,6 +820,147 @@ export const factoryService = {
       after: data,
     });
     return mapFinishedGoodCategory(data);
+  },
+
+  async saveProductRecipe(recipe, employeeId) {
+    const isUpdate = Boolean(recipe.id);
+    if (isUpdate && recipe.status !== "draft") {
+      throw new Error("Only draft recipes can be edited. Archive or create a new draft version for changes.");
+    }
+
+    let finishedGood = null;
+    if (recipe.finished_good_id) {
+      const { data, error } = await supabase
+        .from("factory_finished_goods")
+        .select("id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,uom,status")
+        .eq("id", recipe.finished_good_id)
+        .single();
+      throwSupabaseError("factory.recipe.finished_good_lookup", error);
+      finishedGood = data;
+    }
+    if (!finishedGood?.id) throw new Error("Select an active finished good product.");
+    if (String(finishedGood.status || "").toLowerCase() !== "active") throw new Error("Archived Finished Goods cannot be selected.");
+
+    const items = (recipe.items ?? [])
+      .map((item, index) => ({
+        raw_material_id: item.raw_material_id,
+        quantity_used: normalizeNumber(item.quantity_used),
+        uom: String(item.uom || "").trim(),
+        wastage_percent: normalizeNumber(item.wastage_percent),
+        sort_order: normalizeNumber(item.sort_order, index + 1) || index + 1,
+        notes: String(item.remarks || item.notes || "").trim(),
+      }))
+      .filter((item) => item.raw_material_id || item.quantity_used > 0 || item.uom || item.notes);
+
+    if (!String(recipe.recipe_name || "").trim()) throw new Error("Recipe name is required.");
+    if (normalizeNumber(recipe.yield_quantity) <= 0) throw new Error("Expected yield quantity must be greater than 0.");
+    if (!String(recipe.uom || "").trim()) throw new Error("Yield UOM is required.");
+    if (!items.length) throw new Error("At least one recipe material row is required.");
+    const invalidItem = items.find((item) => !item.raw_material_id || item.quantity_used <= 0);
+    if (invalidItem) throw new Error("Every recipe material row needs a raw material and standard quantity greater than 0.");
+
+    const payload = {
+      recipe_code: recipe.recipe_code || makeFactoryRef("FGRCP"),
+      finished_good_id: finishedGood.id,
+      recipe_name: String(recipe.recipe_name || "").trim(),
+      product_name: finishedGood.product_name,
+      version: String(recipe.version || "v1").trim(),
+      yield_quantity: normalizeNumber(recipe.yield_quantity),
+      uom: String(recipe.uom || finishedGood.uom || "").trim(),
+      status: recipe.status === "active" ? "active" : recipe.status === "archived" ? "archived" : "draft",
+      notes: String(recipe.remarks || recipe.notes || "").trim(),
+      remarks: String(recipe.remarks || recipe.notes || "").trim(),
+      updated_at: new Date().toISOString(),
+    };
+    if (!isUpdate) payload.created_by = employeeId || null;
+
+    if (payload.status === "active") {
+      const { data: activeRecipe, error: activeError } = await supabase
+        .from("factory_product_recipes")
+        .select("id")
+        .eq("finished_good_id", finishedGood.id)
+        .eq("status", "active")
+        .neq("id", recipe.id || "00000000-0000-0000-0000-000000000000")
+        .maybeSingle();
+      throwSupabaseError("factory.recipe.active_lookup", activeError);
+      if (activeRecipe?.id) throw new Error("This Finished Good already has an active recipe version.");
+    }
+
+    const query = isUpdate
+      ? supabase.from("factory_product_recipes").update(payload).eq("id", recipe.id)
+      : supabase.from("factory_product_recipes").insert(payload);
+
+    const { data, error } = await query
+      .select("id,recipe_code,finished_good_id,recipe_name,product_name,version,yield_quantity,uom,status,notes,remarks,created_by,created_at,updated_at")
+      .single();
+    throwSupabaseError("factory.recipe.save", error);
+
+    if (isUpdate) {
+      const deleteResult = await supabase.from("factory_product_recipe_items").delete().eq("recipe_id", data.id);
+      throwSupabaseError("factory.recipe.items_delete", deleteResult.error);
+    }
+
+    const insertResult = await supabase.from("factory_product_recipe_items").insert(items.map((item) => ({
+      recipe_id: data.id,
+      raw_material_id: item.raw_material_id,
+      quantity_used: item.quantity_used,
+      uom: item.uom,
+      wastage_percent: item.wastage_percent,
+      sort_order: item.sort_order,
+      notes: item.notes,
+      remarks: item.notes,
+      updated_at: new Date().toISOString(),
+    })));
+    throwSupabaseError("factory.recipe.items_insert", insertResult.error);
+
+    const { data: saved, error: fetchError } = await supabase
+      .from("factory_product_recipes")
+      .select(`id,recipe_code,finished_good_id,recipe_name,product_name,version,yield_quantity,uom,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(name,uom))`)
+      .eq("id", data.id)
+      .single();
+    throwSupabaseError("factory.recipe.fetch_saved", fetchError);
+
+    await logFactoryAction({
+      action: isUpdate ? "factory_product_recipe_updated" : "factory_product_recipe_created",
+      target: saved.recipe_code,
+      description: isUpdate ? "Factory Product Recipe updated." : "Factory Product Recipe created.",
+      after: saved,
+    });
+    return mapRecipe(saved);
+  },
+
+  async activateProductRecipe(recipe) {
+    const { data, error } = await supabase
+      .from("factory_product_recipes")
+      .update({ status: "active", updated_at: new Date().toISOString() })
+      .eq("id", recipe.id)
+      .select(`id,recipe_code,finished_good_id,recipe_name,product_name,version,yield_quantity,uom,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(name,uom))`)
+      .single();
+    throwSupabaseError("factory.recipe.activate", error);
+    await logFactoryAction({
+      action: "factory_product_recipe_activated",
+      target: data.recipe_code,
+      description: "Factory Product Recipe activated.",
+      after: data,
+    });
+    return mapRecipe(data);
+  },
+
+  async archiveProductRecipe(recipe) {
+    const { data, error } = await supabase
+      .from("factory_product_recipes")
+      .update({ status: "archived", updated_at: new Date().toISOString() })
+      .eq("id", recipe.id)
+      .select(`id,recipe_code,finished_good_id,recipe_name,product_name,version,yield_quantity,uom,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(name,uom))`)
+      .single();
+    throwSupabaseError("factory.recipe.archive", error);
+    await logFactoryAction({
+      action: "factory_product_recipe_archived",
+      target: data.recipe_code,
+      description: "Factory Product Recipe archived.",
+      after: data,
+    });
+    return mapRecipe(data);
   },
 
   async completeProduction(production, employeeId) {
