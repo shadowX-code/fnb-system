@@ -75,47 +75,10 @@ async function handleRequest(request: Request) {
   });
   const adminClient = createClient(supabaseUrl, serviceRoleKey);
 
-  const { data: permissionResult, error: permissionError } = await userClient.rpc("current_user_has_permission", {
-    permission_code: "employees.enable_login",
-  });
-  if (permissionError) {
-    return json({
-      ok: false,
-      code: "PERMISSION_CHECK_FAILED",
-      message: "Unable to verify your access. Please try again or contact admin.",
-    }, 403);
-  }
-  if (!permissionResult) {
-    return json({
-      ok: false,
-      code: "PERMISSION_DENIED",
-      message: "You do not have permission to manage employee login access.",
-    }, 403);
-  }
-
   const body = await request.json().catch(() => ({}));
   const employeeId = body.employee_id;
   const modeRequest = String(body.mode ?? "").trim();
   const manualLinkRequested = modeRequest === "manual_link" || Boolean(body.allow_manual_link);
-  if (manualLinkRequested) {
-    const { data: canCreateManualLink, error: manualPermissionError } = await userClient.rpc("current_user_has_permission", {
-      permission_code: "roles.edit",
-    });
-    if (manualPermissionError) {
-      return json({
-        ok: false,
-        code: "MANUAL_LINK_PERMISSION_CHECK_FAILED",
-        message: "Unable to verify manual setup link access. Please try again or contact admin.",
-      }, 403);
-    }
-    if (!canCreateManualLink) {
-      return json({
-        ok: false,
-        code: "MANUAL_LINK_PERMISSION_DENIED",
-        message: "Only authorized users can generate manual setup links.",
-      }, 403);
-    }
-  }
   if (!employeeId) {
     return json({
       ok: false,
@@ -162,6 +125,29 @@ async function handleRequest(request: Request) {
 
   const redirectTo = siteUrl ? `${siteUrl.replace(/\/$/, "")}/setup-password` : undefined;
   const existingUser = await findAuthUserByEmail(adminClient, email);
+  const accessState = String(employee.access_state ?? "").trim().toLowerCase();
+  const requiresResetPermission = accessState === "active";
+  const requiredPermission = requiresResetPermission ? "employees.reset_password" : "employees.enable_login";
+  const { data: permissionResult, error: permissionError } = await userClient.rpc("current_user_has_permission", {
+    permission_code: requiredPermission,
+  });
+  if (permissionError) {
+    return json({
+      ok: false,
+      code: manualLinkRequested ? "MANUAL_LINK_PERMISSION_CHECK_FAILED" : "PERMISSION_CHECK_FAILED",
+      message: "Unable to verify your access. Please try again or contact admin.",
+    }, 403);
+  }
+  if (!permissionResult) {
+    return json({
+      ok: false,
+      code: manualLinkRequested ? "MANUAL_LINK_PERMISSION_DENIED" : "PERMISSION_DENIED",
+      message: requiresResetPermission
+        ? "You do not have permission to send employee reset password emails."
+        : "You do not have permission to manage employee login access.",
+    }, 403);
+  }
+
   let authUser = existingUser;
   let mode: "email" | "manual_link" = "email";
   let setupUrl: string | null = null;

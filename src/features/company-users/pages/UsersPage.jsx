@@ -585,7 +585,15 @@ function UserFormModal({
     accessState !== savedAccessState
   );
   const savedAccessCanGenerateSetup = mode === "edit" && Boolean(initialUser.id && savedAccessEnabled && savedLoginEmail && savedRoleId);
-  const setupActionDisabled = !canResetPassword || setupAction === "manual_link" || accessSetupHasUnsavedChanges || !savedAccessCanGenerateSetup;
+  const canSendLoginSetup = accessState === EMPLOYEE_ACCESS_STATE.ACTIVE ? canResetPassword : canEnableLogin;
+  const setupActionDisabled = !canSendLoginSetup || setupAction === "manual_link" || accessSetupHasUnsavedChanges || !savedAccessCanGenerateSetup;
+  const setupActionDisabledReason = !canSendLoginSetup
+    ? "You do not have permission to send this employee access action."
+    : accessSetupHasUnsavedChanges || !savedAccessCanGenerateSetup
+      ? "Save the employee first, or use Save & Send Login Setup to save and send the setup email."
+      : setupAction === "manual_link"
+        ? "A setup link is being generated."
+        : "";
   const accessHasLoginMetadata = Boolean(values.email || values.role || values.role_id || values.auth_user_id || values.last_login_at);
   const shouldShowAccessSetup = showAccessSetup || (values.enable_system_login && accessState !== EMPLOYEE_ACCESS_STATE.ACTIVE && accessState !== EMPLOYEE_ACCESS_STATE.DISABLED);
   const isMalaysia = isMalaysiaNationality(values.nationality);
@@ -775,7 +783,7 @@ function UserFormModal({
       notifyPermissionDenied(ui, "save employee profiles");
       return;
     }
-    if (sendLoginSetup && !canResetPassword) {
+    if (sendLoginSetup && !canEnableLogin) {
       notifyPermissionDenied(ui, "send password setup links");
       return;
     }
@@ -812,8 +820,9 @@ function UserFormModal({
   }
 
   async function sendLoginSetupForExistingEmployee() {
-    if (!canResetPassword) {
-      notifyPermissionDenied(ui, "send password setup links");
+    const isResetPassword = accessState === EMPLOYEE_ACCESS_STATE.ACTIVE;
+    if (isResetPassword ? !canResetPassword : !canEnableLogin) {
+      notifyPermissionDenied(ui, isResetPassword ? "send reset password emails" : "send password setup links");
       return;
     }
     if (accessSetupHasUnsavedChanges || !savedAccessCanGenerateSetup) {
@@ -829,17 +838,20 @@ function UserFormModal({
       return;
     }
     const confirmed = await ui.confirm({
-      title: "Send login setup email?",
-      message: "A secure email will let the employee set their own password. Admins cannot view or create passwords.",
-      confirmLabel: "Send Login Setup",
+      title: isResetPassword ? "Send reset password email?" : "Send login setup email?",
+      message: isResetPassword
+        ? "A secure email will let the employee reset their own password. Admins cannot view or create passwords."
+        : "A secure email will let the employee set their own password. Admins cannot view or create passwords.",
+      confirmLabel: isResetPassword ? "Send Reset Email" : "Send Login Setup",
     });
     if (!confirmed) return;
     await onSendLoginSetup?.(values);
   }
 
   async function generateSetupLinkForExistingEmployee() {
-    if (!canResetPassword) {
-      notifyPermissionDenied(ui, "generate password setup links");
+    const isResetPassword = accessState === EMPLOYEE_ACCESS_STATE.ACTIVE;
+    if (isResetPassword ? !canResetPassword : !canEnableLogin) {
+      notifyPermissionDenied(ui, isResetPassword ? "generate reset password links" : "generate password setup links");
       return;
     }
     if (accessSetupHasUnsavedChanges || !savedAccessCanGenerateSetup) {
@@ -918,11 +930,12 @@ function UserFormModal({
         ) : (
           <>
             <button className="btn-secondary" type="button" disabled={isSaving} onClick={onClose}>Cancel</button>
-              {shouldShowAccessSetup && canResetPassword ? (
+              {shouldShowAccessSetup && canEnableLogin ? (
                 <button
                   className="btn-primary"
                   type="button"
                   disabled={isSaving || emailStatus !== "valid"}
+                  title={emailStatus !== "valid" ? "Enter a valid login email before saving and sending setup." : "Save this employee and send the login setup email."}
                   onClick={() => handleSubmit({ sendLoginSetup: true })}
                 >
                   {isSaving ? "Saving..." : "Save & Send Login Setup"}
@@ -1148,6 +1161,9 @@ function UserFormModal({
                         <button className="btn-secondary h-9 px-3 text-xs" type="button" disabled={!canDeactivateEmployee} onClick={disableAccessInModal}>
                           <Power size={14} /> Disable Access
                         </button>
+                        <button className="btn-secondary h-9 px-3 text-xs" type="button" disabled={!canResetPassword} onClick={sendLoginSetupForExistingEmployee}>
+                          <KeyRound size={14} /> Send Reset Password Email
+                        </button>
                         <button className="btn-secondary h-9 px-3 text-xs" type="button" disabled={!canResetPassword} onClick={openChangeEmailPanel}>
                           <KeyRound size={14} /> Change Login Email
                         </button>
@@ -1243,16 +1259,23 @@ function UserFormModal({
                       <div className="rounded-xl border border-border bg-surface px-3 py-2.5">
                         <div className="text-xs font-semibold text-text-secondary">Setup Link</div>
                         {accessSetupHasUnsavedChanges || !savedAccessCanGenerateSetup ? (
-                          <p className="mt-1 text-xs font-semibold text-amber-700">Save this employee before generating a setup link.</p>
+                          <p className="mt-1 text-xs font-semibold text-amber-700">Save the employee first, or use Save & Send Login Setup to save and send the setup email.</p>
                         ) : null}
                         <div className="mt-2 flex flex-wrap gap-2">
-                          <button className="btn-secondary h-9 px-3 text-xs" type="button" disabled={setupActionDisabled} onClick={sendLoginSetupForExistingEmployee}>
-                            <KeyRound size={14} /> Send Login Setup Email
+                          <button
+                            className="btn-secondary h-9 px-3 text-xs"
+                            type="button"
+                            disabled={setupActionDisabled}
+                            title={setupActionDisabledReason}
+                            onClick={sendLoginSetupForExistingEmployee}
+                          >
+                            <KeyRound size={14} /> {accessState === EMPLOYEE_ACCESS_STATE.ACTIVE ? "Send Reset Password Email" : "Send Login Setup Email"}
                           </button>
                           <button
                             className="btn-secondary h-9 px-3 text-xs"
                             type="button"
                             disabled={setupActionDisabled}
+                            title={setupActionDisabledReason}
                             onClick={generateSetupLinkForExistingEmployee}
                           >
                             <KeyRound size={14} /> {setupAction === "manual_link" ? "Generating..." : "Generate Setup Link"}
@@ -1398,8 +1421,9 @@ export default function UsersPage({ ui, store, auth }) {
   }
 
   async function sendLoginSetupForUser(user, { mode = "email" } = {}) {
-    if (!canResetPassword) {
-      notifyPermissionDenied(ui, "send password setup links");
+    const isResetPassword = getAccessState(user) === EMPLOYEE_ACCESS_STATE.ACTIVE;
+    if (isResetPassword ? !canResetPassword : !canEnableLogin) {
+      notifyPermissionDenied(ui, isResetPassword ? "send reset password emails" : "send password setup links");
       return;
     }
     if (!user.email) {
@@ -1451,7 +1475,7 @@ export default function UsersPage({ ui, store, auth }) {
         });
       }
       ui.notify({
-        title: result.setupUrl ? "Setup link generated." : "Login setup email sent.",
+        title: result.setupUrl ? "Setup link generated." : isResetPassword ? "Reset password email sent." : "Login setup email sent.",
         message: result.warning || result.message || result.email || user.email,
         tone: result.warning ? "warning" : undefined,
       });
@@ -1604,6 +1628,9 @@ export default function UsersPage({ ui, store, auth }) {
     if (accessState === EMPLOYEE_ACCESS_STATE.ACTIVE) {
       return (
         <>
+          {canResetPassword ? <button className={buttonClass} type="button" onClick={() => sendLoginSetupForUser(row)}>
+            <KeyRound size={14} /> Send Reset Password Email
+          </button> : null}
           {canDeactivateEmployee ? <button className={dangerClass} type="button" onClick={() => disableUserAccess(row)}>
             <Power size={14} /> Disable Access
           </button> : null}
@@ -1614,10 +1641,10 @@ export default function UsersPage({ ui, store, auth }) {
     if (accessState === EMPLOYEE_ACCESS_STATE.NOT_SENT || accessState === EMPLOYEE_ACCESS_STATE.INVITED) {
       return (
         <>
-          {canResetPassword ? <button className={buttonClass} type="button" onClick={() => sendLoginSetupForUser(row)}>
+          {canEnableLogin ? <button className={buttonClass} type="button" onClick={() => sendLoginSetupForUser(row)}>
             <KeyRound size={14} /> Send Login Setup
           </button> : null}
-          {canResetPassword ? <button className={buttonClass} type="button" onClick={() => openManualSetupFallback(row)}>
+          {canEnableLogin ? <button className={buttonClass} type="button" onClick={() => openManualSetupFallback(row)}>
             <KeyRound size={14} /> Generate Setup Link
           </button> : null}
           {canDeactivateEmployee ? <button className={dangerClass} type="button" onClick={() => disableUserAccess(row)}>
