@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { CalendarDays, CalendarX, ChevronLeft, ChevronRight, Download, HeartPulse, Search, Users, X } from "lucide-react";
+import { CalendarDays, CalendarOff, CalendarX, ChevronLeft, ChevronRight, Download, HeartPulse, Search, X } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
@@ -80,6 +80,10 @@ function monthCalendarDays(monthDate) {
 
 function formatMonthYear(date) {
   return new Intl.DateTimeFormat("en-MY", { month: "long", year: "numeric" }).format(date);
+}
+
+function formatRosterDate(value) {
+  return new Intl.DateTimeFormat("en-MY", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(`${value}T00:00:00`));
 }
 
 function fallbackGroupFromDepartment(department) {
@@ -336,6 +340,71 @@ function DailyDutyDrawer({ date, stats, employeesById, onClose, onOpenSchedule }
   );
 }
 
+function OffDayDetailsDrawer({ rows, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30 backdrop-blur-[2px]" role="dialog" aria-modal="true">
+      <button className="flex-1 cursor-default" type="button" aria-label="Close off day details backdrop" onClick={onClose} />
+      <aside className="flex h-full w-full max-w-[720px] flex-col border-l border-border bg-surface shadow-2xl">
+        <header className="shrink-0 border-b border-border p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.16em] text-primary">Outlet Duty Roster</div>
+              <h2 className="mt-1 text-xl font-semibold text-text-primary">Off Day Details</h2>
+            </div>
+            <button className="icon-btn" type="button" onClick={onClose} aria-label="Close off day details"><X size={18} /></button>
+          </div>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto p-5">
+          {!rows.length ? (
+            <div className="rounded-3xl border border-dashed border-border bg-background p-8 text-center text-sm font-semibold text-text-secondary">
+              No off days found for this period.
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-3xl border border-border bg-background">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[680px] text-sm">
+                  <thead className="table-head">
+                    <tr>
+                      <th className="px-4 py-3 text-left">Date</th>
+                      <th className="px-4 py-3 text-left">Staff Name</th>
+                      <th className="px-4 py-3 text-left">Position</th>
+                      <th className="px-4 py-3 text-left">Group / Department</th>
+                      <th className="px-4 py-3 text-left">Shift Type / Label</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border bg-surface">
+                    {rows.map((row) => (
+                      <tr key={`${row.roster.id}-${row.roster.roster_date}`} className="table-row">
+                        <td className="px-4 py-3 font-semibold text-text-primary">{formatRosterDate(row.roster.roster_date)}</td>
+                        <td className="px-4 py-3">
+                          <div className="font-bold text-text-primary">{row.employee.nickname || row.employee.full_name}</div>
+                          {row.employee.is_roster_snapshot ? (
+                            <div className="mt-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">Published snapshot</div>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-3 text-text-secondary">{row.employee.position || "Employee"}</td>
+                        <td className="px-4 py-3 text-text-secondary">{groupLabels[row.employee.rosterGroup] || "OTHER"}{row.employee.department ? ` / ${row.employee.department}` : ""}</td>
+                        <td className="px-4 py-3"><span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-black text-slate-700">OFF</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <footer className="shrink-0 border-t border-border bg-background p-4">
+          <div className="flex justify-end">
+            <button className="btn-secondary" type="button" onClick={onClose}>Close</button>
+          </div>
+        </footer>
+      </aside>
+    </div>
+  );
+}
+
 export default function OutletDutyRosterPage({ store, ui, auth }) {
   const activeOutlets = store.outlets.filter((outlet) => outlet.status === "active" || outlet.is_active);
   const [outletId, setOutletId] = useState(activeOutlets[0]?.id ?? "");
@@ -349,6 +418,7 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
   const [groupFilter, setGroupFilter] = useState("all");
   const [positionFilter, setPositionFilter] = useState("all");
   const [dailyDrawerDate, setDailyDrawerDate] = useState("");
+  const [offDetailsOpen, setOffDetailsOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const canExportOverview = canExport(auth, "outlet_duty_roster");
@@ -480,11 +550,28 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
       const stats = statsByDate.get(date);
       if (!stats?.rosters?.length) summary.unscheduledDays += 1;
       summary.totalScheduledShifts += stats?.rosters?.length ?? 0;
-      summary.workingStaff += stats?.working ?? 0;
+      summary.offDays += stats?.off ?? 0;
       summary.leaveDays += (stats?.al ?? 0) + (stats?.mc ?? 0);
       return summary;
-    }, { totalScheduledShifts: 0, workingStaff: 0, leaveDays: 0, unscheduledDays: 0 });
+    }, { totalScheduledShifts: 0, offDays: 0, leaveDays: 0, unscheduledDays: 0 });
   }, [monthDateValues, statsByDate]);
+
+  const offDayRows = useMemo(() => {
+    const rows = [];
+    monthDateValues.forEach((date) => {
+      const stats = statsByDate.get(date);
+      (stats?.rosters ?? [])
+        .filter((roster) => roster.template?.code === "OFF")
+        .forEach((roster) => {
+          const employee = employeesById.get(roster.employee_id);
+          if (employee) rows.push({ roster, employee });
+        });
+    });
+    return rows.sort((a, b) => (
+      a.roster.roster_date.localeCompare(b.roster.roster_date) ||
+      String(a.employee.nickname || a.employee.full_name).localeCompare(String(b.employee.nickname || b.employee.full_name))
+    ));
+  }, [employeesById, monthDateValues, statsByDate]);
 
   function navigateMonth(direction) {
     setMonthStart(toDateInputValue(startOfMonth(addMonths(`${monthStart}T00:00:00`, direction))));
@@ -550,11 +637,11 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {[
           { label: "Scheduled Shifts", value: monthSummary.totalScheduledShifts, helper: "All saved roster entries", icon: CalendarDays },
-          { label: "Working Staff", value: monthSummary.workingStaff, helper: "Working shift assignments", icon: Users },
+          { label: "Off Day", value: monthSummary.offDays, helper: "OFF entries in this month", icon: CalendarOff, onClick: () => setOffDetailsOpen(true) },
           { label: "AL / MC Days", value: monthSummary.leaveDays, helper: "Leave and medical entries", icon: HeartPulse },
           { label: "Unscheduled Days", value: monthSummary.unscheduledDays, helper: "No roster entries saved", icon: CalendarX },
         ].map((item) => (
-          <MetricCard key={item.label} label={item.label} value={item.value} helper={item.helper} icon={item.icon} />
+          <MetricCard key={item.label} label={item.label} value={item.value} helper={item.helper} icon={item.icon} onClick={item.onClick} />
         ))}
       </div>
 
@@ -641,6 +728,9 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
           onClose={() => setDailyDrawerDate("")}
           onOpenSchedule={openScheduleForDate}
         />
+      ) : null}
+      {offDetailsOpen ? (
+        <OffDayDetailsDrawer rows={offDayRows} onClose={() => setOffDetailsOpen(false)} />
       ) : null}
     </div>
   );
