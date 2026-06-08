@@ -7,7 +7,8 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 ### Duty Roster
 - Added published Duty Roster snapshot retention so published/locked roster history keeps employee, position, department, outlet, shift and publish timestamp details after employee master data changes.
 - Updated Duty Roster and Outlet Duty Roster views to show historical published snapshot staff, including resigned or terminated employees, while draft scheduling remains limited to current active outlet employees.
-- Replaced the Outlet Duty Roster Working Staff KPI with a clickable Off Day KPI and Off Day Details drawer that respects outlet, month, group, position, employee search and published roster snapshots.
+- Replaced the Outlet Duty Roster Working Staff and Unscheduled Days KPI cards with clickable Off Day, Annual Leave, and MC KPI detail drawers that respect outlet, month, group, position, employee search and published roster snapshots.
+- Modernized Outlet Duty Roster monthly date cards with compact Staff Scheduled, Floor, Kitchen, OFF, AL, and MC chips plus status/today badges and a clearer View details affordance.
 
 ## 2026-06-03
 

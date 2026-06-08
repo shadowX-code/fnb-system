@@ -4413,7 +4413,7 @@ Open Overview > Outlet Duty Roster
 → Load duty_rosters for the full month
 → Apply group, position, and employee filters
 → Render monthly calendar roster summary cards
-→ Click Off Day KPI to view filtered OFF entries
+→ Click Off Day, Annual Leave, or MC KPI to view filtered details
 → Click date card
 → Open daily duty drawer
 → Review Floor/Kitchen/Other staff on duty
@@ -4425,11 +4425,12 @@ Rules:
 - Do not show hardcoded staffing health labels such as Fully Staffed, Understaffed, Critical shortage, or 9+ staff thresholds.
 - Outlet Duty Roster is factual only until outlet-specific manpower targets exist.
 - Empty dates show Not Scheduled Yet.
-- Scheduled dates show actual working staff counts and Floor/Kitchen/Other breakdown.
-- KPI cards are Scheduled Shifts, Off Day, AL / MC Days, and Unscheduled Days.
-- Off Day KPI counts OFF entries for the selected outlet, month, group, position, and employee search filters.
-- Clicking the Off Day KPI opens Off Day Details with Date, Staff Name, Position, Group / Department, and Shift Type / Label = OFF.
-- Off Day Details shows "No off days found for this period." when no OFF rows match current filters.
+- Scheduled dates show actual staff scheduled count plus Floor, Kitchen, OFF, AL, and MC count chips.
+- KPI cards are Scheduled Shifts, Off Day, Annual Leave, and MC.
+- Off Day, Annual Leave, and MC KPIs count matching entries for the selected outlet, month, group, position, and employee search filters.
+- Clicking the Off Day, Annual Leave, or MC KPI opens the matching detail drawer with Date, Staff Name, Position, Group / Department, and Type.
+- Empty detail drawers show a clear no-records message for the current period.
+- Calendar date cards use compact chips/badges for Draft/Published/Locked, Today, Staff Scheduled, Floor, Kitchen, OFF, AL, and MC, with a subtle hover state and View details affordance.
 - Calendar date cards show Draft, Published, or Locked only when shifts exist.
 - Daily status derives from duty_rosters rows: all published = Published, all locked = Locked, otherwise Draft.
 - Today is marked with a small Today badge and subtle green styling.
@@ -4746,7 +4747,7 @@ MetricCard rules:
 
 - KPI value typography is standardized globally through `text-primary-type-kpi-value`. Final value scale is 22.5px / 28px / 600 for a refined enterprise SaaS density. KPI values must not use page-title-sized utilities such as `text-4xl`, `text-5xl`, or custom 40px+ values.
 - Dashboard KPI cards use MetricCard.
-- Duty Roster and Outlet Duty Roster KPI summaries use MetricCard with semantic icons, compact 11-12px labels, the shared KPI value scale, and cleaned human-readable labels such as Scheduled Shifts, Off Day, AL / MC Days, and Unscheduled Days.
+- Duty Roster and Outlet Duty Roster KPI summaries use MetricCard with semantic icons, compact 11-12px labels, the shared KPI value scale, and cleaned human-readable labels such as Scheduled Shifts, Off Day, Annual Leave, and MC.
 - People KPI summaries across Employees, Job Positions, Departments, and Roles & Permissions use MetricCard with semantic icons, compact 11-12px labels, muted label color, and the shared KPI value scale. Upcoming Celebrations mini stats follow the same icon + label language with softer secondary-card styling.
 - Inventory and operations KPI summaries across Wastage, Recipes & Usage, Inventory Movements, Stock Check Groups, Asset Tracking, and Month Closing Control Center use MetricCard or the same MetricCard header/value language: a small semantic icon, 11-12px muted semibold label, and the shared compact KPI value scale.
 - Analytics-heavy KPI strips, such as Product Analytics, should use `MetricCard variant="compact"` to reduce card height, icon footprint, and whitespace while keeping numeric values prominent.
