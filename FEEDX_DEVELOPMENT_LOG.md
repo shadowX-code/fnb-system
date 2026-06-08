@@ -11,6 +11,15 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Modernized Outlet Duty Roster monthly date cards with compact Staff Scheduled, Floor, Kitchen, OFF, AL, and MC chips plus status/today badges and a clearer View details affordance.
 - Refined Outlet Duty Roster monthly calendar density by hiding zero-value chips and giving unscheduled days a lighter dashed No Schedule state.
 
+### Purchase Comparison
+- Changed the Purchase Comparison default View Mode to Supplier while keeping Category, Supplier, and Full selectable.
+
+### Outlet P&L
+- Simplified Revenue Trend and Net Profit Trend hover tooltips so each chart shows only its own month and two plotted series values.
+
+### Inventory Control
+- Added shorter business-facing Purchase Order references in `[OutletCode]-[YYMMDD]-[RunningNo]` format while preserving the existing internal PO system ID.
+
 ## 2026-06-03
 
 ### Product Sales Analytics
