@@ -145,25 +145,19 @@ function PnlKpiCard({ label, value, helper, icon: Icon, primary = false, tone = 
   );
 }
 
-function PnlTooltip({ label, item, previousItem }) {
-  const revenueYoy = yoyValue(item.revenue, previousItem?.revenue);
+function TrendSeriesTooltip({ label, currentLabel, previousLabel, currentValue, previousValue, valueClassName = "text-text-primary" }) {
   return (
-    <div className="min-w-[210px]">
-      <div className="mb-2 flex items-center justify-between gap-4 border-b border-border pb-2">
+    <div className="min-w-[220px]">
+      <div className="mb-2 border-b border-border pb-2">
         <div className="font-bold text-text-primary">{label}</div>
-        <FinanceBadge tone={item.netProfit < 0 ? "danger" : item.margin < 10 ? "warning" : "success"}>{toPercent(item.margin)}</FinanceBadge>
       </div>
       {[
-        ["Revenue", toCurrency(item.revenue)],
-        ["COGS", `-${toCurrency(item.cogs)}`],
-        ["OpEx", `-${toCurrency(item.opex)}`],
-        ["Net Profit", signedCurrency(item.netProfit)],
-        ["Margin %", toPercent(item.margin)],
-        ["YoY %", revenueYoy === null ? "No prior year" : `${revenueYoy >= 0 ? "+" : ""}${toPercent(revenueYoy)}`],
-      ].map(([name, value]) => (
+        [currentLabel, toCurrency(currentValue || 0), valueClassName],
+        [previousLabel, toCurrency(previousValue || 0), "text-text-primary"],
+      ].map(([name, value, className]) => (
         <div key={name} className="mt-1.5 flex justify-between gap-8 text-text-secondary">
           <span>{name}</span>
-          <strong className={name === "Net Profit" && item.netProfit < 0 ? "text-rose-600" : "text-text-primary"}>{value}</strong>
+          <strong className={className}>{value}</strong>
         </div>
       ))}
     </div>
@@ -424,7 +418,15 @@ export default function OutletPnlPage({ store, ui, auth }) {
                 { name: `${year - 1} Revenue`, data: previous.monthly.map((item) => item.revenue), stroke: "#94a3b8", fill: "#94a3b8", strokeWidth: 2, format: toCurrency },
               ]}
               highlightIndex={new Date().getMonth()}
-              renderTooltip={({ label, index }) => <PnlTooltip label={label} item={current.monthly[index]} previousItem={previous.monthly[index]} />}
+              renderTooltip={({ label, index }) => (
+                <TrendSeriesTooltip
+                  label={label}
+                  currentLabel={`${year} Revenue`}
+                  previousLabel={`${year - 1} Revenue`}
+                  currentValue={current.monthly[index]?.revenue}
+                  previousValue={previous.monthly[index]?.revenue}
+                />
+              )}
             />
           </div>
         </Card>
@@ -439,7 +441,16 @@ export default function OutletPnlPage({ store, ui, auth }) {
                 { name: `${year - 1} Net Profit`, data: previous.monthly.map((item) => item.netProfit), stroke: "#94a3b8", fill: "#94a3b8", strokeWidth: 2, format: toCurrency },
               ]}
               highlightIndex={new Date().getMonth()}
-              renderTooltip={({ label, index }) => <PnlTooltip label={label} item={current.monthly[index]} previousItem={previous.monthly[index]} />}
+              renderTooltip={({ label, index }) => (
+                <TrendSeriesTooltip
+                  label={label}
+                  currentLabel={`${year} Net Profit`}
+                  previousLabel={`${year - 1} Net Profit`}
+                  currentValue={current.monthly[index]?.netProfit}
+                  previousValue={previous.monthly[index]?.netProfit}
+                  valueClassName={current.monthly[index]?.netProfit < 0 ? "text-rose-600" : "text-text-primary"}
+                />
+              )}
             />
           </div>
         </Card>

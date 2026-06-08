@@ -8,6 +8,15 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Clarified Employee login setup UX so unsaved setup changes explain that users should save first or use `Save & Send Login Setup`.
 - Aligned setup permissions so initial login setup uses `employees.enable_login`, active-user password reset uses `employees.reset_password`, and manual setup links no longer require unrelated role-management permissions.
 
+### Purchase Comparison
+- Changed the Purchase Comparison default View Mode to Supplier while keeping Category, Supplier, and Full selectable.
+
+### Outlet P&L
+- Simplified Revenue Trend and Net Profit Trend hover tooltips so each chart shows only its own month and two plotted series values.
+
+### Inventory Control
+- Added shorter business-facing Purchase Order references in `[OutletCode]-[YYMMDD]-[RunningNo]` format while preserving the existing internal PO system ID.
+
 ## 2026-06-03
 
 ### Product Sales Analytics

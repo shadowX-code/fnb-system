@@ -296,6 +296,23 @@ function outletDisplayName(outlet = {}) {
   return normalized.name || normalized.code || normalized.id || "Unknown outlet";
 }
 
+function businessOutletCode(outlet = {}) {
+  const code = outletDisplayCode(outlet);
+  return String(code || "OUTLET").toUpperCase().replace(/[^A-Z0-9]/g, "").slice(0, 8) || "OUTLET";
+}
+
+function businessPoDate(value) {
+  const source = String(value || todayInput()).slice(0, 10);
+  const match = source.match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!match) return todayInput().slice(2).replace(/-/g, "");
+  return `${match[1].slice(2)}${match[2]}${match[3]}`;
+}
+
+function purchaseOrderSortKey(order = {}) {
+  const time = Date.parse(order.createdAt || order.submittedAt || order.updatedAt || "");
+  return Number.isFinite(time) ? time : 0;
+}
+
 function csvEscape(value) {
   const text = String(value ?? "");
   return /[",\n\r]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
@@ -5917,7 +5934,7 @@ function RecipeDetailModal({ recipe, outlet, items, categories, onClose, onEdit 
   );
 }
 
-function PurchaseSuggestionsModal({ suggestions, suppliers, outlet, existingOrders = [], onClose, onCreateDraftPo, onViewPurchaseOrder }) {
+function PurchaseSuggestionsModal({ suggestions, suppliers, outlet, existingOrders = [], businessPoNo = (order) => order?.poNo || "PO", onClose, onCreateDraftPo, onViewPurchaseOrder }) {
   const [rows, setRows] = useState(suggestions.map((row) => ({
     ...row,
     include: true,
@@ -5976,7 +5993,7 @@ function PurchaseSuggestionsModal({ suggestions, suppliers, outlet, existingOrde
                     onClick={() => onViewPurchaseOrder(order)}
                   >
                     <span className="min-w-0">
-                      <span className="block truncate type-body-sm font-bold text-text-primary">{order.poNo}</span>
+                      <span className="block truncate type-body-sm font-bold text-text-primary" title={`Internal system ID: ${order.poNo}`}>{businessPoNo(order)}</span>
                       <span className="block type-caption text-text-secondary">{supplier?.name || "Supplier"} · {order.lines?.length || 0} item{order.lines?.length === 1 ? "" : "s"}</span>
                     </span>
                     <Badge tone={statusTone(order.status)}>{poStatusLabel(order.status)}</Badge>
@@ -6121,7 +6138,7 @@ function PurchaseOrderEditModal({ order, suppliers, items, onClose, onSave }) {
   );
 }
 
-function ReceiveInventoryModal({ order, supplier, outlet, items, onClose, onReceive }) {
+function ReceiveInventoryModal({ order, supplier, outlet, items, displayPoNo, onClose, onReceive }) {
   const [remark, setRemark] = useState("");
   const [rows, setRows] = useState((order.lines || []).map((line) => ({ ...line, receiveNowQty: "", receiveRemark: "" })));
   const receiveGridRef = useRef(null);
@@ -6144,7 +6161,7 @@ function ReceiveInventoryModal({ order, supplier, outlet, items, onClose, onRece
   return (
     <Modal
       title="Receive Inventory"
-      description={`${order.poNo} · ${supplier?.name || "Supplier"} · ${outlet?.name || "Outlet"} · ${poStatusLabel(order.status)}`}
+      description={`${displayPoNo || order.poNo} · ${supplier?.name || "Supplier"} · ${outlet?.name || "Outlet"} · ${poStatusLabel(order.status)}`}
       size="xl"
       onClose={onClose}
       footer={(
@@ -6231,12 +6248,12 @@ function ReceiveInventoryModal({ order, supplier, outlet, items, onClose, onRece
   );
 }
 
-function CancelPurchaseOrderModal({ order, onClose, onCancel }) {
+function CancelPurchaseOrderModal({ order, displayPoNo, onClose, onCancel }) {
   const [reason, setReason] = useState("");
   return (
     <Modal
       title="Cancel Purchase Order"
-      description={`${order.poNo} will be preserved for audit history.`}
+      description={`${displayPoNo || order.poNo} will be preserved for audit history.`}
       onClose={onClose}
       footer={(
         <>
@@ -6564,6 +6581,20 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     return counts;
   }, [data.items]);
   const outletById = useMemo(() => new Map(outlets.map((outlet) => [outlet.id, outlet])), [outlets]);
+  const businessPoByOrderId = useMemo(() => {
+    const sortedOrders = [...(data.orders || [])].sort((a, b) => (
+      purchaseOrderSortKey(a) - purchaseOrderSortKey(b)
+      || String(a.poNo || a.id || "").localeCompare(String(b.poNo || b.id || ""))
+    ));
+    const sequenceByDate = new Map();
+    return new Map(sortedOrders.map((order) => {
+      const outlet = outletById.get(order.outletId || order.outletIds?.[0]);
+      const dateCode = businessPoDate(order.createdAt || order.submittedAt || order.updatedAt);
+      const nextSequence = (sequenceByDate.get(dateCode) || 0) + 1;
+      sequenceByDate.set(dateCode, nextSequence);
+      return [order.id, `${businessOutletCode(outlet)}-${dateCode}-${String(nextSequence).padStart(3, "0")}`];
+    }));
+  }, [data.orders, outletById]);
   const itemById = useMemo(() => new Map(data.items.map((item) => [item.id, item])), [data.items]);
   const peopleById = useMemo(() => new Map((data.people || []).map((person) => [person.id, person])), [data.people]);
   const peopleByAuthId = useMemo(() => new Map((data.people || []).filter((person) => person.authUserId).map((person) => [person.authUserId, person])), [data.people]);
@@ -6586,6 +6617,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     const person = peopleById.get(id) || peopleByAuthId.get(id);
     return person?.name || person?.email || "Unknown User";
   };
+  const businessPoNo = (order = {}) => businessPoByOrderId.get(order.id) || order.poNo || "PO";
 
   const visibleItems = useMemo(() => data.items.filter((item) => {
     const linkedOutletIds = item.linkedOutletIds || [];
@@ -7331,7 +7363,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       const outletId = order.outletId || order.outletIds?.[0] || "";
       const supplier = suppliers.find((entry) => entry.id === order.supplierId);
       const createdDate = (order.createdAt || order.submittedAt || "").slice(0, 10);
-      const searchText = [order.poNo, supplier?.name, ...(order.lines || []).map((line) => itemById.get(line.itemId)?.name)].join(" ").toLowerCase();
+      const searchText = [businessPoNo(order), order.poNo, supplier?.name, ...(order.lines || []).map((line) => itemById.get(line.itemId)?.name)].join(" ").toLowerCase();
       return (poFilters.outletId === "all" || outletId === poFilters.outletId)
         && (poFilters.supplierId === "all" || order.supplierId === poFilters.supplierId)
         && (poFilters.status === "all" || order.status === poFilters.status)
@@ -7342,7 +7374,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     }).map((order) => {
       const progress = poProgress(order);
       return {
-        "PO No.": order.poNo,
+        "PO No.": businessPoNo(order),
+        "Internal System ID": order.poNo,
         Supplier: suppliers.find((supplier) => supplier.id === order.supplierId)?.name || "",
         Outlet: outletById.get(order.outletId || order.outletIds?.[0])?.name || "",
         Items: order.lines.length,
@@ -7359,7 +7392,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         "Cancelled Reason": order.cancellationReason || "",
       };
     });
-    const columns = ["PO No.", "Supplier", "Outlet", "Items", "Ordered Qty", "Received Qty", "Remaining Qty", "Status", "Source", "Created Date", "Submitted Date", "Completed Date", "Completion Type", "Completion Reason", "Cancelled Reason"];
+    const columns = ["PO No.", "Internal System ID", "Supplier", "Outlet", "Items", "Ordered Qty", "Received Qty", "Remaining Qty", "Status", "Source", "Created Date", "Submitted Date", "Completed Date", "Completion Type", "Completion Reason", "Cancelled Reason"];
     const csv = [columns.join(","), ...rows.map((row) => columns.map((column) => csvEscape(row[column])).join(","))].join("\n");
     downloadTextFile(`feedx-purchase-orders-${todayInput()}.csv`, csv);
     notify("Purchase orders exported", `${rows.length} PO${rows.length === 1 ? "" : "s"} exported.`);
@@ -7381,7 +7414,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       "",
       "Please arrange the following order:",
       "",
-      `PO No.: ${order.poNo || "-"}`,
+      `PO No.: ${businessPoNo(order) || "-"}`,
       `Date: ${formatDate(order.createdAt || todayInput())}`,
       `Outlet: ${outlet?.name || "Outlet"}`,
       ...statusLine,
@@ -9743,6 +9776,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       const supplier = suppliers.find((entry) => entry.id === order.supplierId);
       const createdDate = (order.createdAt || order.submittedAt || "").slice(0, 10);
       const searchText = [
+        businessPoNo(order),
         order.poNo,
         supplier?.name,
         ...(order.lines || []).map((line) => itemById.get(line.itemId)?.name),
@@ -9775,8 +9809,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           <DatePickerField label="From" value={poFilters.from} onChange={(value) => updateFilter("from", value)} />
           <DatePickerField label="To" value={poFilters.to} onChange={(value) => updateFilter("to", value)} />
           <label className="lg:col-span-6">
-            <div className="mb-1 type-caption font-semibold text-text-secondary">Search PO / Supplier / Item</div>
-            <input className="control h-9 w-full text-[13px]" value={poFilters.search} onChange={(event) => updateFilter("search", event.target.value)} placeholder="Search PO no, supplier or item" />
+            <div className="mb-1 type-caption font-semibold text-text-secondary">Search Business PO / Supplier / Item</div>
+            <input className="control h-9 w-full text-[13px]" value={poFilters.search} onChange={(event) => updateFilter("search", event.target.value)} placeholder="Search business PO no, internal ID, supplier or item" />
           </label>
         </div>
         {filteredOrders.length ? (
@@ -9784,7 +9818,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             <table className="w-full min-w-[1040px] text-left">
               <thead className="text-[11px] uppercase tracking-wide text-text-muted">
                 <tr className="border-b border-border">
-                  <th className="py-2">PO No.</th>
+                  <th className="py-2">Business PO No.</th>
                   <th>Supplier</th>
                   <th>Outlet</th>
                   <th>Items</th>
@@ -9804,7 +9838,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                   const canCancelOrder = ["draft", "submitted", "supplier_confirmed"].includes(order.status) && progress.received <= 0;
                   return (
                     <tr key={order.id} className="transition hover:bg-primary/5">
-                      <td className="py-3 font-mono text-xs font-bold text-text-primary">{order.poNo}</td>
+                      <td className="py-3 font-mono text-xs font-bold text-text-primary" title={`Internal system ID: ${order.poNo}`}>{businessPoNo(order)}</td>
                       <td className="font-semibold text-text-primary">{supplier?.name ?? "Unassigned Supplier"}</td>
                       <td>{outlet?.name ?? "Outlet"}</td>
                       <td>{order.lines.length}</td>
@@ -11159,6 +11193,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       {modal?.type === "po-receive" ? (
         <ReceiveInventoryModal
           order={modal.order}
+          displayPoNo={businessPoNo(modal.order)}
           supplier={suppliers.find((supplier) => supplier.id === modal.order.supplierId)}
           outlet={outletById.get(modal.order.outletId || modal.order.outletIds?.[0])}
           items={data.items}
@@ -11166,7 +11201,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           onReceive={(rows, remark) => receivePurchaseOrder(modal.order, rows, remark)}
         />
       ) : null}
-      {modal?.type === "po-cancel" ? <CancelPurchaseOrderModal order={modal.order} onClose={() => setModal(null)} onCancel={(reason) => cancelPurchaseOrder(modal.order, reason)} /> : null}
+      {modal?.type === "po-cancel" ? <CancelPurchaseOrderModal order={modal.order} displayPoNo={businessPoNo(modal.order)} onClose={() => setModal(null)} onCancel={(reason) => cancelPurchaseOrder(modal.order, reason)} /> : null}
       {modal?.type === "po-complete" ? <CompletePurchaseOrderModal order={modal.order} onClose={() => setModal(null)} onComplete={(reason) => completePurchaseOrder(modal.order, reason)} /> : null}
       {modal?.type === "po-copy-text" ? <CopyPoTextModal text={modal.text} onClose={() => setModal(null)} onCopy={copyRawText} /> : null}
       {modal?.type === "purchase-suggestions" ? (
@@ -11175,6 +11210,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           suppliers={suppliers}
           outlet={outletById.get(modal.stockCheck.outletId)}
           existingOrders={modal.existingOrders || linkedPurchaseOrdersForStockCheck(modal.stockCheck?.id)}
+          businessPoNo={businessPoNo}
           onClose={() => setModal(null)}
           onCreateDraftPo={(rows) => createDraftPurchaseOrders(modal.stockCheck, rows)}
           onViewPurchaseOrder={(order) => setModal({ type: "po-detail", order })}
@@ -11297,11 +11333,12 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         ];
         const workflowIndex = order.status === "draft" ? 0 : ["submitted", "supplier_confirmed"].includes(order.status) ? 1 : ["partial_received", "fully_received"].includes(order.status) ? 2 : order.status === "completed" ? 3 : -1;
         const sourceName = sourceCheck ? `${sourceCheck.auditName || sourceCheck.groupName || "Stock Check"} · ${formatDate(sourceCheck.date)}` : order.sourceStockCheckId || "Manual purchase planning";
+        const displayPoNo = businessPoNo(order);
 
         return (
           <Modal
             title="Purchase Order Detail"
-            description={`${order.poNo} · ${supplier?.name || "Supplier"} · ${outlet?.name || "Outlet"}`}
+            description={`${displayPoNo} · ${supplier?.name || "Supplier"} · ${outlet?.name || "Outlet"}`}
             size="xl"
             onClose={() => setModal(null)}
             footer={<button className="btn-secondary" type="button" onClick={() => setModal(null)}>Close</button>}
@@ -11314,6 +11351,17 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                   <button className="btn-secondary" type="button" onClick={() => copyPurchaseOrderText(order)}><Copy size={15} /> Copy PO Text</button>
                   <button className="btn-secondary" type="button" onClick={() => { notify("Export PDF", "Use the print dialog to save this PO as PDF."); window.print(); }}><Download size={15} /> Export PDF</button>
                   <button className="btn-secondary" type="button" onClick={() => window.print()}><FileText size={15} /> Print</button>
+                </div>
+              </div>
+
+              <div className="grid gap-3 sm:grid-cols-2">
+                <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3">
+                  <div className="type-caption font-semibold text-text-muted">Business PO Number</div>
+                  <div className="mt-1 font-mono text-lg font-black text-text-primary">{displayPoNo}</div>
+                </div>
+                <div className="rounded-2xl border border-border bg-surface p-3">
+                  <div className="type-caption font-semibold text-text-muted">Internal System ID</div>
+                  <div className="mt-1 font-mono text-sm font-bold text-text-secondary">{order.poNo}</div>
                 </div>
               </div>
 

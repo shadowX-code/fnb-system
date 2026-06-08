@@ -478,7 +478,7 @@ function InsightPanel({ warningCells, topSuppliers, biggestIncrease, stableSuppl
 export default function PurchaseComparisonPage({ store, setStore, ui, auth }) {
   const filters = usePeriodFilters(store);
   const yearOptions = useMemo(() => buildDynamicYearOptions(yearsFromRecords(store.purchaseRecords)), [store.purchaseRecords]);
-  const [viewMode, setViewMode] = useState("Category");
+  const [viewMode, setViewMode] = useState("Supplier");
   const [compareWith, setCompareWith] = useState("3-Month Average");
   const [query, setQuery] = useState(() => {
     const params = new URLSearchParams(window.location.hash.split("?")[1] || "");
