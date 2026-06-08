@@ -2442,6 +2442,10 @@ Rules:
 - PO detail shows supplier, outlet, source stock check/request, item rows, ordered quantity, received quantity, remaining quantity, fulfillment percentage, completion type/reason, unit, remark, receiving history, and status timeline.
 - PO detail uses a procurement workflow view with Generated From context, supplier contact placeholder, Created → Submitted → Receiving → Completed progress, fulfillment progress bar, item Balance column, and receiving history timeline.
 - PO detail action group includes Copy PO Text, Export PDF, Print, and quick Receive when the PO is receivable.
+- Purchase Orders display a business-facing PO number in `[OutletCode]-[YYMMDD]-[RunningNo]` format, for example `HLI-250608-001`.
+- The existing stored `po_no` remains the internal system ID and must not be changed by the business PO display reference.
+- Purchase Order lists, supplier copy text, and primary user-facing PO labels use the business PO number; PO detail also shows the Internal System ID for audit/reference.
+- Hover/tooltips can expose the internal system ID where the shorter business PO number is shown.
 - Receiving history timeline shows received date, received quantity, `Received By`, remark, and item-level received quantities. `Received By` must resolve employee nickname, then full name, then email, then `Unknown User`; raw UUIDs must never be displayed.
 - Status workflow: Draft → Submitted → Supplier Confirmed → Partial Received → Fully Received → Completed.
 - Cancelled preserves historical PO records and requires a cancellation reason.
@@ -2451,7 +2455,7 @@ Rules:
 - Edit is allowed for Draft status only.
 - Purchase Orders support Copy PO Text for supplier communication through WhatsApp or email.
 - Copied PO text includes supplier, PO no, created date, outlet, item names, ordered quantities, UOM, and remarks when available.
-- Copy PO Text uses ordered quantity, not received quantity, and does not include internal IDs except PO No.
+- Copy PO Text uses ordered quantity, not received quantity, and uses the business PO number instead of the internal system ID.
 - Purchase Orders support outlet, supplier, status, source, date range, and search filters.
 - Purchase Order export respects current filters and includes PO No., Supplier, Outlet, Items, Ordered Qty, Received Qty, Remaining Qty, Status, Source, Created Date, Submitted Date, Completed Date, Completion Type, Completion Reason, and Cancelled Reason.
 
