@@ -690,16 +690,30 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
                 const isSelected = dailyDrawerDate === dateValue;
                 const isWeekend = date.getDay() === 0 || date.getDay() === 6;
                 const hasRoster = stats.rosters.length > 0;
+                const hasAnySchedule = stats.working > 0 || stats.off > 0 || stats.al > 0 || stats.mc > 0;
                 const period = periodByDate.get(dateValue);
                 const dayStatus = rosterDayStatus(stats) || (stats.rosters.length ? period?.status : "");
+                const detailChips = [
+                  ["Floor", stats.floor, "bg-emerald-50 text-emerald-700"],
+                  ["Kitchen", stats.kitchen, "bg-amber-50 text-amber-700"],
+                  ["OFF", stats.off, "bg-slate-100 text-slate-700"],
+                  ["AL", stats.al, "bg-blue-50 text-blue-700"],
+                  ["MC", stats.mc, "bg-violet-50 text-violet-700"],
+                ].filter(([, value]) => value > 0);
                 return (
                   <button
                     key={dateValue}
                     className={`group min-h-[156px] rounded-3xl border p-3 text-left transition ${
                       inMonth ? "hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/5 hover:shadow-card" : "cursor-default"
                     } ${
-                      isSelected ? "border-primary/50 bg-primary/10" : isToday ? "border-primary/60 bg-primary/5" : "border-border bg-surface"
-                    } ${isWeekend && !isSelected ? "bg-background" : ""} ${!inMonth ? "hidden opacity-35 sm:block" : ""}`}
+                      isSelected
+                        ? "border-primary/50 bg-primary/10"
+                        : isToday
+                          ? "border-primary/60 bg-primary/5"
+                          : hasAnySchedule
+                            ? "border-border bg-surface"
+                            : "border-dashed border-slate-200 bg-slate-50/70"
+                    } ${isWeekend && !isSelected && hasAnySchedule ? "bg-background" : ""} ${!inMonth ? "hidden opacity-35 sm:block" : ""}`}
                     type="button"
                     disabled={!inMonth}
                     onClick={() => setDailyDrawerDate(dateValue)}
@@ -714,24 +728,28 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
                         {isToday ? <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-primary">Today</span> : null}
                       </div>
                     </div>
-                    <div className="mt-3 flex items-center justify-between gap-2 rounded-2xl border border-border bg-background px-3 py-2">
-                      <span className="text-[11px] font-black uppercase tracking-wide text-text-muted">Staff scheduled</span>
-                      <span className="text-sm font-black text-text-primary">{hasRoster ? stats.working : 0}</span>
-                    </div>
-                    <div className="mt-2 grid grid-cols-2 gap-1.5">
-                      {[
-                        ["Floor", stats.floor, "bg-emerald-50 text-emerald-700"],
-                        ["Kitchen", stats.kitchen, "bg-amber-50 text-amber-700"],
-                        ["OFF", stats.off, "bg-slate-100 text-slate-700"],
-                        ["AL", stats.al, "bg-blue-50 text-blue-700"],
-                        ["MC", stats.mc, "bg-violet-50 text-violet-700"],
-                      ].map(([label, value, className]) => (
-                        <span key={label} className={`inline-flex items-center justify-between gap-2 rounded-full px-2 py-1 text-[10px] font-black ${className}`}>
-                          <span>{label}</span>
-                          <span>{value}</span>
-                        </span>
-                      ))}
-                    </div>
+                    {hasAnySchedule ? (
+                      <>
+                        <div className="mt-3 flex items-center justify-between gap-2 rounded-2xl border border-border bg-background px-3 py-2">
+                          <span className="text-[11px] font-black uppercase tracking-wide text-text-muted">Staff scheduled</span>
+                          <span className="text-sm font-black text-text-primary">{stats.working}</span>
+                        </div>
+                        {detailChips.length ? (
+                          <div className="mt-2 grid grid-cols-2 gap-1.5">
+                            {detailChips.map(([label, value, className]) => (
+                              <span key={label} className={`inline-flex items-center justify-between gap-2 rounded-full px-2 py-1 text-[10px] font-black ${className}`}>
+                                <span>{label}</span>
+                                <span>{value}</span>
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                      </>
+                    ) : (
+                      <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-white/70 px-3 py-4 text-center text-xs font-black uppercase tracking-wide text-slate-400">
+                        No Schedule
+                      </div>
+                    )}
                     {inMonth ? <div className="mt-3 text-[11px] font-black uppercase tracking-wide text-primary opacity-70 transition group-hover:opacity-100">View details →</div> : null}
                   </button>
                 );

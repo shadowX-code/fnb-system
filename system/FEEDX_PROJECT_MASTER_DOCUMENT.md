@@ -4426,6 +4426,8 @@ Rules:
 - Outlet Duty Roster is factual only until outlet-specific manpower targets exist.
 - Empty dates show Not Scheduled Yet.
 - Scheduled dates show actual staff scheduled count plus Floor, Kitchen, OFF, AL, and MC count chips.
+- Monthly calendar date cards hide zero-value detail chips; Floor, Kitchen, OFF, AL, and MC chips show only when the count is above zero.
+- If a date has no working staff and no OFF/AL/MC entries, the card shows a lighter dashed `No Schedule` state while preserving the Today badge when relevant.
 - KPI cards are Scheduled Shifts, Off Day, Annual Leave, and MC.
 - Off Day, Annual Leave, and MC KPIs count matching entries for the selected outlet, month, group, position, and employee search filters.
 - Clicking the Off Day, Annual Leave, or MC KPI opens the matching detail drawer with Date, Staff Name, Position, Group / Department, and Type.
