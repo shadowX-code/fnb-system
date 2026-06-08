@@ -1114,6 +1114,12 @@ Duty roster fields:
 - break_minutes
 - status
 - remark
+- employee_name_snapshot
+- position_snapshot
+- department_snapshot
+- outlet_snapshot
+- shift_snapshot
+- publish_timestamp
 - created_by
 - updated_by
 - created_at
@@ -1218,7 +1224,13 @@ Behavior:
 - Locked is read-only.
 - Publish/lock/unlock requires manage permission.
 - Publishing a roster updates both the weekly roster period and all affected duty_rosters rows.
+- Publishing a roster snapshots the scheduled employee and shift display details into each published `duty_rosters` row: employee name, position, department, outlet, shift template/time, and publish timestamp.
+- Published and locked roster history must render from snapshots or saved roster rows, not only from the current active employee list.
+- Published roster history remains viewable after an employee later becomes resigned or terminated.
+- Draft roster scheduling continues to use current active outlet employees only; resigned and terminated employees must not appear for new scheduling.
+- Future employee master data changes must not alter historical published roster snapshots.
 - Editing or deleting shifts in a published week returns that week and its affected duty_rosters rows to Draft until republished.
+- Copying into a published week returns that week to Draft because copied shifts must be reviewed and republished before they become historical snapshots.
 - Monthly overview status badges derive from actual duty_rosters row status first, not stale local UI state.
 - Saved roster data must persist after refresh.
 
@@ -4388,6 +4400,7 @@ Select outlet and week
 → Use Bulk Assign to apply one shift to multiple dates
 → Review Floor/Kitchen coverage by day in the side panel
 → Publish roster when ready
+→ Stamp published roster snapshots for employee, position, department, outlet, shift and publish timestamp
 → Lock roster when finalized
 → Audit critical roster actions
 ```
@@ -4417,6 +4430,7 @@ Rules:
 - Today is marked with a small Today badge and subtle green styling.
 - The legend only explains AL, MC, Today and roster status badges.
 - If no roster exists for a selected date, the drawer shows one clean empty state: No staff scheduled for this date.
+- Published and locked days use roster snapshots so historical staff remain visible even after employee resignation or termination.
 
 Roster settings:
 

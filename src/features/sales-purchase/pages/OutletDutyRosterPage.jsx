@@ -93,6 +93,19 @@ function isWorkingRoster(roster) {
   return roster && !nonWorkingCodes.has(roster.template?.code);
 }
 
+function rosterHasPublishedSnapshot(roster) {
+  return ["published", "locked"].includes(roster?.status) || roster?.employee_snapshot?.is_roster_snapshot;
+}
+
+function snapshotEmployeeFromRoster(roster) {
+  if (!rosterHasPublishedSnapshot(roster) || !roster?.employee_snapshot?.full_name) return null;
+  return {
+    ...roster.employee_snapshot,
+    id: roster.employee_id,
+    is_roster_snapshot: true,
+  };
+}
+
 function statusBadgeClass(status) {
   if (status === "locked") return "border-slate-200 bg-slate-100 text-slate-700";
   if (status === "published") return "border-emerald-200 bg-emerald-50 text-emerald-700";
@@ -243,6 +256,9 @@ function DailyDutyDrawer({ date, stats, employeesById, onClose, onOpenSchedule }
       <div className="rounded-2xl border border-border bg-background p-3">
         <div className="text-sm font-bold text-text-primary">{row.employee.nickname || row.employee.full_name}</div>
         <div className="mt-1 text-xs font-semibold text-text-secondary">{row.employee.position || "Employee"}</div>
+        {row.employee.is_roster_snapshot ? (
+          <div className="mt-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">Published snapshot</div>
+        ) : null}
         <div className="mt-2 text-xs font-bold text-text-primary">{shift} · {shiftType}</div>
       </div>
     );
@@ -389,7 +405,16 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
     return map;
   }, [jobPositions]);
   const mappingByPositionId = useMemo(() => new Map(positionMappings.map((mapping) => [mapping.position_id, mapping.group_name])), [positionMappings]);
-  const employeesWithGroups = useMemo(() => employees.map((employee) => {
+  const displayEmployees = useMemo(() => {
+    const byId = new Map(employees.map((employee) => [employee.id, employee]));
+    rosters.forEach((roster) => {
+      if (byId.has(roster.employee_id)) return;
+      const snapshotEmployee = snapshotEmployeeFromRoster(roster);
+      if (snapshotEmployee) byId.set(snapshotEmployee.id, snapshotEmployee);
+    });
+    return [...byId.values()];
+  }, [employees, rosters]);
+  const employeesWithGroups = useMemo(() => displayEmployees.map((employee) => {
     const position = positionByName.get(String(employee.position || "").toLowerCase());
     const mappedGroup = position ? mappingByPositionId.get(position.id) : null;
     return {
@@ -397,7 +422,7 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
       position_id: position?.id ?? "",
       rosterGroup: position ? mappedGroup || "other" : fallbackGroupFromDepartment(employee.department),
     };
-  }), [employees, mappingByPositionId, positionByName]);
+  }), [displayEmployees, mappingByPositionId, positionByName]);
   const employeePositions = useMemo(() => [...new Set(employeesWithGroups.map((employee) => employee.position).filter(Boolean))].sort(), [employeesWithGroups]);
   const filteredEmployees = useMemo(() => employeesWithGroups
     .filter((employee) => groupFilter === "all" || employee.rosterGroup === groupFilter)

@@ -2,6 +2,12 @@
 
 Purpose: concise development history for meaningful FeedX development sessions. The master document remains the source of truth for final logic and architecture; release notes under `docs/releases/` document production releases.
 
+## 2026-06-08
+
+### Duty Roster
+- Added published Duty Roster snapshot retention so published/locked roster history keeps employee, position, department, outlet, shift and publish timestamp details after employee master data changes.
+- Updated Duty Roster and Outlet Duty Roster views to show historical published snapshot staff, including resigned or terminated employees, while draft scheduling remains limited to current active outlet employees.
+
 ## 2026-06-03
 
 ### Product Sales Analytics

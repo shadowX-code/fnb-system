@@ -188,6 +188,19 @@ function isWorkingRoster(roster) {
   return roster && !nonWorkingCodes.has(code);
 }
 
+function rosterHasPublishedSnapshot(roster) {
+  return ["published", "locked"].includes(roster?.status) || roster?.employee_snapshot?.is_roster_snapshot;
+}
+
+function snapshotEmployeeFromRoster(roster) {
+  if (!rosterHasPublishedSnapshot(roster) || !roster?.employee_snapshot?.full_name) return null;
+  return {
+    ...roster.employee_snapshot,
+    id: roster.employee_id,
+    is_roster_snapshot: true,
+  };
+}
+
 function ShiftBlock({ roster }) {
   if (!roster?.template) {
     return (
@@ -1639,13 +1652,22 @@ export default function DutyRosterPage({ store, ui, auth }) {
   }, [outletId, viewMode, weekStart]);
 
   const rosterByEmployeeDate = useMemo(() => new Map(rosters.map((roster) => [rosterKey(roster.employee_id, roster.roster_date), roster])), [rosters]);
+  const displayEmployees = useMemo(() => {
+    const byId = new Map(employees.map((employee) => [employee.id, employee]));
+    rosters.forEach((roster) => {
+      if (byId.has(roster.employee_id)) return;
+      const snapshotEmployee = snapshotEmployeeFromRoster(roster);
+      if (snapshotEmployee) byId.set(snapshotEmployee.id, snapshotEmployee);
+    });
+    return [...byId.values()];
+  }, [employees, rosters]);
   const positionByName = useMemo(() => {
     const map = new Map();
     jobPositions.forEach((position) => map.set(String(position.name).toLowerCase(), position));
     return map;
   }, [jobPositions]);
   const mappingByPositionId = useMemo(() => new Map(positionMappings.map((mapping) => [mapping.position_id, mapping.group_name])), [positionMappings]);
-  const employeesWithGroups = useMemo(() => employees.map((employee) => {
+  const employeesWithGroups = useMemo(() => displayEmployees.map((employee) => {
     const position = positionByName.get(String(employee.position || "").toLowerCase());
     const mappedGroup = position ? mappingByPositionId.get(position.id) : null;
     return {
@@ -1653,7 +1675,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
       position_id: position?.id ?? "",
       rosterGroup: position ? mappedGroup || "other" : fallbackGroupFromDepartment(employee.department),
     };
-  }), [employees, mappingByPositionId, positionByName]);
+  }), [displayEmployees, mappingByPositionId, positionByName]);
   const employeePositions = useMemo(() => [...new Set(employeesWithGroups.map((employee) => employee.position).filter(Boolean))].sort(), [employeesWithGroups]);
   const groupedEmployees = useMemo(() => {
     const groups = new Map();
@@ -1940,10 +1962,14 @@ export default function DutyRosterPage({ store, ui, auth }) {
         sourceEndDate: sourceEnd,
         targetDates: weekDateValues,
         overwrite,
-        targetStatus: period?.status === "published" ? "published" : "draft",
+        targetStatus: "draft",
       });
-      const nextRows = await dutyRosterService.listDutyRosters(outletId, weekDateValues[0], weekEnd);
+      const [nextRows, nextPeriod] = await Promise.all([
+        dutyRosterService.listDutyRosters(outletId, weekDateValues[0], weekEnd),
+        period?.status === "published" ? rosterPeriodService.setRosterPeriodStatus(period, "draft") : Promise.resolve(period),
+      ]);
       setRosters(nextRows);
+      setPeriod(nextPeriod);
       ui.notify({ title: "Week copied", message: `${result.created} shifts copied.` });
     } catch (copyError) {
       console.error("Unable to copy week roster", copyError);
@@ -1957,12 +1983,29 @@ export default function DutyRosterPage({ store, ui, auth }) {
       return;
     }
     try {
+      const employeeById = new Map(employeesWithGroups.map((employee) => [employee.id, employee]));
+      const snapshots = status === "published"
+        ? rosters
+            .filter((roster) => roster.roster_date >= weekDateValues[0] && roster.roster_date <= weekEnd)
+            .map((roster) => {
+              const employee = employeeById.get(roster.employee_id) ?? roster.employee_snapshot ?? {};
+              return {
+                ...roster,
+                employee_name_snapshot: employee.nickname || employee.full_name || roster.employee_name_snapshot || "",
+                position_snapshot: employee.position || roster.position_snapshot || "",
+                department_snapshot: employee.department || roster.department_snapshot || "",
+                outlet_snapshot: outletName,
+                template: roster.template,
+              };
+            })
+        : [];
       const nextPeriod = await rosterPeriodService.setRosterPeriodStatus(period, status);
       const nextRosters = await dutyRosterService.setWeekRosterStatus({
         outletId,
         startDate: weekDateValues[0],
         endDate: weekEnd,
         status,
+        snapshots,
       });
       setPeriod(nextPeriod);
       setRosters(nextRosters);
@@ -2225,6 +2268,9 @@ export default function DutyRosterPage({ store, ui, auth }) {
                                 <div className="min-w-0">
                                   <div className="truncate font-bold text-text-primary">{employee.nickname || employee.full_name}</div>
                                   <div className="mt-1 truncate text-xs text-text-secondary">{employee.position || "Employee"}</div>
+                                  {employee.is_roster_snapshot ? (
+                                    <div className="mt-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">Published snapshot</div>
+                                  ) : null}
                                 </div>
                                 {!readOnly ? (
                                   <button className="rounded-xl border border-border px-2 py-1 text-[11px] font-bold text-primary hover:bg-primary/10" type="button" onClick={() => setBulkDrawer({ employee })}>
@@ -2301,6 +2347,9 @@ export default function DutyRosterPage({ store, ui, auth }) {
                                   <div>
                                     <div className="text-sm font-bold text-text-primary">{employee.nickname || employee.full_name}</div>
                                     <div className="text-xs text-text-secondary">{employee.position || "Employee"}</div>
+                                    {employee.is_roster_snapshot ? (
+                                      <div className="mt-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">Published snapshot</div>
+                                    ) : null}
                                   </div>
                                   <ShiftBlock roster={roster} />
                                 </div>
