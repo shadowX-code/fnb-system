@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { CalendarDays, CalendarX, ChevronLeft, ChevronRight, Download, HeartPulse, Search, Users, X } from "lucide-react";
+import { CalendarDays, CalendarOff, ChevronLeft, ChevronRight, Download, HeartPulse, Search, X } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
@@ -82,6 +82,10 @@ function formatMonthYear(date) {
   return new Intl.DateTimeFormat("en-MY", { month: "long", year: "numeric" }).format(date);
 }
 
+function formatRosterDate(value) {
+  return new Intl.DateTimeFormat("en-MY", { day: "2-digit", month: "short", year: "numeric" }).format(new Date(`${value}T00:00:00`));
+}
+
 function fallbackGroupFromDepartment(department) {
   const value = String(department || "").toLowerCase();
   if (value.includes("kitchen")) return "kitchen";
@@ -91,6 +95,19 @@ function fallbackGroupFromDepartment(department) {
 
 function isWorkingRoster(roster) {
   return roster && !nonWorkingCodes.has(roster.template?.code);
+}
+
+function rosterHasPublishedSnapshot(roster) {
+  return ["published", "locked"].includes(roster?.status) || roster?.employee_snapshot?.is_roster_snapshot;
+}
+
+function snapshotEmployeeFromRoster(roster) {
+  if (!rosterHasPublishedSnapshot(roster) || !roster?.employee_snapshot?.full_name) return null;
+  return {
+    ...roster.employee_snapshot,
+    id: roster.employee_id,
+    is_roster_snapshot: true,
+  };
 }
 
 function statusBadgeClass(status) {
@@ -243,6 +260,9 @@ function DailyDutyDrawer({ date, stats, employeesById, onClose, onOpenSchedule }
       <div className="rounded-2xl border border-border bg-background p-3">
         <div className="text-sm font-bold text-text-primary">{row.employee.nickname || row.employee.full_name}</div>
         <div className="mt-1 text-xs font-semibold text-text-secondary">{row.employee.position || "Employee"}</div>
+        {row.employee.is_roster_snapshot ? (
+          <div className="mt-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">Published snapshot</div>
+        ) : null}
         <div className="mt-2 text-xs font-bold text-text-primary">{shift} · {shiftType}</div>
       </div>
     );
@@ -320,6 +340,71 @@ function DailyDutyDrawer({ date, stats, employeesById, onClose, onOpenSchedule }
   );
 }
 
+function RosterTypeDetailsDrawer({ title, emptyMessage, rows, typeLabel, toneClass, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex justify-end bg-slate-950/30 backdrop-blur-[2px]" role="dialog" aria-modal="true">
+      <button className="flex-1 cursor-default" type="button" aria-label={`Close ${title} backdrop`} onClick={onClose} />
+      <aside className="flex h-full w-full max-w-[720px] flex-col border-l border-border bg-surface shadow-2xl">
+        <header className="shrink-0 border-b border-border p-5">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="text-xs font-black uppercase tracking-[0.16em] text-primary">Outlet Duty Roster</div>
+              <h2 className="mt-1 text-xl font-semibold text-text-primary">{title}</h2>
+            </div>
+            <button className="icon-btn" type="button" onClick={onClose} aria-label={`Close ${title}`}><X size={18} /></button>
+          </div>
+        </header>
+
+        <div className="min-h-0 flex-1 overflow-y-auto p-5">
+          {!rows.length ? (
+            <div className="rounded-3xl border border-dashed border-border bg-background p-8 text-center text-sm font-semibold text-text-secondary">
+              {emptyMessage}
+            </div>
+          ) : (
+            <div className="overflow-hidden rounded-3xl border border-border bg-background">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[680px] text-sm">
+                  <thead className="table-head">
+                    <tr>
+                      <th className="px-4 py-3 text-left">Date</th>
+                      <th className="px-4 py-3 text-left">Staff Name</th>
+                      <th className="px-4 py-3 text-left">Position</th>
+                      <th className="px-4 py-3 text-left">Group / Department</th>
+                      <th className="px-4 py-3 text-left">Type</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border bg-surface">
+                    {rows.map((row) => (
+                      <tr key={`${row.roster.id}-${row.roster.roster_date}`} className="table-row">
+                        <td className="px-4 py-3 font-semibold text-text-primary">{formatRosterDate(row.roster.roster_date)}</td>
+                        <td className="px-4 py-3">
+                          <div className="font-bold text-text-primary">{row.employee.nickname || row.employee.full_name}</div>
+                          {row.employee.is_roster_snapshot ? (
+                            <div className="mt-1 text-[10px] font-black uppercase tracking-wide text-emerald-700">Published snapshot</div>
+                          ) : null}
+                        </td>
+                        <td className="px-4 py-3 text-text-secondary">{row.employee.position || "Employee"}</td>
+                        <td className="px-4 py-3 text-text-secondary">{groupLabels[row.employee.rosterGroup] || "OTHER"}{row.employee.department ? ` / ${row.employee.department}` : ""}</td>
+                        <td className="px-4 py-3"><span className={`rounded-full px-2.5 py-1 text-xs font-black ${toneClass}`}>{typeLabel}</span></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <footer className="shrink-0 border-t border-border bg-background p-4">
+          <div className="flex justify-end">
+            <button className="btn-secondary" type="button" onClick={onClose}>Close</button>
+          </div>
+        </footer>
+      </aside>
+    </div>
+  );
+}
+
 export default function OutletDutyRosterPage({ store, ui, auth }) {
   const activeOutlets = store.outlets.filter((outlet) => outlet.status === "active" || outlet.is_active);
   const [outletId, setOutletId] = useState(activeOutlets[0]?.id ?? "");
@@ -333,6 +418,7 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
   const [groupFilter, setGroupFilter] = useState("all");
   const [positionFilter, setPositionFilter] = useState("all");
   const [dailyDrawerDate, setDailyDrawerDate] = useState("");
+  const [detailType, setDetailType] = useState("");
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const canExportOverview = canExport(auth, "outlet_duty_roster");
@@ -389,7 +475,16 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
     return map;
   }, [jobPositions]);
   const mappingByPositionId = useMemo(() => new Map(positionMappings.map((mapping) => [mapping.position_id, mapping.group_name])), [positionMappings]);
-  const employeesWithGroups = useMemo(() => employees.map((employee) => {
+  const displayEmployees = useMemo(() => {
+    const byId = new Map(employees.map((employee) => [employee.id, employee]));
+    rosters.forEach((roster) => {
+      if (byId.has(roster.employee_id)) return;
+      const snapshotEmployee = snapshotEmployeeFromRoster(roster);
+      if (snapshotEmployee) byId.set(snapshotEmployee.id, snapshotEmployee);
+    });
+    return [...byId.values()];
+  }, [employees, rosters]);
+  const employeesWithGroups = useMemo(() => displayEmployees.map((employee) => {
     const position = positionByName.get(String(employee.position || "").toLowerCase());
     const mappedGroup = position ? mappingByPositionId.get(position.id) : null;
     return {
@@ -397,7 +492,7 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
       position_id: position?.id ?? "",
       rosterGroup: position ? mappedGroup || "other" : fallbackGroupFromDepartment(employee.department),
     };
-  }), [employees, mappingByPositionId, positionByName]);
+  }), [displayEmployees, mappingByPositionId, positionByName]);
   const employeePositions = useMemo(() => [...new Set(employeesWithGroups.map((employee) => employee.position).filter(Boolean))].sort(), [employeesWithGroups]);
   const filteredEmployees = useMemo(() => employeesWithGroups
     .filter((employee) => groupFilter === "all" || employee.rosterGroup === groupFilter)
@@ -455,11 +550,56 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
       const stats = statsByDate.get(date);
       if (!stats?.rosters?.length) summary.unscheduledDays += 1;
       summary.totalScheduledShifts += stats?.rosters?.length ?? 0;
-      summary.workingStaff += stats?.working ?? 0;
-      summary.leaveDays += (stats?.al ?? 0) + (stats?.mc ?? 0);
+      summary.offDays += stats?.off ?? 0;
+      summary.annualLeaveDays += stats?.al ?? 0;
+      summary.mcDays += stats?.mc ?? 0;
       return summary;
-    }, { totalScheduledShifts: 0, workingStaff: 0, leaveDays: 0, unscheduledDays: 0 });
+    }, { totalScheduledShifts: 0, offDays: 0, annualLeaveDays: 0, mcDays: 0, unscheduledDays: 0 });
   }, [monthDateValues, statsByDate]);
+
+  const rosterRowsByType = useMemo(() => {
+    const byType = { OFF: [], AL: [], MC: [] };
+    const rows = [];
+    monthDateValues.forEach((date) => {
+      const stats = statsByDate.get(date);
+      (stats?.rosters ?? [])
+        .filter((roster) => ["OFF", "AL", "MC"].includes(roster.template?.code))
+        .forEach((roster) => {
+          const employee = employeesById.get(roster.employee_id);
+          if (employee) rows.push({ roster, employee });
+        });
+    });
+    rows.sort((a, b) => (
+      a.roster.roster_date.localeCompare(b.roster.roster_date) ||
+      String(a.employee.nickname || a.employee.full_name).localeCompare(String(b.employee.nickname || b.employee.full_name))
+    ));
+    rows.forEach((row) => {
+      const code = row.roster.template?.code;
+      if (byType[code]) byType[code].push(row);
+    });
+    return byType;
+  }, [employeesById, monthDateValues, statsByDate]);
+
+  const detailConfig = {
+    OFF: {
+      title: "Off Day Details",
+      emptyMessage: "No off days found for this period.",
+      typeLabel: "OFF",
+      toneClass: "bg-slate-100 text-slate-700",
+    },
+    AL: {
+      title: "Annual Leave Details",
+      emptyMessage: "No annual leave found for this period.",
+      typeLabel: "AL",
+      toneClass: "bg-blue-100 text-blue-700",
+    },
+    MC: {
+      title: "MC Details",
+      emptyMessage: "No MC found for this period.",
+      typeLabel: "MC",
+      toneClass: "bg-violet-100 text-violet-700",
+    },
+  };
 
   function navigateMonth(direction) {
     setMonthStart(toDateInputValue(startOfMonth(addMonths(`${monthStart}T00:00:00`, direction))));
@@ -525,11 +665,11 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
         {[
           { label: "Scheduled Shifts", value: monthSummary.totalScheduledShifts, helper: "All saved roster entries", icon: CalendarDays },
-          { label: "Working Staff", value: monthSummary.workingStaff, helper: "Working shift assignments", icon: Users },
-          { label: "AL / MC Days", value: monthSummary.leaveDays, helper: "Leave and medical entries", icon: HeartPulse },
-          { label: "Unscheduled Days", value: monthSummary.unscheduledDays, helper: "No roster entries saved", icon: CalendarX },
+          { label: "Off Day", value: monthSummary.offDays, helper: "OFF entries in this month", icon: CalendarOff, onClick: () => setDetailType("OFF") },
+          { label: "Annual Leave", value: monthSummary.annualLeaveDays, helper: "AL entries in this month", icon: CalendarDays, onClick: () => setDetailType("AL") },
+          { label: "MC", value: monthSummary.mcDays, helper: "MC entries in this month", icon: HeartPulse, onClick: () => setDetailType("MC") },
         ].map((item) => (
-          <MetricCard key={item.label} label={item.label} value={item.value} helper={item.helper} icon={item.icon} />
+          <MetricCard key={item.label} label={item.label} value={item.value} helper={item.helper} icon={item.icon} onClick={item.onClick} />
         ))}
       </div>
 
@@ -550,48 +690,67 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
                 const isSelected = dailyDrawerDate === dateValue;
                 const isWeekend = date.getDay() === 0 || date.getDay() === 6;
                 const hasRoster = stats.rosters.length > 0;
+                const hasAnySchedule = stats.working > 0 || stats.off > 0 || stats.al > 0 || stats.mc > 0;
                 const period = periodByDate.get(dateValue);
                 const dayStatus = rosterDayStatus(stats) || (stats.rosters.length ? period?.status : "");
-                const leaveText = [
-                  stats.off ? `OFF ${stats.off}` : "",
-                  stats.al ? `AL ${stats.al}` : "",
-                  stats.mc ? `MC ${stats.mc}` : "",
-                ].filter(Boolean).join(" / ");
+                const detailChips = [
+                  ["Floor", stats.floor, "bg-emerald-50 text-emerald-700"],
+                  ["Kitchen", stats.kitchen, "bg-amber-50 text-amber-700"],
+                  ["OFF", stats.off, "bg-slate-100 text-slate-700"],
+                  ["AL", stats.al, "bg-blue-50 text-blue-700"],
+                  ["MC", stats.mc, "bg-violet-50 text-violet-700"],
+                ].filter(([, value]) => value > 0);
                 return (
                   <button
                     key={dateValue}
-                    className={`group min-h-[128px] rounded-3xl border p-3 text-left transition ${
-                      inMonth ? "hover:-translate-y-0.5 hover:border-primary/40 hover:shadow-sm" : "cursor-default"
+                    className={`group min-h-[156px] rounded-3xl border p-3 text-left transition ${
+                      inMonth ? "hover:-translate-y-0.5 hover:border-primary/40 hover:bg-primary/5 hover:shadow-card" : "cursor-default"
                     } ${
-                      isSelected ? "border-primary/50 bg-primary/10" : isToday ? "border-primary/60 bg-primary/5" : "border-border bg-surface"
-                    } ${isWeekend && !isSelected ? "bg-background" : ""} ${!inMonth ? "hidden opacity-35 sm:block" : ""}`}
+                      isSelected
+                        ? "border-primary/50 bg-primary/10"
+                        : isToday
+                          ? "border-primary/60 bg-primary/5"
+                          : hasAnySchedule
+                            ? "border-border bg-surface"
+                            : "border-dashed border-slate-200 bg-slate-50/70"
+                    } ${isWeekend && !isSelected && hasAnySchedule ? "bg-background" : ""} ${!inMonth ? "hidden opacity-35 sm:block" : ""}`}
                     type="button"
                     disabled={!inMonth}
                     onClick={() => setDailyDrawerDate(dateValue)}
                   >
                     <div className="flex items-start justify-between gap-2">
-                      <div className="text-lg font-semibold text-text-primary">{date.getDate()}</div>
-                      <div className="flex flex-col items-end gap-1">
-                        {isToday ? <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-primary">Today</span> : null}
+                      <div>
+                        <div className="text-lg font-semibold text-text-primary">{date.getDate()}</div>
+                        <div className="mt-0.5 text-[10px] font-black uppercase tracking-[0.14em] text-text-muted">{dayLabels[(date.getDay() + 6) % 7]}</div>
+                      </div>
+                      <div className="flex flex-wrap justify-end gap-1">
                         {dayStatus ? <span className={`rounded-full border px-2 py-0.5 text-[10px] font-black uppercase tracking-wide ${statusBadgeClass(dayStatus)}`}>{formatStatusLabel(dayStatus)}</span> : null}
+                        {isToday ? <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[10px] font-black uppercase tracking-wide text-primary">Today</span> : null}
                       </div>
                     </div>
-                    <div className="mt-4 text-sm font-bold text-text-primary">{hasRoster ? `${stats.working} Staff Scheduled` : "Not Scheduled Yet"}</div>
-                    {hasRoster && stats.working > 0 ? (
-                      <div className="mt-1 text-xs font-semibold text-text-secondary">
-                        Floor {stats.floor} · Kitchen {stats.kitchen}{stats.other ? ` · Other ${stats.other}` : ""}
+                    {hasAnySchedule ? (
+                      <>
+                        <div className="mt-3 flex items-center justify-between gap-2 rounded-2xl border border-border bg-background px-3 py-2">
+                          <span className="text-[11px] font-black uppercase tracking-wide text-text-muted">Staff scheduled</span>
+                          <span className="text-sm font-black text-text-primary">{stats.working}</span>
+                        </div>
+                        {detailChips.length ? (
+                          <div className="mt-2 grid grid-cols-2 gap-1.5">
+                            {detailChips.map(([label, value, className]) => (
+                              <span key={label} className={`inline-flex items-center justify-between gap-2 rounded-full px-2 py-1 text-[10px] font-black ${className}`}>
+                                <span>{label}</span>
+                                <span>{value}</span>
+                              </span>
+                            ))}
+                          </div>
+                        ) : null}
+                      </>
+                    ) : (
+                      <div className="mt-4 rounded-2xl border border-dashed border-slate-200 bg-white/70 px-3 py-4 text-center text-xs font-black uppercase tracking-wide text-slate-400">
+                        No Schedule
                       </div>
-                    ) : null}
-                    {hasRoster && stats.working === 0 && leaveText ? (
-                      <div className="mt-1 text-xs font-semibold text-text-secondary">{leaveText}</div>
-                    ) : null}
-                    {stats.al || stats.mc ? (
-                      <div className="mt-3 flex flex-wrap gap-1.5">
-                        {stats.al ? <span className="rounded-full bg-violet-100 px-2 py-1 text-[10px] font-black text-violet-700">AL {stats.al}</span> : null}
-                        {stats.mc ? <span className="rounded-full bg-violet-100 px-2 py-1 text-[10px] font-black text-violet-700">MC {stats.mc}</span> : null}
-                      </div>
-                    ) : null}
-                    {inMonth ? <div className="mt-4 text-[11px] font-black uppercase tracking-wide text-primary opacity-0 transition group-hover:opacity-100">View daily roster →</div> : null}
+                    )}
+                    {inMonth ? <div className="mt-3 text-[11px] font-black uppercase tracking-wide text-primary opacity-70 transition group-hover:opacity-100">View details →</div> : null}
                   </button>
                 );
               })}
@@ -615,6 +774,13 @@ export default function OutletDutyRosterPage({ store, ui, auth }) {
           employeesById={employeesById}
           onClose={() => setDailyDrawerDate("")}
           onOpenSchedule={openScheduleForDate}
+        />
+      ) : null}
+      {detailType && detailConfig[detailType] ? (
+        <RosterTypeDetailsDrawer
+          {...detailConfig[detailType]}
+          rows={rosterRowsByType[detailType] ?? []}
+          onClose={() => setDetailType("")}
         />
       ) : null}
     </div>

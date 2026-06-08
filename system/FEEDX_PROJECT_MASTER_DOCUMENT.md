@@ -1114,6 +1114,12 @@ Duty roster fields:
 - break_minutes
 - status
 - remark
+- employee_name_snapshot
+- position_snapshot
+- department_snapshot
+- outlet_snapshot
+- shift_snapshot
+- publish_timestamp
 - created_by
 - updated_by
 - created_at
@@ -1218,7 +1224,13 @@ Behavior:
 - Locked is read-only.
 - Publish/lock/unlock requires manage permission.
 - Publishing a roster updates both the weekly roster period and all affected duty_rosters rows.
+- Publishing a roster snapshots the scheduled employee and shift display details into each published `duty_rosters` row: employee name, position, department, outlet, shift template/time, and publish timestamp.
+- Published and locked roster history must render from snapshots or saved roster rows, not only from the current active employee list.
+- Published roster history remains viewable after an employee later becomes resigned or terminated.
+- Draft roster scheduling continues to use current active outlet employees only; resigned and terminated employees must not appear for new scheduling.
+- Future employee master data changes must not alter historical published roster snapshots.
 - Editing or deleting shifts in a published week returns that week and its affected duty_rosters rows to Draft until republished.
+- Copying into a published week returns that week to Draft because copied shifts must be reviewed and republished before they become historical snapshots.
 - Monthly overview status badges derive from actual duty_rosters row status first, not stale local UI state.
 - Saved roster data must persist after refresh.
 
@@ -4397,6 +4409,7 @@ Select outlet and week
 → Use Bulk Assign to apply one shift to multiple dates
 → Review Floor/Kitchen coverage by day in the side panel
 → Publish roster when ready
+→ Stamp published roster snapshots for employee, position, department, outlet, shift and publish timestamp
 → Lock roster when finalized
 → Audit critical roster actions
 ```
@@ -4409,6 +4422,7 @@ Open Overview > Outlet Duty Roster
 → Load duty_rosters for the full month
 → Apply group, position, and employee filters
 → Render monthly calendar roster summary cards
+→ Click Off Day, Annual Leave, or MC KPI to view filtered details
 → Click date card
 → Open daily duty drawer
 → Review Floor/Kitchen/Other staff on duty
@@ -4420,12 +4434,20 @@ Rules:
 - Do not show hardcoded staffing health labels such as Fully Staffed, Understaffed, Critical shortage, or 9+ staff thresholds.
 - Outlet Duty Roster is factual only until outlet-specific manpower targets exist.
 - Empty dates show Not Scheduled Yet.
-- Scheduled dates show actual working staff counts and Floor/Kitchen/Other breakdown.
+- Scheduled dates show actual staff scheduled count plus Floor, Kitchen, OFF, AL, and MC count chips.
+- Monthly calendar date cards hide zero-value detail chips; Floor, Kitchen, OFF, AL, and MC chips show only when the count is above zero.
+- If a date has no working staff and no OFF/AL/MC entries, the card shows a lighter dashed `No Schedule` state while preserving the Today badge when relevant.
+- KPI cards are Scheduled Shifts, Off Day, Annual Leave, and MC.
+- Off Day, Annual Leave, and MC KPIs count matching entries for the selected outlet, month, group, position, and employee search filters.
+- Clicking the Off Day, Annual Leave, or MC KPI opens the matching detail drawer with Date, Staff Name, Position, Group / Department, and Type.
+- Empty detail drawers show a clear no-records message for the current period.
+- Calendar date cards use compact chips/badges for Draft/Published/Locked, Today, Staff Scheduled, Floor, Kitchen, OFF, AL, and MC, with a subtle hover state and View details affordance.
 - Calendar date cards show Draft, Published, or Locked only when shifts exist.
 - Daily status derives from duty_rosters rows: all published = Published, all locked = Locked, otherwise Draft.
 - Today is marked with a small Today badge and subtle green styling.
 - The legend only explains AL, MC, Today and roster status badges.
 - If no roster exists for a selected date, the drawer shows one clean empty state: No staff scheduled for this date.
+- Published and locked days use roster snapshots so historical staff remain visible even after employee resignation or termination.
 
 Roster settings:
 
@@ -4736,7 +4758,7 @@ MetricCard rules:
 
 - KPI value typography is standardized globally through `text-primary-type-kpi-value`. Final value scale is 22.5px / 28px / 600 for a refined enterprise SaaS density. KPI values must not use page-title-sized utilities such as `text-4xl`, `text-5xl`, or custom 40px+ values.
 - Dashboard KPI cards use MetricCard.
-- Duty Roster and Outlet Duty Roster KPI summaries use MetricCard with semantic icons, compact 11-12px labels, the shared KPI value scale, and cleaned human-readable labels such as Scheduled Shifts, Working Staff, AL / MC Days, and Unscheduled Days.
+- Duty Roster and Outlet Duty Roster KPI summaries use MetricCard with semantic icons, compact 11-12px labels, the shared KPI value scale, and cleaned human-readable labels such as Scheduled Shifts, Off Day, Annual Leave, and MC.
 - People KPI summaries across Employees, Job Positions, Departments, and Roles & Permissions use MetricCard with semantic icons, compact 11-12px labels, muted label color, and the shared KPI value scale. Upcoming Celebrations mini stats follow the same icon + label language with softer secondary-card styling.
 - Inventory and operations KPI summaries across Wastage, Recipes & Usage, Inventory Movements, Stock Check Groups, Asset Tracking, and Month Closing Control Center use MetricCard or the same MetricCard header/value language: a small semantic icon, 11-12px muted semibold label, and the shared compact KPI value scale.
 - Analytics-heavy KPI strips, such as Product Analytics, should use `MetricCard variant="compact"` to reduce card height, icon footprint, and whitespace while keeping numeric values prominent.
