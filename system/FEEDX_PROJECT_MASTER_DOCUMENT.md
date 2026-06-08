@@ -1,6 +1,6 @@
 # FeedX Project Master Document
 
-Last updated: 2026-05-28  
+Last updated: 2026-06-04
 Document owner: FeedX product / engineering workspace  
 Document purpose: Permanent project source-of-truth for requirements, architecture, modules, fields, business rules, permissions, integrations, and development plan.
 
@@ -122,6 +122,36 @@ SYSTEM
 - Audit Logs
 ```
 
+FeedX supports workspace-level navigation. The Restaurant workspace remains the default active workspace. The Factory workspace is a separate operational workspace for factory production, raw material warehouse operations, finished goods movement, factory recipes and SOPs. The workspace switcher changes sidebar modules only; it does not change authenticated user, company, Supabase project, or permission model.
+
+Factory workspace sidebar structure:
+
+```text
+FACTORY
+- Factory Dashboard
+- Job Orders
+- Production Records
+- Production Reports
+
+WAREHOUSE
+- Finished Goods
+- Product Movements
+- Product Stock Check
+
+RAW MATERIAL
+- Raw Material Receiving
+- Raw Material Inventory
+- Raw Material Stock Check
+
+MASTER DATA
+- Product Recipes
+- Production SOP
+
+SYSTEM
+- Factory Audit Logs
+- Factory Settings
+```
+
 Architecture rule:
 
 Sidebar navigation, route metadata, permission matrix rows, role coverage chips, and audit scope labels must come from the centralized module registry.
@@ -146,6 +176,7 @@ Each module is defined as:
   route: string,
   icon?: string,
   sidebar: boolean,
+  workspace?: "restaurant" | "factory",
   permissions: {
     view?: boolean,
     create?: boolean,
@@ -1862,6 +1893,8 @@ Inventory Control permissions:
 - inventory_recipes.delete
 - inventory_recipes.manage
 - inventory_recipes.export
+- recipe_intelligence.view
+- recipe_intelligence.manage
 
 RBAC verification status:
 
@@ -2595,7 +2628,7 @@ Rules:
 - Product Mapping rows use a compact management table: Product, Sales, Suggested Match, Status, Recipe Mapping, and Action. Sales combines latest period, quantity sold, and net sales. Product rows show Last Seen and an Activity Status where Active means the product was seen within the last three selected reporting months; Inactive means it has not appeared recently.
 - Product Mapping lifecycle is durable. If a product disappears from the latest Product Analytics month, its Pending, Mapped, or Ignored decision remains visible through the existing mapping record and Last Seen date. If the product returns in a later import, the saved mapping decision is reused automatically.
 - Product Mapping Health uses Total Products, Mapped, Pending, Ignored, and Coverage %. Coverage is calculated as `Mapped / (Mapped + Pending)`, so Ignored products do not reduce coverage.
-- Recipe Intelligence is a standalone Inventory Control page at `#recipe_intelligence` because it is management analytics work, not recipe setup work. It uses the same `inventory_recipes.view` access requirement for now and appears below Recipes & Usage in the Inventory Control sidebar.
+- Recipe Intelligence is a standalone Inventory Control page at `#recipe_intelligence` because it is management analytics work, not recipe setup work. It uses `recipe_intelligence.view` for page access and `recipe_intelligence.manage` for Product Mapping decisions, while recipe BOM setup remains under Recipes & Usage permissions.
 - Recipe Intelligence page filters are Outlet, Month, and Year. The monthly management tables use this exact selected month/year: Top Gross Profit Recipes and Top 10 Ingredient Consumption titles include the selected month label, and their quantities/revenue/ingredient usage are calculated only from Product Analytics rows for that month.
 - Recipe Mapping Health uses a wide card with Coverage %, Mapped Recipes, Pending Products, Products / Recipes count, guidance copy, and a progress bar. It should guide operators to map more products before relying on menu insights.
 - Menu Engineering Matrix uses Product Analytics as its only sales data source. X axis is Product Analytics Qty Sold, Y axis is recipe Margin %, and bubble size is Product Analytics Revenue / Net Sales. The chart uses dynamic average Qty Sold and average Margin % as quadrant split lines for Star, Puzzle, Workhorse, and Dog categories. Bubble tooltips show Recipe, Qty Sold, Revenue, Cost, Price, Profit, and Margin %. The matrix chart is hidden until at least 10 mapped recipes exist, then shows a locked/warming-up state with `Need at least 10 mapped recipes.` and the number of additional mappings needed.
@@ -2641,6 +2674,304 @@ RBAC and outlet scope:
 - Service-layer queries and RLS policies must enforce outlet scope, not just UI filters.
 
 ---
+
+## 5.13B Factory Workspace
+
+Purpose:
+
+Factory Workspace is a separate FeedX operational workspace for factory production and warehouse processes. It is intentionally separate from Restaurant Inventory Control so outlet-facing stock operations do not mix with factory raw material, finished goods, SOP, and production planning workflows.
+
+Workspace behavior:
+
+- Restaurant is the default workspace.
+- Factory is selected through the sidebar workspace switcher.
+- Switching workspace changes sidebar modules and default route only.
+- Permissions remain centralized in `config/modules.ts`.
+- Routes remain hash-based module IDs, for example `#factory_dashboard`, `#factory_job_orders`, and `#factory_raw_receiving`.
+- Factory modules use Supabase persistence only; no local/demo operational data is used.
+
+Factory Phase 1A implemented scope:
+
+- Workspace switcher: Restaurant / Factory.
+- Factory Dashboard UI.
+- Job Orders CRUD.
+- Raw Material Receiving CRUD.
+- Raw material receiving uses Raw Material Master records as the valid material source.
+- Raw material receiving adjusts raw material balance.
+- Raw material receiving creates raw material movement history.
+- Audit logs are written for business-critical job order and raw receiving actions.
+
+Factory Phase 1B implemented scope:
+
+- Production execution starts from a Factory Job Order.
+- A Factory Job Order is a production planning task, not an actual production result.
+- New Factory Job Orders must select an active Finished Goods Master item from `factory_finished_goods`.
+- Job Orders store `finished_good_id`, `target_quantity`, `uom`, `planned_date`, `due_date`, `priority`, `assigned_team`, `status` and `remarks`.
+- Finished Goods Master is the valid SKU source for production planning; new Job Orders must not rely on free-text product names when Finished Goods Master exists.
+- Archived Finished Goods products cannot be selected for new Job Orders.
+- Completed and cancelled Job Orders are operationally closed; only remarks should be changed after closure.
+- Production Records represent actual execution/completion.
+- Production Records list ready Job Orders with `planned` and `in_progress` statuses.
+- Production completion starts from a selected Job Order and auto-fills Finished Good, target quantity, UOM, and available Recipe/SOP reference by product.
+- Production completion captures batch number, production date, operator, start time, end time, actual produced quantity, good output quantity, wastage quantity, QC status and notes.
+- Production material usage captures raw material, standard usage, actual usage, variance quantity, variance percent and variance reason.
+- Actual material usage is the source of truth for raw material deduction.
+- Product Recipe remains the standard BOM only and is never overwritten by actual production usage.
+- Variance reason is required when material usage variance exceeds 5%.
+- Completing production creates:
+  - `factory_productions` completed production record.
+  - `factory_production_material_usage` actual usage and variance records.
+  - `factory_raw_material_movements` deduction rows using actual usage.
+  - raw material balance deductions through `factory_adjust_raw_material_balance(...)`.
+  - finished goods balance increase for an existing active `factory_finished_goods` master product.
+  - `factory_product_stock_movements` finished goods stock-in row.
+  - Factory Job Order status update to `completed`.
+- Production completion must stock-in to the Finished Goods product linked to the selected Job Order and must not stock-in to a free-text product.
+- Production completion must not auto-create finished goods master products. A Finished Goods product must be created and active before production stock-in.
+- Production dashboard and activity cards include completed production, good output and high-variance usage signals.
+
+Factory Phase 1C implemented scope:
+
+- Raw Material Stock Check working page and workflow.
+- Finished Goods Stock Check working page and workflow.
+- Stock check rows capture system quantity, physical count, variance quantity and variance percent.
+- Stock check variance status is calculated independently from production recipe variance:
+  - `Normal`: absolute variance percent is less than or equal to 2%.
+  - `Warning`: absolute variance percent is greater than 2% and less than or equal to 5%.
+  - `Critical`: absolute variance percent is greater than 5%.
+- Variance reason is required for Warning and Critical stock check rows.
+- Stock check lifecycle is Draft, Submitted, Approved.
+- Draft and Submitted stock checks must not adjust inventory balances.
+- Only Approved stock checks create inventory adjustments.
+- Approved Raw Material Stock Check creates raw material balance adjustments and `factory_raw_material_movements` rows.
+- Approved Finished Goods Stock Check creates finished goods balance adjustments and `factory_product_stock_movements` rows.
+- Stock Check variance is separate from Recipe Variance and must not modify Factory Product Recipes.
+- Stock Check variance must not modify Production Actual Usage or production material usage records.
+- Factory Dashboard includes stock check variance alerts and submitted stock checks awaiting approval.
+- Recent Factory Activity includes stock check submitted and approved events.
+
+Factory Phase 1D implemented scope:
+
+- Production SOP management working page.
+- SOPs are product-scoped standard process references with version, status, effective date, notes and default equipment.
+- SOP steps capture Step No, Process Name, Description, Control Point, Materials, Equipment and Estimated Time.
+- SOP steps can be flagged as QC checkpoints.
+- SOP is a standard process reference and is not an actual production result.
+- Actual production can reference the SOP version used through `factory_productions.production_sop_id` and `factory_productions.sop_version`.
+- Production completion can capture raw material receiving lot references for actual material usage rows.
+- Raw material lot usage is stored on `factory_production_material_usage` and remains part of actual production traceability.
+- QC checkpoints are recorded separately from stock check through production QC checkpoint snapshots.
+- When production references an SOP, flagged SOP QC checkpoint steps are copied to production-specific `factory_production_qc_checkpoints` rows.
+- Batch traceability connects:
+  - Batch No.
+  - Product.
+  - Job Order.
+  - Production date.
+  - Operator.
+  - Raw material lots used.
+  - Finished goods stock-in movement.
+  - SOP version used.
+  - QC status and production QC checkpoints.
+- Factory Dashboard includes quick alerts for batches with Pending, Hold, or Failed QC status.
+- Batch traceability must not modify Recipe, SOP, stock check or Production Actual Usage records; it is a connected read view over production data.
+
+Factory Phase 1E implemented scope:
+
+- Factory Reports working page through `factory_production_reports`.
+- Batch Traceability working page through `factory_batch_traceability`.
+- Production Summary Report.
+- Raw Material Usage Report.
+- Recipe Standard vs Actual Usage Report.
+- Production Yield Report.
+- Finished Goods Stock Movement Report.
+- Basic production cost calculation foundation:
+  - Raw material actual usage cost.
+  - Cost per batch.
+  - Cost per finished unit.
+- Costing uses Actual Usage, not Standard Recipe.
+- Recipe cost remains a standard reference and is not overwritten by production reports.
+- Actual production cost is calculated as actual material usage multiplied by recorded receiving unit cost when available; otherwise latest available receiving unit cost for the raw material is used.
+- If no recorded or latest receiving cost exists for a usage row, Factory reports show Missing Cost where possible until a valid cost source is available.
+- Material variance dashboard/report totals are usage-row summaries; mixed UOMs should be reviewed by material/UOM before operational decisions.
+- Factory Dashboard analytics cards include Production Yield %, Material Variance %, Estimated Production Cost, and Top Variance Raw Materials.
+- Factory Reports are read-only.
+- Factory Reports must not adjust stock.
+- Factory Reports must not modify Recipe, Production, Stock Check, or SOP records.
+
+Factory Finished Goods Master and Warehouse implemented scope:
+
+- Finished Goods is a functional master-plus-warehouse page through `factory_finished_goods`.
+- Finished Goods product setup supports Create, Edit and Archive.
+- Finished Goods product fields include Product Name EN, Product Name CN, Product Name BM, SKU Code, Category, UOM, Min Stock Level, Active/Archived status and Remarks.
+- Product Name EN is the canonical production stock-in name and is mirrored to `factory_finished_goods.product_name` for existing production matching.
+- Finished Goods category selection must use a searchable FeedX-style selector, show "Select Category" before selection, and require a category before save.
+- Finished Good Category setup supports Create, Edit and Archive through `factory_finished_good_categories`.
+- Finished Good Categories must be managed inside the Category modal/drawer only, not as a main-page table.
+- Category fields include Category Name, Description and Active/Archived status.
+- Finished Goods listing shows Product Name EN/CN/BM where available, SKU, category, UOM, current balance, batch count, latest batch, last production date, last movement date, status and actions.
+- Finished Goods dashboard cards show Total SKUs, Total Finished Goods Stock, Low Stock Items and Out of Stock Items.
+- Finished Goods warehouse insight panels include Stock Distribution by Product, Top Produced Products for the last 30 days, Production In vs Stock Out movement summary, Batch Count/latest batch, and Days Coverage when stock-out movement data is available.
+- Finished Goods detail shows current balance, production history, movement history, batch history and actual-cost summary when cost data is available.
+- Finished Goods archive is blocked while current balance is greater than zero and must show: "Cannot archive while stock balance is greater than zero."
+- Production completion can stock-in only to active Finished Goods master products.
+- Finished Goods empty state must say: "Create a finished good product before production stock-in."
+- Product Movements is a functional read-only movement history page through `factory_product_movements`.
+- Product Movements shows movement type, product, quantity, batch/source context, date and source.
+- Warehouse filters support product, status, batch and movement type where relevant.
+- Finished Goods and Product Movements must not create duplicate stock balance logic.
+- Product Movements remains read-only and uses `factory_product_stock_movements` and production header history for context.
+
+Factory Raw Material Master and Inventory implemented scope:
+
+- Raw Material Inventory is a functional master-plus-inventory page through `factory_raw_inventory`.
+- Raw Material Master setup supports Create, Edit and Archive.
+- Raw Material fields include Raw Material Name EN, Raw Material Name CN, Raw Material Name BM, Raw Material Code, Category, Default UOM, Min Stock Level, Preferred Supplier, Storage Location, Active/Archived status and Remarks.
+- Raw Material Name EN is the canonical material name and is mirrored to `factory_raw_materials.name` for existing production/report matching.
+- Raw Material category selection must use a searchable FeedX-style selector, show "Select Category" before selection, and require a category before save.
+- Raw Material Category setup supports Create, Edit and Archive through `factory_raw_material_categories`.
+- Raw Material Categories must be managed inside the Category modal/drawer only, not as a main-page table.
+- Raw Material Inventory listing shows Product Name EN/CN/BM equivalent raw material names where available, raw material code, category, UOM, current balance, min stock, last receiving date, last consumption date, status, stock status and actions.
+- Raw Material Inventory dashboard cards show Total Raw Materials, Total Stock Qty, Low Stock Items and Out of Stock Items.
+- Raw Material Inventory insight panels include Low Stock List, Recent Receiving, Recent Consumption and Can Produce Estimate when active Product Recipe data is available.
+- Raw Material detail shows current balance, receiving history, consumption/movement history, stock check history, latest unit cost and supplier cost trend when receiving cost data is available.
+- Raw Material archive is blocked while current balance is greater than zero and must show: "Cannot archive while stock balance is greater than zero."
+- Raw Material Receiving must select an active Raw Material Master record and must not allow free-text raw material stock-in when master records exist.
+- Receiving defaults UOM and storage location from the selected Raw Material where available, but receiving UOM remains editable for operational receipt differences.
+- Product Recipe BOM and Production material usage must select active Raw Material Master records where possible.
+- Production actual usage remains the source of raw material stock deduction.
+- Raw Material Master and Inventory must not create duplicate stock balance logic; balances remain updated by receiving, production actual usage and approved stock check adjustments through existing movement/balance helpers.
+
+Factory Product Recipes implemented scope:
+
+- Product Recipes is a functional Factory Master Data page through `factory_product_recipes`.
+- Product Recipes define the standard raw material BOM for Finished Goods production.
+- A Product Recipe must select an active Finished Goods Master product through `finished_good_id`.
+- Recipe header fields include Finished Good, Recipe Name, Version, Expected Yield Qty, Yield UOM, Draft/Active/Archived status and Remarks.
+- Recipe material rows are stored in `factory_product_recipe_items` and capture Raw Material, Standard Qty, UOM, Wastage %, Remarks and Sort Order.
+- One Finished Good can have only one active recipe version at a time.
+- Draft recipes can be edited; active and archived recipes remain readable for history.
+- Activating a recipe makes it the production material-usage default for that Finished Good.
+- Archiving a recipe removes it from production defaults but preserves history.
+- Production completion from a Job Order looks for the active recipe linked to the selected Finished Good.
+- If an active recipe exists, Production material usage rows are prefilled from recipe materials.
+- Standard usage defaults scale from recipe expected yield to the Job Order target quantity; Actual Usage defaults to Standard Usage but remains editable by staff.
+- Actual Usage remains the source of raw material stock deduction.
+- Product Recipe remains the standard reference only and must not be modified by production completion or actual usage variance.
+- If no active recipe exists, Production shows: "No active recipe found. Add material usage manually or create a Product Recipe first."
+- Existing production usage validation still requires at least one actual material usage row before completion.
+- Factory costing/reporting uses active Product Recipe BOM rows as the standard recipe source while actual production cost remains based on actual material usage.
+
+Factory Phase 1F implemented scope:
+
+- Recipe costing and raw material cost history foundation inside Factory Reports and Factory Dashboard analytics.
+- Product Recipe Cost Rollup.
+- Standard Recipe Cost based on recipe item quantities, wastage allowance and latest raw material receiving cost.
+- Actual Production Cost comparison against the Phase 1E actual usage cost.
+- Raw Material Cost History from receiving records.
+- Supplier Cost Trend by raw material.
+- Cost variance reporting:
+  - Standard Cost.
+  - Actual Cost.
+  - Variance RM.
+  - Variance %.
+- Factory Dashboard cost cards:
+  - Highest Cost Increase Material.
+  - Most Expensive Product Recipe.
+  - Actual vs Standard Cost Variance.
+- Factory Reports cost sections:
+  - Recipe Costing Report.
+  - Raw Material Cost Trend Report.
+- Standard recipe cost is a reference cost only.
+- Actual production cost remains based on actual material usage.
+- Cost reports are read-only.
+- Costing must not modify recipe, production, receiving or stock records.
+- If latest receiving cost is missing, Factory cost reports show Missing Cost where possible instead of treating the row as RM0.
+
+Factory sidebar modules:
+
+- Factory Dashboard
+- Job Orders
+- Production Records
+- Production Reports
+- Batch Traceability
+- Finished Goods
+- Product Movements
+- Product Stock Check
+- Raw Material Receiving
+- Raw Material Inventory
+- Raw Material Stock Check
+- Product Recipes
+- Production SOP
+- Factory Audit Logs
+- Factory Settings
+
+Current functional Factory modules after Raw Material Master optimization:
+
+- Factory Dashboard.
+- Job Orders.
+- Production Records.
+- Production Reports / Factory Reports.
+- Batch Traceability.
+- Finished Goods.
+- Product Movements.
+- Product Stock Check.
+- Raw Material Receiving.
+- Raw Material Inventory.
+- Raw Material Stock Check.
+- Product Recipes.
+- Production SOP.
+
+Current registered Factory placeholder modules:
+
+- Factory Audit Logs.
+- Factory Settings.
+
+Placeholder modules remain registered for navigation, permissions, route protection and audit scope. Their pages must show a clear placeholder message until the working workflow is implemented.
+
+Factory data loading rule:
+
+- Factory pages should load only datasets needed for the active tab wherever possible.
+- Optional or permission-blocked datasets should fail softly with an empty state or scoped warning.
+- A role with `factory_dashboard.view` only must be able to load Factory Dashboard without unrelated stock check, SOP, or other module RLS failures crashing the page.
+- Owner/Admin are protected roles and must resolve as full Factory access in both frontend permission checks and Supabase RLS.
+- Supabase `current_user_has_permission()` must recognize protected Owner/Admin roles case-insensitively from both employees-linked identities and legacy `user_profiles` identities.
+- Normal custom roles must continue to rely on explicit `role_permissions`; protected-role bypass must not weaken RLS for custom roles.
+- Factory permission seeding for Owner/Admin must use case-insensitive role-name matching for `factory_%` permission codes.
+
+Factory data model foundation:
+
+- `factory_job_orders`
+- `factory_productions`
+- `factory_production_material_usage`
+- `factory_production_qc_checkpoints`
+- `factory_raw_materials`
+- `factory_raw_material_receivings`
+- `factory_raw_material_movements`
+- `factory_finished_good_categories`
+- `factory_finished_goods`
+- `factory_product_stock_movements`
+- `factory_product_stock_checks`
+- `factory_product_stock_check_items`
+- `factory_raw_material_stock_checks`
+- `factory_raw_material_stock_check_items`
+- `factory_product_recipes`
+- `factory_product_recipe_items`
+- `factory_production_sops`
+- `factory_production_sop_steps`
+
+Factory RLS and permissions:
+
+- Factory permissions use module-action codes such as `factory_job_orders.view` and `factory_raw_receiving.create`.
+- Owner and Admin receive Factory permissions by default through migration seed.
+- Custom roles must be assigned Factory permissions through Roles & Permissions.
+- Factory tables enforce RLS through `current_user_has_permission(...)`.
+
+Current Factory exclusions after Phase 1E:
+
+- Finished goods receipt and shipment workflow.
+- Product recipe BOM editor.
+- Full QC result editing/checklist completion workflow beyond checkpoint snapshots and batch QC status.
+- Advanced Factory analytics beyond Phase 1E read-only report foundations.
 
 ## 5.14 Outlets
 
@@ -3375,6 +3706,7 @@ Sales Input:
 - sales_input.view
 - sales_input.create
 - sales_input.edit
+- sales_input.import
 - sales_input.delete
 
 Sales Channels:
@@ -3396,6 +3728,7 @@ Purchase Input:
 - purchase_input.view
 - purchase_input.create
 - purchase_input.edit
+- purchase_input.import
 - purchase_input.delete
 - purchase_input.approve
 
@@ -3523,6 +3856,11 @@ Recipes & Usage:
 - inventory_recipes.delete
 - inventory_recipes.manage
 - inventory_recipes.export
+
+Recipe Intelligence:
+
+- recipe_intelligence.view
+- recipe_intelligence.manage
 
 Outlets:
 
@@ -3698,14 +4036,14 @@ supabase/functions/employee-auth-onboarding
 
 Environment variables:
 
-- PROJECT_URL
-- PROJECT_SERVICE_ROLE_KEY
+- PROJECT_URL or SUPABASE_URL
+- PROJECT_SERVICE_ROLE_KEY or SUPABASE_SERVICE_ROLE_KEY
 - SUPABASE_ANON_KEY
 - FEEDX_SITE_URL or SITE_URL or PUBLIC_SITE_URL
 
 Responsibilities:
 
-- Verify caller permission.
+- Verify caller permission by employee login action context.
 - Load employee.
 - Validate email and role.
 - Invite/create Supabase Auth user.
@@ -3752,6 +4090,11 @@ Manual setup link:
 
 Frontend fallback behavior:
 
+- Initial employee login setup is controlled by `employees.enable_login`.
+- Reset password for an existing active/auth-linked employee is controlled by `employees.reset_password`.
+- Manual setup links use the same employee login permission as the current setup/reset context and must not require unrelated role-management permissions such as `roles.edit`.
+- When login setup fields have unsaved changes, direct setup/link buttons remain disabled and the modal must explain that users should save first or use `Save & Send Login Setup`.
+- `Save & Send Login Setup` is the primary action for new or edited unsaved login setup when the user has `employees.enable_login`.
 - Email setup success shows "Login setup email sent." only when the Edge Function returns ok true for email mode.
 - Email setup failure with canGenerateManualLink shows a warning modal with Generate Setup Link.
 - Employees already in Invitation Pending can still resend setup email or generate a manual setup link.
@@ -3903,15 +4246,15 @@ Transaction records:
 Sales records:
 
 - SELECT: sales_input.view OR sales_comparison.view OR dashboard.view
-- INSERT: sales_input.create
-- UPDATE: sales_input.edit
+- INSERT: sales_input.create OR sales_input.import
+- UPDATE: sales_input.edit OR sales_input.import
 - DELETE: sales_input.delete
 
 Purchase records:
 
 - SELECT: purchase_input.view OR purchase_comparison.view OR dashboard.view
-- INSERT: purchase_input.create
-- UPDATE: purchase_input.edit
+- INSERT: purchase_input.create OR purchase_input.import
+- UPDATE: purchase_input.edit OR purchase_input.import
 - DELETE: purchase_input.delete
 
 Asset records:
@@ -4027,8 +4370,12 @@ Open owning module
 
 Rules:
 
-- Sales import is launched from Sales Input and requires `sales_input.create` or `sales_input.edit`.
-- Purchase import is launched from Purchase Input and requires `purchase_input.create` or `purchase_input.edit`.
+- Sales import is launched from Sales Input and requires `sales_input.import`.
+- Purchase import is launched from Purchase Input and requires `purchase_input.import`.
+- Embedded Purchase Import launched from Purchase Input is outlet-scoped to the currently selected Purchase Input outlet. The modal shows `Import Target Outlet: [Outlet Name]`, validates every uploaded row against that selected outlet, and blocks import when a file contains a different outlet code/name. Month and Year are not inherited from the Purchase Input page filters; they are derived from each imported file row so multi-month imports are allowed.
+- Purchase Import unknown supplier review must carry the selected default category into preview validation. If an import row has no category and the operator chooses Create supplier with a category, that category fills the row for preview and is saved as the new supplier default during confirmed import.
+- Recent import history is scoped by owning module and selected outlet only, not by the current Month/Year page filters.
+- Import batch history is scoped by owning module and outlet; `import_batches` / `import_batch_rows` allow Sales Input import users to write sales batches and Purchase Input import users to write purchase batches without granting unrelated module import access. The original uploaded filename is audit metadata and must remain immutable; optional display names, remarks, archive, void, and revert workflows are future controlled correction flows rather than hard-delete behavior.
 - The centralized Data Import page is not active in current navigation.
 
 ### 12.6 Duty Roster Weekly Scheduling
@@ -4675,7 +5022,7 @@ Implemented production-scope decisions documented as current:
 - Dashboard is the UI name for the Overview Dashboard route.
 - Supplier Categories is the UI name for supplier spend/category settings.
 - Wastage is the UI name for spoilage, expiry, damaged inventory, and kitchen wastage.
-- Recipe Intelligence is a standalone Inventory Control analytics page and uses Recipes & Usage view access for now.
+- Recipe Intelligence is a standalone Inventory Control analytics page with its own `recipe_intelligence.view` and `recipe_intelligence.manage` permissions.
 - Recipes & Usage contains Recipe BOM setup and Product Mapping setup.
 - Centralized Data Import is removed from active navigation; Sales Import and Purchase Import live inside their module pages.
 - Stock Requests remains deferred and out of current MVP scope.
