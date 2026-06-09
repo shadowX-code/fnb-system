@@ -2842,8 +2842,9 @@ Factory Finished Goods Master and Warehouse implemented scope:
 Factory form UX standard:
 
 - Factory data-entry forms use normal-case FeedX operational labels such as "Category *", "SKU Code *", and "Product Name (EN)".
-- Factory form labels use `text-sm`, medium/semibold weight, darker text color, and normal letter spacing.
+- Factory form labels use 10.5px, 600 weight, `rgb(107, 114, 128)`, Title Case, and normal letter spacing.
 - Factory form labels must not use KPI-style uppercase or tracked letter spacing. KPI/card and table header treatments remain separate from form labels.
+- Factory create/add action buttons should use semantic lucide icons instead of a generic leading plus icon.
 
 Factory Raw Material Master and Inventory implemented scope:
 

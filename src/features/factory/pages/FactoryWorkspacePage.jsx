@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { Activity, AlertTriangle, CheckCircle2, ClipboardCheck, Clock3, Factory, PackageCheck, Play, Plus, RefreshCw, Truck, Warehouse } from "lucide-react";
+import { Activity, AlertTriangle, BookOpen, CheckCircle2, ClipboardCheck, ClipboardList, Clock3, Factory, FileText, Inbox, Package, PackageCheck, Play, RefreshCw, Tag, Truck, Warehouse } from "lucide-react";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
@@ -55,7 +55,7 @@ function statusTone(status) {
 function Field({ label, children, error }) {
   return (
     <label className="block">
-      <span className="text-sm font-semibold text-text-primary">{label}</span>
+      <span className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">{label}</span>
       <div className="mt-1.5">{children}</div>
       {error ? <div className="mt-1 text-xs font-semibold text-rose-600">{error}</div> : null}
     </label>
@@ -1308,7 +1308,7 @@ function ProductRecipeModal({ initialValue, finishedGoods, rawMaterials, onClose
         <Card
           title="Recipe Materials / BOM"
           description="Standard quantities are scaled into production material usage. Operators can adjust actual usage during completion."
-          action={!isLocked ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={addItem}><Plus size={14} /> Add Material</button> : null}
+          action={!isLocked ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={addItem}><Package size={14} /> Add Material</button> : null}
         >
           <div className="overflow-x-auto">
             <table className="w-full min-w-[980px] text-left">
@@ -1562,7 +1562,7 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
         <Card
           title="Actual Material Usage"
           description="Actual usage is the real raw material stock deduction source. Product recipes remain standard BOM only."
-          action={<button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={addUsageRow}><Plus size={14} /> Add Material</button>}
+          action={<button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={addUsageRow}><Package size={14} /> Add Material</button>}
         >
           <div className="overflow-x-auto">
             <table className="w-full min-w-[980px] text-left">
@@ -1794,7 +1794,7 @@ function ProductionSopModal({ initialValue, onClose, onSave }) {
         <Card
           title="SOP Steps"
           description="QC checkpoint flags create production QC checkpoint snapshots when this SOP is attached to a batch."
-          action={<button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={addStep}><Plus size={14} /> Add Step</button>}
+          action={<button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={addStep}><FileText size={14} /> Add Step</button>}
         >
           <div className="overflow-x-auto">
             <table className="w-full min-w-[1180px] text-left">
@@ -2451,7 +2451,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const dashboardActions = (
     <>
       <button className="btn-secondary" type="button" onClick={loadData}><RefreshCw size={15} /> Refresh</button>
-      {can("factory_job_orders.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "job" })}><Plus size={15} /> Job Order</button> : null}
+      {can("factory_job_orders.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "job" })}><ClipboardList size={15} /> Job Order</button> : null}
       {can("factory_raw_receiving.create") ? <button className="btn-secondary" type="button" onClick={() => setModal({ type: "receiving" })}><Truck size={15} /> Receive Raw Material</button> : null}
       {can("factory_raw_stock_check.create") ? <button className="btn-secondary" type="button" onClick={() => setModal({ type: "stock-check", stockType: "raw" })}><ClipboardCheck size={15} /> Raw Check</button> : null}
     </>
@@ -2899,7 +2899,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           section="Factory"
           title="Job Orders"
           description="Create, update and monitor factory production job orders."
-          actions={can("factory_job_orders.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "job" })}><Plus size={15} /> Create Job Order</button> : null}
+          actions={can("factory_job_orders.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "job" })}><ClipboardList size={15} /> Create Job Order</button> : null}
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={ClipboardCheck} label="Draft" value={metrics.draftJobs.length} helper="Planning not released" />
@@ -2921,7 +2921,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           section="Raw Material"
           title="Raw Material Receiving"
           description="Record supplier deliveries into factory raw material warehouse stock."
-          actions={can("factory_raw_receiving.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "receiving" })}><Plus size={15} /> Record Receiving</button> : null}
+          actions={can("factory_raw_receiving.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "receiving" })}><Inbox size={15} /> Record Receiving</button> : null}
         />
         <div className="grid gap-3 md:grid-cols-3">
           <MetricCard icon={Truck} label="Receipts" value={data.receivings.length} helper="Recorded receiving rows" />
@@ -2964,8 +2964,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           description="Manage raw material master data and monitor live factory raw material balances."
           actions={(
             <div className="flex flex-wrap gap-2">
-              {can("factory_raw_inventory.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "raw-material" })}><Plus size={15} /> Raw Material</button> : null}
-              {can("factory_raw_inventory.create") || can("factory_raw_inventory.edit") ? <button className="btn-secondary" type="button" onClick={() => setModal({ type: "raw-material-category" })}><Plus size={15} /> Category</button> : null}
+              {can("factory_raw_inventory.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "raw-material" })}><Package size={15} /> Raw Material</button> : null}
+              {can("factory_raw_inventory.create") || can("factory_raw_inventory.edit") ? <button className="btn-secondary" type="button" onClick={() => setModal({ type: "raw-material-category" })}><Tag size={15} /> Category</button> : null}
             </div>
           )}
         />
@@ -3035,7 +3035,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           section="Raw Material"
           title="Raw Material Stock Check"
           description="Count raw material stock, submit variance for review and approve inventory adjustments."
-          actions={can("factory_raw_stock_check.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "stock-check", stockType: "raw" })}><Plus size={15} /> New Stock Check</button> : null}
+          actions={can("factory_raw_stock_check.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "stock-check", stockType: "raw" })}><ClipboardCheck size={15} /> New Stock Check</button> : null}
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={Warehouse} label="Raw Materials" value={data.rawMaterials.length} helper="Available for count" />
@@ -3057,7 +3057,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           section="Master Data"
           title="Production SOP"
           description="Manage standard process references, product steps and QC checkpoint flags."
-          actions={can("factory_production_sop.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "sop" })}><Plus size={15} /> Create SOP</button> : null}
+          actions={can("factory_production_sop.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "sop" })}><FileText size={15} /> Create SOP</button> : null}
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={ClipboardCheck} label="SOPs" value={data.sops.length} helper="Standard process references" />
@@ -3084,7 +3084,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           section="Master Data"
           title="Product Recipes"
           description="Manage standard raw material BOMs for Finished Goods. Production uses active recipes as default material usage."
-          actions={can("factory_product_recipes.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "recipe" })}><Plus size={15} /> Create Recipe</button> : null}
+          actions={can("factory_product_recipes.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "recipe" })}><BookOpen size={15} /> Create Recipe</button> : null}
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={ClipboardCheck} label="Draft" value={draftRecipes.length} helper="Editable recipe versions" />
@@ -3507,8 +3507,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           description="Finished goods master setup with live warehouse balances, production history, batches and stock movements."
           actions={(
             <div className="flex flex-wrap gap-2">
-              {can("factory_finished_goods.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "finished-good" })}><Plus size={15} /> Finished Good</button> : null}
-              {canManageFinishedGoods ? <button className="btn-secondary" type="button" onClick={() => setModal({ type: "finished-good-category" })}><Plus size={15} /> Category</button> : null}
+              {can("factory_finished_goods.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "finished-good" })}><Package size={15} /> Finished Good</button> : null}
+              {canManageFinishedGoods ? <button className="btn-secondary" type="button" onClick={() => setModal({ type: "finished-good-category" })}><Tag size={15} /> Category</button> : null}
             </div>
           )}
         />
@@ -3624,7 +3624,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           section="Warehouse"
           title="Product Stock Check"
           description="Count finished goods stock, submit variance for review and approve inventory adjustments."
-          actions={can("factory_product_stock_check.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "stock-check", stockType: "product" })}><Plus size={15} /> New Stock Check</button> : null}
+          actions={can("factory_product_stock_check.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "stock-check", stockType: "product" })}><ClipboardCheck size={15} /> New Stock Check</button> : null}
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={PackageCheck} label="Finished Goods" value={data.finishedGoods.length} helper="Available for count" />

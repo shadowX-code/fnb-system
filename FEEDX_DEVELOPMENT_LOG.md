@@ -6,7 +6,8 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 
 ### Factory
 - Refined Factory Finished Goods create/edit UX into a single-column, sectioned Product Information / Configuration / Notes form and removed finished-goods min-stock planning from the user-facing flow.
-- Standardized Factory form label typography to normal-case FeedX data-entry styling across Factory forms, replacing KPI-style uppercase/tracked labels with darker `text-sm` semibold labels.
+- Standardized Factory form label typography to normal-case FeedX data-entry styling across Factory forms, replacing KPI-style uppercase/tracked labels with 10.5px semibold gray labels.
+- Replaced Factory create/add action plus icons with semantic lucide icons for Finished Goods, categories, receiving, job orders, recipes, SOPs, stock checks and material rows.
 
 ## 2026-06-08
 
