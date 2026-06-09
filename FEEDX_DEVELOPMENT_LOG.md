@@ -14,6 +14,7 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Refined Factory Raw Material Receiving into a page-based Receiving History / Receive Raw Material tab workflow for supplier delivery documents with multiple raw material item rows, default UOM/location from selected raw material, per-row inline validation, and no receiving cost fields.
 - Added Factory Suppliers under the Factory System sidebar with create/edit/archive supplier master data for raw material receiving, replacing free-text supplier entry for new receiving documents.
 - Moved multi-row Raw Material Receiving saves into a single Supabase RPC transaction so the batch header, item rows, raw material balance adjustments and movement logs commit or roll back together.
+- Optimized the Raw Material Receiving item table for warehouse speed by using a compact material picker overlay, reducing visible row columns, showing UOM/location as context badges, and moving Add Item Row into the table header.
 
 ## 2026-06-08
 
