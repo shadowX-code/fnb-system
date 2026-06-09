@@ -139,90 +139,77 @@ function SearchableSelect({ value, options, placeholder, onChange, error, search
   );
 }
 
-function RawMaterialCellButton({ value, materials, placeholder, onClick, error, buttonRef }) {
-  const selected = materials.find((material) => material.id === value);
-  return (
-    <button
-      ref={buttonRef}
-      className={`min-h-[54px] w-full rounded-xl border bg-surface px-3 py-2 text-left outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15 ${error ? "border-rose-300" : "border-border"}`}
-      type="button"
-      onClick={onClick}
-    >
-      {selected ? (
-        <span className="block">
-          <span className="block truncate text-sm font-semibold text-text-primary">{rawMaterialLabel(selected)}</span>
-          <span className="mt-0.5 block truncate text-xs text-text-secondary">{rawMaterialSummary(selected)}</span>
-        </span>
-      ) : (
-        <span className="block text-sm font-semibold text-text-muted">{placeholder}</span>
-      )}
-    </button>
-  );
-}
-
-function RawMaterialPickerPopover({ anchor, materials, selectedId, onClose, onSelect }) {
+function RawMaterialCellPicker({ value, materials, placeholder, open, openUpward, onToggle, onClose, onSelect, error, buttonRef }) {
   const [query, setQuery] = useState("");
-  const [rect, setRect] = useState(null);
-  const panelNode = useRef(null);
+  const wrapperNode = useRef(null);
   const searchNode = useRef(null);
+  const selected = materials.find((material) => material.id === value);
   const visibleMaterials = materials.filter((material) => `${rawMaterialLabel(material)} ${rawMaterialSummary(material)} ${material.storage_location || ""}`.toLowerCase().includes(query.toLowerCase()));
 
   useEffect(() => {
-    if (!anchor) return undefined;
-    const updatePosition = () => setRect(anchoredRect(anchor, 360, 360));
-    const close = () => onClose();
+    if (!open) {
+      setQuery("");
+      return undefined;
+    }
     const onPointerDown = (event) => {
-      if (anchor.contains(event.target) || panelNode.current?.contains(event.target)) return;
-      close();
+      if (wrapperNode.current?.contains(event.target)) return;
+      onClose();
     };
     const onKeyDown = (event) => {
-      if (event.key === "Escape") close();
+      if (event.key === "Escape") onClose();
     };
-    updatePosition();
     setTimeout(() => searchNode.current?.focus?.(), 0);
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
-    window.addEventListener("resize", close);
-    window.addEventListener("scroll", close, true);
     return () => {
       document.removeEventListener("pointerdown", onPointerDown);
       document.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("resize", close);
-      window.removeEventListener("scroll", close, true);
     };
-  }, [anchor, onClose]);
+  }, [open, onClose]);
 
-  if (!anchor || !rect) return null;
-
-  return createPortal(
-    <div
-      ref={panelNode}
-      className="fixed z-[90] rounded-2xl border border-border bg-white p-2 shadow-2xl"
-      style={{ left: rect.left, top: rect.top, width: rect.width, maxHeight: rect.maxHeight }}
-    >
-      <input
-        ref={searchNode}
-        className="mb-2 w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm font-semibold text-text-primary outline-none transition placeholder:text-text-muted focus:border-primary focus:ring-2 focus:ring-primary/15"
-        value={query}
-        onChange={(event) => setQuery(event.target.value)}
-        placeholder="Search raw material"
-      />
-      <div className="max-h-[280px] overflow-y-auto pr-1">
-        {visibleMaterials.length ? visibleMaterials.map((material) => (
-          <button
-            key={material.id}
-            className={`mb-1.5 block w-full rounded-xl border px-3 py-2.5 text-left transition last:mb-0 hover:border-primary hover:bg-primary/5 ${material.id === selectedId ? "border-primary bg-primary/10" : "border-transparent bg-white"}`}
-            type="button"
-            onClick={() => onSelect(material.id)}
-          >
-            <span className="block truncate text-sm font-bold text-text-primary">{rawMaterialLabel(material)}</span>
-            <span className="mt-0.5 block truncate text-xs font-semibold text-text-secondary">{rawMaterialSummary(material)}</span>
-            {material.storage_location ? <span className="mt-1.5 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-text-secondary">{material.storage_location}</span> : null}
-          </button>
-        )) : <div className="px-3 py-5 text-center text-sm font-semibold text-text-secondary">No matching raw materials</div>}
-      </div>
-    </div>,
-    document.body
+  return (
+    <div ref={wrapperNode} className="relative">
+      <button
+        ref={buttonRef}
+        className={`min-h-[54px] w-full rounded-xl border bg-surface px-3 py-2 text-left outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15 ${error ? "border-rose-300" : "border-border"}`}
+        type="button"
+        onClick={onToggle}
+      >
+        {selected ? (
+          <span className="block">
+            <span className="block truncate text-sm font-semibold text-text-primary">{rawMaterialLabel(selected)}</span>
+            <span className="mt-0.5 block truncate text-xs text-text-secondary">{rawMaterialSummary(selected)}</span>
+          </span>
+        ) : (
+          <span className="block text-sm font-semibold text-text-muted">{placeholder}</span>
+        )}
+      </button>
+      {open ? (
+        <div className={`absolute left-0 z-[90] w-full rounded-2xl border border-border bg-white p-2 shadow-2xl ${openUpward ? "bottom-[calc(100%+8px)]" : "top-[calc(100%+8px)]"}`}>
+          <input
+            ref={searchNode}
+            className="mb-2 w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm font-semibold text-text-primary outline-none transition placeholder:text-text-muted focus:border-primary focus:ring-2 focus:ring-primary/15"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+            placeholder="Search raw material"
+          />
+          <div className="max-h-[280px] overflow-y-auto pr-1">
+            {visibleMaterials.length ? visibleMaterials.map((material) => (
+              <button
+                key={material.id}
+                className={`mb-1.5 block w-full rounded-xl border px-3 py-2.5 text-left transition last:mb-0 hover:border-primary hover:bg-primary/5 ${material.id === value ? "border-primary bg-primary/10" : "border-transparent bg-white"}`}
+                type="button"
+                onClick={() => onSelect(material.id)}
+              >
+                <span className="block truncate text-sm font-bold text-text-primary">{rawMaterialLabel(material)}</span>
+                <span className="mt-0.5 block truncate text-xs font-semibold text-text-secondary">{rawMaterialSummary(material)}</span>
+                {material.storage_location ? <span className="mt-1.5 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-text-secondary">{material.storage_location}</span> : null}
+              </button>
+            )) : <div className="px-3 py-5 text-center text-sm font-semibold text-text-secondary">No matching raw materials</div>}
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 
@@ -1637,7 +1624,7 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
-  const [materialPicker, setMaterialPicker] = useState(null);
+  const [openMaterialRowId, setOpenMaterialRowId] = useState(null);
   const activeSuppliers = suppliers.filter((supplier) => supplier.status === "active" || supplier.id === form.supplier_id);
   const activeRawMaterials = rawMaterials.filter((material) => material.status === "active");
   const supplierOptions = activeSuppliers.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name, helper: [supplier.supplier_code, supplier.phone].filter(Boolean).join(" · ") || supplier.status }));
@@ -1677,7 +1664,7 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
       uom: material?.uom || "",
       storage_location: material?.storage_location || "",
     });
-    setMaterialPicker(null);
+    setOpenMaterialRowId(null);
   }
 
   async function submit(event) {
@@ -1750,7 +1737,7 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
           <textarea className={inputClass()} rows={2} value={form.remarks} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
         </Field>
 
-        <div className="rounded-xl border border-border bg-white p-4 pb-10">
+        <div className="rounded-xl border border-border bg-white p-4 pb-48">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-slate-50 px-4 py-3">
             <div>
               <div className="text-sm font-semibold text-text-primary">Receiving Items</div>
@@ -1758,7 +1745,7 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
             </div>
             <button className="btn-secondary px-3 py-2 text-sm" type="button" onClick={addRow}><Package size={15} /> Add Item Row</button>
           </div>
-          <div className="mt-4 overflow-x-auto rounded-xl border border-border">
+          <div className="mt-4 overflow-visible rounded-xl border border-border">
           <table className="min-w-[880px] w-full table-fixed text-left text-sm">
             <colgroup>
               <col className="w-[30%]" />
@@ -1777,22 +1764,23 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
               </tr>
             </thead>
             <tbody>
-              {form.items.map((item) => (
+              {form.items.map((item, index) => (
                 <tr key={item.row_id} className="border-b border-border last:border-0 align-top transition hover:bg-slate-50/70">
-                  <td className="px-4 py-3">
-                    <RawMaterialCellButton
+                  <td className="px-4 py-3 overflow-visible">
+                    <RawMaterialCellPicker
                       value={item.raw_material_id}
                       materials={activeRawMaterials}
                       placeholder="Select Raw Material"
+                      open={openMaterialRowId === item.row_id}
+                      openUpward={index >= Math.max(0, form.items.length - 2)}
                       error={Boolean(fieldErrors[`${item.row_id}.raw_material_id`])}
                       buttonRef={(node) => {
                         fieldRefs.current[`${item.row_id}.raw_material_id`] = node;
                         fieldRefs.current[`${item.row_id}.uom`] = node;
                       }}
-                      onClick={(event) => {
-                        const anchor = event.currentTarget;
-                        setMaterialPicker((current) => current?.rowId === item.row_id ? null : { rowId: item.row_id, anchor });
-                      }}
+                      onToggle={() => setOpenMaterialRowId((current) => current === item.row_id ? null : item.row_id)}
+                      onClose={() => setOpenMaterialRowId(null)}
+                      onSelect={(rawMaterialId) => selectRawMaterial(item.row_id, rawMaterialId)}
                     />
                     <div className="mt-1 flex flex-wrap gap-1.5">
                       {item.storage_location ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-text-secondary">{item.storage_location}</span> : null}
@@ -1859,15 +1847,6 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
           <button className="btn-primary" type="submit" disabled={saving}>{saving ? "Saving..." : "Save Receiving"}</button>
         </div>
       </form>
-      {materialPicker ? (
-        <RawMaterialPickerPopover
-          anchor={materialPicker.anchor}
-          materials={activeRawMaterials}
-          selectedId={form.items.find((item) => item.row_id === materialPicker.rowId)?.raw_material_id}
-          onClose={() => setMaterialPicker(null)}
-          onSelect={(rawMaterialId) => selectRawMaterial(materialPicker.rowId, rawMaterialId)}
-        />
-      ) : null}
     </Card>
   );
 }
