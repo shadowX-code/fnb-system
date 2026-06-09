@@ -115,15 +115,21 @@ function CompactRawMaterialPicker({ id, value, materials, placeholder, onChange,
   const open = openPickerId === id;
   const selected = materials.find((material) => material.id === value);
   const visibleMaterials = materials.filter((material) => `${rawMaterialLabel(material)} ${rawMaterialHelper(material)} ${material.uom || ""} ${material.storage_location || ""}`.toLowerCase().includes(query.toLowerCase()));
+  const materialSummary = (material) => `${material?.material_code || "No SKU"} · Balance ${quantity(material?.current_balance, material?.uom)}`;
 
   function openPicker() {
     setOpenPickerId(open ? null : id);
     if (!open && buttonNode.current) {
       const nextRect = buttonNode.current.getBoundingClientRect();
+      const panelHeight = 340;
+      const viewportPadding = 16;
+      const spaceBelow = window.innerHeight - nextRect.bottom - viewportPadding;
+      const openUpward = spaceBelow < panelHeight && nextRect.top > panelHeight;
       setRect({
-        left: nextRect.left,
-        top: nextRect.bottom + 6,
+        left: Math.max(viewportPadding, Math.min(nextRect.left, window.innerWidth - Math.min(Math.max(nextRect.width, 340), 420) - viewportPadding)),
+        top: openUpward ? nextRect.top - panelHeight - 6 : nextRect.bottom + 6,
         width: Math.min(Math.max(nextRect.width, 340), 420),
+        maxHeight: openUpward ? Math.min(panelHeight, nextRect.top - viewportPadding - 8) : Math.min(panelHeight, spaceBelow),
       });
     }
   }
@@ -164,7 +170,7 @@ function CompactRawMaterialPicker({ id, value, materials, placeholder, onChange,
         {selected ? (
           <span className="block">
             <span className="block truncate text-sm font-semibold text-text-primary">{rawMaterialLabel(selected)}</span>
-            <span className="mt-0.5 block truncate text-xs text-text-secondary">{rawMaterialHelper(selected)} · On hand {quantity(selected.current_balance, selected.uom)}</span>
+            <span className="mt-0.5 block truncate text-xs text-text-secondary">{materialSummary(selected)}</span>
           </span>
         ) : (
           <span className="block text-sm font-semibold text-text-muted">{placeholder}</span>
@@ -177,7 +183,7 @@ function CompactRawMaterialPicker({ id, value, materials, placeholder, onChange,
           style={{ left: rect.left, top: rect.top, width: rect.width }}
         >
           <input className={inputClass()} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search raw materials" autoFocus />
-          <div className="mt-2 max-h-72 overflow-y-auto">
+          <div className="mt-2 overflow-y-auto" style={{ maxHeight: Math.max(180, Number(rect.maxHeight || 340) - 72) }}>
             {visibleMaterials.length ? visibleMaterials.map((material) => (
               <button
                 key={material.id}
@@ -190,7 +196,7 @@ function CompactRawMaterialPicker({ id, value, materials, placeholder, onChange,
                 }}
               >
                 <span className="block text-sm font-semibold text-text-primary">{rawMaterialLabel(material)}</span>
-                <span className="mt-0.5 block text-xs text-text-secondary">{rawMaterialHelper(material)} · On hand {quantity(material.current_balance, material.uom)}</span>
+                <span className="mt-0.5 block text-xs text-text-secondary">{materialSummary(material)}</span>
                 {material.storage_location ? <span className="mt-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-text-secondary">{material.storage_location}</span> : null}
               </button>
             )) : <div className="px-3 py-4 text-sm font-semibold text-text-secondary">No matching raw materials</div>}
@@ -1476,7 +1482,7 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
 
   return (
     <Card title="Receive Raw Material" description="Record one supplier delivery with multiple raw material item rows.">
-      <form className="space-y-5" onSubmit={submit}>
+      <form className="space-y-5 p-5" onSubmit={submit}>
         <div className="grid gap-3 lg:grid-cols-3">
           <Field label="Supplier *" error={fieldErrors.supplier_id}>
             <SearchableSelect
@@ -1497,7 +1503,7 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
             <input className={inputClass()} value={form.reference_no} onChange={(event) => setForm((current) => ({ ...current, reference_no: event.target.value }))} />
           </Field>
           <Field label="Received Date *" error={fieldErrors.received_date}>
-            <input ref={(node) => { fieldRefs.current.received_date = node; }} className={inputClass(fieldErrors.received_date)} type="date" value={form.received_date} onChange={(event) => {
+            <input ref={(node) => { fieldRefs.current.received_date = node; }} className={`${inputClass(fieldErrors.received_date)} bg-white`} type="date" value={form.received_date} onChange={(event) => {
               setFieldErrors((current) => ({ ...current, received_date: "" }));
               setForm((current) => ({ ...current, received_date: event.target.value }));
             }} />
@@ -1507,7 +1513,7 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
           <textarea className={inputClass()} rows={2} value={form.remarks} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
         </Field>
 
-        <div className="rounded-xl border border-border bg-white p-3">
+        <div className="rounded-xl border border-border bg-white p-4 pb-10">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-slate-50 px-4 py-3">
             <div>
               <div className="text-sm font-semibold text-text-primary">Receiving Items</div>
@@ -1515,7 +1521,7 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
             </div>
             <button className="btn-secondary px-3 py-2 text-sm" type="button" onClick={addRow}><Package size={15} /> Add Item Row</button>
           </div>
-          <div className="mt-3 overflow-x-auto rounded-xl border border-border">
+          <div className="mt-4 overflow-x-auto rounded-xl border border-border">
           <table className="min-w-[880px] w-full table-fixed text-left text-sm">
             <colgroup>
               <col className="w-[30%]" />
@@ -1560,7 +1566,6 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
                       }}
                     />
                     <div className="mt-1 flex flex-wrap gap-1.5">
-                      {item.uom ? <span className="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">UOM {item.uom}</span> : null}
                       {item.storage_location ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-text-secondary">{item.storage_location}</span> : null}
                     </div>
                     {fieldErrors[`${item.row_id}.raw_material_id`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.raw_material_id`]}</div> : null}
@@ -1606,10 +1611,11 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
                   </td>
                   <td className="px-4 py-3">
                     <input
-                      className="w-full rounded-xl border border-border bg-slate-50 px-3 py-2 text-sm font-semibold text-text-secondary outline-none transition placeholder:text-text-muted focus:border-primary focus:bg-white focus:text-text-primary focus:ring-2 focus:ring-primary/15"
+                      className="w-full rounded-xl border border-dashed border-border bg-slate-50/70 px-3 py-2 text-sm font-semibold text-text-secondary outline-none transition placeholder:text-text-muted focus:border-primary focus:border-solid focus:bg-white focus:text-text-primary focus:ring-2 focus:ring-primary/15"
                       type="date"
                       value={item.expiry_date || ""}
                       aria-label="Optional expiry date"
+                      title="Optional expiry date"
                       onChange={(event) => updateItem(item.row_id, { expiry_date: event.target.value })}
                     />
                   </td>
@@ -1622,7 +1628,7 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
           </table>
           </div>
         </div>
-        <div className="flex flex-wrap items-center justify-end gap-3">
+        <div className="flex flex-wrap items-center justify-end gap-3 rounded-xl border border-border bg-slate-50 px-4 py-3">
           {error ? <div className="text-sm font-semibold text-rose-600">{error}</div> : null}
           <button className="btn-primary" type="submit" disabled={saving}>{saving ? "Saving..." : "Save Receiving"}</button>
         </div>
