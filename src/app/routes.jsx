@@ -291,6 +291,12 @@ const routeDetails = {
     permission: "factory_production_sop.view",
     props: { initialTab: "production-sop" },
   },
+  factory_storage_locations: {
+    description: "Manage Factory storage locations used by raw material and finished goods master records.",
+    component: FactoryWorkspacePage,
+    permission: "factory_storage_locations.view",
+    props: { initialTab: "storage-locations" },
+  },
 };
 
 export const salesPurchaseRoutes = moduleRegistry.map((module) => {

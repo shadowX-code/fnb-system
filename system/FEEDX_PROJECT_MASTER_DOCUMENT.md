@@ -2850,9 +2850,12 @@ Factory Raw Material Master and Inventory implemented scope:
 
 - Raw Material Inventory is a functional master-plus-inventory page through `factory_raw_inventory`.
 - Raw Material Master setup supports Create, Edit and Archive.
-- Raw Material fields include Raw Material Name EN, Raw Material Name CN, Raw Material Name BM, Raw Material Code, Category, Default UOM, Min Stock Level, Preferred Supplier, Storage Location, Active/Archived status and Remarks.
+- Raw Material create/edit uses a single-column form with Product Information, Configuration, and Notes sections.
+- Raw Material form fields include Category, SKU Code, Raw Material Name EN, Raw Material Name CN, Raw Material Name BM, Default UOM, Min Stock Level, Storage Location, Active/Archived status and Remarks.
+- Preferred Supplier is not shown in the Raw Material user-facing form.
 - Raw Material Name EN is the canonical material name and is mirrored to `factory_raw_materials.name` for existing production/report matching.
 - Raw Material category selection must use a searchable FeedX-style selector, show "Select Category" before selection, and require a category before save.
+- Raw Material Storage Location must use the Factory Storage Locations selector for new records instead of free-text location entry.
 - Raw Material Category setup supports Create, Edit and Archive through `factory_raw_material_categories`.
 - Raw Material Categories must be managed inside the Category modal/drawer only, not as a main-page table.
 - Raw Material Inventory listing shows Product Name EN/CN/BM equivalent raw material names where available, raw material code, category, UOM, current balance, min stock, last receiving date, last consumption date, status, stock status and actions.
@@ -2865,6 +2868,16 @@ Factory Raw Material Master and Inventory implemented scope:
 - Product Recipe BOM and Production material usage must select active Raw Material Master records where possible.
 - Production actual usage remains the source of raw material stock deduction.
 - Raw Material Master and Inventory must not create duplicate stock balance logic; balances remain updated by receiving, production actual usage and approved stock check adjustments through existing movement/balance helpers.
+
+Factory Storage Locations implemented scope:
+
+- Storage Locations is a functional Factory System page through `factory_storage_locations`.
+- Storage Location setup supports Create, Edit and Archive.
+- Storage Location fields include Location Name, Location Code, Location Type, Active/Archived status and Remarks.
+- Location Type examples include Dry Store, Chiller, Freezer, Production Area, Finished Goods Area and Packaging Area.
+- Raw Material and Finished Goods master forms can select active Storage Locations.
+- Raw Material Receiving uses the managed Storage Location selector while preserving the receiving row's stored location text for receipt history.
+- Archived Storage Locations remain readable but cannot be selected for new active master setup.
 
 Factory Product Recipes implemented scope:
 
@@ -2927,6 +2940,7 @@ Factory sidebar modules:
 - Raw Material Stock Check
 - Product Recipes
 - Production SOP
+- Storage Locations
 - Factory Audit Logs
 - Factory Settings
 
@@ -2945,6 +2959,7 @@ Current functional Factory modules after Raw Material Master optimization:
 - Raw Material Stock Check.
 - Product Recipes.
 - Production SOP.
+- Storage Locations.
 
 Current registered Factory placeholder modules:
 

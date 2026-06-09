@@ -36,6 +36,7 @@ function mapJobOrder(row) {
 
 function mapRawMaterial(row) {
   const categoryName = row.category_ref?.name || row.category || "";
+  const storageLocationName = row.storage_location_ref?.location_name || row.storage_location || "";
   return {
     id: row.id,
     material_code: row.material_code || "",
@@ -49,7 +50,21 @@ function mapRawMaterial(row) {
     current_balance: normalizeNumber(row.current_balance),
     min_stock_level: normalizeNumber(row.min_stock_level),
     preferred_supplier: row.preferred_supplier || "",
-    storage_location: row.storage_location || "",
+    storage_location_id: row.storage_location_id || "",
+    storage_location: storageLocationName,
+    status: row.status || "active",
+    remarks: row.remarks || "",
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function mapStorageLocation(row) {
+  return {
+    id: row.id,
+    location_name: row.location_name || "",
+    location_code: row.location_code || "",
+    location_type: row.location_type || "",
     status: row.status || "active",
     remarks: row.remarks || "",
     created_at: row.created_at,
@@ -192,6 +207,7 @@ function mapProduction(row) {
 }
 
 function mapFinishedGood(row) {
+  const storageLocationName = row.storage_location_ref?.location_name || row.storage_location || "";
   return {
     id: row.id,
     product_code: row.product_code || "",
@@ -204,6 +220,8 @@ function mapFinishedGood(row) {
     uom: row.uom || "",
     current_balance: normalizeNumber(row.current_balance),
     min_stock_level: normalizeNumber(row.min_stock_level),
+    storage_location_id: row.storage_location_id || "",
+    storage_location: storageLocationName,
     status: row.status || "active",
     remarks: row.remarks || "",
     created_at: row.created_at,
@@ -406,6 +424,7 @@ function emptyFactoryData() {
     jobOrders: [],
     rawMaterials: [],
     rawMaterialCategories: [],
+    storageLocations: [],
     rawMaterialMovements: [],
     receivings: [],
     productions: [],
@@ -421,7 +440,8 @@ function emptyFactoryData() {
 }
 
 const finishedGoodSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,uom,status";
-const rawMaterialSelect = "id,material_code,name,name_en,name_cn,name_bm,category_id,category,uom,current_balance,min_stock_level,preferred_supplier,storage_location,status,remarks,created_at,updated_at,category_ref:factory_raw_material_categories(name)";
+const storageLocationSelect = "id,location_name,location_code,location_type,status,remarks,created_at,updated_at";
+const rawMaterialSelect = `id,material_code,name,name_en,name_cn,name_bm,category_id,category,uom,current_balance,min_stock_level,preferred_supplier,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_raw_material_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)`;
 const rawMaterialRelationSelect = "name,name_en,name_cn,name_bm,material_code,uom";
 const jobOrderSelect = `id,job_order_no,finished_good_id,product_name,target_quantity,produced_quantity,uom,planned_date,due_date,priority,status,assigned_team,remarks,created_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect})`;
 const productionSelectBasic = `id,job_order_id,finished_good_id,production_no,product_name,batch_no,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,operator_id,operator_name,start_time,end_time,qc_status,production_sop_id,sop_version,status,notes,created_by,completed_at,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),job_order:factory_job_orders(job_order_no,finished_good_id,product_name,finished_good:factory_finished_goods(product_code,product_name))`;
@@ -438,6 +458,7 @@ function factoryDataPlan(scope, hasPermission) {
   const isReports = scope === "reports";
   const isBatchTraceability = scope === "batch-traceability";
   const isProductRecipes = scope === "product-recipes";
+  const isStorageLocations = scope === "storage-locations";
   const isFinishedGoods = scope === "finished-goods";
   const isProductMovements = scope === "product-movements";
   const isProductStockCheck = scope === "product-stock-check";
@@ -450,6 +471,7 @@ function factoryDataPlan(scope, hasPermission) {
     jobOrders: (isDashboard && can("factory_dashboard.view")) || (isJobOrders && can("factory_job_orders.view")) || ((isProduction || isReports || isBatchTraceability) && (can("factory_production.view") || canReadProductionReports)),
     rawMaterials: (isDashboard && can("factory_dashboard.view")) || (isRawInventory && can("factory_raw_inventory.view")) || (isRawReceiving && can("factory_raw_receiving.view")) || (isRawStockCheck && can("factory_raw_stock_check.view")) || (isProductRecipes && can("factory_product_recipes.view")) || (isProduction && (can("factory_raw_inventory.view") || can("factory_product_recipes.view") || can("factory_production.complete") || can("factory_dashboard.view"))),
     rawMaterialCategories: isRawInventory && can("factory_raw_inventory.view"),
+    storageLocations: (isStorageLocations && can("factory_storage_locations.view")) || ((isRawInventory || isRawReceiving || isFinishedGoods) && (can("factory_storage_locations.view") || can("factory_raw_inventory.view") || can("factory_raw_receiving.view") || can("factory_finished_goods.view"))),
     rawMaterialMovements: isRawInventory && can("factory_raw_inventory.view"),
     receivings: (isDashboard && can("factory_dashboard.view")) || (isRawInventory && can("factory_raw_inventory.view")) || (isRawReceiving && can("factory_raw_receiving.view")) || (isReports && can("factory_production_reports.view")) || ((isProduction || isBatchTraceability) && can("factory_raw_receiving.view")),
     productions: needsProductionSummary && (can("factory_dashboard.view") || can("factory_production.view") || canReadProductionReports || can("factory_finished_goods.view") || can("factory_product_movements.view")),
@@ -489,6 +511,11 @@ export const factoryService = {
       .select("id,name,description,status,created_at,updated_at")
       .order("name", { ascending: true })
       .limit(150), (rows) => rows.map(mapRawMaterialCategory));
+    addTask(plan.storageLocations, "storageLocations", "Storage Locations", () => supabase
+      .from("factory_storage_locations")
+      .select(storageLocationSelect)
+      .order("location_name", { ascending: true })
+      .limit(200), (rows) => rows.map(mapStorageLocation));
     addTask(plan.rawMaterialMovements, "rawMaterialMovements", "Raw Material Movements", () => supabase
       .from("factory_raw_material_movements")
       .select(`id,raw_material_id,movement_type,quantity,uom,reference_type,reference_id,reference_no,movement_date,notes,created_by,created_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect})`)
@@ -506,7 +533,7 @@ export const factoryService = {
       .limit(150), (rows) => rows.map(mapProduction));
     addTask(plan.finishedGoods, "finishedGoods", "Finished Goods", () => supabase
       .from("factory_finished_goods")
-      .select("id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,category_id,category,uom,current_balance,min_stock_level,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name)")
+      .select("id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,category_id,category,uom,current_balance,min_stock_level,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)")
       .order("product_name", { ascending: true })
       .limit(300), (rows) => rows.map(mapFinishedGood));
     addTask(plan.finishedGoodCategories, "finishedGoodCategories", "Finished Good Categories", () => supabase
@@ -741,6 +768,17 @@ export const factoryService = {
   async saveRawMaterial(material, employeeId) {
     const isUpdate = Boolean(material.id);
     const materialNameEn = String(material.name_en || material.name || "").trim();
+    let storageLocationName = "";
+    if (material.storage_location_id) {
+      const { data: location, error: locationError } = await supabase
+        .from("factory_storage_locations")
+        .select("id,location_name,status")
+        .eq("id", material.storage_location_id)
+        .single();
+      throwSupabaseError("factory.raw_material.storage_location", locationError);
+      if (!isUpdate && String(location?.status || "").toLowerCase() !== "active") throw new Error("Archived Storage Locations cannot be selected.");
+      storageLocationName = location?.location_name || "";
+    }
     const payload = {
       material_code: String(material.material_code || "").trim() || null,
       name: materialNameEn,
@@ -751,14 +789,16 @@ export const factoryService = {
       category: String(material.category || "").trim(),
       uom: String(material.uom || "").trim(),
       min_stock_level: normalizeNumber(material.min_stock_level),
-      preferred_supplier: String(material.preferred_supplier || "").trim(),
-      storage_location: String(material.storage_location || "").trim(),
+      preferred_supplier: "",
+      storage_location_id: material.storage_location_id || null,
+      storage_location: storageLocationName || String(material.storage_location || "").trim(),
       status: material.status || "active",
       remarks: String(material.remarks || "").trim(),
       updated_at: new Date().toISOString(),
     };
     if (!payload.name) throw new Error("Raw Material Name EN is required.");
     if (!payload.category_id) throw new Error("Category is required.");
+    if (!payload.material_code) throw new Error("SKU Code is required.");
     if (!payload.uom) throw new Error("Default UOM is required.");
     if (!["active", "archived"].includes(payload.status)) payload.status = "active";
     if (!isUpdate) {
@@ -859,6 +899,54 @@ export const factoryService = {
     return mapRawMaterialCategory(data);
   },
 
+  async saveStorageLocation(location, employeeId) {
+    const isUpdate = Boolean(location.id);
+    const payload = {
+      location_name: String(location.location_name || "").trim(),
+      location_code: String(location.location_code || "").trim() || null,
+      location_type: String(location.location_type || "").trim(),
+      status: location.status || "active",
+      remarks: String(location.remarks || "").trim(),
+      updated_at: new Date().toISOString(),
+    };
+    if (!payload.location_name) throw new Error("Location name is required.");
+    if (!["active", "archived"].includes(payload.status)) payload.status = "active";
+    if (!isUpdate) payload.created_by = employeeId || null;
+
+    const query = isUpdate
+      ? supabase.from("factory_storage_locations").update(payload).eq("id", location.id)
+      : supabase.from("factory_storage_locations").insert(payload);
+
+    const { data, error } = await query
+      .select(storageLocationSelect)
+      .single();
+    throwSupabaseError("factory.storage_location.save", error);
+    await logFactoryAction({
+      action: isUpdate ? "factory_storage_location_updated" : "factory_storage_location_created",
+      target: data.location_name,
+      description: isUpdate ? "Factory storage location updated." : "Factory storage location created.",
+      after: data,
+    });
+    return mapStorageLocation(data);
+  },
+
+  async archiveStorageLocation(location) {
+    const { data, error } = await supabase
+      .from("factory_storage_locations")
+      .update({ status: "archived", updated_at: new Date().toISOString() })
+      .eq("id", location.id)
+      .select(storageLocationSelect)
+      .single();
+    throwSupabaseError("factory.storage_location.archive", error);
+    await logFactoryAction({
+      action: "factory_storage_location_archived",
+      target: data.location_name,
+      description: "Factory storage location archived.",
+      after: data,
+    });
+    return mapStorageLocation(data);
+  },
+
   async deleteRawMaterialReceiving(receiving) {
     const { error: balanceError } = await supabase.rpc("factory_adjust_raw_material_balance", {
       material_id: receiving.raw_material_id,
@@ -878,6 +966,17 @@ export const factoryService = {
   async saveFinishedGood(product, employeeId) {
     const isUpdate = Boolean(product.id);
     const productNameEn = String(product.product_name_en || product.product_name || "").trim();
+    let storageLocationName = "";
+    if (product.storage_location_id) {
+      const { data: location, error: locationError } = await supabase
+        .from("factory_storage_locations")
+        .select("id,location_name,status")
+        .eq("id", product.storage_location_id)
+        .single();
+      throwSupabaseError("factory.finished_good.storage_location", locationError);
+      if (!isUpdate && String(location?.status || "").toLowerCase() !== "active") throw new Error("Archived Storage Locations cannot be selected.");
+      storageLocationName = location?.location_name || "";
+    }
     const payload = {
       product_code: String(product.product_code || "").trim() || null,
       product_name: productNameEn,
@@ -888,6 +987,8 @@ export const factoryService = {
       category: String(product.category || "").trim(),
       uom: product.uom || "",
       min_stock_level: normalizeNumber(product.min_stock_level),
+      storage_location_id: product.storage_location_id || null,
+      storage_location: storageLocationName || String(product.storage_location || "").trim(),
       status: product.status || "active",
       remarks: String(product.remarks || "").trim(),
       updated_at: new Date().toISOString(),
@@ -903,7 +1004,7 @@ export const factoryService = {
       : supabase.from("factory_finished_goods").insert(payload);
 
     const { data, error } = await query
-      .select("id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,category_id,category,uom,current_balance,min_stock_level,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name)")
+      .select("id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,category_id,category,uom,current_balance,min_stock_level,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)")
       .single();
     throwSupabaseError("factory.finished_good.save", error);
     await logFactoryAction({
@@ -923,7 +1024,7 @@ export const factoryService = {
       .from("factory_finished_goods")
       .update({ status: "archived", updated_at: new Date().toISOString() })
       .eq("id", product.id)
-      .select("id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,category_id,category,uom,current_balance,min_stock_level,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name)")
+      .select("id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,category_id,category,uom,current_balance,min_stock_level,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)")
       .single();
     throwSupabaseError("factory.finished_good.archive", error);
     await logFactoryAction({

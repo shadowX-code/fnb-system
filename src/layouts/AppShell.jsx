@@ -56,6 +56,7 @@ const iconMap = {
   "factory-product-recipes": FlaskConical,
   "factory-sop": FileText,
   "factory-audit-logs": KeyRound,
+  "factory-storage-locations": Warehouse,
   "factory-settings": Settings,
 };
 

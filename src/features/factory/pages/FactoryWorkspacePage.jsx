@@ -12,6 +12,7 @@ const priorityOptions = ["Low", "Normal", "High", "Urgent"];
 const jobStatusOptions = ["draft", "planned", "in_progress", "completed", "cancelled"];
 const recipeStatusOptions = ["draft", "active", "archived"];
 const commonUoms = ["kg", "g", "litre", "ml", "pcs", "carton", "pail", "bottle", "pack"];
+const storageLocationTypes = ["Dry Store", "Chiller", "Freezer", "Production Area", "Finished Goods Area", "Packaging Area"];
 const qcStatusOptions = ["Pending", "Pass", "Hold", "Failed"];
 const varianceThresholdPercent = 5;
 const stockCheckWarningPercent = 2;
@@ -373,7 +374,7 @@ function FinishedGoodDetailModal({ product, productions, movements, productionCo
   );
 }
 
-function FinishedGoodMasterModal({ initialValue, categories, onClose, onSave, onArchive }) {
+function FinishedGoodMasterModal({ initialValue, categories, storageLocations = [], onClose, onSave, onArchive }) {
   const [form, setForm] = useState(() => ({
     product_code: "",
     product_name: initialValue?.product_name || "",
@@ -384,6 +385,8 @@ function FinishedGoodMasterModal({ initialValue, categories, onClose, onSave, on
     category: "",
     uom: "kg",
     min_stock_level: 0,
+    storage_location_id: "",
+    storage_location: "",
     status: "active",
     remarks: "",
     ...initialValue,
@@ -392,6 +395,11 @@ function FinishedGoodMasterModal({ initialValue, categories, onClose, onSave, on
   const [error, setError] = useState("");
   const activeCategories = categories.filter((category) => category.status === "active" || category.id === form.category_id);
   const categoryOptions = activeCategories.map((category) => ({ value: category.id, label: category.name, helper: category.description || category.status }));
+  const activeStorageLocations = storageLocations.filter((location) => location.status === "active" || location.id === form.storage_location_id);
+  const storageLocationOptions = [
+    { value: "", label: "No Storage Location", helper: "Leave blank" },
+    ...activeStorageLocations.map((location) => ({ value: location.id, label: location.location_name, helper: [location.location_code, location.location_type].filter(Boolean).join(" · ") || location.status })),
+  ];
 
   async function submit(event) {
     event.preventDefault();
@@ -483,6 +491,16 @@ function FinishedGoodMasterModal({ initialValue, categories, onClose, onSave, on
               <select className={inputClass()} value={form.uom} onChange={(event) => setForm((current) => ({ ...current, uom: event.target.value }))}>
                 {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
               </select>
+            </Field>
+            <Field label="Storage Location">
+              <SearchableSelect
+                value={form.storage_location_id || ""}
+                options={storageLocationOptions}
+                placeholder="Select Storage Location"
+                searchPlaceholder="Search locations"
+                emptyText="No storage locations"
+                onChange={(locationId) => setForm((current) => ({ ...current, storage_location_id: locationId }))}
+              />
             </Field>
             <Field label="Status *">
               <select className={inputClass()} value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
@@ -674,7 +692,7 @@ function RawMaterialDetailModal({ material, receivings, movements, stockChecks, 
   );
 }
 
-function RawMaterialMasterModal({ initialValue, categories, onClose, onSave, onArchive }) {
+function RawMaterialMasterModal({ initialValue, categories, storageLocations = [], onClose, onSave, onArchive }) {
   const [form, setForm] = useState(() => ({
     material_code: "",
     name: initialValue?.name || "",
@@ -685,7 +703,7 @@ function RawMaterialMasterModal({ initialValue, categories, onClose, onSave, onA
     category: "",
     uom: "kg",
     min_stock_level: 0,
-    preferred_supplier: "",
+    storage_location_id: "",
     storage_location: "",
     status: "active",
     remarks: "",
@@ -695,6 +713,11 @@ function RawMaterialMasterModal({ initialValue, categories, onClose, onSave, onA
   const [error, setError] = useState("");
   const activeCategories = categories.filter((category) => category.status === "active" || category.id === form.category_id);
   const categoryOptions = activeCategories.map((category) => ({ value: category.id, label: category.name, helper: category.description || category.status }));
+  const activeStorageLocations = storageLocations.filter((location) => location.status === "active" || location.id === form.storage_location_id);
+  const storageLocationOptions = [
+    { value: "", label: "No Storage Location", helper: "Leave blank" },
+    ...activeStorageLocations.map((location) => ({ value: location.id, label: location.location_name, helper: [location.location_code, location.location_type].filter(Boolean).join(" · ") || location.status })),
+  ];
 
   async function submit(event) {
     event.preventDefault();
@@ -705,6 +728,10 @@ function RawMaterialMasterModal({ initialValue, categories, onClose, onSave, onA
     }
     if (!form.category_id) {
       setError("Category is required.");
+      return;
+    }
+    if (!String(form.material_code || "").trim()) {
+      setError("SKU Code is required.");
       return;
     }
     if (!String(form.uom || "").trim()) {
@@ -748,52 +775,76 @@ function RawMaterialMasterModal({ initialValue, categories, onClose, onSave, onA
     >
       <form id="factory-raw-material-form" className="space-y-4" onSubmit={submit}>
         {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
-        <div className="grid gap-3 md:grid-cols-2">
-          <Field label="Raw Material Name EN">
-            <input className={inputClass()} value={form.name_en || ""} onChange={(event) => setForm((current) => ({ ...current, name_en: event.target.value, name: event.target.value }))} />
-          </Field>
-          <Field label="Raw Material Name CN">
-            <input className={inputClass()} value={form.name_cn || ""} onChange={(event) => setForm((current) => ({ ...current, name_cn: event.target.value }))} />
-          </Field>
-          <Field label="Raw Material Name BM">
-            <input className={inputClass()} value={form.name_bm || ""} onChange={(event) => setForm((current) => ({ ...current, name_bm: event.target.value }))} />
-          </Field>
-          <Field label="Raw Material Code">
-            <input className={inputClass()} value={form.material_code || ""} onChange={(event) => setForm((current) => ({ ...current, material_code: event.target.value }))} />
-          </Field>
-          <Field label="Category" error={!form.category_id && error.includes("Category") ? "Category is required." : ""}>
-            <SearchableSelect
-              value={form.category_id || ""}
-              options={categoryOptions}
-              placeholder="Select Category"
-              error={!form.category_id && error.includes("Category")}
-              onChange={(categoryId) => setForm((current) => ({ ...current, category_id: categoryId }))}
-            />
-          </Field>
-          <Field label="Default UOM">
-            <select className={inputClass()} value={form.uom} onChange={(event) => setForm((current) => ({ ...current, uom: event.target.value }))}>
-              {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
-            </select>
-          </Field>
-          <Field label="Min Stock Level">
-            <input className={inputClass()} type="number" min="0" step="0.01" value={form.min_stock_level} onChange={(event) => setForm((current) => ({ ...current, min_stock_level: event.target.value }))} />
-          </Field>
-          <Field label="Preferred Supplier">
-            <input className={inputClass()} value={form.preferred_supplier || ""} onChange={(event) => setForm((current) => ({ ...current, preferred_supplier: event.target.value }))} />
-          </Field>
-          <Field label="Storage Location">
-            <input className={inputClass()} value={form.storage_location || ""} onChange={(event) => setForm((current) => ({ ...current, storage_location: event.target.value }))} />
-          </Field>
-          <Field label="Status">
-            <select className={inputClass()} value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
-              <option value="active">Active</option>
-              <option value="archived">Archived</option>
-            </select>
-          </Field>
+        <div className="space-y-5">
+          <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
+            <div>
+              <div className="text-sm font-semibold text-text-primary">Product Information</div>
+              <div className="mt-1 text-sm text-text-secondary">Core raw material identity used by receiving, recipes and production usage.</div>
+            </div>
+            <Field label="Category *" error={!form.category_id && error.includes("Category") ? "Category is required." : ""}>
+              <SearchableSelect
+                value={form.category_id || ""}
+                options={categoryOptions}
+                placeholder="Select Category"
+                error={!form.category_id && error.includes("Category")}
+                onChange={(categoryId) => setForm((current) => ({ ...current, category_id: categoryId }))}
+              />
+            </Field>
+            <Field label="SKU Code *">
+              <input className={inputClass(error.includes("SKU Code"))} value={form.material_code || ""} onChange={(event) => setForm((current) => ({ ...current, material_code: event.target.value }))} />
+            </Field>
+            <Field label="Raw Material Name (EN) *">
+              <input className={inputClass()} value={form.name_en || ""} onChange={(event) => setForm((current) => ({ ...current, name_en: event.target.value, name: event.target.value }))} />
+            </Field>
+            <Field label="Raw Material Name (CN)">
+              <input className={inputClass()} value={form.name_cn || ""} onChange={(event) => setForm((current) => ({ ...current, name_cn: event.target.value }))} />
+            </Field>
+            <Field label="Raw Material Name (BM)">
+              <input className={inputClass()} value={form.name_bm || ""} onChange={(event) => setForm((current) => ({ ...current, name_bm: event.target.value }))} />
+            </Field>
+          </section>
+
+          <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
+            <div>
+              <div className="text-sm font-semibold text-text-primary">Configuration</div>
+              <div className="mt-1 text-sm text-text-secondary">Warehouse settings for stock planning and storage assignment.</div>
+            </div>
+            <Field label="Default UOM *">
+              <select className={inputClass()} value={form.uom} onChange={(event) => setForm((current) => ({ ...current, uom: event.target.value }))}>
+                {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
+              </select>
+            </Field>
+            <Field label="Min Stock Level *">
+              <input className={inputClass()} type="number" min="0" step="0.01" value={form.min_stock_level} onChange={(event) => setForm((current) => ({ ...current, min_stock_level: event.target.value }))} />
+            </Field>
+            <Field label="Storage Location">
+              <SearchableSelect
+                value={form.storage_location_id || ""}
+                options={storageLocationOptions}
+                placeholder="Select Storage Location"
+                searchPlaceholder="Search locations"
+                emptyText="No storage locations"
+                onChange={(locationId) => setForm((current) => ({ ...current, storage_location_id: locationId }))}
+              />
+            </Field>
+            <Field label="Status *">
+              <select className={inputClass()} value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
+                <option value="active">Active</option>
+                <option value="archived">Archived</option>
+              </select>
+            </Field>
+          </section>
+
+          <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
+            <div>
+              <div className="text-sm font-semibold text-text-primary">Notes</div>
+              <div className="mt-1 text-sm text-text-secondary">Internal remarks for warehouse and production teams.</div>
+            </div>
+            <Field label="Remarks">
+              <textarea className={inputClass()} rows={3} value={form.remarks || ""} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
+            </Field>
+          </section>
         </div>
-        <Field label="Remarks">
-          <textarea className={inputClass()} rows={3} value={form.remarks || ""} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
-        </Field>
       </form>
     </Modal>
   );
@@ -881,6 +932,113 @@ function RawMaterialCategoryModal({ categories, onClose, onSave, onArchive }) {
               </div>
             </div>
           )) : <EmptyState title="No categories" description="Create a category before saving raw material master records." />}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function StorageLocationModal({ locations, onClose, onSave, onArchive }) {
+  const [form, setForm] = useState(() => ({
+    location_name: "",
+    location_code: "",
+    location_type: storageLocationTypes[0],
+    status: "active",
+    remarks: "",
+  }));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(event) {
+    event.preventDefault();
+    setError("");
+    if (!String(form.location_name || "").trim()) {
+      setError("Location name is required.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave(form);
+      setForm({ location_name: "", location_code: "", location_type: storageLocationTypes[0], status: "active", remarks: "" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function edit(location) {
+    setForm({
+      id: location.id,
+      location_name: location.location_name || "",
+      location_code: location.location_code || "",
+      location_type: location.location_type || storageLocationTypes[0],
+      status: location.status || "active",
+      remarks: location.remarks || "",
+    });
+    setError("");
+  }
+
+  async function archive(location) {
+    setSaving(true);
+    try {
+      await onArchive(location);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      title="Storage Locations"
+      description="Manage Factory storage locations used by raw material and finished goods master records."
+      size="lg"
+      onClose={saving ? undefined : onClose}
+      footer={<button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Close</button>}
+    >
+      <div className="space-y-4">
+        <form id="factory-storage-location-form" className="space-y-4 rounded-xl border border-border bg-slate-50 p-4" onSubmit={submit}>
+          {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
+          <div className="grid gap-3 md:grid-cols-2">
+            <Field label="Location Name *">
+              <input className={inputClass()} value={form.location_name || ""} onChange={(event) => setForm((current) => ({ ...current, location_name: event.target.value }))} />
+            </Field>
+            <Field label="Location Code">
+              <input className={inputClass()} value={form.location_code || ""} onChange={(event) => setForm((current) => ({ ...current, location_code: event.target.value }))} />
+            </Field>
+            <Field label="Location Type">
+              <select className={inputClass()} value={form.location_type || ""} onChange={(event) => setForm((current) => ({ ...current, location_type: event.target.value }))}>
+                {storageLocationTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+              </select>
+            </Field>
+            <Field label="Status">
+              <select className={inputClass()} value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
+                <option value="active">Active</option>
+                <option value="archived">Archived</option>
+              </select>
+            </Field>
+          </div>
+          <Field label="Remarks">
+            <textarea className={inputClass()} rows={3} value={form.remarks || ""} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
+          </Field>
+          <div className="flex justify-end gap-2">
+            <button className="btn-primary" type="submit" disabled={saving}>{saving ? "Saving..." : form.id ? "Update Location" : "Create Location"}</button>
+            {form.id ? <button className="btn-secondary" type="button" disabled={saving} onClick={() => setForm({ location_name: "", location_code: "", location_type: storageLocationTypes[0], status: "active", remarks: "" })}>New</button> : null}
+          </div>
+        </form>
+
+        <div className="space-y-2">
+          {locations.length ? locations.map((location) => (
+            <div key={location.id} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-3">
+              <div>
+                <div className="font-semibold text-text-primary">{location.location_name}</div>
+                <div className="text-xs text-text-secondary">{[location.location_code, location.location_type, location.status].filter(Boolean).join(" · ")}</div>
+                {location.remarks ? <div className="mt-1 text-xs text-text-secondary">{location.remarks}</div> : null}
+              </div>
+              <div className="flex gap-2">
+                <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={saving} onClick={() => edit(location)}>Edit</button>
+                {location.status !== "archived" ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" disabled={saving} onClick={() => archive(location)}>Archive</button> : null}
+              </div>
+            </div>
+          )) : <EmptyState title="No storage locations" description="Create storage locations before assigning warehouse locations to Factory master records." />}
         </div>
       </div>
     </Modal>
@@ -1014,7 +1172,7 @@ function JobOrderModal({ initialValue, finishedGoods, onClose, onSave }) {
   );
 }
 
-function RawReceivingModal({ initialValue, rawMaterials, onClose, onSave }) {
+function RawReceivingModal({ initialValue, rawMaterials, storageLocations = [], onClose, onSave }) {
   const [form, setForm] = useState(() => ({
     supplier_name: "",
     raw_material_id: "",
@@ -1034,11 +1192,16 @@ function RawReceivingModal({ initialValue, rawMaterials, onClose, onSave }) {
   const [error, setError] = useState("");
   const totalCost = Number(form.received_qty || 0) * Number(form.unit_cost || 0);
   const activeRawMaterials = rawMaterials.filter((material) => material.status === "active" || material.id === form.raw_material_id);
+  const activeStorageLocations = storageLocations.filter((location) => location.status === "active" || location.location_name === form.storage_location);
   const rawMaterialOptions = activeRawMaterials.map((material) => ({
     value: material.id,
     label: rawMaterialLabel(material),
     helper: `${rawMaterialHelper(material)}${material.current_balance != null ? ` · On hand ${quantity(material.current_balance, material.uom)}` : ""}`,
   }));
+  const storageLocationOptions = [
+    { value: "", label: "No Storage Location", helper: "Leave blank" },
+    ...activeStorageLocations.map((location) => ({ value: location.location_name, label: location.location_name, helper: [location.location_code, location.location_type].filter(Boolean).join(" · ") || location.status })),
+  ];
 
   async function submit(event) {
     event.preventDefault();
@@ -1126,7 +1289,14 @@ function RawReceivingModal({ initialValue, rawMaterials, onClose, onSave }) {
           </Field>
         </div>
         <Field label="Storage Location">
-          <input className={inputClass()} value={form.storage_location || ""} onChange={(event) => setForm((current) => ({ ...current, storage_location: event.target.value }))} />
+          <SearchableSelect
+            value={form.storage_location || ""}
+            options={storageLocationOptions}
+            placeholder="Select Storage Location"
+            searchPlaceholder="Search locations"
+            emptyText="No storage locations"
+            onChange={(locationName) => setForm((current) => ({ ...current, storage_location: locationName }))}
+          />
         </Field>
         <Field label="Remarks">
           <textarea className={inputClass()} rows={3} value={form.remarks || ""} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
@@ -2268,6 +2438,36 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     }
   }
 
+  async function saveStorageLocation(form, options = {}) {
+    try {
+      await factoryService.saveStorageLocation(form, auth?.profile?.id);
+      ui?.notify?.({ title: form.id ? "Storage location updated" : "Storage location created", tone: "success" });
+      if (!options.keepOpen) setModal(null);
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to save storage location", message: error.message, tone: "error" });
+      throw error;
+    }
+  }
+
+  async function archiveStorageLocation(location, options = {}) {
+    const confirmed = await ui?.confirm?.({
+      title: "Archive Storage Location?",
+      message: `${location.location_name} will remain on existing records but cannot be selected for new active setup.`,
+      confirmLabel: "Archive",
+      tone: "warning",
+    });
+    if (!confirmed) return;
+    try {
+      await factoryService.archiveStorageLocation(location);
+      ui?.notify?.({ title: "Storage location archived", tone: "success" });
+      if (!options.keepOpen) setModal(null);
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to archive storage location", message: error.message, tone: "error" });
+    }
+  }
+
   async function completeProduction(form) {
     try {
       await factoryService.completeProduction(form, auth?.profile?.id);
@@ -2505,6 +2705,18 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       <div className="flex flex-wrap justify-end gap-2">
         <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "raw-material-detail", material: row })}>Detail</button>
         {can("factory_raw_inventory.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "raw-material", value: row })}>Edit</button> : null}
+      </div>
+    ) },
+  ];
+
+  const storageLocationColumns = [
+    { key: "location_name", label: "Location", render: (row) => <div><div className="font-semibold text-text-primary">{row.location_name}</div><div className="text-xs text-text-secondary">{row.location_code || "No code"}</div></div> },
+    { key: "location_type", label: "Type", render: (row) => row.location_type || "—" },
+    { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge> },
+    { key: "remarks", label: "Remarks", render: (row) => row.remarks || "—" },
+    { key: "actions", label: "Actions", align: "right", render: (row) => (
+      <div className="flex justify-end gap-2">
+        {can("factory_storage_locations.edit") || can("factory_storage_locations.manage") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "storage-locations", value: row })}>Manage</button> : null}
       </div>
     ) },
   ];
@@ -2930,6 +3142,39 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         </div>
         <Card title="Receiving Records" description={`Showing ${data.receivings.length} receipt(s).`}>
           <FactoryTable columns={receivingColumns} rows={data.receivings} emptyTitle="No raw material receiving" emptyDescription="Record supplier delivery to begin raw warehouse tracking." />
+        </Card>
+      </div>
+    );
+  }
+
+  function renderStorageLocations() {
+    const activeLocations = data.storageLocations.filter((location) => location.status === "active");
+    const archivedLocations = data.storageLocations.filter((location) => location.status === "archived");
+    const byType = storageLocationTypes.map((type) => ({
+      type,
+      count: activeLocations.filter((location) => location.location_type === type).length,
+    })).filter((row) => row.count > 0);
+    return (
+      <div className="space-y-5">
+        <PageHeader
+          section="System"
+          title="Storage Locations"
+          description="Manage Factory warehouse and production storage locations used by raw material and finished goods master records."
+          actions={can("factory_storage_locations.create") || can("factory_storage_locations.manage") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "storage-locations" })}><Warehouse size={15} /> Storage Location</button> : null}
+        />
+        <div className="grid gap-3 md:grid-cols-4">
+          <MetricCard icon={Warehouse} label="Total Locations" value={data.storageLocations.length} helper="Active and archived" />
+          <MetricCard icon={CheckCircle2} label="Active" value={activeLocations.length} helper="Available for selection" tone="success" />
+          <MetricCard icon={Clock3} label="Archived" value={archivedLocations.length} helper="Historical locations" />
+          <MetricCard icon={Tag} label="Location Types" value={byType.length} helper="Active type coverage" />
+        </div>
+        <Card title="Storage Location Master" description="Create, edit and archive storage locations for Factory master data.">
+          <FactoryTable
+            columns={storageLocationColumns}
+            rows={data.storageLocations}
+            emptyTitle="No storage locations"
+            emptyDescription="Create storage locations before assigning warehouse locations to raw materials or finished goods."
+          />
         </Card>
       </div>
     );
@@ -3646,7 +3891,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   return (
     <>
       <AccessIssueNotice issues={data.accessIssues} />
-      {initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-inventory" ? renderRawInventory() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? renderBatchTraceability() : initialTab === "finished-goods" ? renderFinishedGoods() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? renderProductRecipes() : initialTab === "production-sop" ? renderProductionSop() : renderDashboard()}
+      {initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-inventory" ? renderRawInventory() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? renderBatchTraceability() : initialTab === "finished-goods" ? renderFinishedGoods() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? renderProductRecipes() : initialTab === "production-sop" ? renderProductionSop() : initialTab === "storage-locations" ? renderStorageLocations() : renderDashboard()}
       {modal?.type === "job" ? (
         <JobOrderModal
           initialValue={modal.value}
@@ -3659,6 +3904,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <RawReceivingModal
           initialValue={modal.value}
           rawMaterials={data.rawMaterials}
+          storageLocations={data.storageLocations}
           onClose={() => setModal(null)}
           onSave={saveReceiving}
         />
@@ -3676,6 +3922,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <RawMaterialMasterModal
           initialValue={modal.value}
           categories={data.rawMaterialCategories}
+          storageLocations={data.storageLocations}
           onClose={() => setModal(null)}
           onSave={saveRawMaterial}
           onArchive={archiveRawMaterial}
@@ -3687,6 +3934,14 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           onClose={() => setModal(null)}
           onSave={(form) => saveRawMaterialCategory(form, { keepOpen: true })}
           onArchive={(category) => archiveRawMaterialCategory(category, { keepOpen: true })}
+        />
+      ) : null}
+      {modal?.type === "storage-locations" ? (
+        <StorageLocationModal
+          locations={data.storageLocations}
+          onClose={() => setModal(null)}
+          onSave={(form) => saveStorageLocation(form, { keepOpen: true })}
+          onArchive={(location) => archiveStorageLocation(location, { keepOpen: true })}
         />
       ) : null}
       {modal?.type === "production" ? (
@@ -3741,6 +3996,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <FinishedGoodMasterModal
           initialValue={modal.value}
           categories={data.finishedGoodCategories}
+          storageLocations={data.storageLocations}
           onClose={() => setModal(null)}
           onSave={saveFinishedGood}
           onArchive={archiveFinishedGood}

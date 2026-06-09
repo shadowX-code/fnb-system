@@ -558,6 +558,16 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, export: true },
   },
   {
+    id: "factory_storage_locations",
+    section: "System",
+    label: "Storage Locations",
+    route: "/factory/storage-locations",
+    icon: "factory-storage-locations",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, create: true, edit: true, delete: true, manage: true, export: true },
+  },
+  {
     id: "factory_settings",
     section: "System",
     label: "Factory Settings",
