@@ -69,7 +69,7 @@ function inputClass(error) {
   }`;
 }
 
-function SearchableSelect({ value, options, placeholder, onChange, error, searchPlaceholder = "Search", emptyText = "No matching options", disabled = false }) {
+function SearchableSelect({ value, options, placeholder, onChange, error, searchPlaceholder = "Search", emptyText = "No matching options", disabled = false, buttonRef }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const selected = options.find((option) => option.value === value);
@@ -77,7 +77,7 @@ function SearchableSelect({ value, options, placeholder, onChange, error, search
 
   return (
     <div className="relative">
-      <button className={`${inputClass(error)} flex items-center justify-between text-left disabled:cursor-not-allowed disabled:opacity-70`} type="button" disabled={disabled} onClick={() => setOpen((current) => !current)}>
+      <button ref={buttonRef} className={`${inputClass(error)} flex items-center justify-between text-left disabled:cursor-not-allowed disabled:opacity-70`} type="button" disabled={disabled} onClick={() => setOpen((current) => !current)}>
         <span className={selected ? "text-text-primary" : "text-text-muted"}>{selected?.label || placeholder}</span>
         <span className="text-xs text-text-muted">Search</span>
       </button>
@@ -105,6 +105,14 @@ function SearchableSelect({ value, options, placeholder, onChange, error, search
       ) : null}
     </div>
   );
+}
+
+function focusFirstInvalid(refs, firstKey) {
+  setTimeout(() => {
+    const node = refs.current?.[firstKey];
+    node?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    node?.focus?.({ preventScroll: true });
+  }, 0);
 }
 
 function finishedGoodLabel(product) {
@@ -375,6 +383,7 @@ function FinishedGoodDetailModal({ product, productions, movements, productionCo
 }
 
 function FinishedGoodMasterModal({ initialValue, categories, storageLocations = [], onClose, onSave, onArchive }) {
+  const fieldRefs = useRef({});
   const [form, setForm] = useState(() => ({
     product_code: "",
     product_name: initialValue?.product_name || "",
@@ -393,6 +402,7 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
   }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
   const activeCategories = categories.filter((category) => category.status === "active" || category.id === form.category_id);
   const categoryOptions = activeCategories.map((category) => ({ value: category.id, label: category.name, helper: category.description || category.status }));
   const activeStorageLocations = storageLocations.filter((location) => location.status === "active" || location.id === form.storage_location_id);
@@ -404,16 +414,19 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
   async function submit(event) {
     event.preventDefault();
     setError("");
-    if (!String(form.product_name_en || "").trim()) {
-      setError("Product Name EN is required.");
-      return;
-    }
-    if (!form.category_id) {
-      setError("Category is required.");
-      return;
-    }
-    if (!String(form.uom || "").trim()) {
-      setError("UOM is required.");
+    const nextErrors = {
+      category_id: !form.category_id ? "Category is required." : "",
+      product_code: !String(form.product_code || "").trim() ? "SKU Code is required." : "",
+      product_name_en: !String(form.product_name_en || "").trim() ? "Product Name (EN) is required." : "",
+      uom: !String(form.uom || "").trim() ? "UOM is required." : "",
+      status: !String(form.status || "").trim() ? "Status is required." : "",
+    };
+    const activeErrors = Object.fromEntries(Object.entries(nextErrors).filter(([, message]) => message));
+    setFieldErrors(activeErrors);
+    const firstError = Object.keys(activeErrors)[0];
+    if (firstError) {
+      setError("Please complete required fields.");
+      focusFirstInvalid(fieldRefs, firstError);
       return;
     }
     setSaving(true);
@@ -445,6 +458,7 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
         <>
           {initialValue?.id && initialValue.status !== "archived" ? <button className="btn-danger" type="button" disabled={saving} onClick={archive}>Archive</button> : <span />}
           <div className="flex gap-2">
+            {error ? <div className="self-center text-sm font-semibold text-rose-600">{error}</div> : null}
             <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
             <button className="btn-primary" type="submit" form="factory-finished-good-form" disabled={saving}>{saving ? "Saving..." : "Save Finished Good"}</button>
           </div>
@@ -452,27 +466,36 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
       )}
     >
       <form id="factory-finished-good-form" className="space-y-4" onSubmit={submit}>
-        {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
         <div className="space-y-5">
           <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
             <div>
               <div className="text-sm font-semibold text-text-primary">Product Information</div>
               <div className="mt-1 text-sm text-text-secondary">Core product identity used by production planning and finished goods stock-in.</div>
             </div>
-            <Field label="Category *" error={!form.category_id && error.includes("Category") ? "Category is required." : ""}>
+            <Field label="Category *" error={fieldErrors.category_id}>
               <SearchableSelect
                 value={form.category_id || ""}
                 options={categoryOptions}
                 placeholder="Select Category"
-                error={!form.category_id && error.includes("Category")}
-                onChange={(categoryId) => setForm((current) => ({ ...current, category_id: categoryId }))}
+                error={Boolean(fieldErrors.category_id)}
+                buttonRef={(node) => { fieldRefs.current.category_id = node; }}
+                onChange={(categoryId) => {
+                  setFieldErrors((current) => ({ ...current, category_id: "" }));
+                  setForm((current) => ({ ...current, category_id: categoryId }));
+                }}
               />
             </Field>
-            <Field label="SKU Code *">
-              <input className={inputClass()} value={form.product_code || ""} onChange={(event) => setForm((current) => ({ ...current, product_code: event.target.value }))} />
+            <Field label="SKU Code *" error={fieldErrors.product_code}>
+              <input ref={(node) => { fieldRefs.current.product_code = node; }} className={inputClass(fieldErrors.product_code)} value={form.product_code || ""} onChange={(event) => {
+                setFieldErrors((current) => ({ ...current, product_code: "" }));
+                setForm((current) => ({ ...current, product_code: event.target.value }));
+              }} />
             </Field>
-            <Field label="Product Name (EN) *">
-              <input className={inputClass()} value={form.product_name_en || ""} onChange={(event) => setForm((current) => ({ ...current, product_name_en: event.target.value, product_name: event.target.value }))} />
+            <Field label="Product Name (EN) *" error={fieldErrors.product_name_en}>
+              <input ref={(node) => { fieldRefs.current.product_name_en = node; }} className={inputClass(fieldErrors.product_name_en)} value={form.product_name_en || ""} onChange={(event) => {
+                setFieldErrors((current) => ({ ...current, product_name_en: "" }));
+                setForm((current) => ({ ...current, product_name_en: event.target.value, product_name: event.target.value }));
+              }} />
             </Field>
             <Field label="Product Name (CN)">
               <input className={inputClass()} value={form.product_name_cn || ""} onChange={(event) => setForm((current) => ({ ...current, product_name_cn: event.target.value }))} />
@@ -487,8 +510,11 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
               <div className="text-sm font-semibold text-text-primary">Configuration</div>
               <div className="mt-1 text-sm text-text-secondary">Operational settings for availability and stock movement units.</div>
             </div>
-            <Field label="UOM *">
-              <select className={inputClass()} value={form.uom} onChange={(event) => setForm((current) => ({ ...current, uom: event.target.value }))}>
+            <Field label="UOM *" error={fieldErrors.uom}>
+              <select ref={(node) => { fieldRefs.current.uom = node; }} className={inputClass(fieldErrors.uom)} value={form.uom} onChange={(event) => {
+                setFieldErrors((current) => ({ ...current, uom: "" }));
+                setForm((current) => ({ ...current, uom: event.target.value }));
+              }}>
                 {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
               </select>
             </Field>
@@ -502,8 +528,11 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
                 onChange={(locationId) => setForm((current) => ({ ...current, storage_location_id: locationId }))}
               />
             </Field>
-            <Field label="Status *">
-              <select className={inputClass()} value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
+            <Field label="Status *" error={fieldErrors.status}>
+              <select ref={(node) => { fieldRefs.current.status = node; }} className={inputClass(fieldErrors.status)} value={form.status} onChange={(event) => {
+                setFieldErrors((current) => ({ ...current, status: "" }));
+                setForm((current) => ({ ...current, status: event.target.value }));
+              }}>
                 <option value="active">Active</option>
                 <option value="archived">Archived</option>
               </select>
@@ -693,6 +722,7 @@ function RawMaterialDetailModal({ material, receivings, movements, stockChecks, 
 }
 
 function RawMaterialMasterModal({ initialValue, categories, storageLocations = [], onClose, onSave, onArchive }) {
+  const fieldRefs = useRef({});
   const [form, setForm] = useState(() => ({
     material_code: "",
     name: initialValue?.name || "",
@@ -711,6 +741,7 @@ function RawMaterialMasterModal({ initialValue, categories, storageLocations = [
   }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [fieldErrors, setFieldErrors] = useState({});
   const activeCategories = categories.filter((category) => category.status === "active" || category.id === form.category_id);
   const categoryOptions = activeCategories.map((category) => ({ value: category.id, label: category.name, helper: category.description || category.status }));
   const activeStorageLocations = storageLocations.filter((location) => location.status === "active" || location.id === form.storage_location_id);
@@ -722,20 +753,19 @@ function RawMaterialMasterModal({ initialValue, categories, storageLocations = [
   async function submit(event) {
     event.preventDefault();
     setError("");
-    if (!String(form.name_en || "").trim()) {
-      setError("Raw Material Name EN is required.");
-      return;
-    }
-    if (!form.category_id) {
-      setError("Category is required.");
-      return;
-    }
-    if (!String(form.material_code || "").trim()) {
-      setError("SKU Code is required.");
-      return;
-    }
-    if (!String(form.uom || "").trim()) {
-      setError("Default UOM is required.");
+    const nextErrors = {
+      category_id: !form.category_id ? "Category is required." : "",
+      material_code: !String(form.material_code || "").trim() ? "SKU Code is required." : "",
+      name_en: !String(form.name_en || "").trim() ? "Raw Material Name (EN) is required." : "",
+      uom: !String(form.uom || "").trim() ? "Default UOM is required." : "",
+      status: !String(form.status || "").trim() ? "Status is required." : "",
+    };
+    const activeErrors = Object.fromEntries(Object.entries(nextErrors).filter(([, message]) => message));
+    setFieldErrors(activeErrors);
+    const firstError = Object.keys(activeErrors)[0];
+    if (firstError) {
+      setError("Please complete required fields.");
+      focusFirstInvalid(fieldRefs, firstError);
       return;
     }
     setSaving(true);
@@ -767,6 +797,7 @@ function RawMaterialMasterModal({ initialValue, categories, storageLocations = [
         <>
           {initialValue?.id && initialValue.status !== "archived" ? <button className="btn-danger" type="button" disabled={saving} onClick={archive}>Archive</button> : <span />}
           <div className="flex gap-2">
+            {error ? <div className="self-center text-sm font-semibold text-rose-600">{error}</div> : null}
             <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
             <button className="btn-primary" type="submit" form="factory-raw-material-form" disabled={saving}>{saving ? "Saving..." : "Save Raw Material"}</button>
           </div>
@@ -774,77 +805,61 @@ function RawMaterialMasterModal({ initialValue, categories, storageLocations = [
       )}
     >
       <form id="factory-raw-material-form" className="space-y-4" onSubmit={submit}>
-        {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
-        <div className="space-y-5">
-          <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
-            <div>
-              <div className="text-sm font-semibold text-text-primary">Product Information</div>
-              <div className="mt-1 text-sm text-text-secondary">Core raw material identity used by receiving, recipes and production usage.</div>
-            </div>
-            <Field label="Category *" error={!form.category_id && error.includes("Category") ? "Category is required." : ""}>
-              <SearchableSelect
-                value={form.category_id || ""}
-                options={categoryOptions}
-                placeholder="Select Category"
-                error={!form.category_id && error.includes("Category")}
-                onChange={(categoryId) => setForm((current) => ({ ...current, category_id: categoryId }))}
-              />
-            </Field>
-            <Field label="SKU Code *">
-              <input className={inputClass(error.includes("SKU Code"))} value={form.material_code || ""} onChange={(event) => setForm((current) => ({ ...current, material_code: event.target.value }))} />
-            </Field>
-            <Field label="Raw Material Name (EN) *">
-              <input className={inputClass()} value={form.name_en || ""} onChange={(event) => setForm((current) => ({ ...current, name_en: event.target.value, name: event.target.value }))} />
-            </Field>
-            <Field label="Raw Material Name (CN)">
-              <input className={inputClass()} value={form.name_cn || ""} onChange={(event) => setForm((current) => ({ ...current, name_cn: event.target.value }))} />
-            </Field>
-            <Field label="Raw Material Name (BM)">
-              <input className={inputClass()} value={form.name_bm || ""} onChange={(event) => setForm((current) => ({ ...current, name_bm: event.target.value }))} />
-            </Field>
-          </section>
-
-          <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
-            <div>
-              <div className="text-sm font-semibold text-text-primary">Configuration</div>
-              <div className="mt-1 text-sm text-text-secondary">Warehouse settings for stock planning and storage assignment.</div>
-            </div>
-            <Field label="Default UOM *">
-              <select className={inputClass()} value={form.uom} onChange={(event) => setForm((current) => ({ ...current, uom: event.target.value }))}>
-                {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
-              </select>
-            </Field>
-            <Field label="Min Stock Level *">
-              <input className={inputClass()} type="number" min="0" step="0.01" value={form.min_stock_level} onChange={(event) => setForm((current) => ({ ...current, min_stock_level: event.target.value }))} />
-            </Field>
-            <Field label="Storage Location">
-              <SearchableSelect
-                value={form.storage_location_id || ""}
-                options={storageLocationOptions}
-                placeholder="Select Storage Location"
-                searchPlaceholder="Search locations"
-                emptyText="No storage locations"
-                onChange={(locationId) => setForm((current) => ({ ...current, storage_location_id: locationId }))}
-              />
-            </Field>
-            <Field label="Status *">
-              <select className={inputClass()} value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
-                <option value="active">Active</option>
-                <option value="archived">Archived</option>
-              </select>
-            </Field>
-          </section>
-
-          <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
-            <div>
-              <div className="text-sm font-semibold text-text-primary">Notes</div>
-              <div className="mt-1 text-sm text-text-secondary">Internal remarks for warehouse and production teams.</div>
-            </div>
-            <Field label="Remarks">
-              <textarea className={inputClass()} rows={3} value={form.remarks || ""} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
-            </Field>
-          </section>
-        </div>
+        <Field label="Category *" error={fieldErrors.category_id}>
+          <SearchableSelect
+            value={form.category_id || ""}
+            options={categoryOptions}
+            placeholder="Select Category"
+            error={Boolean(fieldErrors.category_id)}
+            buttonRef={(node) => { fieldRefs.current.category_id = node; }}
+            onChange={(categoryId) => {
+              setFieldErrors((current) => ({ ...current, category_id: "" }));
+              setForm((current) => ({ ...current, category_id: categoryId }));
+            }}
+          />
+        </Field>
+        <Field label="SKU Code *" error={fieldErrors.material_code}>
+          <input ref={(node) => { fieldRefs.current.material_code = node; }} className={inputClass(fieldErrors.material_code)} value={form.material_code || ""} onChange={(event) => {
+            setFieldErrors((current) => ({ ...current, material_code: "" }));
+            setForm((current) => ({ ...current, material_code: event.target.value }));
+          }} />
+        </Field>
+        <Field label="Raw Material Name (EN) *" error={fieldErrors.name_en}>
+          <input ref={(node) => { fieldRefs.current.name_en = node; }} className={inputClass(fieldErrors.name_en)} value={form.name_en || ""} onChange={(event) => {
+            setFieldErrors((current) => ({ ...current, name_en: "" }));
+            setForm((current) => ({ ...current, name_en: event.target.value, name: event.target.value }));
+          }} />
+        </Field>
+        <Field label="Default UOM *" error={fieldErrors.uom}>
+          <select ref={(node) => { fieldRefs.current.uom = node; }} className={inputClass(fieldErrors.uom)} value={form.uom} onChange={(event) => {
+            setFieldErrors((current) => ({ ...current, uom: "" }));
+            setForm((current) => ({ ...current, uom: event.target.value }));
+          }}>
+            {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
+          </select>
+        </Field>
+        <Field label="Storage Location">
+          <SearchableSelect
+            value={form.storage_location_id || ""}
+            options={storageLocationOptions}
+            placeholder="Select Storage Location"
+            searchPlaceholder="Search locations"
+            emptyText="No storage locations"
+            onChange={(locationId) => setForm((current) => ({ ...current, storage_location_id: locationId }))}
+          />
+        </Field>
+        <Field label="Status *" error={fieldErrors.status}>
+          <select ref={(node) => { fieldRefs.current.status = node; }} className={inputClass(fieldErrors.status)} value={form.status} onChange={(event) => {
+            setFieldErrors((current) => ({ ...current, status: "" }));
+            setForm((current) => ({ ...current, status: event.target.value }));
+          }}>
+            <option value="active">Active</option>
+            <option value="archived">Archived</option>
+          </select>
+        </Field>
+        <Field label="Remarks">
+          <textarea className={inputClass()} rows={3} value={form.remarks || ""} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
+        </Field>
       </form>
     </Modal>
   );

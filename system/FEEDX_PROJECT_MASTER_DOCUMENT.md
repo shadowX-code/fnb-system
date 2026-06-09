@@ -2850,9 +2850,11 @@ Factory Raw Material Master and Inventory implemented scope:
 
 - Raw Material Inventory is a functional master-plus-inventory page through `factory_raw_inventory`.
 - Raw Material Master setup supports Create, Edit and Archive.
-- Raw Material create/edit uses a single-column form with Product Information, Configuration, and Notes sections.
-- Raw Material form fields include Category, SKU Code, Raw Material Name EN, Raw Material Name CN, Raw Material Name BM, Default UOM, Min Stock Level, Storage Location, Active/Archived status and Remarks.
+- Raw Material create/edit uses a simple single-column form.
+- Raw Material form fields include Category, SKU Code, Raw Material Name EN, Default UOM, Storage Location, Active/Archived status and Remarks.
+- Raw Material Name CN, Raw Material Name BM and Min Stock Level may remain in the schema for compatibility, but they are not shown in the Raw Material user-facing form.
 - Preferred Supplier is not shown in the Raw Material user-facing form.
+- Raw Material and Finished Good master forms show inline required-field errors, scroll/focus to the first invalid field, and show a compact footer helper when required fields are missing.
 - Raw Material Name EN is the canonical material name and is mirrored to `factory_raw_materials.name` for existing production/report matching.
 - Raw Material category selection must use a searchable FeedX-style selector, show "Select Category" before selection, and require a category before save.
 - Raw Material Storage Location must use the Factory Storage Locations selector for new records instead of free-text location entry.
