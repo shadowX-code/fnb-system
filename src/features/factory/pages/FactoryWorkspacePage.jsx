@@ -445,46 +445,63 @@ function FinishedGoodMasterModal({ initialValue, categories, onClose, onSave, on
     >
       <form id="factory-finished-good-form" className="space-y-4" onSubmit={submit}>
         {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
-        <div className="grid gap-3 md:grid-cols-2">
-          <Field label="Product Name EN">
-            <input className={inputClass()} value={form.product_name_en || ""} onChange={(event) => setForm((current) => ({ ...current, product_name_en: event.target.value, product_name: event.target.value }))} />
-          </Field>
-          <Field label="Product Name CN">
-            <input className={inputClass()} value={form.product_name_cn || ""} onChange={(event) => setForm((current) => ({ ...current, product_name_cn: event.target.value }))} />
-          </Field>
-          <Field label="Product Name BM">
-            <input className={inputClass()} value={form.product_name_bm || ""} onChange={(event) => setForm((current) => ({ ...current, product_name_bm: event.target.value }))} />
-          </Field>
-          <Field label="SKU Code">
-            <input className={inputClass()} value={form.product_code || ""} onChange={(event) => setForm((current) => ({ ...current, product_code: event.target.value }))} />
-          </Field>
-          <Field label="Category" error={!form.category_id && error.includes("Category") ? "Category is required." : ""}>
-            <SearchableSelect
-              value={form.category_id || ""}
-              options={categoryOptions}
-              placeholder="Select Category"
-              error={!form.category_id && error.includes("Category")}
-              onChange={(categoryId) => setForm((current) => ({ ...current, category_id: categoryId }))}
-            />
-          </Field>
-          <Field label="UOM">
-            <select className={inputClass()} value={form.uom} onChange={(event) => setForm((current) => ({ ...current, uom: event.target.value }))}>
-              {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
-            </select>
-          </Field>
-          <Field label="Min Stock Level">
-            <input className={inputClass()} type="number" min="0" step="0.01" value={form.min_stock_level} onChange={(event) => setForm((current) => ({ ...current, min_stock_level: event.target.value }))} />
-          </Field>
-          <Field label="Status">
-            <select className={inputClass()} value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
-              <option value="active">Active</option>
-              <option value="archived">Archived</option>
-            </select>
-          </Field>
+        <div className="space-y-5">
+          <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
+            <div>
+              <div className="text-xs font-bold uppercase tracking-wide text-text-muted">Product Information</div>
+              <div className="mt-1 text-sm text-text-secondary">Core product identity used by production planning and finished goods stock-in.</div>
+            </div>
+            <Field label="Category *" error={!form.category_id && error.includes("Category") ? "Category is required." : ""}>
+              <SearchableSelect
+                value={form.category_id || ""}
+                options={categoryOptions}
+                placeholder="Select Category"
+                error={!form.category_id && error.includes("Category")}
+                onChange={(categoryId) => setForm((current) => ({ ...current, category_id: categoryId }))}
+              />
+            </Field>
+            <Field label="SKU Code *">
+              <input className={inputClass()} value={form.product_code || ""} onChange={(event) => setForm((current) => ({ ...current, product_code: event.target.value }))} />
+            </Field>
+            <Field label="Product Name (EN) *">
+              <input className={inputClass()} value={form.product_name_en || ""} onChange={(event) => setForm((current) => ({ ...current, product_name_en: event.target.value, product_name: event.target.value }))} />
+            </Field>
+            <Field label="Product Name (CN)">
+              <input className={inputClass()} value={form.product_name_cn || ""} onChange={(event) => setForm((current) => ({ ...current, product_name_cn: event.target.value }))} />
+            </Field>
+            <Field label="Product Name (BM)">
+              <input className={inputClass()} value={form.product_name_bm || ""} onChange={(event) => setForm((current) => ({ ...current, product_name_bm: event.target.value }))} />
+            </Field>
+          </section>
+
+          <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
+            <div>
+              <div className="text-xs font-bold uppercase tracking-wide text-text-muted">Configuration</div>
+              <div className="mt-1 text-sm text-text-secondary">Operational settings for availability and stock movement units.</div>
+            </div>
+            <Field label="UOM *">
+              <select className={inputClass()} value={form.uom} onChange={(event) => setForm((current) => ({ ...current, uom: event.target.value }))}>
+                {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
+              </select>
+            </Field>
+            <Field label="Status *">
+              <select className={inputClass()} value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
+                <option value="active">Active</option>
+                <option value="archived">Archived</option>
+              </select>
+            </Field>
+          </section>
+
+          <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
+            <div>
+              <div className="text-xs font-bold uppercase tracking-wide text-text-muted">Notes</div>
+              <div className="mt-1 text-sm text-text-secondary">Internal remarks for warehouse and production teams.</div>
+            </div>
+            <Field label="Remarks">
+              <textarea className={inputClass()} rows={3} value={form.remarks || ""} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
+            </Field>
+          </section>
         </div>
-        <Field label="Remarks">
-          <textarea className={inputClass()} rows={3} value={form.remarks || ""} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
-        </Field>
       </form>
     </Modal>
   );
@@ -2514,7 +2531,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const finishedGoodsColumns = [
     { key: "product_name", label: "Finished Good", render: (row) => <div><div className="font-semibold text-text-primary">{row.product_name}</div><div className="text-xs text-text-secondary">{row.category || "Uncategorized"}</div></div> },
     { key: "current_balance", label: "On Hand", render: (row) => quantity(row.current_balance, row.uom) },
-    { key: "min_stock_level", label: "Min Stock", render: (row) => quantity(row.min_stock_level, row.uom) },
     { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge> },
   ];
 
@@ -3460,7 +3476,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const rows = filteredFinishedGoodRows();
     const totalStock = data.finishedGoods.reduce((sum, row) => sum + Number(row.current_balance || 0), 0);
     const outOfStockItems = data.finishedGoods.filter((row) => Number(row.current_balance || 0) <= 0);
-    const lowStockItems = data.finishedGoods.filter((row) => Number(row.current_balance || 0) > 0 && Number(row.current_balance || 0) <= Number(row.min_stock_level || 0));
+    const activeSkus = data.finishedGoods.filter((row) => row.status === "active");
     const canManageFinishedGoods = can("factory_finished_goods.create") || can("factory_finished_goods.edit");
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -3499,7 +3515,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={PackageCheck} label="Total SKUs" value={data.finishedGoods.length} helper="Finished goods products" />
           <MetricCard icon={Warehouse} label="Total Stock" value={quantity(totalStock, "")} helper="Current balance total" />
-          <MetricCard icon={AlertTriangle} label="Low Stock Items" value={lowStockItems.length} helper="Above zero, at or below min" tone={lowStockItems.length ? "warning" : "success"} />
+          <MetricCard icon={PackageCheck} label="Active SKUs" value={activeSkus.length} helper="Available for production" tone={activeSkus.length ? "success" : "warning"} />
           <MetricCard icon={Clock3} label="Out of Stock" value={outOfStockItems.length} helper="Current balance zero" tone={outOfStockItems.length ? "danger" : "success"} />
         </div>
         <div className="grid gap-4 xl:grid-cols-3">
@@ -3542,7 +3558,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
               { key: "status", label: "Status", render: (row) => (
                 <div className="flex flex-wrap gap-1.5">
                   <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge>
-                  <Badge tone={Number(row.current_balance || 0) <= 0 ? "danger" : Number(row.current_balance || 0) <= Number(row.min_stock_level || 0) ? "warning" : "success"}>{Number(row.current_balance || 0) <= 0 ? "out of stock" : Number(row.current_balance || 0) <= Number(row.min_stock_level || 0) ? "low stock" : "stock ok"}</Badge>
+                  <Badge tone={Number(row.current_balance || 0) <= 0 ? "danger" : "success"}>{Number(row.current_balance || 0) <= 0 ? "out of stock" : "in stock"}</Badge>
                 </div>
               ) },
               { key: "actions", label: "Actions", align: "right", render: (row) => (

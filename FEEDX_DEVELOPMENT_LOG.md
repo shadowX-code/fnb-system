@@ -2,6 +2,11 @@
 
 Purpose: concise development history for meaningful FeedX development sessions. The master document remains the source of truth for final logic and architecture; release notes under `docs/releases/` document production releases.
 
+## 2026-06-09
+
+### Factory
+- Refined Factory Finished Goods create/edit UX into a single-column, sectioned Product Information / Configuration / Notes form and removed finished-goods min-stock planning from the user-facing flow.
+
 ## 2026-06-08
 
 ### Duty Roster

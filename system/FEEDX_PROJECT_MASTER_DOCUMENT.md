@@ -2818,14 +2818,16 @@ Factory Finished Goods Master and Warehouse implemented scope:
 
 - Finished Goods is a functional master-plus-warehouse page through `factory_finished_goods`.
 - Finished Goods product setup supports Create, Edit and Archive.
-- Finished Goods product fields include Product Name EN, Product Name CN, Product Name BM, SKU Code, Category, UOM, Min Stock Level, Active/Archived status and Remarks.
+- Finished Goods product fields include Category, SKU Code, Product Name EN, Product Name CN, Product Name BM, UOM, Active/Archived status and Remarks.
+- Finished Goods create/edit uses a single-column form with Product Information, Configuration, and Notes sections.
+- Finished Goods must not maintain user-facing min stock thresholds; raw material inventory remains the stock-planning control point.
 - Product Name EN is the canonical production stock-in name and is mirrored to `factory_finished_goods.product_name` for existing production matching.
 - Finished Goods category selection must use a searchable FeedX-style selector, show "Select Category" before selection, and require a category before save.
 - Finished Good Category setup supports Create, Edit and Archive through `factory_finished_good_categories`.
 - Finished Good Categories must be managed inside the Category modal/drawer only, not as a main-page table.
 - Category fields include Category Name, Description and Active/Archived status.
 - Finished Goods listing shows Product Name EN/CN/BM where available, SKU, category, UOM, current balance, batch count, latest batch, last production date, last movement date, status and actions.
-- Finished Goods dashboard cards show Total SKUs, Total Finished Goods Stock, Low Stock Items and Out of Stock Items.
+- Finished Goods dashboard cards show Total SKUs, Total Finished Goods Stock, Active SKUs and Out of Stock Items.
 - Finished Goods warehouse insight panels include Stock Distribution by Product, Top Produced Products for the last 30 days, Production In vs Stock Out movement summary, Batch Count/latest batch, and Days Coverage when stock-out movement data is available.
 - Finished Goods detail shows current balance, production history, movement history, batch history and actual-cost summary when cost data is available.
 - Finished Goods archive is blocked while current balance is greater than zero and must show: "Cannot archive while stock balance is greater than zero."
