@@ -55,8 +55,8 @@ function statusTone(status) {
 function Field({ label, children, error }) {
   return (
     <label className="block">
-      <span className="text-xs font-semibold uppercase tracking-wide text-text-muted">{label}</span>
-      <div className="mt-1">{children}</div>
+      <span className="text-sm font-semibold text-text-primary">{label}</span>
+      <div className="mt-1.5">{children}</div>
       {error ? <div className="mt-1 text-xs font-semibold text-rose-600">{error}</div> : null}
     </label>
   );
@@ -448,7 +448,7 @@ function FinishedGoodMasterModal({ initialValue, categories, onClose, onSave, on
         <div className="space-y-5">
           <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
             <div>
-              <div className="text-xs font-bold uppercase tracking-wide text-text-muted">Product Information</div>
+              <div className="text-sm font-semibold text-text-primary">Product Information</div>
               <div className="mt-1 text-sm text-text-secondary">Core product identity used by production planning and finished goods stock-in.</div>
             </div>
             <Field label="Category *" error={!form.category_id && error.includes("Category") ? "Category is required." : ""}>
@@ -476,7 +476,7 @@ function FinishedGoodMasterModal({ initialValue, categories, onClose, onSave, on
 
           <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
             <div>
-              <div className="text-xs font-bold uppercase tracking-wide text-text-muted">Configuration</div>
+              <div className="text-sm font-semibold text-text-primary">Configuration</div>
               <div className="mt-1 text-sm text-text-secondary">Operational settings for availability and stock movement units.</div>
             </div>
             <Field label="UOM *">
@@ -494,7 +494,7 @@ function FinishedGoodMasterModal({ initialValue, categories, onClose, onSave, on
 
           <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
             <div>
-              <div className="text-xs font-bold uppercase tracking-wide text-text-muted">Notes</div>
+              <div className="text-sm font-semibold text-text-primary">Notes</div>
               <div className="mt-1 text-sm text-text-secondary">Internal remarks for warehouse and production teams.</div>
             </div>
             <Field label="Remarks">
@@ -1488,7 +1488,7 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
           <MetricCard icon={AlertTriangle} label="High Variance" value={highVarianceRows.length} helper="Requires reason above 5%" tone={highVarianceRows.length ? "warning" : "success"} />
         </div>
         <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-          <div className="text-xs font-semibold uppercase tracking-wide text-primary">Selected Job Order</div>
+          <div className="text-sm font-semibold text-primary">Selected Job Order</div>
           <div className="mt-1 text-lg font-bold text-text-primary">{job.job_order_no} · {finishedGoodLabel(matchingFinishedGood) || job.product_name}</div>
           <div className="mt-1 text-sm font-semibold text-text-secondary">
             Target {quantity(job.target_quantity, job.uom)} · Due {job.due_date || "No due date"} · SKU {job.product_code || "No SKU"}

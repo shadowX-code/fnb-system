@@ -2839,6 +2839,12 @@ Factory Finished Goods Master and Warehouse implemented scope:
 - Finished Goods and Product Movements must not create duplicate stock balance logic.
 - Product Movements remains read-only and uses `factory_product_stock_movements` and production header history for context.
 
+Factory form UX standard:
+
+- Factory data-entry forms use normal-case FeedX operational labels such as "Category *", "SKU Code *", and "Product Name (EN)".
+- Factory form labels use `text-sm`, medium/semibold weight, darker text color, and normal letter spacing.
+- Factory form labels must not use KPI-style uppercase or tracked letter spacing. KPI/card and table header treatments remain separate from form labels.
+
 Factory Raw Material Master and Inventory implemented scope:
 
 - Raw Material Inventory is a functional master-plus-inventory page through `factory_raw_inventory`.
