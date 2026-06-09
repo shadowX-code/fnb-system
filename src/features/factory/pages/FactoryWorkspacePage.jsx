@@ -160,19 +160,87 @@ function RawMaterialCellButton({ value, materials, placeholder, onClick, error, 
   );
 }
 
+function RawMaterialPickerPopover({ anchor, materials, selectedId, onClose, onSelect }) {
+  const [query, setQuery] = useState("");
+  const [rect, setRect] = useState(null);
+  const panelNode = useRef(null);
+  const searchNode = useRef(null);
+  const visibleMaterials = materials.filter((material) => `${rawMaterialLabel(material)} ${rawMaterialSummary(material)} ${material.storage_location || ""}`.toLowerCase().includes(query.toLowerCase()));
+
+  useEffect(() => {
+    if (!anchor) return undefined;
+    const updatePosition = () => setRect(anchoredRect(anchor, 360, 360));
+    const close = () => onClose();
+    const onPointerDown = (event) => {
+      if (anchor.contains(event.target) || panelNode.current?.contains(event.target)) return;
+      close();
+    };
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") close();
+    };
+    updatePosition();
+    setTimeout(() => searchNode.current?.focus?.(), 0);
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    window.addEventListener("resize", close);
+    window.addEventListener("scroll", close, true);
+    return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+      window.removeEventListener("resize", close);
+      window.removeEventListener("scroll", close, true);
+    };
+  }, [anchor, onClose]);
+
+  if (!anchor || !rect) return null;
+
+  return createPortal(
+    <div
+      ref={panelNode}
+      className="fixed z-[90] rounded-2xl border border-border bg-white p-2 shadow-2xl"
+      style={{ left: rect.left, top: rect.top, width: rect.width, maxHeight: rect.maxHeight }}
+    >
+      <input
+        ref={searchNode}
+        className="mb-2 w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm font-semibold text-text-primary outline-none transition placeholder:text-text-muted focus:border-primary focus:ring-2 focus:ring-primary/15"
+        value={query}
+        onChange={(event) => setQuery(event.target.value)}
+        placeholder="Search raw material"
+      />
+      <div className="max-h-[280px] overflow-y-auto pr-1">
+        {visibleMaterials.length ? visibleMaterials.map((material) => (
+          <button
+            key={material.id}
+            className={`mb-1.5 block w-full rounded-xl border px-3 py-2.5 text-left transition last:mb-0 hover:border-primary hover:bg-primary/5 ${material.id === selectedId ? "border-primary bg-primary/10" : "border-transparent bg-white"}`}
+            type="button"
+            onClick={() => onSelect(material.id)}
+          >
+            <span className="block truncate text-sm font-bold text-text-primary">{rawMaterialLabel(material)}</span>
+            <span className="mt-0.5 block truncate text-xs font-semibold text-text-secondary">{rawMaterialSummary(material)}</span>
+            {material.storage_location ? <span className="mt-1.5 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-text-secondary">{material.storage_location}</span> : null}
+          </button>
+        )) : <div className="px-3 py-5 text-center text-sm font-semibold text-text-secondary">No matching raw materials</div>}
+      </div>
+    </div>,
+    document.body
+  );
+}
+
 function FeedXDatePicker({ value, onChange, placeholder = "Select date", error, buttonRef, required = false }) {
   const [open, setOpen] = useState(false);
   const [rect, setRect] = useState(null);
   const [visibleMonth, setVisibleMonth] = useState(() => monthStart(value));
+  const [pickerMode, setPickerMode] = useState("days");
+  const [yearRangeStart, setYearRangeStart] = useState(() => {
+    const startYear = value ? monthStart(value).getFullYear() : new Date().getFullYear();
+    return startYear - (startYear % 12);
+  });
   const buttonNode = useRef(null);
   const panelNode = useRef(null);
   const todayIso = todayInput();
   const selectedIso = value || "";
   const monthOptions = Array.from({ length: 12 }, (_, index) => ({ value: index, label: new Date(2026, index, 1).toLocaleDateString("en-MY", { month: "short" }) }));
-  const baseYear = new Date().getFullYear();
-  const selectedYear = value ? monthStart(value).getFullYear() : baseYear;
-  const yearStart = Math.min(baseYear - 3, selectedYear - 3);
-  const yearOptions = Array.from({ length: 11 }, (_, index) => yearStart + index);
+  const yearOptions = Array.from({ length: 12 }, (_, index) => yearRangeStart + index);
   const days = useMemo(() => {
     const first = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
     const start = new Date(first);
@@ -199,14 +267,20 @@ function FeedXDatePicker({ value, onChange, placeholder = "Select date", error, 
 
   function setMonth(month) {
     setVisibleMonth((current) => new Date(current.getFullYear(), Number(month), 1));
+    setPickerMode("days");
   }
 
   function setYear(year) {
     setVisibleMonth((current) => new Date(Number(year), current.getMonth(), 1));
+    setPickerMode("months");
   }
 
   useEffect(() => {
-    if (value) setVisibleMonth(monthStart(value));
+    if (value) {
+      const selectedDate = monthStart(value);
+      setVisibleMonth(selectedDate);
+      setYearRangeStart(selectedDate.getFullYear() - (selectedDate.getFullYear() % 12));
+    }
   }, [value]);
 
   useEffect(() => {
@@ -220,6 +294,7 @@ function FeedXDatePicker({ value, onChange, placeholder = "Select date", error, 
       if (event.key === "Escape") close();
     };
     updateRect();
+    setPickerMode("days");
     document.addEventListener("pointerdown", onPointerDown);
     document.addEventListener("keydown", onKeyDown);
     window.addEventListener("resize", close);
@@ -257,35 +332,83 @@ function FeedXDatePicker({ value, onChange, placeholder = "Select date", error, 
         >
           <div className="flex items-center gap-2">
             <button className="btn-secondary px-2 py-1 text-xs" type="button" onClick={() => shiftMonth(-1)}>Prev</button>
-            <select className="min-w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm font-bold text-text-primary outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" value={visibleMonth.getMonth()} onChange={(event) => setMonth(event.target.value)}>
-              {monthOptions.map((month) => <option key={month.value} value={month.value}>{month.label}</option>)}
-            </select>
-            <select className="w-24 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm font-bold text-text-primary outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" value={visibleMonth.getFullYear()} onChange={(event) => setYear(event.target.value)}>
-              {yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
-            </select>
+            <button
+              className={`min-w-0 flex-1 rounded-lg border px-2 py-1.5 text-sm font-bold outline-none transition ${pickerMode === "months" ? "border-primary bg-primary/10 text-primary" : "border-border bg-surface text-text-primary hover:border-primary/50"}`}
+              type="button"
+              onClick={() => setPickerMode((current) => current === "months" ? "days" : "months")}
+            >
+              {monthOptions[visibleMonth.getMonth()]?.label}
+            </button>
+            <button
+              className={`w-24 rounded-lg border px-2 py-1.5 text-sm font-bold outline-none transition ${pickerMode === "years" ? "border-primary bg-primary/10 text-primary" : "border-border bg-surface text-text-primary hover:border-primary/50"}`}
+              type="button"
+              onClick={() => {
+                setYearRangeStart(visibleMonth.getFullYear() - (visibleMonth.getFullYear() % 12));
+                setPickerMode((current) => current === "years" ? "days" : "years");
+              }}
+            >
+              {visibleMonth.getFullYear()}
+            </button>
             <button className="btn-secondary px-2 py-1 text-xs" type="button" onClick={() => shiftMonth(1)}>Next</button>
           </div>
-          <div className="mt-3 grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-text-muted">
-            {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => <div key={`${day}-${index}`}>{day}</div>)}
-          </div>
-          <div className="mt-1 grid grid-cols-7 gap-1">
-            {days.map((date) => {
-              const currentIso = isoDate(date);
-              const inMonth = date.getMonth() === visibleMonth.getMonth();
-              const selected = currentIso === selectedIso;
-              const today = currentIso === todayIso;
-              return (
+          {pickerMode === "years" ? (
+            <div className="mt-3">
+              <div className="mb-2 flex items-center justify-between text-xs font-semibold text-text-secondary">
+                <button className="rounded-lg px-2 py-1 hover:bg-slate-100" type="button" onClick={() => setYearRangeStart((current) => current - 12)}>Prev 12</button>
+                <span>{yearRangeStart} - {yearRangeStart + 11}</span>
+                <button className="rounded-lg px-2 py-1 hover:bg-slate-100" type="button" onClick={() => setYearRangeStart((current) => current + 12)}>Next 12</button>
+              </div>
+              <div className="grid grid-cols-3 gap-2">
+                {yearOptions.map((year) => (
+                  <button
+                    key={year}
+                    className={`rounded-xl px-3 py-2 text-sm font-bold transition ${year === visibleMonth.getFullYear() ? "bg-primary text-white shadow-sm" : "bg-surface text-text-primary hover:bg-primary/10 hover:text-primary"}`}
+                    type="button"
+                    onClick={() => setYear(year)}
+                  >
+                    {year}
+                  </button>
+                ))}
+              </div>
+            </div>
+          ) : pickerMode === "months" ? (
+            <div className="mt-3 grid grid-cols-3 gap-2">
+              {monthOptions.map((month) => (
                 <button
-                  key={currentIso}
-                  className={`h-9 rounded-lg text-sm font-semibold transition ${selected ? "bg-primary text-white shadow-sm" : today ? "bg-primary/10 text-primary" : inMonth ? "text-text-primary hover:bg-slate-100" : "text-text-muted/50 hover:bg-slate-50"}`}
+                  key={month.value}
+                  className={`rounded-xl px-3 py-2 text-sm font-bold transition ${month.value === visibleMonth.getMonth() ? "bg-primary text-white shadow-sm" : "bg-surface text-text-primary hover:bg-primary/10 hover:text-primary"}`}
                   type="button"
-                  onClick={() => selectDate(date)}
+                  onClick={() => setMonth(month.value)}
                 >
-                  {date.getDate()}
+                  {month.label}
                 </button>
-              );
-            })}
-          </div>
+              ))}
+            </div>
+          ) : (
+            <>
+              <div className="mt-3 grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-text-muted">
+                {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => <div key={`${day}-${index}`}>{day}</div>)}
+              </div>
+              <div className="mt-1 grid grid-cols-7 gap-1">
+                {days.map((date) => {
+                  const currentIso = isoDate(date);
+                  const inMonth = date.getMonth() === visibleMonth.getMonth();
+                  const selected = currentIso === selectedIso;
+                  const today = currentIso === todayIso;
+                  return (
+                    <button
+                      key={currentIso}
+                      className={`h-9 rounded-lg text-sm font-semibold transition ${selected ? "bg-primary text-white shadow-sm" : today ? "bg-primary/10 text-primary" : inMonth ? "text-text-primary hover:bg-slate-100" : "text-text-muted/50 hover:bg-slate-50"}`}
+                      type="button"
+                      onClick={() => selectDate(date)}
+                    >
+                      {date.getDate()}
+                    </button>
+                  );
+                })}
+              </div>
+            </>
+          )}
           <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
             <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => selectDate(new Date())}>Today</button>
             <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => {
@@ -1500,39 +1623,6 @@ function FactorySupplierModal({ suppliers, onClose, onSave, onArchive }) {
   );
 }
 
-function RawMaterialSelectorModal({ materials, selectedId, onClose, onSelect }) {
-  const [query, setQuery] = useState("");
-  const visibleMaterials = materials.filter((material) => `${rawMaterialLabel(material)} ${rawMaterialSummary(material)} ${material.storage_location || ""}`.toLowerCase().includes(query.toLowerCase()));
-
-  return (
-    <Modal
-      title="Select Raw Material"
-      description="Search factory raw material master and choose the item received for this row."
-      size="lg"
-      onClose={onClose}
-      footer={<button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>}
-    >
-      <div className="space-y-4">
-        <input className={inputClass()} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by raw material name or SKU" autoFocus />
-        <div className="max-h-[520px] overflow-y-auto rounded-xl border border-border bg-white p-2">
-          {visibleMaterials.length ? visibleMaterials.map((material) => (
-            <button
-              key={material.id}
-              className={`mb-2 block w-full rounded-xl border px-4 py-3 text-left transition last:mb-0 hover:border-primary hover:bg-primary/5 ${material.id === selectedId ? "border-primary bg-primary/10" : "border-border bg-surface"}`}
-              type="button"
-              onClick={() => onSelect(material.id)}
-            >
-              <span className="block text-sm font-bold text-text-primary">{rawMaterialLabel(material)}</span>
-              <span className="mt-1 block text-xs font-semibold text-text-secondary">{rawMaterialSummary(material)}</span>
-              {material.storage_location ? <span className="mt-2 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-text-secondary">{material.storage_location}</span> : null}
-            </button>
-          )) : <EmptyState title="No matching raw materials" description="Create an active Raw Material master record before receiving this item." />}
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
 function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
   const fieldRefs = useRef({});
   const qtyRefs = useRef({});
@@ -1547,7 +1637,7 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
-  const [selectingMaterialRowId, setSelectingMaterialRowId] = useState(null);
+  const [materialPicker, setMaterialPicker] = useState(null);
   const activeSuppliers = suppliers.filter((supplier) => supplier.status === "active" || supplier.id === form.supplier_id);
   const activeRawMaterials = rawMaterials.filter((material) => material.status === "active");
   const supplierOptions = activeSuppliers.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name, helper: [supplier.supplier_code, supplier.phone].filter(Boolean).join(" · ") || supplier.status }));
@@ -1587,7 +1677,7 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
       uom: material?.uom || "",
       storage_location: material?.storage_location || "",
     });
-    setSelectingMaterialRowId(null);
+    setMaterialPicker(null);
   }
 
   async function submit(event) {
@@ -1699,7 +1789,10 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
                         fieldRefs.current[`${item.row_id}.raw_material_id`] = node;
                         fieldRefs.current[`${item.row_id}.uom`] = node;
                       }}
-                      onClick={() => setSelectingMaterialRowId(item.row_id)}
+                      onClick={(event) => {
+                        const anchor = event.currentTarget;
+                        setMaterialPicker((current) => current?.rowId === item.row_id ? null : { rowId: item.row_id, anchor });
+                      }}
                     />
                     <div className="mt-1 flex flex-wrap gap-1.5">
                       {item.storage_location ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-text-secondary">{item.storage_location}</span> : null}
@@ -1766,12 +1859,13 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
           <button className="btn-primary" type="submit" disabled={saving}>{saving ? "Saving..." : "Save Receiving"}</button>
         </div>
       </form>
-      {selectingMaterialRowId ? (
-        <RawMaterialSelectorModal
+      {materialPicker ? (
+        <RawMaterialPickerPopover
+          anchor={materialPicker.anchor}
           materials={activeRawMaterials}
-          selectedId={form.items.find((item) => item.row_id === selectingMaterialRowId)?.raw_material_id}
-          onClose={() => setSelectingMaterialRowId(null)}
-          onSelect={(rawMaterialId) => selectRawMaterial(selectingMaterialRowId, rawMaterialId)}
+          selectedId={form.items.find((item) => item.row_id === materialPicker.rowId)?.raw_material_id}
+          onClose={() => setMaterialPicker(null)}
+          onSelect={(rawMaterialId) => selectRawMaterial(materialPicker.rowId, rawMaterialId)}
         />
       ) : null}
     </Card>
