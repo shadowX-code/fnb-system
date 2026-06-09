@@ -139,97 +139,24 @@ function SearchableSelect({ value, options, placeholder, onChange, error, search
   );
 }
 
-function CompactRawMaterialPicker({ id, value, materials, placeholder, onChange, error, buttonRef, openPickerId, setOpenPickerId }) {
-  const [query, setQuery] = useState("");
-  const [rect, setRect] = useState(null);
-  const buttonNode = useRef(null);
-  const panelNode = useRef(null);
-  const open = openPickerId === id;
+function RawMaterialCellButton({ value, materials, placeholder, onClick, error, buttonRef }) {
   const selected = materials.find((material) => material.id === value);
-  const visibleMaterials = materials.filter((material) => `${rawMaterialLabel(material)} ${rawMaterialHelper(material)} ${material.uom || ""} ${material.storage_location || ""}`.toLowerCase().includes(query.toLowerCase()));
-  const materialSummary = (material) => `${material?.material_code || "No SKU"} · Balance ${quantity(material?.current_balance, material?.uom)}`;
-
-  function updateRect() {
-    setRect(anchoredRect(buttonNode.current, 340, 340));
-  }
-
-  function openPicker() {
-    setOpenPickerId(open ? null : id);
-    if (!open) updateRect();
-  }
-
-  useEffect(() => {
-    if (!open) return undefined;
-    const close = () => setOpenPickerId(null);
-    const onPointerDown = (event) => {
-      if (buttonNode.current?.contains(event.target) || panelNode.current?.contains(event.target)) return;
-      close();
-    };
-    const onKeyDown = (event) => {
-      if (event.key === "Escape") close();
-    };
-    updateRect();
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    window.addEventListener("resize", close);
-    window.addEventListener("scroll", close, true);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("resize", close);
-      window.removeEventListener("scroll", close, true);
-    };
-  }, [open, setOpenPickerId]);
-
   return (
-    <div>
-      <button
-        ref={(node) => {
-          buttonNode.current = node;
-          if (buttonRef) buttonRef(node);
-        }}
-        className={`min-h-[54px] w-full rounded-xl border bg-surface px-3 py-2 text-left outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15 ${error ? "border-rose-300" : "border-border"}`}
-        type="button"
-        onClick={openPicker}
-      >
-        {selected ? (
-          <span className="block">
-            <span className="block truncate text-sm font-semibold text-text-primary">{rawMaterialLabel(selected)}</span>
-            <span className="mt-0.5 block truncate text-xs text-text-secondary">{materialSummary(selected)}</span>
-          </span>
-        ) : (
-          <span className="block text-sm font-semibold text-text-muted">{placeholder}</span>
-        )}
-      </button>
-      {open && rect ? createPortal(
-        <div
-          ref={panelNode}
-          className="fixed z-[80] rounded-xl border border-border bg-white p-2 shadow-2xl"
-          style={{ left: rect.left, top: rect.top, width: rect.width }}
-        >
-          <input className={inputClass()} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search raw materials" autoFocus />
-          <div className="mt-2 overflow-y-auto" style={{ maxHeight: Math.max(180, Number(rect.maxHeight || 340) - 72) }}>
-            {visibleMaterials.length ? visibleMaterials.map((material) => (
-              <button
-                key={material.id}
-                className={`block w-full rounded-lg px-3 py-2 text-left transition hover:bg-primary/10 ${material.id === value ? "bg-primary/10" : ""}`}
-                type="button"
-                onClick={() => {
-                  onChange(material.id);
-                  setQuery("");
-                  setOpenPickerId(null);
-                }}
-              >
-                <span className="block text-sm font-semibold text-text-primary">{rawMaterialLabel(material)}</span>
-                <span className="mt-0.5 block text-xs text-text-secondary">{materialSummary(material)}</span>
-                {material.storage_location ? <span className="mt-1 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-text-secondary">{material.storage_location}</span> : null}
-              </button>
-            )) : <div className="px-3 py-4 text-sm font-semibold text-text-secondary">No matching raw materials</div>}
-          </div>
-        </div>,
-        document.body
-      ) : null}
-    </div>
+    <button
+      ref={buttonRef}
+      className={`min-h-[54px] w-full rounded-xl border bg-surface px-3 py-2 text-left outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15 ${error ? "border-rose-300" : "border-border"}`}
+      type="button"
+      onClick={onClick}
+    >
+      {selected ? (
+        <span className="block">
+          <span className="block truncate text-sm font-semibold text-text-primary">{rawMaterialLabel(selected)}</span>
+          <span className="mt-0.5 block truncate text-xs text-text-secondary">{rawMaterialSummary(selected)}</span>
+        </span>
+      ) : (
+        <span className="block text-sm font-semibold text-text-muted">{placeholder}</span>
+      )}
+    </button>
   );
 }
 
@@ -241,6 +168,11 @@ function FeedXDatePicker({ value, onChange, placeholder = "Select date", error, 
   const panelNode = useRef(null);
   const todayIso = todayInput();
   const selectedIso = value || "";
+  const monthOptions = Array.from({ length: 12 }, (_, index) => ({ value: index, label: new Date(2026, index, 1).toLocaleDateString("en-MY", { month: "short" }) }));
+  const baseYear = new Date().getFullYear();
+  const selectedYear = value ? monthStart(value).getFullYear() : baseYear;
+  const yearStart = Math.min(baseYear - 3, selectedYear - 3);
+  const yearOptions = Array.from({ length: 11 }, (_, index) => yearStart + index);
   const days = useMemo(() => {
     const first = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
     const start = new Date(first);
@@ -263,6 +195,14 @@ function FeedXDatePicker({ value, onChange, placeholder = "Select date", error, 
 
   function shiftMonth(delta) {
     setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() + delta, 1));
+  }
+
+  function setMonth(month) {
+    setVisibleMonth((current) => new Date(current.getFullYear(), Number(month), 1));
+  }
+
+  function setYear(year) {
+    setVisibleMonth((current) => new Date(Number(year), current.getMonth(), 1));
   }
 
   useEffect(() => {
@@ -315,9 +255,14 @@ function FeedXDatePicker({ value, onChange, placeholder = "Select date", error, 
           className="fixed z-[80] rounded-2xl border border-border bg-white p-3 shadow-2xl"
           style={{ left: rect.left, top: rect.top, width: rect.width }}
         >
-          <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
             <button className="btn-secondary px-2 py-1 text-xs" type="button" onClick={() => shiftMonth(-1)}>Prev</button>
-            <div className="text-sm font-bold text-text-primary">{visibleMonth.toLocaleDateString("en-MY", { month: "long", year: "numeric" })}</div>
+            <select className="min-w-0 flex-1 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm font-bold text-text-primary outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" value={visibleMonth.getMonth()} onChange={(event) => setMonth(event.target.value)}>
+              {monthOptions.map((month) => <option key={month.value} value={month.value}>{month.label}</option>)}
+            </select>
+            <select className="w-24 rounded-lg border border-border bg-surface px-2 py-1.5 text-sm font-bold text-text-primary outline-none focus:border-primary focus:ring-2 focus:ring-primary/15" value={visibleMonth.getFullYear()} onChange={(event) => setYear(event.target.value)}>
+              {yearOptions.map((year) => <option key={year} value={year}>{year}</option>)}
+            </select>
             <button className="btn-secondary px-2 py-1 text-xs" type="button" onClick={() => shiftMonth(1)}>Next</button>
           </div>
           <div className="mt-3 grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-text-muted">
@@ -377,6 +322,10 @@ function rawMaterialLabel(material) {
 
 function rawMaterialHelper(material) {
   return [material?.material_code, material?.name_cn || material?.name_bm, material?.uom].filter(Boolean).join(" · ");
+}
+
+function rawMaterialSummary(material) {
+  return `${material?.material_code || "No SKU"} · Balance ${quantity(material?.current_balance, material?.uom)}`;
 }
 
 function WarehouseBarList({ rows, valueLabel }) {
@@ -1551,6 +1500,39 @@ function FactorySupplierModal({ suppliers, onClose, onSave, onArchive }) {
   );
 }
 
+function RawMaterialSelectorModal({ materials, selectedId, onClose, onSelect }) {
+  const [query, setQuery] = useState("");
+  const visibleMaterials = materials.filter((material) => `${rawMaterialLabel(material)} ${rawMaterialSummary(material)} ${material.storage_location || ""}`.toLowerCase().includes(query.toLowerCase()));
+
+  return (
+    <Modal
+      title="Select Raw Material"
+      description="Search factory raw material master and choose the item received for this row."
+      size="lg"
+      onClose={onClose}
+      footer={<button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>}
+    >
+      <div className="space-y-4">
+        <input className={inputClass()} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search by raw material name or SKU" autoFocus />
+        <div className="max-h-[520px] overflow-y-auto rounded-xl border border-border bg-white p-2">
+          {visibleMaterials.length ? visibleMaterials.map((material) => (
+            <button
+              key={material.id}
+              className={`mb-2 block w-full rounded-xl border px-4 py-3 text-left transition last:mb-0 hover:border-primary hover:bg-primary/5 ${material.id === selectedId ? "border-primary bg-primary/10" : "border-border bg-surface"}`}
+              type="button"
+              onClick={() => onSelect(material.id)}
+            >
+              <span className="block text-sm font-bold text-text-primary">{rawMaterialLabel(material)}</span>
+              <span className="mt-1 block text-xs font-semibold text-text-secondary">{rawMaterialSummary(material)}</span>
+              {material.storage_location ? <span className="mt-2 inline-flex rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-text-secondary">{material.storage_location}</span> : null}
+            </button>
+          )) : <EmptyState title="No matching raw materials" description="Create an active Raw Material master record before receiving this item." />}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
   const fieldRefs = useRef({});
   const qtyRefs = useRef({});
@@ -1565,7 +1547,7 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
-  const [openMaterialPickerId, setOpenMaterialPickerId] = useState(null);
+  const [selectingMaterialRowId, setSelectingMaterialRowId] = useState(null);
   const activeSuppliers = suppliers.filter((supplier) => supplier.status === "active" || supplier.id === form.supplier_id);
   const activeRawMaterials = rawMaterials.filter((material) => material.status === "active");
   const supplierOptions = activeSuppliers.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name, helper: [supplier.supplier_code, supplier.phone].filter(Boolean).join(" · ") || supplier.status }));
@@ -1595,6 +1577,17 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
     const index = form.items.findIndex((item) => item.row_id === rowId);
     const target = form.items[index + 1];
     if (target) fieldRefs.current[`${target.row_id}.raw_material_id`]?.focus?.();
+  }
+
+  function selectRawMaterial(rowId, rawMaterialId) {
+    const material = activeRawMaterials.find((row) => row.id === rawMaterialId);
+    setFieldErrors((current) => ({ ...current, [`${rowId}.raw_material_id`]: "", [`${rowId}.uom`]: "" }));
+    updateItem(rowId, {
+      raw_material_id: rawMaterialId,
+      uom: material?.uom || "",
+      storage_location: material?.storage_location || "",
+    });
+    setSelectingMaterialRowId(null);
   }
 
   async function submit(event) {
@@ -1697,27 +1690,16 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
               {form.items.map((item) => (
                 <tr key={item.row_id} className="border-b border-border last:border-0 align-top transition hover:bg-slate-50/70">
                   <td className="px-4 py-3">
-                    <CompactRawMaterialPicker
-                      id={item.row_id}
+                    <RawMaterialCellButton
                       value={item.raw_material_id}
                       materials={activeRawMaterials}
                       placeholder="Select Raw Material"
-                      openPickerId={openMaterialPickerId}
-                      setOpenPickerId={setOpenMaterialPickerId}
                       error={Boolean(fieldErrors[`${item.row_id}.raw_material_id`])}
                       buttonRef={(node) => {
                         fieldRefs.current[`${item.row_id}.raw_material_id`] = node;
                         fieldRefs.current[`${item.row_id}.uom`] = node;
                       }}
-                      onChange={(rawMaterialId) => {
-                        const material = activeRawMaterials.find((row) => row.id === rawMaterialId);
-                        setFieldErrors((current) => ({ ...current, [`${item.row_id}.raw_material_id`]: "", [`${item.row_id}.uom`]: "" }));
-                        updateItem(item.row_id, {
-                          raw_material_id: rawMaterialId,
-                          uom: material?.uom || item.uom,
-                          storage_location: material?.storage_location || item.storage_location || "",
-                        });
-                      }}
+                      onClick={() => setSelectingMaterialRowId(item.row_id)}
                     />
                     <div className="mt-1 flex flex-wrap gap-1.5">
                       {item.storage_location ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-text-secondary">{item.storage_location}</span> : null}
@@ -1766,7 +1748,7 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
                   <td className="px-4 py-3">
                     <FeedXDatePicker
                       value={item.expiry_date || ""}
-                      placeholder="Optional expiry date"
+                      placeholder="Expiry date"
                       onChange={(nextDate) => updateItem(item.row_id, { expiry_date: nextDate })}
                     />
                   </td>
@@ -1784,6 +1766,14 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
           <button className="btn-primary" type="submit" disabled={saving}>{saving ? "Saving..." : "Save Receiving"}</button>
         </div>
       </form>
+      {selectingMaterialRowId ? (
+        <RawMaterialSelectorModal
+          materials={activeRawMaterials}
+          selectedId={form.items.find((item) => item.row_id === selectingMaterialRowId)?.raw_material_id}
+          onClose={() => setSelectingMaterialRowId(null)}
+          onSelect={(rawMaterialId) => selectRawMaterial(selectingMaterialRowId, rawMaterialId)}
+        />
+      ) : null}
     </Card>
   );
 }
