@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Activity, AlertTriangle, BookOpen, CheckCircle2, ClipboardCheck, ClipboardList, Clock3, Factory, FileText, Inbox, Package, PackageCheck, Play, RefreshCw, Tag, Truck, Warehouse } from "lucide-react";
+import { Activity, AlertTriangle, BookOpen, CheckCircle2, ClipboardCheck, ClipboardList, Clock3, Factory, FileText, Package, PackageCheck, Play, RefreshCw, Tag, Truck, Warehouse } from "lucide-react";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
@@ -107,37 +107,48 @@ function SearchableSelect({ value, options, placeholder, onChange, error, search
   );
 }
 
-function CompactRawMaterialPicker({ value, materials, placeholder, onChange, error, buttonRef }) {
-  const [open, setOpen] = useState(false);
+function CompactRawMaterialPicker({ id, value, materials, placeholder, onChange, error, buttonRef, openPickerId, setOpenPickerId }) {
   const [query, setQuery] = useState("");
   const [rect, setRect] = useState(null);
   const buttonNode = useRef(null);
+  const panelNode = useRef(null);
+  const open = openPickerId === id;
   const selected = materials.find((material) => material.id === value);
   const visibleMaterials = materials.filter((material) => `${rawMaterialLabel(material)} ${rawMaterialHelper(material)} ${material.uom || ""} ${material.storage_location || ""}`.toLowerCase().includes(query.toLowerCase()));
 
-  function toggle() {
-    const nextOpen = !open;
-    setOpen(nextOpen);
-    if (nextOpen && buttonNode.current) {
+  function openPicker() {
+    setOpenPickerId(open ? null : id);
+    if (!open && buttonNode.current) {
       const nextRect = buttonNode.current.getBoundingClientRect();
       setRect({
         left: nextRect.left,
         top: nextRect.bottom + 6,
-        width: Math.max(nextRect.width, 360),
+        width: Math.min(Math.max(nextRect.width, 340), 420),
       });
     }
   }
 
   useEffect(() => {
     if (!open) return undefined;
-    const close = () => setOpen(false);
+    const close = () => setOpenPickerId(null);
+    const onPointerDown = (event) => {
+      if (buttonNode.current?.contains(event.target) || panelNode.current?.contains(event.target)) return;
+      close();
+    };
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") close();
+    };
+    document.addEventListener("pointerdown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
     window.addEventListener("resize", close);
     window.addEventListener("scroll", close, true);
     return () => {
+      document.removeEventListener("pointerdown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
       window.removeEventListener("resize", close);
       window.removeEventListener("scroll", close, true);
     };
-  }, [open]);
+  }, [open, setOpenPickerId]);
 
   return (
     <div>
@@ -146,9 +157,9 @@ function CompactRawMaterialPicker({ value, materials, placeholder, onChange, err
           buttonNode.current = node;
           if (buttonRef) buttonRef(node);
         }}
-        className={`min-h-[58px] w-full rounded-xl border bg-surface px-3 py-2 text-left outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15 ${error ? "border-rose-300" : "border-border"}`}
+        className={`min-h-[54px] w-full rounded-xl border bg-surface px-3 py-2 text-left outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15 ${error ? "border-rose-300" : "border-border"}`}
         type="button"
-        onClick={toggle}
+        onClick={openPicker}
       >
         {selected ? (
           <span className="block">
@@ -161,6 +172,7 @@ function CompactRawMaterialPicker({ value, materials, placeholder, onChange, err
       </button>
       {open && rect ? (
         <div
+          ref={panelNode}
           className="fixed z-[80] rounded-xl border border-border bg-white p-2 shadow-2xl"
           style={{ left: rect.left, top: rect.top, width: rect.width }}
         >
@@ -174,7 +186,7 @@ function CompactRawMaterialPicker({ value, materials, placeholder, onChange, err
                 onClick={() => {
                   onChange(material.id);
                   setQuery("");
-                  setOpen(false);
+                  setOpenPickerId(null);
                 }}
               >
                 <span className="block text-sm font-semibold text-text-primary">{rawMaterialLabel(material)}</span>
@@ -1387,6 +1399,7 @@ function FactorySupplierModal({ suppliers, onClose, onSave, onArchive }) {
 
 function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
   const fieldRefs = useRef({});
+  const qtyRefs = useRef({});
   const makeRow = () => ({ row_id: Math.random().toString(36).slice(2), raw_material_id: "", batch_no: "", received_qty: "", uom: "", storage_location: "", expiry_date: "" });
   const [form, setForm] = useState(() => ({
     supplier_id: "",
@@ -1398,6 +1411,7 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
+  const [openMaterialPickerId, setOpenMaterialPickerId] = useState(null);
   const activeSuppliers = suppliers.filter((supplier) => supplier.status === "active" || supplier.id === form.supplier_id);
   const activeRawMaterials = rawMaterials.filter((material) => material.status === "active");
   const supplierOptions = activeSuppliers.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name, helper: [supplier.supplier_code, supplier.phone].filter(Boolean).join(" · ") || supplier.status }));
@@ -1415,6 +1429,18 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
 
   function removeRow(rowId) {
     setForm((current) => ({ ...current, items: current.items.length > 1 ? current.items.filter((item) => item.row_id !== rowId) : current.items }));
+  }
+
+  function focusQtyByOffset(rowId, offset) {
+    const index = form.items.findIndex((item) => item.row_id === rowId);
+    const target = form.items[index + offset];
+    if (target) qtyRefs.current[target.row_id]?.focus?.();
+  }
+
+  function focusNextRowMaterial(rowId) {
+    const index = form.items.findIndex((item) => item.row_id === rowId);
+    const target = form.items[index + 1];
+    if (target) fieldRefs.current[`${target.row_id}.raw_material_id`]?.focus?.();
   }
 
   async function submit(event) {
@@ -1481,33 +1507,43 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
           <textarea className={inputClass()} rows={2} value={form.remarks} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
         </Field>
 
-        <div className="rounded-xl border border-border bg-white">
-          <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border bg-slate-50 px-3 py-3">
+        <div className="rounded-xl border border-border bg-white p-3">
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-slate-50 px-4 py-3">
             <div>
               <div className="text-sm font-semibold text-text-primary">Receiving Items</div>
               <div className="text-xs text-text-secondary">UOM and storage location default from the selected raw material.</div>
             </div>
             <button className="btn-secondary px-3 py-2 text-sm" type="button" onClick={addRow}><Package size={15} /> Add Item Row</button>
           </div>
-          <div className="overflow-x-auto">
-          <table className="min-w-[860px] w-full text-left text-sm">
+          <div className="mt-3 overflow-x-auto rounded-xl border border-border">
+          <table className="min-w-[880px] w-full table-fixed text-left text-sm">
+            <colgroup>
+              <col className="w-[30%]" />
+              <col className="w-[18%]" />
+              <col className="w-[16%]" />
+              <col className="w-[18%]" />
+              <col className="w-[10%]" />
+            </colgroup>
             <thead className="border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">
               <tr>
-                <th className="px-3 py-2.5">Raw Material *</th>
-                <th className="px-3 py-2.5">Batch No.</th>
-                <th className="px-3 py-2.5">Qty *</th>
-                <th className="px-3 py-2.5">Expiry Date</th>
-                <th className="px-3 py-2.5 text-right">Action</th>
+                <th className="px-4 py-3">Raw Material *</th>
+                <th className="px-4 py-3">Batch No.</th>
+                <th className="px-4 py-3">Qty *</th>
+                <th className="px-4 py-3">Expiry Date</th>
+                <th className="px-4 py-3 text-right">Action</th>
               </tr>
             </thead>
             <tbody>
               {form.items.map((item) => (
-                <tr key={item.row_id} className="border-b border-border last:border-0 align-top">
-                  <td className="w-[44%] px-3 py-3">
+                <tr key={item.row_id} className="border-b border-border last:border-0 align-top transition hover:bg-slate-50/70">
+                  <td className="px-4 py-3">
                     <CompactRawMaterialPicker
+                      id={item.row_id}
                       value={item.raw_material_id}
                       materials={activeRawMaterials}
                       placeholder="Select Raw Material"
+                      openPickerId={openMaterialPickerId}
+                      setOpenPickerId={setOpenMaterialPickerId}
                       error={Boolean(fieldErrors[`${item.row_id}.raw_material_id`])}
                       buttonRef={(node) => {
                         fieldRefs.current[`${item.row_id}.raw_material_id`] = node;
@@ -1530,19 +1566,54 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
                     {fieldErrors[`${item.row_id}.raw_material_id`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.raw_material_id`]}</div> : null}
                     {fieldErrors[`${item.row_id}.uom`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.uom`]}</div> : null}
                   </td>
-                  <td className="px-3 py-3"><input className={inputClass()} value={item.batch_no} onChange={(event) => updateItem(item.row_id, { batch_no: event.target.value })} /></td>
-                  <td className="px-3 py-3">
+                  <td className="px-4 py-3"><input className={inputClass()} value={item.batch_no} onChange={(event) => updateItem(item.row_id, { batch_no: event.target.value })} /></td>
+                  <td className="px-4 py-3">
                     <div className="relative">
-                      <input ref={(node) => { fieldRefs.current[`${item.row_id}.received_qty`] = node; }} className={`${inputClass(fieldErrors[`${item.row_id}.received_qty`])} ${item.uom ? "pr-16" : ""}`} type="number" min="0" step="0.01" value={item.received_qty} onChange={(event) => {
+                      <input
+                        ref={(node) => {
+                          fieldRefs.current[`${item.row_id}.received_qty`] = node;
+                          qtyRefs.current[item.row_id] = node;
+                        }}
+                        className={`${inputClass(fieldErrors[`${item.row_id}.received_qty`])} ${item.uom ? "pr-16" : ""} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        inputMode="decimal"
+                        value={item.received_qty}
+                        onFocus={(event) => event.target.select()}
+                        onKeyDown={(event) => {
+                          if (event.key === "ArrowDown") {
+                            event.preventDefault();
+                            focusQtyByOffset(item.row_id, 1);
+                          }
+                          if (event.key === "ArrowUp") {
+                            event.preventDefault();
+                            focusQtyByOffset(item.row_id, -1);
+                          }
+                          if (event.key === "Enter") {
+                            event.preventDefault();
+                            focusNextRowMaterial(item.row_id);
+                          }
+                        }}
+                        onChange={(event) => {
                         setFieldErrors((current) => ({ ...current, [`${item.row_id}.received_qty`]: "" }));
                         updateItem(item.row_id, { received_qty: event.target.value });
-                      }} />
+                      }}
+                      />
                       {item.uom ? <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-text-muted">{item.uom}</span> : null}
                     </div>
                     {fieldErrors[`${item.row_id}.received_qty`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.received_qty`]}</div> : null}
                   </td>
-                  <td className="px-3 py-3"><input className={inputClass()} type="date" value={item.expiry_date || ""} onChange={(event) => updateItem(item.row_id, { expiry_date: event.target.value })} /></td>
-                  <td className="px-3 py-3 text-right">
+                  <td className="px-4 py-3">
+                    <input
+                      className="w-full rounded-xl border border-border bg-slate-50 px-3 py-2 text-sm font-semibold text-text-secondary outline-none transition placeholder:text-text-muted focus:border-primary focus:bg-white focus:text-text-primary focus:ring-2 focus:ring-primary/15"
+                      type="date"
+                      value={item.expiry_date || ""}
+                      aria-label="Optional expiry date"
+                      onChange={(event) => updateItem(item.row_id, { expiry_date: event.target.value })}
+                    />
+                  </td>
+                  <td className="px-4 py-3 text-right">
                     <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => removeRow(item.row_id)} disabled={form.items.length === 1}>Remove</button>
                   </td>
                 </tr>
@@ -3441,7 +3512,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           section="Raw Material"
           title="Raw Material Receiving"
           description="Record supplier delivery documents with multiple raw material item rows."
-          actions={can("factory_raw_receiving.create") ? <button className="btn-primary" type="button" onClick={() => setReceivingTab("receive")}><Inbox size={15} /> Receive Raw Material</button> : null}
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={Truck} label="Receiving Documents" value={data.receivingBatches.length} helper="Supplier delivery batches" />
