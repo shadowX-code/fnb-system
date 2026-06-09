@@ -297,6 +297,12 @@ const routeDetails = {
     permission: "factory_storage_locations.view",
     props: { initialTab: "storage-locations" },
   },
+  factory_suppliers: {
+    description: "Manage Factory supplier master data used by raw material receiving.",
+    component: FactoryWorkspacePage,
+    permission: "factory_suppliers.view",
+    props: { initialTab: "suppliers" },
+  },
 };
 
 export const salesPurchaseRoutes = moduleRegistry.map((module) => {

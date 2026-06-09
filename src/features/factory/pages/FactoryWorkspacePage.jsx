@@ -1187,29 +1187,139 @@ function JobOrderModal({ initialValue, finishedGoods, onClose, onSave }) {
   );
 }
 
-function RawReceivingModal({ initialValue, rawMaterials, storageLocations = [], onClose, onSave }) {
-  const fieldRefs = useRef({});
+function FactorySupplierModal({ suppliers, onClose, onSave, onArchive }) {
   const [form, setForm] = useState(() => ({
     supplier_name: "",
-    raw_material_id: "",
-    raw_material_name: "",
-    batch_no: "",
-    received_qty: "",
-    uom: "kg",
-    unit_cost: "",
-    invoice_no: "",
-    received_date: todayInput(),
-    expiry_date: "",
-    storage_location: "",
+    supplier_code: "",
+    contact_person: "",
+    phone: "",
+    email: "",
+    status: "active",
     remarks: "",
-    ...initialValue,
+  }));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(event) {
+    event.preventDefault();
+    setError("");
+    if (!String(form.supplier_name || "").trim()) {
+      setError("Supplier name is required.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave(form);
+      setForm({ supplier_name: "", supplier_code: "", contact_person: "", phone: "", email: "", status: "active", remarks: "" });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function edit(supplier) {
+    setForm({
+      id: supplier.id,
+      supplier_name: supplier.supplier_name || "",
+      supplier_code: supplier.supplier_code || "",
+      contact_person: supplier.contact_person || "",
+      phone: supplier.phone || "",
+      email: supplier.email || "",
+      status: supplier.status || "active",
+      remarks: supplier.remarks || "",
+    });
+    setError("");
+  }
+
+  async function archive(supplier) {
+    setSaving(true);
+    try {
+      await onArchive(supplier);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      title="Factory Suppliers"
+      description="Manage Factory suppliers used by raw material receiving documents."
+      size="lg"
+      onClose={saving ? undefined : onClose}
+      footer={<button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Close</button>}
+    >
+      <div className="space-y-4">
+        <form className="space-y-4 rounded-xl border border-border bg-slate-50 p-4" onSubmit={submit}>
+          {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
+          <div className="grid gap-3 md:grid-cols-2">
+            <Field label="Supplier Name *">
+              <input className={inputClass(error && !form.supplier_name)} value={form.supplier_name || ""} onChange={(event) => setForm((current) => ({ ...current, supplier_name: event.target.value }))} />
+            </Field>
+            <Field label="Supplier Code">
+              <input className={inputClass()} value={form.supplier_code || ""} onChange={(event) => setForm((current) => ({ ...current, supplier_code: event.target.value }))} />
+            </Field>
+            <Field label="Contact Person">
+              <input className={inputClass()} value={form.contact_person || ""} onChange={(event) => setForm((current) => ({ ...current, contact_person: event.target.value }))} />
+            </Field>
+            <Field label="Phone">
+              <input className={inputClass()} value={form.phone || ""} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} />
+            </Field>
+            <Field label="Email">
+              <input className={inputClass()} type="email" value={form.email || ""} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} />
+            </Field>
+            <Field label="Status">
+              <select className={inputClass()} value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
+                <option value="active">Active</option>
+                <option value="archived">Archived</option>
+              </select>
+            </Field>
+          </div>
+          <Field label="Remarks">
+            <textarea className={inputClass()} rows={3} value={form.remarks || ""} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
+          </Field>
+          <div className="flex justify-end gap-2">
+            <button className="btn-primary" type="submit" disabled={saving}>{saving ? "Saving..." : form.id ? "Update Supplier" : "Create Supplier"}</button>
+            {form.id ? <button className="btn-secondary" type="button" disabled={saving} onClick={() => setForm({ supplier_name: "", supplier_code: "", contact_person: "", phone: "", email: "", status: "active", remarks: "" })}>New</button> : null}
+          </div>
+        </form>
+
+        <div className="space-y-2">
+          {suppliers.length ? suppliers.map((supplier) => (
+            <div key={supplier.id} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-3">
+              <div>
+                <div className="font-bold text-text-primary">{supplier.supplier_name}</div>
+                <div className="text-sm text-text-secondary">{[supplier.supplier_code, supplier.contact_person, supplier.phone].filter(Boolean).join(" · ") || "No contact details"}</div>
+                {supplier.remarks ? <div className="mt-1 text-xs text-text-muted">{supplier.remarks}</div> : null}
+              </div>
+              <div className="flex shrink-0 items-center gap-2">
+                <Badge tone={supplier.status === "active" ? "success" : "neutral"}>{supplier.status}</Badge>
+                <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={saving} onClick={() => edit(supplier)}>Edit</button>
+                {supplier.status !== "archived" ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" disabled={saving} onClick={() => archive(supplier)}>Archive</button> : null}
+              </div>
+            </div>
+          )) : <EmptyState title="No suppliers" description="Create a Factory supplier before recording supplier receiving documents." />}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
+function RawReceivingEntryPanel({ rawMaterials, storageLocations = [], suppliers = [], onSave }) {
+  const fieldRefs = useRef({});
+  const makeRow = () => ({ row_id: Math.random().toString(36).slice(2), raw_material_id: "", batch_no: "", received_qty: "", uom: "kg", storage_location: "", expiry_date: "" });
+  const [form, setForm] = useState(() => ({
+    supplier_id: "",
+    reference_no: "",
+    received_date: todayInput(),
+    remarks: "",
+    items: [makeRow()],
   }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
-  const totalCost = Number(form.received_qty || 0) * Number(form.unit_cost || 0);
-  const activeRawMaterials = rawMaterials.filter((material) => material.status === "active" || material.id === form.raw_material_id);
-  const activeStorageLocations = storageLocations.filter((location) => location.status === "active" || location.location_name === form.storage_location);
+  const activeSuppliers = suppliers.filter((supplier) => supplier.status === "active" || supplier.id === form.supplier_id);
+  const activeRawMaterials = rawMaterials.filter((material) => material.status === "active");
+  const activeStorageLocations = storageLocations.filter((location) => location.status === "active");
+  const supplierOptions = activeSuppliers.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name, helper: [supplier.supplier_code, supplier.phone].filter(Boolean).join(" · ") || supplier.status }));
   const rawMaterialOptions = activeRawMaterials.map((material) => ({
     value: material.id,
     label: rawMaterialLabel(material),
@@ -1217,15 +1327,33 @@ function RawReceivingModal({ initialValue, rawMaterials, storageLocations = [], 
   }));
   const storageLocationOptions = activeStorageLocations.map((location) => ({ value: location.location_name, label: location.location_name, helper: [location.location_code, location.location_type].filter(Boolean).join(" · ") || location.status }));
 
+  function updateItem(rowId, patch) {
+    setForm((current) => ({
+      ...current,
+      items: current.items.map((item) => item.row_id === rowId ? { ...item, ...patch } : item),
+    }));
+  }
+
+  function addRow() {
+    setForm((current) => ({ ...current, items: [...current.items, makeRow()] }));
+  }
+
+  function removeRow(rowId) {
+    setForm((current) => ({ ...current, items: current.items.length > 1 ? current.items.filter((item) => item.row_id !== rowId) : current.items }));
+  }
+
   async function submit(event) {
     event.preventDefault();
     setError("");
     const nextErrors = {
-      raw_material_id: !form.raw_material_id ? "Raw Material is required." : "",
-      received_qty: Number(form.received_qty || 0) <= 0 ? "Received Qty must be greater than 0." : "",
-      uom: !String(form.uom || "").trim() ? "UOM is required." : "",
-      received_date: !String(form.received_date || "").trim() ? "Received Date is required." : "",
+      supplier_id: !form.supplier_id ? "Supplier is required." : "",
+      received_date: !form.received_date ? "Received Date is required." : "",
     };
+    form.items.forEach((item) => {
+      nextErrors[`${item.row_id}.raw_material_id`] = !item.raw_material_id ? "Raw Material is required." : "";
+      nextErrors[`${item.row_id}.received_qty`] = Number(item.received_qty || 0) <= 0 ? "Qty must be greater than 0." : "";
+      nextErrors[`${item.row_id}.uom`] = !String(item.uom || "").trim() ? "UOM is required." : "";
+    });
     const activeErrors = Object.fromEntries(Object.entries(nextErrors).filter(([, message]) => message));
     setFieldErrors(activeErrors);
     const firstError = Object.keys(activeErrors)[0];
@@ -1237,119 +1365,145 @@ function RawReceivingModal({ initialValue, rawMaterials, storageLocations = [], 
     setSaving(true);
     try {
       await onSave(form);
+      setForm({ supplier_id: "", reference_no: "", received_date: todayInput(), remarks: "", items: [makeRow()] });
+      setFieldErrors({});
+      setError("");
     } finally {
       setSaving(false);
     }
   }
 
   return (
-    <Modal
-      title={initialValue?.id ? "Edit Raw Material Receiving" : "Record Raw Material Receiving"}
-      description="Receive raw materials into factory warehouse stock."
-      size="lg"
-      onClose={saving ? undefined : onClose}
-      footer={(
-        <>
-          {error ? <div className="self-center text-sm font-semibold text-rose-600">{error}</div> : null}
-          <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="submit" form="factory-raw-receiving-form" disabled={saving}>{saving ? "Saving..." : "Save Receiving"}</button>
-        </>
-      )}
-    >
-      <form id="factory-raw-receiving-form" className="space-y-4" onSubmit={submit}>
-        <div className="space-y-3 rounded-xl border border-border bg-slate-50/60 p-4">
-          <div className="text-sm font-semibold text-text-primary">Receiving Info</div>
-          <Field label="Supplier">
-            <input className={inputClass()} value={form.supplier_name || ""} onChange={(event) => setForm((current) => ({ ...current, supplier_name: event.target.value }))} />
+    <Card title="Receive Raw Material" description="Record one supplier delivery with multiple raw material item rows.">
+      <form className="space-y-5" onSubmit={submit}>
+        <div className="grid gap-3 lg:grid-cols-4">
+          <Field label="Supplier *" error={fieldErrors.supplier_id}>
+            <SearchableSelect
+              value={form.supplier_id}
+              options={supplierOptions}
+              placeholder={activeSuppliers.length ? "Select Supplier" : "Create an active Factory Supplier first"}
+              searchPlaceholder="Search suppliers"
+              emptyText="No matching suppliers"
+              error={Boolean(fieldErrors.supplier_id)}
+              buttonRef={(node) => { fieldRefs.current.supplier_id = node; }}
+              onChange={(supplierId) => {
+                setFieldErrors((current) => ({ ...current, supplier_id: "" }));
+                setForm((current) => ({ ...current, supplier_id: supplierId }));
+              }}
+            />
           </Field>
-          <Field label="Invoice No.">
-            <input className={inputClass()} value={form.invoice_no || ""} onChange={(event) => setForm((current) => ({ ...current, invoice_no: event.target.value }))} />
+          <Field label="Reference No.">
+            <input className={inputClass()} value={form.reference_no} onChange={(event) => setForm((current) => ({ ...current, reference_no: event.target.value }))} />
           </Field>
           <Field label="Received Date *" error={fieldErrors.received_date}>
-            <input ref={(node) => { fieldRefs.current.received_date = node; }} className={inputClass(fieldErrors.received_date)} type="date" value={form.received_date || ""} onChange={(event) => {
+            <input ref={(node) => { fieldRefs.current.received_date = node; }} className={inputClass(fieldErrors.received_date)} type="date" value={form.received_date} onChange={(event) => {
               setFieldErrors((current) => ({ ...current, received_date: "" }));
               setForm((current) => ({ ...current, received_date: event.target.value }));
             }} />
           </Field>
-        </div>
-
-        <div className="space-y-3 rounded-xl border border-border bg-slate-50/60 p-4">
-          <div className="text-sm font-semibold text-text-primary">Material Received</div>
-          <Field label="Raw Material *" error={fieldErrors.raw_material_id}>
-            <SearchableSelect
-              value={form.raw_material_id || ""}
-              options={rawMaterialOptions}
-              placeholder={activeRawMaterials.length ? "Select Raw Material" : "Create an active Raw Material first"}
-              searchPlaceholder="Search raw materials"
-              emptyText="No matching raw materials"
-              error={Boolean(fieldErrors.raw_material_id)}
-              buttonRef={(node) => { fieldRefs.current.raw_material_id = node; }}
-              onChange={(rawMaterialId) => {
-                const material = activeRawMaterials.find((item) => item.id === rawMaterialId);
-                setFieldErrors((current) => ({ ...current, raw_material_id: "", uom: "" }));
-                setForm((current) => ({
-                  ...current,
-                  raw_material_id: rawMaterialId,
-                  raw_material_name: rawMaterialLabel(material),
-                  uom: material?.uom || current.uom,
-                  storage_location: material?.storage_location || current.storage_location || "",
-                }));
-              }}
-            />
-          </Field>
-          <Field label="Batch No.">
-            <input className={inputClass()} value={form.batch_no || ""} onChange={(event) => setForm((current) => ({ ...current, batch_no: event.target.value }))} />
-          </Field>
-          <div className="grid gap-3 md:grid-cols-2">
-            <Field label="Received Qty *" error={fieldErrors.received_qty}>
-              <input ref={(node) => { fieldRefs.current.received_qty = node; }} className={inputClass(fieldErrors.received_qty)} type="number" min="0" step="0.01" value={form.received_qty} onChange={(event) => {
-                setFieldErrors((current) => ({ ...current, received_qty: "" }));
-                setForm((current) => ({ ...current, received_qty: event.target.value }));
-              }} />
-            </Field>
-            <Field label="UOM *" error={fieldErrors.uom}>
-              <select ref={(node) => { fieldRefs.current.uom = node; }} className={inputClass(fieldErrors.uom)} value={form.uom} onChange={(event) => {
-                setFieldErrors((current) => ({ ...current, uom: "" }));
-                setForm((current) => ({ ...current, uom: event.target.value }));
-              }}>
-                {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
-              </select>
-            </Field>
-          </div>
-        </div>
-
-        <div className="space-y-3 rounded-xl border border-border bg-slate-50/60 p-4">
-          <div className="text-sm font-semibold text-text-primary">Cost & Storage</div>
-          <div className="grid gap-3 md:grid-cols-2">
-            <Field label="Unit Cost">
-              <input className={inputClass()} type="number" min="0" step="0.0001" value={form.unit_cost} onChange={(event) => setForm((current) => ({ ...current, unit_cost: event.target.value }))} />
-            </Field>
-            <Field label="Total Cost">
-              <div className="rounded-xl border border-border bg-slate-100 px-3 py-2 text-sm font-bold text-text-primary">{money(totalCost)}</div>
-            </Field>
-          </div>
-          <Field label="Storage Location">
-            <SearchableSelect
-              value={form.storage_location || ""}
-              options={storageLocationOptions}
-              placeholder="Select Storage Location"
-              searchPlaceholder="Search locations"
-              emptyText="No storage locations"
-              onChange={(locationName) => setForm((current) => ({ ...current, storage_location: locationName }))}
-            />
-          </Field>
-        </div>
-
-        <div className="space-y-3 rounded-xl border border-border bg-slate-50/60 p-4">
-          <div className="text-sm font-semibold text-text-primary">Other</div>
-          <Field label="Expiry Date">
-            <input className={inputClass()} type="date" value={form.expiry_date || ""} onChange={(event) => setForm((current) => ({ ...current, expiry_date: event.target.value }))} />
-          </Field>
           <Field label="Remarks">
-            <textarea className={inputClass()} rows={3} value={form.remarks || ""} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
+            <input className={inputClass()} value={form.remarks} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
           </Field>
+        </div>
+
+        <div className="overflow-x-auto rounded-xl border border-border bg-white">
+          <table className="min-w-[1080px] w-full text-left text-sm">
+            <thead className="border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">
+              <tr>
+                <th className="px-3 py-2.5">Raw Material *</th>
+                <th className="px-3 py-2.5">Batch No.</th>
+                <th className="px-3 py-2.5">Qty *</th>
+                <th className="px-3 py-2.5">UOM *</th>
+                <th className="px-3 py-2.5">Storage Location</th>
+                <th className="px-3 py-2.5">Expiry Date</th>
+                <th className="px-3 py-2.5 text-right">Action</th>
+              </tr>
+            </thead>
+            <tbody>
+              {form.items.map((item) => (
+                <tr key={item.row_id} className="border-b border-border last:border-0 align-top">
+                  <td className="px-3 py-3">
+                    <SearchableSelect
+                      value={item.raw_material_id}
+                      options={rawMaterialOptions}
+                      placeholder="Select Raw Material"
+                      searchPlaceholder="Search raw materials"
+                      error={Boolean(fieldErrors[`${item.row_id}.raw_material_id`])}
+                      buttonRef={(node) => { fieldRefs.current[`${item.row_id}.raw_material_id`] = node; }}
+                      onChange={(rawMaterialId) => {
+                        const material = activeRawMaterials.find((row) => row.id === rawMaterialId);
+                        setFieldErrors((current) => ({ ...current, [`${item.row_id}.raw_material_id`]: "", [`${item.row_id}.uom`]: "" }));
+                        updateItem(item.row_id, {
+                          raw_material_id: rawMaterialId,
+                          uom: material?.uom || item.uom,
+                          storage_location: material?.storage_location || item.storage_location || "",
+                        });
+                      }}
+                    />
+                    {fieldErrors[`${item.row_id}.raw_material_id`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.raw_material_id`]}</div> : null}
+                  </td>
+                  <td className="px-3 py-3"><input className={inputClass()} value={item.batch_no} onChange={(event) => updateItem(item.row_id, { batch_no: event.target.value })} /></td>
+                  <td className="px-3 py-3">
+                    <input ref={(node) => { fieldRefs.current[`${item.row_id}.received_qty`] = node; }} className={inputClass(fieldErrors[`${item.row_id}.received_qty`])} type="number" min="0" step="0.01" value={item.received_qty} onChange={(event) => {
+                      setFieldErrors((current) => ({ ...current, [`${item.row_id}.received_qty`]: "" }));
+                      updateItem(item.row_id, { received_qty: event.target.value });
+                    }} />
+                    {fieldErrors[`${item.row_id}.received_qty`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.received_qty`]}</div> : null}
+                  </td>
+                  <td className="px-3 py-3">
+                    <select ref={(node) => { fieldRefs.current[`${item.row_id}.uom`] = node; }} className={inputClass(fieldErrors[`${item.row_id}.uom`])} value={item.uom} onChange={(event) => {
+                      setFieldErrors((current) => ({ ...current, [`${item.row_id}.uom`]: "" }));
+                      updateItem(item.row_id, { uom: event.target.value });
+                    }}>
+                      {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
+                    </select>
+                    {fieldErrors[`${item.row_id}.uom`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.uom`]}</div> : null}
+                  </td>
+                  <td className="px-3 py-3">
+                    <SearchableSelect
+                      value={item.storage_location || ""}
+                      options={storageLocationOptions}
+                      placeholder="Select Storage Location"
+                      searchPlaceholder="Search locations"
+                      emptyText="No storage locations"
+                      onChange={(locationName) => updateItem(item.row_id, { storage_location: locationName })}
+                    />
+                  </td>
+                  <td className="px-3 py-3"><input className={inputClass()} type="date" value={item.expiry_date || ""} onChange={(event) => updateItem(item.row_id, { expiry_date: event.target.value })} /></td>
+                  <td className="px-3 py-3 text-right">
+                    <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => removeRow(item.row_id)} disabled={form.items.length === 1}>Remove</button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <button className="btn-secondary" type="button" onClick={addRow}><Package size={15} /> Add Row</button>
+          <div className="flex items-center gap-3">
+            {error ? <div className="text-sm font-semibold text-rose-600">{error}</div> : null}
+            <button className="btn-primary" type="submit" disabled={saving}>{saving ? "Saving..." : "Save Receiving"}</button>
+          </div>
         </div>
       </form>
+    </Card>
+  );
+}
+
+function ReceivingBatchDetailModal({ batch, onClose }) {
+  return (
+    <Modal title={batch.batch_no || "Receiving Detail"} description={`${batch.supplier_name || "No supplier"} · ${batch.received_date || "No date"}`} onClose={onClose} size="2xl">
+      <FactoryTable
+        columns={[
+          { key: "raw_material_name", label: "Raw Material", render: (row) => <div><div className="font-semibold text-text-primary">{row.raw_material_name}</div><div className="text-xs text-text-secondary">{row.batch_no || "No batch"}</div></div> },
+          { key: "qty", label: "Qty", render: (row) => quantity(row.received_qty, row.uom) },
+          { key: "storage_location", label: "Storage Location", render: (row) => row.storage_location || "—" },
+          { key: "expiry_date", label: "Expiry Date", render: (row) => row.expiry_date || "—" },
+        ]}
+        rows={batch.items || []}
+        emptyTitle="No receiving items"
+        emptyDescription="This receiving document has no item rows."
+      />
     </Modal>
   );
 }
@@ -2233,9 +2387,10 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, onClose, 
 }
 
 export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, auth }) {
-  const [data, setData] = useState({ jobOrders: [], rawMaterials: [], rawMaterialCategories: [], rawMaterialMovements: [], receivings: [], productions: [], finishedGoods: [], finishedGoodCategories: [], productMovements: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [], accessIssues: [] });
+  const [data, setData] = useState({ jobOrders: [], rawMaterials: [], rawMaterialCategories: [], rawMaterialMovements: [], receivings: [], receivingBatches: [], factorySuppliers: [], productions: [], finishedGoods: [], finishedGoodCategories: [], productMovements: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [], accessIssues: [] });
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
+  const [receivingTab, setReceivingTab] = useState("history");
   const [warehouseFilters, setWarehouseFilters] = useState({ product: "", status: "", batch: "", movementType: "" });
   const [rawMaterialFilters, setRawMaterialFilters] = useState({ material: "", status: "", category: "" });
   const can = (code) => Boolean(auth?.hasPermission?.(code));
@@ -2411,11 +2566,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     }
   }
 
-  async function saveReceiving(form) {
+  async function saveReceivingBatch(form) {
     try {
-      await factoryService.saveRawMaterialReceiving(form, auth?.profile?.id);
-      ui?.notify?.({ title: form.id ? "Raw material receiving updated" : "Raw material received", tone: "success" });
-      setModal(null);
+      await factoryService.saveRawMaterialReceivingBatch(form, auth?.profile?.id);
+      ui?.notify?.({ title: "Raw material receiving saved", message: "Supplier delivery items were recorded into raw material stock.", tone: "success" });
+      setReceivingTab("history");
       await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to save raw material receiving", message: error.message, tone: "error" });
@@ -2513,6 +2668,36 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to archive storage location", message: error.message, tone: "error" });
+    }
+  }
+
+  async function saveFactorySupplier(form, options = {}) {
+    try {
+      await factoryService.saveFactorySupplier(form, auth?.profile?.id);
+      ui?.notify?.({ title: form.id ? "Factory supplier updated" : "Factory supplier created", tone: "success" });
+      if (!options.keepOpen) setModal(null);
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to save Factory supplier", message: error.message, tone: "error" });
+      throw error;
+    }
+  }
+
+  async function archiveFactorySupplier(supplier, options = {}) {
+    const confirmed = await ui?.confirm?.({
+      title: "Archive Factory Supplier?",
+      message: `${supplier.supplier_name} will remain on historical receiving documents but cannot be selected for new receiving.`,
+      confirmLabel: "Archive",
+      tone: "warning",
+    });
+    if (!confirmed) return;
+    try {
+      await factoryService.archiveFactorySupplier(supplier);
+      ui?.notify?.({ title: "Factory supplier archived", tone: "success" });
+      if (!options.keepOpen) setModal(null);
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to archive Factory supplier", message: error.message, tone: "error" });
     }
   }
 
@@ -2679,28 +2864,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     }
   }
 
-  async function deleteReceiving(receiving) {
-    const confirmed = await ui?.confirm?.({
-      title: "Delete Raw Material Receiving?",
-      message: `${receiving.receipt_no || receiving.raw_material_name} will be removed and stock balance adjusted.`,
-      confirmLabel: "Delete",
-      tone: "danger",
-    });
-    if (!confirmed) return;
-    try {
-      await factoryService.deleteRawMaterialReceiving(receiving);
-      ui?.notify?.({ title: "Raw material receiving deleted", tone: "success" });
-      await loadData();
-    } catch (error) {
-      ui?.notify?.({ title: "Failed to delete raw material receiving", message: error.message, tone: "error" });
-    }
-  }
-
   const dashboardActions = (
     <>
       <button className="btn-secondary" type="button" onClick={loadData}><RefreshCw size={15} /> Refresh</button>
       {can("factory_job_orders.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "job" })}><ClipboardList size={15} /> Job Order</button> : null}
-      {can("factory_raw_receiving.create") ? <button className="btn-secondary" type="button" onClick={() => setModal({ type: "receiving" })}><Truck size={15} /> Receive Raw Material</button> : null}
+      {can("factory_raw_receiving.create") ? <a className="btn-secondary" href="/factory/raw-receiving"><Truck size={15} /> Receive Raw Material</a> : null}
       {can("factory_raw_stock_check.create") ? <button className="btn-secondary" type="button" onClick={() => setModal({ type: "stock-check", stockType: "raw" })}><ClipboardCheck size={15} /> Raw Check</button> : null}
     </>
   );
@@ -2725,15 +2893,32 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     ) },
   ];
 
-  const receivingColumns = [
-    { key: "receipt", label: "Receipt", render: (row) => <div><div className="font-bold text-text-primary">{row.receipt_no}</div><div className="text-xs text-text-secondary">{row.received_date}</div></div> },
+  const receivingBatchColumns = [
+    { key: "received_date", label: "Received Date", render: (row) => row.received_date || "—" },
+    { key: "reference_no", label: "Reference No.", render: (row) => <div><div className="font-bold text-text-primary">{row.reference_no || row.batch_no}</div><div className="text-xs text-text-secondary">{row.batch_no}</div></div> },
     { key: "supplier_name", label: "Supplier", render: (row) => row.supplier_name || "—" },
-    { key: "material", label: "Raw Material", render: (row) => <div><div className="font-semibold text-text-primary">{row.raw_material_name}</div><div className="text-xs text-text-secondary">{row.batch_no || "No batch"}</div></div> },
-    { key: "received_qty", label: "Qty", render: (row) => Number(row.received_qty || 0).toLocaleString("en-MY", { maximumFractionDigits: 2 }) },
-    { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
-    { key: "storage_location", label: "Storage Location", render: (row) => row.storage_location || "—" },
-    { key: "total_cost", label: "Value", align: "right", render: (row) => money(row.total_cost) },
-    { key: "actions", label: "Actions", align: "right", render: (row) => <div className="flex justify-end gap-2">{can("factory_raw_receiving.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "receiving", value: row })}>Edit</button> : null}{can("factory_raw_receiving.delete") ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => deleteReceiving(row)}>Delete</button> : null}</div> },
+    { key: "items_count", label: "Items Count", render: (row) => Number(row.items_count || 0).toLocaleString("en-MY") },
+    { key: "total_qty", label: "Total Qty", render: (row) => quantity(row.total_qty, "") },
+    { key: "created_by", label: "Created By", render: (row) => row.created_by_name || row.created_by || "—" },
+    { key: "actions", label: "Actions", align: "right", render: (row) => (
+      <div className="flex justify-end gap-2">
+        <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "receiving-batch-detail", value: row })}>View Details</button>
+      </div>
+    ) },
+  ];
+
+  const factorySupplierColumns = [
+    { key: "supplier_name", label: "Supplier", render: (row) => <div><div className="font-semibold text-text-primary">{row.supplier_name}</div><div className="text-xs text-text-secondary">{row.supplier_code || "No code"}</div></div> },
+    { key: "contact_person", label: "Contact Person", render: (row) => row.contact_person || "—" },
+    { key: "phone", label: "Phone", render: (row) => row.phone || "—" },
+    { key: "email", label: "Email", render: (row) => row.email || "—" },
+    { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge> },
+    { key: "remarks", label: "Remarks", render: (row) => row.remarks || "—" },
+    { key: "actions", label: "Actions", align: "right", render: (row) => (
+      <div className="flex justify-end gap-2">
+        {can("factory_suppliers.edit") || can("factory_suppliers.manage") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "factory-suppliers", value: row })}>Manage</button> : null}
+      </div>
+    ) },
   ];
 
   const rawMaterialInventoryColumns = [
@@ -3177,21 +3362,75 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   function renderRawReceiving() {
+    const activeSuppliers = data.factorySuppliers.filter((supplier) => supplier.status === "active");
+    const totalItems = data.receivingBatches.reduce((sum, batch) => sum + Number(batch.items_count || 0), 0);
+    const totalQty = data.receivingBatches.reduce((sum, batch) => sum + Number(batch.total_qty || 0), 0);
     return (
       <div className="space-y-5">
         <PageHeader
           section="Raw Material"
           title="Raw Material Receiving"
-          description="Record supplier deliveries into factory raw material warehouse stock."
-          actions={can("factory_raw_receiving.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "receiving" })}><Inbox size={15} /> Record Receiving</button> : null}
+          description="Record supplier delivery documents with multiple raw material item rows."
+          actions={can("factory_raw_receiving.create") ? <button className="btn-primary" type="button" onClick={() => setReceivingTab("receive")}><Inbox size={15} /> Receive Raw Material</button> : null}
         />
-        <div className="grid gap-3 md:grid-cols-3">
-          <MetricCard icon={Truck} label="Receipts" value={data.receivings.length} helper="Recorded receiving rows" />
-          <MetricCard icon={Warehouse} label="Raw Materials" value={data.rawMaterials.length} helper="Factory raw material master" />
-          <MetricCard icon={PackageCheck} label="Received Value" value={money(metrics.receivingValue)} helper="Total receiving value" />
+        <div className="grid gap-3 md:grid-cols-4">
+          <MetricCard icon={Truck} label="Receiving Documents" value={data.receivingBatches.length} helper="Supplier delivery batches" />
+          <MetricCard icon={PackageCheck} label="Items Received" value={totalItems} helper="Total item rows" />
+          <MetricCard icon={Warehouse} label="Total Qty" value={quantity(totalQty, "")} helper="Across received items" />
+          <MetricCard icon={Tag} label="Active Suppliers" value={activeSuppliers.length} helper="Available for receiving" />
         </div>
-        <Card title="Receiving Records" description={`Showing ${data.receivings.length} receipt(s).`}>
-          <FactoryTable columns={receivingColumns} rows={data.receivings} emptyTitle="No raw material receiving" emptyDescription="Record supplier delivery to begin raw warehouse tracking." />
+
+        <div className="inline-flex rounded-xl border border-border bg-white p-1">
+          <button className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${receivingTab === "history" ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-slate-50"}`} type="button" onClick={() => setReceivingTab("history")}>Receiving History</button>
+          <button className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${receivingTab === "receive" ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-slate-50"}`} type="button" onClick={() => setReceivingTab("receive")}>Receive Raw Material</button>
+        </div>
+
+        {receivingTab === "receive" ? (
+          <RawReceivingEntryPanel
+            rawMaterials={data.rawMaterials}
+            storageLocations={data.storageLocations}
+            suppliers={data.factorySuppliers}
+            onSave={saveReceivingBatch}
+          />
+        ) : (
+          <Card title="Receiving History" description={`Showing ${data.receivingBatches.length} receiving document(s).`}>
+            <FactoryTable
+              columns={receivingBatchColumns}
+              rows={data.receivingBatches}
+              emptyTitle="No raw material receiving"
+              emptyDescription="Use Receive Raw Material to record a supplier delivery with one or more item rows."
+            />
+          </Card>
+        )}
+      </div>
+    );
+  }
+
+  function renderSuppliers() {
+    const activeSuppliers = data.factorySuppliers.filter((supplier) => supplier.status === "active");
+    const archivedSuppliers = data.factorySuppliers.filter((supplier) => supplier.status === "archived");
+    const withContact = data.factorySuppliers.filter((supplier) => supplier.contact_person || supplier.phone || supplier.email);
+    return (
+      <div className="space-y-5">
+        <PageHeader
+          section="System"
+          title="Suppliers"
+          description="Manage Factory supplier master data used by raw material receiving documents."
+          actions={can("factory_suppliers.create") || can("factory_suppliers.manage") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "factory-suppliers" })}><Truck size={15} /> Supplier</button> : null}
+        />
+        <div className="grid gap-3 md:grid-cols-4">
+          <MetricCard icon={Truck} label="Total Suppliers" value={data.factorySuppliers.length} helper="Active and archived" />
+          <MetricCard icon={CheckCircle2} label="Active" value={activeSuppliers.length} helper="Available for receiving" tone="success" />
+          <MetricCard icon={Clock3} label="Archived" value={archivedSuppliers.length} helper="Historical suppliers" />
+          <MetricCard icon={Tag} label="With Contact" value={withContact.length} helper="Phone, email or contact person" />
+        </div>
+        <Card title="Factory Supplier Master" description="Create, edit and archive suppliers for Factory raw material receiving.">
+          <FactoryTable
+            columns={factorySupplierColumns}
+            rows={data.factorySuppliers}
+            emptyTitle="No Factory suppliers"
+            emptyDescription="Create a Factory supplier before recording raw material receiving documents."
+          />
         </Card>
       </div>
     );
@@ -3941,7 +4180,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   return (
     <>
       <AccessIssueNotice issues={data.accessIssues} />
-      {initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-inventory" ? renderRawInventory() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? renderBatchTraceability() : initialTab === "finished-goods" ? renderFinishedGoods() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? renderProductRecipes() : initialTab === "production-sop" ? renderProductionSop() : initialTab === "storage-locations" ? renderStorageLocations() : renderDashboard()}
+      {initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-inventory" ? renderRawInventory() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? renderBatchTraceability() : initialTab === "finished-goods" ? renderFinishedGoods() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? renderProductRecipes() : initialTab === "production-sop" ? renderProductionSop() : initialTab === "storage-locations" ? renderStorageLocations() : initialTab === "suppliers" ? renderSuppliers() : renderDashboard()}
       {modal?.type === "job" ? (
         <JobOrderModal
           initialValue={modal.value}
@@ -3950,13 +4189,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           onSave={saveJobOrder}
         />
       ) : null}
-      {modal?.type === "receiving" ? (
-        <RawReceivingModal
-          initialValue={modal.value}
-          rawMaterials={data.rawMaterials}
-          storageLocations={data.storageLocations}
+      {modal?.type === "receiving-batch-detail" ? (
+        <ReceivingBatchDetailModal
+          batch={modal.value}
           onClose={() => setModal(null)}
-          onSave={saveReceiving}
         />
       ) : null}
       {modal?.type === "raw-material-detail" ? (
@@ -3992,6 +4228,14 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           onClose={() => setModal(null)}
           onSave={(form) => saveStorageLocation(form, { keepOpen: true })}
           onArchive={(location) => archiveStorageLocation(location, { keepOpen: true })}
+        />
+      ) : null}
+      {modal?.type === "factory-suppliers" ? (
+        <FactorySupplierModal
+          suppliers={data.factorySuppliers}
+          onClose={() => setModal(null)}
+          onSave={(form) => saveFactorySupplier(form, { keepOpen: true })}
+          onArchive={(supplier) => archiveFactorySupplier(supplier, { keepOpen: true })}
         />
       ) : null}
       {modal?.type === "production" ? (

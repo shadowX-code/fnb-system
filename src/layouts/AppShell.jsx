@@ -57,6 +57,7 @@ const iconMap = {
   "factory-sop": FileText,
   "factory-audit-logs": KeyRound,
   "factory-storage-locations": Warehouse,
+  "factory-suppliers": Truck,
   "factory-settings": Settings,
 };
 

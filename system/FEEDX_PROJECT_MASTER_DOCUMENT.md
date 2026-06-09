@@ -2866,11 +2866,16 @@ Factory Raw Material Master and Inventory implemented scope:
 - Raw Material detail shows current balance, receiving history, consumption/movement history, stock check history, latest unit cost and supplier cost trend when receiving cost data is available.
 - Raw Material archive is blocked while current balance is greater than zero and must show: "Cannot archive while stock balance is greater than zero."
 - Raw Material Receiving must select an active Raw Material Master record and must not allow free-text raw material stock-in when master records exist.
-- Raw Material Receiving uses a compact receiving-slip flow grouped as Receiving Info, Material Received, Cost & Storage and Other.
-- Receiving required fields are Raw Material, Received Qty, UOM and Received Date.
-- Receiving defaults UOM and storage location from the selected Raw Material where available, but receiving UOM remains editable for operational receipt differences.
-- Receiving total cost is a read-only calculated display from Received Qty x Unit Cost.
-- Receiving validation shows inline field errors, scroll/focuses to the first invalid field and shows a compact footer helper when required fields are missing.
+- Raw Material Receiving uses a page-based two-tab workflow: Receiving History and Receive Raw Material.
+- Receiving History summarizes receiving documents by Received Date, Reference No., Supplier, Items Count, Total Qty, Created By and View Details action.
+- Receive Raw Material records one supplier delivery document with a batch/header row and multiple receiving item rows.
+- Receiving header required fields are Supplier and Received Date. Reference No. replaces the previous Invoice No. wording.
+- Receiving item required fields are Raw Material, Qty and UOM.
+- Receiving defaults UOM and storage location from the selected Raw Material where available, but receiving UOM and storage location remain editable for operational receipt differences.
+- Receiving validation shows per-row inline field errors, scroll/focuses to the first invalid field and shows a compact footer/table helper when required fields are missing.
+- Raw Material Receiving no longer asks for or displays Unit Cost or Total Cost in the receiving entry flow. Existing cost columns remain schema-compatible for historical/reporting data.
+- New receiving documents must select an active Factory Supplier from the Factory Suppliers master; free-text supplier entry is not used for new receiving documents.
+- Multi-row receiving save must use the `factory_save_raw_material_receiving_batch` RPC so the receiving batch header, all receiving item rows, raw material balance updates and raw material movement logs are committed atomically or rolled back together.
 - Product Recipe BOM and Production material usage must select active Raw Material Master records where possible.
 - Production actual usage remains the source of raw material stock deduction.
 - Raw Material Master and Inventory must not create duplicate stock balance logic; balances remain updated by receiving, production actual usage and approved stock check adjustments through existing movement/balance helpers.
@@ -2884,6 +2889,15 @@ Factory Storage Locations implemented scope:
 - Raw Material and Finished Goods master forms can select active Storage Locations.
 - Raw Material Receiving uses the managed Storage Location selector while preserving the receiving row's stored location text for receipt history.
 - Archived Storage Locations remain readable but cannot be selected for new active master setup.
+
+Factory Suppliers implemented scope:
+
+- Suppliers is a functional Factory System page through `factory_suppliers`.
+- Supplier setup supports Create, Edit and Archive.
+- Supplier fields include Supplier Name, Supplier Code, Contact Person, Phone, Email, Active/Archived status and Remarks.
+- Raw Material Receiving supplier selection uses active Factory Suppliers only.
+- Archived Factory Suppliers remain readable on historical receiving documents but cannot be selected for new receiving documents.
+- Factory Suppliers are separate from Restaurant/Inventory supplier modules.
 
 Factory Product Recipes implemented scope:
 
@@ -2947,6 +2961,7 @@ Factory sidebar modules:
 - Product Recipes
 - Production SOP
 - Storage Locations
+- Suppliers
 - Factory Audit Logs
 - Factory Settings
 
@@ -2966,6 +2981,7 @@ Current functional Factory modules after Raw Material Master optimization:
 - Product Recipes.
 - Production SOP.
 - Storage Locations.
+- Suppliers.
 
 Current registered Factory placeholder modules:
 
