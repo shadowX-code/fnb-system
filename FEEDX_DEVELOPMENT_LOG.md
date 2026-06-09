@@ -11,6 +11,7 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Refined Factory Raw Material create/edit UX into a simple single-column form, renamed Raw Material Code to SKU Code, removed CN/BM names, Min Stock Level and Preferred Supplier from the user-facing form, and replaced free-text storage location entry with managed Storage Location selectors.
 - Added inline required-field validation, first-invalid-field focus/scroll, and footer helper errors for Factory Raw Material and Finished Good master forms.
 - Added Factory Storage Locations under the Factory System sidebar with create/edit/archive master data, RLS-backed permissions, and storage-location selection for Raw Materials, Finished Goods, and Raw Material Receiving.
+- Refined Factory Raw Material Receiving into a compact receiving-slip flow with Receiving Info, Material Received, Cost & Storage and Other groups, calculated read-only total cost display, default UOM/location from selected raw material, and inline required-field validation.
 
 ## 2026-06-08
 

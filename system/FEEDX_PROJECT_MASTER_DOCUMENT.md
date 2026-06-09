@@ -2866,7 +2866,11 @@ Factory Raw Material Master and Inventory implemented scope:
 - Raw Material detail shows current balance, receiving history, consumption/movement history, stock check history, latest unit cost and supplier cost trend when receiving cost data is available.
 - Raw Material archive is blocked while current balance is greater than zero and must show: "Cannot archive while stock balance is greater than zero."
 - Raw Material Receiving must select an active Raw Material Master record and must not allow free-text raw material stock-in when master records exist.
+- Raw Material Receiving uses a compact receiving-slip flow grouped as Receiving Info, Material Received, Cost & Storage and Other.
+- Receiving required fields are Raw Material, Received Qty, UOM and Received Date.
 - Receiving defaults UOM and storage location from the selected Raw Material where available, but receiving UOM remains editable for operational receipt differences.
+- Receiving total cost is a read-only calculated display from Received Qty x Unit Cost.
+- Receiving validation shows inline field errors, scroll/focuses to the first invalid field and shows a compact footer helper when required fields are missing.
 - Product Recipe BOM and Production material usage must select active Raw Material Master records where possible.
 - Production actual usage remains the source of raw material stock deduction.
 - Raw Material Master and Inventory must not create duplicate stock balance logic; balances remain updated by receiving, production actual usage and approved stock check adjustments through existing movement/balance helpers.
