@@ -319,6 +319,7 @@ function normalizeStockCheckItem(row, stockType) {
     physical_qty: physicalQty,
     variance_qty: varianceQty,
     variance_percent: variancePercent,
+    count_status: row.count_status || (row.variance_status === "Skipped" ? "skip" : "counted"),
     variance_status: row.variance_status || "Normal",
     variance_reason: row.variance_reason || "",
     uom: row.uom || row.raw_material?.uom || row.finished_good?.uom || "",
@@ -332,6 +333,8 @@ function mapStockCheck(row, stockType) {
     id: row.id,
     check_no: row.check_no || "",
     check_date: row.check_date || "",
+    category_id: row.category_id || "",
+    category_name: row.category?.name || "",
     status: row.status || "draft",
     notes: row.notes || "",
     created_by: row.created_by || "",
@@ -419,6 +422,18 @@ function makeFactoryRef(prefix) {
   return `${prefix}-${stamp}-${random}`;
 }
 
+async function makeDailyFactoryRef(table, prefix) {
+  const date = new Date();
+  const yymmdd = `${String(date.getFullYear()).slice(-2)}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
+  const pattern = `${prefix}-${yymmdd}-%`;
+  const { count, error } = await supabase
+    .from(table)
+    .select("id", { count: "exact", head: true })
+    .like("check_no", pattern);
+  throwSupabaseError(`factory.${table}.ref_count`, error);
+  return `${prefix}-${yymmdd}-${String(Number(count || 0) + 1).padStart(3, "0")}`;
+}
+
 function stockCheckVariance(systemQty, physicalQty) {
   const system = normalizeNumber(systemQty);
   const physical = normalizeNumber(physicalQty);
@@ -429,15 +444,26 @@ function stockCheckVariance(systemQty, physicalQty) {
   return { varianceQty, variancePercent, varianceStatus };
 }
 
-function validateStockCheckItems(items) {
+function validateStockCheckItems(items, status) {
   if (!items.length) throw new Error("Stock check requires at least one counted item.");
-  const invalid = items.find((item) => !item.itemId || normalizeNumber(item.physical_qty, -1) < 0);
-  if (invalid) throw new Error("Every stock check row needs an item and physical count.");
-  const missingReason = items.find((item) => {
-    const { varianceStatus } = stockCheckVariance(item.system_qty, item.physical_qty);
-    return varianceStatus !== "Normal" && !String(item.variance_reason || "").trim();
-  });
-  if (missingReason) throw new Error("Variance reason is required for Warning and Critical stock check items.");
+  const invalid = items.find((item) => !item.itemId);
+  if (invalid) throw new Error("Every stock check row needs an item.");
+  if (status === "submitted") {
+    const missingCount = items.find((item) => !item.is_skipped && item.physical_qty_input === "");
+    if (missingCount) throw new Error("Submit requires every stock check row to be counted or skipped.");
+    const missingSkipReason = items.find((item) => item.is_skipped && !String(item.variance_reason || "").trim());
+    if (missingSkipReason) throw new Error("Skip reason is required for skipped rows.");
+  }
+  const invalidCount = items.find((item) => !item.is_skipped && item.physical_qty_input !== "" && normalizeNumber(item.physical_qty, -1) < 0);
+  if (invalidCount) throw new Error("Physical count cannot be negative.");
+  if (status === "submitted") {
+    const missingReason = items.find((item) => {
+      if (item.is_skipped || item.physical_qty_input === "") return false;
+      const { varianceStatus } = stockCheckVariance(item.system_qty, item.physical_qty);
+      return varianceStatus !== "Normal" && !String(item.variance_reason || "").trim();
+    });
+    if (missingReason) throw new Error("Variance reason is required for Warning and Critical stock check items.");
+  }
 }
 
 async function logFactoryAction({ action, target, description, after, before }) {
@@ -520,7 +546,7 @@ function factoryDataPlan(scope, hasPermission) {
   return {
     jobOrders: (isDashboard && can("factory_dashboard.view")) || (isJobOrders && can("factory_job_orders.view")) || ((isProduction || isReports || isBatchTraceability) && (can("factory_production.view") || canReadProductionReports)),
     rawMaterials: (isDashboard && can("factory_dashboard.view")) || (isRawInventory && can("factory_raw_inventory.view")) || (isRawReceiving && can("factory_raw_receiving.view")) || (isRawMovements && can("factory_raw_movements.view")) || (isRawStockCheck && can("factory_raw_stock_check.view")) || (isProductRecipes && can("factory_product_recipes.view")) || (isProduction && (can("factory_raw_inventory.view") || can("factory_product_recipes.view") || can("factory_production.complete") || can("factory_dashboard.view"))),
-    rawMaterialCategories: isRawInventory && can("factory_raw_inventory.view"),
+    rawMaterialCategories: (isRawInventory && can("factory_raw_inventory.view")) || (isRawStockCheck && can("factory_raw_stock_check.view")),
     factorySuppliers: (isSuppliers && can("factory_suppliers.view")) || (isRawReceiving && can("factory_raw_receiving.view")),
     receivingBatches: isRawReceiving && can("factory_raw_receiving.view"),
     storageLocations: (isStorageLocations && can("factory_storage_locations.view")) || ((isRawInventory || isRawReceiving || isRawMovements || isFinishedGoods) && (can("factory_storage_locations.view") || can("factory_raw_inventory.view") || can("factory_raw_receiving.view") || can("factory_raw_movements.view") || can("factory_finished_goods.view"))),
@@ -610,7 +636,7 @@ export const factoryService = {
       .limit(150), (rows) => rows.map(mapProductMovement));
     addTask(plan.rawStockChecks, "rawStockChecks", "Raw Material Stock Check", () => supabase
       .from("factory_raw_material_stock_checks")
-      .select(`id,check_no,check_date,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at,items:factory_raw_material_stock_check_items(id,stock_check_id,raw_material_id,system_qty,physical_qty,variance_qty,variance_percent,variance_status,variance_reason,uom,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
+      .select(`id,check_no,check_date,category_id,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at,category:factory_raw_material_categories(name),items:factory_raw_material_stock_check_items(id,stock_check_id,raw_material_id,system_qty,physical_qty,variance_qty,variance_percent,count_status,variance_status,variance_reason,uom,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
       .order("check_date", { ascending: false })
       .limit(100), (rows) => rows.map((row) => mapStockCheck(row, "raw")));
     addTask(plan.productStockChecks, "productStockChecks", "Product Stock Check", () => supabase
@@ -1514,12 +1540,19 @@ export const factoryService = {
     const status = stockCheck.status === "submitted" ? "submitted" : "draft";
     const items = (stockCheck.items ?? []).map((item) => {
       const itemId = isRaw ? item.raw_material_id : item.finished_good_id;
-      const variance = stockCheckVariance(item.system_qty, item.physical_qty);
+      const isSkipped = item.count_status === "skip" || item.variance_status === "Skipped";
+      const physicalInput = item.physical_qty === "" || item.physical_qty == null ? "" : item.physical_qty;
+      const countStatus = isSkipped ? "skip" : physicalInput === "" ? "pending" : "counted";
+      const physicalQty = isSkipped || physicalInput === "" ? normalizeNumber(item.system_qty) : normalizeNumber(item.physical_qty);
+      const variance = isSkipped || physicalInput === "" ? { varianceQty: 0, variancePercent: 0, varianceStatus: isSkipped ? "Skipped" : "Normal" } : stockCheckVariance(item.system_qty, physicalQty);
       return {
         itemId,
+        is_skipped: isSkipped,
+        physical_qty_input: physicalInput,
+        count_status: countStatus,
         [itemIdColumn]: itemId,
         system_qty: normalizeNumber(item.system_qty),
-        physical_qty: normalizeNumber(item.physical_qty),
+        physical_qty: physicalQty,
         variance_qty: Number(variance.varianceQty.toFixed(4)),
         variance_percent: Number(variance.variancePercent.toFixed(4)),
         variance_status: variance.varianceStatus,
@@ -1527,15 +1560,59 @@ export const factoryService = {
         uom: item.uom || "",
       };
     });
-    validateStockCheckItems(items);
+    validateStockCheckItems(items, status);
+
+    if (isRaw && !isUpdate) {
+      const { data: createdRows, error: createError } = await supabase.rpc("factory_create_raw_material_stock_check", {
+        p_category_id: stockCheck.category_id || null,
+        p_check_date: stockCheck.check_date || new Date().toISOString().slice(0, 10),
+        p_notes: stockCheck.notes || "",
+        p_rows: items.map((item) => ({
+          raw_material_id: item.raw_material_id,
+          system_qty: item.system_qty,
+          physical_qty: item.physical_qty,
+          variance_qty: item.variance_qty,
+          variance_percent: item.variance_percent,
+          count_status: item.count_status,
+          variance_status: item.variance_status,
+          variance_reason: item.variance_reason,
+          uom: item.uom,
+        })),
+      });
+      throwSupabaseError("factory.raw_stock_check.create_rpc", createError);
+      const created = Array.isArray(createdRows) ? createdRows[0] : createdRows;
+      if (!created?.id || !created?.check_no) throw new Error("Raw material stock check reference was not returned.");
+      const createdStockCheck = {
+        ...stockCheck,
+        id: created.id,
+        check_no: created.check_no,
+        check_date: stockCheck.check_date || new Date().toISOString().slice(0, 10),
+        status: "draft",
+        category_id: stockCheck.category_id || "",
+        notes: stockCheck.notes || "",
+        created_by: employeeId || "",
+        items,
+      };
+      if (status === "submitted") {
+        return factoryService.saveStockCheck(stockType, { ...createdStockCheck, status: "submitted" }, employeeId);
+      }
+      await logFactoryAction({
+        action: "factory_raw_stock_check_saved",
+        target: created.check_no,
+        description: "Factory stock check draft saved.",
+        after: createdStockCheck,
+      });
+      return mapStockCheck(createdStockCheck, stockType);
+    }
 
     const payload = {
-      check_no: stockCheck.check_no || makeFactoryRef(refPrefix),
+      check_no: stockCheck.check_no || await makeDailyFactoryRef(table, refPrefix),
       check_date: stockCheck.check_date || new Date().toISOString().slice(0, 10),
       status,
       notes: stockCheck.notes || "",
       updated_at: new Date().toISOString(),
     };
+    if (isRaw) payload.category_id = stockCheck.category_id || null;
     if (!isUpdate) payload.created_by = employeeId || null;
     if (status === "submitted") {
       payload.submitted_by = employeeId || null;
@@ -1546,7 +1623,7 @@ export const factoryService = {
       ? supabase.from(table).update(payload).eq("id", stockCheck.id)
       : supabase.from(table).insert(payload);
     const { data, error } = await query
-      .select("id,check_no,check_date,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at")
+      .select(isRaw ? "id,check_no,check_date,category_id,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at" : "id,check_no,check_date,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at")
       .single();
     throwSupabaseError(`factory.${stockType}_stock_check.save`, error);
 
@@ -1562,6 +1639,7 @@ export const factoryService = {
       physical_qty: item.physical_qty,
       variance_qty: item.variance_qty,
       variance_percent: item.variance_percent,
+      ...(isRaw ? { count_status: item.count_status } : {}),
       variance_status: item.variance_status,
       variance_reason: item.variance_reason,
       uom: item.uom,
@@ -1576,6 +1654,20 @@ export const factoryService = {
       after: { ...data, items },
     });
     return mapStockCheck({ ...data, items }, stockType);
+  },
+
+  async deleteStockCheck(stockType, stockCheck) {
+    if (stockCheck.status !== "draft") throw new Error("Only draft stock checks can be deleted.");
+    const isRaw = stockType === "raw";
+    const table = isRaw ? "factory_raw_material_stock_checks" : "factory_product_stock_checks";
+    const { error } = await supabase.from(table).delete().eq("id", stockCheck.id).eq("status", "draft");
+    throwSupabaseError(`factory.${stockType}_stock_check.delete`, error);
+    await logFactoryAction({
+      action: `factory_${stockType}_stock_check_deleted`,
+      target: stockCheck.check_no,
+      description: "Factory draft stock check deleted.",
+      before: stockCheck,
+    });
   },
 
   async approveStockCheck(stockType, stockCheck, employeeId) {

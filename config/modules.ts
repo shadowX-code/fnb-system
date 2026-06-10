@@ -535,7 +535,7 @@ export const moduleRegistry: AppModule[] = [
     icon: "factory-raw-stock-check",
     sidebar: true,
     workspace: "factory",
-    permissions: { view: true, create: true, edit: true, submit: true, approve: true, export: true },
+    permissions: { view: true, create: true, edit: true, delete: true, submit: true, approve: true, export: true },
   },
   {
     id: "factory_product_recipes",
