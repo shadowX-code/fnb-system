@@ -237,6 +237,12 @@ const routeDetails = {
     permission: "factory_raw_inventory.view",
     props: { initialTab: "raw-inventory" },
   },
+  factory_raw_movements: {
+    description: "View raw material stock movement history from receiving, production and stock checks.",
+    component: FactoryWorkspacePage,
+    permission: "factory_raw_movements.view",
+    props: { initialTab: "raw-movements" },
+  },
   factory_raw_stock_check: {
     description: "Count factory raw material stock, review variance and approve controlled adjustments.",
     component: FactoryWorkspacePage,

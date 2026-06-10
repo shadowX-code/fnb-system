@@ -52,6 +52,7 @@ const iconMap = {
   "factory-product-stock-check": ClipboardCheck,
   "factory-raw-receiving": Truck,
   "factory-raw-inventory": Warehouse,
+  "factory-raw-movements": RefreshCw,
   "factory-raw-stock-check": ClipboardList,
   "factory-product-recipes": FlaskConical,
   "factory-sop": FileText,

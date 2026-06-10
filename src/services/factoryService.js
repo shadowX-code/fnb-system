@@ -141,7 +141,8 @@ function mapReceiving(row) {
     invoice_no: row.invoice_no || "",
     received_date: row.received_date || "",
     expiry_date: row.expiry_date || "",
-    storage_location: row.storage_location || "",
+    storage_location_id: row.storage_location_id || "",
+    storage_location: row.storage_location_ref?.location_name || row.storage_location || "",
     remarks: row.remarks || "",
     received_by: row.received_by || "",
     created_at: row.created_at,
@@ -150,19 +151,23 @@ function mapReceiving(row) {
 }
 
 function mapRawMaterialMovement(row) {
+  const rawMaterial = row.raw_material || {};
   return {
     id: row.id,
     raw_material_id: row.raw_material_id || "",
-    raw_material_name: row.raw_material?.name_en || row.raw_material?.name || "",
+    raw_material_code: rawMaterial.material_code || "",
+    raw_material_name: rawMaterial.name_en || rawMaterial.name || "",
     movement_type: row.movement_type || "",
     quantity: normalizeNumber(row.quantity),
-    uom: row.uom || row.raw_material?.uom || "",
+    uom: row.uom || rawMaterial.uom || "",
+    storage_location: rawMaterial.storage_location_ref?.location_name || rawMaterial.storage_location || "",
     reference_type: row.reference_type || "",
     reference_id: row.reference_id || "",
     reference_no: row.reference_no || "",
     movement_date: row.movement_date || "",
     notes: row.notes || "",
     created_by: row.created_by || "",
+    created_by_name: row.creator?.nickname || row.creator?.full_name || row.created_by || "",
     created_at: row.created_at,
   };
 }
@@ -485,7 +490,7 @@ const finishedGoodSelect = "id,product_code,product_name,product_name_en,product
 const storageLocationSelect = "id,location_name,location_code,location_type,status,remarks,created_at,updated_at";
 const factorySupplierSelect = "id,supplier_name,supplier_code,contact_person,phone,email,status,remarks,created_at,updated_at";
 const rawMaterialSelect = `id,material_code,name,name_en,name_cn,name_bm,category_id,category,uom,current_balance,min_stock_level,preferred_supplier,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_raw_material_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)`;
-const rawMaterialRelationSelect = "name,name_en,name_cn,name_bm,material_code,uom";
+const rawMaterialRelationSelect = "name,name_en,name_cn,name_bm,material_code,uom,storage_location,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)";
 const jobOrderSelect = `id,job_order_no,finished_good_id,product_name,target_quantity,produced_quantity,uom,planned_date,due_date,priority,status,assigned_team,remarks,created_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect})`;
 const productionSelectBasic = `id,job_order_id,finished_good_id,production_no,product_name,batch_no,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,operator_id,operator_name,start_time,end_time,qc_status,production_sop_id,sop_version,status,notes,created_by,completed_at,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),job_order:factory_job_orders(job_order_no,finished_good_id,product_name,finished_good:factory_finished_goods(product_code,product_name))`;
 const productionSelectDetailed = `${productionSelectBasic},material_usage:factory_production_material_usage(id,production_id,raw_material_id,raw_material_receiving_id,raw_material_lot_no,quantity_used,standard_usage,actual_usage,variance_qty,variance_percent,variance_reason,uom,wastage_quantity,notes,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect}),raw_receiving:factory_raw_material_receivings(receipt_no,batch_no,supplier_name,received_date,unit_cost)),qc_checkpoints:factory_production_qc_checkpoints(id,production_id,production_sop_id,sop_step_id,step_no,process_name,control_point,qc_status,notes,created_at,updated_at)`;
@@ -496,6 +501,7 @@ function factoryDataPlan(scope, hasPermission) {
   const isJobOrders = scope === "job-orders";
   const isRawInventory = scope === "raw-inventory";
   const isRawReceiving = scope === "raw-receiving";
+  const isRawMovements = scope === "raw-movements";
   const isRawStockCheck = scope === "raw-stock-check";
   const isProduction = scope === "production";
   const isReports = scope === "reports";
@@ -513,13 +519,13 @@ function factoryDataPlan(scope, hasPermission) {
   const needsProductionDetails = isProduction || isReports || isBatchTraceability || (isDashboard && (can("factory_production.view") || canReadProductionReports));
   return {
     jobOrders: (isDashboard && can("factory_dashboard.view")) || (isJobOrders && can("factory_job_orders.view")) || ((isProduction || isReports || isBatchTraceability) && (can("factory_production.view") || canReadProductionReports)),
-    rawMaterials: (isDashboard && can("factory_dashboard.view")) || (isRawInventory && can("factory_raw_inventory.view")) || (isRawReceiving && can("factory_raw_receiving.view")) || (isRawStockCheck && can("factory_raw_stock_check.view")) || (isProductRecipes && can("factory_product_recipes.view")) || (isProduction && (can("factory_raw_inventory.view") || can("factory_product_recipes.view") || can("factory_production.complete") || can("factory_dashboard.view"))),
+    rawMaterials: (isDashboard && can("factory_dashboard.view")) || (isRawInventory && can("factory_raw_inventory.view")) || (isRawReceiving && can("factory_raw_receiving.view")) || (isRawMovements && can("factory_raw_movements.view")) || (isRawStockCheck && can("factory_raw_stock_check.view")) || (isProductRecipes && can("factory_product_recipes.view")) || (isProduction && (can("factory_raw_inventory.view") || can("factory_product_recipes.view") || can("factory_production.complete") || can("factory_dashboard.view"))),
     rawMaterialCategories: isRawInventory && can("factory_raw_inventory.view"),
     factorySuppliers: (isSuppliers && can("factory_suppliers.view")) || (isRawReceiving && can("factory_raw_receiving.view")),
     receivingBatches: isRawReceiving && can("factory_raw_receiving.view"),
-    storageLocations: (isStorageLocations && can("factory_storage_locations.view")) || ((isRawInventory || isRawReceiving || isFinishedGoods) && (can("factory_storage_locations.view") || can("factory_raw_inventory.view") || can("factory_raw_receiving.view") || can("factory_finished_goods.view"))),
-    rawMaterialMovements: isRawInventory && can("factory_raw_inventory.view"),
-    receivings: (isDashboard && can("factory_dashboard.view")) || (isRawInventory && can("factory_raw_inventory.view")) || (isRawReceiving && can("factory_raw_receiving.view")) || (isReports && can("factory_production_reports.view")) || ((isProduction || isBatchTraceability) && can("factory_raw_receiving.view")),
+    storageLocations: (isStorageLocations && can("factory_storage_locations.view")) || ((isRawInventory || isRawReceiving || isRawMovements || isFinishedGoods) && (can("factory_storage_locations.view") || can("factory_raw_inventory.view") || can("factory_raw_receiving.view") || can("factory_raw_movements.view") || can("factory_finished_goods.view"))),
+    rawMaterialMovements: (isRawInventory && can("factory_raw_inventory.view")) || (isRawMovements && can("factory_raw_movements.view")),
+    receivings: (isDashboard && can("factory_dashboard.view")) || (isRawInventory && can("factory_raw_inventory.view")) || (isRawReceiving && can("factory_raw_receiving.view")) || (isRawMovements && can("factory_raw_movements.view")) || (isReports && can("factory_production_reports.view")) || ((isProduction || isBatchTraceability) && can("factory_raw_receiving.view")),
     productions: needsProductionSummary && (can("factory_dashboard.view") || can("factory_production.view") || canReadProductionReports || can("factory_finished_goods.view") || can("factory_product_movements.view")),
     productionDetails: needsProductionDetails,
     finishedGoods: (isDashboard && can("factory_dashboard.view")) || (isJobOrders && (can("factory_job_orders.view") || can("factory_job_orders.create") || can("factory_job_orders.edit"))) || (isProductRecipes && can("factory_product_recipes.view")) || ((isProduction || isFinishedGoods || isProductMovements) && can("factory_finished_goods.view")) || (isProduction && can("factory_production.complete")) || (isProductStockCheck && can("factory_product_stock_check.view")),
@@ -564,7 +570,7 @@ export const factoryService = {
       .limit(200), (rows) => rows.map(mapFactorySupplier));
     addTask(plan.receivingBatches, "receivingBatches", "Receiving Batches", () => supabase
       .from("factory_raw_material_receiving_batches")
-      .select(`id,batch_no,reference_no,supplier_id,supplier_name,received_date,remarks,status,created_by,created_at,updated_at,supplier:factory_suppliers(supplier_name),creator:employees(nickname,full_name),items:factory_raw_material_receivings(id,batch_id,receipt_no,raw_material_id,supplier_id,supplier_name,batch_no,received_qty,uom,unit_cost,total_cost,invoice_no,received_date,expiry_date,storage_location,remarks,received_by,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
+      .select(`id,batch_no,reference_no,supplier_id,supplier_name,received_date,remarks,status,created_by,created_at,updated_at,supplier:factory_suppliers(supplier_name),creator:employees(nickname,full_name),items:factory_raw_material_receivings(id,batch_id,receipt_no,raw_material_id,supplier_id,supplier_name,batch_no,received_qty,uom,unit_cost,total_cost,invoice_no,received_date,expiry_date,storage_location_id,storage_location,remarks,received_by,created_at,updated_at,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
       .order("received_date", { ascending: false })
       .limit(150), (rows) => rows.map(mapReceivingBatch));
     addTask(plan.storageLocations, "storageLocations", "Storage Locations", () => supabase
@@ -574,12 +580,12 @@ export const factoryService = {
       .limit(200), (rows) => rows.map(mapStorageLocation));
     addTask(plan.rawMaterialMovements, "rawMaterialMovements", "Raw Material Movements", () => supabase
       .from("factory_raw_material_movements")
-      .select(`id,raw_material_id,movement_type,quantity,uom,reference_type,reference_id,reference_no,movement_date,notes,created_by,created_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect})`)
+      .select(`id,raw_material_id,movement_type,quantity,uom,reference_type,reference_id,reference_no,movement_date,notes,created_by,created_at,creator:employees(nickname,full_name),raw_material:factory_raw_materials(${rawMaterialRelationSelect})`)
       .order("movement_date", { ascending: false })
       .limit(200), (rows) => rows.map(mapRawMaterialMovement));
     addTask(plan.receivings, "receivings", "Raw Material Receiving", () => supabase
       .from("factory_raw_material_receivings")
-      .select(`id,batch_id,receipt_no,raw_material_id,supplier_id,supplier_name,batch_no,received_qty,uom,unit_cost,total_cost,invoice_no,received_date,expiry_date,storage_location,remarks,received_by,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect})`)
+      .select(`id,batch_id,receipt_no,raw_material_id,supplier_id,supplier_name,batch_no,received_qty,uom,unit_cost,total_cost,invoice_no,received_date,expiry_date,storage_location_id,storage_location,remarks,received_by,created_at,updated_at,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),raw_material:factory_raw_materials(${rawMaterialRelationSelect})`)
       .order("received_date", { ascending: false })
       .limit(150), (rows) => rows.map(mapReceiving));
     addTask(plan.productions, "productions", "Production Records", () => supabase

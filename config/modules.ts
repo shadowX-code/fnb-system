@@ -518,6 +518,16 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, create: true, edit: true, export: true },
   },
   {
+    id: "factory_raw_movements",
+    section: "Raw Material",
+    label: "Raw Material Movements",
+    route: "/factory/raw-movements",
+    icon: "factory-raw-movements",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, export: true },
+  },
+  {
     id: "factory_raw_stock_check",
     section: "Raw Material",
     label: "Raw Material Stock Check",

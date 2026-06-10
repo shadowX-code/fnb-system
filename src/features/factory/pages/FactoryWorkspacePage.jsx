@@ -1610,10 +1610,10 @@ function FactorySupplierModal({ suppliers, onClose, onSave, onArchive }) {
   );
 }
 
-function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
+function RawReceivingEntryPanel({ rawMaterials, suppliers = [], storageLocations = [], onSave }) {
   const fieldRefs = useRef({});
   const qtyRefs = useRef({});
-  const makeRow = () => ({ row_id: Math.random().toString(36).slice(2), raw_material_id: "", batch_no: "", received_qty: "", uom: "", storage_location: "", expiry_date: "" });
+  const makeRow = () => ({ row_id: Math.random().toString(36).slice(2), raw_material_id: "", batch_no: "", received_qty: "", uom: "", storage_location_id: "", storage_location: "", expiry_date: "" });
   const [form, setForm] = useState(() => ({
     supplier_id: "",
     reference_no: "",
@@ -1628,6 +1628,11 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
   const activeSuppliers = suppliers.filter((supplier) => supplier.status === "active" || supplier.id === form.supplier_id);
   const activeRawMaterials = rawMaterials.filter((material) => material.status === "active");
   const supplierOptions = activeSuppliers.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name, helper: [supplier.supplier_code, supplier.phone].filter(Boolean).join(" · ") || supplier.status }));
+  const activeStorageLocations = storageLocations.filter((location) => location.status === "active");
+  const storageLocationOptions = [
+    { value: "", label: "Select Storage Location", helper: "Optional" },
+    ...activeStorageLocations.map((location) => ({ value: location.id, label: location.location_name, helper: [location.location_code, location.location_type].filter(Boolean).join(" · ") || location.status })),
+  ];
 
   function updateItem(rowId, patch) {
     setForm((current) => ({
@@ -1662,9 +1667,18 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
     updateItem(rowId, {
       raw_material_id: rawMaterialId,
       uom: material?.uom || "",
+      storage_location_id: material?.storage_location_id || "",
       storage_location: material?.storage_location || "",
     });
     setOpenMaterialRowId(null);
+  }
+
+  function selectStorageLocation(rowId, locationId) {
+    const location = activeStorageLocations.find((row) => row.id === locationId);
+    updateItem(rowId, {
+      storage_location_id: locationId || "",
+      storage_location: location?.location_name || "",
+    });
   }
 
   async function submit(event) {
@@ -1746,19 +1760,21 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
             <button className="btn-secondary px-3 py-2 text-sm" type="button" onClick={addRow}><Package size={15} /> Add Item Row</button>
           </div>
           <div className="mt-4 overflow-visible rounded-xl border border-border">
-          <table className="min-w-[880px] w-full table-fixed text-left text-sm">
+          <table className="min-w-[1080px] w-full table-fixed text-left text-sm">
             <colgroup>
-              <col className="w-[30%]" />
-              <col className="w-[18%]" />
-              <col className="w-[16%]" />
-              <col className="w-[18%]" />
-              <col className="w-[10%]" />
+              <col className="w-[27%]" />
+              <col className="w-[15%]" />
+              <col className="w-[13%]" />
+              <col className="w-[22%]" />
+              <col className="w-[15%]" />
+              <col className="w-[8%]" />
             </colgroup>
             <thead className="border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">
               <tr>
                 <th className="px-4 py-3">Raw Material *</th>
                 <th className="px-4 py-3">Batch No.</th>
                 <th className="px-4 py-3">Qty *</th>
+                <th className="px-4 py-3">Storage Location</th>
                 <th className="px-4 py-3">Expiry Date</th>
                 <th className="px-4 py-3 text-right">Action</th>
               </tr>
@@ -1825,6 +1841,16 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], onSave }) {
                       {item.uom ? <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-text-muted">{item.uom}</span> : null}
                     </div>
                     {fieldErrors[`${item.row_id}.received_qty`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.received_qty`]}</div> : null}
+                  </td>
+                  <td className="px-4 py-3">
+                    <SearchableSelect
+                      value={item.storage_location_id || ""}
+                      options={storageLocationOptions}
+                      placeholder="Select Storage Location"
+                      searchPlaceholder="Search locations"
+                      emptyText="No matching locations"
+                      onChange={(locationId) => selectStorageLocation(item.row_id, locationId)}
+                    />
                   </td>
                   <td className="px-4 py-3">
                     <FeedXDatePicker
@@ -2754,6 +2780,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const [receivingTab, setReceivingTab] = useState("history");
   const [warehouseFilters, setWarehouseFilters] = useState({ product: "", status: "", batch: "", movementType: "" });
   const [rawMaterialFilters, setRawMaterialFilters] = useState({ material: "", status: "", category: "" });
+  const [rawMovementFilters, setRawMovementFilters] = useState({ material: "", movementType: "", storageLocation: "", dateFrom: "", dateTo: "", search: "" });
   const can = (code) => Boolean(auth?.hasPermission?.(code));
 
   async function loadData() {
@@ -3486,6 +3513,79 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       && (!rawMaterialFilters.category || row.category_id === rawMaterialFilters.category || row.category === rawMaterialFilters.category));
   }
 
+  function rawMaterialMovementRows() {
+    return data.rawMaterialMovements.map((movement) => {
+      const material = data.rawMaterials.find((row) => row.id === movement.raw_material_id);
+      const receiving = data.receivings.find((row) => row.id === movement.reference_id || row.receipt_no === movement.reference_no);
+      return {
+        ...movement,
+        raw_material_code: material?.material_code || movement.raw_material_code || "",
+        raw_material_name: movement.raw_material_name || rawMaterialLabel(material) || "",
+        storage_location: receiving?.storage_location || movement.storage_location || material?.storage_location || "",
+        batch_no: receiving?.batch_no || movement.batch_no || "",
+        remarks: movement.remarks || movement.notes || "",
+        created_by_name: movement.created_by_name || movement.created_by || "",
+      };
+    });
+  }
+
+  function filteredRawMaterialMovements() {
+    return rawMaterialMovementRows().filter((row) => {
+      const movementDate = row.movement_date || "";
+      const searchText = `${row.reference_no} ${row.reference_type} ${row.batch_no} ${row.remarks} ${row.notes}`;
+      return (!rawMovementFilters.material || row.raw_material_id === rawMovementFilters.material)
+        && (!rawMovementFilters.movementType || row.movement_type === rawMovementFilters.movementType)
+        && (!rawMovementFilters.storageLocation || row.storage_location === rawMovementFilters.storageLocation)
+        && (!rawMovementFilters.dateFrom || movementDate >= rawMovementFilters.dateFrom)
+        && (!rawMovementFilters.dateTo || movementDate <= rawMovementFilters.dateTo)
+        && (!rawMovementFilters.search || includesText(searchText, rawMovementFilters.search));
+    });
+  }
+
+  function rawMovementFilterControls() {
+    const movementTypes = [...new Set(data.rawMaterialMovements.map((row) => row.movement_type).filter(Boolean))];
+    const storageLocations = [...new Set(rawMaterialMovementRows().map((row) => row.storage_location).filter(Boolean))];
+    const materialOptions = data.rawMaterials.map((material) => ({ value: material.id, label: rawMaterialLabel(material), helper: rawMaterialSummary(material) }));
+    return (
+      <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 lg:grid-cols-6">
+        <Field label="Raw Material">
+          <SearchableSelect
+            value={rawMovementFilters.material}
+            options={[{ value: "", label: "All Raw Materials", helper: "No material filter" }, ...materialOptions]}
+            placeholder="All Raw Materials"
+            searchPlaceholder="Search material"
+            emptyText="No matching materials"
+            onChange={(material) => setRawMovementFilters((current) => ({ ...current, material }))}
+          />
+        </Field>
+        <Field label="Movement Type">
+          <select className={inputClass()} value={rawMovementFilters.movementType} onChange={(event) => setRawMovementFilters((current) => ({ ...current, movementType: event.target.value }))}>
+            <option value="">All movements</option>
+            {movementTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+          </select>
+        </Field>
+        <Field label="Storage Location">
+          <select className={inputClass()} value={rawMovementFilters.storageLocation} onChange={(event) => setRawMovementFilters((current) => ({ ...current, storageLocation: event.target.value }))}>
+            <option value="">All locations</option>
+            {storageLocations.map((location) => <option key={location} value={location}>{location}</option>)}
+          </select>
+        </Field>
+        <Field label="Date From">
+          <input className={inputClass()} type="date" value={rawMovementFilters.dateFrom} onChange={(event) => setRawMovementFilters((current) => ({ ...current, dateFrom: event.target.value }))} />
+        </Field>
+        <Field label="Date To">
+          <input className={inputClass()} type="date" value={rawMovementFilters.dateTo} onChange={(event) => setRawMovementFilters((current) => ({ ...current, dateTo: event.target.value }))} />
+        </Field>
+        <Field label="Search">
+          <input className={inputClass()} value={rawMovementFilters.search} onChange={(event) => setRawMovementFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Reference, batch, remarks" />
+        </Field>
+        <div className="flex items-end lg:col-span-6">
+          <button className="btn-secondary" type="button" onClick={() => setRawMovementFilters({ material: "", movementType: "", storageLocation: "", dateFrom: "", dateTo: "", search: "" })}>Clear Filters</button>
+        </div>
+      </div>
+    );
+  }
+
   function rawMaterialFilterControls() {
     const statuses = [...new Set(data.rawMaterials.map((row) => row.status).filter(Boolean))];
     const categories = data.rawMaterialCategories.length
@@ -3749,6 +3849,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <RawReceivingEntryPanel
             rawMaterials={data.rawMaterials}
             suppliers={data.factorySuppliers}
+            storageLocations={data.storageLocations}
             onSave={saveReceivingBatch}
           />
         ) : (
@@ -3822,6 +3923,48 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             rows={data.storageLocations}
             emptyTitle="No storage locations"
             emptyDescription="Create storage locations before assigning warehouse locations to raw materials or finished goods."
+          />
+        </Card>
+      </div>
+    );
+  }
+
+  function renderRawMaterialMovements() {
+    const rows = filteredRawMaterialMovements();
+    const stockInRows = rows.filter((row) => Number(row.quantity || 0) > 0);
+    const stockOutRows = rows.filter((row) => Number(row.quantity || 0) < 0);
+    const movementColumns = [
+      { key: "raw_material", label: "Raw Material", render: (row) => <div><div className="font-bold text-text-primary">{row.raw_material_name || "Raw Material"}</div><div className="text-xs text-text-secondary">{row.raw_material_code || "No SKU"}</div></div> },
+      { key: "movement_type", label: "Movement Type", render: (row) => <Badge tone={Number(row.quantity || 0) >= 0 ? "success" : "warning"}>{row.movement_type || "Movement"}</Badge> },
+      { key: "quantity", label: "Qty", render: (row) => quantity(row.quantity, row.uom) },
+      { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
+      { key: "storage_location", label: "Storage Location", render: (row) => row.storage_location || "—" },
+      { key: "batch_no", label: "Batch No.", render: (row) => row.batch_no || "—" },
+      { key: "reference", label: "Reference / Source", render: (row) => <div><div className="font-semibold text-text-primary">{row.reference_no || "—"}</div><div className="text-xs text-text-secondary">{row.reference_type || "—"}</div></div> },
+      { key: "movement_date", label: "Movement Date", render: (row) => row.movement_date || "—" },
+      { key: "created_by", label: "Created By", render: (row) => row.created_by_name || "—" },
+      { key: "remarks", label: "Remarks", render: (row) => row.remarks || "—" },
+    ];
+    return (
+      <div className="space-y-5">
+        <PageHeader
+          section="Raw Material"
+          title="Raw Material Movements"
+          description="View raw material stock-in, stock-out and approved adjustment movement logs."
+        />
+        <div className="grid gap-3 md:grid-cols-4">
+          <MetricCard icon={RefreshCw} label="Movements" value={rows.length} helper="Filtered movement rows" />
+          <MetricCard icon={PackageCheck} label="Stock In" value={quantity(stockInRows.reduce((sum, row) => sum + Number(row.quantity || 0), 0), "")} helper="Positive movement qty" tone="success" />
+          <MetricCard icon={Factory} label="Stock Out" value={quantity(Math.abs(stockOutRows.reduce((sum, row) => sum + Number(row.quantity || 0), 0)), "")} helper="Negative movement qty" tone={stockOutRows.length ? "warning" : "success"} />
+          <MetricCard icon={Warehouse} label="Locations" value={new Set(rows.map((row) => row.storage_location).filter(Boolean)).size} helper="Locations in filtered rows" />
+        </div>
+        {rawMovementFilterControls()}
+        <Card title="Raw Material Movement History" description="Read-only movement log from receiving, production usage and approved stock checks.">
+          <FactoryTable
+            columns={movementColumns}
+            rows={rows}
+            emptyTitle="No raw material movements"
+            emptyDescription="Receiving, production actual usage and approved stock checks will create raw material movement rows."
           />
         </Card>
       </div>
@@ -4539,7 +4682,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   return (
     <>
       <AccessIssueNotice issues={data.accessIssues} />
-      {initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-inventory" ? renderRawInventory() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? renderBatchTraceability() : initialTab === "finished-goods" ? renderFinishedGoods() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? renderProductRecipes() : initialTab === "production-sop" ? renderProductionSop() : initialTab === "storage-locations" ? renderStorageLocations() : initialTab === "suppliers" ? renderSuppliers() : renderDashboard()}
+      {initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-inventory" ? renderRawInventory() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-movements" ? renderRawMaterialMovements() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? renderBatchTraceability() : initialTab === "finished-goods" ? renderFinishedGoods() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? renderProductRecipes() : initialTab === "production-sop" ? renderProductionSop() : initialTab === "storage-locations" ? renderStorageLocations() : initialTab === "suppliers" ? renderSuppliers() : renderDashboard()}
       {modal?.type === "job" ? (
         <JobOrderModal
           initialValue={modal.value}
