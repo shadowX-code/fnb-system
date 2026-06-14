@@ -434,14 +434,6 @@ function makeFactoryRef(prefix) {
   return `${prefix}-${stamp}-${random}`;
 }
 
-function nextRecipeVersionValue(recipes = []) {
-  const maxVersion = recipes.reduce((max, recipe) => {
-    const match = String(recipe.version || "").match(/^v?(\d+)$/i);
-    return Math.max(max, match ? Number(match[1]) : 0);
-  }, 0);
-  return `v${maxVersion + 1 || 1}`;
-}
-
 async function makeDailyFactoryRef(table, prefix) {
   const date = new Date();
   const yymmdd = `${String(date.getFullYear()).slice(-2)}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
@@ -1356,14 +1348,6 @@ export const factoryService = {
     if (invalidItem) throw new Error("Every recipe material row needs a raw material and standard quantity greater than 0.");
 
     let version = String(recipe.version || "").trim();
-    if (!isUpdate && !version) {
-      const { data: existingVersions, error: versionError } = await supabase
-        .from("factory_product_recipes")
-        .select("version")
-        .eq("finished_good_id", finishedGood.id);
-      throwSupabaseError("factory.recipe.version_lookup", versionError);
-      version = existingVersions?.length ? nextRecipeVersionValue(existingVersions) : "v1";
-    }
     if (!version) version = "v1";
 
     const payload = {
@@ -1442,13 +1426,19 @@ export const factoryService = {
   },
 
   async activateProductRecipe(recipe) {
+    const { data: activated, error: activateError } = await supabase.rpc("factory_activate_product_recipe", {
+      p_recipe_id: recipe.id,
+    });
+    throwSupabaseError("factory.recipe.activate_rpc", activateError);
+    const activatedId = Array.isArray(activated) ? activated[0]?.recipe_id : activated?.recipe_id;
+    if (!activatedId) throw new Error("Production standard activation did not return a recipe id.");
+
     const { data, error } = await supabase
       .from("factory_product_recipes")
-      .update({ status: "active", updated_at: new Date().toISOString() })
-      .eq("id", recipe.id)
       .select(`id,recipe_code,finished_good_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
+      .eq("id", activatedId)
       .single();
-    throwSupabaseError("factory.recipe.activate", error);
+    throwSupabaseError("factory.recipe.activate_fetch", error);
     await logFactoryAction({
       action: "factory_product_recipe_activated",
       target: data.recipe_code,
@@ -1458,11 +1448,64 @@ export const factoryService = {
     return mapRecipe(data);
   },
 
+  async createProductRecipeNewVersion(recipe) {
+    const { data: created, error: createError } = await supabase.rpc("factory_create_product_recipe_new_version", {
+      p_source_recipe_id: recipe.id,
+    });
+    throwSupabaseError("factory.recipe.new_version_rpc", createError);
+    const createdId = Array.isArray(created) ? created[0]?.recipe_id : created?.recipe_id;
+    if (!createdId) throw new Error("New Production Standard version was not created.");
+
+    const { data, error } = await supabase
+      .from("factory_product_recipes")
+      .select(`id,recipe_code,finished_good_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
+      .eq("id", createdId)
+      .single();
+    throwSupabaseError("factory.recipe.new_version_fetch", error);
+    await logFactoryAction({
+      action: "factory_product_recipe_new_version_created",
+      target: data.recipe_code,
+      description: "Factory Product Recipe draft version created.",
+      after: data,
+    });
+    return mapRecipe(data);
+  },
+
+  async deleteProductRecipe(recipe) {
+    const { data: existing, error: lookupError } = await supabase
+      .from("factory_product_recipes")
+      .select("id,recipe_code,recipe_name,status")
+      .eq("id", recipe.id)
+      .single();
+    throwSupabaseError("factory.recipe.delete_lookup", lookupError);
+    if (String(existing.status || "").toLowerCase() !== "draft") {
+      throw new Error("Only draft production standards can be deleted. Archive active standards instead.");
+    }
+
+    const { error } = await supabase
+      .from("factory_product_recipes")
+      .delete()
+      .eq("id", recipe.id)
+      .eq("status", "draft");
+    throwSupabaseError("factory.recipe.delete", error);
+    await logFactoryAction({
+      action: "factory_product_recipe_deleted",
+      target: existing.recipe_code,
+      description: "Factory Product Recipe draft deleted.",
+      before: existing,
+    });
+    return true;
+  },
+
   async archiveProductRecipe(recipe) {
+    if (String(recipe.status || "").toLowerCase() !== "active") {
+      throw new Error("Only active production standards can be archived. Delete draft standards instead.");
+    }
     const { data, error } = await supabase
       .from("factory_product_recipes")
       .update({ status: "archived", updated_at: new Date().toISOString() })
       .eq("id", recipe.id)
+      .eq("status", "active")
       .select(`id,recipe_code,finished_good_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
       .single();
     throwSupabaseError("factory.recipe.archive", error);

@@ -46,16 +46,6 @@ function productionTimeLabel(minutes) {
   return `${mins}m`;
 }
 
-function nextRecipeVersion(recipes, finishedGoodId) {
-  const maxVersion = recipes
-    .filter((recipe) => recipe.finished_good_id === finishedGoodId)
-    .reduce((max, recipe) => {
-      const match = String(recipe.version || "").match(/^v?(\d+)$/i);
-      return Math.max(max, match ? Number(match[1]) : 0);
-    }, 0);
-  return `v${maxVersion + 1 || 1}`;
-}
-
 function formatDateDisplay(value, placeholder = "Select date") {
   if (!value) return placeholder;
   const [year, month, day] = String(value).split("-");
@@ -2203,7 +2193,8 @@ function ProductRecipeModal({ initialValue, finishedGoods, rawMaterials, onClose
   );
 }
 
-function ProductRecipeDetailModal({ recipe, onClose, onEdit, onNewVersion, onActivate, onArchive, canEditRecipe, canManageRecipe, canDeleteRecipe }) {
+function ProductRecipeDetailModal({ recipe, onClose, onEdit, onNewVersion, onActivate, onArchive, onDelete, canCreateRecipe, canEditRecipe, canManageRecipe, canDeleteRecipe }) {
+  const status = String(recipe.status || "draft").toLowerCase();
   return (
     <Modal
       title={recipe.recipe_name || "Production Standard / BOM"}
@@ -2213,10 +2204,11 @@ function ProductRecipeDetailModal({ recipe, onClose, onEdit, onNewVersion, onAct
       footer={(
         <>
           <button className="btn-secondary" type="button" onClick={onClose}>Close</button>
-          {canEditRecipe && recipe.status === "draft" ? <button className="btn-secondary" type="button" onClick={() => onEdit(recipe)}>Edit</button> : null}
-          {canEditRecipe ? <button className="btn-secondary" type="button" onClick={() => onNewVersion(recipe)}>New Version</button> : null}
-          {canManageRecipe && recipe.status === "draft" ? <button className="btn-primary" type="button" onClick={() => onActivate(recipe)}>Activate</button> : null}
-          {canDeleteRecipe && recipe.status !== "archived" ? <button className="btn-danger" type="button" onClick={() => onArchive(recipe)}>Archive</button> : null}
+          {canEditRecipe && status === "draft" ? <button className="btn-secondary" type="button" onClick={() => onEdit(recipe)}>Edit</button> : null}
+          {canManageRecipe && status === "draft" ? <button className="btn-primary" type="button" onClick={() => onActivate(recipe)}>Activate</button> : null}
+          {canDeleteRecipe && status === "draft" ? <button className="btn-danger" type="button" onClick={() => onDelete(recipe)}>Delete</button> : null}
+          {canCreateRecipe && status === "active" ? <button className="btn-secondary" type="button" onClick={() => onNewVersion(recipe)}>New Version</button> : null}
+          {canDeleteRecipe && status === "active" ? <button className="btn-danger" type="button" onClick={() => onArchive(recipe)}>Archive</button> : null}
         </>
       )}
     >
@@ -3422,24 +3414,15 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     }
   }
 
-  function openNewRecipeVersion(recipe) {
-    setModal({
-      type: "recipe",
-      value: {
-        ...recipe,
-        id: "",
-        recipe_code: "",
-        version: nextRecipeVersion(data.recipes, recipe.finished_good_id),
-        status: "draft",
-        created_at: "",
-        updated_at: "",
-        items: (recipe.items || []).map((item, index) => ({
-          ...item,
-          id: `version-item-${index + 1}`,
-          sort_order: index + 1,
-        })),
-      },
-    });
+  async function openNewRecipeVersion(recipe) {
+    try {
+      const draftCopy = await factoryService.createProductRecipeNewVersion(recipe);
+      ui?.notify?.({ title: "Draft version created", tone: "success" });
+      setModal({ type: "recipe", value: draftCopy });
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to create new version", message: error.message, tone: "error" });
+    }
   }
 
   async function activateProductRecipe(recipe) {
@@ -3473,6 +3456,23 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to archive product recipe", message: error.message, tone: "error" });
+    }
+  }
+
+  async function deleteProductRecipe(recipe) {
+    const confirmed = await ui?.confirm?.({
+      title: "Delete Draft Standard?",
+      message: `${recipe.recipe_name || recipe.recipe_code} is still a draft and will be removed with its BOM rows.`,
+      confirmLabel: "Delete",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+    try {
+      await factoryService.deleteProductRecipe(recipe);
+      ui?.notify?.({ title: "Draft production standard deleted", tone: "success" });
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to delete draft standard", message: error.message, tone: "error" });
     }
   }
 
@@ -3719,9 +3719,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       <div className="flex flex-wrap justify-end gap-2" onClick={(event) => event.stopPropagation()}>
         <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "recipe-detail", value: row })}>View</button>
         {row.status === "draft" && can("factory_product_recipes.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "recipe", value: row })}>Edit</button> : null}
-        {can("factory_product_recipes.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => openNewRecipeVersion(row)}>New Version</button> : null}
         {row.status === "draft" && can("factory_product_recipes.manage") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => activateProductRecipe(row)}>Activate</button> : null}
-        {row.status !== "archived" && can("factory_product_recipes.delete") ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => archiveProductRecipe(row)}>Archive</button> : null}
+        {row.status === "draft" && can("factory_product_recipes.delete") ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => deleteProductRecipe(row)}>Delete</button> : null}
+        {row.status === "active" && can("factory_product_recipes.create") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => openNewRecipeVersion(row)}>New Version</button> : null}
+        {row.status === "active" && can("factory_product_recipes.delete") ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => archiveProductRecipe(row)}>Archive</button> : null}
       </div>
     ) },
   ];
@@ -5123,6 +5124,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             setModal(null);
             await archiveProductRecipe(recipe);
           }}
+          onDelete={async (recipe) => {
+            setModal(null);
+            await deleteProductRecipe(recipe);
+          }}
+          canCreateRecipe={can("factory_product_recipes.create")}
           canEditRecipe={can("factory_product_recipes.edit")}
           canManageRecipe={can("factory_product_recipes.manage")}
           canDeleteRecipe={can("factory_product_recipes.delete")}
