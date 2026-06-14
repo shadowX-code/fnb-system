@@ -203,6 +203,8 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Locked Job Order direct editing to Draft only; Released, In Progress, Completed, and Cancelled orders are advanced only through lifecycle actions or viewed read-only.
 - Updated production material usage validation so any actual-vs-standard variance requires a reason in both the completion UI and database RPC.
 - Documented that Phase 1 production defaults use the active recipe at completion/defaulting time; frozen Job Order BOM snapshots are deferred to Phase 2.
+- Refactored Factory Product Recipes into a Production Standard / BOM workflow with internal recipe codes, read-only auto versions, Production Quantity wording, optional Estimated Production Time, and row-level BOM detail view.
+- Added New Version action for Production Standards so draft copies auto-increment from `v1` to `v2`, `v3`, and later versions while preserving the one-active-standard rule.
 
 ### RBAC
 - Added explicit `sales_input.import` and `purchase_input.import` permissions so Sales Input and Purchase Input imports can be enabled independently from create/edit access.

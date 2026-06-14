@@ -2908,18 +2908,23 @@ Factory Suppliers implemented scope:
 
 Factory Product Recipes implemented scope:
 
-- Product Recipes is a functional Factory Master Data page through `factory_product_recipes`.
-- Product Recipes define the standard raw material BOM for Finished Goods production.
-- A Product Recipe must select an active Finished Goods Master product through `finished_good_id`.
-- Recipe header fields include Finished Good, Recipe Name, Version, Expected Yield Qty, Yield UOM, Draft/Active/Archived status and Remarks.
-- Recipe material rows are stored in `factory_product_recipe_items` and capture Raw Material, Standard Qty, UOM, Wastage %, Remarks and Sort Order.
-- One Finished Good can have only one active recipe version at a time.
-- Draft recipes can be edited; active and archived recipes remain readable for history.
-- Activating a recipe makes it the production material-usage default for that Finished Good.
-- Archiving a recipe removes it from production defaults but preserves history.
+- Product Recipes is a functional Factory Master Data page through `factory_product_recipes`, presented to users as Production Standards / BOM.
+- Production Standards define the standard output Production Quantity, optional Estimated Production Time, and raw material BOM for Finished Goods production.
+- A Production Standard must select an active Finished Goods Master product through `finished_good_id`.
+- Recipe Code remains an internal generated identifier and is not edited in the create/edit UI.
+- New standards start at version `v1`; users cannot manually type version values.
+- New Version creates a draft copy of the selected standard and auto-increments the version to `v2`, `v3`, `v4`, and so on.
+- Header fields include Finished Good, Production Standard Name, Version, Production Quantity, UOM, Estimated Production Time, status display and Remarks.
+- BOM material rows are stored in `factory_product_recipe_items` and capture Raw Material, Required Qty, UOM, Wastage %, Remarks and Sort Order.
+- One Finished Good can have only one active standard version at a time.
+- Draft standards can be edited; active and archived standards remain readable for history.
+- Activating a standard makes it the production material-usage default for that Finished Good.
+- Archiving a standard removes it from production defaults but preserves history.
+- The Product Recipes list shows Finished Good, Version, Production Quantity, Material Count, Status, Updated Date and Actions.
+- Clicking a standard row opens a detail view with Production Quantity, Estimated Production Time and BOM materials.
 - Production completion from a Job Order looks for the active recipe linked to the selected Finished Good.
 - If an active recipe exists, Production material usage rows are prefilled from recipe materials.
-- Standard usage defaults scale from recipe expected yield to the Job Order target quantity; Actual Usage defaults to Standard Usage but remains editable by staff.
+- Standard usage defaults scale from the standard Production Quantity to the Job Order target quantity; Actual Usage defaults to Standard Usage but remains editable by staff.
 - Actual Usage remains the source of raw material stock deduction.
 - Product Recipe remains the standard reference only and must not be modified by production completion or actual usage variance.
 - If no active recipe exists, Production shows: "No active recipe found. Add material usage manually or create a Product Recipe first."

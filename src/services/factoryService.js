@@ -374,6 +374,7 @@ function mapRecipe(row) {
     version: row.version || "v1",
     yield_quantity: normalizeNumber(row.yield_quantity, 1),
     uom: row.uom || "",
+    estimated_production_time_minutes: normalizeNumber(row.estimated_production_time_minutes),
     status: row.status || "draft",
     notes: row.notes || "",
     remarks: row.remarks || row.notes || "",
@@ -431,6 +432,14 @@ function makeFactoryRef(prefix) {
   const stamp = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
   const random = Math.random().toString(36).slice(2, 6).toUpperCase();
   return `${prefix}-${stamp}-${random}`;
+}
+
+function nextRecipeVersionValue(recipes = []) {
+  const maxVersion = recipes.reduce((max, recipe) => {
+    const match = String(recipe.version || "").match(/^v?(\d+)$/i);
+    return Math.max(max, match ? Number(match[1]) : 0);
+  }, 0);
+  return `v${maxVersion + 1 || 1}`;
 }
 
 async function makeDailyFactoryRef(table, prefix) {
@@ -657,7 +666,7 @@ export const factoryService = {
       .limit(100), (rows) => rows.map((row) => mapStockCheck(row, "product")));
     addTask(plan.recipes, "recipes", "Product Recipes", () => supabase
       .from("factory_product_recipes")
-      .select(`id,recipe_code,finished_good_id,recipe_name,product_name,version,yield_quantity,uom,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
+      .select(`id,recipe_code,finished_good_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
       .order("product_name", { ascending: true })
       .limit(150), (rows) => rows.map(mapRecipe));
     addTask(plan.sops, "sops", "Production SOP", () => supabase
@@ -1339,27 +1348,43 @@ export const factoryService = {
       }))
       .filter((item) => item.raw_material_id || item.quantity_used > 0 || item.uom || item.notes);
 
-    if (!String(recipe.recipe_name || "").trim()) throw new Error("Recipe name is required.");
-    if (normalizeNumber(recipe.yield_quantity) <= 0) throw new Error("Expected yield quantity must be greater than 0.");
-    if (!String(recipe.uom || "").trim()) throw new Error("Yield UOM is required.");
+    if (!String(recipe.recipe_name || "").trim()) throw new Error("Production standard name is required.");
+    if (normalizeNumber(recipe.yield_quantity) <= 0) throw new Error("Production quantity must be greater than 0.");
+    if (!String(recipe.uom || "").trim()) throw new Error("UOM is required.");
     if (!items.length) throw new Error("At least one recipe material row is required.");
     const invalidItem = items.find((item) => !item.raw_material_id || item.quantity_used <= 0);
     if (invalidItem) throw new Error("Every recipe material row needs a raw material and standard quantity greater than 0.");
 
+    let version = String(recipe.version || "").trim();
+    if (!isUpdate && !version) {
+      const { data: existingVersions, error: versionError } = await supabase
+        .from("factory_product_recipes")
+        .select("version")
+        .eq("finished_good_id", finishedGood.id);
+      throwSupabaseError("factory.recipe.version_lookup", versionError);
+      version = existingVersions?.length ? nextRecipeVersionValue(existingVersions) : "v1";
+    }
+    if (!version) version = "v1";
+
     const payload = {
-      recipe_code: recipe.recipe_code || makeFactoryRef("FGRCP"),
       finished_good_id: finishedGood.id,
       recipe_name: String(recipe.recipe_name || "").trim(),
       product_name: finishedGood.product_name,
-      version: String(recipe.version || "v1").trim(),
+      version,
       yield_quantity: normalizeNumber(recipe.yield_quantity),
       uom: String(recipe.uom || finishedGood.uom || "").trim(),
+      estimated_production_time_minutes: recipe.estimated_production_time_minutes === "" || recipe.estimated_production_time_minutes == null
+        ? null
+        : normalizeNumber(recipe.estimated_production_time_minutes),
       status: recipe.status === "active" ? "active" : recipe.status === "archived" ? "archived" : "draft",
       notes: String(recipe.remarks || recipe.notes || "").trim(),
       remarks: String(recipe.remarks || recipe.notes || "").trim(),
       updated_at: new Date().toISOString(),
     };
-    if (!isUpdate) payload.created_by = employeeId || null;
+    if (!isUpdate) {
+      payload.recipe_code = makeFactoryRef("FGRCP");
+      payload.created_by = employeeId || null;
+    }
 
     if (payload.status === "active") {
       const { data: activeRecipe, error: activeError } = await supabase
@@ -1378,7 +1403,7 @@ export const factoryService = {
       : supabase.from("factory_product_recipes").insert(payload);
 
     const { data, error } = await query
-      .select("id,recipe_code,finished_good_id,recipe_name,product_name,version,yield_quantity,uom,status,notes,remarks,created_by,created_at,updated_at")
+      .select("id,recipe_code,finished_good_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at")
       .single();
     throwSupabaseError("factory.recipe.save", error);
 
@@ -1402,7 +1427,7 @@ export const factoryService = {
 
     const { data: saved, error: fetchError } = await supabase
       .from("factory_product_recipes")
-      .select(`id,recipe_code,finished_good_id,recipe_name,product_name,version,yield_quantity,uom,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
+      .select(`id,recipe_code,finished_good_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
       .eq("id", data.id)
       .single();
     throwSupabaseError("factory.recipe.fetch_saved", fetchError);
@@ -1421,7 +1446,7 @@ export const factoryService = {
       .from("factory_product_recipes")
       .update({ status: "active", updated_at: new Date().toISOString() })
       .eq("id", recipe.id)
-      .select(`id,recipe_code,finished_good_id,recipe_name,product_name,version,yield_quantity,uom,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
+      .select(`id,recipe_code,finished_good_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
       .single();
     throwSupabaseError("factory.recipe.activate", error);
     await logFactoryAction({
@@ -1438,7 +1463,7 @@ export const factoryService = {
       .from("factory_product_recipes")
       .update({ status: "archived", updated_at: new Date().toISOString() })
       .eq("id", recipe.id)
-      .select(`id,recipe_code,finished_good_id,recipe_name,product_name,version,yield_quantity,uom,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
+      .select(`id,recipe_code,finished_good_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
       .single();
     throwSupabaseError("factory.recipe.archive", error);
     await logFactoryAction({
