@@ -10,12 +10,13 @@ import MetricCard from "../../../components/ui/MetricCard.jsx";
 import { factoryService } from "../../../services/factoryService.js";
 
 const priorityOptions = ["Low", "Normal", "High", "Urgent"];
-const jobStatusOptions = ["draft", "planned", "in_progress", "completed", "cancelled"];
+const jobStatusOptions = ["draft", "released", "in_progress", "completed", "cancelled"];
 const recipeStatusOptions = ["draft", "active", "archived"];
 const commonUoms = ["kg", "g", "litre", "ml", "pcs", "carton", "pail", "bottle", "pack"];
 const storageLocationTypes = ["Dry Store", "Chiller", "Freezer", "Production Area", "Finished Goods Area", "Packaging Area"];
 const qcStatusOptions = ["Pending", "Pass", "Hold", "Failed"];
 const varianceThresholdPercent = 5;
+const varianceReasonTolerance = 0.000001;
 const stockCheckWarningPercent = 2;
 const stockCheckCriticalPercent = 5;
 
@@ -81,8 +82,14 @@ function statusTone(status) {
   if (status === "submitted") return "info";
   if (status === "completed") return "success";
   if (status === "cancelled") return "danger";
-  if (status === "in_progress" || status === "planned") return "info";
+  if (status === "in_progress" || status === "released" || status === "planned") return "info";
   return "neutral";
+}
+
+function jobStatusLabel(status) {
+  const normalized = status === "planned" ? "released" : status;
+  if (normalized === "in_progress") return "In Progress";
+  return String(normalized || "draft").replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
 }
 
 function Field({ label, children, error }) {
@@ -1367,7 +1374,7 @@ function StorageLocationModal({ locations, onClose, onSave, onArchive }) {
   );
 }
 
-function JobOrderModal({ initialValue, finishedGoods, onClose, onSave }) {
+function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes = [], onClose, onSave }) {
   const [form, setForm] = useState(() => ({
     finished_good_id: "",
     product_name: "",
@@ -1384,24 +1391,38 @@ function JobOrderModal({ initialValue, finishedGoods, onClose, onSave }) {
   }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const isClosed = ["completed", "cancelled"].includes(initialValue?.status);
+  const normalizedStatus = form.status === "planned" ? "released" : form.status;
+  const isDraft = normalizedStatus === "draft";
+  const isReadOnly = Boolean(initialValue?.id) && !isDraft;
   const activeFinishedGoods = finishedGoods.filter((product) => product.status === "active" || product.id === form.finished_good_id);
   const finishedGoodOptions = activeFinishedGoods.map((product) => ({
     value: product.id,
     label: finishedGoodLabel(product),
     helper: finishedGoodHelper(product),
   }));
+  const selectedProduct = activeFinishedGoods.find((product) => product.id === form.finished_good_id);
+  const matchingRecipe = recipes.find((recipe) => recipe.status === "active" && recipe.finished_good_id === form.finished_good_id)
+    || recipes.find((recipe) => recipe.status === "active" && recipe.product_name.toLowerCase() === String(selectedProduct?.product_name || form.product_name || "").toLowerCase());
+  const bomRows = matchingRecipe?.items?.length ? matchingRecipe.items.map((item) => {
+    const material = rawMaterials.find((row) => row.id === item.raw_material_id);
+    const recipeYield = Number(matchingRecipe.yield_quantity || 1) || 1;
+    const requiredQty = (Number(item.quantity_used || 0) * Number(form.target_quantity || 0)) / recipeYield;
+    const balance = Number(material?.current_balance || 0);
+    return {
+      ...item,
+      material_name: rawMaterialLabel(material) || "Raw Material",
+      material_code: material?.material_code || "",
+      required_qty: requiredQty,
+      balance,
+      enough: balance >= requiredQty,
+      uom: item.uom || material?.uom || "",
+    };
+  }) : [];
 
   async function submit(event) {
     event.preventDefault();
     setError("");
-    if (isClosed) {
-      setSaving(true);
-      try {
-        await onSave(form);
-      } finally {
-        setSaving(false);
-      }
+    if (isReadOnly) {
       return;
     }
     if (!form.finished_good_id) {
@@ -1423,20 +1444,20 @@ function JobOrderModal({ initialValue, finishedGoods, onClose, onSave }) {
 
   return (
     <Modal
-      title={initialValue?.id ? "Edit Job Order" : "Create Job Order"}
+      title={isReadOnly ? "View Job Order" : initialValue?.id ? "Edit Job Order" : "Create Job Order"}
       description="Plan factory production demand before production execution."
-      size="lg"
+      size="xl"
       onClose={saving ? undefined : onClose}
       footer={(
         <>
-          <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="submit" form="factory-job-order-form" disabled={saving}>{saving ? "Saving..." : isClosed ? "Update Remarks" : "Save Job Order"}</button>
+          <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>{isReadOnly ? "Close" : "Cancel"}</button>
+          {!isReadOnly ? <button className="btn-primary" type="submit" form="factory-job-order-form" disabled={saving}>{saving ? "Saving..." : "Save Draft"}</button> : null}
         </>
       )}
     >
       <form id="factory-job-order-form" className="space-y-4" onSubmit={submit}>
         {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
-        {isClosed ? <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">Completed and cancelled job orders are locked. Only remarks can be updated.</div> : null}
+        {isReadOnly ? <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-text-secondary">This Job Order is {jobStatusLabel(normalizedStatus)} and is read-only. Use the production lifecycle actions for the next step.</div> : null}
         <div className="grid gap-3 md:grid-cols-2">
           <Field label="Finished Good" error={!form.finished_good_id && error.includes("finished good") ? "Finished good is required." : ""}>
             <SearchableSelect
@@ -1446,7 +1467,7 @@ function JobOrderModal({ initialValue, finishedGoods, onClose, onSave }) {
               searchPlaceholder="Search finished goods"
               emptyText="No matching finished goods"
               error={!form.finished_good_id && error.includes("finished good")}
-              disabled={isClosed}
+              disabled={isReadOnly}
               onChange={(finishedGoodId) => {
                 const product = activeFinishedGoods.find((item) => item.id === finishedGoodId);
                 setForm((current) => ({
@@ -1458,34 +1479,66 @@ function JobOrderModal({ initialValue, finishedGoods, onClose, onSave }) {
               }}
             />
           </Field>
-          <Field label="Assigned Team">
-            <input className={inputClass()} value={form.assigned_team || ""} disabled={isClosed} onChange={(event) => setForm((current) => ({ ...current, assigned_team: event.target.value }))} />
-          </Field>
           <Field label="Target Quantity">
-            <input className={inputClass()} type="number" min="0" step="0.01" value={form.target_quantity} disabled={isClosed} onChange={(event) => setForm((current) => ({ ...current, target_quantity: event.target.value }))} />
+            <input className={inputClass()} type="number" min="0" step="0.01" value={form.target_quantity} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, target_quantity: event.target.value }))} />
           </Field>
           <Field label="UOM">
-            <select className={inputClass()} value={form.uom} disabled={isClosed} onChange={(event) => setForm((current) => ({ ...current, uom: event.target.value }))}>
+            <select className={inputClass()} value={form.uom} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, uom: event.target.value }))}>
               {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
             </select>
           </Field>
           <Field label="Planned Date">
-            <input className={inputClass()} type="date" value={form.planned_date || ""} disabled={isClosed} onChange={(event) => setForm((current) => ({ ...current, planned_date: event.target.value }))} />
+            <input className={inputClass()} type="date" value={form.planned_date || ""} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, planned_date: event.target.value }))} />
           </Field>
           <Field label="Due Date">
-            <input className={inputClass()} type="date" value={form.due_date || ""} disabled={isClosed} onChange={(event) => setForm((current) => ({ ...current, due_date: event.target.value }))} />
+            <input className={inputClass()} type="date" value={form.due_date || ""} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, due_date: event.target.value }))} />
           </Field>
           <Field label="Priority">
-            <select className={inputClass()} value={form.priority} disabled={isClosed} onChange={(event) => setForm((current) => ({ ...current, priority: event.target.value }))}>
+            <select className={inputClass()} value={form.priority} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, priority: event.target.value }))}>
               {priorityOptions.map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
           </Field>
-          <Field label="Status">
-            <select className={inputClass()} value={form.status} disabled={isClosed} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
-              {jobStatusOptions.map((option) => <option key={option} value={option}>{option.replace(/_/g, " ")}</option>)}
-            </select>
+          <Field label="Assigned Team">
+            <input className={inputClass()} value={form.assigned_team || ""} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, assigned_team: event.target.value }))} />
           </Field>
         </div>
+        <Card title="BOM / Recipe Requirement Preview" description="This preview uses the current active recipe. Actual production usage remains captured during completion.">
+          {form.finished_good_id && matchingRecipe ? (
+            <div className="space-y-3">
+              <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">
+                {matchingRecipe.recipe_name || matchingRecipe.recipe_code} · {matchingRecipe.version || "v1"} · Yield {quantity(matchingRecipe.yield_quantity, matchingRecipe.uom)}
+              </div>
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[760px] text-left">
+                  <thead>
+                    <tr className="border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">
+                      <th className="px-4 py-2.5">Material</th>
+                      <th className="px-4 py-2.5">Required Qty</th>
+                      <th className="px-4 py-2.5">Available Balance</th>
+                      <th className="px-4 py-2.5">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {bomRows.map((row) => (
+                      <tr key={row.id} className="border-b border-border last:border-0">
+                        <td className="px-4 py-3"><div className="font-semibold text-text-primary">{row.material_name}</div><div className="text-xs text-text-secondary">{row.material_code || "Raw material"}</div></td>
+                        <td className="px-4 py-3 text-sm font-semibold text-text-secondary">{quantity(row.required_qty, row.uom)}</td>
+                        <td className="px-4 py-3 text-sm font-semibold text-text-secondary">{quantity(row.balance, row.uom)}</td>
+                        <td className="px-4 py-3"><Badge tone={row.enough ? "success" : "danger"}>{row.enough ? "Enough" : "Shortage"}</Badge></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          ) : form.finished_good_id ? (
+            <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+              No active recipe found. You can still create the job order, but material usage must be entered manually during production.
+            </div>
+          ) : (
+            <EmptyState title="Select a Finished Good" description="Choose a product and target quantity to preview active recipe requirements." />
+          )}
+        </Card>
         <Field label="Remarks">
           <textarea className={inputClass()} rows={3} value={form.remarks || ""} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
         </Field>
@@ -2128,6 +2181,75 @@ function ProductRecipeModal({ initialValue, finishedGoods, rawMaterials, onClose
   );
 }
 
+function StartProductionModal({ job, auth, onClose, onSave }) {
+  const [form, setForm] = useState(() => ({
+    operator_id: auth?.profile?.id || "",
+    operator_name: employeeDisplayName(auth),
+    production_date: todayInput(),
+    start_time: timeInput(),
+    remarks: "",
+  }));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  async function submit(event) {
+    event.preventDefault();
+    setError("");
+    if (!form.production_date) {
+      setError("Production date is required.");
+      return;
+    }
+    if (!form.start_time) {
+      setError("Start time is required.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave(form);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      title="Start Production"
+      description={`${job.job_order_no} · ${job.product_name}`}
+      size="lg"
+      onClose={saving ? undefined : onClose}
+      footer={(
+        <>
+          <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
+          <button className="btn-primary" type="submit" form="factory-start-production-form" disabled={saving}>{saving ? "Starting..." : "Start Production"}</button>
+        </>
+      )}
+    >
+      <form id="factory-start-production-form" className="space-y-4" onSubmit={submit}>
+        {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
+        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+          <div className="text-sm font-semibold text-primary">Job Order Summary</div>
+          <div className="mt-1 text-lg font-bold text-text-primary">{job.job_order_no} · {job.product_name}</div>
+          <div className="mt-1 text-sm font-semibold text-text-secondary">Target {quantity(job.target_quantity, job.uom)} · Due {job.due_date || "No due date"} · Team {job.assigned_team || "Unassigned"}</div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-2">
+          <Field label="Operator">
+            <input className={inputClass()} value={form.operator_name || ""} onChange={(event) => setForm((current) => ({ ...current, operator_name: event.target.value }))} />
+          </Field>
+          <Field label="Production Date">
+            <input className={inputClass()} type="date" value={form.production_date || ""} onChange={(event) => setForm((current) => ({ ...current, production_date: event.target.value }))} />
+          </Field>
+          <Field label="Start Time">
+            <input className={inputClass()} type="time" value={form.start_time || ""} onChange={(event) => setForm((current) => ({ ...current, start_time: event.target.value }))} />
+          </Field>
+        </div>
+        <Field label="Remarks">
+          <textarea className={inputClass()} rows={3} value={form.remarks || ""} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
+        </Field>
+      </form>
+    </Modal>
+  );
+}
+
 function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops, finishedGoods = [], auth, onClose, onSave }) {
   const activeFinishedGoods = finishedGoods.filter((product) => product.status === "active");
   const matchingFinishedGood = activeFinishedGoods.find((product) => product.id === job.finished_good_id) || activeFinishedGoods.find((product) => product.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
@@ -2140,10 +2262,10 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
     production_no: "",
     product_name: matchingFinishedGood?.product_name || job.product_name || "",
     batch_no: "",
-    production_date: todayInput(),
-    operator_id: auth?.profile?.id || "",
-    operator_name: employeeDisplayName(auth),
-    start_time: timeInput(),
+    production_date: job.production_date || todayInput(),
+    operator_id: job.production_operator_id || auth?.profile?.id || "",
+    operator_name: job.production_operator_name || employeeDisplayName(auth),
+    start_time: job.start_time || timeInput(),
     end_time: "",
     actual_produced_qty: job.target_quantity || "",
     good_output_qty: job.target_quantity || "",
@@ -2202,10 +2324,10 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
     const invalidRow = form.material_usage.find((row) => !row.raw_material_id || Number(row.actual_usage || 0) < 0);
     if (invalidRow) return "Every material usage row needs a raw material and valid actual usage.";
     const missingReason = form.material_usage.find((row) => {
-      const { variancePercent } = varianceFor(row.standard_usage, row.actual_usage);
-      return Math.abs(variancePercent) > varianceThresholdPercent && !String(row.variance_reason || "").trim();
+      const { variance } = varianceFor(row.standard_usage, row.actual_usage);
+      return Math.abs(variance) > varianceReasonTolerance && !String(row.variance_reason || "").trim();
     });
-    if (missingReason) return "Reason is required when material variance exceeds 5%.";
+    if (missingReason) return "Reason is required when actual usage differs from standard usage.";
     return "";
   }
 
@@ -2224,11 +2346,11 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
   }
 
   const totalActualUsage = form.material_usage.reduce((sum, row) => sum + Number(row.actual_usage || 0), 0);
-  const highVarianceRows = form.material_usage.filter((row) => Math.abs(varianceFor(row.standard_usage, row.actual_usage).variancePercent) > varianceThresholdPercent);
+  const highVarianceRows = form.material_usage.filter((row) => Math.abs(varianceFor(row.standard_usage, row.actual_usage).variance) > varianceReasonTolerance);
 
   return (
     <Modal
-      title="Start Production"
+      title="Complete Production"
       description={`${job.job_order_no} · ${job.product_name}`}
       size="xl"
       onClose={saving ? undefined : onClose}
@@ -2244,7 +2366,7 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
         <div className="grid gap-3 md:grid-cols-3">
           <MetricCard icon={ClipboardCheck} label="Job Target" value={quantity(job.target_quantity, job.uom)} helper={job.job_order_no} />
           <MetricCard icon={Factory} label="Good Output" value={quantity(form.good_output_qty, form.uom)} helper="Finished goods stock-in" />
-          <MetricCard icon={AlertTriangle} label="High Variance" value={highVarianceRows.length} helper="Requires reason above 5%" tone={highVarianceRows.length ? "warning" : "success"} />
+          <MetricCard icon={AlertTriangle} label="Variance Rows" value={highVarianceRows.length} helper="Any difference requires reason" tone={highVarianceRows.length ? "warning" : "success"} />
         </div>
         <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
           <div className="text-sm font-semibold text-primary">Selected Job Order</div>
@@ -2274,13 +2396,13 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
             <input className={inputClass()} value={form.batch_no || ""} onChange={(event) => setForm((current) => ({ ...current, batch_no: event.target.value }))} />
           </Field>
           <Field label="Production Date">
-            <input className={inputClass()} type="date" value={form.production_date || ""} onChange={(event) => setForm((current) => ({ ...current, production_date: event.target.value }))} />
+            <input className={inputClass()} type="date" value={form.production_date || ""} readOnly={Boolean(job.started_at)} onChange={(event) => setForm((current) => ({ ...current, production_date: event.target.value }))} />
           </Field>
           <Field label="Operator">
-            <input className={inputClass()} value={form.operator_name || ""} onChange={(event) => setForm((current) => ({ ...current, operator_name: event.target.value }))} />
+            <input className={inputClass()} value={form.operator_name || ""} readOnly={Boolean(job.started_at)} onChange={(event) => setForm((current) => ({ ...current, operator_name: event.target.value }))} />
           </Field>
           <Field label="Start Time">
-            <input className={inputClass()} type="time" value={form.start_time || ""} onChange={(event) => setForm((current) => ({ ...current, start_time: event.target.value }))} />
+            <input className={inputClass()} type="time" value={form.start_time || ""} readOnly={Boolean(job.started_at)} onChange={(event) => setForm((current) => ({ ...current, start_time: event.target.value }))} />
           </Field>
           <Field label="End Time">
             <input className={inputClass()} type="time" value={form.end_time || ""} onChange={(event) => setForm((current) => ({ ...current, end_time: event.target.value }))} />
@@ -2342,7 +2464,7 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
                   const material = rawMaterials.find((item) => item.id === row.raw_material_id);
                   const materialLots = receivings.filter((item) => item.raw_material_id === row.raw_material_id && item.batch_no);
                   const { variance, variancePercent } = varianceFor(row.standard_usage, row.actual_usage);
-                  const needsReason = Math.abs(variancePercent) > varianceThresholdPercent;
+                  const needsReason = Math.abs(variance) > varianceReasonTolerance;
                   const showReasonError = submitAttempted && needsReason && !String(row.variance_reason || "").trim();
                   return (
                     <tr key={row.id} className={`border-b border-border last:border-0 ${showReasonError ? "bg-amber-50" : ""}`}>
@@ -2398,7 +2520,7 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
                           value={row.variance_reason || ""}
                           onChange={(event) => updateUsageRow(row.id, { variance_reason: event.target.value })}
                         />
-                        {showReasonError ? <div className="mt-1 text-xs font-semibold text-amber-700">Required above 5% variance.</div> : null}
+                        {showReasonError ? <div className="mt-1 text-xs font-semibold text-amber-700">Required when actual differs from standard.</div> : null}
                       </td>
                       <td className="px-4 py-3 text-right">
                         <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => removeUsageRow(row.id)}>Remove</button>
@@ -2867,11 +2989,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const metrics = useMemo(() => {
     const openJobs = data.jobOrders.filter((job) => !["completed", "cancelled"].includes(job.status));
     const draftJobs = data.jobOrders.filter((job) => job.status === "draft");
-    const plannedJobs = data.jobOrders.filter((job) => job.status === "planned");
+    const releasedJobs = data.jobOrders.filter((job) => job.status === "released" || job.status === "planned");
     const inProgressJobs = data.jobOrders.filter((job) => job.status === "in_progress");
     const today = todayInput();
     const overdueJobs = data.jobOrders.filter((job) => job.due_date && job.due_date < today && !["completed", "cancelled"].includes(job.status));
     const completedJobs = data.jobOrders.filter((job) => job.status === "completed");
+    const completedTodayJobs = data.jobOrders.filter((job) => job.status === "completed" && (job.completed_at || job.updated_at || "").slice(0, 10) === today);
     const lowStock = data.rawMaterials.filter((item) => item.status === "active" && Number(item.current_balance || 0) > 0 && Number(item.current_balance || 0) <= Number(item.min_stock_level || 0));
     const receivingValue = data.receivings.reduce((sum, row) => sum + Number(row.total_cost || 0), 0);
     const completedProductions = data.productions.filter((production) => production.status === "completed");
@@ -2956,10 +3079,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     return {
       openJobs,
       draftJobs,
-      plannedJobs,
+      releasedJobs,
       inProgressJobs,
       overdueJobs,
       completedJobs,
+      completedTodayJobs,
       lowStock,
       receivingValue,
       completedProductions,
@@ -3013,6 +3137,35 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to delete job order", message: error.message, tone: "error" });
+    }
+  }
+
+  async function releaseJobOrder(order) {
+    const confirmed = await ui?.confirm?.({
+      title: "Release Job Order?",
+      message: `${order.job_order_no} will become available for production start. Inventory will not be adjusted.`,
+      confirmLabel: "Release",
+      tone: "info",
+    });
+    if (!confirmed) return;
+    try {
+      await factoryService.releaseJobOrder(order, auth?.profile?.id);
+      ui?.notify?.({ title: "Job order released", tone: "success" });
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to release job order", message: error.message, tone: "error" });
+    }
+  }
+
+  async function startJobOrder(order, form) {
+    try {
+      await factoryService.startJobOrder(order, form, auth?.profile?.id);
+      ui?.notify?.({ title: "Production started", message: `${order.job_order_no} is now in progress.`, tone: "success" });
+      setModal(null);
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to start production", message: error.message, tone: "error" });
+      throw error;
     }
   }
 
@@ -3348,14 +3501,21 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     { key: "planned_date", label: "Planned Date", render: (row) => row.planned_date || "—" },
     { key: "due_date", label: "Due Date", render: (row) => row.due_date || "—" },
     { key: "priority", label: "Priority", render: (row) => <Badge tone={row.priority === "Urgent" || row.priority === "High" ? "warning" : "neutral"}>{row.priority}</Badge> },
-    { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{row.status.replace(/_/g, " ")}</Badge> },
+    { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{jobStatusLabel(row.status)}</Badge> },
     { key: "actions", label: "Actions", align: "right", render: (row) => (
-      <div className="flex justify-end gap-2">
-        {["planned", "in_progress"].includes(row.status) && can("factory_production.complete") ? (
-          <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production", job: row })}><Play size={13} /> Start Production</button>
+      <div className="flex flex-wrap justify-end gap-2">
+        {row.status === "draft" && can("factory_job_orders.edit") ? (
+          <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => releaseJobOrder(row)}>Release</button>
         ) : null}
-        {can("factory_job_orders.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "job", value: row })}>{["completed", "cancelled"].includes(row.status) ? "Remarks" : "Edit"}</button> : null}
-        {!["completed", "cancelled"].includes(row.status) && can("factory_job_orders.delete") ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => deleteJobOrder(row)}>Delete</button> : null}
+        {row.status === "released" && can("factory_production.complete") ? (
+          <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "start-production", job: row })}><Play size={13} /> Start Production</button>
+        ) : null}
+        {row.status === "in_progress" && can("factory_production.complete") ? (
+          <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production", job: row })}>Complete</button>
+        ) : null}
+        {row.status === "draft" && can("factory_job_orders.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "job", value: row })}>Edit</button> : null}
+        {["completed", "cancelled"].includes(row.status) ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "job", value: row })}>View</button> : null}
+        {row.status === "draft" && can("factory_job_orders.delete") ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => deleteJobOrder(row)}>Delete</button> : null}
       </div>
     ) },
   ];
@@ -3893,9 +4053,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={ClipboardCheck} label="Draft" value={metrics.draftJobs.length} helper="Planning not released" />
-          <MetricCard icon={Clock3} label="Planned" value={metrics.plannedJobs.length} helper="Ready for production" tone={metrics.plannedJobs.length ? "info" : "neutral"} />
+          <MetricCard icon={Clock3} label="Released" value={metrics.releasedJobs.length} helper="Ready to start" tone={metrics.releasedJobs.length ? "info" : "neutral"} />
           <MetricCard icon={Factory} label="In Progress" value={metrics.inProgressJobs.length} helper="Production started" tone={metrics.inProgressJobs.length ? "warning" : "neutral"} />
-          <MetricCard icon={AlertTriangle} label="Overdue" value={metrics.overdueJobs.length} helper="Past due date" tone={metrics.overdueJobs.length ? "danger" : "success"} />
+          <MetricCard icon={CheckCircle2} label="Completed Today" value={metrics.completedTodayJobs.length} helper="Finished today" tone="success" />
         </div>
         <Card title="Job Order Records" description={`Showing ${data.jobOrders.length} job order(s).`}>
           <FactoryTable columns={jobColumns} rows={data.jobOrders} emptyTitle="No job orders" emptyDescription="Create a finished good product first, then plan production demand with a job order." />
@@ -4246,9 +4406,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       if (shortages.length) return { label: `${shortages.length} shortage`, tone: "danger" };
       return { label: "Ready", tone: "success" };
     };
-    const readyJobs = data.jobOrders.filter((job) => ["planned", "in_progress"].includes(job.status));
+    const readyJobs = data.jobOrders.filter((job) => ["released", "planned", "in_progress"].includes(job.status));
     const productionReadyJobColumns = [
-      { key: "job", label: "Job Order", render: (row) => <div><div className="font-bold text-text-primary">{row.job_order_no}</div><div className="text-xs text-text-secondary">{row.priority} · {row.status.replace(/_/g, " ")}</div></div> },
+      { key: "job", label: "Job Order", render: (row) => <div><div className="font-bold text-text-primary">{row.job_order_no}</div><div className="text-xs text-text-secondary">{row.priority} · {jobStatusLabel(row.status)}</div></div> },
       { key: "finished_good", label: "Finished Good", render: (row) => <div><div className="font-semibold text-text-primary">{row.product_name}</div><div className="text-xs text-text-secondary">{row.product_code || "No SKU"}</div></div> },
       { key: "target", label: "Target Qty", render: (row) => quantity(row.target_quantity, row.uom) },
       { key: "due_date", label: "Due Date", render: (row) => row.due_date || "—" },
@@ -4264,7 +4424,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         const readiness = readinessForJob(row);
         return <Badge tone={readiness.tone}>{readiness.label}</Badge>;
       } },
-      { key: "actions", label: "Actions", align: "right", render: (row) => can("factory_production.complete") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production", job: row })}><Play size={13} /> Start</button> : null },
+      { key: "actions", label: "Actions", align: "right", render: (row) => can("factory_production.complete") ? (
+        row.status === "in_progress"
+          ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production", job: row })}>Complete</button>
+          : <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "start-production", job: row })}><Play size={13} /> Start</button>
+      ) : null },
     ];
     return (
       <div className="space-y-5">
@@ -4272,7 +4436,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           section="Factory"
           title="Production Records"
           description="Execute job orders, capture actual material usage, deduct raw stock and stock in finished goods."
-          actions={readyJobs[0] && can("factory_production.complete") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "production", job: readyJobs[0] })}><Play size={15} /> Start Next Job</button> : null}
+          actions={readyJobs[0] && can("factory_production.complete") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: readyJobs[0].status === "in_progress" ? "production" : "start-production", job: readyJobs[0] })}><Play size={15} /> Next Production Step</button> : null}
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={Factory} label="Completed Runs" value={metrics.completedProductions.length} helper="Production completions" />
@@ -4281,8 +4445,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={Activity} label="High Variance" value={metrics.highVarianceUsage.length} helper="Material rows above 5%" tone={metrics.highVarianceUsage.length ? "warning" : "success"} />
         </div>
         <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
-          <Card title="Ready Job Orders" description="Start production from a planned or in-progress job order.">
-            <FactoryTable columns={productionReadyJobColumns} rows={readyJobs} emptyTitle="No jobs ready for production" emptyDescription="Plan a job order and set it to planned or in progress before production execution." />
+          <Card title="Production Queue" description="Released jobs can be started. In Progress jobs can be completed.">
+            <FactoryTable columns={productionReadyJobColumns} rows={readyJobs} emptyTitle="No jobs ready for production" emptyDescription="Release a draft job order before starting production." />
           </Card>
           <Card title="Finished Goods Stock" description="Balances created from completed production stock-in movements.">
             <FactoryTable columns={finishedGoodsColumns} rows={data.finishedGoods.slice(0, 8)} emptyTitle="No finished goods stock" emptyDescription="Complete production to stock in finished goods." />
@@ -4769,6 +4933,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <JobOrderModal
           initialValue={modal.value}
           finishedGoods={data.finishedGoods}
+          rawMaterials={data.rawMaterials}
+          recipes={data.recipes}
           onClose={() => setModal(null)}
           onSave={saveJobOrder}
         />
@@ -4833,6 +4999,14 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           auth={auth}
           onClose={() => setModal(null)}
           onSave={completeProduction}
+        />
+      ) : null}
+      {modal?.type === "start-production" ? (
+        <StartProductionModal
+          job={modal.job}
+          auth={auth}
+          onClose={() => setModal(null)}
+          onSave={(form) => startJobOrder(modal.job, form)}
         />
       ) : null}
       {modal?.type === "sop" ? (

@@ -9,6 +9,7 @@ function normalizeNumber(value, fallback = 0) {
 
 function mapJobOrder(row) {
   const finishedGood = row.finished_good || {};
+  const status = row.status === "planned" ? "released" : row.status || "draft";
   return {
     id: row.id,
     job_order_no: row.job_order_no,
@@ -25,10 +26,20 @@ function mapJobOrder(row) {
     planned_date: row.planned_date || "",
     due_date: row.due_date || "",
     priority: row.priority || "Normal",
-    status: row.status || "draft",
+    status,
     assigned_team: row.assigned_team || "",
     remarks: row.remarks || "",
     created_by: row.created_by || "",
+    released_at: row.released_at || "",
+    released_by: row.released_by || "",
+    started_at: row.started_at || "",
+    started_by: row.started_by || "",
+    production_operator_id: row.production_operator_id || "",
+    production_operator_name: row.production_operator_name || "",
+    production_date: row.production_date || "",
+    start_time: row.start_time || "",
+    completed_at: row.completed_at || "",
+    completed_by: row.completed_by || "",
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -517,7 +528,7 @@ const storageLocationSelect = "id,location_name,location_code,location_type,stat
 const factorySupplierSelect = "id,supplier_name,supplier_code,contact_person,phone,email,status,remarks,created_at,updated_at";
 const rawMaterialSelect = `id,material_code,name,name_en,name_cn,name_bm,category_id,category,uom,current_balance,min_stock_level,preferred_supplier,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_raw_material_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)`;
 const rawMaterialRelationSelect = "name,name_en,name_cn,name_bm,material_code,uom,storage_location,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)";
-const jobOrderSelect = `id,job_order_no,finished_good_id,product_name,target_quantity,produced_quantity,uom,planned_date,due_date,priority,status,assigned_team,remarks,created_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect})`;
+const jobOrderSelect = `id,job_order_no,finished_good_id,product_name,target_quantity,produced_quantity,uom,planned_date,due_date,priority,status,assigned_team,remarks,created_by,released_at,released_by,started_at,started_by,production_operator_id,production_operator_name,production_date,start_time,completed_at,completed_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect})`;
 const productionSelectBasic = `id,job_order_id,finished_good_id,production_no,product_name,batch_no,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,operator_id,operator_name,start_time,end_time,qc_status,production_sop_id,sop_version,status,notes,created_by,completed_at,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),job_order:factory_job_orders(job_order_no,finished_good_id,product_name,finished_good:factory_finished_goods(product_code,product_name))`;
 const productionSelectDetailed = `${productionSelectBasic},material_usage:factory_production_material_usage(id,production_id,raw_material_id,raw_material_receiving_id,raw_material_lot_no,quantity_used,standard_usage,actual_usage,variance_qty,variance_percent,variance_reason,uom,wastage_quantity,notes,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect}),raw_receiving:factory_raw_material_receivings(receipt_no,batch_no,supplier_name,received_date,unit_cost)),qc_checkpoints:factory_production_qc_checkpoints(id,production_id,production_sop_id,sop_step_id,step_no,process_name,control_point,qc_status,notes,created_at,updated_at)`;
 
@@ -693,30 +704,11 @@ export const factoryService = {
         .eq("id", order.id)
         .single();
       throwSupabaseError("factory.job_order.current", currentError);
-      if (["completed", "cancelled"].includes(current?.status)) {
-        const remarksPayload = {
-          remarks: String(order.remarks || "").trim(),
-          updated_at: new Date().toISOString(),
-        };
-        const { data, error } = await supabase
-          .from("factory_job_orders")
-          .update(remarksPayload)
-          .eq("id", order.id)
-          .select(jobOrderSelect)
-          .single();
-        throwSupabaseError("factory.job_order.remarks", error);
-        await logFactoryAction({
-          action: "factory_job_order_remarks_updated",
-          target: data.job_order_no,
-          description: "Factory job order remarks updated after closure.",
-          after: data,
-        });
-        return mapJobOrder(data);
-      }
+      const normalizedStatus = current?.status === "planned" ? "released" : current?.status;
+      if (normalizedStatus !== "draft") throw new Error("Only Draft Job Orders can be edited. Use lifecycle actions for released, in-progress, completed or cancelled Job Orders.");
     }
 
     const payload = {
-      job_order_no: order.job_order_no || makeFactoryRef("JO"),
       finished_good_id: finishedGood.id,
       product_name: finishedGood.product_name,
       target_quantity: normalizeNumber(order.target_quantity),
@@ -725,19 +717,46 @@ export const factoryService = {
       planned_date: order.planned_date || null,
       due_date: order.due_date || null,
       priority: order.priority || "Normal",
-      status: order.status || "draft",
+      status: order.status === "planned" ? "released" : order.status || "draft",
       assigned_team: order.assigned_team || "",
       remarks: order.remarks || "",
       updated_at: new Date().toISOString(),
     };
     if (payload.target_quantity <= 0) throw new Error("Target quantity must be greater than 0.");
-    if (!isUpdate) payload.created_by = employeeId || null;
+    if (!isUpdate) {
+      const { data: createdRows, error: createError } = await supabase.rpc("factory_create_job_order", {
+        p_finished_good_id: finishedGood.id,
+        p_target_quantity: payload.target_quantity,
+        p_uom: payload.uom,
+        p_planned_date: payload.planned_date,
+        p_due_date: payload.due_date,
+        p_priority: payload.priority,
+        p_assigned_team: payload.assigned_team,
+        p_remarks: payload.remarks,
+        p_created_by: employeeId || null,
+      });
+      throwSupabaseError("factory.job_order.create_rpc", createError);
+      const created = Array.isArray(createdRows) ? createdRows[0] : createdRows;
+      if (!created?.id) throw new Error("Job Order reference was not returned.");
+      const { data, error } = await supabase
+        .from("factory_job_orders")
+        .select(jobOrderSelect)
+        .eq("id", created.id)
+        .single();
+      throwSupabaseError("factory.job_order.fetch_created", error);
+      await logFactoryAction({
+        action: "factory_job_order_created",
+        target: data.job_order_no,
+        description: "Factory job order draft created.",
+        after: data,
+      });
+      return mapJobOrder(data);
+    }
 
-    const query = isUpdate
-      ? supabase.from("factory_job_orders").update(payload).eq("id", order.id)
-      : supabase.from("factory_job_orders").insert(payload);
-
-    const { data, error } = await query
+    const { data, error } = await supabase
+      .from("factory_job_orders")
+      .update(payload)
+      .eq("id", order.id)
       .select(jobOrderSelect)
       .single();
     throwSupabaseError("factory.job_order.save", error);
@@ -751,13 +770,47 @@ export const factoryService = {
   },
 
   async deleteJobOrder(order) {
-    const { error } = await supabase.from("factory_job_orders").delete().eq("id", order.id);
+    if (order.status !== "draft") throw new Error("Only Draft Job Orders can be deleted.");
+    const { error } = await supabase.from("factory_job_orders").delete().eq("id", order.id).eq("status", "draft");
     throwSupabaseError("factory.job_order.delete", error);
     await logFactoryAction({
       action: "factory_job_order_deleted",
       target: order.job_order_no || order.product_name,
       description: "Factory job order deleted.",
       before: order,
+    });
+  },
+
+  async releaseJobOrder(order, employeeId) {
+    const { error } = await supabase.rpc("factory_release_job_order", {
+      p_job_order_id: order.id,
+      p_released_by: employeeId || null,
+    });
+    throwSupabaseError("factory.job_order.release", error);
+    await logFactoryAction({
+      action: "factory_job_order_released",
+      target: order.job_order_no,
+      description: "Factory Job Order released for production.",
+      after: order,
+    });
+  },
+
+  async startJobOrder(order, startInfo, employeeId) {
+    const { error } = await supabase.rpc("factory_start_job_order", {
+      p_job_order_id: order.id,
+      p_operator_id: startInfo.operator_id || employeeId || null,
+      p_operator_name: startInfo.operator_name || "",
+      p_production_date: startInfo.production_date || new Date().toISOString().slice(0, 10),
+      p_start_time: startInfo.start_time || null,
+      p_remarks: startInfo.remarks || "",
+      p_started_by: employeeId || null,
+    });
+    throwSupabaseError("factory.job_order.start", error);
+    await logFactoryAction({
+      action: "factory_job_order_started",
+      target: order.job_order_no,
+      description: "Factory Job Order started production.",
+      after: { ...order, ...startInfo },
     });
   },
 

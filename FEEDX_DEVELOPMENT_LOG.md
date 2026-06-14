@@ -192,6 +192,18 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Added Raw Material Inventory KPIs, filters, low-stock/recent-receiving/recent-consumption panels, recipe-based can-produce estimates and raw material detail history for receiving, consumption, stock checks and cost trend.
 - Added Factory Raw Material category persistence/RLS through `factory_raw_material_categories` and extended raw material RLS coverage for inventory, receiving, movements, stock checks, product recipes and production usage.
 
+## 2026-06-14
+
+### Factory
+- Refined Factory Job Order and Production into a clearer MES-style flow: Recipe reference -> Job Order draft -> Release -> Start Production -> Complete Production -> inventory movement and traceability.
+- Added database-side, concurrency-safe Job Order numbering with `JOYYMMDD-001` format through `factory_create_job_order(...)`.
+- Updated Job Order statuses to `draft`, `released`, `in_progress`, `completed`, and `cancelled`, with legacy `planned` rows mapped to `released`.
+- Added Job Order release/start metadata and RPCs so Start Production captures only operator/date/time/remarks while completion remains responsible for output, actual material usage, QC, inventory deduction, finished goods stock-in, and traceability.
+- Hardened production completion so only In Progress Job Orders can complete, a Job Order cannot complete twice, Finished Good must match the Job Order, and inventory movements are created only during completion.
+- Locked Job Order direct editing to Draft only; Released, In Progress, Completed, and Cancelled orders are advanced only through lifecycle actions or viewed read-only.
+- Updated production material usage validation so any actual-vs-standard variance requires a reason in both the completion UI and database RPC.
+- Documented that Phase 1 production defaults use the active recipe at completion/defaulting time; frozen Job Order BOM snapshots are deferred to Phase 2.
+
 ### RBAC
 - Added explicit `sales_input.import` and `purchase_input.import` permissions so Sales Input and Purchase Input imports can be enabled independently from create/edit access.
 - Updated import workflow permission checks and `import_batches` / `import_batch_rows` RLS coverage so module imports require the owning module import permission, while preserving Owner/Admin protected-role behavior.
