@@ -1,5 +1,5 @@
--- Factory Finished Good product family and packaging variant support.
--- Finished Good records remain the inventory SKU; product families group SKUs.
+-- Factory Finished Good product group and packaging variant support.
+-- Finished Good records remain the inventory SKU; product groups are stored in factory_product_families.
 
 create table if not exists public.factory_product_families (
   id uuid primary key default gen_random_uuid(),
@@ -30,12 +30,12 @@ on public.factory_finished_goods(product_family_id);
 
 insert into public.permissions (code, module, description)
 values
-  ('factory_product_families.view', 'Factory Product Families', 'View Factory product family master data.'),
-  ('factory_product_families.create', 'Factory Product Families', 'Create Factory product family master data.'),
-  ('factory_product_families.edit', 'Factory Product Families', 'Edit Factory product family master data.'),
-  ('factory_product_families.delete', 'Factory Product Families', 'Archive Factory product family master data.'),
-  ('factory_product_families.manage', 'Factory Product Families', 'Manage Factory product family master data.'),
-  ('factory_product_families.export', 'Factory Product Families', 'Export Factory product family master data.')
+  ('factory_product_families.view', 'Factory Product Groups', 'View Factory product group master data.'),
+  ('factory_product_families.create', 'Factory Product Groups', 'Create Factory product group master data.'),
+  ('factory_product_families.edit', 'Factory Product Groups', 'Edit Factory product group master data.'),
+  ('factory_product_families.delete', 'Factory Product Groups', 'Archive Factory product group master data.'),
+  ('factory_product_families.manage', 'Factory Product Groups', 'Manage Factory product group master data.'),
+  ('factory_product_families.export', 'Factory Product Groups', 'Export Factory product group master data.')
 on conflict (code) do update
 set module = excluded.module,
     description = excluded.description;

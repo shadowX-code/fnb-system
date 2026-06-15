@@ -724,7 +724,7 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
     pack_size_qty: "",
     pack_size_uom: "kg",
     base_qty: "",
-    base_uom: "kg",
+    base_uom: "",
     category_id: "",
     category: "",
     uom: "kg",
@@ -738,6 +738,8 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
+  const [showAdvancedConversion, setShowAdvancedConversion] = useState(Boolean(initialValue?.base_qty || initialValue?.base_uom));
+  const [conversionCustomized, setConversionCustomized] = useState(Boolean(initialValue?.base_qty || initialValue?.base_uom));
   const activeCategories = categories.filter((category) => category.status === "active" || category.id === form.category_id);
   const categoryOptions = activeCategories.map((category) => ({ value: category.id, label: category.name, helper: category.description || category.status }));
   const activeProductFamilies = productFamilies.filter((family) => family.status === "active" || family.id === form.product_family_id);
@@ -854,16 +856,16 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
 
 	          <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
 	            <div>
-	              <div className="text-sm font-semibold text-text-primary">Product Group / Packaging</div>
-	              <div className="mt-1 text-sm text-text-secondary">Group related SKUs by product family while keeping stock tracked per packaging variant.</div>
+	              <div className="text-sm font-semibold text-text-primary">Product Group / Packaging Variant</div>
+	              <div className="mt-1 text-sm text-text-secondary">Group related SKUs by product group while keeping stock tracked per packaging variant.</div>
 	            </div>
-	            <Field label="Product Family">
+	            <Field label="Product Group">
 	              <SearchableSelect
 	                value={form.product_family_id || ""}
 	                options={productFamilyOptions}
-	                placeholder="Select Product Family"
-	                searchPlaceholder="Search product families"
-	                emptyText="No product families"
+	                placeholder="Select Product Group"
+	                searchPlaceholder="Search product groups"
+	                emptyText="No product groups"
 	                onChange={(familyId) => {
 	                  const family = productFamilies.find((item) => item.id === familyId);
 	                  setForm((current) => ({
@@ -874,36 +876,72 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
 	                }}
 	              />
 	            </Field>
-	            <Field label="Quick Create Product Family">
+	            <Field label="Quick Create Product Group">
 	              <input
 	                className={inputClass()}
 	                value={form.product_family_name || ""}
-	                placeholder="Type a family name if it does not exist"
+	                placeholder="Type a product group if it does not exist"
 	                onChange={(event) => setForm((current) => ({ ...current, product_family_id: "", product_family_name: event.target.value }))}
 	              />
 	            </Field>
-	            <Field label="Variant Name">
-	              <input className={inputClass()} value={form.variant_name || ""} placeholder="1kg Pack" onChange={(event) => setForm((current) => ({ ...current, variant_name: event.target.value }))} />
+	            <Field label="Packaging Variant">
+	              <input className={inputClass()} value={form.variant_name || ""} placeholder="1kg Pack, 2kg Pack, 5kg Pail" onChange={(event) => setForm((current) => ({ ...current, variant_name: event.target.value }))} />
 	            </Field>
 	            <div className="grid gap-3 md:grid-cols-2">
 	              <Field label="Pack Size Qty">
-	                <input className={inputClass()} type="number" min="0" step="0.0001" value={form.pack_size_qty ?? ""} onChange={(event) => setForm((current) => ({ ...current, pack_size_qty: event.target.value }))} />
+	                <input className={inputClass()} type="number" min="0" step="0.0001" value={form.pack_size_qty ?? ""} onChange={(event) => {
+	                  const value = event.target.value;
+	                  setForm((current) => ({
+	                    ...current,
+	                    pack_size_qty: value,
+	                    base_qty: conversionCustomized ? current.base_qty : value,
+	                    base_uom: conversionCustomized ? current.base_uom : current.pack_size_uom || "kg",
+	                  }));
+	                }} />
 	              </Field>
 	              <Field label="Pack Size UOM">
-	                <select className={inputClass()} value={form.pack_size_uom || "kg"} onChange={(event) => setForm((current) => ({ ...current, pack_size_uom: event.target.value }))}>
+	                <select className={inputClass()} value={form.pack_size_uom || "kg"} onChange={(event) => {
+	                  const value = event.target.value;
+	                  setForm((current) => ({
+	                    ...current,
+	                    pack_size_uom: value,
+	                    base_uom: conversionCustomized ? current.base_uom : value,
+	                  }));
+	                }}>
 	                  {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
 	                </select>
 	              </Field>
 	            </div>
-	            <div className="grid gap-3 md:grid-cols-2">
-	              <Field label="Base Qty">
-	                <input className={inputClass()} type="number" min="0" step="0.0001" value={form.base_qty ?? ""} onChange={(event) => setForm((current) => ({ ...current, base_qty: event.target.value }))} />
-	              </Field>
-	              <Field label="Base UOM">
-	                <select className={inputClass()} value={form.base_uom || "kg"} onChange={(event) => setForm((current) => ({ ...current, base_uom: event.target.value }))}>
-	                  {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
-	                </select>
-	              </Field>
+	            <div className="rounded-xl border border-dashed border-slate-300 bg-white">
+	              <button
+	                className="flex w-full items-center justify-between px-3 py-2 text-left text-sm font-semibold text-text-primary"
+	                type="button"
+	                onClick={() => setShowAdvancedConversion((current) => !current)}
+	              >
+	                <span>Advanced Conversion</span>
+	                <span className="text-xs text-text-secondary">{showAdvancedConversion ? "Hide" : "Show"}</span>
+	              </button>
+	              {showAdvancedConversion ? (
+	                <div className="space-y-3 border-t border-border px-3 py-3">
+	                  <div className="text-xs font-medium text-text-secondary">Usually same as pack size. Used later for bulk production and packaging conversion.</div>
+	                  <div className="grid gap-3 md:grid-cols-2">
+	                    <Field label="Base Qty">
+	                      <input className={inputClass()} type="number" min="0" step="0.0001" value={form.base_qty ?? ""} onChange={(event) => {
+	                        setConversionCustomized(true);
+	                        setForm((current) => ({ ...current, base_qty: event.target.value }));
+	                      }} />
+	                    </Field>
+	                    <Field label="Base UOM">
+	                      <select className={inputClass()} value={form.base_uom || form.pack_size_uom || "kg"} onChange={(event) => {
+	                        setConversionCustomized(true);
+	                        setForm((current) => ({ ...current, base_uom: event.target.value }));
+	                      }}>
+	                        {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
+	                      </select>
+	                    </Field>
+	                  </div>
+	                </div>
+	              ) : null}
 	            </div>
 	          </section>
 
@@ -3853,7 +3891,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       const productMovements = data.productMovements.filter((movement) => movement.finished_good_id === row.id || String(movement.product_name || "").toLowerCase() === productKey);
       const batchMatch = !warehouseFilters.batch || productProductions.some((production) => includesText(production.batch_no, warehouseFilters.batch));
       const movementTypeMatch = !warehouseFilters.movementType || productMovements.some((movement) => movement.movement_type === warehouseFilters.movementType);
-      const productText = `${row.product_name} ${row.product_name_en} ${row.product_name_cn} ${row.product_name_bm} ${row.product_code} ${row.variant_name}`;
+      const productText = `${row.product_family_name} ${row.product_name} ${row.product_name_en} ${row.product_name_cn} ${row.product_name_bm} ${row.product_code} ${row.variant_name}`;
       return includesText(productText, warehouseFilters.product)
         && (!warehouseFilters.family || row.product_family_id === warehouseFilters.family)
         && (!warehouseFilters.category || row.category_id === warehouseFilters.category)
@@ -3881,9 +3919,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Field label="Product">
           <input className={inputClass()} value={warehouseFilters.product} onChange={(event) => setWarehouseFilters((current) => ({ ...current, product: event.target.value }))} placeholder="Search product" />
         </Field>
-        <Field label="Product Family">
+        <Field label="Product Group">
           <select className={inputClass()} value={warehouseFilters.family} onChange={(event) => setWarehouseFilters((current) => ({ ...current, family: event.target.value }))}>
-            <option value="">All families</option>
+            <option value="">All product groups</option>
             {data.productFamilies.map((family) => <option key={family.id} value={family.id}>{family.name_en}</option>)}
           </select>
         </Field>
@@ -5006,7 +5044,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Card title="Finished Goods Master and Warehouse" description="Master products define the valid stock-in SKUs. Balances are updated by production stock-in and approved stock checks.">
           <FactoryTable
             columns={[
-              { key: "product_name", label: "Product", render: (row) => <div><div className="font-bold text-text-primary">{row.product_family_name || row.product_name_en || row.product_name}</div><div className="text-xs text-text-secondary">{row.product_family_name ? (row.product_name_en || row.product_name) : [row.product_name_cn, row.product_name_bm].filter(Boolean).join(" · ") || "No family"}</div></div> },
+              { key: "product_name", label: "Product Group", render: (row) => <div><div className="font-bold text-text-primary">{row.product_family_name || row.product_name_en || row.product_name}</div><div className="text-xs text-text-secondary">{row.product_family_name ? (row.product_name_en || row.product_name) : [row.product_name_cn, row.product_name_bm].filter(Boolean).join(" · ") || "Standalone SKU"}</div></div> },
               { key: "variant", label: "Variant", render: (row) => row.variant_name || "Default SKU" },
               { key: "product_code", label: "SKU", render: (row) => row.product_code || "—" },
               { key: "pack_size", label: "Pack Size", render: (row) => {
