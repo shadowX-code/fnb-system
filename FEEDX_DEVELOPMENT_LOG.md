@@ -219,8 +219,8 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 ## 2026-06-15
 
 ### Factory
-- Added Finished Goods Product Group / Packaging Variant foundation so one product group can group multiple inventory SKUs while each Finished Good record continues to track stock independently.
-- Added `factory_product_families` master data plus nullable Finished Good SKU fields for product group, variant name, pack size and advanced base conversion without changing existing balances, movements, stock checks, Job Orders or Production stock-in references.
-- Updated the Finished Goods form and listing with Product Group / Packaging Variant fields, product group/category/status filters and product group/variant/SKU/pack-size warehouse columns.
-- Refactored the Finished Goods UI from one flat SKU table into Product Group -> Packaging SKU management, with expandable Product Group rows, nested SKU rows, Product Group actions and SKU-level View/Edit/Archive actions.
+- Added Finished Goods parent/Packaging Variant foundation so one Finished Good can group multiple inventory SKUs while each SKU continues to track stock independently.
+- Added `factory_product_families` as the internal Finished Good parent table plus nullable Finished Good SKU fields for parent link, variant name, pack size and advanced base conversion without changing existing balances, movements, stock checks, Job Orders or Production stock-in references.
+- Updated the Finished Goods form and listing with Finished Good / Packaging Variant fields, Finished Good/category/status filters and Finished Good/SKU/pack-size warehouse columns.
+- Refactored the Finished Goods UI from one flat SKU table into Finished Good -> Packaging SKU management, with expandable Finished Good rows, nested SKU rows, Finished Good actions and SKU-level View/Edit/Archive actions.
 - Documented the Phase 1 limitation that Production Standards remain per Finished Good SKU; bulk production with packaging split into multiple SKUs is deferred to Phase 2.

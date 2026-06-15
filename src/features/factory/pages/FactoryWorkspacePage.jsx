@@ -729,7 +729,7 @@ function ProductGroupModal({ initialValue, categories = [], onClose, onSave, onA
     event.preventDefault();
     setError("");
     if (!String(form.name_en || "").trim()) {
-      setError("Product Group name is required.");
+      setError("Finished Good name is required.");
       return;
     }
     setSaving(true);
@@ -752,17 +752,17 @@ function ProductGroupModal({ initialValue, categories = [], onClose, onSave, onA
 
   return (
     <Modal
-      title={initialValue?.id ? "Edit Product Group" : "Add Product Group"}
-      description="Product Groups organize related packaging SKUs under one product identity."
+      title={initialValue?.id ? "Edit Finished Good" : "Create Finished Good"}
+      description="Finished Goods organize one or more packaging SKUs under one product identity."
       size="lg"
       onClose={saving ? undefined : onClose}
       footer={(
         <>
-          {initialValue?.id && initialValue.status !== "archived" ? <button className="btn-danger" type="button" disabled={saving} onClick={archive}>Archive Product Group</button> : <span />}
+          {initialValue?.id && initialValue.status !== "archived" ? <button className="btn-danger" type="button" disabled={saving} onClick={archive}>Archive Finished Good</button> : <span />}
           <div className="flex gap-2">
             {error ? <div className="self-center text-sm font-semibold text-rose-600">{error}</div> : null}
             <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
-            <button className="btn-primary" type="submit" form="factory-product-group-form" disabled={saving}>{saving ? "Saving..." : "Save Product Group"}</button>
+            <button className="btn-primary" type="submit" form="factory-product-group-form" disabled={saving}>{saving ? "Saving..." : "Save Finished Good"}</button>
           </div>
         </>
       )}
@@ -789,7 +789,7 @@ function ProductGroupModal({ initialValue, categories = [], onClose, onSave, onA
         <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
           <div>
             <div className="text-sm font-semibold text-text-primary">Configuration</div>
-            <div className="mt-1 text-sm text-text-secondary">Product grouping status and category for warehouse filtering.</div>
+            <div className="mt-1 text-sm text-text-secondary">Finished Good status and category for warehouse filtering.</div>
           </div>
           <Field label="Category">
             <SearchableSelect
@@ -964,16 +964,16 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
 
 	          <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
 	            <div>
-	              <div className="text-sm font-semibold text-text-primary">Product Group / Packaging Variant</div>
-	              <div className="mt-1 text-sm text-text-secondary">Group related SKUs by product group while keeping stock tracked per packaging variant.</div>
-	            </div>
-	            <Field label="Product Group">
-	              <SearchableSelect
-	                value={form.product_family_id || ""}
-	                options={productFamilyOptions}
-	                placeholder="Select Product Group"
-	                searchPlaceholder="Search product groups"
-	                emptyText="No product groups"
+		              <div className="text-sm font-semibold text-text-primary">Finished Good / Packaging Variant</div>
+		              <div className="mt-1 text-sm text-text-secondary">Link this SKU to a Finished Good while keeping stock tracked per packaging variant.</div>
+		            </div>
+		            <Field label="Finished Good">
+		              <SearchableSelect
+		                value={form.product_family_id || ""}
+		                options={productFamilyOptions}
+		                placeholder="Select Finished Good"
+		                searchPlaceholder="Search finished goods"
+		                emptyText="No finished goods"
 		                onChange={(familyId) => {
 		                  const family = productFamilies.find((item) => item.id === familyId);
 		                  setForm((current) => ({
@@ -989,11 +989,11 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
 		                }}
 		              />
 		            </Field>
-	            <Field label="Quick Create Product Group">
-	              <input
-		                className={inputClass()}
-		                value={form.product_family_name || ""}
-		                placeholder="Type a product group if it does not exist"
+		            <Field label="Finished Good Name">
+		              <input
+			                className={inputClass()}
+			                value={form.product_family_name || ""}
+			                placeholder="Type a Finished Good name if it does not exist"
 		                onChange={(event) => setForm((current) => ({ ...current, product_family_id: "", product_family_name: event.target.value, product_name: event.target.value, product_name_en: event.target.value }))}
 		              />
 		            </Field>
@@ -3706,44 +3706,44 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   async function saveFinishedGood(form) {
     try {
       await factoryService.saveFinishedGood(form, auth?.profile?.id);
-      ui?.notify?.({ title: form.id ? "Finished good updated" : "Finished good created", tone: "success" });
+      ui?.notify?.({ title: form.id ? "Packaging SKU updated" : "Packaging SKU created", tone: "success" });
       setModal(null);
       await loadData();
     } catch (error) {
-      ui?.notify?.({ title: "Failed to save finished good", message: error.message, tone: "error" });
+      ui?.notify?.({ title: "Failed to save Packaging SKU", message: error.message, tone: "error" });
       throw error;
     }
   }
 
   async function archiveFinishedGood(product) {
     if (Number(product.current_balance || 0) > 0) {
-      ui?.notify?.({ title: "Cannot archive finished good", message: "Cannot archive while stock balance is greater than zero.", tone: "error" });
+      ui?.notify?.({ title: "Cannot archive Packaging SKU", message: "Cannot archive while stock balance is greater than zero.", tone: "error" });
       return;
     }
     const confirmed = await ui?.confirm?.({
-      title: "Archive Finished Good?",
-      message: `${product.product_name} will no longer be available for production stock-in.`,
+      title: "Archive Packaging SKU?",
+      message: `${product.product_code || product.product_name} will no longer be available for production stock-in.`,
       confirmLabel: "Archive",
       tone: "warning",
     });
     if (!confirmed) return;
     try {
       await factoryService.archiveFinishedGood(product);
-      ui?.notify?.({ title: "Finished good archived", tone: "success" });
+      ui?.notify?.({ title: "Packaging SKU archived", tone: "success" });
       await loadData();
     } catch (error) {
-      ui?.notify?.({ title: "Failed to archive finished good", message: error.message, tone: "error" });
+      ui?.notify?.({ title: "Failed to archive Packaging SKU", message: error.message, tone: "error" });
     }
   }
 
   async function saveProductGroup(form) {
     try {
       await factoryService.saveProductFamily(form, auth?.profile?.id);
-      ui?.notify?.({ title: form.id ? "Product Group updated" : "Product Group created", tone: "success" });
+      ui?.notify?.({ title: form.id ? "Finished Good updated" : "Finished Good created", tone: "success" });
       setModal(null);
       await loadData();
     } catch (error) {
-      ui?.notify?.({ title: "Failed to save Product Group", message: error.message, tone: "error" });
+      ui?.notify?.({ title: "Failed to save Finished Good", message: error.message, tone: "error" });
       throw error;
     }
   }
@@ -3751,11 +3751,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   async function archiveProductGroup(group) {
     const activeSkus = data.finishedGoods.filter((product) => product.product_family_id === group.id && product.status === "active");
     if (activeSkus.length) {
-      ui?.notify?.({ title: "Cannot archive Product Group", message: "Archive or move active Packaging SKUs before archiving this Product Group.", tone: "error" });
+      ui?.notify?.({ title: "Cannot archive Finished Good", message: "Archive or move active Packaging SKUs before archiving this Finished Good.", tone: "error" });
       return;
     }
     const confirmed = await ui?.confirm?.({
-      title: "Archive Product Group?",
+      title: "Archive Finished Good?",
       message: `${group.name_en} will remain on existing Packaging SKUs but cannot be selected for new active setup.`,
       confirmLabel: "Archive",
       tone: "warning",
@@ -3763,10 +3763,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     if (!confirmed) return;
     try {
       await factoryService.archiveProductFamily(group);
-      ui?.notify?.({ title: "Product Group archived", tone: "success" });
+      ui?.notify?.({ title: "Finished Good archived", tone: "success" });
       await loadData();
     } catch (error) {
-      ui?.notify?.({ title: "Failed to archive Product Group", message: error.message, tone: "error" });
+      ui?.notify?.({ title: "Failed to archive Finished Good", message: error.message, tone: "error" });
     }
   }
 
@@ -4082,20 +4082,20 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         total_balance: skus.reduce((sum, sku) => sum + Number(sku.current_balance || 0), 0),
       };
     });
-    const standaloneSkus = rows.filter((row) => !row.product_family_id);
-    if (standaloneSkus.length) {
+    rows.filter((row) => !row.product_family_id).forEach((sku) => {
       groups.push({
-        id: "__standalone__",
-        groupKey: "__standalone__",
-        product_group_name: "Standalone Packaging SKUs",
-        category: "Mixed",
-        status: "active",
-        skus: standaloneSkus,
-        active_sku_count: standaloneSkus.filter((sku) => sku.status === "active").length,
-        total_balance: standaloneSkus.reduce((sum, sku) => sum + Number(sku.current_balance || 0), 0),
+        id: `__sku_${sku.id}`,
+        groupKey: `__sku_${sku.id}`,
+        product_group_name: sku.product_name_en || sku.product_name || sku.product_code || "Unassigned Finished Good",
+        category: sku.category || "No category",
+        category_id: sku.category_id || "",
+        status: sku.status || "active",
+        skus: [sku],
+        active_sku_count: sku.status === "active" ? 1 : 0,
+        total_balance: Number(sku.current_balance || 0),
         isStandalone: true,
       });
-    }
+    });
     return groups.filter((group) => {
       const groupText = `${group.product_group_name} ${group.name_cn || ""} ${group.name_bm || ""}`;
       const groupNameMatches = includesText(groupText, warehouseFilters.product);
@@ -4126,9 +4126,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Field label="Product">
           <input className={inputClass()} value={warehouseFilters.product} onChange={(event) => setWarehouseFilters((current) => ({ ...current, product: event.target.value }))} placeholder="Search product" />
         </Field>
-        <Field label="Product Group">
+        <Field label="Finished Good">
           <select className={inputClass()} value={warehouseFilters.family} onChange={(event) => setWarehouseFilters((current) => ({ ...current, family: event.target.value }))}>
-            <option value="">All product groups</option>
+            <option value="">All finished goods</option>
             {data.productFamilies.map((family) => <option key={family.id} value={family.id}>{family.name_en}</option>)}
           </select>
         </Field>
@@ -5213,7 +5213,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           description="Finished goods master setup with live warehouse balances, production history, batches and stock movements."
           actions={(
             <div className="flex flex-wrap gap-2">
-              {can("factory_finished_goods.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "product-group" })}><Package size={15} /> Add Product Group</button> : null}
+              {can("factory_finished_goods.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "product-group" })}><Package size={15} /> Create Finished Good</button> : null}
               {canManageFinishedGoods ? <button className="btn-secondary" type="button" onClick={() => setModal({ type: "finished-good-category" })}><Tag size={15} /> Category</button> : null}
             </div>
           )}
@@ -5249,13 +5249,13 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           </Card>
         </div>
         {warehouseFilterControls()}
-        <Card title="Product Group and Packaging SKU Management" description="Product Groups organize related Packaging SKUs. Inventory balances remain tracked per SKU.">
+        <Card title="Finished Goods and Packaging SKUs" description="Each Finished Good can have one or more packaging SKUs. Inventory balances are tracked per SKU.">
           {!productGroups.length ? (
-            <EmptyState title="No Product Groups" description="Add a Product Group, then create Packaging SKUs for production stock-in." />
+            <EmptyState title="No Finished Goods" description="Create a Finished Good, then add Packaging SKUs for production stock-in." />
           ) : (
             <div className="space-y-3 p-4">
               <div className="hidden rounded-xl border border-border bg-slate-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted md:grid md:grid-cols-[minmax(260px,1.5fr)_1fr_120px_130px_120px_260px]">
-                <div>Product Group</div>
+                <div>Finished Good</div>
                 <div>Category</div>
                 <div>Active SKUs</div>
                 <div>Total Balance</div>
@@ -5285,8 +5285,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                       <div><Badge tone={group.status === "active" ? "success" : "neutral"}>{group.status}</Badge></div>
                       <div className="flex flex-wrap justify-start gap-2 md:justify-end">
                         {!group.isStandalone && can("factory_finished_goods.create") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => openPackagingSkuModal(group)}>Add Packaging SKU</button> : null}
-                        {!group.isStandalone && can("factory_finished_goods.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "product-group", value: group })}>Edit Product Group</button> : null}
-                        {!group.isStandalone && can("factory_finished_goods.edit") && group.status !== "archived" ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => archiveProductGroup(group)}>Archive Product Group</button> : null}
+                        {!group.isStandalone && can("factory_finished_goods.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "product-group", value: group })}>Edit Finished Good</button> : null}
+                        {!group.isStandalone && can("factory_finished_goods.edit") && group.status !== "archived" ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => archiveProductGroup(group)}>Archive Finished Good</button> : null}
                       </div>
                     </div>
                     {isExpanded ? (

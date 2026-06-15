@@ -1355,7 +1355,7 @@ export const factoryService = {
       remarks: String(family.remarks || "").trim(),
       updated_at: new Date().toISOString(),
     };
-    if (!payload.name_en) throw new Error("Product Group name is required.");
+    if (!payload.name_en) throw new Error("Finished Good name is required.");
     if (!["active", "archived"].includes(payload.status)) payload.status = "active";
     if (!isUpdate) payload.created_by = employeeId || null;
 
@@ -1370,7 +1370,7 @@ export const factoryService = {
     await logFactoryAction({
       action: isUpdate ? "factory_product_group_updated" : "factory_product_group_created",
       target: data.name_en,
-      description: isUpdate ? "Factory product group updated." : "Factory product group created.",
+      description: isUpdate ? "Factory Finished Good parent updated." : "Factory Finished Good parent created.",
       after: data,
     });
     return mapProductFamily(data);
@@ -1387,7 +1387,7 @@ export const factoryService = {
     await logFactoryAction({
       action: "factory_product_group_archived",
       target: data.name_en,
-      description: "Factory product group archived.",
+      description: "Factory Finished Good parent archived.",
       after: data,
     });
     return mapProductFamily(data);
