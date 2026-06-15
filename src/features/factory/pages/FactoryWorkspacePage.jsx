@@ -593,6 +593,31 @@ function packSizeText(sku) {
   return Number(sku?.pack_size_qty || 0) > 0 ? `${sku.pack_size_qty} ${sku.pack_size_uom || ""}`.trim() : "";
 }
 
+function normalizePackSizeToBase(qty, uom) {
+  const amount = Number(qty || 0);
+  const unit = String(uom || "").trim().toLowerCase();
+  if (!amount || !unit) return null;
+  if (unit === "kg" || unit === "kilogram" || unit === "kilograms") return { amount, uom: "kg" };
+  if (unit === "g" || unit === "gram" || unit === "grams") return { amount: amount / 1000, uom: "kg" };
+  if (unit === "l" || unit === "litre" || unit === "liter" || unit === "litres" || unit === "liters") return { amount, uom: "L" };
+  if (unit === "ml" || unit === "millilitre" || unit === "milliliter" || unit === "millilitres" || unit === "milliliters") return { amount: amount / 1000, uom: "L" };
+  return null;
+}
+
+function packagingBaseBalanceInfo(skus = []) {
+  if (!skus.length) return { label: "—", amount: null, uom: "" };
+  let total = 0;
+  let baseUom = "";
+  for (const sku of skus) {
+    const base = normalizePackSizeToBase(sku.pack_size_qty || sku.base_qty, sku.pack_size_uom || sku.base_uom);
+    if (!base) return { label: "Mixed", amount: null, uom: "" };
+    if (baseUom && baseUom !== base.uom) return { label: "Mixed", amount: null, uom: "" };
+    baseUom = base.uom;
+    total += Number(sku.current_balance || 0) * base.amount;
+  }
+  return { label: quantity(total, baseUom), amount: total, uom: baseUom };
+}
+
 function variantIsPackSize(sku) {
   const variant = compactCompare(sku?.variant_name);
   if (!variant) return true;
@@ -3997,6 +4022,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const categoryById = new Map(data.finishedGoodCategories.map((category) => [category.id, category]));
     const groups = data.productFamilies.map((family) => {
       const skus = rows.filter((row) => row.product_family_id === family.id);
+      const baseBalance = packagingBaseBalanceInfo(skus);
       return {
         ...family,
         groupKey: family.id,
@@ -4004,10 +4030,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         category: family.category || categoryById.get(family.category_id)?.name || "No category",
         skus,
         active_sku_count: skus.filter((sku) => sku.status === "active").length,
-        total_balance: skus.reduce((sum, sku) => sum + Number(sku.current_balance || 0), 0),
+        total_base_balance: baseBalance,
       };
     });
     rows.filter((row) => !row.product_family_id).forEach((sku) => {
+      const baseBalance = packagingBaseBalanceInfo([sku]);
       groups.push({
         id: `__sku_${sku.id}`,
         groupKey: `__sku_${sku.id}`,
@@ -4017,7 +4044,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         status: sku.status || "active",
         skus: [sku],
         active_sku_count: sku.status === "active" ? 1 : 0,
-        total_balance: Number(sku.current_balance || 0),
+        total_base_balance: baseBalance,
         isStandalone: true,
       });
     });
@@ -5104,7 +5131,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   function renderFinishedGoods() {
     const productGroups = finishedGoodProductGroups();
-    const totalStock = data.finishedGoods.reduce((sum, row) => sum + Number(row.current_balance || 0), 0);
     const outOfStockItems = data.finishedGoods.filter((row) => Number(row.current_balance || 0) <= 0);
     const canManageFinishedGoods = can("factory_finished_goods.create") || can("factory_finished_goods.edit");
     const activeRecipeCount = data.recipes.filter((recipe) => recipe.status === "active").length;
@@ -5130,8 +5156,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const stockOutQty = Math.abs(recentMovements.filter((movement) => Number(movement.quantity || 0) < 0).reduce((sum, movement) => sum + Number(movement.quantity || 0), 0));
     const latestBatch = [...data.productions].filter((production) => production.batch_no).sort((a, b) => new Date(b.production_date || b.created_at || 0) - new Date(a.production_date || a.created_at || 0))[0];
     const batchCount = new Set(data.productions.map((production) => production.batch_no).filter(Boolean)).size;
-    const dailyOut = stockOutQty / 30;
-    const daysCoverage = dailyOut > 0 ? totalStock / dailyOut : null;
     return (
       <div className="space-y-5">
         <PageHeader
@@ -5163,8 +5187,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
               {[
                 { label: "Production In", value: quantity(productionInQty, ""), helper: "Last 30 days" },
                 { label: "Stock Out", value: quantity(stockOutQty, ""), helper: "Last 30 days" },
-                { label: "Batch Count", value: batchCount, helper: latestBatch?.batch_no ? `Latest ${latestBatch.batch_no}` : "No batches yet" },
-                { label: "Days Coverage", value: daysCoverage == null ? "No outflow" : `${Math.round(daysCoverage)} days`, helper: "Based on 30-day stock-out rate" },
+                { label: "Batch Count", value: batchCount, helper: "Total tracked batches" },
+                { label: "Latest Batch", value: latestBatch?.batch_no || "—", helper: latestBatch?.production_date || "No batches yet" },
               ].map((item) => (
                 <div key={item.label} className="rounded-xl border border-border bg-slate-50 p-3">
                   <div className="text-xs font-semibold uppercase tracking-wide text-text-muted">{item.label}</div>
@@ -5185,7 +5209,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                 <div>Finished Good</div>
                 <div>Category</div>
                 <div>Packaging SKUs</div>
-                <div>Total Balance</div>
+                <div>Total Base Balance</div>
                 <div>Status</div>
                 <div />
               </div>
@@ -5210,7 +5234,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                       </button>
                       <div className="text-sm font-semibold text-text-secondary">{group.category || "No category"}</div>
                       <div className="text-sm font-bold text-text-primary">{skuCountLabel}</div>
-                      <div className="text-sm font-bold text-text-primary">{quantity(group.total_balance, "")}</div>
+                      <div className="text-sm font-bold text-text-primary">{group.total_base_balance?.label || "—"}</div>
                       <div className="text-sm font-bold text-text-primary">
                         {activeSkuLabel}
                         {group.status === "archived" ? <div className="mt-0.5 text-xs font-semibold text-text-secondary">Archived Finished Good</div> : null}
