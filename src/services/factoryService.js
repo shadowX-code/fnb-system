@@ -604,6 +604,7 @@ function factoryDataPlan(scope, hasPermission) {
     rawStockChecks: (isRawInventory && can("factory_raw_inventory.view")) || (isRawStockCheck && can("factory_raw_stock_check.view")),
     productStockChecks: isProductStockCheck && can("factory_product_stock_check.view"),
     recipes: (isDashboard && can("factory_dashboard.view")) || (isRawInventory && can("factory_raw_inventory.view")) || (isProductRecipes && can("factory_product_recipes.view")) || (isProduction && (can("factory_product_recipes.view") || can("factory_production.complete"))) || (isReports && can("factory_production_reports.view")),
+    recipeSummaries: isFinishedGoods && can("factory_product_recipes.view"),
     sops: (isProduction || isProductionSop) && can("factory_production_sop.view"),
   };
 }
@@ -698,6 +699,12 @@ export const factoryService = {
       .select(`id,recipe_code,finished_good_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
       .order("product_name", { ascending: true })
       .limit(150), (rows) => rows.map(mapRecipe));
+    addTask(!plan.recipes && plan.recipeSummaries, "recipes", "Active Production Standard Summary", () => supabase
+      .from("factory_product_recipes")
+      .select("id,recipe_code,finished_good_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,created_at,updated_at")
+      .eq("status", "active")
+      .order("product_name", { ascending: true })
+      .limit(300), (rows) => rows.map(mapRecipe));
     addTask(plan.sops, "sops", "Production SOP", () => supabase
       .from("factory_production_sops")
       .select("id,sop_code,title,product_name,version,effective_date,equipment,status,notes,created_by,created_at,updated_at,steps:factory_production_sop_steps(id,sop_id,step_no,instruction,process_name,description,control_point,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,safety_note,created_at,updated_at)")
@@ -1335,6 +1342,55 @@ export const factoryService = {
       after: data,
     });
     return mapFinishedGood(data);
+  },
+
+  async saveProductFamily(family, employeeId) {
+    const isUpdate = Boolean(family.id);
+    const payload = {
+      name_en: String(family.name_en || "").trim(),
+      name_cn: String(family.name_cn || "").trim(),
+      name_bm: String(family.name_bm || "").trim(),
+      category_id: family.category_id || null,
+      status: family.status || "active",
+      remarks: String(family.remarks || "").trim(),
+      updated_at: new Date().toISOString(),
+    };
+    if (!payload.name_en) throw new Error("Product Group name is required.");
+    if (!["active", "archived"].includes(payload.status)) payload.status = "active";
+    if (!isUpdate) payload.created_by = employeeId || null;
+
+    const query = isUpdate
+      ? supabase.from("factory_product_families").update(payload).eq("id", family.id)
+      : supabase.from("factory_product_families").insert(payload);
+
+    const { data, error } = await query
+      .select("id,name_en,name_cn,name_bm,category_id,status,remarks,created_at,updated_at,category:factory_finished_good_categories(name)")
+      .single();
+    throwSupabaseError("factory.product_group.save", error);
+    await logFactoryAction({
+      action: isUpdate ? "factory_product_group_updated" : "factory_product_group_created",
+      target: data.name_en,
+      description: isUpdate ? "Factory product group updated." : "Factory product group created.",
+      after: data,
+    });
+    return mapProductFamily(data);
+  },
+
+  async archiveProductFamily(family) {
+    const { data, error } = await supabase
+      .from("factory_product_families")
+      .update({ status: "archived", updated_at: new Date().toISOString() })
+      .eq("id", family.id)
+      .select("id,name_en,name_cn,name_bm,category_id,status,remarks,created_at,updated_at,category:factory_finished_good_categories(name)")
+      .single();
+    throwSupabaseError("factory.product_group.archive", error);
+    await logFactoryAction({
+      action: "factory_product_group_archived",
+      target: data.name_en,
+      description: "Factory product group archived.",
+      after: data,
+    });
+    return mapProductFamily(data);
   },
 
   async saveFinishedGoodCategory(category, employeeId) {

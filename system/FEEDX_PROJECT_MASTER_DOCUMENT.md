@@ -2823,12 +2823,14 @@ Factory Phase 1E implemented scope:
 
 Factory Finished Goods Master and Warehouse implemented scope:
 
-- Finished Goods is a functional master-plus-warehouse page through `factory_finished_goods`.
-- Finished Goods product setup supports Create, Edit and Archive.
-- Finished Goods product fields include Category, SKU Code, Product Name EN, Product Name CN, Product Name BM, Product Group, Packaging Variant, Pack Size Qty/UOM, UOM, Active/Archived status and Remarks.
-- Finished Goods create/edit uses a single-column form with Product Information, Configuration, and Notes sections.
-- Finished Goods create/edit includes a Product Group / Packaging Variant section so one product group can group multiple SKU packaging variants, such as Black Pepper Sauce -> 1kg Pack / 2kg Pack.
-- Product Groups are stored in `factory_product_families` with Name EN/CN/BM, category, status and remarks.
+- Finished Goods is a functional Packaging SKU management and warehouse page through `factory_finished_goods`.
+- Product Group is the Product Master layer and is stored in `factory_product_families` with Name EN/CN/BM, category, status and remarks.
+- Finished Goods displays Product Group -> Packaging SKUs instead of one flat SKU table, making product identity and inventory SKUs visually distinct.
+- Product Group rows show Product Group, Category, Active SKU Count, Total Balance, Status and actions for Add Packaging SKU, Edit Product Group and Archive Product Group.
+- Packaging SKU rows show SKU, Variant, Pack Size, Balance, Active Production Standard, Status and actions for View SKU, Edit SKU and Archive SKU.
+- Packaging SKU setup supports Create, Edit and Archive.
+- Packaging SKU fields include Product Group, SKU Code, Packaging Variant, Pack Size Qty/UOM, advanced Base Qty/Base UOM, UOM, Storage Location, Active/Archived status and Remarks.
+- Product Group / Packaging Variant examples include Black Pepper Sauce -> BPS-1KG / BPS-2KG / BPS-5KG.
 - Finished Good SKU records remain the inventory unit. Each packaging variant still tracks stock separately through its own `factory_finished_goods.id`.
 - Existing Finished Goods records can have no Product Group initially; they remain compatible and continue to display as standalone SKUs.
 - Advanced Conversion stores Base Qty/Base UOM for future bulk production and packaging conversion. It is collapsed by default and usually matches Pack Size in Phase 1.
@@ -2838,7 +2840,7 @@ Factory Finished Goods Master and Warehouse implemented scope:
 - Finished Good Category setup supports Create, Edit and Archive through `factory_finished_good_categories`.
 - Finished Good Categories must be managed inside the Category modal/drawer only, not as a main-page table.
 - Category fields include Category Name, Description and Active/Archived status.
-- Finished Goods listing shows Product Group/Product, Variant, SKU, Pack Size, category, current balance, batch count, latest batch, last production date, last movement date, status and actions.
+- Finished Goods grouped listing keeps current balance, batch, production and movement visibility at Packaging SKU level.
 - Finished Goods filters support Product, Product Group, Category, Status, Batch and Movement Type where relevant.
 - Finished Goods dashboard cards show Total SKUs, Total Finished Goods Stock, Active SKUs and Out of Stock Items.
 - Finished Goods warehouse insight panels include Stock Distribution by Product, Top Produced Products for the last 30 days, Production In vs Stock Out movement summary, Batch Count/latest batch, and Days Coverage when stock-out movement data is available.

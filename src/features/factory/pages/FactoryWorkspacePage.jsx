@@ -710,6 +710,114 @@ function FinishedGoodDetailModal({ product, productions, movements, productionCo
   );
 }
 
+function ProductGroupModal({ initialValue, categories = [], onClose, onSave, onArchive }) {
+  const [form, setForm] = useState(() => ({
+    name_en: "",
+    name_cn: "",
+    name_bm: "",
+    category_id: "",
+    status: "active",
+    remarks: "",
+    ...initialValue,
+  }));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const activeCategories = categories.filter((category) => category.status === "active" || category.id === form.category_id);
+  const categoryOptions = activeCategories.map((category) => ({ value: category.id, label: category.name, helper: category.description || category.status }));
+
+  async function submit(event) {
+    event.preventDefault();
+    setError("");
+    if (!String(form.name_en || "").trim()) {
+      setError("Product Group name is required.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave(form);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function archive() {
+    if (!onArchive || !initialValue?.id) return;
+    setSaving(true);
+    try {
+      await onArchive(initialValue);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      title={initialValue?.id ? "Edit Product Group" : "Add Product Group"}
+      description="Product Groups organize related packaging SKUs under one product identity."
+      size="lg"
+      onClose={saving ? undefined : onClose}
+      footer={(
+        <>
+          {initialValue?.id && initialValue.status !== "archived" ? <button className="btn-danger" type="button" disabled={saving} onClick={archive}>Archive Product Group</button> : <span />}
+          <div className="flex gap-2">
+            {error ? <div className="self-center text-sm font-semibold text-rose-600">{error}</div> : null}
+            <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
+            <button className="btn-primary" type="submit" form="factory-product-group-form" disabled={saving}>{saving ? "Saving..." : "Save Product Group"}</button>
+          </div>
+        </>
+      )}
+    >
+      <form id="factory-product-group-form" className="space-y-4" onSubmit={submit}>
+        <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
+          <div>
+            <div className="text-sm font-semibold text-text-primary">Product Identity</div>
+            <div className="mt-1 text-sm text-text-secondary">The product master name shared by all packaging SKUs.</div>
+          </div>
+          <Field label="Product Name (EN) *">
+            <input className={inputClass(error)} value={form.name_en || ""} onChange={(event) => {
+              setError("");
+              setForm((current) => ({ ...current, name_en: event.target.value }));
+            }} />
+          </Field>
+          <Field label="Product Name (CN)">
+            <input className={inputClass()} value={form.name_cn || ""} onChange={(event) => setForm((current) => ({ ...current, name_cn: event.target.value }))} />
+          </Field>
+          <Field label="Product Name (BM)">
+            <input className={inputClass()} value={form.name_bm || ""} onChange={(event) => setForm((current) => ({ ...current, name_bm: event.target.value }))} />
+          </Field>
+        </section>
+        <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
+          <div>
+            <div className="text-sm font-semibold text-text-primary">Configuration</div>
+            <div className="mt-1 text-sm text-text-secondary">Product grouping status and category for warehouse filtering.</div>
+          </div>
+          <Field label="Category">
+            <SearchableSelect
+              value={form.category_id || ""}
+              options={categoryOptions}
+              placeholder="Select Category"
+              searchPlaceholder="Search categories"
+              emptyText="No categories"
+              onChange={(categoryId) => setForm((current) => ({ ...current, category_id: categoryId }))}
+            />
+          </Field>
+          <Field label="Status *">
+            <select className={inputClass()} value={form.status || "active"} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
+              <option value="active">Active</option>
+              <option value="archived">Archived</option>
+            </select>
+          </Field>
+        </section>
+        <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
+          <Field label="Remarks">
+            <textarea className={inputClass()} rows={3} value={form.remarks || ""} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
+          </Field>
+        </section>
+      </form>
+    </Modal>
+  );
+}
+
 function FinishedGoodMasterModal({ initialValue, categories, storageLocations = [], productFamilies = [], onClose, onSave, onArchive }) {
   const fieldRefs = useRef({});
   const [form, setForm] = useState(() => ({
@@ -799,8 +907,8 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
 
   return (
     <Modal
-      title={initialValue?.id ? "Edit Finished Good" : "Create Finished Good"}
-      description="Finished goods master records must exist before production stock-in."
+      title={initialValue?.id ? "Edit Packaging SKU" : "Add Packaging SKU"}
+      description="Packaging SKUs are the finished goods inventory items used by production stock-in."
       size="lg"
       onClose={saving ? undefined : onClose}
       footer={(
@@ -809,7 +917,7 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
           <div className="flex gap-2">
             {error ? <div className="self-center text-sm font-semibold text-rose-600">{error}</div> : null}
             <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
-            <button className="btn-primary" type="submit" form="factory-finished-good-form" disabled={saving}>{saving ? "Saving..." : "Save Finished Good"}</button>
+            <button className="btn-primary" type="submit" form="factory-finished-good-form" disabled={saving}>{saving ? "Saving..." : "Save Packaging SKU"}</button>
           </div>
         </>
       )}
@@ -866,24 +974,29 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
 	                placeholder="Select Product Group"
 	                searchPlaceholder="Search product groups"
 	                emptyText="No product groups"
-	                onChange={(familyId) => {
-	                  const family = productFamilies.find((item) => item.id === familyId);
-	                  setForm((current) => ({
-	                    ...current,
-	                    product_family_id: familyId,
-	                    product_family_name: family?.name_en || "",
-	                  }));
-	                }}
-	              />
-	            </Field>
+		                onChange={(familyId) => {
+		                  const family = productFamilies.find((item) => item.id === familyId);
+		                  setForm((current) => ({
+		                    ...current,
+		                    product_family_id: familyId,
+		                    product_family_name: family?.name_en || "",
+		                    product_name: family?.name_en || current.product_name,
+		                    product_name_en: family?.name_en || current.product_name_en,
+		                    product_name_cn: family?.name_cn || current.product_name_cn,
+		                    product_name_bm: family?.name_bm || current.product_name_bm,
+		                    category_id: family?.category_id || current.category_id,
+		                  }));
+		                }}
+		              />
+		            </Field>
 	            <Field label="Quick Create Product Group">
 	              <input
-	                className={inputClass()}
-	                value={form.product_family_name || ""}
-	                placeholder="Type a product group if it does not exist"
-	                onChange={(event) => setForm((current) => ({ ...current, product_family_id: "", product_family_name: event.target.value }))}
-	              />
-	            </Field>
+		                className={inputClass()}
+		                value={form.product_family_name || ""}
+		                placeholder="Type a product group if it does not exist"
+		                onChange={(event) => setForm((current) => ({ ...current, product_family_id: "", product_family_name: event.target.value, product_name: event.target.value, product_name_en: event.target.value }))}
+		              />
+		            </Field>
 	            <Field label="Packaging Variant">
 	              <input className={inputClass()} value={form.variant_name || ""} placeholder="1kg Pack, 2kg Pack, 5kg Pail" onChange={(event) => setForm((current) => ({ ...current, variant_name: event.target.value }))} />
 	            </Field>
@@ -3137,6 +3250,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [receivingTab, setReceivingTab] = useState("history");
+  const [expandedProductGroups, setExpandedProductGroups] = useState({});
   const [warehouseFilters, setWarehouseFilters] = useState({ product: "", family: "", category: "", status: "", batch: "", movementType: "" });
   const [rawMaterialFilters, setRawMaterialFilters] = useState({ material: "", status: "", category: "" });
   const [rawMovementFilters, setRawMovementFilters] = useState({ material: "", movementType: "", storageLocation: "", dateFrom: "", dateTo: "", search: "" });
@@ -3622,6 +3736,58 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     }
   }
 
+  async function saveProductGroup(form) {
+    try {
+      await factoryService.saveProductFamily(form, auth?.profile?.id);
+      ui?.notify?.({ title: form.id ? "Product Group updated" : "Product Group created", tone: "success" });
+      setModal(null);
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to save Product Group", message: error.message, tone: "error" });
+      throw error;
+    }
+  }
+
+  async function archiveProductGroup(group) {
+    const activeSkus = data.finishedGoods.filter((product) => product.product_family_id === group.id && product.status === "active");
+    if (activeSkus.length) {
+      ui?.notify?.({ title: "Cannot archive Product Group", message: "Archive or move active Packaging SKUs before archiving this Product Group.", tone: "error" });
+      return;
+    }
+    const confirmed = await ui?.confirm?.({
+      title: "Archive Product Group?",
+      message: `${group.name_en} will remain on existing Packaging SKUs but cannot be selected for new active setup.`,
+      confirmLabel: "Archive",
+      tone: "warning",
+    });
+    if (!confirmed) return;
+    try {
+      await factoryService.archiveProductFamily(group);
+      ui?.notify?.({ title: "Product Group archived", tone: "success" });
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to archive Product Group", message: error.message, tone: "error" });
+    }
+  }
+
+  function openPackagingSkuModal(group, sku) {
+    const category = data.finishedGoodCategories.find((item) => item.id === group?.category_id);
+    setModal({
+      type: "finished-good",
+      value: sku || {
+        product_family_id: group?.id || "",
+        product_family_name: group?.name_en || "",
+        product_name: group?.name_en || "",
+        product_name_en: group?.name_en || "",
+        product_name_cn: group?.name_cn || "",
+        product_name_bm: group?.name_bm || "",
+        category_id: group?.category_id || "",
+        category: category?.name || group?.category || "",
+        status: "active",
+      },
+    });
+  }
+
   async function saveFinishedGoodCategory(form, options = {}) {
     try {
       await factoryService.saveFinishedGoodCategory(form, auth?.profile?.id);
@@ -3898,6 +4064,47 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         && (!warehouseFilters.status || row.status === warehouseFilters.status)
         && batchMatch
         && movementTypeMatch;
+    });
+  }
+
+  function finishedGoodProductGroups() {
+    const rows = filteredFinishedGoodRows();
+    const categoryById = new Map(data.finishedGoodCategories.map((category) => [category.id, category]));
+    const groups = data.productFamilies.map((family) => {
+      const skus = rows.filter((row) => row.product_family_id === family.id);
+      return {
+        ...family,
+        groupKey: family.id,
+        product_group_name: family.name_en,
+        category: family.category || categoryById.get(family.category_id)?.name || "No category",
+        skus,
+        active_sku_count: skus.filter((sku) => sku.status === "active").length,
+        total_balance: skus.reduce((sum, sku) => sum + Number(sku.current_balance || 0), 0),
+      };
+    });
+    const standaloneSkus = rows.filter((row) => !row.product_family_id);
+    if (standaloneSkus.length) {
+      groups.push({
+        id: "__standalone__",
+        groupKey: "__standalone__",
+        product_group_name: "Standalone Packaging SKUs",
+        category: "Mixed",
+        status: "active",
+        skus: standaloneSkus,
+        active_sku_count: standaloneSkus.filter((sku) => sku.status === "active").length,
+        total_balance: standaloneSkus.reduce((sum, sku) => sum + Number(sku.current_balance || 0), 0),
+        isStandalone: true,
+      });
+    }
+    return groups.filter((group) => {
+      const groupText = `${group.product_group_name} ${group.name_cn || ""} ${group.name_bm || ""}`;
+      const groupNameMatches = includesText(groupText, warehouseFilters.product);
+      const matchesProductSearch = groupNameMatches || group.skus.length > 0;
+      const matchesFamily = !warehouseFilters.family || group.id === warehouseFilters.family;
+      const matchesCategory = !warehouseFilters.category || group.category_id === warehouseFilters.category || group.skus.some((sku) => sku.category_id === warehouseFilters.category);
+      const matchesStatus = !warehouseFilters.status || group.status === warehouseFilters.status || group.skus.some((sku) => sku.status === warehouseFilters.status);
+      const canShowEmptyGroup = !warehouseFilters.batch && !warehouseFilters.movementType && (!warehouseFilters.product || groupNameMatches);
+      return matchesProductSearch && matchesFamily && matchesCategory && matchesStatus && (group.skus.length > 0 || canShowEmptyGroup);
     });
   }
 
@@ -4972,6 +5179,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   function renderFinishedGoods() {
     const rows = filteredFinishedGoodRows();
+    const productGroups = finishedGoodProductGroups();
     const totalStock = data.finishedGoods.reduce((sum, row) => sum + Number(row.current_balance || 0), 0);
     const outOfStockItems = data.finishedGoods.filter((row) => Number(row.current_balance || 0) <= 0);
     const activeSkus = data.finishedGoods.filter((row) => row.status === "active");
@@ -5005,7 +5213,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           description="Finished goods master setup with live warehouse balances, production history, batches and stock movements."
           actions={(
             <div className="flex flex-wrap gap-2">
-              {can("factory_finished_goods.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "finished-good" })}><Package size={15} /> Finished Good</button> : null}
+              {can("factory_finished_goods.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "product-group" })}><Package size={15} /> Add Product Group</button> : null}
               {canManageFinishedGoods ? <button className="btn-secondary" type="button" onClick={() => setModal({ type: "finished-good-category" })}><Tag size={15} /> Category</button> : null}
             </div>
           )}
@@ -5041,40 +5249,109 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           </Card>
         </div>
         {warehouseFilterControls()}
-        <Card title="Finished Goods Master and Warehouse" description="Master products define the valid stock-in SKUs. Balances are updated by production stock-in and approved stock checks.">
-          <FactoryTable
-            columns={[
-              { key: "product_name", label: "Product Group", render: (row) => <div><div className="font-bold text-text-primary">{row.product_family_name || row.product_name_en || row.product_name}</div><div className="text-xs text-text-secondary">{row.product_family_name ? (row.product_name_en || row.product_name) : [row.product_name_cn, row.product_name_bm].filter(Boolean).join(" · ") || "Standalone SKU"}</div></div> },
-              { key: "variant", label: "Variant", render: (row) => row.variant_name || "Default SKU" },
-              { key: "product_code", label: "SKU", render: (row) => row.product_code || "—" },
-              { key: "pack_size", label: "Pack Size", render: (row) => {
-                const packSize = Number(row.pack_size_qty || 0) > 0 ? `${row.pack_size_qty} ${row.pack_size_uom || ""}`.trim() : "";
-                const baseSize = Number(row.base_qty || 0) > 0 ? `${row.base_qty} ${row.base_uom || ""}`.trim() : "";
-                return <div><div className="font-semibold text-text-primary">{packSize || "—"}</div>{baseSize ? <div className="text-xs text-text-secondary">Base {baseSize}</div> : null}</div>;
-              } },
-              { key: "category", label: "Category", render: (row) => row.category || "No category" },
-              { key: "current_balance", label: "Current Balance", render: (row) => quantity(row.current_balance, row.uom) },
-              { key: "batch_count", label: "Batch Count", render: (row) => row.batch_count || 0 },
-              { key: "latest_batch_no", label: "Latest Batch", render: (row) => row.latest_batch_no || "—" },
-              { key: "last_production_date", label: "Last Production", render: (row) => row.last_production_date || "—" },
-              { key: "last_movement_date", label: "Last Movement", render: (row) => row.last_movement_date || "—" },
-              { key: "status", label: "Status", render: (row) => (
-                <div className="flex flex-wrap gap-1.5">
-                  <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge>
-                  <Badge tone={Number(row.current_balance || 0) <= 0 ? "danger" : "success"}>{Number(row.current_balance || 0) <= 0 ? "out of stock" : "in stock"}</Badge>
-                </div>
-              ) },
-              { key: "actions", label: "Actions", align: "right", render: (row) => (
-                <div className="flex flex-wrap justify-end gap-2">
-                  <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-detail", product: row })}>Detail</button>
-                  {can("factory_finished_goods.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good", value: row })}>Edit</button> : null}
-                </div>
-              ) },
-            ]}
-            rows={rows}
-            emptyTitle="No finished goods products"
-            emptyDescription="Create a finished good product before production stock-in."
-          />
+        <Card title="Product Group and Packaging SKU Management" description="Product Groups organize related Packaging SKUs. Inventory balances remain tracked per SKU.">
+          {!productGroups.length ? (
+            <EmptyState title="No Product Groups" description="Add a Product Group, then create Packaging SKUs for production stock-in." />
+          ) : (
+            <div className="space-y-3 p-4">
+              <div className="hidden rounded-xl border border-border bg-slate-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted md:grid md:grid-cols-[minmax(260px,1.5fr)_1fr_120px_130px_120px_260px]">
+                <div>Product Group</div>
+                <div>Category</div>
+                <div>Active SKUs</div>
+                <div>Total Balance</div>
+                <div>Status</div>
+                <div className="text-right">Actions</div>
+              </div>
+              {productGroups.map((group) => {
+                const groupKey = group.groupKey;
+                const isExpanded = expandedProductGroups[groupKey] ?? true;
+                return (
+                  <div key={groupKey} className="overflow-visible rounded-2xl border border-border bg-white shadow-sm">
+                    <div className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(260px,1.5fr)_1fr_120px_130px_120px_260px] md:items-center">
+                      <button
+                        className="flex items-start gap-3 text-left"
+                        type="button"
+                        onClick={() => setExpandedProductGroups((current) => ({ ...current, [groupKey]: !isExpanded }))}
+                      >
+                        <span className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border bg-slate-50 text-sm font-bold text-text-secondary">{isExpanded ? "-" : "+"}</span>
+                        <span>
+                          <span className="block text-base font-bold text-text-primary">{group.product_group_name}</span>
+                          <span className="mt-0.5 block text-xs font-semibold text-text-secondary">({group.skus.length} Packaging SKUs)</span>
+                        </span>
+                      </button>
+                      <div className="text-sm font-semibold text-text-secondary">{group.category || "No category"}</div>
+                      <div className="text-sm font-bold text-text-primary">{group.active_sku_count}</div>
+                      <div className="text-sm font-bold text-text-primary">{quantity(group.total_balance, "")}</div>
+                      <div><Badge tone={group.status === "active" ? "success" : "neutral"}>{group.status}</Badge></div>
+                      <div className="flex flex-wrap justify-start gap-2 md:justify-end">
+                        {!group.isStandalone && can("factory_finished_goods.create") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => openPackagingSkuModal(group)}>Add Packaging SKU</button> : null}
+                        {!group.isStandalone && can("factory_finished_goods.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "product-group", value: group })}>Edit Product Group</button> : null}
+                        {!group.isStandalone && can("factory_finished_goods.edit") && group.status !== "archived" ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => archiveProductGroup(group)}>Archive Product Group</button> : null}
+                      </div>
+                    </div>
+                    {isExpanded ? (
+                      <div className="border-t border-border bg-slate-50/60 px-4 py-4">
+                        {!group.skus.length ? (
+                          <EmptyState title="No Packaging SKUs" description="Add a Packaging SKU before production stock-in." />
+                        ) : (
+                          <div className="overflow-x-auto rounded-xl border border-border bg-white">
+                            <table className="w-full min-w-[820px] text-left">
+                              <thead>
+                                <tr className="border-b border-border bg-white text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">
+                                  <th className="px-4 py-2.5">SKU</th>
+                                  <th className="px-4 py-2.5">Variant</th>
+                                  <th className="px-4 py-2.5">Pack Size</th>
+                                  <th className="px-4 py-2.5">Balance</th>
+                                  <th className="px-4 py-2.5">Active Production Standard</th>
+                                  <th className="px-4 py-2.5">Status</th>
+                                  <th className="px-4 py-2.5 text-right">Actions</th>
+                                </tr>
+                              </thead>
+                              <tbody>
+                                {group.skus.map((sku) => {
+                                  const packSize = Number(sku.pack_size_qty || 0) > 0 ? `${sku.pack_size_qty} ${sku.pack_size_uom || ""}`.trim() : "—";
+                                  const baseSize = Number(sku.base_qty || 0) > 0 ? `${sku.base_qty} ${sku.base_uom || ""}`.trim() : "";
+                                  const activeStandard = data.recipes.find((recipe) => recipe.status === "active" && recipe.finished_good_id === sku.id);
+                                  return (
+                                    <tr key={sku.id} className="border-b border-border last:border-0">
+                                      <td className="px-4 py-3 text-sm">
+                                        <div className="font-bold text-text-primary">{sku.product_code || "No SKU"}</div>
+                                        <div className="text-xs text-text-secondary">{sku.product_name_en || sku.product_name || group.product_group_name}</div>
+                                      </td>
+                                      <td className="px-4 py-3 text-sm font-semibold text-text-primary">{sku.variant_name || "Default SKU"}</td>
+                                      <td className="px-4 py-3 text-sm">
+                                        <div className="font-semibold text-text-primary">{packSize}</div>
+                                        {baseSize ? <div className="text-xs text-text-secondary">Base {baseSize}</div> : null}
+                                      </td>
+                                      <td className="px-4 py-3 text-sm font-bold text-text-primary">{quantity(sku.current_balance, sku.uom)}</td>
+                                      <td className="px-4 py-3 text-sm font-semibold text-text-secondary">{activeStandard ? activeStandard.version || activeStandard.recipe_name || "Active" : "No active standard"}</td>
+                                      <td className="px-4 py-3 text-sm">
+                                        <div className="flex flex-wrap gap-1.5">
+                                          <Badge tone={sku.status === "active" ? "success" : "neutral"}>{sku.status}</Badge>
+                                          <Badge tone={Number(sku.current_balance || 0) <= 0 ? "danger" : "success"}>{Number(sku.current_balance || 0) <= 0 ? "out of stock" : "in stock"}</Badge>
+                                        </div>
+                                      </td>
+                                      <td className="px-4 py-3 text-right text-sm">
+                                        <div className="flex flex-wrap justify-end gap-2">
+                                          <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-detail", product: sku })}>View SKU</button>
+                                          {can("factory_finished_goods.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => openPackagingSkuModal(group.isStandalone ? null : group, sku)}>Edit SKU</button> : null}
+                                          {can("factory_finished_goods.edit") && sku.status !== "archived" ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => archiveFinishedGood(sku)}>Archive SKU</button> : null}
+                                        </div>
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
+                );
+              })}
+            </div>
+          )}
         </Card>
       </div>
     );
@@ -5288,6 +5565,15 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           movements={data.productMovements}
           productionCosts={metrics.productionCostRows}
           onClose={() => setModal(null)}
+        />
+      ) : null}
+      {modal?.type === "product-group" ? (
+        <ProductGroupModal
+          initialValue={modal.value}
+          categories={data.finishedGoodCategories}
+          onClose={() => setModal(null)}
+          onSave={saveProductGroup}
+          onArchive={archiveProductGroup}
         />
       ) : null}
       {modal?.type === "finished-good" ? (
