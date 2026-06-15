@@ -2825,15 +2825,20 @@ Factory Finished Goods Master and Warehouse implemented scope:
 
 - Finished Goods is a functional master-plus-warehouse page through `factory_finished_goods`.
 - Finished Goods product setup supports Create, Edit and Archive.
-- Finished Goods product fields include Category, SKU Code, Product Name EN, Product Name CN, Product Name BM, UOM, Active/Archived status and Remarks.
+- Finished Goods product fields include Category, SKU Code, Product Name EN, Product Name CN, Product Name BM, Product Family, Variant Name, Pack Size Qty/UOM, Base Qty/UOM, UOM, Active/Archived status and Remarks.
 - Finished Goods create/edit uses a single-column form with Product Information, Configuration, and Notes sections.
+- Finished Goods create/edit includes a Product Group / Packaging section so one product identity can group multiple SKU packaging variants, such as Black Pepper Sauce with 1kg Pack and 2kg Pack SKUs.
+- Product Families are stored in `factory_product_families` with Name EN/CN/BM, category, status and remarks.
+- Finished Good SKU records remain the inventory unit. Each packaging variant still tracks stock separately through its own `factory_finished_goods.id`.
+- Existing Finished Goods records can have no Product Family initially; they remain compatible and continue to display as standalone SKUs.
 - Finished Goods must not maintain user-facing min stock thresholds; raw material inventory remains the stock-planning control point.
 - Product Name EN is the canonical production stock-in name and is mirrored to `factory_finished_goods.product_name` for existing production matching.
 - Finished Goods category selection must use a searchable FeedX-style selector, show "Select Category" before selection, and require a category before save.
 - Finished Good Category setup supports Create, Edit and Archive through `factory_finished_good_categories`.
 - Finished Good Categories must be managed inside the Category modal/drawer only, not as a main-page table.
 - Category fields include Category Name, Description and Active/Archived status.
-- Finished Goods listing shows Product Name EN/CN/BM where available, SKU, category, UOM, current balance, batch count, latest batch, last production date, last movement date, status and actions.
+- Finished Goods listing shows Product Family/Product, Variant, SKU, Pack Size, category, current balance, batch count, latest batch, last production date, last movement date, status and actions.
+- Finished Goods filters support Product, Product Family, Category, Status, Batch and Movement Type where relevant.
 - Finished Goods dashboard cards show Total SKUs, Total Finished Goods Stock, Active SKUs and Out of Stock Items.
 - Finished Goods warehouse insight panels include Stock Distribution by Product, Top Produced Products for the last 30 days, Production In vs Stock Out movement summary, Batch Count/latest batch, and Days Coverage when stock-out movement data is available.
 - Finished Goods detail shows current balance, production history, movement history, batch history and actual-cost summary when cost data is available.
@@ -2911,6 +2916,7 @@ Factory Product Recipes implemented scope:
 - Product Recipes is a functional Factory Master Data page through `factory_product_recipes`, presented to users as Production Standards / BOM.
 - Production Standards define the standard output Production Quantity, optional Estimated Production Time, and raw material BOM for Finished Goods production.
 - A Production Standard must select an active Finished Goods Master product through `finished_good_id`.
+- Phase 1 Production Standards remain per Finished Good SKU/packaging variant. Phase 2 will support bulk product production with packaging split into multiple Finished Good SKUs.
 - Recipe Code remains an internal generated identifier and is not edited in the create/edit UI.
 - New standards start at version `v1`; users cannot manually type version values.
 - New Version creates a draft copy of the selected standard and auto-increments the version to `v2`, `v3`, `v4`, and so on.

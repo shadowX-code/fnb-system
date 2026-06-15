@@ -7,6 +7,10 @@ function normalizeNumber(value, fallback = 0) {
   return Number.isFinite(numeric) ? numeric : fallback;
 }
 
+function optionalNumber(value) {
+  return value === null || value === undefined || value === "" ? "" : normalizeNumber(value);
+}
+
 function mapJobOrder(row) {
   const finishedGood = row.finished_good || {};
   const status = row.status === "planned" ? "released" : row.status || "draft";
@@ -264,6 +268,7 @@ function mapProduction(row) {
 
 function mapFinishedGood(row) {
   const storageLocationName = row.storage_location_ref?.location_name || row.storage_location || "";
+  const productFamily = row.product_family || {};
   return {
     id: row.id,
     product_code: row.product_code || "",
@@ -271,6 +276,15 @@ function mapFinishedGood(row) {
     product_name_en: row.product_name_en || row.product_name || "",
     product_name_cn: row.product_name_cn || "",
     product_name_bm: row.product_name_bm || "",
+    product_family_id: row.product_family_id || "",
+    product_family_name: productFamily.name_en || row.product_family_name || "",
+    product_family_name_cn: productFamily.name_cn || "",
+    product_family_name_bm: productFamily.name_bm || "",
+    variant_name: row.variant_name || "",
+    pack_size_qty: optionalNumber(row.pack_size_qty),
+    pack_size_uom: row.pack_size_uom || "",
+    base_qty: optionalNumber(row.base_qty),
+    base_uom: row.base_uom || "",
     category_id: row.category_id || "",
     category: row.category_ref?.name || row.category || "",
     uom: row.uom || "",
@@ -278,6 +292,21 @@ function mapFinishedGood(row) {
     min_stock_level: normalizeNumber(row.min_stock_level),
     storage_location_id: row.storage_location_id || "",
     storage_location: storageLocationName,
+    status: row.status || "active",
+    remarks: row.remarks || "",
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
+function mapProductFamily(row) {
+  return {
+    id: row.id,
+    name_en: row.name_en || "",
+    name_cn: row.name_cn || "",
+    name_bm: row.name_bm || "",
+    category_id: row.category_id || "",
+    category: row.category?.name || "",
     status: row.status || "active",
     remarks: row.remarks || "",
     created_at: row.created_at,
@@ -515,6 +544,7 @@ function emptyFactoryData() {
     productions: [],
     finishedGoods: [],
     finishedGoodCategories: [],
+    productFamilies: [],
     productMovements: [],
     rawStockChecks: [],
     productStockChecks: [],
@@ -524,7 +554,8 @@ function emptyFactoryData() {
   };
 }
 
-const finishedGoodSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,uom,status";
+const finishedGoodSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,pack_size_qty,pack_size_uom,base_qty,base_uom,uom,status,product_family:factory_product_families(name_en,name_cn,name_bm,status)";
+const finishedGoodFullSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,pack_size_qty,pack_size_uom,base_qty,base_uom,category_id,category,uom,current_balance,min_stock_level,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),product_family:factory_product_families(name_en,name_cn,name_bm,status)";
 const storageLocationSelect = "id,location_name,location_code,location_type,status,remarks,created_at,updated_at";
 const factorySupplierSelect = "id,supplier_name,supplier_code,contact_person,phone,email,status,remarks,created_at,updated_at";
 const rawMaterialSelect = `id,material_code,name,name_en,name_cn,name_bm,category_id,category,uom,current_balance,min_stock_level,preferred_supplier,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_raw_material_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)`;
@@ -568,6 +599,7 @@ function factoryDataPlan(scope, hasPermission) {
     productionDetails: needsProductionDetails,
     finishedGoods: (isDashboard && can("factory_dashboard.view")) || (isJobOrders && (can("factory_job_orders.view") || can("factory_job_orders.create") || can("factory_job_orders.edit"))) || (isProductRecipes && can("factory_product_recipes.view")) || ((isProduction || isFinishedGoods || isProductMovements) && can("factory_finished_goods.view")) || (isProduction && can("factory_production.complete")) || (isProductStockCheck && can("factory_product_stock_check.view")),
     finishedGoodCategories: isFinishedGoods && can("factory_finished_goods.view"),
+    productFamilies: isFinishedGoods && can("factory_finished_goods.view"),
     productMovements: (isDashboard && can("factory_dashboard.view")) || ((isProduction || isProductMovements) && can("factory_product_movements.view")) || (isFinishedGoods && can("factory_finished_goods.view")) || (isReports && can("factory_product_movements.view")) || (isBatchTraceability && canTraceBatches),
     rawStockChecks: (isRawInventory && can("factory_raw_inventory.view")) || (isRawStockCheck && can("factory_raw_stock_check.view")),
     productStockChecks: isProductStockCheck && can("factory_product_stock_check.view"),
@@ -633,7 +665,7 @@ export const factoryService = {
       .limit(150), (rows) => rows.map(mapProduction));
     addTask(plan.finishedGoods, "finishedGoods", "Finished Goods", () => supabase
       .from("factory_finished_goods")
-      .select("id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,category_id,category,uom,current_balance,min_stock_level,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)")
+      .select(finishedGoodFullSelect)
       .order("product_name", { ascending: true })
       .limit(300), (rows) => rows.map(mapFinishedGood));
     addTask(plan.finishedGoodCategories, "finishedGoodCategories", "Finished Good Categories", () => supabase
@@ -641,6 +673,11 @@ export const factoryService = {
       .select("id,name,description,status,created_at,updated_at")
       .order("name", { ascending: true })
       .limit(150), (rows) => rows.map(mapFinishedGoodCategory));
+    addTask(plan.productFamilies, "productFamilies", "Product Families", () => supabase
+      .from("factory_product_families")
+      .select("id,name_en,name_cn,name_bm,category_id,status,remarks,created_at,updated_at,category:factory_finished_good_categories(name)")
+      .order("name_en", { ascending: true })
+      .limit(200), (rows) => rows.map(mapProductFamily));
     addTask(plan.productMovements, "productMovements", "Product Movements", () => supabase
       .from("factory_product_stock_movements")
       .select("id,finished_good_id,product_name,movement_type,quantity,uom,reference_type,reference_id,reference_no,movement_date,notes,created_by,created_at,finished_good:factory_finished_goods(product_name,uom)")
@@ -1194,6 +1231,36 @@ export const factoryService = {
   async saveFinishedGood(product, employeeId) {
     const isUpdate = Boolean(product.id);
     const productNameEn = String(product.product_name_en || product.product_name || "").trim();
+    let productFamilyId = product.product_family_id || null;
+    if (!productFamilyId && String(product.product_family_name || "").trim()) {
+      const familyName = String(product.product_family_name || "").trim();
+      const { data: existingFamily, error: familyLookupError } = await supabase
+        .from("factory_product_families")
+        .select("id,status")
+        .ilike("name_en", familyName)
+        .maybeSingle();
+      throwSupabaseError("factory.finished_good.product_family_lookup", familyLookupError);
+      if (existingFamily?.id) {
+        productFamilyId = existingFamily.id;
+      } else {
+        const { data: newFamily, error: familyCreateError } = await supabase
+          .from("factory_product_families")
+          .insert({
+            name_en: familyName,
+            name_cn: String(product.product_family_name_cn || "").trim(),
+            name_bm: String(product.product_family_name_bm || "").trim(),
+            category_id: product.category_id || null,
+            status: "active",
+            remarks: "",
+            created_by: employeeId || null,
+            updated_at: new Date().toISOString(),
+          })
+          .select("id")
+          .single();
+        throwSupabaseError("factory.finished_good.product_family_create", familyCreateError);
+        productFamilyId = newFamily.id;
+      }
+    }
     let storageLocationName = "";
     if (product.storage_location_id) {
       const { data: location, error: locationError } = await supabase
@@ -1211,6 +1278,12 @@ export const factoryService = {
       product_name_en: productNameEn,
       product_name_cn: String(product.product_name_cn || "").trim(),
       product_name_bm: String(product.product_name_bm || "").trim(),
+      product_family_id: productFamilyId,
+      variant_name: String(product.variant_name || "").trim(),
+      pack_size_qty: product.pack_size_qty === "" || product.pack_size_qty == null ? null : normalizeNumber(product.pack_size_qty),
+      pack_size_uom: String(product.pack_size_uom || "").trim(),
+      base_qty: product.base_qty === "" || product.base_qty == null ? null : normalizeNumber(product.base_qty),
+      base_uom: String(product.base_uom || "").trim(),
       category_id: product.category_id || null,
       category: String(product.category || "").trim(),
       uom: product.uom || "",
@@ -1232,7 +1305,7 @@ export const factoryService = {
       : supabase.from("factory_finished_goods").insert(payload);
 
     const { data, error } = await query
-      .select("id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,category_id,category,uom,current_balance,min_stock_level,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)")
+      .select(finishedGoodFullSelect)
       .single();
     throwSupabaseError("factory.finished_good.save", error);
     await logFactoryAction({
@@ -1252,7 +1325,7 @@ export const factoryService = {
       .from("factory_finished_goods")
       .update({ status: "archived", updated_at: new Date().toISOString() })
       .eq("id", product.id)
-      .select("id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,category_id,category,uom,current_balance,min_stock_level,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)")
+      .select(finishedGoodFullSelect)
       .single();
     throwSupabaseError("factory.finished_good.archive", error);
     await logFactoryAction({

@@ -435,11 +435,12 @@ function focusFirstInvalid(refs, firstKey) {
 }
 
 function finishedGoodLabel(product) {
-  return product?.product_name_en || product?.product_name || "";
+  return product?.product_family_name || product?.product_name_en || product?.product_name || "";
 }
 
 function finishedGoodHelper(product) {
-  return [product?.product_code, product?.product_name_cn || product?.product_name_bm, product?.uom].filter(Boolean).join(" · ");
+  const packSize = Number(product?.pack_size_qty || 0) > 0 ? `${product.pack_size_qty} ${product.pack_size_uom || ""}`.trim() : "";
+  return [product?.variant_name, product?.product_code, packSize, product?.uom].filter(Boolean).join(" · ");
 }
 
 function rawMaterialLabel(material) {
@@ -709,7 +710,7 @@ function FinishedGoodDetailModal({ product, productions, movements, productionCo
   );
 }
 
-function FinishedGoodMasterModal({ initialValue, categories, storageLocations = [], onClose, onSave, onArchive }) {
+function FinishedGoodMasterModal({ initialValue, categories, storageLocations = [], productFamilies = [], onClose, onSave, onArchive }) {
   const fieldRefs = useRef({});
   const [form, setForm] = useState(() => ({
     product_code: "",
@@ -717,6 +718,13 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
     product_name_en: initialValue?.product_name_en || initialValue?.product_name || "",
     product_name_cn: "",
     product_name_bm: "",
+    product_family_id: "",
+    product_family_name: "",
+    variant_name: "",
+    pack_size_qty: "",
+    pack_size_uom: "kg",
+    base_qty: "",
+    base_uom: "kg",
     category_id: "",
     category: "",
     uom: "kg",
@@ -732,6 +740,12 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
   const [fieldErrors, setFieldErrors] = useState({});
   const activeCategories = categories.filter((category) => category.status === "active" || category.id === form.category_id);
   const categoryOptions = activeCategories.map((category) => ({ value: category.id, label: category.name, helper: category.description || category.status }));
+  const activeProductFamilies = productFamilies.filter((family) => family.status === "active" || family.id === form.product_family_id);
+  const productFamilyOptions = activeProductFamilies.map((family) => ({
+    value: family.id,
+    label: family.name_en,
+    helper: [family.category, family.name_cn || family.name_bm].filter(Boolean).join(" · ") || family.status,
+  }));
   const activeStorageLocations = storageLocations.filter((location) => location.status === "active" || location.id === form.storage_location_id);
   const storageLocationOptions = [
     { value: "", label: "No Storage Location", helper: "Leave blank" },
@@ -759,7 +773,13 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
     setSaving(true);
     try {
       const selectedCategory = categories.find((category) => category.id === form.category_id);
-      await onSave({ ...form, product_name: form.product_name_en, category: selectedCategory?.name || "" });
+      const selectedFamily = productFamilies.find((family) => family.id === form.product_family_id);
+      await onSave({
+        ...form,
+        product_name: form.product_name_en,
+        category: selectedCategory?.name || "",
+        product_family_name: selectedFamily?.name_en || form.product_family_name || "",
+      });
     } finally {
       setSaving(false);
     }
@@ -830,9 +850,64 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
             <Field label="Product Name (BM)">
               <input className={inputClass()} value={form.product_name_bm || ""} onChange={(event) => setForm((current) => ({ ...current, product_name_bm: event.target.value }))} />
             </Field>
-          </section>
+	          </section>
 
-          <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
+	          <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
+	            <div>
+	              <div className="text-sm font-semibold text-text-primary">Product Group / Packaging</div>
+	              <div className="mt-1 text-sm text-text-secondary">Group related SKUs by product family while keeping stock tracked per packaging variant.</div>
+	            </div>
+	            <Field label="Product Family">
+	              <SearchableSelect
+	                value={form.product_family_id || ""}
+	                options={productFamilyOptions}
+	                placeholder="Select Product Family"
+	                searchPlaceholder="Search product families"
+	                emptyText="No product families"
+	                onChange={(familyId) => {
+	                  const family = productFamilies.find((item) => item.id === familyId);
+	                  setForm((current) => ({
+	                    ...current,
+	                    product_family_id: familyId,
+	                    product_family_name: family?.name_en || "",
+	                  }));
+	                }}
+	              />
+	            </Field>
+	            <Field label="Quick Create Product Family">
+	              <input
+	                className={inputClass()}
+	                value={form.product_family_name || ""}
+	                placeholder="Type a family name if it does not exist"
+	                onChange={(event) => setForm((current) => ({ ...current, product_family_id: "", product_family_name: event.target.value }))}
+	              />
+	            </Field>
+	            <Field label="Variant Name">
+	              <input className={inputClass()} value={form.variant_name || ""} placeholder="1kg Pack" onChange={(event) => setForm((current) => ({ ...current, variant_name: event.target.value }))} />
+	            </Field>
+	            <div className="grid gap-3 md:grid-cols-2">
+	              <Field label="Pack Size Qty">
+	                <input className={inputClass()} type="number" min="0" step="0.0001" value={form.pack_size_qty ?? ""} onChange={(event) => setForm((current) => ({ ...current, pack_size_qty: event.target.value }))} />
+	              </Field>
+	              <Field label="Pack Size UOM">
+	                <select className={inputClass()} value={form.pack_size_uom || "kg"} onChange={(event) => setForm((current) => ({ ...current, pack_size_uom: event.target.value }))}>
+	                  {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
+	                </select>
+	              </Field>
+	            </div>
+	            <div className="grid gap-3 md:grid-cols-2">
+	              <Field label="Base Qty">
+	                <input className={inputClass()} type="number" min="0" step="0.0001" value={form.base_qty ?? ""} onChange={(event) => setForm((current) => ({ ...current, base_qty: event.target.value }))} />
+	              </Field>
+	              <Field label="Base UOM">
+	                <select className={inputClass()} value={form.base_uom || "kg"} onChange={(event) => setForm((current) => ({ ...current, base_uom: event.target.value }))}>
+	                  {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
+	                </select>
+	              </Field>
+	            </div>
+	          </section>
+
+	          <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
             <div>
               <div className="text-sm font-semibold text-text-primary">Configuration</div>
               <div className="mt-1 text-sm text-text-secondary">Operational settings for availability and stock movement units.</div>
@@ -3020,11 +3095,11 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
 }
 
 export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, auth }) {
-  const [data, setData] = useState({ jobOrders: [], rawMaterials: [], rawMaterialCategories: [], rawMaterialMovements: [], receivings: [], receivingBatches: [], factorySuppliers: [], productions: [], finishedGoods: [], finishedGoodCategories: [], productMovements: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [], accessIssues: [] });
+  const [data, setData] = useState({ jobOrders: [], rawMaterials: [], rawMaterialCategories: [], rawMaterialMovements: [], receivings: [], receivingBatches: [], factorySuppliers: [], productions: [], finishedGoods: [], finishedGoodCategories: [], productFamilies: [], productMovements: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [], accessIssues: [] });
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [receivingTab, setReceivingTab] = useState("history");
-  const [warehouseFilters, setWarehouseFilters] = useState({ product: "", status: "", batch: "", movementType: "" });
+  const [warehouseFilters, setWarehouseFilters] = useState({ product: "", family: "", category: "", status: "", batch: "", movementType: "" });
   const [rawMaterialFilters, setRawMaterialFilters] = useState({ material: "", status: "", category: "" });
   const [rawMovementFilters, setRawMovementFilters] = useState({ material: "", movementType: "", storageLocation: "", dateFrom: "", dateTo: "", search: "" });
   const can = (code) => Boolean(auth?.hasPermission?.(code));
@@ -3778,7 +3853,13 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       const productMovements = data.productMovements.filter((movement) => movement.finished_good_id === row.id || String(movement.product_name || "").toLowerCase() === productKey);
       const batchMatch = !warehouseFilters.batch || productProductions.some((production) => includesText(production.batch_no, warehouseFilters.batch));
       const movementTypeMatch = !warehouseFilters.movementType || productMovements.some((movement) => movement.movement_type === warehouseFilters.movementType);
-      return includesText(row.product_name, warehouseFilters.product) && (!warehouseFilters.status || row.status === warehouseFilters.status) && batchMatch && movementTypeMatch;
+      const productText = `${row.product_name} ${row.product_name_en} ${row.product_name_cn} ${row.product_name_bm} ${row.product_code} ${row.variant_name}`;
+      return includesText(productText, warehouseFilters.product)
+        && (!warehouseFilters.family || row.product_family_id === warehouseFilters.family)
+        && (!warehouseFilters.category || row.category_id === warehouseFilters.category)
+        && (!warehouseFilters.status || row.status === warehouseFilters.status)
+        && batchMatch
+        && movementTypeMatch;
     });
   }
 
@@ -3796,9 +3877,21 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const statuses = [...new Set(data.finishedGoods.map((row) => row.status).filter(Boolean))];
     const movementTypes = [...new Set(data.productMovements.map((row) => row.movement_type).filter(Boolean))];
     return (
-      <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 md:grid-cols-4">
+      <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 md:grid-cols-6">
         <Field label="Product">
           <input className={inputClass()} value={warehouseFilters.product} onChange={(event) => setWarehouseFilters((current) => ({ ...current, product: event.target.value }))} placeholder="Search product" />
+        </Field>
+        <Field label="Product Family">
+          <select className={inputClass()} value={warehouseFilters.family} onChange={(event) => setWarehouseFilters((current) => ({ ...current, family: event.target.value }))}>
+            <option value="">All families</option>
+            {data.productFamilies.map((family) => <option key={family.id} value={family.id}>{family.name_en}</option>)}
+          </select>
+        </Field>
+        <Field label="Category">
+          <select className={inputClass()} value={warehouseFilters.category} onChange={(event) => setWarehouseFilters((current) => ({ ...current, category: event.target.value }))}>
+            <option value="">All categories</option>
+            {data.finishedGoodCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+          </select>
         </Field>
         {showStatus ? (
           <Field label="Status">
@@ -3818,7 +3911,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           </select>
         </Field>
         <div className="flex items-end">
-          <button className="btn-secondary w-full" type="button" onClick={() => setWarehouseFilters({ product: "", status: "", batch: "", movementType: "" })}>Clear</button>
+          <button className="btn-secondary w-full" type="button" onClick={() => setWarehouseFilters({ product: "", family: "", category: "", status: "", batch: "", movementType: "" })}>Clear</button>
         </div>
       </div>
     );
@@ -4913,10 +5006,15 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Card title="Finished Goods Master and Warehouse" description="Master products define the valid stock-in SKUs. Balances are updated by production stock-in and approved stock checks.">
           <FactoryTable
             columns={[
-              { key: "product_name", label: "Product", render: (row) => <div><div className="font-bold text-text-primary">{row.product_name_en || row.product_name}</div><div className="text-xs text-text-secondary">{[row.product_name_cn, row.product_name_bm].filter(Boolean).join(" · ") || "No CN/BM name"}</div></div> },
+              { key: "product_name", label: "Product", render: (row) => <div><div className="font-bold text-text-primary">{row.product_family_name || row.product_name_en || row.product_name}</div><div className="text-xs text-text-secondary">{row.product_family_name ? (row.product_name_en || row.product_name) : [row.product_name_cn, row.product_name_bm].filter(Boolean).join(" · ") || "No family"}</div></div> },
+              { key: "variant", label: "Variant", render: (row) => row.variant_name || "Default SKU" },
               { key: "product_code", label: "SKU", render: (row) => row.product_code || "—" },
+              { key: "pack_size", label: "Pack Size", render: (row) => {
+                const packSize = Number(row.pack_size_qty || 0) > 0 ? `${row.pack_size_qty} ${row.pack_size_uom || ""}`.trim() : "";
+                const baseSize = Number(row.base_qty || 0) > 0 ? `${row.base_qty} ${row.base_uom || ""}`.trim() : "";
+                return <div><div className="font-semibold text-text-primary">{packSize || "—"}</div>{baseSize ? <div className="text-xs text-text-secondary">Base {baseSize}</div> : null}</div>;
+              } },
               { key: "category", label: "Category", render: (row) => row.category || "No category" },
-              { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
               { key: "current_balance", label: "Current Balance", render: (row) => quantity(row.current_balance, row.uom) },
               { key: "batch_count", label: "Batch Count", render: (row) => row.batch_count || 0 },
               { key: "latest_batch_no", label: "Latest Batch", render: (row) => row.latest_batch_no || "—" },
@@ -5159,6 +5257,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           initialValue={modal.value}
           categories={data.finishedGoodCategories}
           storageLocations={data.storageLocations}
+          productFamilies={data.productFamilies}
           onClose={() => setModal(null)}
           onSave={saveFinishedGood}
           onArchive={archiveFinishedGood}

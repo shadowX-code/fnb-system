@@ -215,3 +215,11 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Added a follow-up Sales/Purchase import RLS migration after confirming staging still has `202606050001` pending; Sales import batch writes require `sales_input.import`, and Purchase import batch writes require `purchase_input.import`.
 - Fixed Sales Import history row display so View Imported Rows shows normalized sales channel names and matching channel amounts instead of reading uploaded amount columns as channel labels.
 - Scoped embedded Purchase Import to the Purchase Input selected outlet, added target-outlet validation and banner copy, kept month/year file-derived for multi-month imports, and filtered recent import history by selected outlet across months.
+
+## 2026-06-15
+
+### Factory
+- Added Finished Goods Product Family / Packaging Variant foundation so one product family can group multiple inventory SKUs while each Finished Good record continues to track stock independently.
+- Added `factory_product_families` master data plus nullable Finished Good SKU fields for product family, variant name, pack size and base quantity without changing existing balances, movements, stock checks, Job Orders or Production stock-in references.
+- Updated the Finished Goods form and listing with Product Group / Packaging fields, product family/category/status filters and product/variant/SKU/pack-size warehouse columns.
+- Documented the Phase 1 limitation that Production Standards remain per Finished Good SKU; bulk production with packaging split into multiple SKUs is deferred to Phase 2.
