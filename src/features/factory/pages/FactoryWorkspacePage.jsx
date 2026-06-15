@@ -846,16 +846,10 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
-  const [showAdvancedConversion, setShowAdvancedConversion] = useState(Boolean(initialValue?.base_qty || initialValue?.base_uom));
-  const [conversionCustomized, setConversionCustomized] = useState(Boolean(initialValue?.base_qty || initialValue?.base_uom));
-  const activeCategories = categories.filter((category) => category.status === "active" || category.id === form.category_id);
-  const categoryOptions = activeCategories.map((category) => ({ value: category.id, label: category.name, helper: category.description || category.status }));
-  const activeProductFamilies = productFamilies.filter((family) => family.status === "active" || family.id === form.product_family_id);
-  const productFamilyOptions = activeProductFamilies.map((family) => ({
-    value: family.id,
-    label: family.name_en,
-    helper: [family.category, family.name_cn || family.name_bm].filter(Boolean).join(" · ") || family.status,
-  }));
+  const selectedCategory = categories.find((category) => category.id === form.category_id);
+  const selectedFamily = productFamilies.find((family) => family.id === form.product_family_id);
+  const parentName = selectedFamily?.name_en || form.product_family_name || form.product_name_en || form.product_name || "Unassigned Finished Good";
+  const parentCategory = selectedFamily?.category || selectedCategory?.name || form.category || "No category";
   const activeStorageLocations = storageLocations.filter((location) => location.status === "active" || location.id === form.storage_location_id);
   const storageLocationOptions = [
     { value: "", label: "No Storage Location", helper: "Leave blank" },
@@ -868,7 +862,10 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
     const nextErrors = {
       category_id: !form.category_id ? "Category is required." : "",
       product_code: !String(form.product_code || "").trim() ? "SKU Code is required." : "",
-      product_name_en: !String(form.product_name_en || "").trim() ? "Product Name (EN) is required." : "",
+      product_name_en: !String(form.product_name_en || form.product_name || parentName || "").trim() ? "Finished Good name is required." : "",
+      variant_name: !String(form.variant_name || "").trim() ? "Packaging Variant is required." : "",
+      pack_size_qty: !Number(form.pack_size_qty || 0) ? "Pack Size Qty is required." : "",
+      pack_size_uom: !String(form.pack_size_uom || "").trim() ? "Pack Size UOM is required." : "",
       uom: !String(form.uom || "").trim() ? "UOM is required." : "",
       status: !String(form.status || "").trim() ? "Status is required." : "",
     };
@@ -882,13 +879,19 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
     }
     setSaving(true);
     try {
-      const selectedCategory = categories.find((category) => category.id === form.category_id);
-      const selectedFamily = productFamilies.find((family) => family.id === form.product_family_id);
+      const skuUom = form.pack_size_uom || form.uom;
+      const productName = selectedFamily?.name_en || form.product_family_name || form.product_name_en || form.product_name || parentName;
       await onSave({
         ...form,
-        product_name: form.product_name_en,
-        category: selectedCategory?.name || "",
+        product_name: productName,
+        product_name_en: productName,
+        product_name_cn: selectedFamily?.name_cn || form.product_name_cn || "",
+        product_name_bm: selectedFamily?.name_bm || form.product_name_bm || "",
+        category: selectedCategory?.name || selectedFamily?.category || form.category || "",
         product_family_name: selectedFamily?.name_en || form.product_family_name || "",
+        base_qty: form.pack_size_qty,
+        base_uom: skuUom,
+        uom: skuUom,
       });
     } finally {
       setSaving(false);
@@ -908,7 +911,7 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
   return (
     <Modal
       title={initialValue?.id ? "Edit Packaging SKU" : "Add Packaging SKU"}
-      description="Packaging SKUs are the finished goods inventory items used by production stock-in."
+      description={`${initialValue?.id ? "Edit" : "Add"} a packaging SKU under ${parentName}.`}
       size="lg"
       onClose={saving ? undefined : onClose}
       footer={(
@@ -924,153 +927,53 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
     >
       <form id="factory-finished-good-form" className="space-y-4" onSubmit={submit}>
         <div className="space-y-5">
+          <section className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
+            <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Finished Good</div>
+            <div className="mt-1 text-lg font-bold text-text-primary">{parentName}</div>
+            <div className="mt-1 text-sm font-semibold text-text-secondary">Category: {parentCategory}</div>
+            {fieldErrors.category_id ? <div className="mt-2 text-xs font-semibold text-rose-600">Edit the Finished Good and select a category before adding Packaging SKUs.</div> : null}
+          </section>
+
           <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
-            <div>
-              <div className="text-sm font-semibold text-text-primary">Product Information</div>
-              <div className="mt-1 text-sm text-text-secondary">Core product identity used by production planning and finished goods stock-in.</div>
-            </div>
-            <Field label="Category *" error={fieldErrors.category_id}>
-              <SearchableSelect
-                value={form.category_id || ""}
-                options={categoryOptions}
-                placeholder="Select Category"
-                error={Boolean(fieldErrors.category_id)}
-                buttonRef={(node) => { fieldRefs.current.category_id = node; }}
-                onChange={(categoryId) => {
-                  setFieldErrors((current) => ({ ...current, category_id: "" }));
-                  setForm((current) => ({ ...current, category_id: categoryId }));
-                }}
-              />
-            </Field>
             <Field label="SKU Code *" error={fieldErrors.product_code}>
               <input ref={(node) => { fieldRefs.current.product_code = node; }} className={inputClass(fieldErrors.product_code)} value={form.product_code || ""} onChange={(event) => {
                 setFieldErrors((current) => ({ ...current, product_code: "" }));
                 setForm((current) => ({ ...current, product_code: event.target.value }));
               }} />
             </Field>
-            <Field label="Product Name (EN) *" error={fieldErrors.product_name_en}>
-              <input ref={(node) => { fieldRefs.current.product_name_en = node; }} className={inputClass(fieldErrors.product_name_en)} value={form.product_name_en || ""} onChange={(event) => {
-                setFieldErrors((current) => ({ ...current, product_name_en: "" }));
-                setForm((current) => ({ ...current, product_name_en: event.target.value, product_name: event.target.value }));
+            <Field label="Packaging Variant *" error={fieldErrors.variant_name}>
+              <input ref={(node) => { fieldRefs.current.variant_name = node; }} className={inputClass(fieldErrors.variant_name)} value={form.variant_name || ""} placeholder="1kg Pack, 2kg Pack, 5kg Pail" onChange={(event) => {
+                setFieldErrors((current) => ({ ...current, variant_name: "" }));
+                setForm((current) => ({ ...current, variant_name: event.target.value }));
               }} />
             </Field>
-            <Field label="Product Name (CN)">
-              <input className={inputClass()} value={form.product_name_cn || ""} onChange={(event) => setForm((current) => ({ ...current, product_name_cn: event.target.value }))} />
-            </Field>
-            <Field label="Product Name (BM)">
-              <input className={inputClass()} value={form.product_name_bm || ""} onChange={(event) => setForm((current) => ({ ...current, product_name_bm: event.target.value }))} />
-            </Field>
-	          </section>
-
-	          <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
-	            <div>
-		              <div className="text-sm font-semibold text-text-primary">Finished Good / Packaging Variant</div>
-		              <div className="mt-1 text-sm text-text-secondary">Link this SKU to a Finished Good while keeping stock tracked per packaging variant.</div>
-		            </div>
-		            <Field label="Finished Good">
-		              <SearchableSelect
-		                value={form.product_family_id || ""}
-		                options={productFamilyOptions}
-		                placeholder="Select Finished Good"
-		                searchPlaceholder="Search finished goods"
-		                emptyText="No finished goods"
-		                onChange={(familyId) => {
-		                  const family = productFamilies.find((item) => item.id === familyId);
-		                  setForm((current) => ({
-		                    ...current,
-		                    product_family_id: familyId,
-		                    product_family_name: family?.name_en || "",
-		                    product_name: family?.name_en || current.product_name,
-		                    product_name_en: family?.name_en || current.product_name_en,
-		                    product_name_cn: family?.name_cn || current.product_name_cn,
-		                    product_name_bm: family?.name_bm || current.product_name_bm,
-		                    category_id: family?.category_id || current.category_id,
-		                  }));
-		                }}
-		              />
-		            </Field>
-		            <Field label="Finished Good Name">
-		              <input
-			                className={inputClass()}
-			                value={form.product_family_name || ""}
-			                placeholder="Type a Finished Good name if it does not exist"
-		                onChange={(event) => setForm((current) => ({ ...current, product_family_id: "", product_family_name: event.target.value, product_name: event.target.value, product_name_en: event.target.value }))}
-		              />
-		            </Field>
-	            <Field label="Packaging Variant">
-	              <input className={inputClass()} value={form.variant_name || ""} placeholder="1kg Pack, 2kg Pack, 5kg Pail" onChange={(event) => setForm((current) => ({ ...current, variant_name: event.target.value }))} />
-	            </Field>
-	            <div className="grid gap-3 md:grid-cols-2">
-	              <Field label="Pack Size Qty">
-	                <input className={inputClass()} type="number" min="0" step="0.0001" value={form.pack_size_qty ?? ""} onChange={(event) => {
-	                  const value = event.target.value;
-	                  setForm((current) => ({
-	                    ...current,
-	                    pack_size_qty: value,
-	                    base_qty: conversionCustomized ? current.base_qty : value,
-	                    base_uom: conversionCustomized ? current.base_uom : current.pack_size_uom || "kg",
-	                  }));
-	                }} />
-	              </Field>
-	              <Field label="Pack Size UOM">
-	                <select className={inputClass()} value={form.pack_size_uom || "kg"} onChange={(event) => {
-	                  const value = event.target.value;
-	                  setForm((current) => ({
-	                    ...current,
-	                    pack_size_uom: value,
-	                    base_uom: conversionCustomized ? current.base_uom : value,
-	                  }));
-	                }}>
-	                  {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
-	                </select>
-	              </Field>
-	            </div>
-	            <div className="rounded-xl border border-dashed border-slate-300 bg-white">
-	              <button
-	                className="flex w-full items-center justify-between px-3 py-2 text-left text-sm font-semibold text-text-primary"
-	                type="button"
-	                onClick={() => setShowAdvancedConversion((current) => !current)}
-	              >
-	                <span>Advanced Conversion</span>
-	                <span className="text-xs text-text-secondary">{showAdvancedConversion ? "Hide" : "Show"}</span>
-	              </button>
-	              {showAdvancedConversion ? (
-	                <div className="space-y-3 border-t border-border px-3 py-3">
-	                  <div className="text-xs font-medium text-text-secondary">Usually same as pack size. Used later for bulk production and packaging conversion.</div>
-	                  <div className="grid gap-3 md:grid-cols-2">
-	                    <Field label="Base Qty">
-	                      <input className={inputClass()} type="number" min="0" step="0.0001" value={form.base_qty ?? ""} onChange={(event) => {
-	                        setConversionCustomized(true);
-	                        setForm((current) => ({ ...current, base_qty: event.target.value }));
-	                      }} />
-	                    </Field>
-	                    <Field label="Base UOM">
-	                      <select className={inputClass()} value={form.base_uom || form.pack_size_uom || "kg"} onChange={(event) => {
-	                        setConversionCustomized(true);
-	                        setForm((current) => ({ ...current, base_uom: event.target.value }));
-	                      }}>
-	                        {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
-	                      </select>
-	                    </Field>
-	                  </div>
-	                </div>
-	              ) : null}
-	            </div>
-	          </section>
-
-	          <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
-            <div>
-              <div className="text-sm font-semibold text-text-primary">Configuration</div>
-              <div className="mt-1 text-sm text-text-secondary">Operational settings for availability and stock movement units.</div>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Field label="Pack Size Qty *" error={fieldErrors.pack_size_qty}>
+                <input ref={(node) => { fieldRefs.current.pack_size_qty = node; }} className={inputClass(fieldErrors.pack_size_qty)} type="number" min="0" step="0.0001" value={form.pack_size_qty ?? ""} onChange={(event) => {
+                  const value = event.target.value;
+                  setFieldErrors((current) => ({ ...current, pack_size_qty: "" }));
+                  setForm((current) => ({
+                    ...current,
+                    pack_size_qty: value,
+                    base_qty: value,
+                  }));
+                }} />
+              </Field>
+              <Field label="Pack Size UOM *" error={fieldErrors.pack_size_uom}>
+                <select ref={(node) => { fieldRefs.current.pack_size_uom = node; }} className={inputClass(fieldErrors.pack_size_uom)} value={form.pack_size_uom || "kg"} onChange={(event) => {
+                  const value = event.target.value;
+                  setFieldErrors((current) => ({ ...current, pack_size_uom: "", uom: "" }));
+                  setForm((current) => ({
+                    ...current,
+                    pack_size_uom: value,
+                    base_uom: value,
+                    uom: value,
+                  }));
+                }}>
+                  {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
+                </select>
+              </Field>
             </div>
-            <Field label="UOM *" error={fieldErrors.uom}>
-              <select ref={(node) => { fieldRefs.current.uom = node; }} className={inputClass(fieldErrors.uom)} value={form.uom} onChange={(event) => {
-                setFieldErrors((current) => ({ ...current, uom: "" }));
-                setForm((current) => ({ ...current, uom: event.target.value }));
-              }}>
-                {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
-              </select>
-            </Field>
             <Field label="Storage Location">
               <SearchableSelect
                 value={form.storage_location_id || ""}
