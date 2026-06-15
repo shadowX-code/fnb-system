@@ -1238,36 +1238,7 @@ export const factoryService = {
   async saveFinishedGood(product, employeeId) {
     const isUpdate = Boolean(product.id);
     const productNameEn = String(product.product_name_en || product.product_name || "").trim();
-    let productFamilyId = product.product_family_id || null;
-    if (!productFamilyId && String(product.product_family_name || "").trim()) {
-      const familyName = String(product.product_family_name || "").trim();
-      const { data: existingFamily, error: familyLookupError } = await supabase
-        .from("factory_product_families")
-        .select("id,status")
-        .ilike("name_en", familyName)
-        .maybeSingle();
-      throwSupabaseError("factory.finished_good.product_family_lookup", familyLookupError);
-      if (existingFamily?.id) {
-        productFamilyId = existingFamily.id;
-      } else {
-        const { data: newFamily, error: familyCreateError } = await supabase
-          .from("factory_product_families")
-          .insert({
-            name_en: familyName,
-            name_cn: String(product.product_family_name_cn || "").trim(),
-            name_bm: String(product.product_family_name_bm || "").trim(),
-            category_id: product.category_id || null,
-            status: "active",
-            remarks: "",
-            created_by: employeeId || null,
-            updated_at: new Date().toISOString(),
-          })
-          .select("id")
-          .single();
-        throwSupabaseError("factory.finished_good.product_family_create", familyCreateError);
-        productFamilyId = newFamily.id;
-      }
-    }
+    const productFamilyId = product.product_family_id || null;
     let storageLocationName = "";
     if (product.storage_location_id) {
       const { data: location, error: locationError } = await supabase

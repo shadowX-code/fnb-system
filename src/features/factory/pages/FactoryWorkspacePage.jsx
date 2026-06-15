@@ -880,7 +880,9 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
     setSaving(true);
     try {
       const skuUom = form.pack_size_uom || form.uom;
-      const productName = selectedFamily?.name_en || form.product_family_name || form.product_name_en || form.product_name || parentName;
+      const variantName = String(form.variant_name || "").trim();
+      const parentProductName = selectedFamily?.name_en || form.product_family_name || parentName;
+      const productName = [parentProductName, variantName].filter(Boolean).join(" - ") || String(form.product_code || "").trim();
       await onSave({
         ...form,
         product_name: productName,
@@ -888,7 +890,8 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
         product_name_cn: selectedFamily?.name_cn || form.product_name_cn || "",
         product_name_bm: selectedFamily?.name_bm || form.product_name_bm || "",
         category: selectedCategory?.name || selectedFamily?.category || form.category || "",
-        product_family_name: selectedFamily?.name_en || form.product_family_name || "",
+        product_family_id: selectedFamily?.id || form.product_family_id || "",
+        product_family_name: parentProductName || "",
         base_qty: form.pack_size_qty,
         base_uom: skuUom,
         uom: skuUom,
@@ -5213,7 +5216,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                               <tbody>
                                 {group.skus.map((sku) => {
                                   const packSize = Number(sku.pack_size_qty || 0) > 0 ? `${sku.pack_size_qty} ${sku.pack_size_uom || ""}`.trim() : "—";
-                                  const baseSize = Number(sku.base_qty || 0) > 0 ? `${sku.base_qty} ${sku.base_uom || ""}`.trim() : "";
                                   const activeStandard = data.recipes.find((recipe) => recipe.status === "active" && recipe.finished_good_id === sku.id);
                                   return (
                                     <tr key={sku.id} className="border-b border-border last:border-0">
@@ -5224,7 +5226,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                                       <td className="px-4 py-3 text-sm font-semibold text-text-primary">{sku.variant_name || "Default SKU"}</td>
                                       <td className="px-4 py-3 text-sm">
                                         <div className="font-semibold text-text-primary">{packSize}</div>
-                                        {baseSize ? <div className="text-xs text-text-secondary">Base {baseSize}</div> : null}
                                       </td>
                                       <td className="px-4 py-3 text-sm font-bold text-text-primary">{quantity(sku.current_balance, sku.uom)}</td>
                                       <td className="px-4 py-3 text-sm font-semibold text-text-secondary">{activeStandard ? activeStandard.version || activeStandard.recipe_name || "Active" : "No active standard"}</td>

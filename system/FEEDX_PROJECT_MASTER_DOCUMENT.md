@@ -2830,11 +2830,11 @@ Factory Finished Goods Master and Warehouse implemented scope:
 - Finished Good rows show Finished Good, Category, SKUs, Total Balance, Status and actions for Add Packaging SKU, Edit Finished Good and Archive Finished Good.
 - Packaging SKU rows show SKU, Variant, Pack Size, Balance, Active Production Standard, Status and actions for View SKU, Edit SKU and Archive SKU.
 - Packaging SKU setup supports Create, Edit and Archive.
-- Packaging SKU fields include Finished Good, SKU Code, Packaging Variant, Pack Size Qty/UOM, advanced Base Qty/Base UOM, UOM, Storage Location, Active/Archived status and Remarks.
+- Packaging SKU fields include Finished Good context, SKU Code, Packaging Variant, Pack Size Qty/UOM, Storage Location, Active/Archived status and Remarks.
 - Finished Good / Packaging Variant examples include Black Pepper Sauce -> BPS-1KG / BPS-2KG / BPS-5KG.
 - Finished Good SKU records remain the inventory unit. Each packaging variant still tracks stock separately through its own `factory_finished_goods.id`.
 - Existing Packaging SKU records can have no internal parent initially; they remain compatible and display as their own Finished Good row using the SKU product name.
-- Advanced Conversion stores Base Qty/Base UOM for future bulk production and packaging conversion. It is collapsed by default and usually matches Pack Size in Phase 1.
+- Base Qty/Base UOM remain internal future conversion fields for Phase 2 bulk production and packaging conversion. In Phase 1 they are auto-set from Pack Size and are not exposed in the user-facing Packaging SKU form.
 - Finished Goods must not maintain user-facing min stock thresholds; raw material inventory remains the stock-planning control point.
 - Product Name EN is the canonical production stock-in name and is mirrored to `factory_finished_goods.product_name` for existing production matching.
 - Finished Goods category selection must use a searchable FeedX-style selector, show "Select Category" before selection, and require a category before save.
