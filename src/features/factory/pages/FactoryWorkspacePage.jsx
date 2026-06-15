@@ -4,6 +4,7 @@ import { Activity, AlertTriangle, BookOpen, CheckCircle2, ClipboardCheck, Clipbo
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
+import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
@@ -582,6 +583,22 @@ function costDisplay(value, missingCostRows = 0) {
 function includesText(value, search) {
   if (!search) return true;
   return String(value || "").toLowerCase().includes(String(search).toLowerCase());
+}
+
+function compactCompare(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+function packSizeText(sku) {
+  return Number(sku?.pack_size_qty || 0) > 0 ? `${sku.pack_size_qty} ${sku.pack_size_uom || ""}`.trim() : "";
+}
+
+function variantIsPackSize(sku) {
+  const variant = compactCompare(sku?.variant_name);
+  if (!variant) return true;
+  const packSize = compactCompare(packSizeText(sku));
+  if (!packSize) return false;
+  return variant === packSize || variant === `${packSize}pack` || variant === `${packSize}packing`;
 }
 
 function productionYieldPercent(production) {
@@ -3157,6 +3174,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const [modal, setModal] = useState(null);
   const [receivingTab, setReceivingTab] = useState("history");
   const [expandedProductGroups, setExpandedProductGroups] = useState({});
+  const [finishedGoodActionMenu, setFinishedGoodActionMenu] = useState(null);
+  const [packagingSkuActionMenu, setPackagingSkuActionMenu] = useState(null);
   const [warehouseFilters, setWarehouseFilters] = useState({ product: "", family: "", category: "", status: "", batch: "", movementType: "" });
   const [rawMaterialFilters, setRawMaterialFilters] = useState({ material: "", status: "", category: "" });
   const [rawMovementFilters, setRawMovementFilters] = useState({ material: "", movementType: "", storageLocation: "", dateFrom: "", dateTo: "", search: "" });
@@ -5084,12 +5103,14 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   function renderFinishedGoods() {
-    const rows = filteredFinishedGoodRows();
     const productGroups = finishedGoodProductGroups();
     const totalStock = data.finishedGoods.reduce((sum, row) => sum + Number(row.current_balance || 0), 0);
     const outOfStockItems = data.finishedGoods.filter((row) => Number(row.current_balance || 0) <= 0);
-    const activeSkus = data.finishedGoods.filter((row) => row.status === "active");
     const canManageFinishedGoods = can("factory_finished_goods.create") || can("factory_finished_goods.edit");
+    const activeRecipeCount = data.recipes.filter((recipe) => recipe.status === "active").length;
+    const showVariantColumn = data.finishedGoods.some((sku) => !variantIsPackSize(sku));
+    const actionItemClass = "flex w-full items-center rounded-xl px-3 py-2 text-left text-sm font-semibold text-text-primary transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50";
+    const dangerActionItemClass = "flex w-full items-center rounded-xl px-3 py-2 text-left text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50";
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const recentProductions = data.productions.filter((production) => new Date(production.production_date || production.created_at || 0) >= thirtyDaysAgo);
@@ -5125,10 +5146,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           )}
         />
         <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={PackageCheck} label="Total SKUs" value={data.finishedGoods.length} helper="Finished goods products" />
-          <MetricCard icon={Warehouse} label="Total Stock" value={quantity(totalStock, "")} helper="Current balance total" />
-          <MetricCard icon={PackageCheck} label="Active SKUs" value={activeSkus.length} helper="Available for production" tone={activeSkus.length ? "success" : "warning"} />
-          <MetricCard icon={Clock3} label="Out of Stock" value={outOfStockItems.length} helper="Current balance zero" tone={outOfStockItems.length ? "danger" : "success"} />
+          <MetricCard icon={PackageCheck} label="Finished Goods" value={productGroups.length} helper="Product identities" />
+          <MetricCard icon={Warehouse} label="Packaging SKUs" value={data.finishedGoods.length} helper="Inventory SKUs" />
+          <MetricCard icon={BookOpen} label="Active Recipes" value={activeRecipeCount} helper="Production standards" tone={activeRecipeCount ? "success" : "warning"} />
+          <MetricCard icon={Clock3} label="Out of Stock SKUs" value={outOfStockItems.length} helper="Current balance zero" tone={outOfStockItems.length ? "danger" : "success"} />
         </div>
         <div className="grid gap-4 xl:grid-cols-3">
           <Card title="Stock Distribution by Product" description="Current finished goods balance by SKU.">
@@ -5159,88 +5180,112 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           {!productGroups.length ? (
             <EmptyState title="No Finished Goods" description="Create a Finished Good, then add Packaging SKUs for production stock-in." />
           ) : (
-            <div className="space-y-3 p-4">
-              <div className="hidden rounded-xl border border-border bg-slate-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted md:grid md:grid-cols-[minmax(260px,1.5fr)_1fr_120px_130px_120px_260px]">
+            <div className="space-y-4 p-4">
+              <div className="hidden rounded-xl border border-border bg-slate-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted md:grid md:grid-cols-[minmax(260px,1.5fr)_1fr_140px_130px_140px_48px]">
                 <div>Finished Good</div>
                 <div>Category</div>
-                <div>Active SKUs</div>
+                <div>Packaging SKUs</div>
                 <div>Total Balance</div>
                 <div>Status</div>
-                <div className="text-right">Actions</div>
+                <div />
               </div>
               {productGroups.map((group) => {
                 const groupKey = group.groupKey;
-                const isExpanded = expandedProductGroups[groupKey] ?? true;
+                const isExpanded = expandedProductGroups[groupKey] ?? false;
+                const skuCountLabel = `${group.skus.length} Packaging SKU${group.skus.length === 1 ? "" : "s"}`;
+                const activeSkuLabel = `${group.active_sku_count} Active SKU${group.active_sku_count === 1 ? "" : "s"}`;
                 return (
                   <div key={groupKey} className="overflow-visible rounded-2xl border border-border bg-white shadow-sm">
-                    <div className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(260px,1.5fr)_1fr_120px_130px_120px_260px] md:items-center">
+                    <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(260px,1.5fr)_1fr_140px_130px_140px_48px] md:items-center">
                       <button
-                        className="flex items-start gap-3 text-left"
+                        className="flex items-start gap-3 rounded-xl text-left transition hover:text-primary"
                         type="button"
                         onClick={() => setExpandedProductGroups((current) => ({ ...current, [groupKey]: !isExpanded }))}
                       >
-                        <span className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border bg-slate-50 text-sm font-bold text-text-secondary">{isExpanded ? "-" : "+"}</span>
+                        <span className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border bg-slate-50 text-sm font-bold text-text-secondary">{isExpanded ? "▼" : "▶"}</span>
                         <span>
                           <span className="block text-base font-bold text-text-primary">{group.product_group_name}</span>
-                          <span className="mt-0.5 block text-xs font-semibold text-text-secondary">({group.skus.length} Packaging SKUs)</span>
+                          <span className="mt-0.5 block text-xs font-semibold text-text-secondary md:hidden">{skuCountLabel}</span>
                         </span>
                       </button>
                       <div className="text-sm font-semibold text-text-secondary">{group.category || "No category"}</div>
-                      <div className="text-sm font-bold text-text-primary">{group.active_sku_count}</div>
+                      <div className="text-sm font-bold text-text-primary">{skuCountLabel}</div>
                       <div className="text-sm font-bold text-text-primary">{quantity(group.total_balance, "")}</div>
-                      <div><Badge tone={group.status === "active" ? "success" : "neutral"}>{group.status}</Badge></div>
-                      <div className="flex flex-wrap justify-start gap-2 md:justify-end">
-                        {!group.isStandalone && can("factory_finished_goods.create") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => openPackagingSkuModal(group)}>Add Packaging SKU</button> : null}
-                        {!group.isStandalone && can("factory_finished_goods.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "product-group", value: group })}>Edit Finished Good</button> : null}
-                        {!group.isStandalone && can("factory_finished_goods.edit") && group.status !== "archived" ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => archiveProductGroup(group)}>Archive Finished Good</button> : null}
+                      <div className="text-sm font-bold text-text-primary">
+                        {activeSkuLabel}
+                        {group.status === "archived" ? <div className="mt-0.5 text-xs font-semibold text-text-secondary">Archived Finished Good</div> : null}
+                      </div>
+                      <div className="flex justify-start md:justify-end">
+                        {!group.isStandalone && canManageFinishedGoods ? (
+                          <ActionMenu
+                            open={finishedGoodActionMenu === groupKey}
+                            onOpenChange={(open) => setFinishedGoodActionMenu(open ? groupKey : null)}
+                            width={220}
+                            trigger={({ toggle, ariaLabel }) => (
+                              <button className="icon-btn h-9 w-9" type="button" onClick={toggle} aria-label={ariaLabel}>⋮</button>
+                            )}
+                          >
+                            {can("factory_finished_goods.create") ? <button className={actionItemClass} type="button" onClick={() => { setFinishedGoodActionMenu(null); openPackagingSkuModal(group); }}>Add Packaging SKU</button> : null}
+                            {can("factory_finished_goods.edit") ? <button className={actionItemClass} type="button" onClick={() => { setFinishedGoodActionMenu(null); setModal({ type: "product-group", value: group }); }}>Edit Finished Good</button> : null}
+                            {can("factory_finished_goods.edit") && group.status !== "archived" ? <button className={dangerActionItemClass} type="button" onClick={() => { setFinishedGoodActionMenu(null); archiveProductGroup(group); }}>Archive Finished Good</button> : null}
+                          </ActionMenu>
+                        ) : null}
                       </div>
                     </div>
                     {isExpanded ? (
-                      <div className="border-t border-border bg-slate-50/60 px-4 py-4">
+                      <div className="border-t border-border bg-slate-50/70 px-5 py-4">
                         {!group.skus.length ? (
                           <EmptyState title="No Packaging SKUs" description="Add a Packaging SKU before production stock-in." />
                         ) : (
-                          <div className="overflow-x-auto rounded-xl border border-border bg-white">
-                            <table className="w-full min-w-[820px] text-left">
+                          <div className="ml-3 overflow-x-auto rounded-xl border border-border bg-white shadow-inner">
+                            <table className={`w-full text-left ${showVariantColumn ? "min-w-[820px]" : "min-w-[720px]"}`}>
                               <thead>
-                                <tr className="border-b border-border bg-white text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">
+                                <tr className="border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">
                                   <th className="px-4 py-2.5">SKU</th>
-                                  <th className="px-4 py-2.5">Variant</th>
+                                  {showVariantColumn ? <th className="px-4 py-2.5">Variant</th> : null}
                                   <th className="px-4 py-2.5">Pack Size</th>
                                   <th className="px-4 py-2.5">Balance</th>
-                                  <th className="px-4 py-2.5">Active Production Standard</th>
+                                  <th className="px-4 py-2.5">Recipe</th>
                                   <th className="px-4 py-2.5">Status</th>
-                                  <th className="px-4 py-2.5 text-right">Actions</th>
+                                  <th className="px-4 py-2.5 text-right" />
                                 </tr>
                               </thead>
                               <tbody>
                                 {group.skus.map((sku) => {
-                                  const packSize = Number(sku.pack_size_qty || 0) > 0 ? `${sku.pack_size_qty} ${sku.pack_size_uom || ""}`.trim() : "—";
+                                  const packSize = packSizeText(sku) || "—";
                                   const activeStandard = data.recipes.find((recipe) => recipe.status === "active" && recipe.finished_good_id === sku.id);
+                                  const skuMenuKey = `${groupKey}:${sku.id}`;
                                   return (
-                                    <tr key={sku.id} className="border-b border-border last:border-0">
-                                      <td className="px-4 py-3 text-sm">
+                                    <tr key={sku.id} className="border-b border-border text-sm last:border-0">
+                                      <td className="px-4 py-2.5">
                                         <div className="font-bold text-text-primary">{sku.product_code || "No SKU"}</div>
                                         <div className="text-xs text-text-secondary">{sku.product_name_en || sku.product_name || group.product_group_name}</div>
                                       </td>
-                                      <td className="px-4 py-3 text-sm font-semibold text-text-primary">{sku.variant_name || "Default SKU"}</td>
-                                      <td className="px-4 py-3 text-sm">
+                                      {showVariantColumn ? <td className="px-4 py-2.5 font-semibold text-text-primary">{sku.variant_name || "Default SKU"}</td> : null}
+                                      <td className="px-4 py-2.5">
                                         <div className="font-semibold text-text-primary">{packSize}</div>
                                       </td>
-                                      <td className="px-4 py-3 text-sm font-bold text-text-primary">{quantity(sku.current_balance, sku.uom)}</td>
-                                      <td className="px-4 py-3 text-sm font-semibold text-text-secondary">{activeStandard ? activeStandard.version || activeStandard.recipe_name || "Active" : "No active standard"}</td>
-                                      <td className="px-4 py-3 text-sm">
+                                      <td className="px-4 py-2.5 font-bold text-text-primary">{quantity(sku.current_balance, sku.uom)}</td>
+                                      <td className="px-4 py-2.5 font-semibold text-text-secondary">{activeStandard ? activeStandard.version || activeStandard.recipe_name || "Active" : "—"}</td>
+                                      <td className="px-4 py-2.5">
                                         <div className="flex flex-wrap gap-1.5">
                                           <Badge tone={sku.status === "active" ? "success" : "neutral"}>{sku.status}</Badge>
                                           <Badge tone={Number(sku.current_balance || 0) <= 0 ? "danger" : "success"}>{Number(sku.current_balance || 0) <= 0 ? "out of stock" : "in stock"}</Badge>
                                         </div>
                                       </td>
-                                      <td className="px-4 py-3 text-right text-sm">
-                                        <div className="flex flex-wrap justify-end gap-2">
-                                          <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-detail", product: sku })}>View SKU</button>
-                                          {can("factory_finished_goods.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => openPackagingSkuModal(group.isStandalone ? null : group, sku)}>Edit SKU</button> : null}
-                                          {can("factory_finished_goods.edit") && sku.status !== "archived" ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => archiveFinishedGood(sku)}>Archive SKU</button> : null}
-                                        </div>
+                                      <td className="px-4 py-2.5 text-right">
+                                        <ActionMenu
+                                          open={packagingSkuActionMenu === skuMenuKey}
+                                          onOpenChange={(open) => setPackagingSkuActionMenu(open ? skuMenuKey : null)}
+                                          width={188}
+                                          trigger={({ toggle, ariaLabel }) => (
+                                            <button className="icon-btn h-8 w-8" type="button" onClick={toggle} aria-label={ariaLabel}>⋮</button>
+                                          )}
+                                        >
+                                          <button className={actionItemClass} type="button" onClick={() => { setPackagingSkuActionMenu(null); setModal({ type: "finished-good-detail", product: sku }); }}>View SKU</button>
+                                          {can("factory_finished_goods.edit") ? <button className={actionItemClass} type="button" onClick={() => { setPackagingSkuActionMenu(null); openPackagingSkuModal(group.isStandalone ? null : group, sku); }}>Edit SKU</button> : null}
+                                          {can("factory_finished_goods.edit") && sku.status !== "archived" ? <button className={dangerActionItemClass} type="button" onClick={() => { setPackagingSkuActionMenu(null); archiveFinishedGood(sku); }}>Archive SKU</button> : null}
+                                        </ActionMenu>
                                       </td>
                                     </tr>
                                   );
