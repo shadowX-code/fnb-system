@@ -1771,12 +1771,13 @@ export const factoryService = {
       notes: item.notes || "",
     }));
     const productionNo = production.production_no || makeFactoryRef("PRD");
+    const batchNo = production.batch_no || makeFactoryRef("PB");
     const { data: productionId, error } = await supabase.rpc("factory_complete_production", {
       p_job_order_id: production.job_order_id || null,
       p_finished_good_id: production.finished_good_id || null,
       p_production_no: productionNo,
       p_product_name: String(production.product_name || "").trim(),
-      p_batch_no: production.batch_no || "",
+      p_batch_no: batchNo,
       p_production_date: production.production_date || new Date().toISOString().slice(0, 10),
       p_operator_id: production.operator_id || employeeId || null,
       p_operator_name: production.operator_name || "",
@@ -1786,11 +1787,11 @@ export const factoryService = {
       p_actual_output_qty: actualOutputQty,
       p_actual_produced_qty: actualOutputQty,
       p_good_output_qty: actualOutputQty,
-      p_wastage_qty: normalizeNumber(production.wastage_qty),
+      p_wastage_qty: 0,
       p_uom: productionUom,
-      p_qc_status: production.qc_status || "Pending",
-      p_production_sop_id: production.production_sop_id || null,
-      p_sop_version: production.sop_version || "",
+      p_qc_status: "Pending",
+      p_production_sop_id: null,
+      p_sop_version: "",
       p_notes: production.notes || "",
       p_created_by: employeeId || null,
       p_usage_items: usageItems,

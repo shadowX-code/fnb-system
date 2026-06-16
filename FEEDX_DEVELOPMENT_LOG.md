@@ -9,6 +9,7 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Moved new Production Standard / BOM setup toward parent Finished Good logic through `factory_product_recipes.product_family_id` while keeping legacy SKU-linked standards readable for compatibility.
 - Updated Production completion to capture Actual Pack Qty for finished-goods SKU stock-in while using Actual Output Qty to scale standard material usage and variance checks.
 - Added additive Factory migrations for parent-level Production Standards, production pack/output quantity persistence, and production-quantity-first Job Order RPC validation without renaming existing `finished_good_id` compatibility references.
+- Refined Complete Production into a final confirmation flow with auto-generated batch numbers, Actual Pack Qty as the stock-in result, calculated Actual Output Qty, and recipe-locked material usage rows when an active Production Standard / BOM exists.
 
 ## 2026-06-09
 

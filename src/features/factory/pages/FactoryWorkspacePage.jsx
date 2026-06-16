@@ -2646,7 +2646,6 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
   const activeFinishedGoods = finishedGoods.filter((product) => product.status === "active");
   const matchingFinishedGood = activeFinishedGoods.find((product) => product.id === job.finished_good_id) || activeFinishedGoods.find((product) => product.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
   const matchingRecipe = activeRecipeForSku(recipes, matchingFinishedGood || job, job.product_name);
-  const matchingSop = sops.find((sop) => sop.status !== "inactive" && sop.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
   const initialPackQty = job.actual_pack_qty || job.target_pack_qty || job.good_output_qty || job.target_quantity || "";
   const initialProductionPlan = packagingProductionPlan(initialPackQty, matchingFinishedGood, matchingRecipe?.uom || job.uom);
   const initialProductionUom = initialProductionPlan.production_uom || matchingRecipe?.uom || job.uom || "";
@@ -2669,8 +2668,8 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
     wastage_qty: 0,
     uom: initialProductionUom,
     qc_status: "Pending",
-    production_sop_id: matchingSop?.id || "",
-    sop_version: matchingSop?.version || "",
+    production_sop_id: "",
+    sop_version: "",
     notes: "",
     material_usage: buildInitialUsageRows({ ...job, finished_good: matchingFinishedGood, actual_output_qty: initialOutputQty }, rawMaterials, recipes),
   }));
@@ -2718,8 +2717,8 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
     if (!finishedGood) return "Production must start from a job order linked to an active finished good.";
     if (Number(form.actual_pack_qty || 0) <= 0) return "Actual Pack Qty must be greater than 0.";
     if (!form.material_usage.length) return "At least one material usage row is required.";
-    const invalidRow = form.material_usage.find((row) => !row.raw_material_id || Number(row.actual_usage || 0) < 0);
-    if (invalidRow) return "Every material usage row needs a raw material and valid actual usage.";
+    const invalidRow = form.material_usage.find((row) => !row.raw_material_id || row.actual_usage === "" || row.actual_usage === null || row.actual_usage === undefined || Number(row.actual_usage) < 0);
+    if (invalidRow) return "Every material usage row needs a raw material and actual usage.";
     const missingReason = form.material_usage.find((row) => {
       const { variance } = varianceFor(row.standard_usage, row.actual_usage);
       return Math.abs(variance) > varianceReasonTolerance && !String(row.variance_reason || "").trim();
@@ -2748,6 +2747,10 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
 
   const totalActualUsage = form.material_usage.reduce((sum, row) => sum + Number(row.actual_usage || 0), 0);
   const highVarianceRows = form.material_usage.filter((row) => Math.abs(varianceFor(row.standard_usage, row.actual_usage).variance) > varianceReasonTolerance);
+  const hasRecipeBom = Boolean(matchingRecipe?.items?.length);
+  const recipeYieldQty = Number(matchingRecipe?.yield_quantity || 0);
+  const currentProductionQty = Number(form.actual_output_qty || form.good_output_qty || 0);
+  const scaleFactor = matchingRecipe && recipeYieldQty > 0 ? currentProductionQty / recipeYieldQty : 0;
 
   return (
     <Modal
@@ -2764,37 +2767,71 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
     >
       <form id="factory-production-form" className="space-y-5" onSubmit={submit}>
         {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
-        <div className="grid gap-3 md:grid-cols-3">
-          <MetricCard icon={ClipboardCheck} label="Target Packs" value={quantity(job.target_pack_qty || job.target_quantity, "packs")} helper={job.job_order_no} />
-          <MetricCard icon={Factory} label="Actual Output" value={quantity(form.actual_output_qty || form.good_output_qty, form.uom)} helper={`Stock-in ${quantity(form.actual_pack_qty, "packs")}`} />
-          <MetricCard icon={AlertTriangle} label="Variance Rows" value={highVarianceRows.length} helper="Any difference requires reason" tone={highVarianceRows.length ? "warning" : "success"} />
+        <div className="grid gap-3 md:grid-cols-4">
+          <MetricCard icon={ClipboardCheck} label="Target Production Qty" value={quantity(job.target_production_qty || job.target_quantity, job.uom)} helper={job.job_order_no} />
+          <MetricCard icon={Package} label="Estimated Pack Qty" value={quantity(job.target_pack_qty || job.target_quantity, "packs")} helper={matchingFinishedGood?.variant_name || packSizeText(matchingFinishedGood) || "Packaging SKU"} />
+          <MetricCard icon={PackageCheck} label="Actual Pack Qty" value={quantity(form.actual_pack_qty, "packs")} helper="Final stock-in quantity" tone={Number(form.actual_pack_qty || 0) > 0 ? "success" : "warning"} />
+          <MetricCard icon={Factory} label="Actual Output Qty" value={quantity(form.actual_output_qty || form.good_output_qty, form.uom)} helper="Calculated from pack size" />
         </div>
         <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-          <div className="text-sm font-semibold text-primary">Selected Job Order</div>
-          <div className="mt-1 text-lg font-bold text-text-primary">{job.job_order_no} · {finishedGoodLabel(matchingFinishedGood) || job.product_name}</div>
-          <div className="mt-1 text-sm font-semibold text-text-secondary">
-            Target {quantity(job.target_pack_qty || job.target_quantity, "packs")} · Production {quantity(job.target_production_qty || job.target_quantity, job.uom)} · Due {job.due_date || "No due date"} · SKU {job.product_code || "No SKU"}
+          <div className="text-sm font-semibold text-primary">Actual Packaging Output</div>
+          <div className="mt-3 grid gap-3 md:grid-cols-[1.2fr_1fr]">
+            <Field label="Actual Pack Qty *">
+              <input className={`${inputClass()} text-lg font-bold`} type="number" min="0" step="0.01" value={form.actual_pack_qty} onChange={(event) => {
+                const nextPackQty = event.target.value;
+                const nextPlan = packagingProductionPlan(nextPackQty, matchingFinishedGood, matchingRecipe?.uom || form.uom);
+                setForm((current) => {
+                  const outputQty = nextPlan.error ? current.actual_output_qty : nextPlan.target_production_qty;
+                  const recipeYield = Number(matchingRecipe?.yield_quantity || 1) || 1;
+                  const nextUsage = matchingRecipe?.items?.length
+                    ? current.material_usage.map((row) => {
+                      const recipeItem = matchingRecipe.items.find((item) => item.raw_material_id === row.raw_material_id);
+                      if (!recipeItem) return row;
+                      const standardUsage = (Number(recipeItem.quantity_used || 0) * Number(outputQty || 0)) / recipeYield;
+                      return { ...row, standard_usage: Number(standardUsage.toFixed(4)), actual_usage: row.actual_usage === row.standard_usage ? Number(standardUsage.toFixed(4)) : row.actual_usage };
+                    })
+                    : current.material_usage;
+                  return {
+                    ...current,
+                    actual_pack_qty: nextPackQty,
+                    actual_output_qty: outputQty,
+                    actual_produced_qty: outputQty,
+                    good_output_qty: outputQty,
+                    uom: nextPlan.production_uom || current.uom,
+                    material_usage: nextUsage,
+                  };
+                });
+              }} />
+            </Field>
+            <Field label="Actual Output Qty">
+              <div className="flex min-h-[46px] items-center rounded-xl border border-border bg-white px-3 text-lg font-bold text-text-primary">{quantity(form.actual_output_qty || form.good_output_qty, form.uom)}</div>
+            </Field>
           </div>
         </div>
         {matchingRecipe ? (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4 text-sm font-semibold text-emerald-800">
-            Recipe default loaded: {matchingRecipe.recipe_name || matchingRecipe.recipe_code} · {matchingRecipe.version || "v1"}.
+          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-4">
+            <div className="text-sm font-bold text-emerald-800">Production Standard: {matchingRecipe.product_name || finishedGoodLabel(matchingFinishedGood) || job.product_name} {matchingRecipe.version || "v1"}</div>
+            <div className="mt-2 grid gap-2 text-sm font-semibold text-emerald-800 md:grid-cols-3">
+              <div>Base Recipe Qty: {quantity(matchingRecipe.yield_quantity, matchingRecipe.uom)}</div>
+              <div>Current Production Qty: {quantity(currentProductionQty, form.uom)}</div>
+              <div>Scale Factor: {scaleFactor ? `${Number(scaleFactor.toFixed(4))}x` : "—"}</div>
+            </div>
           </div>
         ) : (
           <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4 text-sm font-semibold text-amber-800">
-            No active recipe found. Add material usage manually or create a Product Recipe first.
+            No active recipe found. Manual material usage is allowed for this completion, but create a Production Standard / BOM before future production if possible.
           </div>
         )}
         <div className="grid gap-3 md:grid-cols-3">
+          <Field label="Batch No.">
+            <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-bold text-text-primary">Auto-generated on complete</div>
+          </Field>
           <Field label="Packaging SKU">
             <input
               className={inputClass(submitAttempted && !matchingFinishedGood)}
               value={matchingFinishedGood ? `${finishedGoodLabel(matchingFinishedGood)}${matchingFinishedGood.product_code ? ` · ${matchingFinishedGood.product_code}` : ""}` : "No active linked finished good"}
               readOnly
             />
-          </Field>
-          <Field label="Batch No.">
-            <input className={inputClass()} value={form.batch_no || ""} onChange={(event) => setForm((current) => ({ ...current, batch_no: event.target.value }))} />
           </Field>
           <Field label="Production Date">
             <input className={inputClass()} type="date" value={form.production_date || ""} readOnly={Boolean(job.started_at)} onChange={(event) => setForm((current) => ({ ...current, production_date: event.target.value }))} />
@@ -2808,80 +2845,22 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
           <Field label="End Time">
             <input className={inputClass()} type="time" value={form.end_time || ""} onChange={(event) => setForm((current) => ({ ...current, end_time: event.target.value }))} />
           </Field>
-          <Field label="QC Status">
-            <select className={inputClass()} value={form.qc_status} onChange={(event) => setForm((current) => ({ ...current, qc_status: event.target.value }))}>
-              {qcStatusOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-            </select>
-          </Field>
-          <Field label="SOP Used">
-            <select
-              className={inputClass()}
-              value={form.production_sop_id || ""}
-              onChange={(event) => {
-                const sop = sops.find((item) => item.id === event.target.value);
-                setForm((current) => ({ ...current, production_sop_id: event.target.value, sop_version: sop?.version || "" }));
-              }}
-            >
-              <option value="">No SOP reference</option>
-              {sops.filter((sop) => sop.status !== "inactive").map((sop) => (
-                <option key={sop.id} value={sop.id}>{sop.product_name} · {sop.title} · {sop.version}</option>
-              ))}
-            </select>
-          </Field>
-          <Field label="SOP Version">
-            <input className={inputClass()} value={form.sop_version || ""} onChange={(event) => setForm((current) => ({ ...current, sop_version: event.target.value }))} />
-          </Field>
-          <Field label="Actual Pack Qty *">
-            <input className={inputClass()} type="number" min="0" step="0.01" value={form.actual_pack_qty} onChange={(event) => {
-              const nextPackQty = event.target.value;
-              const nextPlan = packagingProductionPlan(nextPackQty, matchingFinishedGood, matchingRecipe?.uom || form.uom);
-              setForm((current) => {
-                const outputQty = nextPlan.error ? current.actual_output_qty : nextPlan.target_production_qty;
-                const recipeYield = Number(matchingRecipe?.yield_quantity || 1) || 1;
-                const nextUsage = matchingRecipe?.items?.length
-                  ? current.material_usage.map((row) => {
-                    const recipeItem = matchingRecipe.items.find((item) => item.raw_material_id === row.raw_material_id);
-                    if (!recipeItem) return row;
-                    const standardUsage = (Number(recipeItem.quantity_used || 0) * Number(outputQty || 0)) / recipeYield;
-                    return { ...row, standard_usage: Number(standardUsage.toFixed(4)), actual_usage: row.actual_usage === row.standard_usage ? Number(standardUsage.toFixed(4)) : row.actual_usage };
-                  })
-                  : current.material_usage;
-                return {
-                  ...current,
-                  actual_pack_qty: nextPackQty,
-                  actual_output_qty: outputQty,
-                  actual_produced_qty: outputQty,
-                  good_output_qty: outputQty,
-                  uom: nextPlan.production_uom || current.uom,
-                  material_usage: nextUsage,
-                };
-              });
-            }} />
-          </Field>
-          <Field label="Actual Output Qty">
-            <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-bold text-text-primary">{quantity(form.actual_output_qty || form.good_output_qty, form.uom)}</div>
-          </Field>
-          <Field label="Wastage Qty">
-            <input className={inputClass()} type="number" min="0" step="0.01" value={form.wastage_qty} onChange={(event) => setForm((current) => ({ ...current, wastage_qty: event.target.value }))} />
-          </Field>
         </div>
         <Card
           title="Actual Material Usage"
-          description="Actual usage is the real raw material stock deduction source. Product recipes remain standard BOM only."
-          action={<button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={addUsageRow}><Package size={14} /> Add Material</button>}
+          description={hasRecipeBom ? "Rows are locked to the active Production Standard / BOM. Actual usage is the raw material stock deduction source." : "No active recipe found. Add manual material usage rows for this completion only."}
+          action={!hasRecipeBom ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={addUsageRow}><Package size={14} /> Add Material</button> : null}
         >
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-left">
+            <table className="w-full min-w-[860px] text-left">
               <thead>
                 <tr className="border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">
                   <th className="px-4 py-2.5">Raw Material</th>
-                  <th className="px-4 py-2.5">Lot Used</th>
-                  <th className="px-4 py-2.5">Standard</th>
-                  <th className="px-4 py-2.5">Actual</th>
-                  <th className="px-4 py-2.5">Variance</th>
-                  <th className="px-4 py-2.5">Variance %</th>
+                  <th className="px-4 py-2.5">Standard Qty</th>
+                  <th className="px-4 py-2.5">Actual Used</th>
+                  <th className="px-4 py-2.5">Difference</th>
                   <th className="px-4 py-2.5">Reason</th>
-                  <th className="px-4 py-2.5 text-right">Action</th>
+                  {!hasRecipeBom ? <th className="px-4 py-2.5 text-right">Action</th> : null}
                 </tr>
               </thead>
               <tbody>
@@ -2897,6 +2876,7 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
                         <select
                           className={inputClass(submitAttempted && !row.raw_material_id)}
                           value={row.raw_material_id}
+                          disabled={hasRecipeBom}
                           onChange={(event) => {
                             const nextMaterial = rawMaterials.find((item) => item.id === event.target.value);
                             updateUsageRow(row.id, { raw_material_id: event.target.value, raw_material_receiving_id: "", raw_material_lot_no: "", uom: nextMaterial?.uom || row.uom });
@@ -2908,25 +2888,24 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
                           ))}
                         </select>
                         <div className="mt-1 text-xs text-text-secondary">On hand: {material ? quantity(material.current_balance, material.uom) : "—"}</div>
+                        {materialLots.length ? (
+                          <select
+                            className={`${inputClass()} mt-2`}
+                            value={row.raw_material_receiving_id || ""}
+                            onChange={(event) => {
+                              const lot = materialLots.find((item) => item.id === event.target.value);
+                              updateUsageRow(row.id, { raw_material_receiving_id: event.target.value, raw_material_lot_no: lot?.batch_no || "" });
+                            }}
+                          >
+                            <option value="">Lot used optional</option>
+                            {materialLots.map((lot) => (
+                              <option key={lot.id} value={lot.id}>{lot.batch_no} · {lot.receipt_no}</option>
+                            ))}
+                          </select>
+                        ) : null}
                       </td>
                       <td className="px-4 py-3">
-                        <select
-                          className={inputClass()}
-                          value={row.raw_material_receiving_id || ""}
-                          onChange={(event) => {
-                            const lot = materialLots.find((item) => item.id === event.target.value);
-                            updateUsageRow(row.id, { raw_material_receiving_id: event.target.value, raw_material_lot_no: lot?.batch_no || "" });
-                          }}
-                        >
-                          <option value="">No lot selected</option>
-                          {materialLots.map((lot) => (
-                            <option key={lot.id} value={lot.id}>{lot.batch_no} · {lot.receipt_no}</option>
-                          ))}
-                        </select>
-                        <div className="mt-1 text-xs text-text-secondary">{row.raw_material_lot_no || "Trace lot optional"}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <input className={inputClass()} type="number" min="0" step="0.0001" value={row.standard_usage} onChange={(event) => updateUsageRow(row.id, { standard_usage: event.target.value })} />
+                        <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-bold text-text-primary">{quantity(row.standard_usage, row.uom || material?.uom)}</div>
                         <div className="mt-1 text-xs text-text-secondary">{row.uom || material?.uom || "uom"}</div>
                       </td>
                       <td className="px-4 py-3">
@@ -2934,9 +2913,6 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
                       </td>
                       <td className={`px-4 py-3 text-sm font-semibold ${variance > 0 ? "text-amber-600" : variance < 0 ? "text-emerald-600" : "text-text-secondary"}`}>
                         {quantity(variance, row.uom || material?.uom)}
-                      </td>
-                      <td className="px-4 py-3">
-                        <Badge tone={needsReason ? "warning" : "success"}>{percent(variancePercent)}</Badge>
                       </td>
                       <td className="px-4 py-3">
                         <input
@@ -2947,9 +2923,11 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
                         />
                         {showReasonError ? <div className="mt-1 text-xs font-semibold text-amber-700">Required when actual differs from standard.</div> : null}
                       </td>
-                      <td className="px-4 py-3 text-right">
-                        <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => removeUsageRow(row.id)}>Remove</button>
-                      </td>
+                      {!hasRecipeBom ? (
+                        <td className="px-4 py-3 text-right">
+                          <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => removeUsageRow(row.id)}>Remove</button>
+                        </td>
+                      ) : null}
                     </tr>
                   );
                 })}
@@ -2961,6 +2939,17 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
           ) : null}
           <div className="border-t border-border px-4 py-3 text-sm font-semibold text-text-secondary">
             Total actual usage: {quantity(totalActualUsage, "")}
+          </div>
+        </Card>
+        <Card title="Production Summary" description="Review before confirming completion.">
+          <div className="grid gap-3 text-sm font-semibold text-text-secondary md:grid-cols-2">
+            <div><span className="text-text-muted">Finished Good:</span> <span className="text-text-primary">{matchingFinishedGood?.product_family_name || matchingFinishedGood?.product_name_en || job.product_name}</span></div>
+            <div><span className="text-text-muted">Packaging SKU:</span> <span className="text-text-primary">{matchingFinishedGood?.product_code || "No SKU"} · {matchingFinishedGood?.variant_name || packSizeText(matchingFinishedGood) || "Packaging SKU"}</span></div>
+            <div><span className="text-text-muted">Target Production:</span> <span className="text-text-primary">{quantity(job.target_production_qty || job.target_quantity, job.uom)}</span></div>
+            <div><span className="text-text-muted">Estimated Pack Qty:</span> <span className="text-text-primary">{quantity(job.target_pack_qty || job.target_quantity, "packs")}</span></div>
+            <div><span className="text-text-muted">Actual Pack Qty:</span> <span className="text-text-primary">{quantity(form.actual_pack_qty, "packs")}</span></div>
+            <div><span className="text-text-muted">Actual Output Qty:</span> <span className="text-text-primary">{quantity(form.actual_output_qty || form.good_output_qty, form.uom)}</span></div>
+            <div><span className="text-text-muted">Material variance rows:</span> <span className={highVarianceRows.length ? "text-amber-700" : "text-emerald-700"}>{highVarianceRows.length}</span></div>
           </div>
         </Card>
         <Field label="Production Notes">

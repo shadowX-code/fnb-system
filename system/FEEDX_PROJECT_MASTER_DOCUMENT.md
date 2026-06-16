@@ -2736,8 +2736,11 @@ Factory Phase 1B implemented scope:
 - Draft Job Orders can be edited or deleted. Released Job Orders can be started. In Progress Job Orders can be completed. Completed and cancelled Job Orders are read-only.
 - Production Records list ready Job Orders with `released` and `in_progress` statuses.
 - Start Production captures only production start context: selected Job Order summary, operator, production date, start time and remarks. Start Production does not create inventory movement.
-- Production completion starts from an In Progress Job Order and auto-fills Packaging SKU, parent Finished Good, estimated target pack quantity, target production quantity, UOM, and available Recipe/SOP reference by product.
-- Production completion captures batch number, production date, operator, start time, end time, actual pack quantity, actual output quantity, wastage quantity, QC status and notes.
+- Production completion starts from an In Progress Job Order and auto-fills Packaging SKU, parent Finished Good, estimated target pack quantity, target production quantity, UOM, and available Production Standard / BOM reference by product.
+- Production completion is the final production confirmation step. Operators confirm Actual Pack Qty, review auto-calculated Actual Output Qty, and enter Actual Material Usage against the active Production Standard / BOM.
+- Production batch numbers are system-generated during completion; operators do not manually enter batch numbers in the Complete Production modal.
+- When an active Production Standard / BOM exists, completion material rows are locked to the recipe BOM: operators cannot add/remove ingredients, change raw materials, or edit standard quantities.
+- If no active Production Standard / BOM exists, manual material usage rows may be entered for that completion as a fallback.
 - Production material usage captures raw material, standard usage, actual usage, variance quantity, variance percent and variance reason.
 - Actual material usage is the source of truth for raw material deduction.
 - Product Recipe remains the standard BOM only and is never overwritten by actual production usage.
