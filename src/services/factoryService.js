@@ -350,6 +350,7 @@ function mapFinishedGood(row) {
     product_family_name_cn: productFamily.name_cn || "",
     product_family_name_bm: productFamily.name_bm || "",
     variant_name: row.variant_name || "",
+    packaging_type: row.packaging_type || "Pack",
     pack_size_qty: optionalNumber(row.pack_size_qty),
     pack_size_uom: row.pack_size_uom || "",
     base_qty: optionalNumber(row.base_qty),
@@ -626,8 +627,8 @@ function emptyFactoryData() {
   };
 }
 
-const finishedGoodSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,pack_size_qty,pack_size_uom,base_qty,base_uom,uom,status,product_family:factory_product_families(name_en,name_cn,name_bm,status)";
-const finishedGoodFullSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,pack_size_qty,pack_size_uom,base_qty,base_uom,category_id,category,uom,current_balance,min_stock_level,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),product_family:factory_product_families(name_en,name_cn,name_bm,status)";
+const finishedGoodSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,uom,status,product_family:factory_product_families(name_en,name_cn,name_bm,status)";
+const finishedGoodFullSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,category_id,category,uom,current_balance,min_stock_level,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),product_family:factory_product_families(name_en,name_cn,name_bm,status)";
 const storageLocationSelect = "id,location_name,location_code,location_type,status,remarks,created_at,updated_at";
 const factorySupplierSelect = "id,supplier_name,supplier_code,contact_person,phone,email,status,remarks,created_at,updated_at";
 const rawMaterialSelect = `id,material_code,name,name_en,name_cn,name_bm,category_id,category,uom,current_balance,min_stock_level,preferred_supplier,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_raw_material_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)`;
@@ -636,7 +637,7 @@ const productFamilyRelationSelect = "id,name_en,name_cn,name_bm,status";
 const recipeSelect = `id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`;
 const recipeSummarySelect = `id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),finished_good:factory_finished_goods(${finishedGoodSelect})`;
 const jobOrderSelect = `id,job_order_no,finished_good_id,product_name,target_pack_qty,target_production_qty,target_quantity,produced_quantity,uom,planned_date,due_date,priority,status,assigned_team,remarks,created_by,released_at,released_by,started_at,started_by,production_operator_id,production_operator_name,production_date,start_time,completed_at,completed_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect})`;
-const productionSelectBasic = `id,job_order_id,finished_good_id,production_no,product_name,batch_no,actual_pack_qty,actual_output_qty,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,operator_id,operator_name,start_time,end_time,qc_status,production_sop_id,sop_version,status,notes,created_by,completed_at,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),job_order:factory_job_orders(job_order_no,finished_good_id,product_name,target_pack_qty,target_production_qty,finished_good:factory_finished_goods(product_code,product_name,product_family_id,variant_name,pack_size_qty,pack_size_uom,base_qty,base_uom))`;
+const productionSelectBasic = `id,job_order_id,finished_good_id,production_no,product_name,batch_no,actual_pack_qty,actual_output_qty,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,operator_id,operator_name,start_time,end_time,qc_status,production_sop_id,sop_version,status,notes,created_by,completed_at,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),job_order:factory_job_orders(job_order_no,finished_good_id,product_name,target_pack_qty,target_production_qty,finished_good:factory_finished_goods(product_code,product_name,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom))`;
 const productionSelectDetailed = `${productionSelectBasic},material_usage:factory_production_material_usage(id,production_id,raw_material_id,raw_material_receiving_id,raw_material_lot_no,quantity_used,standard_usage,actual_usage,variance_qty,variance_percent,variance_reason,uom,wastage_quantity,notes,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect}),raw_receiving:factory_raw_material_receivings(receipt_no,batch_no,supplier_name,received_date,unit_cost)),qc_checkpoints:factory_production_qc_checkpoints(id,production_id,production_sop_id,sop_step_id,step_no,process_name,control_point,qc_status,notes,created_at,updated_at)`;
 
 function factoryDataPlan(scope, hasPermission) {
@@ -808,7 +809,7 @@ export const factoryService = {
     if (order.finished_good_id) {
       const { data, error } = await supabase
         .from("factory_finished_goods")
-        .select("id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,pack_size_qty,pack_size_uom,base_qty,base_uom,uom,status")
+      .select("id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,uom,status")
         .eq("id", order.finished_good_id)
         .single();
       throwSupabaseError("factory.job_order.finished_good_lookup", error);
@@ -1362,6 +1363,7 @@ export const factoryService = {
       product_name_bm: String(product.product_name_bm || "").trim(),
       product_family_id: productFamilyId,
       variant_name: String(product.variant_name || "").trim(),
+      packaging_type: String(product.packaging_type || "Pack").trim() || "Pack",
       pack_size_qty: product.pack_size_qty === "" || product.pack_size_qty == null ? null : normalizeNumber(product.pack_size_qty),
       pack_size_uom: String(product.pack_size_uom || "").trim(),
       base_qty: product.base_qty === "" || product.base_qty == null ? null : normalizeNumber(product.base_qty),
@@ -1728,7 +1730,7 @@ export const factoryService = {
     if (production.finished_good_id) {
       const { data, error } = await supabase
         .from("factory_finished_goods")
-        .select("id,product_code,product_name,product_family_id,variant_name,pack_size_qty,pack_size_uom,base_qty,base_uom,uom,status")
+        .select("id,product_code,product_name,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,uom,status")
         .eq("id", production.finished_good_id)
         .single();
       throwSupabaseError("factory.production.finished_good_lookup", error);

@@ -13,6 +13,7 @@ import { factoryService } from "../../../services/factoryService.js";
 const priorityOptions = ["Low", "Normal", "High", "Urgent"];
 const jobStatusOptions = ["draft", "released", "in_progress", "completed", "cancelled"];
 const commonUoms = ["kg", "g", "litre", "ml", "pcs", "carton", "pail", "bottle", "pack"];
+const packagingTypes = ["Pack", "Bottle", "Sachet", "Tub", "Pail", "Bag", "Carton", "Tray", "Box"];
 const storageLocationTypes = ["Dry Store", "Chiller", "Freezer", "Production Area", "Finished Goods Area", "Packaging Area"];
 const qcStatusOptions = ["Pending", "Pass", "Hold", "Failed"];
 const varianceThresholdPercent = 5;
@@ -448,7 +449,7 @@ function finishedGoodLabel(product) {
 
 function finishedGoodHelper(product) {
   const packSize = Number(product?.pack_size_qty || 0) > 0 ? `${product.pack_size_qty} ${product.pack_size_uom || ""}`.trim() : "";
-  return [product?.variant_name, product?.product_code, packSize, product?.uom].filter(Boolean).join(" · ");
+  return [product?.variant_name, product?.product_code, packSize, packagingTypeLabel(product)].filter(Boolean).join(" · ");
 }
 
 function rawMaterialLabel(material) {
@@ -598,6 +599,22 @@ function compactCompare(value) {
 
 function packSizeText(sku) {
   return Number(sku?.pack_size_qty || 0) > 0 ? `${sku.pack_size_qty} ${sku.pack_size_uom || ""}`.trim() : "";
+}
+
+function packagingTypeLabel(sku) {
+  return sku?.packaging_type || "Pack";
+}
+
+function pluralizePackagingType(type, value) {
+  const label = type || "Pack";
+  if (Number(value || 0) === 1) return label;
+  if (/ch$/i.test(label)) return `${label}es`;
+  return `${label}s`;
+}
+
+function skuBalanceLabel(sku) {
+  const balance = Number(sku?.current_balance || 0);
+  return quantity(balance, pluralizePackagingType(packagingTypeLabel(sku), balance));
 }
 
 function normalizePackSizeToBase(qty, uom) {
@@ -771,7 +788,7 @@ function FinishedGoodDetailModal({ product, productions, movements, productionCo
     <Modal title={product.product_name} description="Finished goods stock, production and movement detail" onClose={onClose} size="2xl">
       <div className="space-y-4">
         <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={PackageCheck} label="Current Balance" value={quantity(product.current_balance, product.uom)} helper={product.product_code || "Finished good"} />
+          <MetricCard icon={PackageCheck} label="Current Balance" value={skuBalanceLabel(product)} helper={product.product_code || "Packaging SKU"} />
           <MetricCard icon={Factory} label="Production Runs" value={productProductions.length} helper="Completed history" />
           <MetricCard icon={Activity} label="Movements" value={productMovements.length} helper="Stock movement rows" />
           <MetricCard icon={Truck} label="Avg Actual Cost" value={hasMissingCost ? "Missing Cost" : money(averageCost)} helper="From actual usage" />
@@ -939,6 +956,7 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
     product_family_id: "",
     product_family_name: "",
     variant_name: "",
+    packaging_type: "Pack",
     pack_size_qty: "",
     pack_size_uom: "kg",
     base_qty: "",
@@ -1001,8 +1019,9 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
         product_name_bm: selectedFamily?.name_bm || form.product_name_bm || "",
         category: selectedCategory?.name || selectedFamily?.category || form.category || "",
         product_family_id: selectedFamily?.id || form.product_family_id || "",
-        product_family_name: parentProductName || "",
-        base_qty: form.pack_size_qty,
+      product_family_name: parentProductName || "",
+      packaging_type: form.packaging_type || "Pack",
+      base_qty: form.pack_size_qty,
         base_uom: skuUom,
         uom: skuUom,
       });
@@ -1060,7 +1079,12 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
                 setForm((current) => ({ ...current, variant_name: event.target.value }));
               }} />
             </Field>
-            <div className="grid gap-3 md:grid-cols-2">
+            <div className="grid gap-3 md:grid-cols-3">
+              <Field label="Packaging Type">
+                <select className={inputClass()} value={form.packaging_type || "Pack"} onChange={(event) => setForm((current) => ({ ...current, packaging_type: event.target.value }))}>
+                  {packagingTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+                </select>
+              </Field>
               <Field label="Pack Size Qty *" error={fieldErrors.pack_size_qty}>
                 <input ref={(node) => { fieldRefs.current.pack_size_qty = node; }} className={inputClass(fieldErrors.pack_size_qty)} type="number" min="0" step="0.0001" value={form.pack_size_qty ?? ""} onChange={(event) => {
                   const value = event.target.value;
@@ -1678,7 +1702,7 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
   const packagingSkuOptions = parentSkus.map((product) => ({
     value: product.id,
     label: [product.product_code || "No SKU", product.product_family_name || product.product_name_en || product.product_name, product.variant_name || packSizeText(product)].filter(Boolean).join(" · "),
-    helper: `Pack size ${packSizeText(product) || "not set"} · Balance ${quantity(product.current_balance, "")}`,
+    helper: `Pack size ${packSizeText(product) || "not set"} · Balance ${skuBalanceLabel(product)}`,
   }));
   const selectedProduct = parentSkus.find((product) => product.id === form.finished_good_id) || activeFinishedGoods.find((product) => product.id === form.finished_good_id);
   const parentRecipe = selectedParent?.product_family_id ? recipes.find((recipe) => recipe.status === "active" && recipe.product_family_id === selectedParent.product_family_id) : null;
@@ -4121,7 +4145,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   const finishedGoodsColumns = [
     { key: "product_name", label: "Finished Good", render: (row) => <div><div className="font-semibold text-text-primary">{row.product_name}</div><div className="text-xs text-text-secondary">{row.category || "Uncategorized"}</div></div> },
-    { key: "current_balance", label: "On Hand", render: (row) => quantity(row.current_balance, row.uom) },
+    { key: "current_balance", label: "On Hand", render: (row) => skuBalanceLabel(row) },
     { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge> },
   ];
 
@@ -5486,7 +5510,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                                       <td className="px-4 py-2.5">
                                         <div className="font-semibold text-text-primary">{packSize}</div>
                                       </td>
-                                      <td className="px-4 py-2.5 font-bold text-text-primary">{quantity(sku.current_balance, sku.uom)}</td>
+                                      <td className="px-4 py-2.5 font-bold text-text-primary">{skuBalanceLabel(sku)}</td>
                                       <td className="px-4 py-2.5 font-semibold text-text-secondary">{activeStandard ? activeStandard.version || activeStandard.recipe_name || "Active" : "—"}</td>
                                       <td className="px-4 py-2.5">
                                         <div className="flex flex-wrap gap-1.5">
