@@ -9830,6 +9830,14 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       if (order.status === "fully_received") return { label: "Complete PO", tone: "primary", action: () => requirePermission(can.completePo, "complete purchase orders") && setModal({ type: "po-complete", order }) };
       return { label: "View", tone: "secondary", action: () => setModal({ type: "po-detail", order }) };
     };
+    const mobilePrimaryAction = (order) => {
+      if (order.status === "draft") return { label: "Submit Order", tone: "primary", action: () => requirePermission(can.submitPo, "submit purchase orders") && updatePurchaseOrderStatus(order.id, "submitted") };
+      if (order.status === "submitted") return { label: "Mark Confirmed", tone: "primary", action: () => requirePermission(can.submitPo, "mark supplier confirmed") && updatePurchaseOrderStatus(order.id, "supplier_confirmed") };
+      if (order.status === "supplier_confirmed") return { label: "Receive", tone: "primary", action: () => requirePermission(can.receivePo, "receive inventory") && setModal({ type: "po-receive", order }) };
+      if (order.status === "partial_received") return { label: "Receive More", tone: "primary", action: () => requirePermission(can.receivePo, "receive inventory") && setModal({ type: "po-receive", order }) };
+      if (order.status === "fully_received") return { label: "Complete PO", tone: "primary", action: () => requirePermission(can.completePo, "complete purchase orders") && setModal({ type: "po-complete", order }) };
+      return { label: "View", tone: "secondary", action: () => setModal({ type: "po-detail", order }) };
+    };
 
     return (
       <SectionCard title="Purchase Orders" description="Draft POs are created from reviewed stock check suggestions or manual purchase planning.">
@@ -9846,7 +9854,72 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           </label>
         </div>
         {filteredOrders.length ? (
-          <div className="overflow-x-auto">
+          <>
+          <div className="space-y-3 md:hidden">
+            {filteredOrders.map((order) => {
+              const supplier = suppliers.find((entry) => entry.id === order.supplierId);
+              const outlet = outletById.get(order.outletId || order.outletIds?.[0]);
+              const progress = poProgress(order);
+              const action = mobilePrimaryAction(order);
+              const canCancelOrder = ["draft", "submitted", "supplier_confirmed"].includes(order.status) && progress.received <= 0;
+              return (
+                <div key={order.id} className="rounded-2xl border border-border bg-white p-4 shadow-sm">
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <div className="truncate font-mono text-sm font-black text-text-primary" title={`Internal system ID: ${order.poNo}`}>{businessPoNo(order)}</div>
+                      <div className="mt-1 type-caption text-text-secondary">Internal ID: {order.poNo}</div>
+                    </div>
+                    <Badge tone={statusTone(order.status)}>{poStatusLabel(order.status)}</Badge>
+                  </div>
+
+                  <div className="mt-4 grid gap-3 text-sm">
+                    <div>
+                      <div className="type-caption font-semibold text-text-muted">Supplier</div>
+                      <div className="mt-0.5 font-bold text-text-primary">{supplier?.name ?? "Unassigned Supplier"}</div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <div className="type-caption font-semibold text-text-muted">Outlet</div>
+                        <div className="mt-0.5 font-semibold text-text-primary">{outlet?.name ?? "Outlet"}</div>
+                      </div>
+                      <div>
+                        <div className="type-caption font-semibold text-text-muted">Source</div>
+                        <div className="mt-0.5 font-semibold text-text-primary">{poSourceLabel(order.sourceType)}</div>
+                      </div>
+                    </div>
+                    <div>
+                      <div className="type-caption font-semibold text-text-muted">Created Date</div>
+                      <div className="mt-0.5 font-semibold text-text-primary">{formatDate(order.createdAt || order.submittedAt || todayInput())}</div>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 rounded-xl border border-border bg-slate-50 p-3">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <div className="type-caption font-semibold text-text-muted">Items received</div>
+                        <div className="mt-1 text-lg font-black text-text-primary">{progress.received} / {progress.ordered}</div>
+                      </div>
+                      <div className="text-right type-caption font-bold text-text-secondary">{Math.min(progress.percent, 100).toFixed(0)}%</div>
+                    </div>
+                    <div className="mt-2 h-2 rounded-full bg-white">
+                      <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(progress.percent, 100)}%` }} />
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex flex-col gap-2">
+                    <button className={action.tone === "primary" ? "btn-primary w-full justify-center" : "btn-secondary w-full justify-center"} type="button" onClick={action.action}>{action.label}</button>
+                    <div className="grid grid-cols-2 gap-2">
+                      {action.label !== "View" ? <button className="btn-secondary min-w-0 justify-center px-2 text-xs" type="button" onClick={() => setModal({ type: "po-detail", order })}>View</button> : null}
+                      <button className="btn-secondary min-w-0 justify-center px-2 text-xs" type="button" onClick={() => copyPurchaseOrderText(order)}><Copy size={13} /> Copy Text</button>
+                      {order.status === "draft" ? <button className="btn-secondary min-w-0 justify-center px-2 text-xs" type="button" onClick={() => requirePermission(can.editPo, "edit purchase orders") && setModal({ type: "po-edit", order })}>Edit</button> : null}
+                      {canCancelOrder ? <button className="btn-secondary min-w-0 justify-center px-2 text-xs text-rose-700" type="button" onClick={() => requirePermission(can.cancelPo, "cancel purchase orders") && setModal({ type: "po-cancel", order })}>Cancel</button> : null}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[1040px] text-left">
               <thead className="text-[11px] uppercase tracking-wide text-text-muted">
                 <tr className="border-b border-border">
@@ -9898,6 +9971,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               </tbody>
             </table>
           </div>
+          </>
         ) : <EmptyState title="No purchase orders found." description="Adjust filters or create Draft POs from scheduled stock check suggestions or manual purchase planning." />}
       </SectionCard>
     );
