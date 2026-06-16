@@ -7911,13 +7911,46 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       .sort((a, b) => new Date(b.submittedAt || b.updatedAt || b.date || 0) - new Date(a.submittedAt || a.updatedAt || a.date || 0))[0] || null;
   }
 
+  async function hydrateStockCheckRows(check) {
+    if (!check?.id) return check;
+    const result = await supabase
+      .from("inventory_stock_check_items")
+      .select("*")
+      .eq("stock_check_id", check.id)
+      .order("created_at", { ascending: true });
+    debugLog("[StockCheckResultDebug]", { action: "hydrate-items", stockCheckId: check.id, result: { data: result.data, error: result.error }, error: result.error });
+    if (result.error) throw Object.assign(result.error, { stockCheckItemsLoad: true });
+    const hydratedCheck = {
+      ...check,
+      rows: (result.data || []).map(mapRemoteStockCheckItem),
+    };
+    setData((current) => ({
+      ...current,
+      checks: current.checks.map((entry) => (entry.id === hydratedCheck.id ? hydratedCheck : entry)),
+    }));
+    return hydratedCheck;
+  }
+
+  async function openStockCheckResult(check, options = {}) {
+    try {
+      const hydratedCheck = await hydrateStockCheckRows(check);
+      const suggestions = options.suggestions || buildPurchaseSuggestions(hydratedCheck);
+      setModal({ type: "check-result", stockCheck: hydratedCheck, suggestions, isAudit: options.isAudit ?? hydratedCheck?.stockCheckType === "audit" });
+    } catch (error) {
+      console.warn("[InventoryControl] Unable to load stock check items.", error);
+      debugLog("[StockCheckResultDebug]", { action: "open-result", stockCheckId: check?.id, error });
+      notify("Unable to load stock check items.", error.message || "Please try again.", "error");
+    }
+  }
+
   async function openPurchaseSuggestionsForCheck(check) {
     if (!check || check.stockCheckType !== "scheduled" || check.status !== "submitted") {
-      setModal({ type: "check-result", stockCheck: check, suggestions: [], isAudit: check?.stockCheckType === "audit" });
+      openStockCheckResult(check, { suggestions: [], isAudit: check?.stockCheckType === "audit" });
       return;
     }
-    const suggestions = buildPurchaseSuggestions(check);
     try {
+      const hydratedCheck = await hydrateStockCheckRows(check);
+      const suggestions = buildPurchaseSuggestions(hydratedCheck);
       const existingOrders = await fetchRemotePurchaseOrdersForStockCheck(check.id);
       setData((current) => ({
         ...current,
@@ -7927,14 +7960,14 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         ],
       }));
       if (!suggestions.length && !existingOrders.length) {
-        setModal({ type: "check-result", stockCheck: check, suggestions });
+        setModal({ type: "check-result", stockCheck: hydratedCheck, suggestions });
         return;
       }
-      setModal({ type: "purchase-suggestions", stockCheck: check, suggestions, existingOrders });
+      setModal({ type: "purchase-suggestions", stockCheck: hydratedCheck, suggestions, existingOrders });
     } catch (error) {
       console.warn("[InventoryControl] Unable to load purchase suggestions.", error);
       debugLog("[PurchaseSuggestionDebug]", { action: "open-suggestions", stockCheckId: check.id, error });
-      notify("Unable to load purchase suggestions", error.message || "Please try again.", "error");
+      notify(error?.stockCheckItemsLoad ? "Unable to load stock check items." : "Unable to load purchase suggestions", error.message || "Please try again.", "error");
     }
   }
 
@@ -9653,7 +9686,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                 const hasDraft = Boolean(draftCheck);
                 const itemCount = stockCheckItemsForGroup(group, data.items).length;
                 const latestCheck = submittedCheck || latestCheckForGroup(group);
-                const suggestions = latestCheck ? buildPurchaseSuggestions(latestCheck) : [];
                 const linkedOrders = latestCheck ? linkedPurchaseOrdersForStockCheck(latestCheck.id) : [];
                 const canReviewSuggestions = can.generatePo || can.reviewCheck;
                 const cardDebug = {
@@ -9697,12 +9729,12 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                           <button
                             className="btn-primary w-full"
                             type="button"
-                            disabled={(!suggestions.length && !linkedOrders.length) || !canReviewSuggestions}
+                            disabled={!latestCheck || !canReviewSuggestions}
                             onClick={() => requirePermission(canReviewSuggestions, "review purchase suggestions") && openPurchaseSuggestionsForCheck(latestCheck)}
                           >
-                            {linkedOrders.length ? "View Draft PO" : suggestions.length ? "Review Purchase Suggestions" : "No purchase suggestion"}
+                            {linkedOrders.length ? "View Draft PO" : "Review Purchase Suggestions"}
                           </button>
-                          <button className="btn-secondary w-full" type="button" onClick={() => setModal({ type: "check-result", stockCheck: latestCheck, suggestions })}>View Result</button>
+                          <button className="btn-secondary w-full" type="button" onClick={() => openStockCheckResult(latestCheck)}>View Result</button>
                         </>
                       ) : status === "Missed" ? (
                         <div className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-3 text-sm font-semibold text-rose-800">
@@ -9747,7 +9779,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                         <button className="btn-secondary w-full border-rose-200 text-rose-700 hover:bg-rose-50" type="button" onClick={() => deleteAuditDraft(check)}>Delete Draft</button>
                       </div>
                     ) : (
-                      <button className="btn-secondary mt-4 w-full" type="button" onClick={() => setModal({ type: "check-result", stockCheck: check, suggestions: [], isAudit: true })}>View Audit Result</button>
+                      <button className="btn-secondary mt-4 w-full" type="button" onClick={() => openStockCheckResult(check, { suggestions: [], isAudit: true })}>View Audit Result</button>
                     )}
                   </div>
                 );
@@ -11284,7 +11316,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border text-[13px]">
-                  {rows.map((row) => {
+                  {rows.length ? rows.map((row) => {
                     const item = itemById.get(row.itemId);
                     const category = categoryById.get(item?.categoryId);
                     const result = stockCheckResultStatus(row);
@@ -11310,7 +11342,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                         <td className="max-w-[220px] whitespace-pre-wrap py-2 pr-3 text-text-secondary">{row.skipReason || "-"}</td>
                       </tr>
                     );
-                  })}
+                  }) : (
+                    <tr>
+                      <td colSpan={8} className="px-4 py-8 text-center text-sm font-semibold text-text-secondary">
+                        No checked items were saved for this stock check.
+                      </td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>
