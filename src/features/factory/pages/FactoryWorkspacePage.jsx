@@ -25,6 +25,13 @@ function todayInput() {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
+function previewProductionBatchNo(value) {
+  const source = value || todayInput();
+  const [year, month, day] = String(source).slice(0, 10).split("-");
+  if (!year || !month || !day) return "PB-YYMMDD-001";
+  return `PB-${String(year).slice(-2)}${month}${day}-001`;
+}
+
 function money(value) {
   return `RM${Number(value || 0).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
@@ -2745,8 +2752,6 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
     }
   }
 
-  const totalActualUsage = form.material_usage.reduce((sum, row) => sum + Number(row.actual_usage || 0), 0);
-  const highVarianceRows = form.material_usage.filter((row) => Math.abs(varianceFor(row.standard_usage, row.actual_usage).variance) > varianceReasonTolerance);
   const hasRecipeBom = Boolean(matchingRecipe?.items?.length);
   const recipeYieldQty = Number(matchingRecipe?.yield_quantity || 0);
   const currentProductionQty = Number(form.actual_output_qty || form.good_output_qty || 0);
@@ -2754,6 +2759,11 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
   const estimatedPackQty = Number(job.target_pack_qty || job.target_quantity || 0);
   const actualPackQty = Number(form.actual_pack_qty || 0);
   const packDifference = actualPackQty - estimatedPackQty;
+  const formatSignedQuantity = (value, unit) => {
+    const numericValue = Number(value || 0);
+    const prefix = numericValue > 0 ? "+" : "";
+    return `${prefix}${quantity(numericValue, unit)}`;
+  };
 
   return (
     <Modal
@@ -2770,8 +2780,31 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
     >
       <form id="factory-production-form" className="space-y-5" onSubmit={submit}>
         {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
+        <div className="rounded-2xl border border-border bg-white p-4">
+          <div className="text-sm font-bold text-text-primary">Production Information</div>
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
+            <Field label="Batch No.">
+              <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
+                <div className="font-mono text-sm font-black text-text-primary">{previewProductionBatchNo(form.production_date)}</div>
+                <div className="mt-0.5 text-[10.5px] font-semibold text-text-secondary">Preview only</div>
+              </div>
+            </Field>
+            <Field label="Production Date">
+              <input className={inputClass()} type="date" value={form.production_date || ""} readOnly={Boolean(job.started_at)} onChange={(event) => setForm((current) => ({ ...current, production_date: event.target.value }))} />
+            </Field>
+            <Field label="Operator">
+              <input className={inputClass()} value={form.operator_name || ""} readOnly={Boolean(job.started_at)} onChange={(event) => setForm((current) => ({ ...current, operator_name: event.target.value }))} />
+            </Field>
+            <Field label="Start Time">
+              <input className={inputClass()} type="time" value={form.start_time || ""} readOnly={Boolean(job.started_at)} onChange={(event) => setForm((current) => ({ ...current, start_time: event.target.value }))} />
+            </Field>
+            <Field label="End Time">
+              <input className={inputClass()} type="time" value={form.end_time || ""} onChange={(event) => setForm((current) => ({ ...current, end_time: event.target.value }))} />
+            </Field>
+          </div>
+        </div>
         <div className="rounded-2xl border border-border bg-surface p-4">
-          <div className="text-sm font-semibold text-text-muted">Job Order Summary</div>
+          <div className="text-sm font-bold text-text-primary">Job Order Summary</div>
           <div className="mt-3 grid gap-3 md:grid-cols-4">
             <MetricCard icon={PackageCheck} label="Finished Good" value={matchingFinishedGood?.product_family_name || matchingFinishedGood?.product_name_en || job.product_name} helper={job.job_order_no} />
             <MetricCard icon={Package} label="Packaging SKU" value={matchingFinishedGood?.product_code || "No SKU"} helper={matchingFinishedGood?.variant_name || packSizeText(matchingFinishedGood) || "Packaging SKU"} />
@@ -2780,14 +2813,14 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
           </div>
         </div>
         <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-          <div className="text-sm font-semibold text-primary">Actual Packaging Output</div>
+          <div className="text-sm font-bold text-primary">Actual Packaging Output</div>
           <div className="mt-3 grid gap-3 md:grid-cols-[1.2fr_1fr_1fr_1fr]">
             <div className="rounded-xl border border-primary/20 bg-white px-3 py-3">
               <div className="text-[10.5px] font-semibold text-text-muted">Estimated Pack Qty</div>
               <div className="mt-1 text-lg font-bold text-text-primary">{quantity(estimatedPackQty, "packs")}</div>
             </div>
             <Field label="Actual Pack Qty *">
-              <input className={`${inputClass()} text-lg font-bold`} type="number" min="0" step="0.01" value={form.actual_pack_qty} onChange={(event) => {
+              <input className={`${inputClass(submitAttempted && Number(form.actual_pack_qty || 0) <= 0)} border-primary/40 bg-white text-xl font-black shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/15`} type="number" min="0" step="0.01" value={form.actual_pack_qty} onChange={(event) => {
                 const nextPackQty = event.target.value;
                 const nextPlan = packagingProductionPlan(nextPackQty, matchingFinishedGood, matchingRecipe?.uom || form.uom);
                 setForm((current) => {
@@ -2815,7 +2848,7 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
             </Field>
             <div className="rounded-xl border border-primary/20 bg-white px-3 py-3">
               <div className="text-[10.5px] font-semibold text-text-muted">Difference from Estimate</div>
-              <div className={`mt-1 text-lg font-bold ${packDifference > 0 ? "text-amber-700" : packDifference < 0 ? "text-rose-700" : "text-emerald-700"}`}>{packDifference > 0 ? "+" : ""}{quantity(packDifference, "packs")}</div>
+              <div className={`mt-1 text-lg font-bold ${packDifference > 0 ? "text-amber-700" : packDifference < 0 ? "text-rose-700" : "text-emerald-700"}`}>{formatSignedQuantity(packDifference, "packs")}</div>
             </div>
             <div className="rounded-xl border border-primary/20 bg-white px-3 py-3">
               <div className="text-[10.5px] font-semibold text-text-muted">Calculated Output</div>
@@ -2838,41 +2871,17 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
             No active recipe found. Manual material usage is allowed for this completion, but create a Production Standard / BOM before future production if possible.
           </div>
         )}
-        <div className="grid gap-3 md:grid-cols-3">
-          <Field label="Batch No.">
-            <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-bold text-text-primary">System generated after completion</div>
-          </Field>
-          <Field label="Packaging SKU">
-            <input
-              className={inputClass(submitAttempted && !matchingFinishedGood)}
-              value={matchingFinishedGood ? `${finishedGoodLabel(matchingFinishedGood)}${matchingFinishedGood.product_code ? ` · ${matchingFinishedGood.product_code}` : ""}` : "No active linked finished good"}
-              readOnly
-            />
-          </Field>
-          <Field label="Production Date">
-            <input className={inputClass()} type="date" value={form.production_date || ""} readOnly={Boolean(job.started_at)} onChange={(event) => setForm((current) => ({ ...current, production_date: event.target.value }))} />
-          </Field>
-          <Field label="Operator">
-            <input className={inputClass()} value={form.operator_name || ""} readOnly={Boolean(job.started_at)} onChange={(event) => setForm((current) => ({ ...current, operator_name: event.target.value }))} />
-          </Field>
-          <Field label="Start Time">
-            <input className={inputClass()} type="time" value={form.start_time || ""} readOnly={Boolean(job.started_at)} onChange={(event) => setForm((current) => ({ ...current, start_time: event.target.value }))} />
-          </Field>
-          <Field label="End Time">
-            <input className={inputClass()} type="time" value={form.end_time || ""} onChange={(event) => setForm((current) => ({ ...current, end_time: event.target.value }))} />
-          </Field>
-        </div>
         <Card
           title="Actual Material Usage"
           description={hasRecipeBom ? "Rows are locked to the active Production Standard / BOM. Actual usage is the raw material stock deduction source." : "No active recipe found. Add manual material usage rows for this completion only."}
           action={!hasRecipeBom ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={addUsageRow}><Package size={14} /> Add Material</button> : null}
         >
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[860px] text-left">
+            <table className="w-full min-w-[760px] text-left">
               <thead>
                 <tr className="border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">
                   <th className="px-4 py-2.5">Raw Material</th>
-                  <th className="px-4 py-2.5">Standard Qty</th>
+                  <th className="px-4 py-2.5">Standard</th>
                   <th className="px-4 py-2.5">Actual Used</th>
                   <th className="px-4 py-2.5">Difference</th>
                   <th className="px-4 py-2.5">Reason</th>
@@ -2882,53 +2891,44 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
               <tbody>
                 {form.material_usage.map((row) => {
                   const material = rawMaterials.find((item) => item.id === row.raw_material_id);
-                  const materialLots = receivings.filter((item) => item.raw_material_id === row.raw_material_id && item.batch_no);
-                  const { variance, variancePercent } = varianceFor(row.standard_usage, row.actual_usage);
+                  const { variance } = varianceFor(row.standard_usage, row.actual_usage);
                   const needsReason = Math.abs(variance) > varianceReasonTolerance;
                   const showReasonError = submitAttempted && needsReason && !String(row.variance_reason || "").trim();
+                  const rowUom = row.uom || material?.uom || "";
                   return (
                     <tr key={row.id} className={`border-b border-border last:border-0 ${showReasonError ? "bg-amber-50" : ""}`}>
                       <td className="px-4 py-3">
-                        <select
-                          className={inputClass(submitAttempted && !row.raw_material_id)}
-                          value={row.raw_material_id}
-                          disabled={hasRecipeBom}
-                          onChange={(event) => {
-                            const nextMaterial = rawMaterials.find((item) => item.id === event.target.value);
-                            updateUsageRow(row.id, { raw_material_id: event.target.value, raw_material_receiving_id: "", raw_material_lot_no: "", uom: nextMaterial?.uom || row.uom });
-                          }}
-                        >
-                          <option value="">Select material</option>
-                          {rawMaterials.filter((item) => item.status === "active" || item.id === row.raw_material_id).map((item) => (
-                            <option key={item.id} value={item.id}>{rawMaterialLabel(item)} · {quantity(item.current_balance, item.uom)}</option>
-                          ))}
-                        </select>
-                        <div className="mt-1 text-xs text-text-secondary">On hand: {material ? quantity(material.current_balance, material.uom) : "—"}</div>
-                        {materialLots.length ? (
+                        {hasRecipeBom ? (
+                          <div className="rounded-xl border border-border bg-slate-50 px-3 py-2 text-sm font-bold text-text-primary">
+                            {material ? rawMaterialLabel(material) : "Raw material"}
+                          </div>
+                        ) : (
                           <select
-                            className={`${inputClass()} mt-2`}
-                            value={row.raw_material_receiving_id || ""}
+                            className={inputClass(submitAttempted && !row.raw_material_id)}
+                            value={row.raw_material_id}
                             onChange={(event) => {
-                              const lot = materialLots.find((item) => item.id === event.target.value);
-                              updateUsageRow(row.id, { raw_material_receiving_id: event.target.value, raw_material_lot_no: lot?.batch_no || "" });
+                              const nextMaterial = rawMaterials.find((item) => item.id === event.target.value);
+                              updateUsageRow(row.id, { raw_material_id: event.target.value, raw_material_receiving_id: "", raw_material_lot_no: "", uom: nextMaterial?.uom || row.uom });
                             }}
                           >
-                            <option value="">Lot used optional</option>
-                            {materialLots.map((lot) => (
-                              <option key={lot.id} value={lot.id}>{lot.batch_no} · {lot.receipt_no}</option>
+                            <option value="">Select material</option>
+                            {rawMaterials.filter((item) => item.status === "active" || item.id === row.raw_material_id).map((item) => (
+                              <option key={item.id} value={item.id}>{rawMaterialLabel(item)}</option>
                             ))}
                           </select>
-                        ) : null}
+                        )}
                       </td>
                       <td className="px-4 py-3">
-                        <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-bold text-text-primary">{quantity(row.standard_usage, row.uom || material?.uom)}</div>
-                        <div className="mt-1 text-xs text-text-secondary">{row.uom || material?.uom || "uom"}</div>
+                        <div className="inline-flex min-h-[38px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-bold text-text-primary">{quantity(row.standard_usage, rowUom)}</div>
                       </td>
                       <td className="px-4 py-3">
-                        <input className={inputClass()} type="number" min="0" step="0.0001" value={row.actual_usage} onChange={(event) => updateUsageRow(row.id, { actual_usage: event.target.value })} />
+                        <div className="relative">
+                          <input className={`${inputClass()} pr-14 font-bold`} type="number" min="0" step="0.0001" value={row.actual_usage} onChange={(event) => updateUsageRow(row.id, { actual_usage: event.target.value })} />
+                          {rowUom ? <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-text-secondary">{rowUom}</span> : null}
+                        </div>
                       </td>
                       <td className={`px-4 py-3 text-sm font-semibold ${variance > 0 ? "text-amber-600" : variance < 0 ? "text-emerald-600" : "text-text-secondary"}`}>
-                        {quantity(variance, row.uom || material?.uom)}
+                        {formatSignedQuantity(variance, rowUom)}
                       </td>
                       <td className="px-4 py-3">
                         <input
@@ -2953,19 +2953,22 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
           {!form.material_usage.length ? (
             <EmptyState title="No material usage rows" description="Add raw material usage before completing production." />
           ) : null}
-          <div className="border-t border-border px-4 py-3 text-sm font-semibold text-text-secondary">
-            Total actual usage: {quantity(totalActualUsage, "")}
-          </div>
         </Card>
         <Card title="Production Summary" description="Review before confirming completion.">
           <div className="grid gap-3 text-sm font-semibold text-text-secondary md:grid-cols-2">
-            <div><span className="text-text-muted">Finished Good:</span> <span className="text-text-primary">{matchingFinishedGood?.product_family_name || matchingFinishedGood?.product_name_en || job.product_name}</span></div>
-            <div><span className="text-text-muted">Packaging SKU:</span> <span className="text-text-primary">{matchingFinishedGood?.product_code || "No SKU"} · {matchingFinishedGood?.variant_name || packSizeText(matchingFinishedGood) || "Packaging SKU"}</span></div>
-            <div><span className="text-text-muted">Target Production:</span> <span className="text-text-primary">{quantity(job.target_production_qty || job.target_quantity, job.uom)}</span></div>
-            <div><span className="text-text-muted">Estimated Pack Qty:</span> <span className="text-text-primary">{quantity(job.target_pack_qty || job.target_quantity, "packs")}</span></div>
-            <div><span className="text-text-muted">Actual Pack Qty:</span> <span className="text-text-primary">{quantity(form.actual_pack_qty, "packs")}</span></div>
-            <div><span className="text-text-muted">Actual Output Qty:</span> <span className="text-text-primary">{quantity(form.actual_output_qty || form.good_output_qty, form.uom)}</span></div>
-            <div><span className="text-text-muted">Material variance rows:</span> <span className={highVarianceRows.length ? "text-amber-700" : "text-emerald-700"}>{highVarianceRows.length}</span></div>
+            {[
+              ["Finished Good", matchingFinishedGood?.product_family_name || matchingFinishedGood?.product_name_en || job.product_name],
+              ["Packaging SKU", `${matchingFinishedGood?.product_code || "No SKU"} · ${matchingFinishedGood?.variant_name || packSizeText(matchingFinishedGood) || "Packaging SKU"}`],
+              ["Target Production", quantity(job.target_production_qty || job.target_quantity, job.uom)],
+              ["Actual Output", quantity(form.actual_output_qty || form.good_output_qty, form.uom)],
+              ["Estimated Packs", quantity(job.target_pack_qty || job.target_quantity, "packs")],
+              ["Actual Packs", quantity(form.actual_pack_qty, "packs")],
+            ].map(([label, value]) => (
+              <div key={label} className="rounded-xl border border-border bg-slate-50 px-3 py-2">
+                <div className="text-[10.5px] font-semibold text-text-muted">{label}</div>
+                <div className="mt-1 font-bold text-text-primary">{value}</div>
+              </div>
+            ))}
           </div>
         </Card>
         <Field label="Production Notes">
