@@ -2751,6 +2751,9 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
   const recipeYieldQty = Number(matchingRecipe?.yield_quantity || 0);
   const currentProductionQty = Number(form.actual_output_qty || form.good_output_qty || 0);
   const scaleFactor = matchingRecipe && recipeYieldQty > 0 ? currentProductionQty / recipeYieldQty : 0;
+  const estimatedPackQty = Number(job.target_pack_qty || job.target_quantity || 0);
+  const actualPackQty = Number(form.actual_pack_qty || 0);
+  const packDifference = actualPackQty - estimatedPackQty;
 
   return (
     <Modal
@@ -2767,15 +2770,22 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
     >
       <form id="factory-production-form" className="space-y-5" onSubmit={submit}>
         {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
-        <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={ClipboardCheck} label="Target Production Qty" value={quantity(job.target_production_qty || job.target_quantity, job.uom)} helper={job.job_order_no} />
-          <MetricCard icon={Package} label="Estimated Pack Qty" value={quantity(job.target_pack_qty || job.target_quantity, "packs")} helper={matchingFinishedGood?.variant_name || packSizeText(matchingFinishedGood) || "Packaging SKU"} />
-          <MetricCard icon={PackageCheck} label="Actual Pack Qty" value={quantity(form.actual_pack_qty, "packs")} helper="Final stock-in quantity" tone={Number(form.actual_pack_qty || 0) > 0 ? "success" : "warning"} />
-          <MetricCard icon={Factory} label="Actual Output Qty" value={quantity(form.actual_output_qty || form.good_output_qty, form.uom)} helper="Calculated from pack size" />
+        <div className="rounded-2xl border border-border bg-surface p-4">
+          <div className="text-sm font-semibold text-text-muted">Job Order Summary</div>
+          <div className="mt-3 grid gap-3 md:grid-cols-4">
+            <MetricCard icon={PackageCheck} label="Finished Good" value={matchingFinishedGood?.product_family_name || matchingFinishedGood?.product_name_en || job.product_name} helper={job.job_order_no} />
+            <MetricCard icon={Package} label="Packaging SKU" value={matchingFinishedGood?.product_code || "No SKU"} helper={matchingFinishedGood?.variant_name || packSizeText(matchingFinishedGood) || "Packaging SKU"} />
+            <MetricCard icon={ClipboardCheck} label="Target Production Qty" value={quantity(job.target_production_qty || job.target_quantity, job.uom)} helper="Planned output" />
+            <MetricCard icon={Factory} label="Estimated Pack Qty" value={quantity(estimatedPackQty, "packs")} helper="Planned stock-in" />
+          </div>
         </div>
         <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
           <div className="text-sm font-semibold text-primary">Actual Packaging Output</div>
-          <div className="mt-3 grid gap-3 md:grid-cols-[1.2fr_1fr]">
+          <div className="mt-3 grid gap-3 md:grid-cols-[1.2fr_1fr_1fr_1fr]">
+            <div className="rounded-xl border border-primary/20 bg-white px-3 py-3">
+              <div className="text-[10.5px] font-semibold text-text-muted">Estimated Pack Qty</div>
+              <div className="mt-1 text-lg font-bold text-text-primary">{quantity(estimatedPackQty, "packs")}</div>
+            </div>
             <Field label="Actual Pack Qty *">
               <input className={`${inputClass()} text-lg font-bold`} type="number" min="0" step="0.01" value={form.actual_pack_qty} onChange={(event) => {
                 const nextPackQty = event.target.value;
@@ -2803,9 +2813,15 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
                 });
               }} />
             </Field>
-            <Field label="Actual Output Qty">
-              <div className="flex min-h-[46px] items-center rounded-xl border border-border bg-white px-3 text-lg font-bold text-text-primary">{quantity(form.actual_output_qty || form.good_output_qty, form.uom)}</div>
-            </Field>
+            <div className="rounded-xl border border-primary/20 bg-white px-3 py-3">
+              <div className="text-[10.5px] font-semibold text-text-muted">Difference from Estimate</div>
+              <div className={`mt-1 text-lg font-bold ${packDifference > 0 ? "text-amber-700" : packDifference < 0 ? "text-rose-700" : "text-emerald-700"}`}>{packDifference > 0 ? "+" : ""}{quantity(packDifference, "packs")}</div>
+            </div>
+            <div className="rounded-xl border border-primary/20 bg-white px-3 py-3">
+              <div className="text-[10.5px] font-semibold text-text-muted">Calculated Output</div>
+              <div className="mt-1 text-lg font-bold text-text-primary">{quantity(form.actual_output_qty || form.good_output_qty, form.uom)}</div>
+              <div className="mt-1 text-xs font-semibold text-text-secondary">Based on actual packs × pack size</div>
+            </div>
           </div>
         </div>
         {matchingRecipe ? (
@@ -2824,7 +2840,7 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
         )}
         <div className="grid gap-3 md:grid-cols-3">
           <Field label="Batch No.">
-            <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-bold text-text-primary">Auto-generated on complete</div>
+            <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-bold text-text-primary">System generated after completion</div>
           </Field>
           <Field label="Packaging SKU">
             <input
@@ -2917,7 +2933,7 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
                       <td className="px-4 py-3">
                         <input
                           className={inputClass(showReasonError)}
-                          placeholder={needsReason ? "Reason required" : "Optional"}
+                          placeholder={needsReason ? "Required if different" : "Optional"}
                           value={row.variance_reason || ""}
                           onChange={(event) => updateUsageRow(row.id, { variance_reason: event.target.value })}
                         />
