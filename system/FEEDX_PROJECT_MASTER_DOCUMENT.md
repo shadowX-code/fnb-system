@@ -2722,10 +2722,11 @@ Factory Phase 1B implemented scope:
 - Factory production follows the MES-style sequence: Product Recipe standard BOM -> Job Order draft -> Release Job Order -> Start Production -> Complete Production -> inventory movements and batch traceability.
 - Production execution starts from a released Factory Job Order.
 - A Factory Job Order is a production planning task, not an actual production result.
-- New Factory Job Orders must select an active Packaging SKU from `factory_finished_goods`.
+- New Factory Job Orders start by selecting a parent Finished Good, then a Packaging SKU from `factory_finished_goods` under that Finished Good.
 - `factory_job_orders.finished_good_id` remains the compatibility reference to the Packaging SKU inventory record.
 - Job Orders store `finished_good_id`, `target_pack_qty`, `target_production_qty`, `target_quantity`, `uom`, `planned_date`, `due_date`, `priority`, `assigned_team`, `status`, `remarks`, release metadata, start metadata, and completion metadata.
-- Target Pack Qty is the business planning input. Target Production Qty is auto-calculated from Packaging SKU pack size using supported g/kg and ml/L conversions.
+- Target Production Qty and Production UOM are the business planning inputs. Target Pack Qty is an estimated pack count derived from the selected Packaging SKU pack size using supported g/kg and ml/L conversions.
+- Estimated pack quantity can be fractional during planning when the requested production quantity does not divide evenly into the selected pack size; completion captures Actual Pack Qty for the real stock-in.
 - Job Order references are generated in the database through `factory_create_job_order(...)` using the business format `JOYYMMDD-001`; reference generation is protected by an advisory transaction lock.
 - Job Order lifecycle statuses are `draft`, `released`, `in_progress`, `completed`, and `cancelled`. Legacy `planned` rows are mapped to `released`.
 - Packaging SKU master data is the valid SKU source for production planning; new Job Orders must not rely on free-text product names when Packaging SKUs exist.
@@ -2735,7 +2736,7 @@ Factory Phase 1B implemented scope:
 - Draft Job Orders can be edited or deleted. Released Job Orders can be started. In Progress Job Orders can be completed. Completed and cancelled Job Orders are read-only.
 - Production Records list ready Job Orders with `released` and `in_progress` statuses.
 - Start Production captures only production start context: selected Job Order summary, operator, production date, start time and remarks. Start Production does not create inventory movement.
-- Production completion starts from an In Progress Job Order and auto-fills Packaging SKU, parent Finished Good, target pack quantity, target production quantity, UOM, and available Recipe/SOP reference by product.
+- Production completion starts from an In Progress Job Order and auto-fills Packaging SKU, parent Finished Good, estimated target pack quantity, target production quantity, UOM, and available Recipe/SOP reference by product.
 - Production completion captures batch number, production date, operator, start time, end time, actual pack quantity, actual output quantity, wastage quantity, QC status and notes.
 - Production material usage captures raw material, standard usage, actual usage, variance quantity, variance percent and variance reason.
 - Actual material usage is the source of truth for raw material deduction.

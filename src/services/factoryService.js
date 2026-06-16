@@ -42,6 +42,33 @@ function packagingProductionPlan(packQty, sku, recipeUom = "") {
   return { target_pack_qty: targetPackQty, target_production_qty: targetPackQty * packSizeQty, production_uom: normalizedRecipeUom || normalizedPackUom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "" };
 }
 
+function packagingPackEstimate(productionQty, productionUom, sku, recipeUom = "") {
+  const targetProductionQty = normalizeNumber(productionQty);
+  const packSizeQty = normalizeNumber(sku?.pack_size_qty || sku?.base_qty);
+  const packSizeUom = sku?.pack_size_uom || sku?.base_uom || "";
+  const packBase = normalizePackSizeToBase(packSizeQty, packSizeUom);
+  const productionBase = normalizePackSizeToBase(targetProductionQty, productionUom);
+  const recipeBase = recipeUom ? normalizePackSizeToBase(1, recipeUom) : null;
+
+  if (!targetProductionQty) return { target_pack_qty: 0, target_production_qty: 0, production_uom: productionUom || recipeBase?.uom || packBase?.uom || "", pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "" };
+  if (!String(productionUom || "").trim()) return { target_pack_qty: 0, target_production_qty: targetProductionQty, production_uom: "", pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "Production UOM is required." };
+  if (!packSizeQty || !packSizeUom) return { target_pack_qty: 0, target_production_qty: targetProductionQty, production_uom: productionUom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "Packaging SKU needs Pack Size before creating Job Order." };
+
+  if (packBase) {
+    if (!productionBase) return { target_pack_qty: 0, target_production_qty: targetProductionQty, production_uom: productionUom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "Production UOM cannot convert to the selected Packaging SKU Pack Size." };
+    if (productionBase.uom !== packBase.uom) return { target_pack_qty: 0, target_production_qty: targetProductionQty, production_uom: productionBase.uom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "Production UOM cannot convert to the selected Packaging SKU Pack Size." };
+    if (recipeBase && recipeBase.uom !== productionBase.uom) return { target_pack_qty: 0, target_production_qty: targetProductionQty, production_uom: productionBase.uom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "Production UOM must match the active recipe UOM." };
+    return { target_pack_qty: productionBase.amount / packBase.amount, target_production_qty: productionBase.amount, production_uom: productionBase.uom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "" };
+  }
+
+  const normalizedPackUom = String(packSizeUom || "").trim();
+  const normalizedProductionUom = String(productionUom || "").trim();
+  const normalizedRecipeUom = String(recipeUom || "").trim();
+  if (normalizedRecipeUom && normalizedRecipeUom.toLowerCase() !== normalizedProductionUom.toLowerCase()) return { target_pack_qty: 0, target_production_qty: targetProductionQty, production_uom: normalizedProductionUom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "Production UOM must match the active recipe UOM." };
+  if (normalizedPackUom.toLowerCase() !== normalizedProductionUom.toLowerCase()) return { target_pack_qty: 0, target_production_qty: targetProductionQty, production_uom: normalizedProductionUom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "Production UOM cannot convert to the selected Packaging SKU Pack Size." };
+  return { target_pack_qty: targetProductionQty / packSizeQty, target_production_qty: targetProductionQty, production_uom: normalizedProductionUom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "" };
+}
+
 function mapJobOrder(row) {
   const finishedGood = row.finished_good || {};
   const status = row.status === "planned" ? "released" : row.status || "draft";
@@ -789,7 +816,8 @@ export const factoryService = {
     }
     if (!finishedGood?.id) throw new Error("Select an active finished good product.");
     if (String(finishedGood.status || "").toLowerCase() !== "active") throw new Error("Archived Finished Goods cannot be selected.");
-    const targetPackQty = normalizeNumber(order.target_pack_qty || order.target_quantity);
+    const targetProductionQty = normalizeNumber(order.target_production_qty || order.target_quantity);
+    const productionUom = String(order.uom || "").trim();
     let activeRecipeUom = "";
     if (finishedGood.product_family_id) {
       const { data: parentRecipe } = await supabase
@@ -809,9 +837,9 @@ export const factoryService = {
         .maybeSingle();
       activeRecipeUom = skuRecipe?.uom || "";
     }
-    const productionPlan = packagingProductionPlan(targetPackQty, finishedGood, activeRecipeUom || order.uom);
+    const productionPlan = packagingPackEstimate(targetProductionQty, productionUom, finishedGood, activeRecipeUom);
     if (productionPlan.error) throw new Error(productionPlan.error);
-    if (!productionPlan.target_production_qty || !productionPlan.production_uom) throw new Error("Packaging SKU Pack Size UOM cannot be used for production quantity.");
+    if (!productionPlan.target_pack_qty || !productionPlan.target_production_qty || !productionPlan.production_uom) throw new Error("Packaging SKU Pack Size UOM cannot be used for production quantity.");
 
     if (isUpdate) {
       const { data: current, error: currentError } = await supabase
@@ -840,7 +868,8 @@ export const factoryService = {
       remarks: order.remarks || "",
       updated_at: new Date().toISOString(),
     };
-    if (payload.target_pack_qty <= 0) throw new Error("Target Pack Qty must be greater than 0.");
+    if (payload.target_production_qty <= 0) throw new Error("Target Production Qty must be greater than 0.");
+    if (payload.target_pack_qty <= 0) throw new Error("Estimated Pack Qty must be greater than 0.");
     if (!isUpdate) {
       const { data: createdRows, error: createError } = await supabase.rpc("factory_create_job_order", {
         p_finished_good_id: finishedGood.id,

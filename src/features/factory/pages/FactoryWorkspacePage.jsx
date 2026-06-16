@@ -628,10 +628,41 @@ function packagingProductionPlan(packQty, sku, recipeUom = "") {
   return { target_pack_qty: targetPackQty, target_production_qty: targetPackQty * packSizeQty, production_uom: normalizedRecipeUom || normalizedPackUom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "" };
 }
 
+function packagingPackEstimate(productionQty, productionUom, sku, recipeUom = "") {
+  const targetProductionQty = Number(productionQty || 0);
+  const packSizeQty = Number(sku?.pack_size_qty || sku?.base_qty || 0);
+  const packSizeUom = sku?.pack_size_uom || sku?.base_uom || "";
+  const packBase = normalizePackSizeToBase(packSizeQty, packSizeUom);
+  const productionBase = normalizePackSizeToBase(targetProductionQty, productionUom);
+  const recipeBase = recipeUom ? normalizePackSizeToBase(1, recipeUom) : null;
+
+  if (!targetProductionQty) return { target_pack_qty: 0, target_production_qty: 0, production_uom: productionUom || recipeBase?.uom || packBase?.uom || "", pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "" };
+  if (!String(productionUom || "").trim()) return { target_pack_qty: 0, target_production_qty: targetProductionQty, production_uom: "", pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "Production UOM is required." };
+  if (!packSizeQty || !packSizeUom) return { target_pack_qty: 0, target_production_qty: targetProductionQty, production_uom: productionUom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "Packaging SKU needs Pack Size before creating Job Order." };
+
+  if (packBase) {
+    if (!productionBase) return { target_pack_qty: 0, target_production_qty: targetProductionQty, production_uom: productionUom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "Production UOM cannot convert to the selected Packaging SKU Pack Size." };
+    if (productionBase.uom !== packBase.uom) return { target_pack_qty: 0, target_production_qty: targetProductionQty, production_uom: productionBase.uom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "Production UOM cannot convert to the selected Packaging SKU Pack Size." };
+    if (recipeBase && recipeBase.uom !== productionBase.uom) return { target_pack_qty: 0, target_production_qty: targetProductionQty, production_uom: productionBase.uom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "Production UOM must match the active recipe UOM." };
+    return { target_pack_qty: productionBase.amount / packBase.amount, target_production_qty: productionBase.amount, production_uom: productionBase.uom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "" };
+  }
+
+  const normalizedPackUom = String(packSizeUom || "").trim();
+  const normalizedProductionUom = String(productionUom || "").trim();
+  const normalizedRecipeUom = String(recipeUom || "").trim();
+  if (normalizedRecipeUom && normalizedRecipeUom.toLowerCase() !== normalizedProductionUom.toLowerCase()) return { target_pack_qty: 0, target_production_qty: targetProductionQty, production_uom: normalizedProductionUom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "Production UOM must match the active recipe UOM." };
+  if (normalizedPackUom.toLowerCase() !== normalizedProductionUom.toLowerCase()) return { target_pack_qty: 0, target_production_qty: targetProductionQty, production_uom: normalizedProductionUom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "Production UOM cannot convert to the selected Packaging SKU Pack Size." };
+  return { target_pack_qty: targetProductionQty / packSizeQty, target_production_qty: targetProductionQty, production_uom: normalizedProductionUom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "" };
+}
+
 function activeRecipeForSku(recipes = [], sku = {}, productName = "") {
   return recipes.find((recipe) => recipe.status === "active" && recipe.product_family_id && recipe.product_family_id === sku?.product_family_id)
     || recipes.find((recipe) => recipe.status === "active" && recipe.finished_good_id && recipe.finished_good_id === sku?.id)
     || recipes.find((recipe) => recipe.status === "active" && String(recipe.product_name || "").toLowerCase() === String(productName || sku?.product_family_name || sku?.product_name || "").toLowerCase());
+}
+
+function finishedGoodParentKey(sku) {
+  return sku?.product_family_id ? `family:${sku.product_family_id}` : sku?.id ? `sku:${sku.id}` : "";
 }
 
 function packagingBaseBalanceInfo(skus = []) {
@@ -1592,7 +1623,10 @@ function StorageLocationModal({ locations, onClose, onSave, onArchive }) {
 }
 
 function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes = [], onClose, onSave }) {
+  const initialSku = finishedGoods.find((product) => product.id === initialValue?.finished_good_id);
+  const initialParentKey = initialSku ? finishedGoodParentKey(initialSku) : "";
   const [form, setForm] = useState(() => ({
+    product_family_key: initialParentKey,
     finished_good_id: "",
     product_name: "",
     target_pack_qty: "",
@@ -1614,24 +1648,47 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
   const isDraft = normalizedStatus === "draft";
   const isReadOnly = Boolean(initialValue?.id) && !isDraft;
   const activeFinishedGoods = finishedGoods.filter((product) => product.status === "active" || product.id === form.finished_good_id);
-  const finishedGoodOptions = activeFinishedGoods.map((product) => ({
+  const finishedGoodParents = Array.from(activeFinishedGoods.reduce((map, product) => {
+    const key = finishedGoodParentKey(product);
+    if (!key || map.has(key)) return map;
+    map.set(key, {
+      key,
+      product_family_id: product.product_family_id || "",
+      legacy_sku_id: product.product_family_id ? "" : product.id,
+      name: product.product_family_name || product.product_name_en || product.product_name || "Finished Good",
+      category: product.category_name || product.category || "",
+      status: product.status || "active",
+    });
+    return map;
+  }, new Map()).values());
+  const finishedGoodOptions = finishedGoodParents.map((product) => ({
+    value: product.key,
+    label: product.name,
+    helper: [product.category || "No category", product.product_family_id ? "Finished Good" : "Legacy SKU"].join(" · "),
+  }));
+  const selectedParent = finishedGoodParents.find((product) => product.key === form.product_family_key);
+  const parentSkus = selectedParent ? activeFinishedGoods.filter((product) => finishedGoodParentKey(product) === selectedParent.key) : [];
+  const packagingSkuOptions = parentSkus.map((product) => ({
     value: product.id,
     label: [product.product_code || "No SKU", product.product_family_name || product.product_name_en || product.product_name, product.variant_name || packSizeText(product)].filter(Boolean).join(" · "),
     helper: `Pack size ${packSizeText(product) || "not set"} · Balance ${quantity(product.current_balance, "")}`,
   }));
-  const selectedProduct = activeFinishedGoods.find((product) => product.id === form.finished_good_id);
-  const matchingRecipe = activeRecipeForSku(recipes, selectedProduct, form.product_name);
-  const targetPackQty = Number(form.target_pack_qty || form.target_quantity || 0);
-  const productionPlan = selectedProduct ? packagingProductionPlan(targetPackQty, selectedProduct, matchingRecipe?.uom) : null;
-  const productionUom = productionPlan?.production_uom || matchingRecipe?.uom || form.uom || "";
-  const calculatedProductionQty = productionPlan && !productionPlan.error ? productionPlan.target_production_qty : null;
-  const targetProductionQty = calculatedProductionQty ?? Number(form.target_production_qty || form.target_quantity || 0);
+  const selectedProduct = parentSkus.find((product) => product.id === form.finished_good_id) || activeFinishedGoods.find((product) => product.id === form.finished_good_id);
+  const parentRecipe = selectedParent?.product_family_id ? recipes.find((recipe) => recipe.status === "active" && recipe.product_family_id === selectedParent.product_family_id) : null;
+  const legacyRecipe = selectedProduct ? activeRecipeForSku(recipes, selectedProduct, selectedParent?.name || form.product_name) : null;
+  const matchingRecipe = parentRecipe || legacyRecipe;
+  const targetProductionQty = Number(form.target_production_qty || form.target_quantity || 0);
+  const productionUom = form.uom || matchingRecipe?.uom || "";
+  const productionPlan = selectedProduct ? packagingPackEstimate(targetProductionQty, productionUom, selectedProduct, matchingRecipe?.uom) : null;
+  const estimatedPackQty = productionPlan && !productionPlan.error ? productionPlan.target_pack_qty : null;
+  const normalizedPreviewProductionQty = productionPlan && !productionPlan.error ? productionPlan.target_production_qty : targetProductionQty;
+  const normalizedPreviewProductionUom = productionPlan && !productionPlan.error ? productionPlan.production_uom : productionUom;
   const packSizeMissing = selectedProduct && productionPlan?.error === "Packaging SKU needs Pack Size before creating Job Order.";
-  const recipeUomMismatch = selectedProduct && productionPlan?.error === "Packaging SKU Pack Size UOM cannot convert to the active recipe UOM.";
+  const recipeUomMismatch = selectedProduct && (productionPlan?.error === "Production UOM must match the active recipe UOM." || productionPlan?.error === "Production UOM cannot convert to the selected Packaging SKU Pack Size.");
   const bomRows = matchingRecipe?.items?.length ? matchingRecipe.items.map((item) => {
     const material = rawMaterials.find((row) => row.id === item.raw_material_id);
     const recipeYield = Number(matchingRecipe.yield_quantity || 1) || 1;
-    const requiredQty = (Number(item.quantity_used || 0) * Number(targetProductionQty || 0)) / recipeYield;
+    const requiredQty = (Number(item.quantity_used || 0) * Number(normalizedPreviewProductionQty || 0)) / recipeYield;
     const balance = Number(material?.current_balance || 0);
     return {
       ...item,
@@ -1650,19 +1707,27 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
     if (isReadOnly) {
       return;
     }
-    if (!form.finished_good_id) {
-      setError("Select an active Packaging SKU.");
+    if (!form.product_family_key) {
+      setError("Select a Finished Good.");
       return;
     }
-    if (Number(form.target_pack_qty || form.target_quantity || 0) <= 0) {
-      setError("Target Pack Qty must be greater than 0.");
+    if (Number(form.target_production_qty || form.target_quantity || 0) <= 0) {
+      setError("Target Production Qty must be greater than 0.");
+      return;
+    }
+    if (!String(form.uom || "").trim()) {
+      setError("Production UOM is required.");
+      return;
+    }
+    if (!form.finished_good_id) {
+      setError("Select an active Packaging SKU.");
       return;
     }
     if (productionPlan?.error) {
       setError(productionPlan.error);
       return;
     }
-    if (!productionPlan?.target_production_qty || !productionPlan.production_uom) {
+    if (!productionPlan?.target_pack_qty || !productionPlan.target_production_qty || !productionPlan.production_uom) {
       setError("Packaging SKU Pack Size UOM cannot be used for production quantity.");
       return;
     }
@@ -1699,46 +1764,59 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
         {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
         {isReadOnly ? <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-text-secondary">This Job Order is {jobStatusLabel(normalizedStatus)} and is read-only. Use the production lifecycle actions for the next step.</div> : null}
         <div className="grid gap-3 md:grid-cols-2">
-          <Field label="Packaging SKU *" error={!form.finished_good_id && error.includes("Packaging SKU") ? "Packaging SKU is required." : ""}>
+          <Field label="Finished Good *" error={!form.product_family_key && error.includes("Finished Good") ? "Finished Good is required." : ""}>
             <SearchableSelect
-              value={form.finished_good_id || ""}
+              value={form.product_family_key || ""}
               options={finishedGoodOptions}
-              placeholder={activeFinishedGoods.length ? "Select Packaging SKU" : "Create an active Packaging SKU first"}
-              searchPlaceholder="Search packaging SKUs"
-              emptyText="No matching packaging SKUs"
-              error={!form.finished_good_id && error.includes("Packaging SKU")}
+              placeholder={finishedGoodOptions.length ? "Select Finished Good" : "Create a Finished Good first"}
+              searchPlaceholder="Search finished goods"
+              emptyText="No matching Finished Goods"
+              error={!form.product_family_key && error.includes("Finished Good")}
               disabled={isReadOnly}
-              onChange={(finishedGoodId) => {
-                const product = activeFinishedGoods.find((item) => item.id === finishedGoodId);
-                const recipe = activeRecipeForSku(recipes, product, product?.product_name);
-                const nextPlan = packagingProductionPlan(form.target_pack_qty || form.target_quantity, product, recipe?.uom);
+              onChange={(parentKey) => {
+                const parent = finishedGoodParents.find((item) => item.key === parentKey);
+                const recipe = parent?.product_family_id ? recipes.find((item) => item.status === "active" && item.product_family_id === parent.product_family_id) : null;
                 setForm((current) => ({
                   ...current,
-                  finished_good_id: finishedGoodId,
-                  product_name: product?.product_name || "",
-                  target_production_qty: nextPlan.error ? "" : nextPlan.target_production_qty,
-                  target_quantity: nextPlan.error ? current.target_quantity : nextPlan.target_production_qty,
-                  uom: nextPlan.production_uom || current.uom,
+                  product_family_key: parentKey,
+                  finished_good_id: "",
+                  product_name: parent?.name || "",
+                  uom: recipe?.uom || current.uom,
                 }));
               }}
             />
           </Field>
-          <Field label="Target Pack Qty *">
-            <input className={inputClass()} type="number" min="0" step="0.01" value={form.target_pack_qty || form.target_quantity || ""} disabled={isReadOnly} onChange={(event) => {
-              const nextPackQty = event.target.value;
-              const nextPlan = packagingProductionPlan(nextPackQty, selectedProduct, matchingRecipe?.uom);
-              setForm((current) => ({
-                ...current,
-                target_pack_qty: nextPackQty,
-                target_production_qty: nextPlan.error ? "" : nextPlan.target_production_qty,
-                target_quantity: nextPlan.error ? current.target_quantity : nextPlan.target_production_qty,
-                uom: nextPlan.production_uom || current.uom,
-              }));
+          <Field label="Target Production Qty *">
+            <input className={inputClass()} type="number" min="0" step="0.01" value={form.target_production_qty || form.target_quantity || ""} disabled={isReadOnly} onChange={(event) => {
+              const nextQty = event.target.value;
+              setForm((current) => ({ ...current, target_production_qty: nextQty, target_quantity: nextQty }));
             }} />
           </Field>
-          <Field label="Target Production Qty">
+          <Field label="Production UOM *">
+            <input className={inputClass()} value={form.uom || ""} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, uom: event.target.value }))} placeholder={matchingRecipe?.uom || "kg / L"} />
+          </Field>
+          <Field label="Packaging SKU *" error={!form.finished_good_id && error.includes("Packaging SKU") ? "Packaging SKU is required." : ""}>
+            <SearchableSelect
+              value={form.finished_good_id || ""}
+              options={packagingSkuOptions}
+              placeholder={selectedParent ? "Select Packaging SKU" : "Select Finished Good first"}
+              searchPlaceholder="Search packaging SKUs"
+              emptyText="No matching packaging SKUs"
+              error={!form.finished_good_id && error.includes("Packaging SKU")}
+              disabled={isReadOnly || !selectedParent}
+              onChange={(finishedGoodId) => {
+                const product = parentSkus.find((item) => item.id === finishedGoodId);
+                setForm((current) => ({
+                  ...current,
+                  finished_good_id: finishedGoodId,
+                  product_name: product?.product_name || selectedParent?.name || "",
+                }));
+              }}
+            />
+          </Field>
+          <Field label="Estimated Pack Qty">
             <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-bold text-text-primary">
-              {selectedProduct && targetPackQty > 0 && calculatedProductionQty != null ? quantity(calculatedProductionQty, productionUom) : "—"}
+              {selectedProduct && targetProductionQty > 0 && estimatedPackQty != null ? quantity(estimatedPackQty, "packs") : "—"}
             </div>
           </Field>
           <Field label="Planned Date">
@@ -1760,12 +1838,12 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
           <div className="grid gap-3 md:grid-cols-4">
             <MetricCard icon={PackageCheck} label="Finished Good" value={selectedProduct.product_family_name || selectedProduct.product_name_en || selectedProduct.product_name} helper={selectedProduct.product_code || "Packaging SKU"} />
             <MetricCard icon={Package} label="Pack Size" value={packSizeText(selectedProduct) || "Missing"} helper={selectedProduct.variant_name || "Packaging variant"} tone={packSizeMissing ? "warning" : "neutral"} />
-            <MetricCard icon={Factory} label="Target Production Qty" value={calculatedProductionQty == null ? "—" : quantity(calculatedProductionQty, productionUom)} helper="Auto-calculated from packs" tone={recipeUomMismatch ? "warning" : "neutral"} />
+            <MetricCard icon={Factory} label="Estimated Pack Qty" value={estimatedPackQty == null ? "—" : quantity(estimatedPackQty, "packs")} helper={quantity(normalizedPreviewProductionQty, normalizedPreviewProductionUom)} tone={recipeUomMismatch ? "warning" : "neutral"} />
             <MetricCard icon={BookOpen} label="Active Recipe" value={matchingRecipe ? matchingRecipe.version || "Active" : "—"} helper={matchingRecipe ? productionTimeLabel(matchingRecipe.estimated_production_time_minutes) : "No active recipe"} tone={matchingRecipe ? "success" : "warning"} />
           </div>
         ) : null}
         <Card title="BOM / Recipe Requirement Preview" description="This preview uses the current active recipe. Actual production usage remains captured during completion.">
-          {form.finished_good_id && matchingRecipe ? (
+          {selectedParent && matchingRecipe ? (
             <div className="space-y-3">
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">
                 {matchingRecipe.recipe_name || matchingRecipe.recipe_code} · {matchingRecipe.version || "v1"} · Production Quantity {quantity(matchingRecipe.yield_quantity, matchingRecipe.uom)}
@@ -1793,12 +1871,12 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
                 </table>
               </div>
             </div>
-          ) : form.finished_good_id ? (
+          ) : selectedParent ? (
             <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
               No active recipe found. You can still create the job order, but material usage must be entered manually during production.
             </div>
           ) : (
-            <EmptyState title="Select a Packaging SKU" description="Choose a SKU and target pack quantity to preview active recipe requirements." />
+            <EmptyState title="Select a Finished Good" description="Choose a Finished Good and production quantity to preview active recipe requirements." />
           )}
         </Card>
         <Field label="Remarks">

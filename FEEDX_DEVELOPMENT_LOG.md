@@ -5,10 +5,10 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 ## 2026-06-16
 
 ### Factory
-- Refactored Factory Job Order planning to select Packaging SKUs first, capture Target Pack Qty, and auto-calculate Target Production Qty from the SKU pack size using supported g/kg and ml/L conversions.
+- Refactored Factory Job Order planning to select the parent Finished Good first, capture Target Production Qty/UOM, filter Packaging SKUs by that Finished Good, and estimate pack quantity from the selected SKU pack size using supported g/kg and ml/L conversions.
 - Moved new Production Standard / BOM setup toward parent Finished Good logic through `factory_product_recipes.product_family_id` while keeping legacy SKU-linked standards readable for compatibility.
 - Updated Production completion to capture Actual Pack Qty for finished-goods SKU stock-in while using Actual Output Qty to scale standard material usage and variance checks.
-- Added an additive Factory migration for Packaging SKU-first Job Orders, parent-level Production Standards, and production pack/output quantity persistence without renaming existing `finished_good_id` compatibility references.
+- Added additive Factory migrations for parent-level Production Standards, production pack/output quantity persistence, and production-quantity-first Job Order RPC validation without renaming existing `finished_good_id` compatibility references.
 
 ## 2026-06-09
 
