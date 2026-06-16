@@ -604,6 +604,36 @@ function normalizePackSizeToBase(qty, uom) {
   return null;
 }
 
+function packagingProductionPlan(packQty, sku, recipeUom = "") {
+  const targetPackQty = Number(packQty || 0);
+  const packSizeQty = Number(sku?.pack_size_qty || sku?.base_qty || 0);
+  const packSizeUom = sku?.pack_size_uom || sku?.base_uom || "";
+  const packBase = normalizePackSizeToBase(packSizeQty, packSizeUom);
+  const recipeBase = recipeUom ? normalizePackSizeToBase(1, recipeUom) : null;
+
+  if (!targetPackQty) return { target_pack_qty: 0, target_production_qty: 0, production_uom: recipeBase?.uom || packBase?.uom || "", pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "" };
+  if (!packSizeQty || !packSizeUom) return { target_pack_qty: targetPackQty, target_production_qty: 0, production_uom: "", pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "Packaging SKU needs Pack Size before creating Job Order." };
+  if (packBase) {
+    if (recipeBase && recipeBase.uom !== packBase.uom) {
+      return { target_pack_qty: targetPackQty, target_production_qty: 0, production_uom: recipeBase.uom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "Packaging SKU Pack Size UOM cannot convert to the active recipe UOM." };
+    }
+    return { target_pack_qty: targetPackQty, target_production_qty: targetPackQty * packBase.amount, production_uom: packBase.uom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "" };
+  }
+
+  const normalizedPackUom = String(packSizeUom || "").trim();
+  const normalizedRecipeUom = String(recipeUom || "").trim();
+  if (normalizedRecipeUom && normalizedRecipeUom.toLowerCase() !== normalizedPackUom.toLowerCase()) {
+    return { target_pack_qty: targetPackQty, target_production_qty: 0, production_uom: normalizedRecipeUom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "Packaging SKU Pack Size UOM cannot convert to the active recipe UOM." };
+  }
+  return { target_pack_qty: targetPackQty, target_production_qty: targetPackQty * packSizeQty, production_uom: normalizedRecipeUom || normalizedPackUom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "" };
+}
+
+function activeRecipeForSku(recipes = [], sku = {}, productName = "") {
+  return recipes.find((recipe) => recipe.status === "active" && recipe.product_family_id && recipe.product_family_id === sku?.product_family_id)
+    || recipes.find((recipe) => recipe.status === "active" && recipe.finished_good_id && recipe.finished_good_id === sku?.id)
+    || recipes.find((recipe) => recipe.status === "active" && String(recipe.product_name || "").toLowerCase() === String(productName || sku?.product_family_name || sku?.product_name || "").toLowerCase());
+}
+
 function packagingBaseBalanceInfo(skus = []) {
   if (!skus.length) return { label: "—", amount: null, uom: "" };
   let total = 0;
@@ -1565,9 +1595,11 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
   const [form, setForm] = useState(() => ({
     finished_good_id: "",
     product_name: "",
+    target_pack_qty: "",
+    target_production_qty: "",
     target_quantity: "",
     produced_quantity: 0,
-    uom: "kg",
+    uom: "",
     planned_date: todayInput(),
     due_date: "",
     priority: "Normal",
@@ -1584,16 +1616,22 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
   const activeFinishedGoods = finishedGoods.filter((product) => product.status === "active" || product.id === form.finished_good_id);
   const finishedGoodOptions = activeFinishedGoods.map((product) => ({
     value: product.id,
-    label: finishedGoodLabel(product),
-    helper: finishedGoodHelper(product),
+    label: [product.product_code || "No SKU", product.product_family_name || product.product_name_en || product.product_name, product.variant_name || packSizeText(product)].filter(Boolean).join(" · "),
+    helper: `Pack size ${packSizeText(product) || "not set"} · Balance ${quantity(product.current_balance, "")}`,
   }));
   const selectedProduct = activeFinishedGoods.find((product) => product.id === form.finished_good_id);
-  const matchingRecipe = recipes.find((recipe) => recipe.status === "active" && recipe.finished_good_id === form.finished_good_id)
-    || recipes.find((recipe) => recipe.status === "active" && recipe.product_name.toLowerCase() === String(selectedProduct?.product_name || form.product_name || "").toLowerCase());
+  const matchingRecipe = activeRecipeForSku(recipes, selectedProduct, form.product_name);
+  const targetPackQty = Number(form.target_pack_qty || form.target_quantity || 0);
+  const productionPlan = selectedProduct ? packagingProductionPlan(targetPackQty, selectedProduct, matchingRecipe?.uom) : null;
+  const productionUom = productionPlan?.production_uom || matchingRecipe?.uom || form.uom || "";
+  const calculatedProductionQty = productionPlan && !productionPlan.error ? productionPlan.target_production_qty : null;
+  const targetProductionQty = calculatedProductionQty ?? Number(form.target_production_qty || form.target_quantity || 0);
+  const packSizeMissing = selectedProduct && productionPlan?.error === "Packaging SKU needs Pack Size before creating Job Order.";
+  const recipeUomMismatch = selectedProduct && productionPlan?.error === "Packaging SKU Pack Size UOM cannot convert to the active recipe UOM.";
   const bomRows = matchingRecipe?.items?.length ? matchingRecipe.items.map((item) => {
     const material = rawMaterials.find((row) => row.id === item.raw_material_id);
     const recipeYield = Number(matchingRecipe.yield_quantity || 1) || 1;
-    const requiredQty = (Number(item.quantity_used || 0) * Number(form.target_quantity || 0)) / recipeYield;
+    const requiredQty = (Number(item.quantity_used || 0) * Number(targetProductionQty || 0)) / recipeYield;
     const balance = Number(material?.current_balance || 0);
     return {
       ...item,
@@ -1613,17 +1651,32 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
       return;
     }
     if (!form.finished_good_id) {
-      setError("Select an active finished good product.");
+      setError("Select an active Packaging SKU.");
       return;
     }
-    if (Number(form.target_quantity || 0) <= 0) {
-      setError("Target quantity must be greater than 0.");
+    if (Number(form.target_pack_qty || form.target_quantity || 0) <= 0) {
+      setError("Target Pack Qty must be greater than 0.");
+      return;
+    }
+    if (productionPlan?.error) {
+      setError(productionPlan.error);
+      return;
+    }
+    if (!productionPlan?.target_production_qty || !productionPlan.production_uom) {
+      setError("Packaging SKU Pack Size UOM cannot be used for production quantity.");
       return;
     }
     setSaving(true);
     try {
       const selectedProduct = activeFinishedGoods.find((product) => product.id === form.finished_good_id);
-      await onSave({ ...form, product_name: selectedProduct?.product_name || form.product_name, uom: form.uom || selectedProduct?.uom || "" });
+      await onSave({
+        ...form,
+        product_name: selectedProduct?.product_name || form.product_name,
+        target_pack_qty: productionPlan.target_pack_qty,
+        target_production_qty: productionPlan.target_production_qty,
+        target_quantity: productionPlan.target_production_qty,
+        uom: productionPlan.production_uom,
+      });
     } finally {
       setSaving(false);
     }
@@ -1646,33 +1699,47 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
         {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
         {isReadOnly ? <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-text-secondary">This Job Order is {jobStatusLabel(normalizedStatus)} and is read-only. Use the production lifecycle actions for the next step.</div> : null}
         <div className="grid gap-3 md:grid-cols-2">
-          <Field label="Finished Good" error={!form.finished_good_id && error.includes("finished good") ? "Finished good is required." : ""}>
+          <Field label="Packaging SKU *" error={!form.finished_good_id && error.includes("Packaging SKU") ? "Packaging SKU is required." : ""}>
             <SearchableSelect
               value={form.finished_good_id || ""}
               options={finishedGoodOptions}
-              placeholder={activeFinishedGoods.length ? "Select Finished Good" : "Create an active Finished Good first"}
-              searchPlaceholder="Search finished goods"
-              emptyText="No matching finished goods"
-              error={!form.finished_good_id && error.includes("finished good")}
+              placeholder={activeFinishedGoods.length ? "Select Packaging SKU" : "Create an active Packaging SKU first"}
+              searchPlaceholder="Search packaging SKUs"
+              emptyText="No matching packaging SKUs"
+              error={!form.finished_good_id && error.includes("Packaging SKU")}
               disabled={isReadOnly}
               onChange={(finishedGoodId) => {
                 const product = activeFinishedGoods.find((item) => item.id === finishedGoodId);
+                const recipe = activeRecipeForSku(recipes, product, product?.product_name);
+                const nextPlan = packagingProductionPlan(form.target_pack_qty || form.target_quantity, product, recipe?.uom);
                 setForm((current) => ({
                   ...current,
                   finished_good_id: finishedGoodId,
                   product_name: product?.product_name || "",
-                  uom: product?.uom || current.uom,
+                  target_production_qty: nextPlan.error ? "" : nextPlan.target_production_qty,
+                  target_quantity: nextPlan.error ? current.target_quantity : nextPlan.target_production_qty,
+                  uom: nextPlan.production_uom || current.uom,
                 }));
               }}
             />
           </Field>
-          <Field label="Target Quantity">
-            <input className={inputClass()} type="number" min="0" step="0.01" value={form.target_quantity} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, target_quantity: event.target.value }))} />
+          <Field label="Target Pack Qty *">
+            <input className={inputClass()} type="number" min="0" step="0.01" value={form.target_pack_qty || form.target_quantity || ""} disabled={isReadOnly} onChange={(event) => {
+              const nextPackQty = event.target.value;
+              const nextPlan = packagingProductionPlan(nextPackQty, selectedProduct, matchingRecipe?.uom);
+              setForm((current) => ({
+                ...current,
+                target_pack_qty: nextPackQty,
+                target_production_qty: nextPlan.error ? "" : nextPlan.target_production_qty,
+                target_quantity: nextPlan.error ? current.target_quantity : nextPlan.target_production_qty,
+                uom: nextPlan.production_uom || current.uom,
+              }));
+            }} />
           </Field>
-          <Field label="UOM">
-            <select className={inputClass()} value={form.uom} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, uom: event.target.value }))}>
-              {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
-            </select>
+          <Field label="Target Production Qty">
+            <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-bold text-text-primary">
+              {selectedProduct && targetPackQty > 0 && calculatedProductionQty != null ? quantity(calculatedProductionQty, productionUom) : "—"}
+            </div>
           </Field>
           <Field label="Planned Date">
             <input className={inputClass()} type="date" value={form.planned_date || ""} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, planned_date: event.target.value }))} />
@@ -1689,6 +1756,14 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
             <input className={inputClass()} value={form.assigned_team || ""} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, assigned_team: event.target.value }))} />
           </Field>
         </div>
+        {selectedProduct ? (
+          <div className="grid gap-3 md:grid-cols-4">
+            <MetricCard icon={PackageCheck} label="Finished Good" value={selectedProduct.product_family_name || selectedProduct.product_name_en || selectedProduct.product_name} helper={selectedProduct.product_code || "Packaging SKU"} />
+            <MetricCard icon={Package} label="Pack Size" value={packSizeText(selectedProduct) || "Missing"} helper={selectedProduct.variant_name || "Packaging variant"} tone={packSizeMissing ? "warning" : "neutral"} />
+            <MetricCard icon={Factory} label="Target Production Qty" value={calculatedProductionQty == null ? "—" : quantity(calculatedProductionQty, productionUom)} helper="Auto-calculated from packs" tone={recipeUomMismatch ? "warning" : "neutral"} />
+            <MetricCard icon={BookOpen} label="Active Recipe" value={matchingRecipe ? matchingRecipe.version || "Active" : "—"} helper={matchingRecipe ? productionTimeLabel(matchingRecipe.estimated_production_time_minutes) : "No active recipe"} tone={matchingRecipe ? "success" : "warning"} />
+          </div>
+        ) : null}
         <Card title="BOM / Recipe Requirement Preview" description="This preview uses the current active recipe. Actual production usage remains captured during completion.">
           {form.finished_good_id && matchingRecipe ? (
             <div className="space-y-3">
@@ -1723,7 +1798,7 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
               No active recipe found. You can still create the job order, but material usage must be entered manually during production.
             </div>
           ) : (
-            <EmptyState title="Select a Finished Good" description="Choose a product and target quantity to preview active recipe requirements." />
+            <EmptyState title="Select a Packaging SKU" description="Choose a SKU and target pack quantity to preview active recipe requirements." />
           )}
         </Card>
         <Field label="Remarks">
@@ -2136,10 +2211,9 @@ function ReceivingBatchDetailModal({ batch, onClose }) {
 }
 
 function buildInitialUsageRows(job, rawMaterials, recipes) {
-  const matchingRecipe = recipes.find((recipe) => recipe.status === "active" && recipe.finished_good_id === job.finished_good_id)
-    || recipes.find((recipe) => recipe.status === "active" && recipe.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
+  const matchingRecipe = activeRecipeForSku(recipes, job.finished_good || job, job.product_name);
   if (matchingRecipe?.items?.length) {
-    const targetQuantity = Number(job.actual_produced_qty || job.target_quantity || 0);
+    const targetQuantity = Number(job.actual_output_qty || job.target_production_qty || job.actual_produced_qty || job.target_quantity || 0);
     const recipeYield = Number(matchingRecipe.yield_quantity || 1) || 1;
     return matchingRecipe.items.map((item) => {
       const standardUsage = (Number(item.quantity_used || 0) * targetQuantity) / recipeYield;
@@ -2160,10 +2234,12 @@ function buildInitialUsageRows(job, rawMaterials, recipes) {
   return [];
 }
 
-function ProductRecipeModal({ initialValue, finishedGoods, rawMaterials, onClose, onSave }) {
+function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods = [], rawMaterials, onClose, onSave }) {
+  const legacyFinishedGood = finishedGoods.find((product) => product.id === initialValue?.finished_good_id);
   const [form, setForm] = useState(() => ({
     recipe_code: "",
     finished_good_id: "",
+    product_family_id: legacyFinishedGood?.product_family_id || "",
     recipe_name: "",
     version: "v1",
     yield_quantity: "",
@@ -2179,8 +2255,8 @@ function ProductRecipeModal({ initialValue, finishedGoods, rawMaterials, onClose
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
   const isLocked = initialValue?.status && initialValue.status !== "draft";
-  const activeFinishedGoods = finishedGoods.filter((product) => product.status === "active" || product.id === form.finished_good_id);
-  const finishedGoodOptions = activeFinishedGoods.map((product) => ({ value: product.id, label: finishedGoodLabel(product), helper: finishedGoodHelper(product) }));
+  const activeProductFamilies = productFamilies.filter((family) => family.status === "active" || family.id === form.product_family_id);
+  const productFamilyOptions = activeProductFamilies.map((family) => ({ value: family.id, label: family.name_en, helper: [family.category, family.status].filter(Boolean).join(" · ") || "Finished Good" }));
 
   function updateItem(rowId, patch) {
     setForm((current) => ({
@@ -2213,7 +2289,7 @@ function ProductRecipeModal({ initialValue, finishedGoods, rawMaterials, onClose
       setError("Only draft recipes can be edited.");
       return;
     }
-    if (!form.finished_good_id) {
+    if (!form.product_family_id) {
       setError("Finished Good is required.");
       return;
     }
@@ -2232,11 +2308,13 @@ function ProductRecipeModal({ initialValue, finishedGoods, rawMaterials, onClose
     }
     setSaving(true);
     try {
-      const finishedGood = activeFinishedGoods.find((product) => product.id === form.finished_good_id);
+      const productFamily = activeProductFamilies.find((family) => family.id === form.product_family_id);
       await onSave({
         ...form,
-        product_name: finishedGood?.product_name || form.product_name,
-        uom: form.uom || finishedGood?.uom || "",
+        finished_good_id: form.finished_good_id || null,
+        product_family_id: productFamily?.id || form.product_family_id,
+        product_name: productFamily?.name_en || form.product_name,
+        uom: form.uom || "",
       });
     } finally {
       setSaving(false);
@@ -2262,19 +2340,19 @@ function ProductRecipeModal({ initialValue, finishedGoods, rawMaterials, onClose
         <div className="grid gap-3 md:grid-cols-3">
           <Field label="Finished Good">
             <SearchableSelect
-              value={form.finished_good_id || ""}
-              options={finishedGoodOptions}
+              value={form.product_family_id || ""}
+              options={productFamilyOptions}
               placeholder="Select Finished Good"
               searchPlaceholder="Search finished goods"
               emptyText="No matching finished goods"
               disabled={isLocked}
-              onChange={(finishedGoodId) => {
-                const product = activeFinishedGoods.find((item) => item.id === finishedGoodId);
+              onChange={(productFamilyId) => {
+                const productFamily = activeProductFamilies.find((item) => item.id === productFamilyId);
                 setForm((current) => ({
                   ...current,
-                  finished_good_id: finishedGoodId,
-                  product_name: product?.product_name || "",
-                  uom: product?.uom || current.uom,
+                  product_family_id: productFamilyId,
+                  finished_good_id: "",
+                  product_name: productFamily?.name_en || "",
                 }));
               }}
             />
@@ -2489,9 +2567,12 @@ function StartProductionModal({ job, auth, onClose, onSave }) {
 function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops, finishedGoods = [], auth, onClose, onSave }) {
   const activeFinishedGoods = finishedGoods.filter((product) => product.status === "active");
   const matchingFinishedGood = activeFinishedGoods.find((product) => product.id === job.finished_good_id) || activeFinishedGoods.find((product) => product.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
-  const matchingRecipe = recipes.find((recipe) => recipe.status === "active" && recipe.finished_good_id === job.finished_good_id)
-    || recipes.find((recipe) => recipe.status === "active" && recipe.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
+  const matchingRecipe = activeRecipeForSku(recipes, matchingFinishedGood || job, job.product_name);
   const matchingSop = sops.find((sop) => sop.status !== "inactive" && sop.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
+  const initialPackQty = job.actual_pack_qty || job.target_pack_qty || job.good_output_qty || job.target_quantity || "";
+  const initialProductionPlan = packagingProductionPlan(initialPackQty, matchingFinishedGood, matchingRecipe?.uom || job.uom);
+  const initialProductionUom = initialProductionPlan.production_uom || matchingRecipe?.uom || job.uom || "";
+  const initialOutputQty = initialProductionPlan.error ? Number(job.actual_output_qty || job.target_production_qty || job.target_quantity || 0) : initialProductionPlan.target_production_qty;
   const [form, setForm] = useState(() => ({
     job_order_id: job.id,
     finished_good_id: matchingFinishedGood?.id || job.finished_good_id || "",
@@ -2503,15 +2584,17 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
     operator_name: job.production_operator_name || employeeDisplayName(auth),
     start_time: job.start_time || timeInput(),
     end_time: "",
-    actual_produced_qty: job.target_quantity || "",
-    good_output_qty: job.target_quantity || "",
+    actual_pack_qty: initialPackQty,
+    actual_output_qty: initialOutputQty || "",
+    actual_produced_qty: initialOutputQty || "",
+    good_output_qty: initialOutputQty || "",
     wastage_qty: 0,
-    uom: matchingFinishedGood?.uom || job.uom || "",
+    uom: initialProductionUom,
     qc_status: "Pending",
     production_sop_id: matchingSop?.id || "",
     sop_version: matchingSop?.version || "",
     notes: "",
-    material_usage: buildInitialUsageRows(job, rawMaterials, recipes),
+    material_usage: buildInitialUsageRows({ ...job, finished_good: matchingFinishedGood, actual_output_qty: initialOutputQty }, rawMaterials, recipes),
   }));
   const [saving, setSaving] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
@@ -2555,7 +2638,7 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
     if (!form.job_order_id) return "Select a job order before completing production.";
     const finishedGood = activeFinishedGoods.find((product) => product.id === form.finished_good_id);
     if (!finishedGood) return "Production must start from a job order linked to an active finished good.";
-    if (Number(form.good_output_qty || 0) <= 0) return "Good output quantity must be greater than 0.";
+    if (Number(form.actual_pack_qty || 0) <= 0) return "Actual Pack Qty must be greater than 0.";
     if (!form.material_usage.length) return "At least one material usage row is required.";
     const invalidRow = form.material_usage.find((row) => !row.raw_material_id || Number(row.actual_usage || 0) < 0);
     if (invalidRow) return "Every material usage row needs a raw material and valid actual usage.";
@@ -2575,7 +2658,11 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
     if (validationError) return;
     setSaving(true);
     try {
-      await onSave(form);
+      await onSave({
+        ...form,
+        actual_produced_qty: form.actual_output_qty || form.good_output_qty,
+        good_output_qty: form.actual_output_qty || form.good_output_qty,
+      });
     } finally {
       setSaving(false);
     }
@@ -2600,15 +2687,15 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
       <form id="factory-production-form" className="space-y-5" onSubmit={submit}>
         {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
         <div className="grid gap-3 md:grid-cols-3">
-          <MetricCard icon={ClipboardCheck} label="Job Target" value={quantity(job.target_quantity, job.uom)} helper={job.job_order_no} />
-          <MetricCard icon={Factory} label="Good Output" value={quantity(form.good_output_qty, form.uom)} helper="Finished goods stock-in" />
+          <MetricCard icon={ClipboardCheck} label="Target Packs" value={quantity(job.target_pack_qty || job.target_quantity, "packs")} helper={job.job_order_no} />
+          <MetricCard icon={Factory} label="Actual Output" value={quantity(form.actual_output_qty || form.good_output_qty, form.uom)} helper={`Stock-in ${quantity(form.actual_pack_qty, "packs")}`} />
           <MetricCard icon={AlertTriangle} label="Variance Rows" value={highVarianceRows.length} helper="Any difference requires reason" tone={highVarianceRows.length ? "warning" : "success"} />
         </div>
         <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
           <div className="text-sm font-semibold text-primary">Selected Job Order</div>
           <div className="mt-1 text-lg font-bold text-text-primary">{job.job_order_no} · {finishedGoodLabel(matchingFinishedGood) || job.product_name}</div>
           <div className="mt-1 text-sm font-semibold text-text-secondary">
-            Target {quantity(job.target_quantity, job.uom)} · Due {job.due_date || "No due date"} · SKU {job.product_code || "No SKU"}
+            Target {quantity(job.target_pack_qty || job.target_quantity, "packs")} · Production {quantity(job.target_production_qty || job.target_quantity, job.uom)} · Due {job.due_date || "No due date"} · SKU {job.product_code || "No SKU"}
           </div>
         </div>
         {matchingRecipe ? (
@@ -2621,7 +2708,7 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
           </div>
         )}
         <div className="grid gap-3 md:grid-cols-3">
-          <Field label="Finished Good Product">
+          <Field label="Packaging SKU">
             <input
               className={inputClass(submitAttempted && !matchingFinishedGood)}
               value={matchingFinishedGood ? `${finishedGoodLabel(matchingFinishedGood)}${matchingFinishedGood.product_code ? ` · ${matchingFinishedGood.product_code}` : ""}` : "No active linked finished good"}
@@ -2666,11 +2753,35 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
           <Field label="SOP Version">
             <input className={inputClass()} value={form.sop_version || ""} onChange={(event) => setForm((current) => ({ ...current, sop_version: event.target.value }))} />
           </Field>
-          <Field label="Actual Produced Qty">
-            <input className={inputClass()} type="number" min="0" step="0.01" value={form.actual_produced_qty} onChange={(event) => setForm((current) => ({ ...current, actual_produced_qty: event.target.value }))} />
+          <Field label="Actual Pack Qty *">
+            <input className={inputClass()} type="number" min="0" step="0.01" value={form.actual_pack_qty} onChange={(event) => {
+              const nextPackQty = event.target.value;
+              const nextPlan = packagingProductionPlan(nextPackQty, matchingFinishedGood, matchingRecipe?.uom || form.uom);
+              setForm((current) => {
+                const outputQty = nextPlan.error ? current.actual_output_qty : nextPlan.target_production_qty;
+                const recipeYield = Number(matchingRecipe?.yield_quantity || 1) || 1;
+                const nextUsage = matchingRecipe?.items?.length
+                  ? current.material_usage.map((row) => {
+                    const recipeItem = matchingRecipe.items.find((item) => item.raw_material_id === row.raw_material_id);
+                    if (!recipeItem) return row;
+                    const standardUsage = (Number(recipeItem.quantity_used || 0) * Number(outputQty || 0)) / recipeYield;
+                    return { ...row, standard_usage: Number(standardUsage.toFixed(4)), actual_usage: row.actual_usage === row.standard_usage ? Number(standardUsage.toFixed(4)) : row.actual_usage };
+                  })
+                  : current.material_usage;
+                return {
+                  ...current,
+                  actual_pack_qty: nextPackQty,
+                  actual_output_qty: outputQty,
+                  actual_produced_qty: outputQty,
+                  good_output_qty: outputQty,
+                  uom: nextPlan.production_uom || current.uom,
+                  material_usage: nextUsage,
+                };
+              });
+            }} />
           </Field>
-          <Field label="Good Output">
-            <input className={inputClass()} type="number" min="0" step="0.01" value={form.good_output_qty} onChange={(event) => setForm((current) => ({ ...current, good_output_qty: event.target.value }))} />
+          <Field label="Actual Output Qty">
+            <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-bold text-text-primary">{quantity(form.actual_output_qty || form.good_output_qty, form.uom)}</div>
           </Field>
           <Field label="Wastage Qty">
             <input className={inputClass()} type="number" min="0" step="0.01" value={form.wastage_qty} onChange={(event) => setForm((current) => ({ ...current, wastage_qty: event.target.value }))} />
@@ -3258,9 +3369,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       return { ...recipe, ...cost };
     });
     const recipeByFinishedGood = new Map(recipeCostRows.filter((recipe) => recipe.finished_good_id).map((recipe) => [recipe.finished_good_id, recipe]));
+    const recipeByProductFamily = new Map(recipeCostRows.filter((recipe) => recipe.product_family_id).map((recipe) => [recipe.product_family_id, recipe]));
     const recipeByProduct = new Map(recipeCostRows.map((recipe) => [String(recipe.product_name || "").toLowerCase(), recipe]));
     const productionCostRows = completedProductions.map((production) => {
-      const recipe = recipeByFinishedGood.get(production.finished_good_id) || recipeByProduct.get(String(production.product_name || "").toLowerCase());
+      const recipe = recipeByProductFamily.get(production.product_family_id) || recipeByFinishedGood.get(production.finished_good_id) || recipeByProduct.get(String(production.product_name || "").toLowerCase());
       const actualCost = productionCostInfo(production, data.receivings);
       const standardCost = recipe ? Number(recipe.costPerUnit || 0) * Number(production.good_output_qty || production.actual_produced_qty || production.produced_quantity || 0) : 0;
       const variance = costVarianceInfo(standardCost, actualCost.cost);
@@ -4737,8 +4849,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const draftRecipes = data.recipes.filter((recipe) => recipe.status === "draft");
     const activeRecipes = data.recipes.filter((recipe) => recipe.status === "active");
     const archivedRecipes = data.recipes.filter((recipe) => recipe.status === "archived");
-    const finishedGoodsWithActiveRecipe = new Set(activeRecipes.map((recipe) => recipe.finished_good_id).filter(Boolean));
-    const activeFinishedGoodsWithoutRecipe = data.finishedGoods.filter((product) => product.status === "active" && !finishedGoodsWithActiveRecipe.has(product.id));
+    const familiesWithActiveRecipe = new Set(activeRecipes.map((recipe) => recipe.product_family_id).filter(Boolean));
+    const activeFinishedGoodsWithoutRecipe = data.productFamilies.filter((product) => product.status === "active" && !familiesWithActiveRecipe.has(product.id));
     return (
       <div className="space-y-5">
         <PageHeader
@@ -4750,7 +4862,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={ClipboardCheck} label="Draft" value={draftRecipes.length} helper="Editable standard versions" />
           <MetricCard icon={CheckCircle2} label="Active" value={activeRecipes.length} helper="Production defaults" tone="success" />
-          <MetricCard icon={PackageCheck} label="FG Without Recipe" value={activeFinishedGoodsWithoutRecipe.length} helper="Active products needing BOM" tone={activeFinishedGoodsWithoutRecipe.length ? "warning" : "success"} />
+          <MetricCard icon={PackageCheck} label="FG Without Recipe" value={activeFinishedGoodsWithoutRecipe.length} helper="Active Finished Goods needing BOM" tone={activeFinishedGoodsWithoutRecipe.length ? "warning" : "success"} />
           <MetricCard icon={Clock3} label="Archived" value={archivedRecipes.length} helper="Historical versions" />
         </div>
         <Card title="Production Standard Records" description="One Finished Good can have one active standard version. Drafts can be edited before activation. Click a row to view BOM details.">
@@ -4767,15 +4879,14 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   function renderProduction() {
-    const recipeForJob = (job) => data.recipes.find((recipe) => recipe.status === "active" && recipe.finished_good_id === job.finished_good_id)
-      || data.recipes.find((recipe) => recipe.status === "active" && recipe.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
+    const recipeForJob = (job) => activeRecipeForSku(data.recipes, job.finished_good || job, job.product_name);
     const sopForJob = (job) => data.sops.find((sop) => sop.status !== "inactive" && sop.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
     const readinessForJob = (job) => {
       const recipe = recipeForJob(job);
       if (!recipe?.items?.length) return { label: "No recipe", tone: "warning" };
       const shortages = recipe.items.filter((item) => {
         const material = data.rawMaterials.find((raw) => raw.id === item.raw_material_id);
-        const required = (Number(item.quantity_used || 0) * Number(job.target_quantity || 0)) / (Number(recipe.yield_quantity || 1) || 1);
+        const required = (Number(item.quantity_used || 0) * Number(job.target_production_qty || job.target_quantity || 0)) / (Number(recipe.yield_quantity || 1) || 1);
         return Number(material?.current_balance || 0) < required;
       });
       if (shortages.length) return { label: `${shortages.length} shortage`, tone: "danger" };
@@ -4785,7 +4896,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const productionReadyJobColumns = [
       { key: "job", label: "Job Order", render: (row) => <div><div className="font-bold text-text-primary">{row.job_order_no}</div><div className="text-xs text-text-secondary">{row.priority} · {jobStatusLabel(row.status)}</div></div> },
       { key: "finished_good", label: "Finished Good", render: (row) => <div><div className="font-semibold text-text-primary">{row.product_name}</div><div className="text-xs text-text-secondary">{row.product_code || "No SKU"}</div></div> },
-      { key: "target", label: "Target Qty", render: (row) => quantity(row.target_quantity, row.uom) },
+      { key: "target", label: "Target", render: (row) => <div><div className="font-semibold text-text-primary">{quantity(row.target_pack_qty || row.target_quantity, "packs")}</div><div className="text-xs text-text-secondary">{quantity(row.target_production_qty || row.target_quantity, row.uom)}</div></div> },
       { key: "due_date", label: "Due Date", render: (row) => row.due_date || "—" },
       { key: "recipe", label: "Recipe", render: (row) => {
         const recipe = recipeForJob(row);
@@ -5277,7 +5388,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                               <tbody>
                                 {group.skus.map((sku) => {
                                   const packSize = packSizeText(sku) || "—";
-                                  const activeStandard = data.recipes.find((recipe) => recipe.status === "active" && recipe.finished_good_id === sku.id);
+                                  const activeStandard = activeRecipeForSku(data.recipes, sku, group.product_group_name);
                                   const skuMenuKey = `${groupKey}:${sku.id}`;
                                   return (
                                     <tr key={sku.id} className="border-b border-border text-sm last:border-0">
@@ -5490,6 +5601,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       {modal?.type === "recipe" ? (
         <ProductRecipeModal
           initialValue={modal.value}
+          productFamilies={data.productFamilies}
           finishedGoods={data.finishedGoods}
           rawMaterials={data.rawMaterials}
           onClose={() => setModal(null)}

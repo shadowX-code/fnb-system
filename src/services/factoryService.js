@@ -11,6 +11,37 @@ function optionalNumber(value) {
   return value === null || value === undefined || value === "" ? "" : normalizeNumber(value);
 }
 
+function normalizePackSizeToBase(qty, uom) {
+  const amount = Number(qty || 0);
+  const unit = String(uom || "").trim().toLowerCase();
+  if (!amount || !unit) return null;
+  if (["kg", "kilogram", "kilograms"].includes(unit)) return { amount, uom: "kg" };
+  if (["g", "gram", "grams"].includes(unit)) return { amount: amount / 1000, uom: "kg" };
+  if (["l", "litre", "liter", "litres", "liters"].includes(unit)) return { amount, uom: "L" };
+  if (["ml", "millilitre", "milliliter", "millilitres", "milliliters"].includes(unit)) return { amount: amount / 1000, uom: "L" };
+  return null;
+}
+
+function packagingProductionPlan(packQty, sku, recipeUom = "") {
+  const targetPackQty = normalizeNumber(packQty);
+  const packSizeQty = normalizeNumber(sku?.pack_size_qty || sku?.base_qty);
+  const packSizeUom = sku?.pack_size_uom || sku?.base_uom || "";
+  const packBase = normalizePackSizeToBase(packSizeQty, packSizeUom);
+  const recipeBase = recipeUom ? normalizePackSizeToBase(1, recipeUom) : null;
+
+  if (!targetPackQty) return { target_pack_qty: 0, target_production_qty: 0, production_uom: recipeBase?.uom || packBase?.uom || "", pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "" };
+  if (!packSizeQty || !packSizeUom) return { target_pack_qty: targetPackQty, target_production_qty: 0, production_uom: "", pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "Packaging SKU needs Pack Size before creating Job Order." };
+  if (packBase) {
+    if (recipeBase && recipeBase.uom !== packBase.uom) return { target_pack_qty: targetPackQty, target_production_qty: 0, production_uom: recipeBase.uom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "Packaging SKU Pack Size UOM cannot convert to the active recipe UOM." };
+    return { target_pack_qty: targetPackQty, target_production_qty: targetPackQty * packBase.amount, production_uom: packBase.uom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "" };
+  }
+
+  const normalizedPackUom = String(packSizeUom || "").trim();
+  const normalizedRecipeUom = String(recipeUom || "").trim();
+  if (normalizedRecipeUom && normalizedRecipeUom.toLowerCase() !== normalizedPackUom.toLowerCase()) return { target_pack_qty: targetPackQty, target_production_qty: 0, production_uom: normalizedRecipeUom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "Packaging SKU Pack Size UOM cannot convert to the active recipe UOM." };
+  return { target_pack_qty: targetPackQty, target_production_qty: targetPackQty * packSizeQty, production_uom: normalizedRecipeUom || normalizedPackUom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "" };
+}
+
 function mapJobOrder(row) {
   const finishedGood = row.finished_good || {};
   const status = row.status === "planned" ? "released" : row.status || "draft";
@@ -24,6 +55,13 @@ function mapJobOrder(row) {
     product_name_cn: finishedGood.product_name_cn || "",
     product_name_bm: finishedGood.product_name_bm || "",
     finished_good_status: finishedGood.status || "",
+    product_family_id: finishedGood.product_family_id || "",
+    product_family_name: finishedGood.product_family?.name_en || "",
+    variant_name: finishedGood.variant_name || "",
+    pack_size_qty: normalizeNumber(finishedGood.pack_size_qty || finishedGood.base_qty),
+    pack_size_uom: finishedGood.pack_size_uom || finishedGood.base_uom || "",
+    target_pack_qty: optionalNumber(row.target_pack_qty),
+    target_production_qty: optionalNumber(row.target_production_qty),
     target_quantity: normalizeNumber(row.target_quantity),
     produced_quantity: normalizeNumber(row.produced_quantity),
     uom: row.uom || finishedGood.uom || "",
@@ -238,8 +276,12 @@ function mapProduction(row) {
     product_name_en: row.finished_good?.product_name_en || row.finished_good?.product_name || row.product_name || "",
     product_name_cn: row.finished_good?.product_name_cn || "",
     product_name_bm: row.finished_good?.product_name_bm || "",
+    product_family_id: row.finished_good?.product_family_id || row.job_order?.finished_good?.product_family_id || "",
+    product_family_name: row.finished_good?.product_family?.name_en || "",
     job_order_no: row.job_order?.job_order_no || "",
     batch_no: row.batch_no || "",
+    actual_pack_qty: optionalNumber(row.actual_pack_qty),
+    actual_output_qty: optionalNumber(row.actual_output_qty),
     produced_quantity: normalizeNumber(row.produced_quantity),
     actual_produced_qty: normalizeNumber(row.actual_produced_qty || row.produced_quantity),
     good_output_qty: normalizeNumber(row.good_output_qty || row.produced_quantity),
@@ -390,16 +432,19 @@ function mapStockCheck(row, stockType) {
 
 function mapRecipe(row) {
   const finishedGood = row.finished_good || {};
+  const productFamily = row.product_family || finishedGood.product_family || {};
   return {
     id: row.id,
     recipe_code: row.recipe_code || "",
     finished_good_id: row.finished_good_id || "",
+    product_family_id: row.product_family_id || finishedGood.product_family_id || "",
+    product_family_name: productFamily.name_en || "",
     product_code: finishedGood.product_code || "",
     recipe_name: row.recipe_name || row.recipe_code || "",
-    product_name: finishedGood.product_name || row.product_name || "",
-    product_name_en: finishedGood.product_name_en || finishedGood.product_name || row.product_name || "",
-    product_name_cn: finishedGood.product_name_cn || "",
-    product_name_bm: finishedGood.product_name_bm || "",
+    product_name: productFamily.name_en || finishedGood.product_name || row.product_name || "",
+    product_name_en: productFamily.name_en || finishedGood.product_name_en || finishedGood.product_name || row.product_name || "",
+    product_name_cn: productFamily.name_cn || finishedGood.product_name_cn || "",
+    product_name_bm: productFamily.name_bm || finishedGood.product_name_bm || "",
     version: row.version || "v1",
     yield_quantity: normalizeNumber(row.yield_quantity, 1),
     uom: row.uom || "",
@@ -560,8 +605,11 @@ const storageLocationSelect = "id,location_name,location_code,location_type,stat
 const factorySupplierSelect = "id,supplier_name,supplier_code,contact_person,phone,email,status,remarks,created_at,updated_at";
 const rawMaterialSelect = `id,material_code,name,name_en,name_cn,name_bm,category_id,category,uom,current_balance,min_stock_level,preferred_supplier,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_raw_material_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)`;
 const rawMaterialRelationSelect = "name,name_en,name_cn,name_bm,material_code,uom,storage_location,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)";
-const jobOrderSelect = `id,job_order_no,finished_good_id,product_name,target_quantity,produced_quantity,uom,planned_date,due_date,priority,status,assigned_team,remarks,created_by,released_at,released_by,started_at,started_by,production_operator_id,production_operator_name,production_date,start_time,completed_at,completed_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect})`;
-const productionSelectBasic = `id,job_order_id,finished_good_id,production_no,product_name,batch_no,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,operator_id,operator_name,start_time,end_time,qc_status,production_sop_id,sop_version,status,notes,created_by,completed_at,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),job_order:factory_job_orders(job_order_no,finished_good_id,product_name,finished_good:factory_finished_goods(product_code,product_name))`;
+const productFamilyRelationSelect = "id,name_en,name_cn,name_bm,status";
+const recipeSelect = `id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`;
+const recipeSummarySelect = `id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),finished_good:factory_finished_goods(${finishedGoodSelect})`;
+const jobOrderSelect = `id,job_order_no,finished_good_id,product_name,target_pack_qty,target_production_qty,target_quantity,produced_quantity,uom,planned_date,due_date,priority,status,assigned_team,remarks,created_by,released_at,released_by,started_at,started_by,production_operator_id,production_operator_name,production_date,start_time,completed_at,completed_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect})`;
+const productionSelectBasic = `id,job_order_id,finished_good_id,production_no,product_name,batch_no,actual_pack_qty,actual_output_qty,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,operator_id,operator_name,start_time,end_time,qc_status,production_sop_id,sop_version,status,notes,created_by,completed_at,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),job_order:factory_job_orders(job_order_no,finished_good_id,product_name,target_pack_qty,target_production_qty,finished_good:factory_finished_goods(product_code,product_name,product_family_id,variant_name,pack_size_qty,pack_size_uom,base_qty,base_uom))`;
 const productionSelectDetailed = `${productionSelectBasic},material_usage:factory_production_material_usage(id,production_id,raw_material_id,raw_material_receiving_id,raw_material_lot_no,quantity_used,standard_usage,actual_usage,variance_qty,variance_percent,variance_reason,uom,wastage_quantity,notes,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect}),raw_receiving:factory_raw_material_receivings(receipt_no,batch_no,supplier_name,received_date,unit_cost)),qc_checkpoints:factory_production_qc_checkpoints(id,production_id,production_sop_id,sop_step_id,step_no,process_name,control_point,qc_status,notes,created_at,updated_at)`;
 
 function factoryDataPlan(scope, hasPermission) {
@@ -599,7 +647,7 @@ function factoryDataPlan(scope, hasPermission) {
     productionDetails: needsProductionDetails,
     finishedGoods: (isDashboard && can("factory_dashboard.view")) || (isJobOrders && (can("factory_job_orders.view") || can("factory_job_orders.create") || can("factory_job_orders.edit"))) || (isProductRecipes && can("factory_product_recipes.view")) || ((isProduction || isFinishedGoods || isProductMovements) && can("factory_finished_goods.view")) || (isProduction && can("factory_production.complete")) || (isProductStockCheck && can("factory_product_stock_check.view")),
     finishedGoodCategories: isFinishedGoods && can("factory_finished_goods.view"),
-    productFamilies: isFinishedGoods && can("factory_finished_goods.view"),
+    productFamilies: (isFinishedGoods && can("factory_finished_goods.view")) || (isProductRecipes && (can("factory_product_recipes.view") || can("factory_product_recipes.create") || can("factory_product_recipes.edit") || can("factory_product_recipes.manage"))) || (isJobOrders && (can("factory_job_orders.view") || can("factory_job_orders.create") || can("factory_job_orders.edit"))) || (isProduction && (can("factory_product_recipes.view") || can("factory_production.complete"))),
     productMovements: (isDashboard && can("factory_dashboard.view")) || ((isProduction || isProductMovements) && can("factory_product_movements.view")) || (isFinishedGoods && can("factory_finished_goods.view")) || (isReports && can("factory_product_movements.view")) || (isBatchTraceability && canTraceBatches),
     rawStockChecks: (isRawInventory && can("factory_raw_inventory.view")) || (isRawStockCheck && can("factory_raw_stock_check.view")),
     productStockChecks: isProductStockCheck && can("factory_product_stock_check.view"),
@@ -696,12 +744,12 @@ export const factoryService = {
       .limit(100), (rows) => rows.map((row) => mapStockCheck(row, "product")));
     addTask(plan.recipes, "recipes", "Product Recipes", () => supabase
       .from("factory_product_recipes")
-      .select(`id,recipe_code,finished_good_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
+      .select(recipeSelect)
       .order("product_name", { ascending: true })
       .limit(150), (rows) => rows.map(mapRecipe));
     addTask(!plan.recipes && plan.recipeSummaries, "recipes", "Active Production Standard Summary", () => supabase
       .from("factory_product_recipes")
-      .select("id,recipe_code,finished_good_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,created_at,updated_at")
+      .select(recipeSummarySelect)
       .eq("status", "active")
       .order("product_name", { ascending: true })
       .limit(300), (rows) => rows.map(mapRecipe));
@@ -733,7 +781,7 @@ export const factoryService = {
     if (order.finished_good_id) {
       const { data, error } = await supabase
         .from("factory_finished_goods")
-        .select("id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,uom,status")
+        .select("id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,pack_size_qty,pack_size_uom,base_qty,base_uom,uom,status")
         .eq("id", order.finished_good_id)
         .single();
       throwSupabaseError("factory.job_order.finished_good_lookup", error);
@@ -741,6 +789,29 @@ export const factoryService = {
     }
     if (!finishedGood?.id) throw new Error("Select an active finished good product.");
     if (String(finishedGood.status || "").toLowerCase() !== "active") throw new Error("Archived Finished Goods cannot be selected.");
+    const targetPackQty = normalizeNumber(order.target_pack_qty || order.target_quantity);
+    let activeRecipeUom = "";
+    if (finishedGood.product_family_id) {
+      const { data: parentRecipe } = await supabase
+        .from("factory_product_recipes")
+        .select("uom")
+        .eq("product_family_id", finishedGood.product_family_id)
+        .eq("status", "active")
+        .maybeSingle();
+      activeRecipeUom = parentRecipe?.uom || "";
+    }
+    if (!activeRecipeUom) {
+      const { data: skuRecipe } = await supabase
+        .from("factory_product_recipes")
+        .select("uom")
+        .eq("finished_good_id", finishedGood.id)
+        .eq("status", "active")
+        .maybeSingle();
+      activeRecipeUom = skuRecipe?.uom || "";
+    }
+    const productionPlan = packagingProductionPlan(targetPackQty, finishedGood, activeRecipeUom || order.uom);
+    if (productionPlan.error) throw new Error(productionPlan.error);
+    if (!productionPlan.target_production_qty || !productionPlan.production_uom) throw new Error("Packaging SKU Pack Size UOM cannot be used for production quantity.");
 
     if (isUpdate) {
       const { data: current, error: currentError } = await supabase
@@ -756,9 +827,11 @@ export const factoryService = {
     const payload = {
       finished_good_id: finishedGood.id,
       product_name: finishedGood.product_name,
-      target_quantity: normalizeNumber(order.target_quantity),
+      target_pack_qty: productionPlan.target_pack_qty,
+      target_production_qty: productionPlan.target_production_qty,
+      target_quantity: productionPlan.target_production_qty,
       produced_quantity: normalizeNumber(order.produced_quantity),
-      uom: order.uom || finishedGood.uom || "",
+      uom: productionPlan.production_uom,
       planned_date: order.planned_date || null,
       due_date: order.due_date || null,
       priority: order.priority || "Normal",
@@ -767,11 +840,13 @@ export const factoryService = {
       remarks: order.remarks || "",
       updated_at: new Date().toISOString(),
     };
-    if (payload.target_quantity <= 0) throw new Error("Target quantity must be greater than 0.");
+    if (payload.target_pack_qty <= 0) throw new Error("Target Pack Qty must be greater than 0.");
     if (!isUpdate) {
       const { data: createdRows, error: createError } = await supabase.rpc("factory_create_job_order", {
         p_finished_good_id: finishedGood.id,
         p_target_quantity: payload.target_quantity,
+        p_target_pack_qty: payload.target_pack_qty,
+        p_target_production_qty: payload.target_production_qty,
         p_uom: payload.uom,
         p_planned_date: payload.planned_date,
         p_due_date: payload.due_date,
@@ -1416,18 +1491,18 @@ export const factoryService = {
       throw new Error("Only draft recipes can be edited. Archive or create a new draft version for changes.");
     }
 
-    let finishedGood = null;
-    if (recipe.finished_good_id) {
+    let productFamily = null;
+    if (recipe.product_family_id) {
       const { data, error } = await supabase
-        .from("factory_finished_goods")
-        .select("id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,uom,status")
-        .eq("id", recipe.finished_good_id)
+        .from("factory_product_families")
+        .select("id,name_en,name_cn,name_bm,status")
+        .eq("id", recipe.product_family_id)
         .single();
-      throwSupabaseError("factory.recipe.finished_good_lookup", error);
-      finishedGood = data;
+      throwSupabaseError("factory.recipe.product_family_lookup", error);
+      productFamily = data;
     }
-    if (!finishedGood?.id) throw new Error("Select an active finished good product.");
-    if (String(finishedGood.status || "").toLowerCase() !== "active") throw new Error("Archived Finished Goods cannot be selected.");
+    if (!productFamily?.id) throw new Error("Select an active Finished Good.");
+    if (String(productFamily.status || "").toLowerCase() !== "active") throw new Error("Archived Finished Goods cannot be selected.");
 
     const items = (recipe.items ?? [])
       .map((item, index) => ({
@@ -1451,12 +1526,13 @@ export const factoryService = {
     if (!version) version = "v1";
 
     const payload = {
-      finished_good_id: finishedGood.id,
+      finished_good_id: recipe.finished_good_id || null,
+      product_family_id: productFamily.id,
       recipe_name: String(recipe.recipe_name || "").trim(),
-      product_name: finishedGood.product_name,
+      product_name: productFamily.name_en,
       version,
       yield_quantity: normalizeNumber(recipe.yield_quantity),
-      uom: String(recipe.uom || finishedGood.uom || "").trim(),
+      uom: String(recipe.uom || "").trim(),
       estimated_production_time_minutes: recipe.estimated_production_time_minutes === "" || recipe.estimated_production_time_minutes == null
         ? null
         : normalizeNumber(recipe.estimated_production_time_minutes),
@@ -1474,7 +1550,7 @@ export const factoryService = {
       const { data: activeRecipe, error: activeError } = await supabase
         .from("factory_product_recipes")
         .select("id")
-        .eq("finished_good_id", finishedGood.id)
+        .eq("product_family_id", productFamily.id)
         .eq("status", "active")
         .neq("id", recipe.id || "00000000-0000-0000-0000-000000000000")
         .maybeSingle();
@@ -1487,7 +1563,7 @@ export const factoryService = {
       : supabase.from("factory_product_recipes").insert(payload);
 
     const { data, error } = await query
-      .select("id,recipe_code,finished_good_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at")
+      .select(recipeSummarySelect)
       .single();
     throwSupabaseError("factory.recipe.save", error);
 
@@ -1511,7 +1587,7 @@ export const factoryService = {
 
     const { data: saved, error: fetchError } = await supabase
       .from("factory_product_recipes")
-      .select(`id,recipe_code,finished_good_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
+      .select(recipeSelect)
       .eq("id", data.id)
       .single();
     throwSupabaseError("factory.recipe.fetch_saved", fetchError);
@@ -1535,7 +1611,7 @@ export const factoryService = {
 
     const { data, error } = await supabase
       .from("factory_product_recipes")
-      .select(`id,recipe_code,finished_good_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
+      .select(recipeSelect)
       .eq("id", activatedId)
       .single();
     throwSupabaseError("factory.recipe.activate_fetch", error);
@@ -1558,7 +1634,7 @@ export const factoryService = {
 
     const { data, error } = await supabase
       .from("factory_product_recipes")
-      .select(`id,recipe_code,finished_good_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
+      .select(recipeSelect)
       .eq("id", createdId)
       .single();
     throwSupabaseError("factory.recipe.new_version_fetch", error);
@@ -1606,7 +1682,7 @@ export const factoryService = {
       .update({ status: "archived", updated_at: new Date().toISOString() })
       .eq("id", recipe.id)
       .eq("status", "active")
-      .select(`id,recipe_code,finished_good_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
+      .select(recipeSelect)
       .single();
     throwSupabaseError("factory.recipe.archive", error);
     await logFactoryAction({
@@ -1619,6 +1695,41 @@ export const factoryService = {
   },
 
   async completeProduction(production, employeeId) {
+    let finishedGood = null;
+    if (production.finished_good_id) {
+      const { data, error } = await supabase
+        .from("factory_finished_goods")
+        .select("id,product_code,product_name,product_family_id,variant_name,pack_size_qty,pack_size_uom,base_qty,base_uom,uom,status")
+        .eq("id", production.finished_good_id)
+        .single();
+      throwSupabaseError("factory.production.finished_good_lookup", error);
+      finishedGood = data;
+    }
+    let activeRecipeUom = "";
+    if (finishedGood?.product_family_id) {
+      const { data: parentRecipe } = await supabase
+        .from("factory_product_recipes")
+        .select("uom")
+        .eq("product_family_id", finishedGood.product_family_id)
+        .eq("status", "active")
+        .maybeSingle();
+      activeRecipeUom = parentRecipe?.uom || "";
+    }
+    if (finishedGood?.id && !activeRecipeUom) {
+      const { data: skuRecipe } = await supabase
+        .from("factory_product_recipes")
+        .select("uom")
+        .eq("finished_good_id", finishedGood.id)
+        .eq("status", "active")
+        .maybeSingle();
+      activeRecipeUom = skuRecipe?.uom || "";
+    }
+    const actualPackQty = normalizeNumber(production.actual_pack_qty || production.good_output_qty);
+    const productionPlan = finishedGood ? packagingProductionPlan(actualPackQty, finishedGood, activeRecipeUom || production.uom) : null;
+    if (productionPlan?.error) throw new Error(productionPlan.error);
+    if (productionPlan && (!productionPlan.target_production_qty || !productionPlan.production_uom)) throw new Error("Packaging SKU Pack Size UOM cannot be used for production quantity.");
+    const actualOutputQty = productionPlan?.target_production_qty || normalizeNumber(production.actual_output_qty || production.actual_produced_qty || production.good_output_qty);
+    const productionUom = productionPlan?.production_uom || production.uom || "";
     const usageItems = (production.material_usage ?? []).map((item) => ({
       raw_material_id: item.raw_material_id,
       raw_material_receiving_id: item.raw_material_receiving_id || "",
@@ -1642,10 +1753,12 @@ export const factoryService = {
       p_operator_name: production.operator_name || "",
       p_start_time: production.start_time || null,
       p_end_time: production.end_time || null,
-      p_actual_produced_qty: normalizeNumber(production.actual_produced_qty),
-      p_good_output_qty: normalizeNumber(production.good_output_qty),
+      p_actual_pack_qty: actualPackQty,
+      p_actual_output_qty: actualOutputQty,
+      p_actual_produced_qty: actualOutputQty,
+      p_good_output_qty: actualOutputQty,
       p_wastage_qty: normalizeNumber(production.wastage_qty),
-      p_uom: production.uom || "",
+      p_uom: productionUom,
       p_qc_status: production.qc_status || "Pending",
       p_production_sop_id: production.production_sop_id || null,
       p_sop_version: production.sop_version || "",

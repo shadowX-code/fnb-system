@@ -2722,19 +2722,21 @@ Factory Phase 1B implemented scope:
 - Factory production follows the MES-style sequence: Product Recipe standard BOM -> Job Order draft -> Release Job Order -> Start Production -> Complete Production -> inventory movements and batch traceability.
 - Production execution starts from a released Factory Job Order.
 - A Factory Job Order is a production planning task, not an actual production result.
-- New Factory Job Orders must select an active Finished Goods Master item from `factory_finished_goods`.
-- Job Orders store `finished_good_id`, `target_quantity`, `uom`, `planned_date`, `due_date`, `priority`, `assigned_team`, `status`, `remarks`, release metadata, start metadata, and completion metadata.
+- New Factory Job Orders must select an active Packaging SKU from `factory_finished_goods`.
+- `factory_job_orders.finished_good_id` remains the compatibility reference to the Packaging SKU inventory record.
+- Job Orders store `finished_good_id`, `target_pack_qty`, `target_production_qty`, `target_quantity`, `uom`, `planned_date`, `due_date`, `priority`, `assigned_team`, `status`, `remarks`, release metadata, start metadata, and completion metadata.
+- Target Pack Qty is the business planning input. Target Production Qty is auto-calculated from Packaging SKU pack size using supported g/kg and ml/L conversions.
 - Job Order references are generated in the database through `factory_create_job_order(...)` using the business format `JOYYMMDD-001`; reference generation is protected by an advisory transaction lock.
 - Job Order lifecycle statuses are `draft`, `released`, `in_progress`, `completed`, and `cancelled`. Legacy `planned` rows are mapped to `released`.
-- Finished Goods Master is the valid SKU source for production planning; new Job Orders must not rely on free-text product names when Finished Goods Master exists.
-- Archived Finished Goods products cannot be selected for new Job Orders.
+- Packaging SKU master data is the valid SKU source for production planning; new Job Orders must not rely on free-text product names when Packaging SKUs exist.
+- Archived Packaging SKUs cannot be selected for new Job Orders.
 - Completed and cancelled Job Orders are operationally closed; only remarks should be changed after closure.
 - Production Records represent actual execution/completion.
 - Draft Job Orders can be edited or deleted. Released Job Orders can be started. In Progress Job Orders can be completed. Completed and cancelled Job Orders are read-only.
 - Production Records list ready Job Orders with `released` and `in_progress` statuses.
 - Start Production captures only production start context: selected Job Order summary, operator, production date, start time and remarks. Start Production does not create inventory movement.
-- Production completion starts from an In Progress Job Order and auto-fills Finished Good, target quantity, UOM, and available Recipe/SOP reference by product.
-- Production completion captures batch number, production date, operator, start time, end time, actual produced quantity, good output quantity, wastage quantity, QC status and notes.
+- Production completion starts from an In Progress Job Order and auto-fills Packaging SKU, parent Finished Good, target pack quantity, target production quantity, UOM, and available Recipe/SOP reference by product.
+- Production completion captures batch number, production date, operator, start time, end time, actual pack quantity, actual output quantity, wastage quantity, QC status and notes.
 - Production material usage captures raw material, standard usage, actual usage, variance quantity, variance percent and variance reason.
 - Actual material usage is the source of truth for raw material deduction.
 - Product Recipe remains the standard BOM only and is never overwritten by actual production usage.
@@ -2746,11 +2748,11 @@ Factory Phase 1B implemented scope:
   - `factory_production_material_usage` actual usage and variance records.
   - `factory_raw_material_movements` deduction rows using actual usage.
   - raw material balance deductions through `factory_adjust_raw_material_balance(...)`.
-  - finished goods balance increase for an existing active `factory_finished_goods` master product.
+  - finished goods balance increase for the selected active Packaging SKU in pack units.
   - `factory_product_stock_movements` finished goods stock-in row.
   - Factory Job Order status update to `completed`.
-- Production completion must stock-in to the Finished Goods product linked to the selected Job Order and must not stock-in to a free-text product.
-- Production completion must not auto-create finished goods master products. A Finished Goods product must be created and active before production stock-in.
+- Production completion must stock-in to the Packaging SKU linked to the selected Job Order and must not stock-in to a free-text product.
+- Production completion must not auto-create Packaging SKUs. A Packaging SKU must be created and active before production stock-in.
 - Production dashboard and activity cards include completed production, good output and high-variance usage signals.
 
 Factory Phase 1C implemented scope:
@@ -2827,7 +2829,7 @@ Factory Finished Goods Master and Warehouse implemented scope:
 - User-facing Finished Goods uses the model Finished Good -> Packaging SKUs.
 - Internally, Finished Good parent records are stored in `factory_product_families` with Name EN/CN/BM, category, status and remarks.
 - Finished Goods displays Finished Good -> Packaging SKUs instead of one flat SKU table, making product identity and inventory SKUs visually distinct.
-- Finished Good rows show Finished Good, Category, SKUs, Total Balance, Status and actions for Add Packaging SKU, Edit Finished Good and Archive Finished Good.
+- Finished Good rows show Finished Good, Category, SKUs, Total Base Balance, Status and actions for Add Packaging SKU, Edit Finished Good and Archive Finished Good.
 - Packaging SKU rows show SKU, Variant, Pack Size, Balance, Active Production Standard, Status and actions for View SKU, Edit SKU and Archive SKU.
 - Packaging SKU setup supports Create, Edit and Archive.
 - Packaging SKU fields include Finished Good context, SKU Code, Packaging Variant, Pack Size Qty/UOM, Storage Location, Active/Archived status and Remarks.
@@ -2843,8 +2845,8 @@ Factory Finished Goods Master and Warehouse implemented scope:
 - Category fields include Category Name, Description and Active/Archived status.
 - Finished Goods grouped listing keeps current balance, batch, production and movement visibility at Packaging SKU level.
 - Finished Goods filters support Product, Finished Good, Category, Status, Batch and Movement Type where relevant.
-- Finished Goods dashboard cards show Total SKUs, Total Finished Goods Stock, Active SKUs and Out of Stock Items.
-- Finished Goods warehouse insight panels include Stock Distribution by Product, Top Produced Products for the last 30 days, Production In vs Stock Out movement summary, Batch Count/latest batch, and Days Coverage when stock-out movement data is available.
+- Finished Goods dashboard cards show Finished Goods, Packaging SKUs, Active Recipes and Out of Stock SKUs.
+- Finished Goods warehouse insight panels include Stock Distribution by Product, Top Produced Products for the last 30 days, Production In vs Stock Out movement summary, and Batch Count/latest batch where stock movement data is available.
 - Finished Goods detail shows current balance, production history, movement history, batch history and actual-cost summary when cost data is available.
 - Finished Goods archive is blocked while current balance is greater than zero and must show: "Cannot archive while stock balance is greater than zero."
 - Production completion can stock-in only to active Finished Goods master products.
@@ -2918,23 +2920,24 @@ Factory Suppliers implemented scope:
 Factory Product Recipes implemented scope:
 
 - Product Recipes is a functional Factory Master Data page through `factory_product_recipes`, presented to users as Production Standards / BOM.
-- Production Standards define the standard output Production Quantity, optional Estimated Production Time, and raw material BOM for Finished Goods production.
-- A Production Standard must select an active Finished Goods Master product through `finished_good_id`.
-- Phase 1 Production Standards remain per Finished Good SKU/packaging variant. Phase 2 will support bulk product production with packaging split into multiple Finished Good SKUs.
+- Production Standards define the standard output Production Quantity, optional Estimated Production Time, and raw material BOM for parent Finished Good production.
+- New Production Standards select the parent Finished Good concept, stored internally through `factory_product_recipes.product_family_id`.
+- Legacy Production Standards tied to a Packaging SKU through `finished_good_id` remain readable and usable for compatibility.
+- Phase 1 Job Orders and Production still stock into a selected Packaging SKU. Phase 2 will support bulk product production with packaging split into multiple Packaging SKUs.
 - Recipe Code remains an internal generated identifier and is not edited in the create/edit UI.
 - New standards start at version `v1`; users cannot manually type version values.
 - New Version creates a draft copy of the selected standard and auto-increments the version to `v2`, `v3`, `v4`, and so on.
 - Header fields include Finished Good, Production Standard Name, Version, Production Quantity, UOM, Estimated Production Time, status display and Remarks.
 - BOM material rows are stored in `factory_product_recipe_items` and capture Raw Material, Required Qty, UOM, Wastage %, Remarks and Sort Order.
-- One Finished Good can have only one active standard version at a time.
+- One parent Finished Good can have only one active standard version at a time when `product_family_id` is available.
 - Draft standards can be edited; active and archived standards remain readable for history.
 - Activating a standard makes it the production material-usage default for that Finished Good.
 - Archiving a standard removes it from production defaults but preserves history.
 - The Product Recipes list shows Finished Good, Version, Production Quantity, Material Count, Status, Updated Date and Actions.
 - Clicking a standard row opens a detail view with Production Quantity, Estimated Production Time and BOM materials.
-- Production completion from a Job Order looks for the active recipe linked to the selected Finished Good.
+- Production completion from a Job Order looks for the active recipe linked to the selected Packaging SKU's parent Finished Good first, then falls back to legacy SKU-linked standards.
 - If an active recipe exists, Production material usage rows are prefilled from recipe materials.
-- Standard usage defaults scale from the standard Production Quantity to the Job Order target quantity; Actual Usage defaults to Standard Usage but remains editable by staff.
+- Standard usage defaults scale from the standard Production Quantity to the Job Order target or actual output quantity; Actual Usage defaults to Standard Usage but remains editable by staff.
 - Actual Usage remains the source of raw material stock deduction.
 - Product Recipe remains the standard reference only and must not be modified by production completion or actual usage variance.
 - If no active recipe exists, Production shows: "No active recipe found. Add material usage manually or create a Product Recipe first."
