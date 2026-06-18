@@ -1816,6 +1816,20 @@ export const factoryService = {
     return mapProduction(data);
   },
 
+  async getProductionByJobOrder(jobOrderId) {
+    if (!jobOrderId) return null;
+    const { data, error } = await supabase
+      .from("factory_productions")
+      .select(`${productionSelectDetailed},production_sop:factory_production_sops(sop_code,title,version)`)
+      .eq("job_order_id", jobOrderId)
+      .order("completed_at", { ascending: false, nullsFirst: false })
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    throwSupabaseError("factory.production.fetch_by_job_order", error);
+    return data ? mapProduction(data) : null;
+  },
+
   async saveProductionSop(sop, employeeId) {
     const isUpdate = Boolean(sop.id);
     const steps = (sop.steps ?? [])

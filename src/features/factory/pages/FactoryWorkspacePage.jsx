@@ -1706,6 +1706,133 @@ function StorageLocationModal({ locations, onClose, onSave, onArchive }) {
   );
 }
 
+function CompletedJobOrderResultModal({ job, production, recipes = [], onClose }) {
+  const matchingRecipe = production
+    ? recipes.find((recipe) => recipe.status === "active" && recipe.product_family_id && recipe.product_family_id === production.product_family_id)
+      || recipes.find((recipe) => recipe.status === "active" && recipe.finished_good_id && recipe.finished_good_id === production.finished_good_id)
+      || recipes.find((recipe) => String(recipe.product_name || "").toLowerCase() === String(production.product_family_name || production.product_name || job?.product_name || "").toLowerCase())
+    : null;
+  const outputQty = Number(production?.actual_output_qty || production?.good_output_qty || production?.actual_produced_qty || production?.produced_quantity || 0);
+  const recipeBaseQty = Number(matchingRecipe?.yield_quantity || 0);
+  const scaleFactor = production && recipeBaseQty ? outputQty / recipeBaseQty : null;
+  const materialRows = production?.material_usage || [];
+  const summaryItems = [
+    ["JO No", job?.job_order_no || "—"],
+    ["Finished Good", jobFinishedGoodName(job || production || {})],
+    ["Packaging SKU", jobPackagingSkuLabel(job || production || {})],
+    ["Target Production Qty", quantity(job?.target_production_qty || job?.target_quantity, job?.uom)],
+    ["Estimated Pack Qty", quantity(job?.target_pack_qty || 0, "packs")],
+    ["Planned Date", job?.planned_date || "—"],
+    ["Due Date", job?.due_date || "—"],
+    ["Priority", job?.priority || "—"],
+  ];
+  const resultItems = production ? [
+    ["Batch No", production.batch_no || "—"],
+    ["Production Date", production.production_date || "—"],
+    ["Operator", production.operator_name || "—"],
+    ["Start Time", factoryTimeLabel(production.start_time)],
+    ["End Time", factoryTimeLabel(production.end_time)],
+    ["Actual Pack Qty", quantity(production.actual_pack_qty || production.good_output_qty, "packs")],
+    ["Actual Output Qty", quantity(outputQty, production.uom)],
+    ["Production Notes", production.notes || "—"],
+  ] : [];
+
+  return (
+    <Modal
+      title="Completed Job Order Result"
+      description="Read-only production completion record for this Job Order."
+      size="xl"
+      onClose={onClose}
+      footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}
+    >
+      <div className="space-y-4">
+        <Card title="Job Order Summary" description="Original production planning details.">
+          <div className="grid gap-3 p-4 md:grid-cols-4">
+            {summaryItems.map(([label, value]) => (
+              <div key={label} className="rounded-xl border border-border bg-slate-50 px-3 py-2">
+                <div className="text-[10.5px] font-semibold text-text-muted">{label}</div>
+                <div className="mt-1 text-sm font-bold text-text-primary">{value || "—"}</div>
+              </div>
+            ))}
+          </div>
+        </Card>
+
+        {!production ? (
+          <Card title="Production Result" description="No completed production record is linked to this Job Order.">
+            <EmptyState title="No completed production record found for this job order." description="Legacy completed Job Orders may not have a saved production completion record." />
+          </Card>
+        ) : (
+          <>
+            <Card title="Production Result" description="Saved production completion output.">
+              <div className="grid gap-3 p-4 md:grid-cols-4">
+                {resultItems.map(([label, value]) => (
+                  <div key={label} className={`rounded-xl border border-border bg-white px-3 py-2 ${label === "Production Notes" ? "md:col-span-4" : ""}`}>
+                    <div className="text-[10.5px] font-semibold text-text-muted">{label}</div>
+                    <div className="mt-1 text-sm font-bold text-text-primary">{value || "—"}</div>
+                  </div>
+                ))}
+              </div>
+            </Card>
+
+            <Card title="Production Standard Used" description="Standard reference available for this completed production.">
+              <div className="grid gap-3 p-4 md:grid-cols-4">
+                <div className="rounded-xl border border-border bg-slate-50 px-3 py-2 md:col-span-2">
+                  <div className="text-[10.5px] font-semibold text-text-muted">Production Standard</div>
+                  <div className="mt-1 text-sm font-bold text-text-primary">
+                    {matchingRecipe ? `${matchingRecipe.recipe_name || matchingRecipe.product_name || "Production Standard"} ${matchingRecipe.version || ""}`.trim() : "Not recorded"}
+                  </div>
+                </div>
+                <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
+                  <div className="text-[10.5px] font-semibold text-text-muted">Base Recipe Qty</div>
+                  <div className="mt-1 text-sm font-bold text-text-primary">{matchingRecipe ? quantity(matchingRecipe.yield_quantity, matchingRecipe.uom) : "—"}</div>
+                </div>
+                <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
+                  <div className="text-[10.5px] font-semibold text-text-muted">Scale Factor</div>
+                  <div className="mt-1 text-sm font-bold text-text-primary">{scaleFactor == null ? "—" : `${scaleFactor.toLocaleString("en-MY", { maximumFractionDigits: 2 })}x`}</div>
+                </div>
+              </div>
+            </Card>
+
+            <Card title="Actual Material Usage" description="Saved standard-vs-actual material usage from production completion.">
+              {materialRows.length ? (
+                <div className="overflow-x-auto">
+                  <table className="w-full min-w-[760px] text-left">
+                    <thead>
+                      <tr className="border-b border-border bg-slate-50 text-[11px] font-semibold text-text-muted">
+                        <th className="px-4 py-2.5">Raw Material</th>
+                        <th className="px-4 py-2.5">Standard Qty</th>
+                        <th className="px-4 py-2.5">Actual Used</th>
+                        <th className="px-4 py-2.5">Difference</th>
+                        <th className="px-4 py-2.5">Reason</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {materialRows.map((row) => {
+                        const diff = Number(row.actual_usage || 0) - Number(row.standard_usage || 0);
+                        return (
+                          <tr key={row.id || row.raw_material_id} className="border-b border-border last:border-0">
+                            <td className="px-4 py-3"><div className="font-semibold text-text-primary">{row.raw_material_name || "Raw Material"}</div></td>
+                            <td className="px-4 py-3 text-sm font-semibold text-text-secondary">{quantity(row.standard_usage, row.uom)}</td>
+                            <td className="px-4 py-3 text-sm font-semibold text-text-primary">{quantity(row.actual_usage, row.uom)}</td>
+                            <td className={`px-4 py-3 text-sm font-bold ${Math.abs(diff) > 0.000001 ? "text-amber-700" : "text-emerald-700"}`}>{diff > 0 ? "+" : ""}{quantity(diff, row.uom)}</td>
+                            <td className="px-4 py-3 text-sm text-text-secondary">{row.variance_reason || "—"}</td>
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                </div>
+              ) : (
+                <EmptyState title="No material usage rows" description="This completed production record has no saved material usage rows." />
+              )}
+            </Card>
+          </>
+        )}
+      </div>
+    </Modal>
+  );
+}
+
 function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes = [], onClose, onSave }) {
   const initialSku = finishedGoods.find((product) => product.id === initialValue?.finished_good_id);
   const initialParentKey = initialSku ? finishedGoodParentKey(initialSku) : "";
@@ -3683,6 +3810,15 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     }
   }
 
+  async function viewCompletedJobOrder(order) {
+    try {
+      const production = await factoryService.getProductionByJobOrder(order.id);
+      setModal({ type: "completed-job-result", job: order, production });
+    } catch (error) {
+      ui?.notify?.({ title: "Unable to load production result", message: error.message, tone: "error" });
+    }
+  }
+
   async function saveReceivingBatch(form) {
     try {
       await factoryService.saveRawMaterialReceivingBatch(form, auth?.profile?.id);
@@ -4122,7 +4258,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production", job: row })}>Complete</button>
         ) : null}
         {row.status === "draft" && can("factory_job_orders.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "job", value: row })}>Edit</button> : null}
-        {["completed", "cancelled"].includes(row.status) ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "job", value: row })}>View</button> : null}
+        {row.status === "completed" ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => viewCompletedJobOrder(row)}>View</button> : null}
+        {row.status === "cancelled" ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "job", value: row })}>View</button> : null}
         {row.status === "draft" && can("factory_job_orders.delete") ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => deleteJobOrder(row)}>Delete</button> : null}
       </div>
     ) },
@@ -5849,6 +5986,14 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           recipes={data.recipes}
           onClose={() => setModal(null)}
           onSave={saveJobOrder}
+        />
+      ) : null}
+      {modal?.type === "completed-job-result" ? (
+        <CompletedJobOrderResultModal
+          job={modal.job}
+          production={modal.production}
+          recipes={data.recipes}
+          onClose={() => setModal(null)}
         />
       ) : null}
       {modal?.type === "receiving-batch-detail" ? (
