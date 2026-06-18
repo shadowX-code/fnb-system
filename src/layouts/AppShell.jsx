@@ -48,6 +48,7 @@ const iconMap = {
   "factory-production": Factory,
   "factory-reports": BarChart3,
   "factory-finished-goods": Boxes,
+  "factory-finished-goods-dispatch": PackagePlus,
   "factory-product-movements": RefreshCw,
   "factory-product-stock-check": ClipboardCheck,
   "factory-raw-receiving": Truck,

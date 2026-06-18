@@ -631,6 +631,7 @@ function movementBaseEquivalentLabel(movement) {
 
 function movementSourceLabel(movement) {
   if (movement?.reference_type === "production") return "Completed Production";
+  if (movement?.reference_type === "finished_goods_dispatch") return "Finished Goods Dispatch";
   if (movement?.reference_type === "stock_check") return "Stock Check Adjustment";
   if (movement?.reference_type === "manual_adjustment") return "Manual Adjustment";
   return movement?.reference_type || "—";
@@ -638,6 +639,7 @@ function movementSourceLabel(movement) {
 
 function movementTypeLabel(movement) {
   if (movement?.reference_type === "production" && Number(movement?.quantity || 0) > 0) return "Production Stock In";
+  if (movement?.reference_type === "finished_goods_dispatch") return "Dispatch Out";
   return movement?.movement_type || "Movement";
 }
 
@@ -1853,6 +1855,216 @@ function CompletedJobOrderResultModal({ job, production, recipes = [], onClose }
           </>
         )}
       </div>
+    </Modal>
+  );
+}
+
+function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], onClose, onSave }) {
+  const makeItem = () => ({ row_id: Math.random().toString(36).slice(2), finished_good_id: "", quantity: "", batch_no: "", remarks: "" });
+  const [form, setForm] = useState(() => ({
+    dispatch_date: todayInput(),
+    customer_name: "",
+    reference_no: "",
+    status: "draft",
+    remarks: "",
+    ...initialValue,
+    items: initialValue?.items?.length ? initialValue.items.map((item) => ({ ...item, row_id: item.id || Math.random().toString(36).slice(2) })) : [makeItem()],
+  }));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const isReadOnly = Boolean(initialValue?.id) && initialValue.status !== "draft";
+  const activeSkus = finishedGoods.filter((sku) => sku.status === "active" || form.items.some((item) => item.finished_good_id === sku.id));
+  const skuOptions = activeSkus.map((sku) => ({
+    value: sku.id,
+    label: [sku.product_code || "No SKU", sku.product_family_name || sku.product_name_en || sku.product_name, sku.variant_name || packSizeText(sku)].filter(Boolean).join(" · "),
+    helper: `${skuBalanceLabel(sku)} available · ${packSizeText(sku) || "No pack size"}`,
+  }));
+
+  function updateItem(rowId, patch) {
+    setForm((current) => ({
+      ...current,
+      items: current.items.map((item) => item.row_id === rowId ? { ...item, ...patch } : item),
+    }));
+  }
+
+  function addItem() {
+    setForm((current) => ({ ...current, items: [...current.items, makeItem()] }));
+  }
+
+  function removeItem(rowId) {
+    setForm((current) => ({ ...current, items: current.items.length > 1 ? current.items.filter((item) => item.row_id !== rowId) : current.items }));
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    setError("");
+    if (isReadOnly) return;
+    if (!String(form.customer_name || "").trim()) {
+      setError("Customer / Destination is required.");
+      return;
+    }
+    if (!form.dispatch_date) {
+      setError("Dispatch Date is required.");
+      return;
+    }
+    const rows = form.items.filter((item) => item.finished_good_id || item.quantity || item.batch_no || item.remarks);
+    if (!rows.length) {
+      setError("Add at least one dispatch item.");
+      return;
+    }
+    const invalid = rows.find((item) => !item.finished_good_id || Number(item.quantity || 0) <= 0);
+    if (invalid) {
+      setError("Every dispatch item needs a Packaging SKU and quantity greater than 0.");
+      return;
+    }
+    const overBalance = rows.find((item) => {
+      const sku = activeSkus.find((row) => row.id === item.finished_good_id);
+      return sku && Number(item.quantity || 0) > Number(sku.current_balance || 0);
+    });
+    if (overBalance) {
+      setError("Dispatch quantity cannot exceed available balance.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave({ ...form, items: rows });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      title={isReadOnly ? "View Finished Goods Dispatch" : initialValue?.id ? "Edit Finished Goods Dispatch" : "Create Finished Goods Dispatch"}
+      description="Record outbound Packaging SKU dispatch from Factory warehouse."
+      size="xl"
+      onClose={saving ? undefined : onClose}
+      footer={(
+        <>
+          <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>{isReadOnly ? "Close" : "Cancel"}</button>
+          {!isReadOnly ? <button className="btn-primary" type="submit" form="factory-finished-good-dispatch-form" disabled={saving}>{saving ? "Saving..." : "Save Draft"}</button> : null}
+        </>
+      )}
+    >
+      <form id="factory-finished-good-dispatch-form" className="space-y-4" onSubmit={submit}>
+        {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
+        <div className="grid gap-3 md:grid-cols-4">
+          <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
+            <div className="text-[10.5px] font-semibold text-text-muted">Dispatch No.</div>
+            <div className="mt-1 text-sm font-bold text-text-primary">{form.dispatch_no || "System generated on save"}</div>
+          </div>
+          <Field label="Dispatch Date *">
+            <input className={inputClass()} type="date" value={form.dispatch_date || ""} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, dispatch_date: event.target.value }))} />
+          </Field>
+          <Field label="Customer / Destination *">
+            <input className={inputClass()} value={form.customer_name || ""} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, customer_name: event.target.value }))} />
+          </Field>
+          <Field label="Reference / DO No.">
+            <input className={inputClass()} value={form.reference_no || ""} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, reference_no: event.target.value }))} />
+          </Field>
+        </div>
+
+        <Card title="Dispatch Lines" description="Quantities are Packaging SKU counts. Completion deducts finished goods balance.">
+          <div className="space-y-3 p-4">
+            <div className="space-y-3 md:hidden">
+              {form.items.map((item) => {
+                const sku = activeSkus.find((row) => row.id === item.finished_good_id);
+                return (
+                  <div key={item.row_id} className="space-y-3 rounded-2xl border border-border bg-white p-3">
+                    <Field label="Packaging SKU">
+                      <SearchableSelect
+                        value={item.finished_good_id || ""}
+                        options={skuOptions}
+                        placeholder="Select Packaging SKU"
+                        searchPlaceholder="Search SKU"
+                        emptyText="No packaging SKUs"
+                        disabled={isReadOnly}
+                        onChange={(value) => updateItem(item.row_id, { finished_good_id: value })}
+                      />
+                    </Field>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
+                        <div className="text-[10.5px] font-semibold text-text-muted">Available</div>
+                        <div className="mt-1 text-sm font-bold text-text-primary">{sku ? skuBalanceLabel(sku) : "—"}</div>
+                      </div>
+                      <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
+                        <div className="text-[10.5px] font-semibold text-text-muted">Pack Size</div>
+                        <div className="mt-1 text-sm font-bold text-text-primary">{sku ? packSizeText(sku) || "—" : "—"}</div>
+                      </div>
+                    </div>
+                    <Field label="Qty">
+                      <div className="flex items-center gap-2">
+                        <input className={inputClass()} type="number" min="0" step="0.01" value={item.quantity || ""} disabled={isReadOnly} onChange={(event) => updateItem(item.row_id, { quantity: event.target.value })} />
+                        <span className="shrink-0 text-xs font-bold text-text-muted">{pluralizePackagingType(packagingTypeLabel(sku), item.quantity || 0)}</span>
+                      </div>
+                    </Field>
+                    <Field label="Batch">
+                      <input className={inputClass()} value={item.batch_no || ""} disabled={isReadOnly} onChange={(event) => updateItem(item.row_id, { batch_no: event.target.value })} placeholder="Optional" />
+                    </Field>
+                    <Field label="Remarks">
+                      <input className={inputClass()} value={item.remarks || ""} disabled={isReadOnly} onChange={(event) => updateItem(item.row_id, { remarks: event.target.value })} />
+                    </Field>
+                    {!isReadOnly ? <button className="btn-secondary w-full justify-center px-3 py-1.5 text-xs" type="button" onClick={() => removeItem(item.row_id)}>Remove Line</button> : null}
+                  </div>
+                );
+              })}
+            </div>
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[900px] text-left">
+                <thead>
+                  <tr className="border-b border-border bg-slate-50 text-[11px] font-semibold text-text-muted">
+                    <th className="px-3 py-2.5">Packaging SKU</th>
+                    <th className="px-3 py-2.5">Available</th>
+                    <th className="px-3 py-2.5">Qty</th>
+                    <th className="px-3 py-2.5">Pack Size</th>
+                    <th className="px-3 py-2.5">Batch</th>
+                    <th className="px-3 py-2.5">Remarks</th>
+                    <th className="px-3 py-2.5 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {form.items.map((item) => {
+                    const sku = activeSkus.find((row) => row.id === item.finished_good_id);
+                    return (
+                      <tr key={item.row_id} className="border-b border-border last:border-0">
+                        <td className="px-3 py-3">
+                          <SearchableSelect
+                            value={item.finished_good_id || ""}
+                            options={skuOptions}
+                            placeholder="Select Packaging SKU"
+                            searchPlaceholder="Search SKU"
+                            emptyText="No packaging SKUs"
+                            disabled={isReadOnly}
+                            onChange={(value) => updateItem(item.row_id, { finished_good_id: value })}
+                          />
+                        </td>
+                        <td className="px-3 py-3 text-sm font-semibold text-text-secondary">{sku ? skuBalanceLabel(sku) : "—"}</td>
+                        <td className="px-3 py-3">
+                          <div className="flex items-center gap-2">
+                            <input className={inputClass()} type="number" min="0" step="0.01" value={item.quantity || ""} disabled={isReadOnly} onChange={(event) => updateItem(item.row_id, { quantity: event.target.value })} />
+                            <span className="text-xs font-bold text-text-muted">{pluralizePackagingType(packagingTypeLabel(sku), item.quantity || 0)}</span>
+                          </div>
+                        </td>
+                        <td className="px-3 py-3 text-sm font-semibold text-text-secondary">{sku ? packSizeText(sku) || "—" : "—"}</td>
+                        <td className="px-3 py-3"><input className={inputClass()} value={item.batch_no || ""} disabled={isReadOnly} onChange={(event) => updateItem(item.row_id, { batch_no: event.target.value })} placeholder="Optional" /></td>
+                        <td className="px-3 py-3"><input className={inputClass()} value={item.remarks || ""} disabled={isReadOnly} onChange={(event) => updateItem(item.row_id, { remarks: event.target.value })} /></td>
+                        <td className="px-3 py-3 text-right">
+                          {!isReadOnly ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => removeItem(item.row_id)}>Remove</button> : null}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+            {!isReadOnly ? <button className="btn-secondary" type="button" onClick={addItem}><PackageCheck size={15} /> Add Line</button> : null}
+          </div>
+        </Card>
+
+        <Field label="Remarks">
+          <textarea className={inputClass()} rows={3} value={form.remarks || ""} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
+        </Field>
+      </form>
     </Modal>
   );
 }
@@ -3619,7 +3831,7 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
 }
 
 export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, auth }) {
-  const [data, setData] = useState({ jobOrders: [], rawMaterials: [], rawMaterialCategories: [], rawMaterialMovements: [], receivings: [], receivingBatches: [], factorySuppliers: [], productions: [], finishedGoods: [], finishedGoodCategories: [], productFamilies: [], productMovements: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [], accessIssues: [] });
+  const [data, setData] = useState({ jobOrders: [], rawMaterials: [], rawMaterialCategories: [], rawMaterialMovements: [], receivings: [], receivingBatches: [], factorySuppliers: [], productions: [], finishedGoods: [], finishedGoodCategories: [], productFamilies: [], productMovements: [], finishedGoodDispatches: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [], accessIssues: [] });
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [receivingTab, setReceivingTab] = useState("history");
@@ -4118,6 +4330,52 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to archive Packaging SKU", message: error.message, tone: "error" });
+    }
+  }
+
+  async function saveFinishedGoodDispatch(form) {
+    try {
+      await factoryService.saveFinishedGoodDispatch(form, auth?.profile?.id);
+      ui?.notify?.({ title: form.id ? "Dispatch updated" : "Dispatch draft created", tone: "success" });
+      setModal(null);
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to save dispatch", message: error.message, tone: "error" });
+      throw error;
+    }
+  }
+
+  async function completeFinishedGoodDispatch(dispatch) {
+    const confirmed = await ui?.confirm?.({
+      title: "Complete Finished Goods Dispatch?",
+      message: `${dispatch.dispatch_no} will deduct finished goods stock and create Product Movement stock-out rows.`,
+      confirmLabel: "Complete Dispatch",
+      tone: "warning",
+    });
+    if (!confirmed) return;
+    try {
+      await factoryService.completeFinishedGoodDispatch(dispatch);
+      ui?.notify?.({ title: "Dispatch completed", message: "Finished goods stock-out movement created.", tone: "success" });
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to complete dispatch", message: error.message, tone: "error" });
+    }
+  }
+
+  async function cancelFinishedGoodDispatch(dispatch) {
+    const confirmed = await ui?.confirm?.({
+      title: "Cancel Finished Goods Dispatch?",
+      message: `${dispatch.dispatch_no} will be marked cancelled. Stock will not be adjusted.`,
+      confirmLabel: "Cancel Dispatch",
+      tone: "danger",
+    });
+    if (!confirmed) return;
+    try {
+      await factoryService.cancelFinishedGoodDispatch(dispatch);
+      ui?.notify?.({ title: "Dispatch cancelled", tone: "success" });
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to cancel dispatch", message: error.message, tone: "error" });
     }
   }
 
@@ -5932,6 +6190,55 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     );
   }
 
+  function renderFinishedGoodsDispatch() {
+    const today = todayInput();
+    const draftRows = data.finishedGoodDispatches.filter((row) => row.status === "draft");
+    const completedToday = data.finishedGoodDispatches.filter((row) => row.status === "completed" && String(row.completed_at || row.dispatch_date || "").slice(0, 10) === today);
+    const totalOutToday = completedToday.reduce((sum, row) => sum + Number(row.total_qty || 0), 0);
+    const destinationsToday = new Set(completedToday.map((row) => row.customer_name).filter(Boolean)).size;
+    const dispatchColumns = [
+      { key: "dispatch_no", label: "Dispatch No.", render: (row) => <div><div className="font-bold text-text-primary">{row.dispatch_no}</div><div className="text-xs text-text-secondary">{row.reference_no || "No reference"}</div></div> },
+      { key: "dispatch_date", label: "Date", render: (row) => row.dispatch_date || "—" },
+      { key: "customer_name", label: "Destination", render: (row) => row.customer_name || "—" },
+      { key: "items_count", label: "Items", render: (row) => Number(row.items_count || 0).toLocaleString("en-MY") },
+      { key: "total_qty", label: "Total Qty", render: (row) => quantity(row.total_qty, "SKU units") },
+      { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "completed" ? "success" : row.status === "cancelled" ? "neutral" : "warning"}>{jobStatusLabel(row.status)}</Badge> },
+      { key: "actions", label: "Actions", align: "right", render: (row) => (
+        <div className="flex flex-wrap justify-end gap-2">
+          <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-dispatch", value: row })}>View</button>
+          {row.status === "draft" && can("factory_finished_goods_dispatch.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-dispatch", value: row })}>Edit</button> : null}
+          {row.status === "draft" && can("factory_finished_goods_dispatch.complete") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => completeFinishedGoodDispatch(row)}>Complete</button> : null}
+          {row.status === "draft" && can("factory_finished_goods_dispatch.delete") ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => cancelFinishedGoodDispatch(row)}>Cancel</button> : null}
+        </div>
+      ) },
+    ];
+
+    return (
+      <div className="space-y-5">
+        <PageHeader
+          section="Warehouse"
+          title="Finished Goods Dispatch"
+          description="Record outbound Packaging SKU dispatches to customers or outlets. Completion creates finished goods stock-out movements."
+          actions={can("factory_finished_goods_dispatch.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "finished-good-dispatch" })}><PackageCheck size={15} /> Create Dispatch</button> : null}
+        />
+        <div className="grid gap-3 md:grid-cols-4">
+          <MetricCard icon={ClipboardCheck} label="Draft Dispatches" value={draftRows.length} helper="Awaiting completion" tone={draftRows.length ? "warning" : "success"} />
+          <MetricCard icon={CheckCircle2} label="Completed Today" value={completedToday.length} helper="Finished dispatches" tone="success" />
+          <MetricCard icon={PackageCheck} label="Total Out Today" value={quantity(totalOutToday, "SKU units")} helper="Packaging SKU count" />
+          <MetricCard icon={Truck} label="Destinations Today" value={destinationsToday} helper="Unique customers / outlets" />
+        </div>
+        <Card title="Dispatch Records" description="Draft dispatches do not adjust stock. Only completed dispatches create Product Movement stock-out rows.">
+          <FactoryTable
+            columns={dispatchColumns}
+            rows={data.finishedGoodDispatches}
+            emptyTitle="No finished goods dispatches"
+            emptyDescription="Create a dispatch draft to record outbound Packaging SKU delivery."
+          />
+        </Card>
+      </div>
+    );
+  }
+
   function renderProductMovements() {
     const rows = filteredProductMovements().map((movement) => {
       const linkedProduction = data.productions.find((production) => production.id === movement.reference_id || production.production_no === movement.reference_no);
@@ -6003,7 +6310,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   return (
     <>
       <AccessIssueNotice issues={data.accessIssues} />
-      {initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-inventory" ? renderRawInventory() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-movements" ? renderRawMaterialMovements() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? renderBatchTraceability() : initialTab === "finished-goods" ? renderFinishedGoods() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? renderProductRecipes() : initialTab === "production-sop" ? renderProductionSop() : initialTab === "storage-locations" ? renderStorageLocations() : initialTab === "suppliers" ? renderSuppliers() : renderDashboard()}
+      {initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-inventory" ? renderRawInventory() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-movements" ? renderRawMaterialMovements() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? renderBatchTraceability() : initialTab === "finished-goods" ? renderFinishedGoods() : initialTab === "finished-goods-dispatch" ? renderFinishedGoodsDispatch() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? renderProductRecipes() : initialTab === "production-sop" ? renderProductionSop() : initialTab === "storage-locations" ? renderStorageLocations() : initialTab === "suppliers" ? renderSuppliers() : renderDashboard()}
       {modal?.type === "job" ? (
         <JobOrderModal
           initialValue={modal.value}
@@ -6020,6 +6327,14 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           production={modal.production}
           recipes={data.recipes}
           onClose={() => setModal(null)}
+        />
+      ) : null}
+      {modal?.type === "finished-good-dispatch" ? (
+        <FinishedGoodDispatchModal
+          initialValue={modal.value}
+          finishedGoods={data.finishedGoods}
+          onClose={() => setModal(null)}
+          onSave={saveFinishedGoodDispatch}
         />
       ) : null}
       {modal?.type === "receiving-batch-detail" ? (

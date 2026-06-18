@@ -273,6 +273,12 @@ const routeDetails = {
     permission: "factory_finished_goods.view",
     props: { initialTab: "finished-goods" },
   },
+  factory_finished_goods_dispatch: {
+    description: "Record outbound finished goods dispatches and finished goods stock-out movement.",
+    component: FactoryWorkspacePage,
+    permission: "factory_finished_goods_dispatch.view",
+    props: { initialTab: "finished-goods-dispatch" },
+  },
   factory_product_movements: {
     description: "Review read-only finished goods stock movement history.",
     component: FactoryWorkspacePage,
