@@ -617,6 +617,30 @@ function skuBalanceLabel(sku) {
   return quantity(balance, pluralizePackagingType(packagingTypeLabel(sku), balance));
 }
 
+function movementPackagingQtyLabel(movement) {
+  const movementQty = Number(movement?.quantity || 0);
+  return quantity(movementQty, pluralizePackagingType(packagingTypeLabel(movement), Math.abs(movementQty)));
+}
+
+function movementBaseEquivalentLabel(movement) {
+  const movementQty = Number(movement?.quantity || 0);
+  const base = normalizePackSizeToBase(movement?.pack_size_qty || movement?.base_qty, movement?.pack_size_uom || movement?.base_uom);
+  if (!movementQty || !base) return "—";
+  return quantity(movementQty * base.amount, base.uom);
+}
+
+function movementSourceLabel(movement) {
+  if (movement?.reference_type === "production") return "Completed Production";
+  if (movement?.reference_type === "stock_check") return "Stock Check Adjustment";
+  if (movement?.reference_type === "manual_adjustment") return "Manual Adjustment";
+  return movement?.reference_type || "—";
+}
+
+function movementTypeLabel(movement) {
+  if (movement?.reference_type === "production" && Number(movement?.quantity || 0) > 0) return "Production Stock In";
+  return movement?.movement_type || "Movement";
+}
+
 function normalizePackSizeToBase(qty, uom) {
   const amount = Number(qty || 0);
   const unit = String(uom || "").trim().toLowerCase();
@@ -5911,7 +5935,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   function renderProductMovements() {
     const rows = filteredProductMovements().map((movement) => {
       const linkedProduction = data.productions.find((production) => production.id === movement.reference_id || production.production_no === movement.reference_no);
-      return { ...movement, batch_no: linkedProduction?.batch_no || "" };
+      return { ...movement, batch_no: linkedProduction?.batch_no || "", source_label: movementSourceLabel(movement), movement_type_label: movementTypeLabel(movement) };
     });
     return (
       <div className="space-y-5">
@@ -5923,21 +5947,23 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={Activity} label="Movements" value={data.productMovements.length} helper="Finished goods movement rows" />
-          <MetricCard icon={PackageCheck} label="Stock In Rows" value={data.productMovements.filter((row) => Number(row.quantity || 0) > 0).length} helper="Positive movements" tone="success" />
-          <MetricCard icon={AlertTriangle} label="Stock Out Rows" value={data.productMovements.filter((row) => Number(row.quantity || 0) < 0).length} helper="Negative movements" tone="warning" />
+          <MetricCard icon={PackageCheck} label="Stock In" value={data.productMovements.filter((row) => Number(row.quantity || 0) > 0).length} helper="Positive movement rows" tone="success" />
+          <MetricCard icon={AlertTriangle} label="Stock Out" value={data.productMovements.filter((row) => Number(row.quantity || 0) < 0).length} helper="Negative movement rows" tone="warning" />
           <MetricCard icon={Factory} label="Production Sources" value={data.productMovements.filter((row) => row.reference_type === "production").length} helper="Created by production" />
         </div>
         {warehouseFilterControls({ showStatus: false })}
         <Card title="Finished Goods Movement History" description="Movement logs are read-only here; stock balance remains managed by production completion and approved stock checks.">
           <FactoryTable
             columns={[
-              { key: "movement", label: "Movement", render: (row) => <div><div className="font-bold text-text-primary">{row.reference_no || "—"}</div><div className="text-xs text-text-secondary">{row.reference_type || "No source"}</div></div> },
-              { key: "movement_type", label: "Type", render: (row) => <Badge tone={row.quantity >= 0 ? "success" : "warning"}>{row.movement_type}</Badge> },
-              { key: "product_name", label: "Product", render: (row) => row.product_name },
-              { key: "quantity", label: "Qty", render: (row) => quantity(row.quantity, row.uom) },
-              { key: "batch_no", label: "Batch", render: (row) => row.batch_no || "—" },
               { key: "movement_date", label: "Date", render: (row) => row.movement_date || "—" },
-              { key: "source", label: "Source", render: (row) => row.notes || row.reference_type || "—" },
+              { key: "movement_type", label: "Type", render: (row) => <Badge tone={row.quantity >= 0 ? "success" : "warning"}>{row.movement_type_label}</Badge> },
+              { key: "product_name", label: "Finished Good", render: (row) => <div><div className="font-semibold text-text-primary">{row.product_family_name || row.product_name || "Finished Good"}</div><div className="text-xs text-text-secondary">{row.sku_product_name && row.sku_product_name !== row.product_name ? row.sku_product_name : "Packaging SKU movement"}</div></div> },
+              { key: "packaging_sku", label: "Packaging SKU", render: (row) => <div><div className="font-semibold text-text-primary">{[row.product_code || "No SKU", row.variant_name || packSizeText(row) || "Packaging SKU"].filter(Boolean).join(" · ")}</div><div className="text-xs text-text-secondary">{row.reference_no ? `Ref: ${row.reference_no}` : "No movement ref"}</div></div> },
+              { key: "quantity", label: "Qty", render: (row) => <div className="font-bold text-text-primary">{movementPackagingQtyLabel(row)}</div> },
+              { key: "pack_size", label: "Pack Size", render: (row) => packSizeText(row) || "—" },
+              { key: "base_equivalent", label: "Base Equivalent", render: (row) => movementBaseEquivalentLabel(row) },
+              { key: "batch_no", label: "Batch", render: (row) => row.batch_no || "—" },
+              { key: "source", label: "Source", render: (row) => <div><div className="font-semibold text-text-primary">{row.source_label}</div>{row.notes ? <div className="text-xs text-text-secondary">{row.notes}</div> : null}</div> },
             ]}
             rows={rows}
             emptyTitle="No finished goods movements"

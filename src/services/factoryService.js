@@ -396,13 +396,24 @@ function mapFinishedGoodCategory(row) {
 }
 
 function mapProductMovement(row) {
+  const finishedGood = row.finished_good || {};
   return {
     id: row.id,
     finished_good_id: row.finished_good_id || "",
-    product_name: row.finished_good?.product_name || row.product_name || "",
+    product_code: finishedGood.product_code || "",
+    product_name: finishedGood.product_family?.name_en || finishedGood.product_name_en || finishedGood.product_name || row.product_name || "",
+    sku_product_name: finishedGood.product_name_en || finishedGood.product_name || row.product_name || "",
+    product_family_id: finishedGood.product_family_id || "",
+    product_family_name: finishedGood.product_family?.name_en || "",
+    variant_name: finishedGood.variant_name || "",
+    packaging_type: finishedGood.packaging_type || "Pack",
+    pack_size_qty: optionalNumber(finishedGood.pack_size_qty || finishedGood.base_qty),
+    pack_size_uom: finishedGood.pack_size_uom || finishedGood.base_uom || "",
+    base_qty: optionalNumber(finishedGood.base_qty),
+    base_uom: finishedGood.base_uom || "",
     movement_type: row.movement_type || "",
     quantity: normalizeNumber(row.quantity),
-    uom: row.uom || row.finished_good?.uom || "",
+    uom: row.uom || finishedGood.uom || "",
     reference_type: row.reference_type || "",
     reference_id: row.reference_id || "",
     reference_no: row.reference_no || "",
@@ -757,7 +768,7 @@ export const factoryService = {
       .limit(200), (rows) => rows.map(mapProductFamily));
     addTask(plan.productMovements, "productMovements", "Product Movements", () => supabase
       .from("factory_product_stock_movements")
-      .select("id,finished_good_id,product_name,movement_type,quantity,uom,reference_type,reference_id,reference_no,movement_date,notes,created_by,created_at,finished_good:factory_finished_goods(product_name,uom)")
+      .select(`id,finished_good_id,product_name,movement_type,quantity,uom,reference_type,reference_id,reference_no,movement_date,notes,created_by,created_at,finished_good:factory_finished_goods(${finishedGoodSelect})`)
       .order("movement_date", { ascending: false })
       .limit(150), (rows) => rows.map(mapProductMovement));
     addTask(plan.rawStockChecks, "rawStockChecks", "Raw Material Stock Check", () => supabase
