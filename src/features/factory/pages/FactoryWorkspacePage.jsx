@@ -711,6 +711,59 @@ function variantIsPackSize(sku) {
   return variant === packSize || variant === `${packSize}pack` || variant === `${packSize}packing`;
 }
 
+function jobProgressPercent(job) {
+  if (job?.status === "completed") return 100;
+  if (job?.status === "in_progress") return 50;
+  return 0;
+}
+
+function progressToneClass(percent) {
+  if (percent >= 100) return "bg-emerald-500";
+  if (percent >= 50) return "bg-amber-500";
+  return "bg-blue-500";
+}
+
+function jobFinishedGoodName(job) {
+  return job?.product_family_name || job?.product_name_en || job?.product_name || "Finished Good";
+}
+
+function jobPackagingSkuLabel(job) {
+  return [job?.variant_name || packSizeText(job) || "Packaging SKU", job?.product_code || "No SKU"].filter(Boolean).join(" · ");
+}
+
+function factoryTimeLabel(value) {
+  if (!value) return "—";
+  if (/^\d{2}:\d{2}/.test(String(value))) return String(value).slice(0, 5);
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value);
+  return date.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" });
+}
+
+function factoryActivitySortValue(value, fallbackDate = todayInput()) {
+  if (!value) return 0;
+  const text = String(value);
+  if (/^\d{2}:\d{2}/.test(text)) return new Date(`${fallbackDate}T${text.slice(0, 5)}:00`).getTime();
+  const timestamp = new Date(value).getTime();
+  return Number.isNaN(timestamp) ? 0 : timestamp;
+}
+
+function productionOutputLabel(production) {
+  return quantity(production?.good_output_qty || production?.actual_output_qty || production?.actual_produced_qty || production?.produced_quantity, production?.uom);
+}
+
+function aggregateProductionOutput(productions = []) {
+  if (!productions.length) return "0";
+  let total = 0;
+  let uom = "";
+  for (const production of productions) {
+    const rowUom = production.uom || "";
+    if (uom && rowUom && uom !== rowUom) return "Mixed";
+    if (!uom) uom = rowUom;
+    total += Number(production.good_output_qty || production.actual_output_qty || production.actual_produced_qty || production.produced_quantity || 0);
+  }
+  return quantity(total, uom);
+}
+
 function productionYieldPercent(production) {
   const actualProduced = Number(production.actual_produced_qty || production.produced_quantity || 0);
   if (!actualProduced) return 0;
@@ -4036,11 +4089,25 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   const jobColumns = [
     { key: "job_order_no", label: "JO No", render: (row) => <div className="font-bold text-text-primary">{row.job_order_no}</div> },
-    { key: "finished_good", label: "Finished Good", render: (row) => <div><div className="font-semibold text-text-primary">{row.product_name}</div><div className="text-xs text-text-secondary">{row.product_name_cn || row.product_name_bm || "Master product"}</div></div> },
-    { key: "product_code", label: "SKU", render: (row) => row.product_code || "—" },
-    { key: "target", label: "Target Qty", render: (row) => quantity(row.target_quantity, row.uom) },
+    { key: "finished_good", label: "Finished Good", render: (row) => <div><div className="font-semibold text-text-primary">{jobFinishedGoodName(row)}</div><div className="text-xs text-text-secondary">{row.product_name_cn || row.product_name_bm || "Finished Good"}</div></div> },
+    { key: "product_code", label: "Packaging SKU", render: (row) => <div><div className="font-semibold text-text-primary">{row.variant_name || packSizeText(row) || "Packaging SKU"}</div><div className="text-xs text-text-secondary">{row.product_code || "No SKU"}</div></div> },
+    { key: "target", label: "Target Production", render: (row) => <div><div className="font-semibold text-text-primary">{quantity(row.target_production_qty || row.target_quantity, row.uom)}</div><div className="text-xs text-text-secondary">{quantity(row.target_pack_qty || 0, "packs")}</div></div> },
     { key: "planned_date", label: "Planned Date", render: (row) => row.planned_date || "—" },
     { key: "due_date", label: "Due Date", render: (row) => row.due_date || "—" },
+    { key: "progress", label: "Progress", render: (row) => {
+      const progress = jobProgressPercent(row);
+      return (
+        <div className="min-w-[110px]">
+          <div className="flex items-center justify-between text-xs font-bold text-text-secondary">
+            <span>{progress}%</span>
+            <span>{jobStatusLabel(row.status)}</span>
+          </div>
+          <div className="mt-1.5 h-2 rounded-full bg-slate-100">
+            <div className={`h-full rounded-full ${progressToneClass(progress)}`} style={{ width: `${progress}%` }} />
+          </div>
+        </div>
+      );
+    } },
     { key: "priority", label: "Priority", render: (row) => <Badge tone={row.priority === "Urgent" || row.priority === "High" ? "warning" : "neutral"}>{row.priority}</Badge> },
     { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{jobStatusLabel(row.status)}</Badge> },
     { key: "actions", label: "Actions", align: "right", render: (row) => (
@@ -4648,21 +4715,174 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   function renderJobOrders() {
+    const today = todayInput();
+    const productionByJobId = new Map(data.productions.map((production) => [production.job_order_id, production]));
+    const completedTodayProductions = data.productions.filter((production) => {
+      const completionDate = (production.completed_at || production.production_date || production.created_at || "").slice(0, 10);
+      return production.status === "completed" && completionDate === today;
+    });
+    const outputTodayLabel = aggregateProductionOutput(completedTodayProductions);
+    const plannedTodayJobs = data.jobOrders.filter((job) => (job.planned_date || job.due_date || "").slice(0, 10) === today && !["cancelled"].includes(job.status));
+    const completedVsPlannedCount = plannedTodayJobs.length || metrics.completedTodayJobs.length;
+    const completionRate = completedVsPlannedCount ? (metrics.completedTodayJobs.length / completedVsPlannedCount) * 100 : 0;
+    const releasedBoardJobs = metrics.releasedJobs;
+    const inProgressBoardJobs = metrics.inProgressJobs;
+    const completedBoardJobs = metrics.completedTodayJobs;
+    const productionActivity = [
+      ...data.jobOrders.filter((job) => job.status === "in_progress" && (job.started_at || job.start_time)).map((job) => ({
+        id: `start-${job.id}`,
+        time: job.started_at || job.start_time,
+        title: "Started Production",
+        product: jobFinishedGoodName(job),
+        tone: "warning",
+      })),
+      ...completedTodayProductions.map((production) => ({
+        id: `complete-${production.id}`,
+        time: production.completed_at || production.end_time || production.production_date,
+        title: "Completed Production",
+        product: production.product_name || data.jobOrders.find((job) => job.id === production.job_order_id)?.product_name || "Production",
+        tone: "success",
+      })),
+    ]
+      .filter((activity) => activity.time)
+      .sort((a, b) => factoryActivitySortValue(b.time, today) - factoryActivitySortValue(a.time, today))
+      .slice(0, 8);
+    const overviewCards = [
+      { label: "Released", value: releasedBoardJobs.length, helper: "Ready to start", tone: "border-blue-200 bg-blue-50 text-blue-800" },
+      { label: "In Progress", value: inProgressBoardJobs.length, helper: "Currently running", tone: "border-amber-200 bg-amber-50 text-amber-800" },
+      { label: "Completed Today", value: completedBoardJobs.length, helper: "Finished today", tone: "border-emerald-200 bg-emerald-50 text-emerald-800" },
+      { label: "Output Today", value: outputTodayLabel, helper: "Total kg/L produced today", tone: "border-slate-200 bg-white text-text-primary" },
+      { label: "Completion Rate", value: percent(completionRate), helper: "Completed vs planned", tone: "border-primary/20 bg-primary/5 text-primary" },
+    ];
+    const boardColumns = [
+      { key: "released", title: "Released", helper: "Ready to start", jobs: releasedBoardJobs, accent: "border-blue-200 bg-blue-50", badge: "info" },
+      { key: "in_progress", title: "In Progress", helper: "Currently running", jobs: inProgressBoardJobs, accent: "border-amber-200 bg-amber-50", badge: "warning" },
+      { key: "completed", title: "Completed Today", helper: "Finished today", jobs: completedBoardJobs, accent: "border-emerald-200 bg-emerald-50", badge: "success" },
+    ];
+    const renderBoardAction = (job) => {
+      if (job.status === "released" && can("factory_production.complete")) {
+        return <button className="btn-primary w-full justify-center px-3 py-2 text-xs" type="button" onClick={() => setModal({ type: "start-production", job })}><Play size={13} /> Start Production</button>;
+      }
+      if (job.status === "in_progress" && can("factory_production.complete")) {
+        return <button className="btn-primary w-full justify-center px-3 py-2 text-xs" type="button" onClick={() => setModal({ type: "production", job })}>Complete Production</button>;
+      }
+      return null;
+    };
+    const renderJobCard = (job, columnKey) => {
+      const progress = jobProgressPercent(job);
+      const production = productionByJobId.get(job.id);
+      return (
+        <div key={job.id} className="rounded-2xl border border-border bg-white p-4 shadow-sm">
+          <div className="flex items-start justify-between gap-3">
+            <div>
+              <div className="font-mono text-xs font-black text-text-primary">{job.job_order_no}</div>
+              <div className="mt-1 text-sm font-bold text-text-primary">{jobFinishedGoodName(job)}</div>
+            </div>
+            <Badge tone={statusTone(job.status)}>{jobStatusLabel(job.status)}</Badge>
+          </div>
+          <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2">
+            <div className="text-[10.5px] font-semibold text-text-muted">Packaging SKU</div>
+            <div className="mt-0.5 text-sm font-bold text-text-primary">{jobPackagingSkuLabel(job)}</div>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-semibold">
+            <div className="rounded-xl border border-border px-3 py-2">
+              <div className="text-text-muted">Target Production</div>
+              <div className="mt-1 text-sm font-black text-text-primary">{quantity(job.target_production_qty || job.target_quantity, job.uom)}</div>
+            </div>
+            {columnKey === "completed" ? (
+              <div className="rounded-xl border border-border px-3 py-2">
+                <div className="text-text-muted">Output Qty</div>
+                <div className="mt-1 text-sm font-black text-text-primary">{production ? productionOutputLabel(production) : quantity(job.produced_quantity || job.target_production_qty || job.target_quantity, job.uom)}</div>
+              </div>
+            ) : columnKey === "in_progress" ? (
+              <div className="rounded-xl border border-border px-3 py-2">
+                <div className="text-text-muted">Started Time</div>
+                <div className="mt-1 text-sm font-black text-text-primary">{factoryTimeLabel(job.started_at || job.start_time)}</div>
+              </div>
+            ) : (
+              <div className="rounded-xl border border-border px-3 py-2">
+                <div className="text-text-muted">Status</div>
+                <div className="mt-1 text-sm font-black text-blue-700">Ready to start</div>
+              </div>
+            )}
+          </div>
+          {columnKey === "completed" ? (
+            <div className="mt-3 text-xs font-semibold text-text-secondary">Completed {factoryTimeLabel(job.completed_at || production?.completed_at || production?.end_time)}</div>
+          ) : (
+            <div className="mt-3">
+              <div className="flex items-center justify-between text-xs font-bold text-text-secondary">
+                <span>Progress</span>
+                <span>{progress}%</span>
+              </div>
+              <div className="mt-1.5 h-2 rounded-full bg-slate-100">
+                <div className={`h-full rounded-full ${progressToneClass(progress)}`} style={{ width: `${progress}%` }} />
+              </div>
+            </div>
+          )}
+          <div className="mt-3">{renderBoardAction(job)}</div>
+        </div>
+      );
+    };
+
     return (
       <div className="space-y-5">
         <PageHeader
           section="Factory"
-          title="Job Orders"
-          description="Create, update and monitor factory production job orders."
+          title="Production Control Center"
+          description="Plan, release, start and complete factory production job orders from one operational board."
           actions={can("factory_job_orders.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "job" })}><ClipboardList size={15} /> Create Job Order</button> : null}
         />
-        <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={ClipboardCheck} label="Draft" value={metrics.draftJobs.length} helper="Planning not released" />
-          <MetricCard icon={Clock3} label="Released" value={metrics.releasedJobs.length} helper="Ready to start" tone={metrics.releasedJobs.length ? "info" : "neutral"} />
-          <MetricCard icon={Factory} label="In Progress" value={metrics.inProgressJobs.length} helper="Production started" tone={metrics.inProgressJobs.length ? "warning" : "neutral"} />
-          <MetricCard icon={CheckCircle2} label="Completed Today" value={metrics.completedTodayJobs.length} helper="Finished today" tone="success" />
+        <div className="grid gap-3 lg:grid-cols-5">
+          {overviewCards.map((card) => (
+            <div key={card.label} className={`rounded-2xl border p-4 shadow-sm ${card.tone}`}>
+              <div className="text-[11px] font-bold uppercase tracking-[0.08em] opacity-80">{card.label}</div>
+              <div className="mt-2 text-3xl font-black">{card.value}</div>
+              <div className="mt-1 text-sm font-semibold opacity-85">{card.helper}</div>
+            </div>
+          ))}
         </div>
-        <Card title="Job Order Records" description={`Showing ${data.jobOrders.length} job order(s).`}>
+        <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
+          <Card title="Production Pipeline" description="Released jobs can start production. In-progress jobs are ready for completion confirmation.">
+            <div className="grid gap-4 p-4 lg:grid-cols-3">
+              {boardColumns.map((column) => (
+                <div key={column.key} className={`rounded-2xl border p-3 ${column.accent}`}>
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div>
+                      <div className="text-sm font-black text-text-primary">{column.title}</div>
+                      <div className="text-xs font-semibold text-text-secondary">{column.helper}</div>
+                    </div>
+                    <Badge tone={column.badge}>{column.jobs.length}</Badge>
+                  </div>
+                  <div className="space-y-3">
+                    {column.jobs.length ? column.jobs.map((job) => renderJobCard(job, column.key)) : (
+                      <div className="rounded-2xl border border-dashed border-border bg-white/80 px-3 py-6 text-center text-sm font-semibold text-text-secondary">
+                        No {column.title.toLowerCase()} jobs.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+          <Card title="Recent Production Activity" description="Latest start and completion events from job order and production records.">
+            <div className="space-y-3 p-4">
+              {productionActivity.length ? productionActivity.map((activity) => (
+                <div key={activity.id} className="flex gap-3 rounded-2xl border border-border bg-white px-3 py-3">
+                  <div className={`flex h-10 w-14 shrink-0 items-center justify-center rounded-xl text-xs font-black ${activity.tone === "success" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
+                    {factoryTimeLabel(activity.time)}
+                  </div>
+                  <div className="min-w-0">
+                    <div className="text-sm font-bold text-text-primary">{activity.title}</div>
+                    <div className="mt-0.5 truncate text-xs font-semibold text-text-secondary">{activity.product}</div>
+                  </div>
+                </div>
+              )) : (
+                <EmptyState title="No production activity today" description="Started and completed production events will appear here." />
+              )}
+            </div>
+          </Card>
+        </div>
+        <Card title="Job Order Records" description={`Historical and current job order records. Showing ${data.jobOrders.length} job order(s).`}>
           <FactoryTable columns={jobColumns} rows={data.jobOrders} emptyTitle="No job orders" emptyDescription="Create a finished good product first, then plan production demand with a job order." />
         </Card>
       </div>
