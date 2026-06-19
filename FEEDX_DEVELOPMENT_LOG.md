@@ -2,6 +2,14 @@
 
 Purpose: concise development history for meaningful FeedX development sessions. The master document remains the source of truth for final logic and architecture; release notes under `docs/releases/` document production releases.
 
+## 2026-06-18
+
+### Factory
+- Refined Finished Goods Dispatch into a Dispatch History / Create Dispatch tab workflow, keeping dispatch creation embedded on the page while preserving modal-based View/Edit for existing drafts and completed records.
+- Added Factory Customers under the Factory System sidebar with create/edit/archive master data for dispatch destinations, replacing free-text customer entry for new finished goods dispatches.
+- Added a production-safe migration for `factory_customers`, `factory_finished_good_dispatches.customer_id`, Factory customer permissions/RLS, and DB-side `DYYMMDD-01` dispatch number generation through `factory_create_finished_good_dispatch(...)` with an advisory transaction lock.
+- Updated dispatch history to show Dispatch No., Customer, Items, Total Dispatch, Status, Date and Actions, avoiding misleading "SKU units" wording for mixed packaging quantities.
+
 ## 2026-06-16
 
 ### Factory

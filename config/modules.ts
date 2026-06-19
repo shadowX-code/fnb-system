@@ -598,6 +598,16 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, create: true, edit: true, delete: true, manage: true, export: true },
   },
   {
+    id: "factory_customers",
+    section: "System",
+    label: "Customers",
+    route: "/factory/customers",
+    icon: "factory-customers",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, create: true, edit: true, delete: true, export: true },
+  },
+  {
     id: "factory_settings",
     section: "System",
     label: "Factory Settings",

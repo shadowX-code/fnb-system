@@ -60,6 +60,7 @@ const iconMap = {
   "factory-audit-logs": KeyRound,
   "factory-storage-locations": Warehouse,
   "factory-suppliers": Truck,
+  "factory-customers": Building2,
   "factory-settings": Settings,
 };
 

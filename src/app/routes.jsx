@@ -315,6 +315,12 @@ const routeDetails = {
     permission: "factory_suppliers.view",
     props: { initialTab: "suppliers" },
   },
+  factory_customers: {
+    description: "Manage Factory customer and destination master data used by finished goods dispatch.",
+    component: FactoryWorkspacePage,
+    permission: "factory_customers.view",
+    props: { initialTab: "customers" },
+  },
 };
 
 export const salesPurchaseRoutes = moduleRegistry.map((module) => {

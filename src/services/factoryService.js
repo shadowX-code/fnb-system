@@ -178,6 +178,23 @@ function mapFactorySupplier(row) {
   };
 }
 
+function mapFactoryCustomer(row) {
+  return {
+    id: row.id,
+    customer_code: row.customer_code || "",
+    customer_name: row.customer_name || "",
+    customer_type: row.customer_type || "Other",
+    contact_person: row.contact_person || "",
+    phone: row.phone || "",
+    email: row.email || "",
+    address: row.address || "",
+    status: row.status || "active",
+    remarks: row.remarks || "",
+    created_at: row.created_at,
+    updated_at: row.updated_at,
+  };
+}
+
 function mapReceivingBatch(row) {
   const items = (row.items ?? []).map(mapReceiving);
   return {
@@ -451,7 +468,10 @@ function mapFinishedGoodDispatch(row) {
     id: row.id,
     dispatch_no: row.dispatch_no || "",
     dispatch_date: row.dispatch_date || "",
-    customer_name: row.customer_name || "",
+    customer_id: row.customer_id || "",
+    customer_name: row.customer?.customer_name || row.customer_name || "",
+    customer_code: row.customer?.customer_code || "",
+    customer_type: row.customer?.customer_type || "",
     reference_no: row.reference_no || "",
     status: row.status || "draft",
     remarks: row.remarks || "",
@@ -664,6 +684,7 @@ function emptyFactoryData() {
     rawMaterials: [],
     rawMaterialCategories: [],
     factorySuppliers: [],
+    factoryCustomers: [],
     receivingBatches: [],
     storageLocations: [],
     rawMaterialMovements: [],
@@ -686,6 +707,7 @@ const finishedGoodSelect = "id,product_code,product_name,product_name_en,product
 const finishedGoodFullSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,category_id,category,uom,current_balance,min_stock_level,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),product_family:factory_product_families(name_en,name_cn,name_bm,status)";
 const storageLocationSelect = "id,location_name,location_code,location_type,status,remarks,created_at,updated_at";
 const factorySupplierSelect = "id,supplier_name,supplier_code,contact_person,phone,email,status,remarks,created_at,updated_at";
+const factoryCustomerSelect = "id,customer_code,customer_name,customer_type,contact_person,phone,email,address,status,remarks,created_at,updated_at";
 const rawMaterialSelect = `id,material_code,name,name_en,name_cn,name_bm,category_id,category,uom,current_balance,min_stock_level,preferred_supplier,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_raw_material_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)`;
 const rawMaterialRelationSelect = "name,name_en,name_cn,name_bm,material_code,uom,storage_location,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)";
 const productFamilyRelationSelect = "id,name_en,name_cn,name_bm,status";
@@ -694,7 +716,7 @@ const recipeSummarySelect = `id,recipe_code,finished_good_id,product_family_id,r
 const jobOrderSelect = `id,job_order_no,finished_good_id,product_name,target_pack_qty,target_production_qty,target_quantity,produced_quantity,uom,planned_date,due_date,priority,status,assigned_team,remarks,created_by,released_at,released_by,started_at,started_by,production_operator_id,production_operator_name,production_date,start_time,completed_at,completed_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect})`;
 const productionSelectBasic = `id,job_order_id,finished_good_id,production_no,product_name,batch_no,actual_pack_qty,actual_output_qty,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,operator_id,operator_name,start_time,end_time,qc_status,production_sop_id,sop_version,status,notes,created_by,completed_at,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),job_order:factory_job_orders(job_order_no,finished_good_id,product_name,target_pack_qty,target_production_qty,finished_good:factory_finished_goods(product_code,product_name,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom))`;
 const productionSelectDetailed = `${productionSelectBasic},material_usage:factory_production_material_usage(id,production_id,raw_material_id,raw_material_receiving_id,raw_material_lot_no,quantity_used,standard_usage,actual_usage,variance_qty,variance_percent,variance_reason,uom,wastage_quantity,notes,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect}),raw_receiving:factory_raw_material_receivings(receipt_no,batch_no,supplier_name,received_date,unit_cost)),qc_checkpoints:factory_production_qc_checkpoints(id,production_id,production_sop_id,sop_step_id,step_no,process_name,control_point,qc_status,notes,created_at,updated_at)`;
-const finishedGoodDispatchSelect = `id,dispatch_no,dispatch_date,customer_name,reference_no,status,remarks,created_by,created_at,updated_at,completed_at,cancelled_at,creator:employees(nickname,full_name),items:factory_finished_good_dispatch_items(id,dispatch_id,finished_good_id,quantity,batch_no,remarks,created_at,finished_good:factory_finished_goods(${finishedGoodFullSelect}))`;
+const finishedGoodDispatchSelect = `id,dispatch_no,dispatch_date,customer_id,customer_name,reference_no,status,remarks,created_by,created_at,updated_at,completed_at,cancelled_at,creator:employees(nickname,full_name),customer:factory_customers(${factoryCustomerSelect}),items:factory_finished_good_dispatch_items(id,dispatch_id,finished_good_id,quantity,batch_no,remarks,created_at,finished_good:factory_finished_goods(${finishedGoodFullSelect}))`;
 
 function factoryDataPlan(scope, hasPermission) {
   const can = (code) => !hasPermission || hasPermission(code);
@@ -710,6 +732,7 @@ function factoryDataPlan(scope, hasPermission) {
   const isProductRecipes = scope === "product-recipes";
   const isStorageLocations = scope === "storage-locations";
   const isSuppliers = scope === "suppliers";
+  const isCustomers = scope === "customers";
   const isFinishedGoods = scope === "finished-goods";
   const isFinishedGoodsDispatch = scope === "finished-goods-dispatch";
   const isProductMovements = scope === "product-movements";
@@ -724,6 +747,7 @@ function factoryDataPlan(scope, hasPermission) {
     rawMaterials: (isDashboard && can("factory_dashboard.view")) || (isRawInventory && can("factory_raw_inventory.view")) || (isRawReceiving && can("factory_raw_receiving.view")) || (isRawMovements && can("factory_raw_movements.view")) || (isRawStockCheck && can("factory_raw_stock_check.view")) || (isProductRecipes && can("factory_product_recipes.view")) || (isJobOrders && can("factory_product_recipes.view")) || (isProduction && (can("factory_raw_inventory.view") || can("factory_product_recipes.view") || can("factory_production.complete") || can("factory_dashboard.view"))),
     rawMaterialCategories: (isRawInventory && can("factory_raw_inventory.view")) || (isRawStockCheck && can("factory_raw_stock_check.view")),
     factorySuppliers: (isSuppliers && can("factory_suppliers.view")) || (isRawReceiving && can("factory_raw_receiving.view")),
+    factoryCustomers: (isCustomers && can("factory_customers.view")) || (isFinishedGoodsDispatch && (can("factory_customers.view") || can("factory_finished_goods_dispatch.view") || can("factory_finished_goods_dispatch.create") || can("factory_finished_goods_dispatch.edit"))),
     receivingBatches: isRawReceiving && can("factory_raw_receiving.view"),
     storageLocations: (isStorageLocations && can("factory_storage_locations.view")) || ((isRawInventory || isRawReceiving || isRawMovements || isFinishedGoods) && (can("factory_storage_locations.view") || can("factory_raw_inventory.view") || can("factory_raw_receiving.view") || can("factory_raw_movements.view") || can("factory_finished_goods.view"))),
     rawMaterialMovements: (isRawInventory && can("factory_raw_inventory.view")) || (isRawMovements && can("factory_raw_movements.view")),
@@ -773,6 +797,11 @@ export const factoryService = {
       .select(factorySupplierSelect)
       .order("supplier_name", { ascending: true })
       .limit(200), (rows) => rows.map(mapFactorySupplier));
+    addTask(plan.factoryCustomers, "factoryCustomers", "Factory Customers", () => supabase
+      .from("factory_customers")
+      .select(factoryCustomerSelect)
+      .order("customer_name", { ascending: true })
+      .limit(250), (rows) => rows.map(mapFactoryCustomer));
     addTask(plan.receivingBatches, "receivingBatches", "Receiving Batches", () => supabase
       .from("factory_raw_material_receiving_batches")
       .select(`id,batch_no,reference_no,supplier_id,supplier_name,received_date,remarks,status,created_by,created_at,updated_at,supplier:factory_suppliers(supplier_name),creator:employees(nickname,full_name),items:factory_raw_material_receivings(id,batch_id,receipt_no,raw_material_id,supplier_id,supplier_name,batch_no,received_qty,uom,unit_cost,total_cost,invoice_no,received_date,expiry_date,storage_location_id,storage_location,remarks,received_by,created_at,updated_at,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
@@ -1902,7 +1931,7 @@ export const factoryService = {
       remarks: item.remarks || "",
     })).filter((item) => item.finished_good_id || item.quantity || item.batch_no || item.remarks);
 
-    if (!String(dispatch.customer_name || "").trim()) throw new Error("Customer / Destination is required.");
+    if (!dispatch.customer_id) throw new Error("Select a Customer.");
     if (!dispatch.dispatch_date) throw new Error("Dispatch Date is required.");
     if (!items.length) throw new Error("Add at least one dispatch item.");
     const invalidItem = items.find((item) => !item.finished_good_id || item.quantity <= 0);
@@ -1910,21 +1939,58 @@ export const factoryService = {
 
     if (isUpdate && dispatch.status !== "draft") throw new Error("Only draft dispatches can be edited.");
 
+    const { data: customer, error: customerError } = await supabase
+      .from("factory_customers")
+      .select(factoryCustomerSelect)
+      .eq("id", dispatch.customer_id)
+      .single();
+    throwSupabaseError("factory.finished_good_dispatch.customer", customerError);
+    if (customer.status !== "active" && !isUpdate) throw new Error("Select an active Customer.");
+
+    if (!isUpdate) {
+      const { data: dispatchId, error } = await supabase.rpc("factory_create_finished_good_dispatch", {
+        p_customer_id: dispatch.customer_id,
+        p_reference_no: dispatch.reference_no || "",
+        p_dispatch_date: dispatch.dispatch_date,
+        p_remarks: dispatch.remarks || "",
+        p_created_by: employeeId || null,
+        p_items: items,
+      });
+      throwSupabaseError("factory.finished_good_dispatch.create", error);
+
+      const { data: refreshed, error: refreshError } = await supabase
+        .from("factory_finished_good_dispatches")
+        .select(finishedGoodDispatchSelect)
+        .eq("id", dispatchId)
+        .single();
+      throwSupabaseError("factory.finished_good_dispatch.fetch", refreshError);
+
+      await logFactoryAction({
+        action: "factory_finished_good_dispatch_created",
+        target: refreshed.dispatch_no,
+        description: "Factory finished goods dispatch draft created.",
+        after: refreshed,
+      });
+      return mapFinishedGoodDispatch(refreshed);
+    }
+
     const payload = {
-      dispatch_no: dispatch.dispatch_no || makeFactoryRef("FGD"),
       dispatch_date: dispatch.dispatch_date,
-      customer_name: String(dispatch.customer_name || "").trim(),
+      customer_id: dispatch.customer_id,
+      customer_name: customer.customer_name,
       reference_no: dispatch.reference_no || "",
       status: dispatch.status || "draft",
       remarks: dispatch.remarks || "",
-      created_by: dispatch.created_by || employeeId || null,
       updated_at: new Date().toISOString(),
     };
 
-    const query = isUpdate
-      ? supabase.from("factory_finished_good_dispatches").update(payload).eq("id", dispatch.id)
-      : supabase.from("factory_finished_good_dispatches").insert(payload);
-    const { data, error } = await query.select(finishedGoodDispatchSelect).single();
+    const { data, error } = await supabase
+      .from("factory_finished_good_dispatches")
+      .update(payload)
+      .eq("id", dispatch.id)
+      .eq("status", "draft")
+      .select(finishedGoodDispatchSelect)
+      .single();
     throwSupabaseError("factory.finished_good_dispatch.save", error);
 
     const dispatchId = data.id;
@@ -1943,12 +2009,62 @@ export const factoryService = {
     throwSupabaseError("factory.finished_good_dispatch.fetch", refreshError);
 
     await logFactoryAction({
-      action: isUpdate ? "factory_finished_good_dispatch_updated" : "factory_finished_good_dispatch_created",
+      action: "factory_finished_good_dispatch_updated",
       target: refreshed.dispatch_no,
-      description: isUpdate ? "Factory finished goods dispatch draft updated." : "Factory finished goods dispatch draft created.",
+      description: "Factory finished goods dispatch draft updated.",
       after: refreshed,
     });
     return mapFinishedGoodDispatch(refreshed);
+  },
+
+  async saveFactoryCustomer(customer, employeeId) {
+    const isUpdate = Boolean(customer.id);
+    const payload = {
+      customer_name: String(customer.customer_name || "").trim(),
+      customer_code: String(customer.customer_code || "").trim() || null,
+      customer_type: customer.customer_type || "Other",
+      contact_person: customer.contact_person || "",
+      phone: customer.phone || "",
+      email: customer.email || "",
+      address: customer.address || "",
+      status: customer.status || "active",
+      remarks: customer.remarks || "",
+      updated_at: new Date().toISOString(),
+    };
+    if (!payload.customer_name) throw new Error("Customer name is required.");
+    if (!isUpdate) payload.created_by = employeeId || null;
+
+    const query = isUpdate
+      ? supabase.from("factory_customers").update(payload).eq("id", customer.id)
+      : supabase.from("factory_customers").insert(payload);
+    const { data, error } = await query.select(factoryCustomerSelect).single();
+    throwSupabaseError("factory.customer.save", error);
+
+    await logFactoryAction({
+      action: isUpdate ? "factory_customer_updated" : "factory_customer_created",
+      target: data.customer_name,
+      description: isUpdate ? "Factory customer master updated." : "Factory customer master created.",
+      after: data,
+    });
+    return mapFactoryCustomer(data);
+  },
+
+  async archiveFactoryCustomer(customer) {
+    const { data, error } = await supabase
+      .from("factory_customers")
+      .update({ status: "archived", updated_at: new Date().toISOString() })
+      .eq("id", customer.id)
+      .select(factoryCustomerSelect)
+      .single();
+    throwSupabaseError("factory.customer.archive", error);
+
+    await logFactoryAction({
+      action: "factory_customer_archived",
+      target: data.customer_name,
+      description: "Factory customer master archived.",
+      after: data,
+    });
+    return mapFactoryCustomer(data);
   },
 
   async completeFinishedGoodDispatch(dispatch) {
