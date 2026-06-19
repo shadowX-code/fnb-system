@@ -7,6 +7,7 @@ import PageHeader from "../../../components/layout/PageHeader.jsx";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import Card from "../../../components/ui/Card.jsx";
+import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import { factoryService } from "../../../services/factoryService.js";
 
@@ -130,17 +131,28 @@ function inputClass(error) {
 function SearchableSelect({ value, options, placeholder, onChange, error, searchPlaceholder = "Search", emptyText = "No matching options", disabled = false, buttonRef }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  const internalButtonRef = useRef(null);
+  const anchorRef = buttonRef || internalButtonRef;
   const selected = options.find((option) => option.value === value);
   const visibleOptions = options.filter((option) => `${option.label} ${option.helper || ""}`.toLowerCase().includes(query.toLowerCase()));
 
   return (
-    <div className="relative">
-      <button ref={buttonRef} className={`${inputClass(error)} flex items-center justify-between text-left disabled:cursor-not-allowed disabled:opacity-70`} type="button" disabled={disabled} onClick={() => setOpen((current) => !current)}>
+    <div>
+      <button ref={anchorRef} className={`${inputClass(error)} flex items-center justify-between text-left disabled:cursor-not-allowed disabled:opacity-70`} type="button" disabled={disabled} onClick={() => setOpen((current) => !current)}>
         <span className={selected ? "text-text-primary" : "text-text-muted"}>{selected?.label || placeholder}</span>
         <span className="text-xs text-text-muted">Search</span>
       </button>
-      {open ? (
-        <div className="absolute left-0 right-0 z-40 mt-2 rounded-xl border border-border bg-white p-2 shadow-xl">
+      <FloatingLayer
+        open={open}
+        onOpenChange={setOpen}
+        anchorRef={anchorRef}
+        align="start"
+        minWidth={260}
+        estimatedHeight={320}
+        maxHeight={360}
+        contentClassName="space-y-2"
+      >
+        <div>
           <input className={inputClass()} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={searchPlaceholder} autoFocus />
           <div className="mt-2 max-h-56 overflow-y-auto">
             {visibleOptions.length ? visibleOptions.map((option) => (
@@ -160,7 +172,7 @@ function SearchableSelect({ value, options, placeholder, onChange, error, search
             )) : <div className="px-3 py-4 text-sm font-semibold text-text-secondary">{emptyText}</div>}
           </div>
         </div>
-      ) : null}
+      </FloatingLayer>
     </div>
   );
 }
@@ -1897,6 +1909,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
     label: [sku.product_code || "No SKU", sku.product_family_name || sku.product_name_en || sku.product_name, sku.variant_name || packSizeText(sku)].filter(Boolean).join(" · "),
     helper: `${skuBalanceLabel(sku)} available · ${packSizeText(sku) || "No pack size"}`,
   }));
+  const showReferenceField = Boolean(initialValue?.reference_no);
 
   function updateItem(rowId, patch) {
     setForm((current) => ({
@@ -1965,7 +1978,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
   const formContent = (
     <form id={embedded ? undefined : "factory-finished-good-dispatch-form"} className="space-y-4" onSubmit={submit}>
       {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
-      <div className="grid gap-3 md:grid-cols-4">
+      <div className={`grid gap-3 ${showReferenceField ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
         <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
           <div className="text-[10.5px] font-semibold text-text-muted">Dispatch No.</div>
           <div className="mt-1 text-sm font-bold text-text-primary">{form.dispatch_no || "DYYMMDD-01"}</div>
@@ -1992,9 +2005,9 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
             />
           )}
         </Field>
-        <Field label="Reference / DO No.">
+        {showReferenceField ? <Field label="Reference / DO No.">
           <input className={inputClass()} value={form.reference_no || ""} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, reference_no: event.target.value }))} />
-        </Field>
+        </Field> : null}
       </div>
 
       <div className="rounded-2xl border border-border bg-white">
@@ -2029,14 +2042,11 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
                       <div className="mt-1 text-sm font-bold text-text-primary">{sku ? packSizeText(sku) || "—" : "—"}</div>
                     </div>
                   </div>
-                  <Field label="Qty">
+                  <Field label="Dispatch Qty">
                     <div className="flex items-center gap-2">
                       <input className={inputClass()} type="number" min="0" step="0.01" value={item.quantity || ""} disabled={isReadOnly} onChange={(event) => updateItem(item.row_id, { quantity: event.target.value })} />
                       <span className="shrink-0 text-xs font-bold text-text-muted">{pluralizePackagingType(packagingTypeLabel(sku), item.quantity || 0)}</span>
                     </div>
-                  </Field>
-                  <Field label="Batch">
-                    <input className={inputClass()} value={item.batch_no || ""} disabled={isReadOnly} onChange={(event) => updateItem(item.row_id, { batch_no: event.target.value })} placeholder="Optional" />
                   </Field>
                   <Field label="Remarks">
                     <input className={inputClass()} value={item.remarks || ""} disabled={isReadOnly} onChange={(event) => updateItem(item.row_id, { remarks: event.target.value })} />
@@ -2047,14 +2057,13 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
             })}
           </div>
           <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[900px] text-left">
+            <table className="w-full min-w-[760px] text-left">
               <thead>
                 <tr className="border-b border-border bg-slate-50 text-[11px] font-semibold text-text-muted">
                   <th className="px-3 py-2.5">Packaging SKU</th>
                   <th className="px-3 py-2.5">Available</th>
-                  <th className="px-3 py-2.5">Qty</th>
+                  <th className="px-3 py-2.5">Dispatch Qty</th>
                   <th className="px-3 py-2.5">Pack Size</th>
-                  <th className="px-3 py-2.5">Batch</th>
                   <th className="px-3 py-2.5">Remarks</th>
                   <th className="px-3 py-2.5 text-right">Action</th>
                 </tr>
@@ -2083,7 +2092,6 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
                         </div>
                       </td>
                       <td className="px-3 py-3 text-sm font-semibold text-text-secondary">{sku ? packSizeText(sku) || "—" : "—"}</td>
-                      <td className="px-3 py-3"><input className={inputClass()} value={item.batch_no || ""} disabled={isReadOnly} onChange={(event) => updateItem(item.row_id, { batch_no: event.target.value })} placeholder="Optional" /></td>
                       <td className="px-3 py-3"><input className={inputClass()} value={item.remarks || ""} disabled={isReadOnly} onChange={(event) => updateItem(item.row_id, { remarks: event.target.value })} /></td>
                       <td className="px-3 py-3 text-right">
                         {!isReadOnly ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => removeItem(item.row_id)}>Remove</button> : null}
@@ -2122,7 +2130,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
       footer={(
         <>
           <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>{isReadOnly ? "Close" : "Cancel"}</button>
-          {!isReadOnly ? <button className="btn-primary" type="submit" form="factory-finished-good-dispatch-form" disabled={saving}>{saving ? "Saving..." : "Save Draft"}</button> : null}
+          {!isReadOnly ? <button className="btn-primary" type="submit" form="factory-finished-good-dispatch-form" disabled={saving}>{saving ? "Saving..." : "Save Dispatch Draft"}</button> : null}
         </>
       )}
     >
