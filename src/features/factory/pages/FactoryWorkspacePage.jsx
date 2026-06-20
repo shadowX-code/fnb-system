@@ -2520,11 +2520,22 @@ function FactorySupplierModal({ suppliers, onClose, onSave, onArchive }) {
   );
 }
 
-function FactoryCustomerModal({ customers, onClose, onSave, onArchive }) {
+function FactoryCustomerModal({ initialValue, onClose, onSave }) {
   const emptyForm = { customer_name: "", customer_code: "", customer_type: "Outlet", contact_person: "", phone: "", email: "", address: "", status: "active", remarks: "" };
-  const [form, setForm] = useState(emptyForm);
+  const [form, setForm] = useState(() => ({
+    ...emptyForm,
+    ...initialValue,
+    customer_type: initialValue?.customer_type || "Outlet",
+    status: initialValue?.status || "active",
+  }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const isEdit = Boolean(initialValue?.id);
+  const customerTypeOptions = factoryCustomerTypes.map((option) => ({ value: option, label: option }));
+  const statusOptions = [
+    { value: "active", label: "Active" },
+    { value: "archived", label: "Archived" },
+  ];
 
   async function submit(event) {
     event.preventDefault();
@@ -2536,32 +2547,6 @@ function FactoryCustomerModal({ customers, onClose, onSave, onArchive }) {
     setSaving(true);
     try {
       await onSave(form);
-      setForm(emptyForm);
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function edit(customer) {
-    setForm({
-      id: customer.id,
-      customer_name: customer.customer_name || "",
-      customer_code: customer.customer_code || "",
-      customer_type: customer.customer_type || "Other",
-      contact_person: customer.contact_person || "",
-      phone: customer.phone || "",
-      email: customer.email || "",
-      address: customer.address || "",
-      status: customer.status || "active",
-      remarks: customer.remarks || "",
-    });
-    setError("");
-  }
-
-  async function archive(customer) {
-    setSaving(true);
-    try {
-      await onArchive(customer);
     } finally {
       setSaving(false);
     }
@@ -2569,15 +2554,25 @@ function FactoryCustomerModal({ customers, onClose, onSave, onArchive }) {
 
   return (
     <Modal
-      title="Factory Customers"
-      description="Manage customers and destinations used by finished goods dispatch documents."
+      title={isEdit ? "Edit Customer" : "Create Customer"}
+      description="Maintain customer and destination details used by finished goods dispatch documents."
       size="lg"
       onClose={saving ? undefined : onClose}
-      footer={<button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Close</button>}
+      footer={(
+        <>
+          <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
+          <button className="btn-primary" type="submit" form="factory-customer-form" disabled={saving}>{saving ? "Saving..." : isEdit ? "Save Customer" : "Create Customer"}</button>
+        </>
+      )}
     >
-      <div className="space-y-4">
-        <form className="space-y-4 rounded-xl border border-border bg-slate-50 p-4" onSubmit={submit}>
-          {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
+      <form id="factory-customer-form" className="space-y-5" onSubmit={submit}>
+        {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
+
+        <div className="space-y-3 rounded-2xl border border-border bg-slate-50 p-4">
+          <div>
+            <div className="font-bold text-text-primary">Customer Details</div>
+            <div className="text-sm text-text-secondary">Basic dispatch destination setup.</div>
+          </div>
           <div className="grid gap-3 md:grid-cols-2">
             <Field label="Customer Name *">
               <input className={inputClass(error && !form.customer_name)} value={form.customer_name || ""} onChange={(event) => setForm((current) => ({ ...current, customer_name: event.target.value }))} />
@@ -2585,11 +2580,35 @@ function FactoryCustomerModal({ customers, onClose, onSave, onArchive }) {
             <Field label="Customer Code">
               <input className={inputClass()} value={form.customer_code || ""} onChange={(event) => setForm((current) => ({ ...current, customer_code: event.target.value }))} />
             </Field>
-            <Field label="Customer Type">
-              <select className={inputClass()} value={form.customer_type || "Other"} onChange={(event) => setForm((current) => ({ ...current, customer_type: event.target.value }))}>
-                {factoryCustomerTypes.map((option) => <option key={option} value={option}>{option}</option>)}
-              </select>
+            <Field label="Customer Type *">
+              <SearchableSelect
+                value={form.customer_type || "Other"}
+                options={customerTypeOptions}
+                placeholder="Select Customer Type"
+                searchPlaceholder="Search customer types"
+                emptyText="No customer types"
+                onChange={(value) => setForm((current) => ({ ...current, customer_type: value }))}
+              />
             </Field>
+            <Field label="Status *">
+              <SearchableSelect
+                value={form.status || "active"}
+                options={statusOptions}
+                placeholder="Select Status"
+                searchPlaceholder="Search status"
+                emptyText="No statuses"
+                onChange={(value) => setForm((current) => ({ ...current, status: value }))}
+              />
+            </Field>
+          </div>
+        </div>
+
+        <div className="space-y-3 rounded-2xl border border-border bg-white p-4">
+          <div>
+            <div className="font-bold text-text-primary">Contact Information</div>
+            <div className="text-sm text-text-secondary">Optional contact details for dispatch coordination.</div>
+          </div>
+          <div className="grid gap-3 md:grid-cols-3">
             <Field label="Contact Person">
               <input className={inputClass()} value={form.contact_person || ""} onChange={(event) => setForm((current) => ({ ...current, contact_person: event.target.value }))} />
             </Field>
@@ -2599,42 +2618,23 @@ function FactoryCustomerModal({ customers, onClose, onSave, onArchive }) {
             <Field label="Email">
               <input className={inputClass()} type="email" value={form.email || ""} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} />
             </Field>
-            <Field label="Status">
-              <select className={inputClass()} value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
-                <option value="active">Active</option>
-                <option value="archived">Archived</option>
-              </select>
-            </Field>
           </div>
+        </div>
+
+        <div className="space-y-3 rounded-2xl border border-border bg-white p-4">
+          <div className="font-bold text-text-primary">Address</div>
           <Field label="Address">
             <textarea className={inputClass()} rows={2} value={form.address || ""} onChange={(event) => setForm((current) => ({ ...current, address: event.target.value }))} />
           </Field>
+        </div>
+
+        <div className="space-y-3 rounded-2xl border border-border bg-white p-4">
+          <div className="font-bold text-text-primary">Notes</div>
           <Field label="Remarks">
             <textarea className={inputClass()} rows={3} value={form.remarks || ""} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
           </Field>
-          <div className="flex justify-end gap-2">
-            <button className="btn-primary" type="submit" disabled={saving}>{saving ? "Saving..." : form.id ? "Update Customer" : "Create Customer"}</button>
-            {form.id ? <button className="btn-secondary" type="button" disabled={saving} onClick={() => setForm(emptyForm)}>New</button> : null}
-          </div>
-        </form>
-
-        <div className="space-y-2">
-          {customers.length ? customers.map((customer) => (
-            <div key={customer.id} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-3">
-              <div>
-                <div className="font-bold text-text-primary">{customer.customer_name}</div>
-                <div className="text-sm text-text-secondary">{[customer.customer_code, customer.customer_type, customer.contact_person, customer.phone].filter(Boolean).join(" · ") || "No contact details"}</div>
-                {customer.address ? <div className="mt-1 text-xs text-text-muted">{customer.address}</div> : null}
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <Badge tone={customer.status === "active" ? "success" : "neutral"}>{customer.status}</Badge>
-                <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={saving} onClick={() => edit(customer)}>Edit</button>
-                {customer.status !== "archived" ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" disabled={saving} onClick={() => archive(customer)}>Archive</button> : null}
-              </div>
-            </div>
-          )) : <EmptyState title="No customers" description="Create a Factory customer before recording finished goods dispatches." />}
         </div>
-      </div>
+      </form>
     </Modal>
   );
 }
@@ -4410,6 +4410,23 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     }
   }
 
+  async function restoreFactoryCustomer(customer) {
+    const confirmed = await ui?.confirm?.({
+      title: "Restore Factory Customer?",
+      message: `${customer.customer_name} will become available for new finished goods dispatch documents.`,
+      confirmLabel: "Restore",
+      tone: "info",
+    });
+    if (!confirmed) return;
+    try {
+      await factoryService.saveFactoryCustomer({ ...customer, status: "active" }, auth?.profile?.id);
+      ui?.notify?.({ title: "Factory customer restored", tone: "success" });
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to restore Factory customer", message: error.message, tone: "error" });
+    }
+  }
+
   async function completeProduction(form) {
     try {
       await factoryService.completeProduction(form, auth?.profile?.id);
@@ -4804,8 +4821,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     { key: "email", label: "Email", render: (row) => row.email || "—" },
     { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge> },
     { key: "actions", label: "Actions", align: "right", render: (row) => (
-      <div className="flex justify-end gap-2">
-        {can("factory_customers.edit") || can("factory_customers.manage") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "factory-customers", value: row })}>Manage</button> : null}
+      <div className="flex flex-wrap justify-end gap-2">
+        {can("factory_customers.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "factory-customers", value: row })}>Edit</button> : null}
+        {row.status === "archived"
+          ? can("factory_customers.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => restoreFactoryCustomer(row)}>Restore</button> : null
+          : can("factory_customers.delete") ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => archiveFactoryCustomer(row)}>Archive</button> : null}
       </div>
     ) },
   ];
@@ -5628,7 +5648,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           section="System"
           title="Customers"
           description="Manage Factory customers and destinations used by finished goods dispatch documents."
-          actions={can("factory_customers.create") || can("factory_customers.manage") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "factory-customers" })}><Truck size={15} /> Customer</button> : null}
+          actions={can("factory_customers.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "factory-customers" })}><Truck size={15} /> Create Customer</button> : null}
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={Truck} label="Total Customers" value={data.factoryCustomers.length} helper="Active and archived" />
@@ -6673,10 +6693,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       ) : null}
       {modal?.type === "factory-customers" ? (
         <FactoryCustomerModal
-          customers={data.factoryCustomers}
+          initialValue={modal.value}
           onClose={() => setModal(null)}
-          onSave={(form) => saveFactoryCustomer(form, { keepOpen: true })}
-          onArchive={(customer) => archiveFactoryCustomer(customer, { keepOpen: true })}
+          onSave={saveFactoryCustomer}
         />
       ) : null}
       {modal?.type === "production" ? (
