@@ -645,6 +645,13 @@ function dispatchTotalLabel(dispatch) {
   return `${Number(dispatch.items_count || items.length).toLocaleString("en-MY")} SKU${Number(dispatch.items_count || items.length) === 1 ? "" : "s"}`;
 }
 
+function dispatchLineBaseEquivalentLabel(item) {
+  const qty = Number(item?.quantity || 0);
+  const base = normalizePackSizeToBase(item?.pack_size_qty || item?.base_qty, item?.pack_size_uom || item?.base_uom);
+  if (!qty || !base) return "—";
+  return quantity(qty * base.amount, base.uom);
+}
+
 function movementBaseEquivalentLabel(movement) {
   const movementQty = Number(movement?.quantity || 0);
   const base = normalizePackSizeToBase(movement?.pack_size_qty || movement?.base_qty, movement?.pack_size_uom || movement?.base_uom);
@@ -1882,7 +1889,7 @@ function CompletedJobOrderResultModal({ job, production, recipes = [], onClose }
   );
 }
 
-function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers = [], onClose, onSave, embedded = false }) {
+function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers = [], onClose, onSave, embedded = false, mode = "edit" }) {
   const makeItem = () => ({ row_id: Math.random().toString(36).slice(2), finished_good_id: "", quantity: "", batch_no: "", remarks: "" });
   const [form, setForm] = useState(() => ({
     dispatch_date: todayInput(),
@@ -1896,7 +1903,8 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
   }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const isReadOnly = Boolean(initialValue?.id) && initialValue.status !== "draft";
+  const isViewMode = mode === "view" || (Boolean(initialValue?.id) && initialValue.status !== "draft");
+  const isReadOnly = isViewMode;
   const activeSkus = finishedGoods.filter((sku) => sku.status === "active" || form.items.some((item) => item.finished_good_id === sku.id));
   const activeCustomers = customers.filter((customer) => customer.status === "active" || customer.id === form.customer_id);
   const customerOptions = activeCustomers.map((customer) => ({
@@ -1910,6 +1918,124 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
     helper: `${skuBalanceLabel(sku)} available · ${packSizeText(sku) || "No pack size"}`,
   }));
   const showReferenceField = Boolean(initialValue?.reference_no);
+
+  if (isViewMode) {
+    const statusToneValue = form.status === "completed" ? "success" : form.status === "cancelled" ? "neutral" : "warning";
+    return (
+      <Modal
+        title="Finished Goods Dispatch"
+        description="Read-only finished goods dispatch document."
+        size="xl"
+        onClose={onClose}
+        footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}
+      >
+        <div className="space-y-5">
+          <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-border bg-slate-50 p-4">
+            <div>
+              <div className="text-[10.5px] font-semibold text-text-muted">Dispatch No</div>
+              <div className="mt-1 text-2xl font-black text-text-primary">{form.dispatch_no || "—"}</div>
+            </div>
+            <Badge tone={statusToneValue}>{jobStatusLabel(form.status)}</Badge>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-4">
+            <div className="rounded-xl border border-border bg-white px-3 py-2">
+              <div className="text-[10.5px] font-semibold text-text-muted">Dispatch Date</div>
+              <div className="mt-1 text-sm font-bold text-text-primary">{form.dispatch_date || "—"}</div>
+            </div>
+            <div className="rounded-xl border border-border bg-white px-3 py-2">
+              <div className="text-[10.5px] font-semibold text-text-muted">Customer</div>
+              <div className="mt-1 text-sm font-bold text-text-primary">{form.customer_name || "—"}</div>
+            </div>
+            <div className="rounded-xl border border-border bg-white px-3 py-2">
+              <div className="text-[10.5px] font-semibold text-text-muted">Customer Type</div>
+              <div className="mt-1 text-sm font-bold text-text-primary">{form.customer_type || "—"}</div>
+            </div>
+            <div className="rounded-xl border border-border bg-white px-3 py-2">
+              <div className="text-[10.5px] font-semibold text-text-muted">{form.completed_at ? "Completed" : "Created"}</div>
+              <div className="mt-1 text-sm font-bold text-text-primary">{factoryTimeLabel(form.completed_at || form.created_at)}</div>
+            </div>
+            {form.reference_no ? (
+              <div className="rounded-xl border border-border bg-white px-3 py-2 md:col-span-2">
+                <div className="text-[10.5px] font-semibold text-text-muted">Reference</div>
+                <div className="mt-1 text-sm font-bold text-text-primary">{form.reference_no}</div>
+              </div>
+            ) : null}
+          </div>
+
+          <div className="rounded-2xl border border-border bg-white">
+            <div className="border-b border-border px-4 py-3">
+              <div className="font-bold text-text-primary">Dispatch Lines</div>
+            </div>
+            <div className="space-y-3 p-4 md:hidden">
+              {form.items.length ? form.items.map((item) => (
+                <div key={item.row_id} className="rounded-xl border border-border bg-slate-50 p-3">
+                  <div className="font-bold text-text-primary">{item.product_code || "No SKU"}</div>
+                  <div className="text-sm text-text-secondary">{item.product_name || item.sku_product_name || "Finished Good"}</div>
+                  <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
+                    <div><div className="text-[10.5px] font-semibold text-text-muted">Dispatch Qty</div><div className="font-bold text-text-primary">{quantity(item.quantity, pluralizePackagingType(packagingTypeLabel(item), item.quantity))}</div></div>
+                    <div><div className="text-[10.5px] font-semibold text-text-muted">Pack Size</div><div className="font-bold text-text-primary">{packSizeText(item) || "—"}</div></div>
+                    <div><div className="text-[10.5px] font-semibold text-text-muted">Base Equivalent</div><div className="font-bold text-text-primary">{dispatchLineBaseEquivalentLabel(item)}</div></div>
+                    <div><div className="text-[10.5px] font-semibold text-text-muted">Remarks</div><div className="font-bold text-text-primary">{item.remarks || "—"}</div></div>
+                  </div>
+                </div>
+              )) : <EmptyState title="No dispatch lines" description="No Packaging SKU rows were saved for this dispatch." />}
+            </div>
+            <div className="hidden md:block">
+              <table className="w-full text-left">
+                <thead>
+                  <tr className="border-b border-border bg-slate-50 text-[11px] font-semibold text-text-muted">
+                    <th className="px-4 py-2.5">Packaging SKU</th>
+                    <th className="px-4 py-2.5">Finished Good</th>
+                    <th className="px-4 py-2.5">Dispatch Qty</th>
+                    <th className="px-4 py-2.5">Pack Size</th>
+                    <th className="px-4 py-2.5">Base Equivalent</th>
+                    <th className="px-4 py-2.5">Remarks</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {form.items.length ? form.items.map((item) => (
+                    <tr key={item.row_id} className="border-b border-border last:border-0">
+                      <td className="px-4 py-3"><div className="font-bold text-text-primary">{item.product_code || "No SKU"}</div><div className="text-xs text-text-secondary">{item.variant_name || packSizeText(item) || "Packaging SKU"}</div></td>
+                      <td className="px-4 py-3 text-sm font-semibold text-text-secondary">{item.product_name || item.sku_product_name || "—"}</td>
+                      <td className="px-4 py-3 text-sm font-bold text-text-primary">{quantity(item.quantity, pluralizePackagingType(packagingTypeLabel(item), item.quantity))}</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-text-secondary">{packSizeText(item) || "—"}</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-text-secondary">{dispatchLineBaseEquivalentLabel(item)}</td>
+                      <td className="px-4 py-3 text-sm text-text-secondary">{item.remarks || "—"}</td>
+                    </tr>
+                  )) : (
+                    <tr><td className="px-4 py-6 text-center text-sm font-semibold text-text-secondary" colSpan={6}>No dispatch lines were saved for this dispatch.</td></tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+
+          <div className="grid gap-3 md:grid-cols-3">
+            <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
+              <div className="text-[10.5px] font-semibold text-text-muted">Total Items</div>
+              <div className="mt-1 text-lg font-black text-text-primary">{Number(form.items_count || form.items.length || 0).toLocaleString("en-MY")}</div>
+            </div>
+            <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
+              <div className="text-[10.5px] font-semibold text-text-muted">Total Dispatch</div>
+              <div className="mt-1 text-lg font-black text-text-primary">{dispatchTotalLabel(form)}</div>
+            </div>
+            <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
+              <div className="text-[10.5px] font-semibold text-text-muted">Status</div>
+              <div className="mt-1"><Badge tone={statusToneValue}>{jobStatusLabel(form.status)}</Badge></div>
+            </div>
+          </div>
+
+          {form.remarks ? (
+            <div className="rounded-2xl border border-border bg-white p-4">
+              <div className="font-bold text-text-primary">Remarks</div>
+              <div className="mt-2 text-sm text-text-secondary">{form.remarks}</div>
+            </div>
+          ) : null}
+        </div>
+      </Modal>
+    );
+  }
 
   function updateItem(rowId, patch) {
     setForm((current) => ({
@@ -6482,18 +6608,18 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const completedToday = data.finishedGoodDispatches.filter((row) => row.status === "completed" && String(row.completed_at || row.dispatch_date || "").slice(0, 10) === today);
     const customersToday = new Set(completedToday.map((row) => row.customer_id || row.customer_name).filter(Boolean)).size;
     const dispatchColumns = [
+      { key: "dispatch_date", label: "Date", render: (row) => row.dispatch_date || "—" },
       { key: "dispatch_no", label: "Dispatch No.", render: (row) => <div><div className="font-bold text-text-primary">{row.dispatch_no}</div><div className="text-xs text-text-secondary">{row.reference_no || "No reference"}</div></div> },
       { key: "customer_name", label: "Customer", render: (row) => <div><div className="font-semibold text-text-primary">{row.customer_name || "—"}</div><div className="text-xs text-text-secondary">{row.customer_code || row.customer_type || "Dispatch destination"}</div></div> },
       { key: "items_count", label: "Items", render: (row) => Number(row.items_count || 0).toLocaleString("en-MY") },
       { key: "total_qty", label: "Total Dispatch", render: (row) => dispatchTotalLabel(row) },
       { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "completed" ? "success" : row.status === "cancelled" ? "neutral" : "warning"}>{jobStatusLabel(row.status)}</Badge> },
-      { key: "dispatch_date", label: "Date", render: (row) => row.dispatch_date || "—" },
       { key: "actions", label: "Actions", align: "right", render: (row) => (
         <div className="flex flex-wrap justify-end gap-2">
-          <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-dispatch", value: row })}>View</button>
-          {row.status === "draft" && can("factory_finished_goods_dispatch.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-dispatch", value: row })}>Edit</button> : null}
-          {row.status === "draft" && can("factory_finished_goods_dispatch.complete") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => completeFinishedGoodDispatch(row)}>Complete</button> : null}
-          {row.status === "draft" && can("factory_finished_goods_dispatch.delete") ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => cancelFinishedGoodDispatch(row)}>Cancel</button> : null}
+          <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-dispatch", value: row, mode: "view" })}>View</button>
+          {row.status === "draft" && can("factory_finished_goods_dispatch.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-dispatch", value: row, mode: "edit" })}>Edit</button> : null}
+          {row.status === "draft" && can("factory_finished_goods_dispatch.complete") ? <button className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700" type="button" onClick={() => completeFinishedGoodDispatch(row)}>Complete</button> : null}
+          {row.status === "draft" && can("factory_finished_goods_dispatch.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => cancelFinishedGoodDispatch(row)}>Cancel</button> : null}
         </div>
       ) },
     ];
@@ -6640,6 +6766,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           customers={data.factoryCustomers}
           onClose={() => setModal(null)}
           onSave={saveFinishedGoodDispatch}
+          mode={modal.mode}
         />
       ) : null}
       {modal?.type === "receiving-batch-detail" ? (
