@@ -4824,8 +4824,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       <div className="flex flex-wrap justify-end gap-2">
         {can("factory_customers.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "factory-customers", value: row })}>Edit</button> : null}
         {row.status === "archived"
-          ? can("factory_customers.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => restoreFactoryCustomer(row)}>Restore</button> : null
-          : can("factory_customers.delete") ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => archiveFactoryCustomer(row)}>Archive</button> : null}
+          ? can("factory_customers.edit") ? <button className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50" type="button" onClick={() => restoreFactoryCustomer(row)}>Restore</button> : null
+          : can("factory_customers.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => archiveFactoryCustomer(row)}>Archive</button> : null}
       </div>
     ) },
   ];
