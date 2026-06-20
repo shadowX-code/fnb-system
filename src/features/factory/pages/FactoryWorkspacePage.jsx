@@ -64,6 +64,14 @@ function formatDateDisplay(value, placeholder = "Select date") {
   return `${day}/${month}/${year}`;
 }
 
+function formatMovementDate(value) {
+  if (!value) return "—";
+  const [year, month, day] = String(value).slice(0, 10).split("-");
+  const parsed = year && month && day ? new Date(Number(year), Number(month) - 1, Number(day)) : new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "—";
+  return parsed.toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" });
+}
+
 function monthStart(value) {
   const date = value ? new Date(`${value}T00:00:00`) : new Date();
   return new Date(date.getFullYear(), date.getMonth(), 1);
@@ -660,11 +668,15 @@ function movementBaseEquivalentLabel(movement) {
 }
 
 function movementSourceLabel(movement) {
-  if (movement?.reference_type === "production") return "Completed Production";
-  if (movement?.reference_type === "finished_goods_dispatch") return "Finished Goods Dispatch";
-  if (movement?.reference_type === "stock_check") return "Stock Check Adjustment";
+  if (movement?.reference_type === "production") return "Production";
+  if (movement?.reference_type === "finished_goods_dispatch") return "Dispatch";
+  if (movement?.reference_type === "stock_check" || movement?.reference_type === "product_stock_check") return "Stock Check";
   if (movement?.reference_type === "manual_adjustment") return "Manual Adjustment";
   return movement?.reference_type || "—";
+}
+
+function movementSourceReference(movement) {
+  return movement?.source_reference || movement?.reference_no || movement?.batch_no || "—";
 }
 
 function movementTypeLabel(movement) {
@@ -6672,7 +6684,13 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   function renderProductMovements() {
     const rows = filteredProductMovements().map((movement) => {
       const linkedProduction = data.productions.find((production) => production.id === movement.reference_id || production.production_no === movement.reference_no);
-      return { ...movement, batch_no: linkedProduction?.batch_no || "", source_label: movementSourceLabel(movement), movement_type_label: movementTypeLabel(movement) };
+      return {
+        ...movement,
+        batch_no: linkedProduction?.batch_no || "",
+        source_label: movementSourceLabel(movement),
+        source_reference: movement.reference_type === "production" ? linkedProduction?.job_order_no || movement.reference_no : movement.reference_no,
+        movement_type_label: movementTypeLabel(movement),
+      };
     });
     return (
       <div className="space-y-5">
@@ -6692,15 +6710,14 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Card title="Finished Goods Movement History" description="Movement logs are read-only here; stock balance remains managed by production completion and approved stock checks.">
           <FactoryTable
             columns={[
-              { key: "movement_date", label: "Date", render: (row) => row.movement_date || "—" },
+              { key: "movement_date", label: "Date", render: (row) => <span className="whitespace-nowrap font-semibold text-text-primary">{formatMovementDate(row.movement_date)}</span> },
               { key: "movement_type", label: "Type", render: (row) => <Badge tone={row.quantity >= 0 ? "success" : "warning"}>{row.movement_type_label}</Badge> },
-              { key: "product_name", label: "Finished Good", render: (row) => <div><div className="font-semibold text-text-primary">{row.product_family_name || row.product_name || "Finished Good"}</div><div className="text-xs text-text-secondary">{row.sku_product_name && row.sku_product_name !== row.product_name ? row.sku_product_name : "Packaging SKU movement"}</div></div> },
-              { key: "packaging_sku", label: "Packaging SKU", render: (row) => <div><div className="font-semibold text-text-primary">{[row.product_code || "No SKU", row.variant_name || packSizeText(row) || "Packaging SKU"].filter(Boolean).join(" · ")}</div><div className="text-xs text-text-secondary">{row.reference_no ? `Ref: ${row.reference_no}` : "No movement ref"}</div></div> },
+              { key: "product_name", label: "Finished Good", render: (row) => <div className="font-semibold text-text-primary">{row.product_family_name || row.product_name || "Finished Good"}</div> },
+              { key: "packaging_sku", label: "Packaging SKU", render: (row) => <div><div className="font-semibold text-text-primary">{row.product_code || "No SKU"}</div><div className="text-xs font-medium text-text-secondary">{row.variant_name || packSizeText(row) || "Packaging SKU"}</div></div> },
               { key: "quantity", label: "Qty", render: (row) => <div className="font-bold text-text-primary">{movementPackagingQtyLabel(row)}</div> },
-              { key: "pack_size", label: "Pack Size", render: (row) => packSizeText(row) || "—" },
               { key: "base_equivalent", label: "Base Equivalent", render: (row) => movementBaseEquivalentLabel(row) },
               { key: "batch_no", label: "Batch", render: (row) => row.batch_no || "—" },
-              { key: "source", label: "Source", render: (row) => <div><div className="font-semibold text-text-primary">{row.source_label}</div>{row.notes ? <div className="text-xs text-text-secondary">{row.notes}</div> : null}</div> },
+              { key: "source", label: "Source", render: (row) => <div><div className="font-semibold text-text-primary">{row.source_label}</div><div className="text-xs font-medium text-text-secondary">{movementSourceReference(row)}</div></div> },
             ]}
             rows={rows}
             emptyTitle="No finished goods movements"
