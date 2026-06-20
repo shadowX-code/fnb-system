@@ -61,15 +61,14 @@ function formatDateDisplay(value, placeholder = "Select date") {
   if (!value) return placeholder;
   const [year, month, day] = String(value).split("-");
   if (!year || !month || !day) return placeholder;
-  return `${day}/${month}/${year}`;
+  return `${year}-${month}-${day}`;
 }
 
-function formatMovementDate(value) {
+function formatFactoryDate(value) {
   if (!value) return "—";
   const [year, month, day] = String(value).slice(0, 10).split("-");
-  const parsed = year && month && day ? new Date(Number(year), Number(month) - 1, Number(day)) : new Date(value);
-  if (Number.isNaN(parsed.getTime())) return "—";
-  return parsed.toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" });
+  if (year && month && day) return `${year}-${month}-${day}`;
+  return String(value).slice(0, 10) || "—";
 }
 
 function monthStart(value) {
@@ -640,7 +639,16 @@ function skuBalanceLabel(sku) {
 
 function movementPackagingQtyLabel(movement) {
   const movementQty = Number(movement?.quantity || 0);
-  return quantity(movementQty, pluralizePackagingType(packagingTypeLabel(movement), Math.abs(movementQty)));
+  const label = quantity(Math.abs(movementQty), pluralizePackagingType(packagingTypeLabel(movement), Math.abs(movementQty)));
+  if (movementQty > 0) return `+${label}`;
+  if (movementQty < 0) return `-${label}`;
+  return label;
+}
+
+function movementBalanceLabel(movement) {
+  if (movement?.balance_after == null) return "—";
+  const balance = Number(movement.balance_after || 0);
+  return quantity(balance, pluralizePackagingType(packagingTypeLabel(movement), balance));
 }
 
 function dispatchTotalLabel(dispatch) {
@@ -660,13 +668,6 @@ function dispatchLineBaseEquivalentLabel(item) {
   return quantity(qty * base.amount, base.uom);
 }
 
-function movementBaseEquivalentLabel(movement) {
-  const movementQty = Number(movement?.quantity || 0);
-  const base = normalizePackSizeToBase(movement?.pack_size_qty || movement?.base_qty, movement?.pack_size_uom || movement?.base_uom);
-  if (!movementQty || !base) return "—";
-  return quantity(movementQty * base.amount, base.uom);
-}
-
 function movementSourceLabel(movement) {
   if (movement?.reference_type === "production") return "Production";
   if (movement?.reference_type === "finished_goods_dispatch") return "Dispatch";
@@ -680,9 +681,18 @@ function movementSourceReference(movement) {
 }
 
 function movementTypeLabel(movement) {
-  if (movement?.reference_type === "production" && Number(movement?.quantity || 0) > 0) return "Production Stock In";
+  if (movement?.reference_type === "production" && Number(movement?.quantity || 0) > 0) return "Production In";
   if (movement?.reference_type === "finished_goods_dispatch") return "Dispatch Out";
+  if (movement?.reference_type === "stock_check" || movement?.reference_type === "product_stock_check") return "Stock Check";
   return movement?.movement_type || "Movement";
+}
+
+function compareProductMovementsDesc(a, b) {
+  const dateCompare = String(b?.movement_date || "").localeCompare(String(a?.movement_date || ""));
+  if (dateCompare) return dateCompare;
+  const createdCompare = String(b?.created_at || "").localeCompare(String(a?.created_at || ""));
+  if (createdCompare) return createdCompare;
+  return String(b?.id || "").localeCompare(String(a?.id || ""));
 }
 
 function normalizePackSizeToBase(qty, uom) {
@@ -918,7 +928,7 @@ function FinishedGoodDetailModal({ product, productions, movements, productionCo
           <FactoryTable
             columns={[
               { key: "production", label: "Production", render: (row) => <div><div className="font-bold text-text-primary">{row.production_no}</div><div className="text-xs text-text-secondary">{row.batch_no || "No batch"}</div></div> },
-              { key: "production_date", label: "Date", render: (row) => row.production_date || "—" },
+              { key: "production_date", label: "Date", render: (row) => formatFactoryDate(row.production_date) },
               { key: "output", label: "Good Output", render: (row) => quantity(row.good_output_qty || row.produced_quantity, row.uom) },
               { key: "qc_status", label: "QC", render: (row) => <Badge tone={row.qc_status === "Pass" ? "success" : row.qc_status === "Failed" ? "danger" : row.qc_status === "Hold" ? "warning" : "neutral"}>{row.qc_status}</Badge> },
             ]}
@@ -933,7 +943,7 @@ function FinishedGoodDetailModal({ product, productions, movements, productionCo
               { key: "reference_no", label: "Reference", render: (row) => <div><div className="font-bold text-text-primary">{row.reference_no || "—"}</div><div className="text-xs text-text-secondary">{row.reference_type || "No source"}</div></div> },
               { key: "movement_type", label: "Movement", render: (row) => <Badge tone={row.quantity >= 0 ? "success" : "warning"}>{row.movement_type}</Badge> },
               { key: "quantity", label: "Qty", render: (row) => quantity(row.quantity, row.uom) },
-              { key: "movement_date", label: "Date", render: (row) => row.movement_date || "—" },
+              { key: "movement_date", label: "Date", render: (row) => formatFactoryDate(row.movement_date) },
             ]}
             rows={productMovements}
             emptyTitle="No movement history"
@@ -945,7 +955,7 @@ function FinishedGoodDetailModal({ product, productions, movements, productionCo
             columns={[
               { key: "batch_no", label: "Batch", render: (row) => row.batch_no || "—" },
               { key: "production_no", label: "Production", render: (row) => row.production_no },
-              { key: "production_date", label: "Date", render: (row) => row.production_date || "—" },
+              { key: "production_date", label: "Date", render: (row) => formatFactoryDate(row.production_date) },
               { key: "operator_name", label: "Operator", render: (row) => row.operator_name || "—" },
             ]}
             rows={batchRows}
@@ -1378,7 +1388,7 @@ function RawMaterialDetailModal({ material, receivings, movements, stockChecks, 
         <Card title="Receiving History" description="Supplier receiving rows linked to this raw material.">
           <FactoryTable
             columns={[
-              { key: "receipt", label: "Receipt", render: (row) => <div><div className="font-bold text-text-primary">{row.receipt_no}</div><div className="text-xs text-text-secondary">{row.received_date}</div></div> },
+              { key: "receipt", label: "Receipt", render: (row) => <div><div className="font-bold text-text-primary">{row.receipt_no}</div><div className="text-xs text-text-secondary">{formatFactoryDate(row.received_date)}</div></div> },
               { key: "supplier_name", label: "Supplier", render: (row) => row.supplier_name || "—" },
               { key: "batch_no", label: "Batch", render: (row) => row.batch_no || "—" },
               { key: "qty", label: "Qty", render: (row) => quantity(row.received_qty, row.uom) },
@@ -1395,7 +1405,7 @@ function RawMaterialDetailModal({ material, receivings, movements, stockChecks, 
               { key: "reference", label: "Reference", render: (row) => <div><div className="font-bold text-text-primary">{row.reference_no || "—"}</div><div className="text-xs text-text-secondary">{row.reference_type || "No source"}</div></div> },
               { key: "movement_type", label: "Movement", render: (row) => <Badge tone={row.quantity >= 0 ? "success" : "warning"}>{row.movement_type}</Badge> },
               { key: "quantity", label: "Qty", render: (row) => quantity(row.quantity, row.uom) },
-              { key: "movement_date", label: "Date", render: (row) => row.movement_date || "—" },
+              { key: "movement_date", label: "Date", render: (row) => formatFactoryDate(row.movement_date) },
               { key: "notes", label: "Notes", render: (row) => row.notes || "—" },
             ]}
             rows={materialMovements}
@@ -1406,7 +1416,7 @@ function RawMaterialDetailModal({ material, receivings, movements, stockChecks, 
         <Card title="Stock Check History" description="Physical count rows for this raw material.">
           <FactoryTable
             columns={[
-              { key: "check_no", label: "Check", render: (row) => <div><div className="font-bold text-text-primary">{row.check_no}</div><div className="text-xs text-text-secondary">{row.check_date}</div></div> },
+              { key: "check_no", label: "Check", render: (row) => <div><div className="font-bold text-text-primary">{row.check_no}</div><div className="text-xs text-text-secondary">{formatFactoryDate(row.check_date)}</div></div> },
               { key: "variance_qty", label: "Variance Qty", render: (row) => quantity(row.variance_qty, row.uom) },
               { key: "variance_percent", label: "Variance %", render: (row) => percent(row.variance_percent) },
               { key: "variance_status", label: "Variance", render: (row) => <Badge tone={stockVarianceTone(row.variance_status)}>{row.variance_status}</Badge> },
@@ -1420,7 +1430,7 @@ function RawMaterialDetailModal({ material, receivings, movements, stockChecks, 
         <Card title="Supplier Cost Trend" description="Recent receiving unit cost by supplier.">
           <FactoryTable
             columns={[
-              { key: "received_date", label: "Date", render: (row) => row.received_date || "—" },
+              { key: "received_date", label: "Date", render: (row) => formatFactoryDate(row.received_date) },
               { key: "supplier_name", label: "Supplier", render: (row) => row.supplier_name || "—" },
               { key: "batch_no", label: "Batch", render: (row) => row.batch_no || "—" },
               { key: "unit_cost", label: "Unit Cost", align: "right", render: (row) => money(row.unit_cost) },
@@ -1790,13 +1800,13 @@ function CompletedJobOrderResultModal({ job, production, recipes = [], onClose }
     ["Packaging SKU", jobPackagingSkuLabel(job || production || {})],
     ["Target Production Qty", quantity(job?.target_production_qty || job?.target_quantity, job?.uom)],
     ["Estimated Pack Qty", quantity(job?.target_pack_qty || 0, "packs")],
-    ["Planned Date", job?.planned_date || "—"],
-    ["Due Date", job?.due_date || "—"],
+    ["Planned Date", formatFactoryDate(job?.planned_date)],
+    ["Due Date", formatFactoryDate(job?.due_date)],
     ["Priority", job?.priority || "—"],
   ];
   const resultItems = production ? [
     ["Batch No", production.batch_no || "—"],
-    ["Production Date", production.production_date || "—"],
+    ["Production Date", formatFactoryDate(production.production_date)],
     ["Operator", production.operator_name || "—"],
     ["Start Time", factoryTimeLabel(production.start_time)],
     ["End Time", factoryTimeLabel(production.end_time)],
@@ -1953,7 +1963,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
           <div className="grid gap-3 md:grid-cols-4">
             <div className="rounded-xl border border-border bg-white px-3 py-2">
               <div className="text-[10.5px] font-semibold text-text-muted">Dispatch Date</div>
-              <div className="mt-1 text-sm font-bold text-text-primary">{form.dispatch_date || "—"}</div>
+              <div className="mt-1 text-sm font-bold text-text-primary">{formatFactoryDate(form.dispatch_date)}</div>
             </div>
             <div className="rounded-xl border border-border bg-white px-3 py-2">
               <div className="text-[10.5px] font-semibold text-text-muted">Customer</div>
@@ -3321,7 +3331,7 @@ function ProductRecipeDetailModal({ recipe, onClose, onEdit, onNewVersion, onAct
           <MetricCard icon={PackageCheck} label="Production Quantity" value={quantity(recipe.yield_quantity, recipe.uom)} helper="Standard output" />
           <MetricCard icon={Clock3} label="Estimated Time" value={productionTimeLabel(recipe.estimated_production_time_minutes)} helper="Production standard" />
           <MetricCard icon={Package} label="Materials" value={recipe.items?.length || 0} helper="BOM rows" />
-          <MetricCard icon={CheckCircle2} label="Status" value={jobStatusLabel(recipe.status)} helper={recipe.updated_at ? `Updated ${String(recipe.updated_at).slice(0, 10)}` : "Not updated"} />
+          <MetricCard icon={CheckCircle2} label="Status" value={jobStatusLabel(recipe.status)} helper={recipe.updated_at ? `Updated ${formatFactoryDate(recipe.updated_at)}` : "Not updated"} />
         </div>
         <Card title="BOM Materials" description="Standard raw material requirements for this production quantity.">
           <FactoryTable
@@ -3395,7 +3405,7 @@ function StartProductionModal({ job, auth, onClose, onSave }) {
         <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
           <div className="text-sm font-semibold text-primary">Job Order Summary</div>
           <div className="mt-1 text-lg font-bold text-text-primary">{job.job_order_no} · {job.product_name}</div>
-          <div className="mt-1 text-sm font-semibold text-text-secondary">Target {quantity(job.target_quantity, job.uom)} · Due {job.due_date || "No due date"} · Team {job.assigned_team || "Unassigned"}</div>
+        <div className="mt-1 text-sm font-semibold text-text-secondary">Target {quantity(job.target_quantity, job.uom)} · Due {job.due_date ? formatFactoryDate(job.due_date) : "No due date"} · Team {job.assigned_team || "Unassigned"}</div>
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           <Field label="Operator">
@@ -4886,8 +4896,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     { key: "finished_good", label: "Finished Good", render: (row) => <div><div className="font-semibold text-text-primary">{jobFinishedGoodName(row)}</div><div className="text-xs text-text-secondary">{row.product_name_cn || row.product_name_bm || "Finished Good"}</div></div> },
     { key: "product_code", label: "Packaging SKU", render: (row) => <div><div className="font-semibold text-text-primary">{row.variant_name || packSizeText(row) || "Packaging SKU"}</div><div className="text-xs text-text-secondary">{row.product_code || "No SKU"}</div></div> },
     { key: "target", label: "Target Production", render: (row) => <div><div className="font-semibold text-text-primary">{quantity(row.target_production_qty || row.target_quantity, row.uom)}</div><div className="text-xs text-text-secondary">{quantity(row.target_pack_qty || 0, "packs")}</div></div> },
-    { key: "planned_date", label: "Planned Date", render: (row) => row.planned_date || "—" },
-    { key: "due_date", label: "Due Date", render: (row) => row.due_date || "—" },
+    { key: "planned_date", label: "Planned Date", render: (row) => formatFactoryDate(row.planned_date) },
+    { key: "due_date", label: "Due Date", render: (row) => formatFactoryDate(row.due_date) },
     { key: "progress", label: "Progress", render: (row) => {
       const progress = jobProgressPercent(row);
       return (
@@ -4924,7 +4934,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   ];
 
   const receivingBatchColumns = [
-    { key: "received_date", label: "Received Date", render: (row) => row.received_date || "—" },
+    { key: "received_date", label: "Received Date", render: (row) => formatFactoryDate(row.received_date) },
     { key: "reference_no", label: "Reference No.", render: (row) => <div><div className="font-bold text-text-primary">{row.reference_no || row.batch_no}</div><div className="text-xs text-text-secondary">{row.batch_no}</div></div> },
     { key: "supplier_name", label: "Supplier", render: (row) => row.supplier_name || "—" },
     { key: "items_count", label: "Items Count", render: (row) => Number(row.items_count || 0).toLocaleString("en-MY") },
@@ -4975,8 +4985,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
     { key: "current_balance", label: "Current Balance", render: (row) => quantity(row.current_balance, row.uom) },
     { key: "min_stock_level", label: "Min Stock", render: (row) => quantity(row.min_stock_level, row.uom) },
-    { key: "last_receiving_date", label: "Last Receiving", render: (row) => row.last_receiving_date || "—" },
-    { key: "last_consumption_date", label: "Last Consumption", render: (row) => row.last_consumption_date || "—" },
+    { key: "last_receiving_date", label: "Last Receiving", render: (row) => formatFactoryDate(row.last_receiving_date) },
+    { key: "last_consumption_date", label: "Last Consumption", render: (row) => formatFactoryDate(row.last_consumption_date) },
     { key: "status", label: "Status", render: (row) => (
       <div className="flex flex-wrap gap-1.5">
         <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge>
@@ -5012,7 +5022,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   const productionColumns = [
     { key: "production", label: "Production", render: (row) => <div><div className="font-bold text-text-primary">{row.production_no}</div><div className="text-xs text-text-secondary">{row.product_name} · {row.batch_no || "No batch"}</div></div> },
-    { key: "production_date", label: "Date", render: (row) => row.production_date || "—" },
+    { key: "production_date", label: "Date", render: (row) => formatFactoryDate(row.production_date) },
     { key: "operator", label: "Operator", render: (row) => row.operator_name || "—" },
     { key: "output", label: "Output", render: (row) => <div><div className="font-semibold text-text-primary">{quantity(row.good_output_qty, row.uom)}</div><div className="text-xs text-text-secondary">Waste {quantity(row.wastage_qty, row.uom)}</div></div> },
     { key: "qc_status", label: "QC", render: (row) => <Badge tone={row.qc_status === "Pass" ? "success" : row.qc_status === "Failed" ? "danger" : row.qc_status === "Hold" ? "warning" : "neutral"}>{row.qc_status}</Badge> },
@@ -5044,7 +5054,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     { key: "production_quantity", label: "Production Quantity", render: (row) => quantity(row.yield_quantity, row.uom) },
     { key: "items", label: "Material Count", render: (row) => row.items?.length || 0 },
     { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : row.status === "draft" ? "info" : "neutral"}>{row.status}</Badge> },
-    { key: "updated_at", label: "Updated Date", render: (row) => row.updated_at ? String(row.updated_at).slice(0, 10) : "—" },
+    { key: "updated_at", label: "Updated Date", render: (row) => formatFactoryDate(row.updated_at) },
     { key: "actions", label: "Actions", align: "right", render: (row) => (
       <div className="flex flex-wrap justify-end gap-2" onClick={(event) => event.stopPropagation()}>
         <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "recipe-detail", value: row })}>View</button>
@@ -5059,7 +5069,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   function stockCheckColumns(stockType) {
     return [
-      { key: "check", label: "Check", render: (row) => <div><div className="font-bold text-text-primary">{row.check_no}</div><div className="text-xs text-text-secondary">{row.check_date}</div></div> },
+      { key: "check", label: "Check", render: (row) => <div><div className="font-bold text-text-primary">{row.check_no}</div><div className="text-xs text-text-secondary">{formatFactoryDate(row.check_date)}</div></div> },
       { key: "items", label: "Items", render: (row) => row.items?.length || 0 },
       { key: "variance", label: "Variance", render: (row) => {
         const warningCount = (row.items || []).filter((item) => item.variance_status === "Warning").length;
@@ -5470,7 +5480,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             columns={[
               { key: "batch", label: "Batch", render: (row) => <div><div className="font-bold text-text-primary">{row.batch_no || "No batch"}</div><div className="text-xs text-text-secondary">{row.production_no}</div></div> },
               { key: "product_name", label: "Product", render: (row) => row.product_name },
-              { key: "production_date", label: "Date", render: (row) => row.production_date || "—" },
+              { key: "production_date", label: "Date", render: (row) => formatFactoryDate(row.production_date) },
               { key: "operator", label: "Operator", render: (row) => row.operator_name || "—" },
               { key: "qc_status", label: "QC", render: (row) => <Badge tone={row.qc_status === "Failed" ? "danger" : row.qc_status === "Hold" ? "warning" : "neutral"}>{row.qc_status}</Badge> },
             ]}
@@ -5517,7 +5527,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                   <div className="text-sm font-semibold text-text-primary">{item.title}</div>
                   <div className="text-xs text-text-secondary">{item.description}</div>
                 </div>
-                <div className="text-xs font-semibold text-text-muted">{new Date(item.timestamp).toLocaleString("en-MY", { dateStyle: "medium", timeStyle: "short" })}</div>
+                <div className="text-xs font-semibold text-text-muted">{formatFactoryDate(item.timestamp)} {factoryTimeLabel(item.timestamp)}</div>
               </div>
             )) : <EmptyState title="No factory activity yet" description="Create job orders, receive raw materials or complete production to see activity." />}
           </div>
@@ -5851,7 +5861,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       { key: "storage_location", label: "Storage Location", render: (row) => row.storage_location || "—" },
       { key: "batch_no", label: "Batch No.", render: (row) => row.batch_no || "—" },
       { key: "reference", label: "Reference / Source", render: (row) => <div><div className="font-semibold text-text-primary">{row.reference_no || "—"}</div><div className="text-xs text-text-secondary">{row.reference_type || "—"}</div></div> },
-      { key: "movement_date", label: "Movement Date", render: (row) => row.movement_date || "—" },
+      { key: "movement_date", label: "Movement Date", render: (row) => formatFactoryDate(row.movement_date) },
       { key: "created_by", label: "Created By", render: (row) => row.created_by_name || "—" },
       { key: "remarks", label: "Remarks", render: (row) => row.remarks || "—" },
     ];
@@ -5928,7 +5938,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <Card title="Recent Receiving" description="Latest supplier stock-in rows.">
             <FactoryTable
               columns={[
-                { key: "receipt_no", label: "Receipt", render: (row) => <div><div className="font-bold text-text-primary">{row.receipt_no}</div><div className="text-xs text-text-secondary">{row.received_date}</div></div> },
+                { key: "receipt_no", label: "Receipt", render: (row) => <div><div className="font-bold text-text-primary">{row.receipt_no}</div><div className="text-xs text-text-secondary">{formatFactoryDate(row.received_date)}</div></div> },
                 { key: "raw_material_name", label: "Raw Material", render: (row) => row.raw_material_name },
                 { key: "qty", label: "Qty", render: (row) => quantity(row.received_qty, row.uom) },
               ]}
@@ -5940,7 +5950,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <Card title="Recent Consumption" description="Latest production usage and stock-out movements.">
             <FactoryTable
               columns={[
-                { key: "reference_no", label: "Reference", render: (row) => <div><div className="font-bold text-text-primary">{row.reference_no || "—"}</div><div className="text-xs text-text-secondary">{row.movement_date}</div></div> },
+                { key: "reference_no", label: "Reference", render: (row) => <div><div className="font-bold text-text-primary">{row.reference_no || "—"}</div><div className="text-xs text-text-secondary">{formatFactoryDate(row.movement_date)}</div></div> },
                 { key: "raw_material_name", label: "Raw Material", render: (row) => row.raw_material_name },
                 { key: "quantity", label: "Qty", render: (row) => quantity(row.quantity, row.uom) },
               ]}
@@ -6070,7 +6080,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       { key: "job", label: "Job Order", render: (row) => <div><div className="font-bold text-text-primary">{row.job_order_no}</div><div className="text-xs text-text-secondary">{row.priority} · {jobStatusLabel(row.status)}</div></div> },
       { key: "finished_good", label: "Finished Good", render: (row) => <div><div className="font-semibold text-text-primary">{row.product_name}</div><div className="text-xs text-text-secondary">{row.product_code || "No SKU"}</div></div> },
       { key: "target", label: "Target", render: (row) => <div><div className="font-semibold text-text-primary">{quantity(row.target_pack_qty || row.target_quantity, "packs")}</div><div className="text-xs text-text-secondary">{quantity(row.target_production_qty || row.target_quantity, row.uom)}</div></div> },
-      { key: "due_date", label: "Due Date", render: (row) => row.due_date || "—" },
+      { key: "due_date", label: "Due Date", render: (row) => formatFactoryDate(row.due_date) },
       { key: "recipe", label: "Recipe", render: (row) => {
         const recipe = recipeForJob(row);
         return <Badge tone={recipe ? "success" : "warning"}>{recipe ? recipe.recipe_code || "Available" : "Missing"}</Badge>;
@@ -6117,7 +6127,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Card title="Finished Goods Movements" description="Stock-in movements created by production completion.">
           <FactoryTable
             columns={[
-              { key: "reference_no", label: "Reference", render: (row) => <div><div className="font-bold text-text-primary">{row.reference_no || "—"}</div><div className="text-xs text-text-secondary">{row.movement_date}</div></div> },
+              { key: "reference_no", label: "Reference", render: (row) => <div><div className="font-bold text-text-primary">{row.reference_no || "—"}</div><div className="text-xs text-text-secondary">{formatFactoryDate(row.movement_date)}</div></div> },
               { key: "product_name", label: "Product", render: (row) => row.product_name },
               { key: "movement_type", label: "Movement", render: (row) => <Badge tone="success">{row.movement_type}</Badge> },
               { key: "quantity", label: "Quantity", render: (row) => quantity(row.quantity, row.uom) },
@@ -6166,7 +6176,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                 </div>
                 <div className="mt-4 grid gap-3 md:grid-cols-4">
                   <div><div className="text-xs font-semibold text-text-muted">Job Order</div><div className="text-sm font-semibold text-text-primary">{row.job?.job_order_no || "—"}</div></div>
-                  <div><div className="text-xs font-semibold text-text-muted">Production Date</div><div className="text-sm font-semibold text-text-primary">{row.production_date || "—"}</div></div>
+                  <div><div className="text-xs font-semibold text-text-muted">Production Date</div><div className="text-sm font-semibold text-text-primary">{formatFactoryDate(row.production_date)}</div></div>
                   <div><div className="text-xs font-semibold text-text-muted">Operator</div><div className="text-sm font-semibold text-text-primary">{row.operator_name || "—"}</div></div>
                   <div><div className="text-xs font-semibold text-text-muted">SOP Used</div><div className="text-sm font-semibold text-text-primary">{row.sop_title ? `${row.sop_title} ${row.sop_version}` : row.sop_version || "—"}</div></div>
                 </div>
@@ -6186,7 +6196,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                     <div className="mt-2 space-y-2">
                       {row.stockInMovements.length ? row.stockInMovements.map((movement) => (
                         <div key={movement.id} className="text-xs text-text-secondary">
-                          <span className="font-semibold text-text-primary">{movement.reference_no}</span> · {quantity(movement.quantity, movement.uom)} · {movement.movement_date}
+                          <span className="font-semibold text-text-primary">{movement.reference_no}</span> · {quantity(movement.quantity, movement.uom)} · {formatFactoryDate(movement.movement_date)}
                         </div>
                       )) : <div className="text-xs text-text-secondary">No finished goods movement linked.</div>}
                     </div>
@@ -6324,7 +6334,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             columns={[
               { key: "raw_material_name", label: "Raw Material", render: (row) => row.raw_material_name },
               { key: "supplier_name", label: "Supplier", render: (row) => row.supplier_name || "—" },
-              { key: "received_date", label: "Received", render: (row) => row.received_date || "—" },
+              { key: "received_date", label: "Received", render: (row) => formatFactoryDate(row.received_date) },
               { key: "unit_cost", label: "Unit Cost", align: "right", render: (row) => Number(row.unit_cost || 0) > 0 ? money(row.unit_cost) : "Missing Cost" },
               { key: "previous_cost", label: "Previous", align: "right", render: (row) => row.previous_cost == null ? "—" : money(row.previous_cost) },
               { key: "cost_change", label: "Change", align: "right", render: (row) => row.previous_cost == null ? "—" : money(row.cost_change) },
@@ -6338,7 +6348,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Card title="Production Summary Report" description="Completed production totals with actual usage costing. Missing receiving cost is shown instead of RM0 where the cost source is unavailable.">
           <FactoryTable
             columns={[
-              { key: "production", label: "Production", render: (row) => <div><div className="font-bold text-text-primary">{row.production_no}</div><div className="text-xs text-text-secondary">{row.batch_no || "No batch"} · {row.production_date}</div></div> },
+              { key: "production", label: "Production", render: (row) => <div><div className="font-bold text-text-primary">{row.production_no}</div><div className="text-xs text-text-secondary">{row.batch_no || "No batch"} · {formatFactoryDate(row.production_date)}</div></div> },
               { key: "product_name", label: "Product", render: (row) => row.product_name },
               { key: "output", label: "Good Output", render: (row) => quantity(row.good_output_qty, row.uom) },
               { key: "yield_percent", label: "Yield", render: (row) => percent(row.yield_percent) },
@@ -6401,7 +6411,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                 { key: "product_name", label: "Product", render: (row) => row.product_name },
                 { key: "movement_type", label: "Movement", render: (row) => <Badge tone={row.quantity >= 0 ? "success" : "warning"}>{row.movement_type}</Badge> },
                 { key: "quantity", label: "Qty", render: (row) => quantity(row.quantity, row.uom) },
-                { key: "movement_date", label: "Date", render: (row) => row.movement_date || "—" },
+                { key: "movement_date", label: "Date", render: (row) => formatFactoryDate(row.movement_date) },
               ]}
               rows={movementRows}
               emptyTitle="No finished goods movements"
@@ -6472,7 +6482,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                 { label: "Production In", value: quantity(productionInQty, ""), helper: "Last 30 days" },
                 { label: "Stock Out", value: quantity(stockOutQty, ""), helper: "Last 30 days" },
                 { label: "Batch Count", value: batchCount, helper: "Total tracked batches" },
-                { label: "Latest Batch", value: latestBatch?.batch_no || "—", helper: latestBatch?.production_date || "No batches yet" },
+                { label: "Latest Batch", value: latestBatch?.batch_no || "—", helper: latestBatch?.production_date ? formatFactoryDate(latestBatch.production_date) : "No batches yet" },
               ].map((item) => (
                 <div key={item.label} className="rounded-xl border border-border bg-slate-50 p-3">
                   <div className="text-xs font-semibold uppercase tracking-wide text-text-muted">{item.label}</div>
@@ -6620,7 +6630,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const completedToday = data.finishedGoodDispatches.filter((row) => row.status === "completed" && String(row.completed_at || row.dispatch_date || "").slice(0, 10) === today);
     const customersToday = new Set(completedToday.map((row) => row.customer_id || row.customer_name).filter(Boolean)).size;
     const dispatchColumns = [
-      { key: "dispatch_date", label: "Date", render: (row) => row.dispatch_date || "—" },
+      { key: "dispatch_date", label: "Date", render: (row) => formatFactoryDate(row.dispatch_date) },
       { key: "dispatch_no", label: "Dispatch No.", render: (row) => <div><div className="font-bold text-text-primary">{row.dispatch_no}</div><div className="text-xs text-text-secondary">{row.reference_no || "No reference"}</div></div> },
       { key: "customer_name", label: "Customer", render: (row) => <div><div className="font-semibold text-text-primary">{row.customer_name || "—"}</div><div className="text-xs text-text-secondary">{row.customer_code || row.customer_type || "Dispatch destination"}</div></div> },
       { key: "items_count", label: "Items", render: (row) => Number(row.items_count || 0).toLocaleString("en-MY") },
@@ -6682,47 +6692,91 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   function renderProductMovements() {
-    const rows = filteredProductMovements().map((movement) => {
+    const balanceByMovementId = new Map();
+    const movementsBySku = data.productMovements.reduce((groups, movement) => {
+      const key = movement.finished_good_id || movement.product_code || movement.product_name || "unknown";
+      groups.set(key, [...(groups.get(key) || []), movement]);
+      return groups;
+    }, new Map());
+    movementsBySku.forEach((skuMovements) => {
+      const sorted = [...skuMovements].sort(compareProductMovementsDesc);
+      let runningBalance = sorted.find((movement) => movement.current_balance != null)?.current_balance;
+      if (runningBalance == null) return;
+      sorted.forEach((movement) => {
+        balanceByMovementId.set(movement.id, runningBalance);
+        runningBalance -= Number(movement.quantity || 0);
+      });
+    });
+    const rows = filteredProductMovements().sort(compareProductMovementsDesc).map((movement) => {
       const linkedProduction = data.productions.find((production) => production.id === movement.reference_id || production.production_no === movement.reference_no);
       return {
         ...movement,
         batch_no: linkedProduction?.batch_no || "",
+        balance_after: balanceByMovementId.get(movement.id),
         source_label: movementSourceLabel(movement),
         source_reference: movement.reference_type === "production" ? linkedProduction?.job_order_no || movement.reference_no : movement.reference_no,
         movement_type_label: movementTypeLabel(movement),
       };
     });
+    const movementColumns = [
+      { key: "movement_date", label: "Date", render: (row) => <span className="whitespace-nowrap font-semibold text-text-primary">{formatFactoryDate(row.movement_date)}</span> },
+      { key: "movement_type", label: "Type", render: (row) => <Badge tone={row.quantity >= 0 ? "success" : "warning"}>{row.movement_type_label}</Badge> },
+      { key: "product_name", label: "Finished Good", render: (row) => <div className="font-semibold text-text-primary">{row.product_family_name || row.product_name || "Finished Good"}</div> },
+      { key: "packaging_sku", label: "Packaging SKU", render: (row) => <div><div className="font-semibold text-text-primary">{row.product_code || "No SKU"}</div><div className="text-xs font-medium text-text-secondary">{row.variant_name || packSizeText(row) || "Packaging SKU"}</div></div> },
+      { key: "quantity", label: "Qty", render: (row) => <div className={`font-bold ${Number(row.quantity || 0) >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{movementPackagingQtyLabel(row)}</div> },
+      { key: "balance", label: "Balance", render: (row) => <div className="font-bold text-text-primary">{movementBalanceLabel(row)}</div> },
+      { key: "batch_no", label: "Batch", render: (row) => row.batch_no || "—" },
+      { key: "source", label: "Source", render: (row) => <div><div className="font-semibold text-text-primary">{row.source_label}</div><div className="text-xs font-medium text-text-secondary">{movementSourceReference(row)}</div></div> },
+    ];
     return (
       <div className="space-y-5">
         <PageHeader
           section="Warehouse"
           title="Product Movements"
-          description="Read-only finished goods movement history from production stock-in and approved adjustments."
           actions={<button className="btn-secondary" type="button" onClick={loadData}><RefreshCw size={15} /> Refresh</button>}
         />
         <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={Activity} label="Movements" value={data.productMovements.length} helper="Finished goods movement rows" />
-          <MetricCard icon={PackageCheck} label="Stock In" value={data.productMovements.filter((row) => Number(row.quantity || 0) > 0).length} helper="Positive movement rows" tone="success" />
-          <MetricCard icon={AlertTriangle} label="Stock Out" value={data.productMovements.filter((row) => Number(row.quantity || 0) < 0).length} helper="Negative movement rows" tone="warning" />
-          <MetricCard icon={Factory} label="Production Sources" value={data.productMovements.filter((row) => row.reference_type === "production").length} helper="Created by production" />
+          <MetricCard icon={Activity} label="Movements" value={data.productMovements.length} helper="Ledger entries" />
+          <MetricCard icon={PackageCheck} label="Stock In" value={data.productMovements.filter((row) => Number(row.quantity || 0) > 0).length} helper="Inbound entries" tone="success" />
+          <MetricCard icon={AlertTriangle} label="Stock Out" value={data.productMovements.filter((row) => Number(row.quantity || 0) < 0).length} helper="Outbound entries" tone="warning" />
+          <MetricCard icon={Factory} label="Production Sources" value={data.productMovements.filter((row) => row.reference_type === "production").length} helper="Production entries" />
         </div>
         {warehouseFilterControls({ showStatus: false })}
-        <Card title="Finished Goods Movement History" description="Movement logs are read-only here; stock balance remains managed by production completion and approved stock checks.">
-          <FactoryTable
-            columns={[
-              { key: "movement_date", label: "Date", render: (row) => <span className="whitespace-nowrap font-semibold text-text-primary">{formatMovementDate(row.movement_date)}</span> },
-              { key: "movement_type", label: "Type", render: (row) => <Badge tone={row.quantity >= 0 ? "success" : "warning"}>{row.movement_type_label}</Badge> },
-              { key: "product_name", label: "Finished Good", render: (row) => <div className="font-semibold text-text-primary">{row.product_family_name || row.product_name || "Finished Good"}</div> },
-              { key: "packaging_sku", label: "Packaging SKU", render: (row) => <div><div className="font-semibold text-text-primary">{row.product_code || "No SKU"}</div><div className="text-xs font-medium text-text-secondary">{row.variant_name || packSizeText(row) || "Packaging SKU"}</div></div> },
-              { key: "quantity", label: "Qty", render: (row) => <div className="font-bold text-text-primary">{movementPackagingQtyLabel(row)}</div> },
-              { key: "base_equivalent", label: "Base Equivalent", render: (row) => movementBaseEquivalentLabel(row) },
-              { key: "batch_no", label: "Batch", render: (row) => row.batch_no || "—" },
-              { key: "source", label: "Source", render: (row) => <div><div className="font-semibold text-text-primary">{row.source_label}</div><div className="text-xs font-medium text-text-secondary">{movementSourceReference(row)}</div></div> },
-            ]}
-            rows={rows}
-            emptyTitle="No finished goods movements"
-            emptyDescription="Complete production first to create finished goods stock-in movement history."
-          />
+        <Card>
+          <div className="md:hidden">
+            {!rows.length ? (
+              <div className="p-4"><EmptyState title="No finished goods movements" description="Complete production first to create finished goods stock-in movement history." /></div>
+            ) : (
+              <div className="divide-y divide-border">
+                {rows.map((row) => (
+                  <div key={row.id} className="space-y-3 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-xs font-semibold text-text-muted">{formatFactoryDate(row.movement_date)}</div>
+                        <div className="mt-1 font-bold text-text-primary">{row.product_family_name || row.product_name || "Finished Good"}</div>
+                        <div className="text-sm font-semibold text-text-secondary">{row.product_code || "No SKU"} · {row.variant_name || packSizeText(row) || "Packaging SKU"}</div>
+                      </div>
+                      <Badge tone={row.quantity >= 0 ? "success" : "warning"}>{row.movement_type_label}</Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div><div className="text-[10.5px] font-semibold text-text-muted">Qty</div><div className={`font-bold ${Number(row.quantity || 0) >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{movementPackagingQtyLabel(row)}</div></div>
+                      <div><div className="text-[10.5px] font-semibold text-text-muted">Balance</div><div className="font-bold text-text-primary">{movementBalanceLabel(row)}</div></div>
+                      <div><div className="text-[10.5px] font-semibold text-text-muted">Batch</div><div className="font-semibold text-text-primary">{row.batch_no || "—"}</div></div>
+                      <div><div className="text-[10.5px] font-semibold text-text-muted">Source</div><div className="font-semibold text-text-primary">{row.source_label}</div><div className="text-xs font-medium text-text-secondary">{movementSourceReference(row)}</div></div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="hidden md:block">
+            <FactoryTable
+              columns={movementColumns}
+              rows={rows}
+              emptyTitle="No finished goods movements"
+              emptyDescription="Complete production first to create finished goods stock-in movement history."
+            />
+          </div>
         </Card>
       </div>
     );

@@ -428,6 +428,7 @@ function mapProductMovement(row) {
     pack_size_uom: finishedGood.pack_size_uom || finishedGood.base_uom || "",
     base_qty: optionalNumber(finishedGood.base_qty),
     base_uom: finishedGood.base_uom || "",
+    current_balance: normalizeNumber(finishedGood.current_balance),
     movement_type: row.movement_type || "",
     quantity: normalizeNumber(row.quantity),
     uom: row.uom || finishedGood.uom || "",
@@ -703,7 +704,7 @@ function emptyFactoryData() {
   };
 }
 
-const finishedGoodSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,uom,status,product_family:factory_product_families(name_en,name_cn,name_bm,status)";
+const finishedGoodSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,uom,current_balance,status,product_family:factory_product_families(name_en,name_cn,name_bm,status)";
 const finishedGoodFullSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,category_id,category,uom,current_balance,min_stock_level,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),product_family:factory_product_families(name_en,name_cn,name_bm,status)";
 const storageLocationSelect = "id,location_name,location_code,location_type,status,remarks,created_at,updated_at";
 const factorySupplierSelect = "id,supplier_name,supplier_code,contact_person,phone,email,status,remarks,created_at,updated_at";
@@ -846,6 +847,8 @@ export const factoryService = {
       .from("factory_product_stock_movements")
       .select(`id,finished_good_id,product_name,movement_type,quantity,uom,reference_type,reference_id,reference_no,movement_date,notes,created_by,created_at,finished_good:factory_finished_goods(${finishedGoodSelect})`)
       .order("movement_date", { ascending: false })
+      .order("created_at", { ascending: false })
+      .order("id", { ascending: false })
       .limit(150), (rows) => rows.map(mapProductMovement));
     addTask(plan.finishedGoodDispatches, "finishedGoodDispatches", "Finished Goods Dispatch", () => supabase
       .from("factory_finished_good_dispatches")
