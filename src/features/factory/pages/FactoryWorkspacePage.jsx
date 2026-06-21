@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { Activity, AlertTriangle, BookOpen, CheckCircle2, ClipboardCheck, ClipboardList, Clock3, Factory, FileText, Package, PackageCheck, Play, RefreshCw, Tag, Truck, Warehouse } from "lucide-react";
+import { Activity, AlertTriangle, BookOpen, CheckCircle2, ClipboardCheck, ClipboardList, Clock3, DollarSign, Factory, FileText, Package, PackageCheck, Play, RefreshCw, Tag, Truck, Warehouse } from "lucide-react";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
@@ -540,10 +540,53 @@ function latestReceivingCostInfo(receivings, rawMaterialId) {
   const row = rows[0];
   return {
     unitCost: Number(row?.unit_cost || 0),
+    uom: row?.uom || "",
     receiptNo: row?.receipt_no || "",
     supplierName: row?.supplier_name || "",
     receivedDate: row?.received_date || "",
     missingCost: !row,
+  };
+}
+
+function normalizedCostUnit(uom) {
+  const unit = String(uom || "").trim().toLowerCase();
+  if (unit === "kg" || unit === "kilogram" || unit === "kilograms") return { key: "kg", family: "weight", toBase: 1000, display: "kg" };
+  if (unit === "g" || unit === "gram" || unit === "grams") return { key: "g", family: "weight", toBase: 1, display: "g" };
+  if (unit === "l" || unit === "litre" || unit === "liter" || unit === "litres" || unit === "liters") return { key: "l", family: "volume", toBase: 1000, display: "L" };
+  if (unit === "ml" || unit === "millilitre" || unit === "milliliter" || unit === "millilitres" || unit === "milliliters") return { key: "ml", family: "volume", toBase: 1, display: "ml" };
+  return null;
+}
+
+function convertCostQuantity(quantityValue, fromUom, toUom) {
+  const quantityNumber = Number(quantityValue || 0);
+  const from = normalizedCostUnit(fromUom);
+  const to = normalizedCostUnit(toUom);
+  if (!from || !to || from.family !== to.family) return null;
+  return (quantityNumber * from.toBase) / to.toBase;
+}
+
+function unitCostDisplay(costInfo) {
+  if (costInfo?.missingCost) return "Missing Cost";
+  if (!costInfo?.uom) return "Unsupported UOM";
+  return `${money(costInfo.unitCost)} / ${normalizedCostUnit(costInfo.uom)?.display || costInfo.uom}`;
+}
+
+function recipeCostLineInfo(item, receivings) {
+  const latestCost = latestReceivingCostInfo(receivings, item.raw_material_id);
+  const quantityWithWastage = Number(item.quantity_used || 0) * (1 + Number(item.wastage_percent || 0) / 100);
+  const convertedQty = latestCost.missingCost ? 0 : convertCostQuantity(quantityWithWastage, item.uom, latestCost.uom);
+  const unsupportedCost = !latestCost.missingCost && convertedQty == null;
+  return {
+    quantityWithWastage,
+    convertedQty: convertedQty || 0,
+    unitCost: latestCost.unitCost,
+    costUom: latestCost.uom,
+    lineCost: unsupportedCost || latestCost.missingCost ? 0 : (convertedQty || 0) * latestCost.unitCost,
+    source: latestCost.receiptNo || (latestCost.missingCost ? "Missing Cost" : "Unsupported UOM"),
+    supplierName: latestCost.supplierName,
+    receivedDate: latestCost.receivedDate,
+    missingCost: latestCost.missingCost,
+    unsupportedCost,
   };
 }
 
@@ -573,17 +616,18 @@ function productionCostInfo(production, receivings) {
 
 function recipeCostInfo(recipe, receivings) {
   const itemRows = (recipe.items || []).map((item) => {
-    const latestCost = latestReceivingCostInfo(receivings, item.raw_material_id);
-    const quantityWithWastage = Number(item.quantity_used || 0) * (1 + Number(item.wastage_percent || 0) / 100);
+    const lineCost = recipeCostLineInfo(item, receivings);
     return {
       ...item,
-      quantity_with_wastage: quantityWithWastage,
-      unit_cost: latestCost.unitCost,
-      cost_source: latestCost.receiptNo || "Missing Cost",
-      supplier_name: latestCost.supplierName,
-      received_date: latestCost.receivedDate,
-      missing_cost: latestCost.missingCost,
-      standard_cost: quantityWithWastage * latestCost.unitCost,
+      quantity_with_wastage: lineCost.quantityWithWastage,
+      unit_cost: lineCost.unitCost,
+      cost_uom: lineCost.costUom,
+      cost_source: lineCost.source,
+      supplier_name: lineCost.supplierName,
+      received_date: lineCost.receivedDate,
+      missing_cost: lineCost.missingCost,
+      unsupported_cost: lineCost.unsupportedCost,
+      standard_cost: lineCost.lineCost,
     };
   });
   const standardCost = itemRows.reduce((sum, item) => sum + item.standard_cost, 0);
@@ -593,7 +637,22 @@ function recipeCostInfo(recipe, receivings) {
     standardCost,
     costPerUnit: yieldQuantity ? standardCost / yieldQuantity : 0,
     missingCostRows: itemRows.filter((item) => item.missing_cost).length,
+    unsupportedCostRows: itemRows.filter((item) => item.unsupported_cost).length,
   };
+}
+
+function inheritedRecipeUom(productFamilyId, finishedGoods = [], fallback = "") {
+  if (!productFamilyId) return fallback || "kg";
+  const skus = finishedGoods.filter((sku) => sku.product_family_id === productFamilyId);
+  let inheritedUom = "";
+  for (const sku of skus) {
+    const base = normalizePackSizeToBase(sku.pack_size_qty || sku.base_qty, sku.pack_size_uom || sku.base_uom);
+    const candidate = base?.uom || sku.base_uom || "";
+    if (!candidate) continue;
+    if (inheritedUom && inheritedUom !== candidate) return fallback || inheritedUom;
+    inheritedUom = candidate;
+  }
+  return inheritedUom || fallback || "kg";
 }
 
 function costVarianceInfo(standardCost, actualCost) {
@@ -604,8 +663,10 @@ function costVarianceInfo(standardCost, actualCost) {
   return { variance, variancePercent };
 }
 
-function costDisplay(value, missingCostRows = 0) {
-  return missingCostRows ? "Missing Cost" : money(value);
+function costDisplay(value, missingCostRows = 0, unsupportedCostRows = 0) {
+  if (missingCostRows) return "Missing Cost";
+  if (unsupportedCostRows) return "Incomplete Cost";
+  return money(value);
 }
 
 function includesText(value, search) {
@@ -3084,16 +3145,17 @@ function buildInitialUsageRows(job, rawMaterials, recipes) {
   return [];
 }
 
-function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods = [], rawMaterials, onClose, onSave }) {
+function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods = [], rawMaterials, receivings = [], onClose, onSave }) {
   const legacyFinishedGood = finishedGoods.find((product) => product.id === initialValue?.finished_good_id);
+  const initialProductFamilyId = initialValue?.product_family_id || legacyFinishedGood?.product_family_id || "";
   const [form, setForm] = useState(() => ({
     recipe_code: "",
     finished_good_id: "",
-    product_family_id: legacyFinishedGood?.product_family_id || "",
+    product_family_id: initialProductFamilyId,
     recipe_name: "",
     version: "v1",
     yield_quantity: "",
-    uom: "kg",
+    uom: inheritedRecipeUom(initialProductFamilyId, finishedGoods, initialValue?.uom || "kg"),
     estimated_production_time_minutes: "",
     status: "draft",
     remarks: "",
@@ -3107,7 +3169,27 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
   const isLocked = initialValue?.status && initialValue.status !== "draft";
   const activeProductFamilies = productFamilies.filter((family) => family.status === "active" || family.id === form.product_family_id);
   const productFamilyOptions = activeProductFamilies.map((family) => ({ value: family.id, label: family.name_en, helper: [family.category, family.status].filter(Boolean).join(" · ") || "Finished Good" }));
-  const uomOptions = commonUoms.map((uom) => ({ value: uom, label: uom }));
+  const materialUomOptions = commonUoms.map((uom) => ({ value: uom, label: uom }));
+  const inheritedUom = inheritedRecipeUom(form.product_family_id, finishedGoods, form.uom || "kg");
+  const itemCostRows = form.items.map((item) => {
+    const lineCost = recipeCostLineInfo(item, receivings);
+    return {
+      id: item.id,
+      unitCost: lineCost.unitCost,
+      costUom: lineCost.costUom,
+      lineCost: lineCost.lineCost,
+      source: lineCost.source,
+      missingCost: lineCost.missingCost,
+      unsupportedCost: lineCost.unsupportedCost,
+    };
+  });
+  const totalCost = itemCostRows.reduce((sum, row) => sum + row.lineCost, 0);
+  const missingCostRows = itemCostRows.filter((row) => row.missingCost).length;
+  const unsupportedCostRows = itemCostRows.filter((row) => row.unsupportedCost).length;
+
+  function costForItem(rowId) {
+    return itemCostRows.find((row) => row.id === rowId) || { unitCost: 0, costUom: "", lineCost: 0, source: "Missing Cost", missingCost: true, unsupportedCost: false };
+  }
 
   function updateItem(rowId, patch) {
     setForm((current) => ({
@@ -3165,7 +3247,7 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
         finished_good_id: form.finished_good_id || null,
         product_family_id: productFamily?.id || form.product_family_id,
         product_name: productFamily?.name_en || form.product_name,
-        uom: form.uom || "",
+        uom: inheritedUom || form.uom || "",
       });
     } finally {
       setSaving(false);
@@ -3188,7 +3270,11 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
       <form id="factory-product-recipe-form" className="space-y-5" onSubmit={submit}>
         {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
         {isLocked ? <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">Only draft recipes can be edited. Active and archived recipes remain readable for history.</div> : null}
-        <Card title="Recipe Header">
+        <section className="space-y-3">
+          <div>
+            <div className="text-sm font-bold text-text-primary">Recipe Header</div>
+            <div className="text-xs font-semibold text-text-secondary">Finished Good, standard output and recipe timing.</div>
+          </div>
           <div className="grid gap-3 md:grid-cols-3">
             <Field label="Finished Good">
               <SearchableSelect
@@ -3200,11 +3286,13 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
                 disabled={isLocked}
                 onChange={(productFamilyId) => {
                   const productFamily = activeProductFamilies.find((item) => item.id === productFamilyId);
+                  const nextUom = inheritedRecipeUom(productFamilyId, finishedGoods, form.uom || "kg");
                   setForm((current) => ({
                     ...current,
                     product_family_id: productFamilyId,
                     finished_good_id: "",
                     product_name: productFamily?.name_en || "",
+                    uom: nextUom,
                   }));
                 }}
               />
@@ -3224,14 +3312,8 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
               <input className={inputClass()} type="number" min="0" step="0.01" value={form.yield_quantity || ""} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, yield_quantity: event.target.value }))} />
             </Field>
             <Field label="UOM">
-              <SearchableSelect
-                value={form.uom || "kg"}
-                options={uomOptions}
-                placeholder="Select UOM"
-                searchPlaceholder="Search UOM"
-                disabled={isLocked}
-                onChange={(uom) => setForm((current) => ({ ...current, uom }))}
-              />
+              <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-bold text-text-primary">{inheritedUom || "—"}</div>
+              <div className="mt-1 text-xs font-semibold text-text-secondary">Inherited from Finished Good packaging/base UOM.</div>
             </Field>
             <Field label="Estimated Production Time">
               <input className={inputClass()} type="number" min="0" step="1" placeholder="Minutes" value={form.estimated_production_time_minutes || ""} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, estimated_production_time_minutes: event.target.value }))} />
@@ -3242,7 +3324,7 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
               </Field>
             </div>
           </div>
-        </Card>
+        </section>
         <Card
           title="BOM Materials"
           description="Standard quantities are scaled into production material usage."
@@ -3274,13 +3356,13 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
                       />
                     </Field>
                     <div className="grid grid-cols-2 gap-3">
-                      <Field label="Required Qty">
+                      <Field label="Qty">
                         <input className={inputClass()} type="number" min="0" step="0.0001" value={item.quantity_used || ""} disabled={isLocked} onChange={(event) => updateItem(item.id, { quantity_used: event.target.value })} />
                       </Field>
                       <Field label="UOM">
                         <SearchableSelect
                           value={item.uom || material?.uom || "kg"}
-                          options={uomOptions}
+                          options={materialUomOptions}
                           placeholder="Select UOM"
                           searchPlaceholder="Search UOM"
                           disabled={isLocked}
@@ -3288,7 +3370,18 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
                         />
                       </Field>
                     </div>
-                    <Field label="Wastage %">
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Unit Cost</div>
+                        <div className="mt-1 text-sm font-bold text-text-primary">{costForItem(item.id).missingCost ? "Missing Cost" : unitCostDisplay({ unitCost: costForItem(item.id).unitCost, uom: costForItem(item.id).costUom })}</div>
+                        <div className="text-xs font-semibold text-text-secondary">{costForItem(item.id).source}</div>
+                      </div>
+                      <div>
+                        <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Line Cost</div>
+                        <div className="mt-1 text-sm font-bold text-text-primary">{costDisplay(costForItem(item.id).lineCost, costForItem(item.id).missingCost ? 1 : 0, costForItem(item.id).unsupportedCost ? 1 : 0)}</div>
+                      </div>
+                    </div>
+                    <Field label="Wastage">
                       <input className={inputClass()} type="number" min="0" step="0.01" value={item.wastage_percent || 0} disabled={isLocked} onChange={(event) => updateItem(item.id, { wastage_percent: event.target.value })} />
                     </Field>
                     <Field label="Remarks">
@@ -3301,13 +3394,15 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
             })}
           </div>
           <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[900px] text-left">
+            <table className="w-full min-w-[1080px] text-left">
               <thead>
                 <tr className="border-b border-border bg-slate-50 text-[10.5px] font-semibold text-[rgb(107,114,128)]">
                   <th className="px-4 py-2.5">Raw Material</th>
-                  <th className="px-4 py-2.5">Required Qty</th>
+                  <th className="px-4 py-2.5">Qty</th>
                   <th className="px-4 py-2.5">UOM</th>
-                  <th className="px-4 py-2.5">Wastage %</th>
+                  <th className="px-4 py-2.5">Unit Cost</th>
+                  <th className="px-4 py-2.5">Line Cost</th>
+                  <th className="px-4 py-2.5">Wastage</th>
                   <th className="px-4 py-2.5">Remarks</th>
                   <th className="px-4 py-2.5 text-right">Action</th>
                 </tr>
@@ -3341,13 +3436,18 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
                       <td className="px-4 py-3">
                         <SearchableSelect
                           value={item.uom || material?.uom || "kg"}
-                          options={uomOptions}
+                          options={materialUomOptions}
                           placeholder="Select UOM"
                           searchPlaceholder="Search UOM"
                           disabled={isLocked}
                           onChange={(uom) => updateItem(item.id, { uom })}
                         />
                       </td>
+                      <td className="px-4 py-3">
+                        <div className="font-semibold text-text-primary">{costForItem(item.id).missingCost ? "Missing Cost" : unitCostDisplay({ unitCost: costForItem(item.id).unitCost, uom: costForItem(item.id).costUom })}</div>
+                        <div className="text-xs text-text-secondary">{costForItem(item.id).source}</div>
+                      </td>
+                      <td className="px-4 py-3 font-bold text-text-primary">{costDisplay(costForItem(item.id).lineCost, costForItem(item.id).missingCost ? 1 : 0, costForItem(item.id).unsupportedCost ? 1 : 0)}</td>
                       <td className="px-4 py-3"><input className={inputClass()} type="number" min="0" step="0.01" value={item.wastage_percent || 0} disabled={isLocked} onChange={(event) => updateItem(item.id, { wastage_percent: event.target.value })} /></td>
                       <td className="px-4 py-3"><input className={inputClass()} value={item.remarks || ""} disabled={isLocked} onChange={(event) => updateItem(item.id, { remarks: event.target.value })} /></td>
                       <td className="px-4 py-3 text-right">
@@ -3359,15 +3459,23 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
               </tbody>
             </table>
           </div>
+          <div className="mt-4 flex flex-col gap-2 rounded-xl border border-border bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-sm font-bold text-text-primary">Recipe Total Cost</div>
+              <div className="text-xs font-semibold text-text-secondary">Latest receiving cost from Raw Material Receiving.</div>
+            </div>
+            <div className="text-lg font-black text-text-primary">{costDisplay(totalCost, missingCostRows, unsupportedCostRows)}</div>
+          </div>
         </Card>
       </form>
     </Modal>
   );
 }
 
-function ProductRecipeDetailModal({ recipe, onClose }) {
+function ProductRecipeDetailModal({ recipe, receivings = [], onClose }) {
   const finishedGoodName = recipe.product_name_en || recipe.product_name || "Finished Good";
   const finishedGoodCn = recipe.product_name_cn || "";
+  const recipeCost = recipeCostInfo(recipe, receivings);
   return (
     <Modal
       title={recipe.recipe_name || "Product Recipe / BOM"}
@@ -3406,21 +3514,34 @@ function ProductRecipeDetailModal({ recipe, onClose }) {
               <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Updated</div>
               <div className="mt-1 text-sm font-bold text-text-primary">{formatFactoryDate(recipe.updated_at)}</div>
             </div>
+            <div>
+              <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Recipe Total Cost</div>
+              <div className="mt-1 text-sm font-bold text-text-primary">{costDisplay(recipeCost.standardCost, recipeCost.missingCostRows, recipeCost.unsupportedCostRows)}</div>
+            </div>
           </div>
         </Card>
         <Card title="BOM Materials">
           <FactoryTable
             columns={[
               { key: "raw_material", label: "Raw Material", render: (row) => <div className="font-semibold text-text-primary">{row.raw_material_name || "Raw Material"}</div> },
-              { key: "required_qty", label: "Required Qty", render: (row) => quantity(row.quantity_used, row.uom) },
+              { key: "required_qty", label: "Qty", render: (row) => quantity(row.quantity_used, row.uom) },
               { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
-              { key: "wastage_percent", label: "Wastage %", render: (row) => percent(row.wastage_percent) },
+              { key: "unit_cost", label: "Unit Cost", render: (row) => row.missing_cost ? "Missing Cost" : unitCostDisplay({ unitCost: row.unit_cost, uom: row.cost_uom }) },
+              { key: "line_cost", label: "Line Cost", render: (row) => costDisplay(row.standard_cost, row.missing_cost ? 1 : 0, row.unsupported_cost ? 1 : 0) },
+              { key: "wastage_percent", label: "Wastage", render: (row) => percent(row.wastage_percent) },
               { key: "remarks", label: "Remarks", render: (row) => row.remarks || row.notes || "—" },
             ]}
-            rows={recipe.items || []}
+            rows={recipeCost.itemRows}
             emptyTitle="No BOM materials"
             emptyDescription="Add raw material rows before activating this production standard."
           />
+          <div className="mt-4 flex flex-col gap-2 rounded-xl border border-border bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <div className="text-sm font-bold text-text-primary">Recipe Total Cost</div>
+              <div className="text-xs font-semibold text-text-secondary">Latest receiving cost from Raw Material Receiving.</div>
+            </div>
+            <div className="text-lg font-black text-text-primary">{costDisplay(recipeCost.standardCost, recipeCost.missingCostRows, recipeCost.unsupportedCostRows)}</div>
+          </div>
         </Card>
         {recipe.remarks || recipe.notes ? (
           <Card title="Remarks">
@@ -4323,11 +4444,13 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         variance_rm: variance.variance,
         variance_percent: variance.variancePercent,
         missing_cost_rows: actualCost.missingCostRows + (recipe?.missingCostRows || 0),
+        unsupported_cost_rows: recipe?.unsupportedCostRows || 0,
       };
     });
     const totalStandardCost = productionCostRows.reduce((sum, row) => sum + Number(row.standard_cost || 0), 0);
     const totalActualCost = productionCostRows.reduce((sum, row) => sum + Number(row.actual_cost || 0), 0);
     const totalMissingCostRows = productionCostRows.reduce((sum, row) => sum + Number(row.missing_cost_rows || 0), 0);
+    const totalUnsupportedCostRows = productionCostRows.reduce((sum, row) => sum + Number(row.unsupported_cost_rows || 0), 0);
     const costVariance = costVarianceInfo(totalStandardCost, totalActualCost);
     const mostExpensiveRecipe = [...recipeCostRows].sort((a, b) => Number(b.standardCost || 0) - Number(a.standardCost || 0))[0] || null;
     const receivingByMaterial = new Map();
@@ -4395,6 +4518,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       totalStandardCost,
       totalActualCost,
       totalMissingCostRows,
+      totalUnsupportedCostRows,
       costVariance,
       mostExpensiveRecipe,
       highestCostIncreaseMaterial,
@@ -5169,6 +5293,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     { key: "version", label: "Version", render: (row) => <Badge tone="info">{row.version || "v1"}</Badge> },
     { key: "standard_output", label: "Standard Output", render: (row) => quantity(row.yield_quantity, row.uom) },
     { key: "items", label: "Materials", render: (row) => row.items?.length || 0 },
+    { key: "recipe_cost", label: "Recipe Cost", render: (row) => {
+      const cost = recipeCostInfo(row, data.receivings);
+      return <div><div className="font-bold text-text-primary">{costDisplay(cost.standardCost, cost.missingCostRows, cost.unsupportedCostRows)}</div><div className="text-xs text-text-secondary">Latest receiving cost</div></div>;
+    } },
     { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : row.status === "draft" ? "info" : "neutral"}>{row.status}</Badge> },
     { key: "updated_at", label: "Updated", render: (row) => formatFactoryDate(row.updated_at) },
     { key: "actions", label: "Actions", align: "right", render: (row) => (
@@ -5556,14 +5684,14 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard
             icon={PackageCheck}
             label="Most Expensive Recipe"
-            value={metrics.mostExpensiveRecipe ? costDisplay(metrics.mostExpensiveRecipe.standardCost, metrics.mostExpensiveRecipe.missingCostRows) : "Missing Cost"}
+            value={metrics.mostExpensiveRecipe ? costDisplay(metrics.mostExpensiveRecipe.standardCost, metrics.mostExpensiveRecipe.missingCostRows, metrics.mostExpensiveRecipe.unsupportedCostRows) : "Missing Cost"}
             helper={metrics.mostExpensiveRecipe?.product_name || "No active recipe cost"}
           />
           <MetricCard
             icon={Activity}
             label="Actual vs Standard"
-            value={metrics.totalMissingCostRows ? "Missing Cost" : money(metrics.costVariance?.variance || 0)}
-            helper={metrics.totalMissingCostRows ? "Complete receiving costs" : `${percent(metrics.costVariance?.variancePercent || 0)} cost variance`}
+            value={costDisplay(metrics.costVariance?.variance || 0, metrics.totalMissingCostRows, metrics.totalUnsupportedCostRows)}
+            helper={metrics.totalMissingCostRows || metrics.totalUnsupportedCostRows ? "Complete receiving costs and UOMs" : `${percent(metrics.costVariance?.variancePercent || 0)} cost variance`}
             tone={Math.abs(metrics.costVariance?.variancePercent || 0) > 5 ? "warning" : "success"}
           />
         </div>
@@ -6150,9 +6278,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   function renderProductRecipes() {
     const draftRecipes = data.recipes.filter((recipe) => recipe.status === "draft");
     const activeRecipes = data.recipes.filter((recipe) => recipe.status === "active");
-    const archivedRecipes = data.recipes.filter((recipe) => recipe.status === "archived");
     const familiesWithActiveRecipe = new Set(activeRecipes.map((recipe) => recipe.product_family_id).filter(Boolean));
     const activeFinishedGoodsWithoutRecipe = data.productFamilies.filter((product) => product.status === "active" && !familiesWithActiveRecipe.has(product.id));
+    const activeRecipeCosts = activeRecipes.map((recipe) => recipeCostInfo(recipe, data.receivings));
+    const totalActiveRecipeCost = activeRecipeCosts.reduce((sum, cost) => sum + Number(cost.standardCost || 0), 0);
+    const missingRecipeCosts = activeRecipeCosts.reduce((sum, cost) => sum + Number(cost.missingCostRows || 0), 0);
+    const unsupportedRecipeCosts = activeRecipeCosts.reduce((sum, cost) => sum + Number(cost.unsupportedCostRows || 0), 0);
     return (
       <div className="space-y-5">
         <PageHeader
@@ -6165,7 +6296,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={ClipboardCheck} label="Draft" value={draftRecipes.length} helper="Editable recipes" />
           <MetricCard icon={CheckCircle2} label="Active" value={activeRecipes.length} helper="Production defaults" tone="success" />
           <MetricCard icon={PackageCheck} label="FG Without Recipe" value={activeFinishedGoodsWithoutRecipe.length} helper="Finished goods missing active recipe" tone={activeFinishedGoodsWithoutRecipe.length ? "warning" : "success"} />
-          <MetricCard icon={Clock3} label="Archived" value={archivedRecipes.length} helper="Historical recipes" />
+          <MetricCard icon={DollarSign} label="Cost" value={costDisplay(totalActiveRecipeCost, missingRecipeCosts, unsupportedRecipeCosts)} helper={missingRecipeCosts ? "Missing receiving cost" : unsupportedRecipeCosts ? "Review BOM and receiving UOMs" : "Active recipe total"} tone={missingRecipeCosts || unsupportedRecipeCosts ? "warning" : "success"} />
         </div>
         <Card title="Recipe Records" description="One Finished Good can have one active recipe version. Drafts can be edited before activation. Click a row to view BOM details.">
           <FactoryTable
@@ -6348,6 +6479,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         cost_per_batch: cost.cost,
         cost_per_unit: goodOutput ? cost.cost / goodOutput : 0,
         missing_cost_rows: cost.missingCostRows,
+        unsupported_cost_rows: cost.unsupportedCostRows,
         yield_percent: productionYieldPercent(production),
         material_variance_percent: weightedMaterialVariancePercent([production]),
       };
@@ -6424,8 +6556,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                 { key: "recipe", label: "Recipe", render: (row) => <div><div className="font-bold text-text-primary">{row.recipe_code}</div><div className="text-xs text-text-secondary">{row.product_name}</div></div> },
                 { key: "yield", label: "Standard Output", render: (row) => quantity(row.yield_quantity, row.uom) },
                 { key: "items", label: "Items", render: (row) => row.items?.length || 0 },
-                { key: "standardCost", label: "Standard Cost", align: "right", render: (row) => costDisplay(row.standardCost, row.missingCostRows) },
-                { key: "costPerUnit", label: "Cost / Unit", align: "right", render: (row) => costDisplay(row.costPerUnit, row.missingCostRows) },
+                { key: "standardCost", label: "Standard Cost", align: "right", render: (row) => costDisplay(row.standardCost, row.missingCostRows, row.unsupportedCostRows) },
+                { key: "costPerUnit", label: "Cost / Unit", align: "right", render: (row) => costDisplay(row.costPerUnit, row.missingCostRows, row.unsupportedCostRows) },
               ]}
               rows={recipeRows}
               emptyTitle="No active recipe costing"
@@ -6437,10 +6569,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
               columns={[
                 { key: "production", label: "Production", render: (row) => <div><div className="font-bold text-text-primary">{row.production_no}</div><div className="text-xs text-text-secondary">{row.batch_no || "No batch"}</div></div> },
                 { key: "product_name", label: "Product", render: (row) => row.product_name },
-                { key: "standard_cost", label: "Standard", align: "right", render: (row) => costDisplay(row.standard_cost, row.missing_cost_rows) },
+                { key: "standard_cost", label: "Standard", align: "right", render: (row) => costDisplay(row.standard_cost, row.missing_cost_rows, row.unsupported_cost_rows) },
                 { key: "actual_cost", label: "Actual", align: "right", render: (row) => costDisplay(row.actual_cost, row.missing_cost_rows) },
-                { key: "variance_rm", label: "Variance", align: "right", render: (row) => costDisplay(row.variance_rm, row.missing_cost_rows) },
-                { key: "variance_percent", label: "Variance %", render: (row) => row.missing_cost_rows ? "Missing Cost" : percent(row.variance_percent) },
+                { key: "variance_rm", label: "Variance", align: "right", render: (row) => costDisplay(row.variance_rm, row.missing_cost_rows, row.unsupported_cost_rows) },
+                { key: "variance_percent", label: "Variance %", render: (row) => row.missing_cost_rows ? "Missing Cost" : row.unsupported_cost_rows ? "Incomplete Cost" : percent(row.variance_percent) },
               ]}
               rows={productionCostRows}
               emptyTitle="No production cost variance"
@@ -7008,6 +7140,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           productFamilies={data.productFamilies}
           finishedGoods={data.finishedGoods}
           rawMaterials={data.rawMaterials}
+          receivings={data.receivings}
           onClose={() => setModal(null)}
           onSave={saveProductRecipe}
         />
@@ -7015,6 +7148,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       {modal?.type === "recipe-detail" ? (
         <ProductRecipeDetailModal
           recipe={modal.value}
+          receivings={data.receivings}
           onClose={() => setModal(null)}
           onEdit={(recipe) => setModal({ type: "recipe", value: recipe })}
           onNewVersion={openNewRecipeVersion}
