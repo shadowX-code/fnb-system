@@ -1063,7 +1063,6 @@ function ProductGroupModal({ initialValue, categories = [], onClose, onSave, onA
     ...initialValue,
   }));
   const [saving, setSaving] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
   const [error, setError] = useState("");
   const activeCategories = categories.filter((category) => category.status === "active" || category.id === form.category_id);
   const categoryOptions = activeCategories.map((category) => ({ value: category.id, label: category.name, helper: category.description || category.status }));
@@ -1555,6 +1554,7 @@ function RawMaterialMasterModal({ initialValue, categories, storageLocations = [
     ...initialValue,
   }));
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
   const activeCategories = categories.filter((category) => category.status === "active" || category.id === form.category_id);
