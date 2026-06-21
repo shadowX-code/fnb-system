@@ -1,6 +1,7 @@
 import { supabase } from "../lib/supabase";
 import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
+import { uploadOptimizedImage } from "../utils/imageUpload.js";
 
 function normalizeNumber(value, fallback = 0) {
   const numeric = Number(value);
@@ -774,6 +775,25 @@ function factoryDataPlan(scope, hasPermission) {
 }
 
 export const factoryService = {
+  async uploadRawMaterialImage(file, material = {}) {
+    const safeName = String(material.material_code || material.name_en || material.name || "raw-material")
+      .toLowerCase()
+      .replace(/[^a-z0-9]+/g, "-")
+      .replace(/^-+|-+$/g, "")
+      .slice(0, 60) || "raw-material";
+    const path = `raw-materials/${material.id || "draft"}/${Date.now()}-${safeName}.webp`;
+    return uploadOptimizedImage(file, {
+      bucket: "raw-material-images",
+      path,
+      previousPublicUrl: material.image_url || "",
+      metadata: {
+        module: "factory",
+        entity: "raw_material",
+        raw_material_id: material.id || "",
+      },
+    });
+  },
+
   async listFactoryData({ scope = "dashboard", hasPermission } = {}) {
     const data = emptyFactoryData();
     const plan = factoryDataPlan(scope, hasPermission);

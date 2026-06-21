@@ -10,6 +10,7 @@ import Card from "../../../components/ui/Card.jsx";
 import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import { factoryService } from "../../../services/factoryService.js";
+import { IMAGE_UPLOAD_ACCEPT } from "../../../utils/imageUpload.js";
 
 const priorityOptions = ["Low", "Normal", "High", "Urgent"];
 const jobStatusOptions = ["draft", "released", "in_progress", "completed", "cancelled"];
@@ -1062,6 +1063,7 @@ function ProductGroupModal({ initialValue, categories = [], onClose, onSave, onA
     ...initialValue,
   }));
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
   const [error, setError] = useState("");
   const activeCategories = categories.filter((category) => category.status === "active" || category.id === form.category_id);
   const categoryOptions = activeCategories.map((category) => ({ value: category.id, label: category.name, helper: category.description || category.status }));
@@ -1460,6 +1462,11 @@ function RawMaterialDetailModal({ material, receivings, movements, stockChecks, 
   return (
     <Modal title={rawMaterialLabel(material)} description="Raw material stock, receiving, consumption and count detail" onClose={onClose} size="2xl">
       <div className="space-y-4">
+        {material.image_url ? (
+          <div className="overflow-hidden rounded-2xl border border-border bg-slate-50">
+            <img className="max-h-72 w-full object-contain" src={material.image_url} alt={rawMaterialLabel(material)} />
+          </div>
+        ) : null}
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={Warehouse} label="Current Balance" value={quantity(material.current_balance, material.uom)} helper={material.material_code || "Raw material"} />
           <MetricCard icon={Truck} label="Receiving Rows" value={materialReceivings.length} helper="Supplier deliveries" />
@@ -1596,8 +1603,8 @@ function RawMaterialMasterModal({ initialValue, categories, storageLocations = [
           <span />
           <div className="flex gap-2">
             {error ? <div className="self-center text-sm font-semibold text-rose-600">{error}</div> : null}
-            <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
-            <button className="btn-primary" type="submit" form="factory-raw-material-form" disabled={saving}>{saving ? "Saving..." : "Save Raw Material"}</button>
+            <button className="btn-secondary" type="button" disabled={saving || uploadingImage} onClick={onClose}>Cancel</button>
+            <button className="btn-primary" type="submit" form="factory-raw-material-form" disabled={saving || uploadingImage}>{saving ? "Saving..." : "Save Raw Material"}</button>
           </div>
         </>
       )}
@@ -1636,6 +1643,33 @@ function RawMaterialMasterModal({ initialValue, categories, storageLocations = [
           <Field label="Image URL">
             <input className={inputClass()} placeholder="https://..." value={form.image_url || ""} onChange={(event) => setForm((current) => ({ ...current, image_url: event.target.value }))} />
           </Field>
+          <div className="flex flex-wrap gap-2">
+            <label className={`btn-secondary cursor-pointer ${uploadingImage ? "opacity-70" : ""}`}>
+              {uploadingImage ? "Uploading..." : "Upload Image"}
+              <input
+                className="sr-only"
+                type="file"
+                accept={IMAGE_UPLOAD_ACCEPT}
+                disabled={uploadingImage}
+                onChange={async (event) => {
+                  const file = event.target.files?.[0];
+                  event.target.value = "";
+                  if (!file) return;
+                  setUploadingImage(true);
+                  setError("");
+                  try {
+                    const uploaded = await factoryService.uploadRawMaterialImage(file, form);
+                    setForm((current) => ({ ...current, image_url: uploaded.publicUrl }));
+                  } catch (uploadError) {
+                    setError(uploadError.message || "Unable to upload image.");
+                  } finally {
+                    setUploadingImage(false);
+                  }
+                }}
+              />
+            </label>
+            {form.image_url ? <button className="btn-secondary" type="button" disabled={uploadingImage} onClick={() => setForm((current) => ({ ...current, image_url: "" }))}>Remove Image</button> : null}
+          </div>
           {form.image_url ? (
             <div className="flex items-center gap-3 rounded-xl border border-border bg-slate-50 p-3">
               <img className="h-16 w-16 rounded-lg object-cover" src={form.image_url} alt={form.name_en || "Raw material"} />
@@ -1761,6 +1795,22 @@ function RawMaterialCostModal({ material, onClose, onSave }) {
           />
         </Field>
       </form>
+    </Modal>
+  );
+}
+
+function RawMaterialImagePreviewModal({ material, onClose }) {
+  return (
+    <Modal
+      title={rawMaterialLabel(material)}
+      description={material?.material_code || "Raw material image"}
+      size="2xl"
+      onClose={onClose}
+      footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}
+    >
+      <div className="overflow-hidden rounded-2xl border border-border bg-slate-50">
+        <img className="max-h-[70vh] w-full object-contain" src={material?.image_url || ""} alt={rawMaterialLabel(material)} />
+      </div>
     </Modal>
   );
 }
@@ -5331,7 +5381,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       return (
         <div className="flex items-center gap-3">
           {row.image_url ? (
-            <img className="h-10 w-10 rounded-lg object-cover" src={row.image_url} alt={rawMaterialLabel(row)} />
+            <button className="shrink-0" type="button" onClick={() => setModal({ type: "raw-material-image", material: row })}>
+              <img className="h-10 w-10 rounded-lg object-cover ring-1 ring-border transition hover:ring-primary" src={row.image_url} alt={rawMaterialLabel(row)} />
+            </button>
           ) : (
             <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-text-secondary"><Package size={18} /></div>
           )}
@@ -7163,6 +7215,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           material={modal.material}
           onClose={() => setModal(null)}
           onSave={saveRawMaterial}
+        />
+      ) : null}
+      {modal?.type === "raw-material-image" ? (
+        <RawMaterialImagePreviewModal
+          material={modal.material}
+          onClose={() => setModal(null)}
         />
       ) : null}
       {modal?.type === "raw-material-category" ? (
