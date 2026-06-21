@@ -129,6 +129,8 @@ function mapRawMaterial(row) {
     uom: row.uom || "",
     current_balance: normalizeNumber(row.current_balance),
     min_stock_level: normalizeNumber(row.min_stock_level),
+    manual_unit_cost: optionalNumber(row.manual_unit_cost),
+    manual_cost_uom: row.manual_cost_uom || "",
     preferred_supplier: row.preferred_supplier || "",
     storage_location_id: row.storage_location_id || "",
     storage_location: storageLocationName,
@@ -562,6 +564,8 @@ function mapRecipe(row) {
       id: item.id,
       raw_material_id: item.raw_material_id,
       raw_material_name: item.raw_material?.name_en || item.raw_material?.name || "",
+      manual_unit_cost: optionalNumber(item.raw_material?.manual_unit_cost),
+      manual_cost_uom: item.raw_material?.manual_cost_uom || "",
       quantity_used: normalizeNumber(item.quantity_used),
       uom: item.uom || item.raw_material?.uom || "",
       wastage_percent: normalizeNumber(item.wastage_percent),
@@ -709,8 +713,8 @@ const finishedGoodFullSelect = "id,product_code,product_name,product_name_en,pro
 const storageLocationSelect = "id,location_name,location_code,location_type,status,remarks,created_at,updated_at";
 const factorySupplierSelect = "id,supplier_name,supplier_code,contact_person,phone,email,status,remarks,created_at,updated_at";
 const factoryCustomerSelect = "id,customer_code,customer_name,customer_type,contact_person,phone,email,address,status,remarks,created_at,updated_at";
-const rawMaterialSelect = `id,material_code,name,name_en,name_cn,name_bm,category_id,category,uom,current_balance,min_stock_level,preferred_supplier,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_raw_material_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)`;
-const rawMaterialRelationSelect = "name,name_en,name_cn,name_bm,material_code,uom,storage_location,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)";
+const rawMaterialSelect = `id,material_code,name,name_en,name_cn,name_bm,category_id,category,uom,current_balance,min_stock_level,manual_unit_cost,manual_cost_uom,preferred_supplier,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_raw_material_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)`;
+const rawMaterialRelationSelect = "name,name_en,name_cn,name_bm,material_code,uom,manual_unit_cost,manual_cost_uom,storage_location,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)";
 const productFamilyRelationSelect = "id,name_en,name_cn,name_bm,status";
 const recipeSelect = `id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`;
 const recipeSummarySelect = `id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),finished_good:factory_finished_goods(${finishedGoodSelect})`;
@@ -1177,6 +1181,8 @@ export const factoryService = {
       category: String(material.category || "").trim(),
       uom: String(material.uom || "").trim(),
       min_stock_level: normalizeNumber(material.min_stock_level),
+      manual_unit_cost: material.manual_unit_cost === "" || material.manual_unit_cost == null ? null : normalizeNumber(material.manual_unit_cost),
+      manual_cost_uom: String(material.manual_cost_uom || "").trim() || null,
       preferred_supplier: "",
       storage_location_id: material.storage_location_id || null,
       storage_location: storageLocationName || String(material.storage_location || "").trim(),

@@ -533,11 +533,22 @@ function latestReceivingCost(receivings, rawMaterialId) {
   return latestReceivingCostInfo(receivings, rawMaterialId).unitCost;
 }
 
-function latestReceivingCostInfo(receivings, rawMaterialId) {
+function latestReceivingCostInfo(receivings, rawMaterialId, rawMaterial = {}) {
   const rows = receivings
     .filter((row) => row.raw_material_id === rawMaterialId && Number(row.unit_cost || 0) > 0)
     .sort((a, b) => new Date(b.received_date || b.created_at || 0) - new Date(a.received_date || a.created_at || 0));
   const row = rows[0];
+  if (!row && Number(rawMaterial.manual_unit_cost || 0) > 0) {
+    return {
+      unitCost: Number(rawMaterial.manual_unit_cost || 0),
+      uom: rawMaterial.manual_cost_uom || "",
+      receiptNo: "",
+      supplierName: "",
+      receivedDate: "",
+      missingCost: false,
+      costSource: "Manual Cost",
+    };
+  }
   return {
     unitCost: Number(row?.unit_cost || 0),
     uom: row?.uom || "",
@@ -545,6 +556,7 @@ function latestReceivingCostInfo(receivings, rawMaterialId) {
     supplierName: row?.supplier_name || "",
     receivedDate: row?.received_date || "",
     missingCost: !row,
+    costSource: row ? "Receiving Cost" : "Missing Cost",
   };
 }
 
@@ -571,8 +583,8 @@ function unitCostDisplay(costInfo) {
   return `${money(costInfo.unitCost)} / ${normalizedCostUnit(costInfo.uom)?.display || costInfo.uom}`;
 }
 
-function recipeCostLineInfo(item, receivings) {
-  const latestCost = latestReceivingCostInfo(receivings, item.raw_material_id);
+function recipeCostLineInfo(item, receivings, rawMaterial = {}) {
+  const latestCost = latestReceivingCostInfo(receivings, item.raw_material_id, rawMaterial);
   const quantityWithWastage = Number(item.quantity_used || 0) * (1 + Number(item.wastage_percent || 0) / 100);
   const convertedQty = latestCost.missingCost ? 0 : convertCostQuantity(quantityWithWastage, item.uom, latestCost.uom);
   const unsupportedCost = !latestCost.missingCost && convertedQty == null;
@@ -582,7 +594,8 @@ function recipeCostLineInfo(item, receivings) {
     unitCost: latestCost.unitCost,
     costUom: latestCost.uom,
     lineCost: unsupportedCost || latestCost.missingCost ? 0 : (convertedQty || 0) * latestCost.unitCost,
-    source: latestCost.receiptNo || (latestCost.missingCost ? "Missing Cost" : "Unsupported UOM"),
+    source: latestCost.receiptNo || latestCost.costSource || (latestCost.missingCost ? "Missing Cost" : "Unsupported UOM"),
+    costSource: latestCost.costSource || "",
     supplierName: latestCost.supplierName,
     receivedDate: latestCost.receivedDate,
     missingCost: latestCost.missingCost,
@@ -616,13 +629,14 @@ function productionCostInfo(production, receivings) {
 
 function recipeCostInfo(recipe, receivings) {
   const itemRows = (recipe.items || []).map((item) => {
-    const lineCost = recipeCostLineInfo(item, receivings);
+    const lineCost = recipeCostLineInfo(item, receivings, item);
     return {
       ...item,
       quantity_with_wastage: lineCost.quantityWithWastage,
       unit_cost: lineCost.unitCost,
       cost_uom: lineCost.costUom,
       cost_source: lineCost.source,
+      cost_source_type: lineCost.costSource,
       supplier_name: lineCost.supplierName,
       received_date: lineCost.receivedDate,
       missing_cost: lineCost.missingCost,
@@ -1440,7 +1454,7 @@ function RawMaterialDetailModal({ material, receivings, movements, stockChecks, 
   const materialMovements = movements.filter((row) => row.raw_material_id === material.id);
   const materialChecks = stockChecks
     .flatMap((check) => (check.items || []).filter((item) => item.raw_material_id === material.id).map((item) => ({ ...item, check_no: check.check_no, check_date: check.check_date, status: check.status })));
-  const latestCost = latestReceivingCostInfo(receivings, material.id);
+  const latestCost = latestReceivingCostInfo(receivings, material.id, material);
   const consumptionRows = materialMovements.filter((row) => Number(row.quantity || 0) < 0 || String(row.movement_type || "").toLowerCase().includes("production"));
   const costTrendRows = materialReceivings.filter((row) => Number(row.unit_cost || 0) > 0).slice(0, 8);
   return (
@@ -1450,7 +1464,7 @@ function RawMaterialDetailModal({ material, receivings, movements, stockChecks, 
           <MetricCard icon={Warehouse} label="Current Balance" value={quantity(material.current_balance, material.uom)} helper={material.material_code || "Raw material"} />
           <MetricCard icon={Truck} label="Receiving Rows" value={materialReceivings.length} helper="Supplier deliveries" />
           <MetricCard icon={Factory} label="Consumption Rows" value={consumptionRows.length} helper="Production usage / stock-out" />
-          <MetricCard icon={PackageCheck} label="Latest Unit Cost" value={latestCost.missingCost ? "Missing Cost" : money(latestCost.unitCost)} helper={latestCost.receivedDate || "No receiving cost"} />
+          <MetricCard icon={PackageCheck} label="Latest Unit Cost" value={latestCost.missingCost ? "Missing Cost" : unitCostDisplay(latestCost)} helper={latestCost.receivedDate || latestCost.costSource || "No receiving cost"} />
         </div>
         <Card title="Receiving History" description="Supplier receiving rows linked to this raw material.">
           <FactoryTable
@@ -1524,6 +1538,8 @@ function RawMaterialMasterModal({ initialValue, categories, storageLocations = [
     category: "",
     uom: "kg",
     min_stock_level: 0,
+    manual_unit_cost: "",
+    manual_cost_uom: "kg",
     storage_location_id: "",
     storage_location: "",
     status: "active",
@@ -1629,6 +1645,29 @@ function RawMaterialMasterModal({ initialValue, categories, storageLocations = [
             {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
           </select>
         </Field>
+        <section className="space-y-3 rounded-xl border border-border bg-slate-50 p-3">
+          <div>
+            <div className="text-sm font-bold text-text-primary">Cost Information</div>
+            <div className="text-xs font-semibold text-text-secondary">Used only when no receiving cost exists. Receiving cost remains preferred.</div>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Manual Unit Cost">
+              <input className={inputClass()} type="number" min="0" step="0.0001" placeholder="10" value={form.manual_unit_cost ?? ""} onChange={(event) => setForm((current) => ({ ...current, manual_unit_cost: event.target.value }))} />
+            </Field>
+            <Field label="Cost UOM">
+              <SearchableSelect
+                value={form.manual_cost_uom || ""}
+                options={commonUoms.map((uom) => ({ value: uom, label: uom }))}
+                placeholder="Select Cost UOM"
+                searchPlaceholder="Search UOM"
+                onChange={(manualCostUom) => setForm((current) => ({ ...current, manual_cost_uom: manualCostUom }))}
+              />
+            </Field>
+          </div>
+          <div className="text-xs font-semibold text-text-secondary">
+            {Number(form.manual_unit_cost || 0) > 0 && form.manual_cost_uom ? `${money(form.manual_unit_cost)} / ${normalizedCostUnit(form.manual_cost_uom)?.display || form.manual_cost_uom}` : "Add a manual fallback cost if this material has no receiving cost yet."}
+          </div>
+        </section>
         <Field label="Storage Location">
           <SearchableSelect
             value={form.storage_location_id || ""}
@@ -3172,13 +3211,15 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
   const materialUomOptions = commonUoms.map((uom) => ({ value: uom, label: uom }));
   const inheritedUom = inheritedRecipeUom(form.product_family_id, finishedGoods, form.uom || "kg");
   const itemCostRows = form.items.map((item) => {
-    const lineCost = recipeCostLineInfo(item, receivings);
+    const material = rawMaterials.find((row) => row.id === item.raw_material_id);
+    const lineCost = recipeCostLineInfo(item, receivings, material || item);
     return {
       id: item.id,
       unitCost: lineCost.unitCost,
       costUom: lineCost.costUom,
       lineCost: lineCost.lineCost,
       source: lineCost.source,
+      costSource: lineCost.costSource,
       missingCost: lineCost.missingCost,
       unsupportedCost: lineCost.unsupportedCost,
     };
@@ -5223,7 +5264,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     { key: "category", label: "Category", render: (row) => row.category || "No category" },
     { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
     { key: "current_balance", label: "Current Balance", render: (row) => quantity(row.current_balance, row.uom) },
-    { key: "latest_cost", label: "Latest Cost", render: (row) => row.latest_cost_missing ? "Missing Cost" : row.latest_cost_uom ? `${money(row.latest_cost)}/${normalizedCostUnit(row.latest_cost_uom)?.display || row.latest_cost_uom}` : "Unsupported UOM" },
+    { key: "latest_cost", label: "Latest Cost", render: (row) => (
+      <div>
+        <div className="font-semibold text-text-primary">{row.latest_cost_missing ? "Missing Cost" : row.latest_cost_uom ? `${money(row.latest_cost)}/${normalizedCostUnit(row.latest_cost_uom)?.display || row.latest_cost_uom}` : "Unsupported UOM"}</div>
+        {!row.latest_cost_missing ? <div className="text-xs text-text-secondary">{row.latest_cost_source || "Receiving Cost"}</div> : null}
+      </div>
+    ) },
     { key: "last_receiving_date", label: "Last Receiving", render: (row) => formatFactoryDate(row.last_receiving_date) },
     { key: "last_consumption_date", label: "Last Consumption", render: (row) => formatFactoryDate(row.last_consumption_date) },
     { key: "status", label: "Status", render: (row) => <Badge tone={row.stock_status === "Out of Stock" ? "danger" : row.stock_status === "Low Stock" ? "warning" : "success"}>{row.stock_status}</Badge> },
@@ -5470,7 +5516,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       const consumptionRows = materialMovements.filter((row) => Number(row.quantity || 0) < 0 || String(row.movement_type || "").toLowerCase().includes("production"));
       const lastReceiving = [...materialReceivings].sort((a, b) => new Date(b.received_date || b.created_at || 0) - new Date(a.received_date || a.created_at || 0))[0];
       const lastConsumption = [...consumptionRows].sort((a, b) => new Date(b.movement_date || b.created_at || 0) - new Date(a.movement_date || a.created_at || 0))[0];
-      const latestCost = latestReceivingCostInfo(data.receivings, material.id);
+      const latestCost = latestReceivingCostInfo(data.receivings, material.id, material);
       const balance = Number(material.current_balance || 0);
       const minStock = Number(material.min_stock_level || 0);
       const costBalance = latestCost.missingCost ? null : convertCostQuantity(balance, material.uom, latestCost.uom);
@@ -5482,6 +5528,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         latest_cost: latestCost.unitCost,
         latest_cost_uom: latestCost.uom,
         latest_cost_missing: latestCost.missingCost,
+        latest_cost_source: latestCost.costSource,
         latest_cost_unsupported: !latestCost.missingCost && costBalance == null,
         inventory_value: inventoryValue,
         stock_status: balance <= 0 ? "Out of Stock" : minStock > 0 && balance <= minStock ? "Low Stock" : "In Stock",
