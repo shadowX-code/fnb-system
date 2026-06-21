@@ -2558,15 +2558,16 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
   );
 }
 
-function FactorySupplierModal({ suppliers, onClose, onSave, onArchive }) {
+function FactorySupplierModal({ initialValue, onClose, onSave }) {
   const [form, setForm] = useState(() => ({
-    supplier_name: "",
-    supplier_code: "",
-    contact_person: "",
-    phone: "",
-    email: "",
-    status: "active",
-    remarks: "",
+    supplier_name: initialValue?.supplier_name || "",
+    supplier_code: initialValue?.supplier_code || "",
+    contact_person: initialValue?.contact_person || "",
+    phone: initialValue?.phone || "",
+    email: initialValue?.email || "",
+    status: initialValue?.status || "active",
+    remarks: initialValue?.remarks || "",
+    id: initialValue?.id,
   }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -2581,30 +2582,6 @@ function FactorySupplierModal({ suppliers, onClose, onSave, onArchive }) {
     setSaving(true);
     try {
       await onSave(form);
-      setForm({ supplier_name: "", supplier_code: "", contact_person: "", phone: "", email: "", status: "active", remarks: "" });
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function edit(supplier) {
-    setForm({
-      id: supplier.id,
-      supplier_name: supplier.supplier_name || "",
-      supplier_code: supplier.supplier_code || "",
-      contact_person: supplier.contact_person || "",
-      phone: supplier.phone || "",
-      email: supplier.email || "",
-      status: supplier.status || "active",
-      remarks: supplier.remarks || "",
-    });
-    setError("");
-  }
-
-  async function archive(supplier) {
-    setSaving(true);
-    try {
-      await onArchive(supplier);
     } finally {
       setSaving(false);
     }
@@ -2612,64 +2589,69 @@ function FactorySupplierModal({ suppliers, onClose, onSave, onArchive }) {
 
   return (
     <Modal
-      title="Factory Suppliers"
-      description="Manage Factory suppliers used by raw material receiving documents."
+      title={form.id ? "Edit Supplier" : "Create Supplier"}
+      description="Factory suppliers are used by raw material receiving documents."
       size="lg"
       onClose={saving ? undefined : onClose}
-      footer={<button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Close</button>}
+      footer={(
+        <div className="flex gap-2">
+          <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
+          <button className="btn-primary" type="submit" form="factory-supplier-form" disabled={saving}>{saving ? "Saving..." : form.id ? "Save Supplier" : "Create Supplier"}</button>
+        </div>
+      )}
     >
-      <div className="space-y-4">
-        <form className="space-y-4 rounded-xl border border-border bg-slate-50 p-4" onSubmit={submit}>
-          {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
-          <div className="grid gap-3 md:grid-cols-2">
-            <Field label="Supplier Name *">
-              <input className={inputClass(error && !form.supplier_name)} value={form.supplier_name || ""} onChange={(event) => setForm((current) => ({ ...current, supplier_name: event.target.value }))} />
-            </Field>
-            <Field label="Supplier Code">
-              <input className={inputClass()} value={form.supplier_code || ""} onChange={(event) => setForm((current) => ({ ...current, supplier_code: event.target.value }))} />
-            </Field>
-            <Field label="Contact Person">
-              <input className={inputClass()} value={form.contact_person || ""} onChange={(event) => setForm((current) => ({ ...current, contact_person: event.target.value }))} />
-            </Field>
-            <Field label="Phone">
-              <input className={inputClass()} value={form.phone || ""} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} />
-            </Field>
-            <Field label="Email">
-              <input className={inputClass()} type="email" value={form.email || ""} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} />
-            </Field>
-            <Field label="Status">
-              <select className={inputClass()} value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
-                <option value="active">Active</option>
-                <option value="archived">Archived</option>
-              </select>
-            </Field>
+      <form id="factory-supplier-form" className="space-y-4" onSubmit={submit}>
+        {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
+        <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
+          <div>
+            <div className="text-sm font-semibold text-text-primary">Supplier Details</div>
+          </div>
+          <Field label="Supplier Name *">
+            <input className={inputClass(error && !form.supplier_name)} value={form.supplier_name || ""} onChange={(event) => {
+              setError("");
+              setForm((current) => ({ ...current, supplier_name: event.target.value }));
+            }} />
+          </Field>
+          <Field label="Supplier Code">
+            <input className={inputClass()} value={form.supplier_code || ""} onChange={(event) => setForm((current) => ({ ...current, supplier_code: event.target.value }))} />
+          </Field>
+          <Field label="Status *">
+            <SearchableSelect
+              value={form.status || "active"}
+              options={[
+                { value: "active", label: "Active" },
+                { value: "archived", label: "Archived" },
+              ]}
+              placeholder="Select Status"
+              searchPlaceholder="Search status"
+              emptyText="No status"
+              onChange={(value) => setForm((current) => ({ ...current, status: value }))}
+            />
+          </Field>
+        </section>
+        <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
+          <div>
+            <div className="text-sm font-semibold text-text-primary">Contact Information</div>
+          </div>
+          <Field label="Contact Person">
+            <input className={inputClass()} value={form.contact_person || ""} onChange={(event) => setForm((current) => ({ ...current, contact_person: event.target.value }))} />
+          </Field>
+          <Field label="Phone">
+            <input className={inputClass()} value={form.phone || ""} onChange={(event) => setForm((current) => ({ ...current, phone: event.target.value }))} />
+          </Field>
+          <Field label="Email">
+            <input className={inputClass()} type="email" value={form.email || ""} onChange={(event) => setForm((current) => ({ ...current, email: event.target.value }))} />
+          </Field>
+        </section>
+        <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
+          <div>
+            <div className="text-sm font-semibold text-text-primary">Notes</div>
           </div>
           <Field label="Remarks">
             <textarea className={inputClass()} rows={3} value={form.remarks || ""} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
           </Field>
-          <div className="flex justify-end gap-2">
-            <button className="btn-primary" type="submit" disabled={saving}>{saving ? "Saving..." : form.id ? "Update Supplier" : "Create Supplier"}</button>
-            {form.id ? <button className="btn-secondary" type="button" disabled={saving} onClick={() => setForm({ supplier_name: "", supplier_code: "", contact_person: "", phone: "", email: "", status: "active", remarks: "" })}>New</button> : null}
-          </div>
-        </form>
-
-        <div className="space-y-2">
-          {suppliers.length ? suppliers.map((supplier) => (
-            <div key={supplier.id} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-3">
-              <div>
-                <div className="font-bold text-text-primary">{supplier.supplier_name}</div>
-                <div className="text-sm text-text-secondary">{[supplier.supplier_code, supplier.contact_person, supplier.phone].filter(Boolean).join(" · ") || "No contact details"}</div>
-                {supplier.remarks ? <div className="mt-1 text-xs text-text-muted">{supplier.remarks}</div> : null}
-              </div>
-              <div className="flex shrink-0 items-center gap-2">
-                <Badge tone={supplier.status === "active" ? "success" : "neutral"}>{supplier.status}</Badge>
-                <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={saving} onClick={() => edit(supplier)}>Edit</button>
-                {supplier.status !== "archived" ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" disabled={saving} onClick={() => archive(supplier)}>Archive</button> : null}
-              </div>
-            </div>
-          )) : <EmptyState title="No suppliers" description="Create a Factory supplier before recording supplier receiving documents." />}
-        </div>
-      </div>
+        </section>
+      </form>
     </Modal>
   );
 }
@@ -4534,6 +4516,23 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     }
   }
 
+  async function restoreFactorySupplier(supplier) {
+    const confirmed = await ui?.confirm?.({
+      title: "Restore Factory Supplier?",
+      message: `${supplier.supplier_name} will become available for new raw material receiving documents.`,
+      confirmLabel: "Restore",
+      tone: "info",
+    });
+    if (!confirmed) return;
+    try {
+      await factoryService.saveFactorySupplier({ ...supplier, status: "active" }, auth?.profile?.id);
+      ui?.notify?.({ title: "Factory supplier restored", tone: "success" });
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to restore Factory supplier", message: error.message, tone: "error" });
+    }
+  }
+
   async function saveFactoryCustomer(form, options = {}) {
     try {
       await factoryService.saveFactoryCustomer(form, auth?.profile?.id);
@@ -4961,8 +4960,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge> },
     { key: "remarks", label: "Remarks", render: (row) => row.remarks || "—" },
     { key: "actions", label: "Actions", align: "right", render: (row) => (
-      <div className="flex justify-end gap-2">
-        {can("factory_suppliers.edit") || can("factory_suppliers.manage") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "factory-suppliers", value: row })}>Manage</button> : null}
+      <div className="flex flex-wrap justify-end gap-2">
+        {can("factory_suppliers.edit") || can("factory_suppliers.manage") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "factory-suppliers", value: row })}>Edit</button> : null}
+        {row.status === "archived"
+          ? can("factory_suppliers.edit") || can("factory_suppliers.manage") ? <button className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50" type="button" onClick={() => restoreFactorySupplier(row)}>Restore</button> : null
+          : can("factory_suppliers.delete") || can("factory_suppliers.manage") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => archiveFactorySupplier(row)}>Archive</button> : null}
       </div>
     ) },
   ];
@@ -5773,7 +5775,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           section="System"
           title="Suppliers"
           description="Manage Factory supplier master data used by raw material receiving documents."
-          actions={can("factory_suppliers.create") || can("factory_suppliers.manage") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "factory-suppliers" })}><Truck size={15} /> Supplier</button> : null}
+          actions={can("factory_suppliers.create") || can("factory_suppliers.manage") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "factory-suppliers" })}><Truck size={15} /> Create Supplier</button> : null}
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={Truck} label="Total Suppliers" value={data.factorySuppliers.length} helper="Active and archived" />
@@ -6851,10 +6853,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       ) : null}
       {modal?.type === "factory-suppliers" ? (
         <FactorySupplierModal
-          suppliers={data.factorySuppliers}
+          initialValue={modal.value}
           onClose={() => setModal(null)}
-          onSave={(form) => saveFactorySupplier(form, { keepOpen: true })}
-          onArchive={(supplier) => archiveFactorySupplier(supplier, { keepOpen: true })}
+          onSave={saveFactorySupplier}
         />
       ) : null}
       {modal?.type === "factory-customers" ? (
