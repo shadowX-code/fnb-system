@@ -5876,12 +5876,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             tone={Math.abs(metrics.costVariance?.variancePercent || 0) > 5 ? "warning" : "success"}
           />
         </div>
-        <div className="grid gap-4 xl:grid-cols-2">
+        <div className="grid gap-4">
           <Card title="Open Job Orders" description="Factory production work that still needs action.">
             <FactoryTable columns={jobColumns.slice(0, 5)} rows={metrics.openJobs.slice(0, 6)} emptyTitle="No open job orders" emptyDescription="Create a job order to start production planning." />
-          </Card>
-          <Card title="Raw Material Low Stock" description="Materials that need attention before production.">
-            <FactoryTable columns={lowStockColumns} rows={metrics.lowStock.slice(0, 6)} emptyTitle="No low stock raw materials" emptyDescription="Raw material stock is currently healthy." />
           </Card>
         </div>
         <Card title="Factory Smart Alerts" description="Operational signals from production, receiving and stock check approval.">
