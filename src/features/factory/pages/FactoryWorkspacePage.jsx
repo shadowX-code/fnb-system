@@ -3368,7 +3368,6 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
   const isLocked = initialValue?.status && initialValue.status !== "draft";
   const activeProductFamilies = productFamilies.filter((family) => family.status === "active" || family.id === form.product_family_id);
   const productFamilyOptions = activeProductFamilies.map((family) => ({ value: family.id, label: family.name_en, helper: [family.category, family.status].filter(Boolean).join(" · ") || "Finished Good" }));
-  const materialUomOptions = commonUoms.map((uom) => ({ value: uom, label: uom }));
   const inheritedUom = inheritedRecipeUom(form.product_family_id, finishedGoods, form.uom || "kg");
   const itemCostRows = form.items.map((item) => {
     const material = rawMaterials.find((row) => row.id === item.raw_material_id);
@@ -3561,24 +3560,17 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
                         <input className={inputClass()} type="number" min="0" step="0.0001" value={item.quantity_used || ""} disabled={isLocked} onChange={(event) => updateItem(item.id, { quantity_used: event.target.value })} />
                       </Field>
                       <Field label="UOM">
-                        <SearchableSelect
-                          value={item.uom || material?.uom || "kg"}
-                          options={materialUomOptions}
-                          placeholder="Select UOM"
-                          searchPlaceholder="Search UOM"
-                          disabled={isLocked}
-                          onChange={(uom) => updateItem(item.id, { uom })}
-                        />
+                        <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-bold text-text-primary">{item.uom || material?.uom || "—"}</div>
+                        <div className="mt-1 text-xs font-semibold text-text-secondary">Inherited from raw material.</div>
                       </Field>
                     </div>
                     <div className="grid grid-cols-2 gap-3">
                       <div>
                         <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Unit Cost</div>
                         <div className="mt-1 text-sm font-bold text-text-primary">{costForItem(item.id).missingCost ? "Missing Cost" : unitCostDisplay({ unitCost: costForItem(item.id).unitCost, uom: costForItem(item.id).costUom })}</div>
-                        <div className="text-xs font-semibold text-text-secondary">{costForItem(item.id).source}</div>
                       </div>
                       <div>
-                        <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Line Cost</div>
+                        <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Material Cost</div>
                         <div className="mt-1 text-sm font-bold text-text-primary">{costDisplay(costForItem(item.id).lineCost, costForItem(item.id).missingCost ? 1 : 0, costForItem(item.id).unsupportedCost ? 1 : 0)}</div>
                       </div>
                     </div>
@@ -3602,7 +3594,7 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
                   <th className="px-4 py-2.5">Qty</th>
                   <th className="px-4 py-2.5">UOM</th>
                   <th className="px-4 py-2.5">Unit Cost</th>
-                  <th className="px-4 py-2.5">Line Cost</th>
+                  <th className="px-4 py-2.5">Material Cost</th>
                   <th className="px-4 py-2.5">Wastage</th>
                   <th className="px-4 py-2.5">Remarks</th>
                   <th className="px-4 py-2.5 text-right">Action</th>
@@ -3635,18 +3627,10 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
                       </td>
                       <td className="px-4 py-3"><input className={inputClass()} type="number" min="0" step="0.0001" value={item.quantity_used || ""} disabled={isLocked} onChange={(event) => updateItem(item.id, { quantity_used: event.target.value })} /></td>
                       <td className="px-4 py-3">
-                        <SearchableSelect
-                          value={item.uom || material?.uom || "kg"}
-                          options={materialUomOptions}
-                          placeholder="Select UOM"
-                          searchPlaceholder="Search UOM"
-                          disabled={isLocked}
-                          onChange={(uom) => updateItem(item.id, { uom })}
-                        />
+                        <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-bold text-text-primary">{item.uom || material?.uom || "—"}</div>
                       </td>
                       <td className="px-4 py-3">
                         <div className="font-semibold text-text-primary">{costForItem(item.id).missingCost ? "Missing Cost" : unitCostDisplay({ unitCost: costForItem(item.id).unitCost, uom: costForItem(item.id).costUom })}</div>
-                        <div className="text-xs text-text-secondary">{costForItem(item.id).source}</div>
                       </td>
                       <td className="px-4 py-3 font-bold text-text-primary">{costDisplay(costForItem(item.id).lineCost, costForItem(item.id).missingCost ? 1 : 0, costForItem(item.id).unsupportedCost ? 1 : 0)}</td>
                       <td className="px-4 py-3"><input className={inputClass()} type="number" min="0" step="0.01" value={item.wastage_percent || 0} disabled={isLocked} onChange={(event) => updateItem(item.id, { wastage_percent: event.target.value })} /></td>
@@ -3663,9 +3647,24 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
           <div className="mt-4 flex flex-col gap-2 rounded-xl border border-border bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="text-sm font-bold text-text-primary">Recipe Total Cost</div>
-              <div className="text-xs font-semibold text-text-secondary">Latest receiving cost from Raw Material Receiving.</div>
+              <div className="text-xs font-semibold text-text-secondary">Costed from the current BOM material quantities.</div>
             </div>
-            <div className="text-lg font-black text-text-primary">{costDisplay(totalCost, missingCostRows, unsupportedCostRows)}</div>
+            <div className="grid gap-2 text-right sm:grid-cols-3">
+              <div>
+                <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Total Cost</div>
+                <div className="text-lg font-black text-text-primary">{costDisplay(totalCost, missingCostRows, unsupportedCostRows)}</div>
+              </div>
+              <div>
+                <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Output Qty</div>
+                <div className="text-lg font-black text-text-primary">{quantity(form.yield_quantity, inheritedUom || form.uom)}</div>
+              </div>
+              <div>
+                <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Cost / {inheritedUom || form.uom || "UOM"}</div>
+                <div className="text-lg font-black text-text-primary">
+                  {costDisplay(Number(form.yield_quantity || 0) > 0 ? totalCost / Number(form.yield_quantity || 1) : 0, missingCostRows, unsupportedCostRows)}
+                </div>
+              </div>
+            </div>
           </div>
         </Card>
       </form>
@@ -3719,6 +3718,10 @@ function ProductRecipeDetailModal({ recipe, receivings = [], onClose }) {
               <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Recipe Total Cost</div>
               <div className="mt-1 text-sm font-bold text-text-primary">{costDisplay(recipeCost.standardCost, recipeCost.missingCostRows, recipeCost.unsupportedCostRows)}</div>
             </div>
+            <div>
+              <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Cost / {recipe.uom || "UOM"}</div>
+              <div className="mt-1 text-sm font-bold text-text-primary">{costDisplay(recipeCost.costPerUnit, recipeCost.missingCostRows, recipeCost.unsupportedCostRows)}</div>
+            </div>
           </div>
         </Card>
         <Card title="BOM Materials">
@@ -3728,7 +3731,7 @@ function ProductRecipeDetailModal({ recipe, receivings = [], onClose }) {
               { key: "required_qty", label: "Qty", render: (row) => quantity(row.quantity_used, row.uom) },
               { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
               { key: "unit_cost", label: "Unit Cost", render: (row) => row.missing_cost ? "Missing Cost" : unitCostDisplay({ unitCost: row.unit_cost, uom: row.cost_uom }) },
-              { key: "line_cost", label: "Line Cost", render: (row) => costDisplay(row.standard_cost, row.missing_cost ? 1 : 0, row.unsupported_cost ? 1 : 0) },
+              { key: "line_cost", label: "Material Cost", render: (row) => costDisplay(row.standard_cost, row.missing_cost ? 1 : 0, row.unsupported_cost ? 1 : 0) },
               { key: "wastage_percent", label: "Wastage", render: (row) => percent(row.wastage_percent) },
               { key: "remarks", label: "Remarks", render: (row) => row.remarks || row.notes || "—" },
             ]}
@@ -3739,9 +3742,22 @@ function ProductRecipeDetailModal({ recipe, receivings = [], onClose }) {
           <div className="mt-4 flex flex-col gap-2 rounded-xl border border-border bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="text-sm font-bold text-text-primary">Recipe Total Cost</div>
-              <div className="text-xs font-semibold text-text-secondary">Latest receiving cost from Raw Material Receiving.</div>
+              <div className="text-xs font-semibold text-text-secondary">Costed from the saved BOM material quantities.</div>
             </div>
-            <div className="text-lg font-black text-text-primary">{costDisplay(recipeCost.standardCost, recipeCost.missingCostRows, recipeCost.unsupportedCostRows)}</div>
+            <div className="grid gap-2 text-right sm:grid-cols-3">
+              <div>
+                <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Total Cost</div>
+                <div className="text-lg font-black text-text-primary">{costDisplay(recipeCost.standardCost, recipeCost.missingCostRows, recipeCost.unsupportedCostRows)}</div>
+              </div>
+              <div>
+                <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Output Qty</div>
+                <div className="text-lg font-black text-text-primary">{quantity(recipe.yield_quantity, recipe.uom)}</div>
+              </div>
+              <div>
+                <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Cost / {recipe.uom || "UOM"}</div>
+                <div className="text-lg font-black text-text-primary">{costDisplay(recipeCost.costPerUnit, recipeCost.missingCostRows, recipeCost.unsupportedCostRows)}</div>
+              </div>
+            </div>
           </div>
         </Card>
         {recipe.remarks || recipe.notes ? (
@@ -5560,6 +5576,20 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     { key: "actions", label: "Actions", align: "right", render: (row) => can("factory_production_sop.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "sop", value: row })}>Edit</button> : null },
   ];
 
+  function renderRecipeActions(row) {
+    return (
+      <div className="flex flex-wrap justify-end gap-2" onClick={(event) => event.stopPropagation()}>
+        <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "recipe-detail", value: row })}>View</button>
+        {row.status === "draft" && can("factory_product_recipes.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "recipe", value: row })}>Edit</button> : null}
+        {row.status === "draft" && can("factory_product_recipes.manage") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => activateProductRecipe(row)}>Activate</button> : null}
+        {row.status === "draft" && can("factory_product_recipes.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => deleteProductRecipe(row)}>Delete</button> : null}
+        {row.status === "active" && can("factory_product_recipes.create") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => openNewRecipeVersion(row)}>New Version</button> : null}
+        {row.status === "active" && can("factory_product_recipes.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => archiveProductRecipe(row)}>Archive</button> : null}
+        {row.status === "archived" && can("factory_product_recipes.edit") ? <button className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50" type="button" onClick={() => restoreProductRecipe(row)}>Restore</button> : null}
+      </div>
+    );
+  }
+
   const recipeColumns = [
     { key: "finished_good", label: "Finished Good", render: (row) => {
       const englishName = row.product_name_en || row.product_name || row.product_family_name || "Finished Good";
@@ -5571,21 +5601,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     { key: "items", label: "Materials", render: (row) => row.items?.length || 0 },
     { key: "recipe_cost", label: "Recipe Cost", render: (row) => {
       const cost = recipeCostInfo(row, data.receivings);
-      return <div><div className="font-bold text-text-primary">{costDisplay(cost.standardCost, cost.missingCostRows, cost.unsupportedCostRows)}</div><div className="text-xs text-text-secondary">Latest receiving cost</div></div>;
+      return <div className="font-bold text-text-primary">{costDisplay(cost.standardCost, cost.missingCostRows, cost.unsupportedCostRows)}</div>;
     } },
     { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : row.status === "draft" ? "info" : "neutral"}>{row.status}</Badge> },
     { key: "updated_at", label: "Updated", render: (row) => formatFactoryDate(row.updated_at) },
-    { key: "actions", label: "Actions", align: "right", render: (row) => (
-      <div className="flex flex-wrap justify-end gap-2" onClick={(event) => event.stopPropagation()}>
-        <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "recipe-detail", value: row })}>View</button>
-        {row.status === "draft" && can("factory_product_recipes.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "recipe", value: row })}>Edit</button> : null}
-        {row.status === "draft" && can("factory_product_recipes.manage") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => activateProductRecipe(row)}>Activate</button> : null}
-        {row.status === "draft" && can("factory_product_recipes.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => deleteProductRecipe(row)}>Delete</button> : null}
-        {row.status === "active" && can("factory_product_recipes.create") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => openNewRecipeVersion(row)}>New Version</button> : null}
-        {row.status === "active" && can("factory_product_recipes.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => archiveProductRecipe(row)}>Archive</button> : null}
-        {row.status === "archived" && can("factory_product_recipes.edit") ? <button className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50" type="button" onClick={() => restoreProductRecipe(row)}>Restore</button> : null}
-      </div>
-    ) },
+    { key: "actions", label: "Actions", align: "right", render: renderRecipeActions },
   ];
 
   function stockCheckColumns(stockType) {
@@ -6519,6 +6539,29 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const totalActiveRecipeCost = activeRecipeCosts.reduce((sum, cost) => sum + Number(cost.standardCost || 0), 0);
     const missingRecipeCosts = activeRecipeCosts.reduce((sum, cost) => sum + Number(cost.missingCostRows || 0), 0);
     const unsupportedRecipeCosts = activeRecipeCosts.reduce((sum, cost) => sum + Number(cost.unsupportedCostRows || 0), 0);
+    const recipeGroups = Object.values(data.recipes.reduce((groups, recipe) => {
+      const family = data.productFamilies.find((item) => item.id === recipe.product_family_id);
+      const fallbackKey = recipe.product_family_id || recipe.finished_good_id || recipe.product_name || recipe.id;
+      const key = String(fallbackKey);
+      if (!groups[key]) {
+        groups[key] = {
+          id: key,
+          name: family?.name_en || recipe.product_name_en || recipe.product_name || recipe.product_family_name || "Finished Good",
+          nameCn: family?.name_cn || recipe.product_name_cn || "",
+          recipes: [],
+        };
+      }
+      groups[key].recipes.push(recipe);
+      return groups;
+    }, {})).map((group) => ({
+      ...group,
+      recipes: group.recipes.sort((a, b) => {
+        const statusRank = { active: 0, draft: 1, archived: 2 };
+        const versionA = Number(String(a.version || "").replace(/[^0-9]/g, "")) || 0;
+        const versionB = Number(String(b.version || "").replace(/[^0-9]/g, "")) || 0;
+        return (statusRank[a.status] ?? 9) - (statusRank[b.status] ?? 9) || versionA - versionB;
+      }),
+    })).sort((a, b) => a.name.localeCompare(b.name));
     return (
       <div className="space-y-5">
         <PageHeader
@@ -6533,14 +6576,81 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={PackageCheck} label="FG Without Recipe" value={activeFinishedGoodsWithoutRecipe.length} helper="Finished goods missing active recipe" tone={activeFinishedGoodsWithoutRecipe.length ? "warning" : "success"} />
           <MetricCard icon={DollarSign} label="Cost" value={costDisplay(totalActiveRecipeCost, missingRecipeCosts, unsupportedRecipeCosts)} helper={missingRecipeCosts ? "Missing receiving cost" : unsupportedRecipeCosts ? "Review BOM and receiving UOMs" : "Active recipe total"} tone={missingRecipeCosts || unsupportedRecipeCosts ? "warning" : "success"} />
         </div>
-        <Card title="Recipe Records" description="One Finished Good can have one active recipe version. Drafts can be edited before activation. Click a row to view BOM details.">
-          <FactoryTable
-            columns={recipeColumns}
-            rows={data.recipes}
-            emptyTitle="No Product Recipes"
-            emptyDescription="Create a Product Recipe / BOM to prefill production material usage."
-            onRowClick={(row) => setModal({ type: "recipe-detail", value: row })}
-          />
+        <Card title="Recipe Records" description="Versions are grouped under each Finished Good. Drafts can be edited before activation. Click a version to view BOM details.">
+          {recipeGroups.length ? (
+            <div className="space-y-4">
+              {recipeGroups.map((group) => (
+                <div key={group.id} className="overflow-hidden rounded-2xl border border-border bg-white">
+                  <div className="flex flex-col gap-1 border-b border-border bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <div className="font-bold text-text-primary">{group.name}</div>
+                      {group.nameCn ? <div className="text-sm font-semibold text-text-secondary">{group.nameCn}</div> : null}
+                    </div>
+                    <Badge tone="neutral">{group.recipes.length} {group.recipes.length === 1 ? "Version" : "Versions"}</Badge>
+                  </div>
+                  <div className="hidden overflow-x-auto md:block">
+                    <table className="w-full min-w-[980px] text-left">
+                      <thead>
+                        <tr className="border-b border-border text-[10.5px] font-semibold text-[rgb(107,114,128)]">
+                          <th className="px-4 py-2.5">Version</th>
+                          <th className="px-4 py-2.5">Standard Output</th>
+                          <th className="px-4 py-2.5">Materials</th>
+                          <th className="px-4 py-2.5">Recipe Cost</th>
+                          <th className="px-4 py-2.5">Status</th>
+                          <th className="px-4 py-2.5">Updated</th>
+                          <th className="px-4 py-2.5 text-right">Actions</th>
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {group.recipes.map((recipe) => {
+                          const cost = recipeCostInfo(recipe, data.receivings);
+                          return (
+                            <tr key={recipe.id} className="cursor-pointer border-b border-border last:border-0 transition hover:bg-slate-50" onClick={() => setModal({ type: "recipe-detail", value: recipe })}>
+                              <td className="px-4 py-3"><Badge tone="info">{recipe.version || "v1"}</Badge></td>
+                              <td className="px-4 py-3 font-semibold text-text-primary">{quantity(recipe.yield_quantity, recipe.uom)}</td>
+                              <td className="px-4 py-3">{recipe.items?.length || 0}</td>
+                              <td className="px-4 py-3 font-bold text-text-primary">{costDisplay(cost.standardCost, cost.missingCostRows, cost.unsupportedCostRows)}</td>
+                              <td className="px-4 py-3"><Badge tone={recipe.status === "active" ? "success" : recipe.status === "draft" ? "info" : "neutral"}>{recipe.status}</Badge></td>
+                              <td className="px-4 py-3">{formatFactoryDate(recipe.updated_at)}</td>
+                              <td className="px-4 py-3 text-right">{renderRecipeActions(recipe)}</td>
+                            </tr>
+                          );
+                        })}
+                      </tbody>
+                    </table>
+                  </div>
+                  <div className="space-y-3 p-3 md:hidden">
+                    {group.recipes.map((recipe) => {
+                      const cost = recipeCostInfo(recipe, data.receivings);
+                      return (
+                        <div key={recipe.id} className="w-full rounded-xl border border-border bg-white p-3 text-left transition hover:border-primary/40 hover:bg-slate-50" role="button" tabIndex={0} onClick={() => setModal({ type: "recipe-detail", value: recipe })} onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            setModal({ type: "recipe-detail", value: recipe });
+                          }
+                        }}>
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <Badge tone={recipe.status === "active" ? "success" : recipe.status === "draft" ? "info" : "neutral"}>{recipe.version || "v1"} {recipe.status}</Badge>
+                              <div className="mt-2 text-sm font-bold text-text-primary">{quantity(recipe.yield_quantity, recipe.uom)}</div>
+                              <div className="text-xs font-semibold text-text-secondary">{recipe.items?.length || 0} materials · {formatFactoryDate(recipe.updated_at)}</div>
+                            </div>
+                            <div className="text-right text-sm font-black text-text-primary">{costDisplay(cost.standardCost, cost.missingCostRows, cost.unsupportedCostRows)}</div>
+                          </div>
+                          <div className="mt-3">{renderRecipeActions(recipe)}</div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="rounded-2xl border border-dashed border-border bg-slate-50 p-8 text-center">
+              <div className="font-bold text-text-primary">No Product Recipes</div>
+              <div className="mt-1 text-sm font-semibold text-text-secondary">Create a Product Recipe / BOM to prefill production material usage.</div>
+            </div>
+          )}
         </Card>
       </div>
     );
