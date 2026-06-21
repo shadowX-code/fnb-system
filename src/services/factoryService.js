@@ -633,9 +633,10 @@ function stockCheckVariance(systemQty, physicalQty) {
   const system = normalizeNumber(systemQty);
   const physical = normalizeNumber(physicalQty);
   const varianceQty = physical - system;
-  const variancePercent = system === 0 ? (physical === 0 ? 0 : 100) : (varianceQty / system) * 100;
+  const variancePercent = system > 0 ? (varianceQty / system) * 100 : 0;
+  const absQty = Math.abs(varianceQty);
   const absPercent = Math.abs(variancePercent);
-  const varianceStatus = absPercent > 5 ? "Critical" : absPercent > 2 ? "Warning" : "Normal";
+  const varianceStatus = absQty === 0 ? "Normal" : system > 0 && absPercent >= 5 ? "Critical" : system <= 0 ? "Critical" : "Variance";
   return { varianceQty, variancePercent, varianceStatus };
 }
 
@@ -657,7 +658,7 @@ function validateStockCheckItems(items, status) {
       const { varianceStatus } = stockCheckVariance(item.system_qty, item.physical_qty);
       return varianceStatus !== "Normal" && !String(item.variance_reason || "").trim();
     });
-    if (missingReason) throw new Error("Variance reason is required for Warning and Critical stock check items.");
+    if (missingReason) throw new Error("Variance reason is required for variance stock check items.");
   }
 }
 

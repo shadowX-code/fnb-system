@@ -21,7 +21,6 @@ const storageLocationTypes = ["Dry Store", "Chiller", "Freezer", "Production Are
 const qcStatusOptions = ["Pending", "Pass", "Hold", "Failed"];
 const varianceThresholdPercent = 5;
 const varianceReasonTolerance = 0.000001;
-const stockCheckWarningPercent = 2;
 const stockCheckCriticalPercent = 5;
 
 function todayInput() {
@@ -42,6 +41,12 @@ function money(value) {
 
 function quantity(value, uom) {
   return `${Number(value || 0).toLocaleString("en-MY", { maximumFractionDigits: 2 })}${uom ? ` ${uom}` : ""}`;
+}
+
+function signedQuantity(value, uom) {
+  const numeric = Number(value || 0);
+  const sign = numeric > 0 ? "+" : "";
+  return `${sign}${numeric.toLocaleString("en-MY", { maximumFractionDigits: 2 })}${uom ? ` ${uom}` : ""}`;
 }
 
 function percent(value) {
@@ -524,16 +529,45 @@ function stockCheckVariance(systemQty, physicalQty) {
   const system = Number(systemQty || 0);
   const physical = Number(physicalQty || 0);
   const variance = physical - system;
-  const variancePercent = system === 0 ? (physical === 0 ? 0 : 100) : (variance / system) * 100;
-  const absPercent = Math.abs(variancePercent);
-  const status = absPercent > stockCheckCriticalPercent ? "Critical" : absPercent > stockCheckWarningPercent ? "Warning" : "Normal";
+  const variancePercent = system > 0 ? (variance / system) * 100 : null;
+  const absVariance = Math.abs(variance);
+  const absPercent = Math.abs(Number(variancePercent || 0));
+  const status = absVariance === 0
+    ? "Normal"
+    : system > 0 && absPercent >= stockCheckCriticalPercent
+      ? "Critical"
+      : system <= 0
+        ? "Critical"
+        : "Variance";
   return { variance, variancePercent, status };
 }
 
 function stockVarianceTone(status) {
   if (status === "Critical") return "danger";
-  if (status === "Warning") return "warning";
+  if (status === "Warning" || status === "Variance") return "warning";
   return "success";
+}
+
+function stockCheckVarianceSummary(items = []) {
+  const skippedCount = items.filter((item) => item.variance_status === "Skipped" || item.count_status === "skip").length;
+  const varianceItems = items
+    .filter((item) => item.variance_status !== "Skipped" && item.count_status !== "skip")
+    .map((item) => ({ item, variance: stockCheckVariance(item.system_qty, item.physical_qty) }))
+    .filter(({ variance }) => variance.status !== "Normal");
+  if (!varianceItems.length) return skippedCount ? { label: "Skipped", tone: "neutral" } : { label: "Normal", tone: "success" };
+
+  const byUom = new Map();
+  varianceItems.forEach(({ item, variance }) => {
+    const uom = item.uom || "";
+    byUom.set(uom, (byUom.get(uom) || 0) + Number(variance.variance || 0));
+  });
+  const criticalCount = varianceItems.filter(({ variance }) => variance.status === "Critical").length;
+  const status = criticalCount ? "Critical" : "Variance";
+  if (byUom.size === 1) {
+    const [[uom, total]] = [...byUom.entries()];
+    return { label: `${signedQuantity(total, uom)} (${status})`, tone: status === "Critical" ? "danger" : "warning" };
+  }
+  return { label: `${varianceItems.length} mixed (${status})`, tone: status === "Critical" ? "danger" : "warning" };
 }
 
 function latestReceivingCost(receivings, rawMaterialId) {
@@ -4379,7 +4413,7 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
         const variance = stockCheckVariance(row.system_qty, row.physical_qty);
         return variance.status !== "Normal" && !String(row.variance_reason || "").trim();
       });
-      if (missingReason) return "Variance reason is required for Warning and Critical rows.";
+      if (missingReason) return "Variance reason is required for variance rows.";
     }
     return "";
   }
@@ -4406,6 +4440,24 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
     .filter((category) => category.status === "active" || category.id === form.category_id)
     .map((category) => ({ value: category.id, label: category.name, helper: category.status }));
 
+  function rowState(row) {
+    const isSkipped = row.count_status === "skip";
+    const hasCount = row.physical_qty !== "" && row.physical_qty != null;
+    const variance = isSkipped || !hasCount ? { variance: 0, variancePercent: null, status: isSkipped ? "Skipped" : "Normal" } : stockCheckVariance(row.system_qty, row.physical_qty);
+    const showReasonError = submitAttempted && lastSubmitAction === "submitted" && ((variance.status !== "Normal" && !isSkipped) || isSkipped) && !String(row.variance_reason || "").trim();
+    const showCountError = submitAttempted && lastSubmitAction === "submitted" && !isSkipped && !hasCount;
+    return { isSkipped, hasCount, variance, showReasonError, showCountError };
+  }
+
+  function countStatusControl(row, isSkipped) {
+    return (
+      <div className="inline-flex rounded-lg border border-border bg-white p-1">
+        <button className={`rounded-md px-2 py-1 text-xs font-semibold ${!isSkipped ? "bg-primary text-white" : "text-text-secondary hover:bg-slate-50"}`} type="button" disabled={isLocked} onClick={() => updateRow(row.id, { count_status: "counted" })}>Counted</button>
+        <button className={`rounded-md px-2 py-1 text-xs font-semibold ${isSkipped ? "bg-amber-500 text-white" : "text-text-secondary hover:bg-slate-50"}`} type="button" disabled={isLocked} onClick={() => updateRow(row.id, { count_status: "skip", physical_qty: "" })}>Skip</button>
+      </div>
+    );
+  }
+
   return (
     <Modal
       title={initialValue?.id ? `View ${title}` : `Create ${title}`}
@@ -4424,9 +4476,9 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
         {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={ClipboardCheck} label="Counted Items" value={form.items.length} helper={itemLabel} />
-          <MetricCard icon={Activity} label="Variance Rows" value={varianceRows.length} helper="Above 2%" tone={varianceRows.length ? "warning" : "success"} />
-          <MetricCard icon={AlertTriangle} label="Critical Rows" value={criticalRows.length} helper="Above 5%" tone={criticalRows.length ? "danger" : "success"} />
-          <MetricCard icon={CheckCircle2} label="Status" value={form.status} helper={form.check_no || "System generated"} />
+          <MetricCard icon={Activity} label="Variance Items" value={varianceRows.length} helper="Physical count differs" tone={varianceRows.length ? "warning" : "success"} />
+          <MetricCard icon={AlertTriangle} label="Requires Review" value={criticalRows.length} helper="Critical variance items" tone={criticalRows.length ? "danger" : "success"} />
+          <MetricCard icon={CheckCircle2} label="Status" value={jobStatusLabel(form.status)} helper="Stock check status" />
         </div>
         <div className="grid gap-3 md:grid-cols-3">
           {isRaw ? (
@@ -4452,27 +4504,74 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
         </div>
         <Card title={`${itemLabel} Count`} description={isLocked ? "Submitted and approved checks are locked snapshots." : "Draft system quantity refreshes from current stock before submission. Submit locks the snapshot for approval."}>
           {isRaw && !form.category_id ? <EmptyState title="Select a category to start stock check." description="Choose a raw material category before loading items to count." /> : null}
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-left">
+          <div className="space-y-3 md:hidden">
+            {form.items.map((row) => {
+              const { isSkipped, variance, showReasonError, showCountError } = rowState(row);
+              return (
+                <div key={row.id} className={`space-y-3 rounded-2xl border border-border bg-white p-3 ${showReasonError ? "ring-1 ring-amber-200" : ""}`}>
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <div className="font-semibold text-text-primary">{row.item_name || "Item"}</div>
+                      <div className="text-xs text-text-secondary">{row.uom || "uom"}</div>
+                    </div>
+                    <Badge tone={variance.status === "Skipped" ? "neutral" : stockVarianceTone(variance.status)}>{variance.status}</Badge>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
+                      <div className="text-[10.5px] font-semibold text-text-muted">Current Balance</div>
+                      <div className="mt-1 text-sm font-bold text-text-primary">{quantity(row.system_qty, row.uom)}</div>
+                    </div>
+                    <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
+                      <div className="text-[10.5px] font-semibold text-text-muted">Variance Qty</div>
+                      <div className={`mt-1 text-sm font-bold ${variance.variance > 0 ? "text-amber-600" : variance.variance < 0 ? "text-rose-600" : "text-text-primary"}`}>{signedQuantity(variance.variance, row.uom)}</div>
+                      {variance.variancePercent == null ? null : <div className="mt-0.5 text-xs font-semibold text-text-muted">{percent(variance.variancePercent)}</div>}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    {countStatusControl(row, isSkipped)}
+                    <Field label="Physical Count">
+                      <input
+                        className={inputClass(showCountError || (submitAttempted && Number(row.physical_qty || 0) < 0))}
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        disabled={isLocked || isSkipped}
+                        placeholder={isSkipped ? "Skipped" : "Count qty"}
+                        value={row.physical_qty}
+                        onChange={(event) => updateRow(row.id, { physical_qty: event.target.value })}
+                      />
+                      {showCountError ? <div className="mt-1 text-xs font-semibold text-rose-600">Required before submit.</div> : null}
+                    </Field>
+                    <Field label="Reason">
+                      <input
+                        className={inputClass(showReasonError)}
+                        disabled={isLocked}
+                        placeholder={isSkipped ? "Skip reason required" : variance.status === "Normal" ? "Optional" : "Reason required"}
+                        value={row.variance_reason || ""}
+                        onChange={(event) => updateRow(row.id, { variance_reason: event.target.value })}
+                      />
+                      {showReasonError ? <div className="mt-1 text-xs font-semibold text-amber-700">{isSkipped ? "Required when skipped." : "Required for variance rows."}</div> : null}
+                    </Field>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[860px] text-left">
               <thead>
                 <tr className="border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">
                   <th className="px-4 py-2.5">{itemLabel}</th>
-                  <th className="px-4 py-2.5">System Qty</th>
-                  <th className="px-4 py-2.5">Count Status</th>
+                  <th className="px-4 py-2.5">Current Balance</th>
                   <th className="px-4 py-2.5">Physical Count</th>
                   <th className="px-4 py-2.5">Variance Qty</th>
-                  <th className="px-4 py-2.5">Variance %</th>
                   <th className="px-4 py-2.5">Status</th>
                   <th className="px-4 py-2.5">Reason</th>
                 </tr>
               </thead>
               <tbody>
                 {form.items.map((row) => {
-                  const isSkipped = row.count_status === "skip";
-                  const hasCount = row.physical_qty !== "" && row.physical_qty != null;
-                  const variance = isSkipped || !hasCount ? { variance: 0, variancePercent: 0, status: isSkipped ? "Skipped" : "Normal" } : stockCheckVariance(row.system_qty, row.physical_qty);
-                  const showReasonError = submitAttempted && lastSubmitAction === "submitted" && ((variance.status !== "Normal" && !isSkipped) || isSkipped) && !String(row.variance_reason || "").trim();
-                  const showCountError = submitAttempted && lastSubmitAction === "submitted" && !isSkipped && !hasCount;
+                  const { isSkipped, variance, showReasonError, showCountError } = rowState(row);
                   return (
                     <tr key={row.id} className={`border-b border-border last:border-0 ${showReasonError ? "bg-amber-50" : ""}`}>
                       <td className="px-4 py-3">
@@ -4480,12 +4579,6 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
                         <div className="text-xs text-text-secondary">{row.uom || "uom"}</div>
                       </td>
                       <td className="px-4 py-3 text-sm font-semibold text-text-secondary">{quantity(row.system_qty, row.uom)}</td>
-                      <td className="px-4 py-3">
-                        <div className="inline-flex rounded-lg border border-border bg-white p-1">
-                          <button className={`rounded-md px-2 py-1 text-xs font-semibold ${!isSkipped ? "bg-primary text-white" : "text-text-secondary hover:bg-slate-50"}`} type="button" disabled={isLocked} onClick={() => updateRow(row.id, { count_status: "counted" })}>Counted</button>
-                          <button className={`rounded-md px-2 py-1 text-xs font-semibold ${isSkipped ? "bg-amber-500 text-white" : "text-text-secondary hover:bg-slate-50"}`} type="button" disabled={isLocked} onClick={() => updateRow(row.id, { count_status: "skip", physical_qty: "" })}>Skip</button>
-                        </div>
-                      </td>
                       <td className="px-4 py-3">
                         <input
                           className={inputClass(showCountError || (submitAttempted && Number(row.physical_qty || 0) < 0))}
@@ -4500,10 +4593,15 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
                         {showCountError ? <div className="mt-1 text-xs font-semibold text-rose-600">Required before submit.</div> : null}
                       </td>
                       <td className={`px-4 py-3 text-sm font-semibold ${variance.variance > 0 ? "text-amber-600" : variance.variance < 0 ? "text-rose-600" : "text-text-secondary"}`}>
-                        {quantity(variance.variance, row.uom)}
+                        {signedQuantity(variance.variance, row.uom)}
+                        {variance.variancePercent == null ? null : <div className="mt-0.5 text-xs font-semibold text-text-muted">{percent(variance.variancePercent)}</div>}
                       </td>
-                      <td className="px-4 py-3 text-sm font-semibold text-text-secondary">{percent(variance.variancePercent)}</td>
-                      <td className="px-4 py-3"><Badge tone={variance.status === "Skipped" ? "neutral" : stockVarianceTone(variance.status)}>{variance.status}</Badge></td>
+                      <td className="px-4 py-3">
+                        <div className="space-y-2">
+                          <Badge tone={variance.status === "Skipped" ? "neutral" : stockVarianceTone(variance.status)}>{variance.status}</Badge>
+                          {countStatusControl(row, isSkipped)}
+                        </div>
+                      </td>
                       <td className="px-4 py-3">
                         <input
                           className={inputClass(showReasonError)}
@@ -4512,7 +4610,7 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
                           value={row.variance_reason || ""}
                           onChange={(event) => updateRow(row.id, { variance_reason: event.target.value })}
                         />
-                        {showReasonError ? <div className="mt-1 text-xs font-semibold text-amber-700">{isSkipped ? "Required when skipped." : "Required for Warning/Critical."}</div> : null}
+                        {showReasonError ? <div className="mt-1 text-xs font-semibold text-amber-700">{isSkipped ? "Required when skipped." : "Required for variance rows."}</div> : null}
                       </td>
                     </tr>
                   );
@@ -5492,18 +5590,14 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   function stockCheckColumns(stockType) {
     return [
-      { key: "check", label: "Check", render: (row) => <div><div className="font-bold text-text-primary">{row.check_no}</div><div className="text-xs text-text-secondary">{formatFactoryDate(row.check_date)}</div></div> },
+      { key: "check_date", label: "Date", render: (row) => formatFactoryDate(row.check_date) },
+      { key: "check_no", label: "Check No.", render: (row) => <div className="font-bold text-text-primary">{row.check_no}</div> },
       { key: "items", label: "Items", render: (row) => row.items?.length || 0 },
       { key: "variance", label: "Variance", render: (row) => {
-        const warningCount = (row.items || []).filter((item) => item.variance_status === "Warning").length;
-        const criticalCount = (row.items || []).filter((item) => item.variance_status === "Critical").length;
-        const skippedCount = (row.items || []).filter((item) => item.variance_status === "Skipped").length;
-        if (criticalCount) return <Badge tone="danger">{criticalCount} critical</Badge>;
-        if (warningCount) return <Badge tone="warning">{warningCount} warning</Badge>;
-        if (skippedCount) return <Badge tone="neutral">{skippedCount} skipped</Badge>;
-        return <Badge tone="success">Normal</Badge>;
+        const summary = stockCheckVarianceSummary(row.items || []);
+        return <Badge tone={summary.tone}>{summary.label}</Badge>;
       } },
-      { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{row.status}</Badge> },
+      { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{jobStatusLabel(row.status)}</Badge> },
       { key: "notes", label: "Notes", render: (row) => row.notes || "—" },
       { key: "actions", label: "Actions", align: "right", render: (row) => (
         <div className="flex justify-end gap-2">
@@ -6370,6 +6464,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   function renderRawStockCheck() {
+    const criticalRows = data.rawStockChecks
+      .flatMap((check) => check.items || [])
+      .filter((item) => item.variance_status !== "Skipped" && item.count_status !== "skip" && stockCheckVariance(item.system_qty, item.physical_qty).status === "Critical");
     return (
       <div className="space-y-5">
         <PageHeader
@@ -6382,7 +6479,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={Warehouse} label="Raw Materials" value={data.rawMaterials.length} helper="Available for count" />
           <MetricCard icon={ClipboardCheck} label="Checks" value={data.rawStockChecks.length} helper="Raw material checks" />
           <MetricCard icon={Clock3} label="Submitted" value={data.rawStockChecks.filter((row) => row.status === "submitted").length} helper="Awaiting approval" tone={data.rawStockChecks.some((row) => row.status === "submitted") ? "warning" : "success"} />
-          <MetricCard icon={AlertTriangle} label="Variance Rows" value={data.rawStockChecks.flatMap((row) => row.items || []).filter((item) => item.variance_status !== "Normal" && item.variance_status !== "Skipped").length} helper="Above 2%" tone="warning" />
+          <MetricCard icon={AlertTriangle} label="Critical Rows" value={criticalRows.length} helper="Requires review" tone={criticalRows.length ? "danger" : "success"} />
         </div>
         <Card title="Raw Material Stock Checks" description="Draft and submitted checks do not adjust stock. Approval applies the variance adjustment.">
           <FactoryTable columns={stockCheckColumns("raw")} rows={data.rawStockChecks} emptyTitle="No raw material stock checks" emptyDescription="Create a stock check to capture physical counts." />
