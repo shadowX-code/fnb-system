@@ -140,13 +140,19 @@ function SearchableSelect({ value, options, placeholder, onChange, error, search
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
   const internalButtonRef = useRef(null);
-  const anchorRef = buttonRef || internalButtonRef;
+  const anchorRef = internalButtonRef;
   const selected = options.find((option) => option.value === value);
   const visibleOptions = options.filter((option) => `${option.label} ${option.helper || ""}`.toLowerCase().includes(query.toLowerCase()));
 
+  function setButtonNode(node) {
+    internalButtonRef.current = node;
+    if (typeof buttonRef === "function") buttonRef(node);
+    else if (buttonRef) buttonRef.current = node;
+  }
+
   return (
     <div>
-      <button ref={anchorRef} className={`${inputClass(error)} flex items-center justify-between text-left disabled:cursor-not-allowed disabled:opacity-70`} type="button" disabled={disabled} onClick={() => setOpen((current) => !current)}>
+      <button ref={setButtonNode} className={`${inputClass(error)} flex items-center justify-between text-left disabled:cursor-not-allowed disabled:opacity-70`} type="button" disabled={disabled} onClick={() => setOpen((current) => !current)}>
         <span className={selected ? "text-text-primary" : "text-text-muted"}>{selected?.label || placeholder}</span>
         <span className="text-xs text-text-muted">Search</span>
       </button>
