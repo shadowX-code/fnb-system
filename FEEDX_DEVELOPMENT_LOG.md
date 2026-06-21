@@ -5,6 +5,10 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 ## 2026-06-18
 
 ### Factory
+- Factory Phase 1 UAT Round 1 passed for Raw Material Receiving, Product Recipes / BOM, Job Orders, Complete Production, Finished Goods Balance, Finished Goods Dispatch, and Product Movements.
+- Documented the Phase 2 traceability gap: Batch Traceability does not yet trace Dispatch -> Customer by production batch because dispatch currently records customer/SKU quantity without batch allocation. Phase 2 requires Dispatch Batch Allocation: Production Batch -> Dispatch Qty -> Customer.
+- Refined the Product Recipes / BOM page wording, table labels, lifecycle action buttons and read-only detail view so recipe setup reads as a clean BOM workflow instead of a technical production-standard form.
+- Added archived recipe restore behavior: archived Product Recipes return as draft versions for review, preserving the original BOM while keeping activation as the only path back to production defaults.
 - Refined Finished Goods Dispatch into a Dispatch History / Create Dispatch tab workflow, keeping dispatch creation embedded on the page while preserving modal-based View/Edit for existing drafts and completed records.
 - Added Factory Customers under the Factory System sidebar with create/edit/archive master data for dispatch destinations, replacing free-text customer entry for new finished goods dispatches.
 - Added a production-safe migration for `factory_customers`, `factory_finished_good_dispatches.customer_id`, Factory customer permissions/RLS, and DB-side `DYYMMDD-01` dispatch number generation through `factory_create_finished_good_dispatch(...)` with an advisory transaction lock.

@@ -1641,8 +1641,8 @@ export const factoryService = {
       }))
       .filter((item) => item.raw_material_id || item.quantity_used > 0 || item.uom || item.notes);
 
-    if (!String(recipe.recipe_name || "").trim()) throw new Error("Production standard name is required.");
-    if (normalizeNumber(recipe.yield_quantity) <= 0) throw new Error("Production quantity must be greater than 0.");
+    if (!String(recipe.recipe_name || "").trim()) throw new Error("Recipe name is required.");
+    if (normalizeNumber(recipe.yield_quantity) <= 0) throw new Error("Standard Output must be greater than 0.");
     if (!String(recipe.uom || "").trim()) throw new Error("UOM is required.");
     if (!items.length) throw new Error("At least one recipe material row is required.");
     const invalidItem = items.find((item) => !item.raw_material_id || item.quantity_used <= 0);
@@ -1756,7 +1756,7 @@ export const factoryService = {
     });
     throwSupabaseError("factory.recipe.new_version_rpc", createError);
     const createdId = Array.isArray(created) ? created[0]?.recipe_id : created?.recipe_id;
-    if (!createdId) throw new Error("New Production Standard version was not created.");
+    if (!createdId) throw new Error("New Product Recipe version was not created.");
 
     const { data, error } = await supabase
       .from("factory_product_recipes")
@@ -1781,7 +1781,7 @@ export const factoryService = {
       .single();
     throwSupabaseError("factory.recipe.delete_lookup", lookupError);
     if (String(existing.status || "").toLowerCase() !== "draft") {
-      throw new Error("Only draft production standards can be deleted. Archive active standards instead.");
+      throw new Error("Only draft product recipes can be deleted. Archive active recipes instead.");
     }
 
     const { error } = await supabase
@@ -1800,14 +1800,15 @@ export const factoryService = {
   },
 
   async archiveProductRecipe(recipe) {
-    if (String(recipe.status || "").toLowerCase() !== "active") {
-      throw new Error("Only active production standards can be archived. Delete draft standards instead.");
+    const currentStatus = String(recipe.status || "").toLowerCase();
+    if (!["active", "draft"].includes(currentStatus)) {
+      throw new Error("Only active or draft product recipes can be archived.");
     }
     const { data, error } = await supabase
       .from("factory_product_recipes")
       .update({ status: "archived", updated_at: new Date().toISOString() })
       .eq("id", recipe.id)
-      .eq("status", "active")
+      .in("status", ["active", "draft"])
       .select(recipeSelect)
       .single();
     throwSupabaseError("factory.recipe.archive", error);
@@ -1815,6 +1816,27 @@ export const factoryService = {
       action: "factory_product_recipe_archived",
       target: data.recipe_code,
       description: "Factory Product Recipe archived.",
+      after: data,
+    });
+    return mapRecipe(data);
+  },
+
+  async restoreProductRecipe(recipe) {
+    if (String(recipe.status || "").toLowerCase() !== "archived") {
+      throw new Error("Only archived product recipes can be restored.");
+    }
+    const { data, error } = await supabase
+      .from("factory_product_recipes")
+      .update({ status: "draft", updated_at: new Date().toISOString() })
+      .eq("id", recipe.id)
+      .eq("status", "archived")
+      .select(recipeSelect)
+      .single();
+    throwSupabaseError("factory.recipe.restore", error);
+    await logFactoryAction({
+      action: "factory_product_recipe_restored",
+      target: data.recipe_code,
+      description: "Factory Product Recipe restored as draft.",
       after: data,
     });
     return mapRecipe(data);

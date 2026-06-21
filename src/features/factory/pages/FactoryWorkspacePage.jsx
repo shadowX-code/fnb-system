@@ -2517,7 +2517,7 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
           {selectedParent && matchingRecipe ? (
             <div className="space-y-3">
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">
-                {matchingRecipe.recipe_name || matchingRecipe.recipe_code} · {matchingRecipe.version || "v1"} · Production Quantity {quantity(matchingRecipe.yield_quantity, matchingRecipe.uom)}
+                {matchingRecipe.recipe_name || matchingRecipe.recipe_code} · {matchingRecipe.version || "v1"} · Standard Output {quantity(matchingRecipe.yield_quantity, matchingRecipe.uom)}
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[760px] text-left">
@@ -3107,6 +3107,7 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
   const isLocked = initialValue?.status && initialValue.status !== "draft";
   const activeProductFamilies = productFamilies.filter((family) => family.status === "active" || family.id === form.product_family_id);
   const productFamilyOptions = activeProductFamilies.map((family) => ({ value: family.id, label: family.name_en, helper: [family.category, family.status].filter(Boolean).join(" · ") || "Finished Good" }));
+  const uomOptions = commonUoms.map((uom) => ({ value: uom, label: uom }));
 
   function updateItem(rowId, patch) {
     setForm((current) => ({
@@ -3144,11 +3145,11 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
       return;
     }
     if (!String(form.recipe_name || "").trim()) {
-      setError("Production standard name is required.");
+      setError("Recipe name is required.");
       return;
     }
     if (Number(form.yield_quantity || 0) <= 0) {
-      setError("Production quantity must be greater than 0.");
+      setError("Standard Output must be greater than 0.");
       return;
     }
     const validItems = form.items.filter((item) => item.raw_material_id || Number(item.quantity_used || 0) > 0);
@@ -3173,75 +3174,136 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
 
   return (
     <Modal
-      title={initialValue?.id ? "Edit Production Standard / BOM" : "Create Production Standard / BOM"}
-      description="Production standards define the finished good output quantity and raw material BOM. Actual production usage remains adjustable."
+      title={initialValue?.id ? "Edit Product Recipe / BOM" : "Create Product Recipe / BOM"}
+      description="Define the standard output quantity and raw material requirements for a finished good."
       size="xl"
       onClose={saving ? undefined : onClose}
       footer={(
         <>
           <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="submit" form="factory-product-recipe-form" disabled={saving || isLocked}>{saving ? "Saving..." : "Save Standard"}</button>
+          <button className="btn-primary" type="submit" form="factory-product-recipe-form" disabled={saving || isLocked}>{saving ? "Saving..." : "Save Recipe"}</button>
         </>
       )}
     >
       <form id="factory-product-recipe-form" className="space-y-5" onSubmit={submit}>
         {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
-        {isLocked ? <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">Only draft standards can be edited. Active and archived standards remain readable for history.</div> : null}
-        <div className="grid gap-3 md:grid-cols-3">
-          <Field label="Finished Good">
-            <SearchableSelect
-              value={form.product_family_id || ""}
-              options={productFamilyOptions}
-              placeholder="Select Finished Good"
-              searchPlaceholder="Search finished goods"
-              emptyText="No matching finished goods"
-              disabled={isLocked}
-              onChange={(productFamilyId) => {
-                const productFamily = activeProductFamilies.find((item) => item.id === productFamilyId);
-                setForm((current) => ({
-                  ...current,
-                  product_family_id: productFamilyId,
-                  finished_good_id: "",
-                  product_name: productFamily?.name_en || "",
-                }));
-              }}
-            />
-          </Field>
-          <Field label="Production Standard Name">
-            <input className={inputClass()} value={form.recipe_name || ""} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, recipe_name: event.target.value }))} />
-          </Field>
-          <Field label="Version">
-            <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-bold text-text-primary">{form.version || "v1"}</div>
-          </Field>
-          <Field label="Production Quantity">
-            <input className={inputClass()} type="number" min="0" step="0.01" value={form.yield_quantity || ""} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, yield_quantity: event.target.value }))} />
-          </Field>
-          <Field label="UOM">
-            <select className={inputClass()} value={form.uom || "kg"} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, uom: event.target.value }))}>
-              {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
-            </select>
-          </Field>
-          <Field label="Estimated Production Time">
-            <input className={inputClass()} type="number" min="0" step="1" placeholder="Minutes" value={form.estimated_production_time_minutes || ""} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, estimated_production_time_minutes: event.target.value }))} />
-          </Field>
-          <Field label="Status">
-            <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3">
-              <Badge tone={form.status === "active" ? "success" : form.status === "draft" ? "info" : "neutral"}>{form.status || "draft"}</Badge>
+        {isLocked ? <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">Only draft recipes can be edited. Active and archived recipes remain readable for history.</div> : null}
+        <Card title="Recipe Header">
+          <div className="grid gap-3 md:grid-cols-3">
+            <Field label="Finished Good">
+              <SearchableSelect
+                value={form.product_family_id || ""}
+                options={productFamilyOptions}
+                placeholder="Select Finished Good"
+                searchPlaceholder="Search finished goods"
+                emptyText="No matching finished goods"
+                disabled={isLocked}
+                onChange={(productFamilyId) => {
+                  const productFamily = activeProductFamilies.find((item) => item.id === productFamilyId);
+                  setForm((current) => ({
+                    ...current,
+                    product_family_id: productFamilyId,
+                    finished_good_id: "",
+                    product_name: productFamily?.name_en || "",
+                  }));
+                }}
+              />
+            </Field>
+            <Field label="Recipe Name">
+              <input className={inputClass()} value={form.recipe_name || ""} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, recipe_name: event.target.value }))} />
+            </Field>
+            <Field label="Version">
+              <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-bold text-text-primary">{form.version || "v1"}</div>
+            </Field>
+            <Field label="Status">
+              <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3">
+                <Badge tone={form.status === "active" ? "success" : form.status === "draft" ? "info" : "neutral"}>{form.status || "draft"}</Badge>
+              </div>
+            </Field>
+            <Field label="Standard Output Qty">
+              <input className={inputClass()} type="number" min="0" step="0.01" value={form.yield_quantity || ""} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, yield_quantity: event.target.value }))} />
+            </Field>
+            <Field label="UOM">
+              <SearchableSelect
+                value={form.uom || "kg"}
+                options={uomOptions}
+                placeholder="Select UOM"
+                searchPlaceholder="Search UOM"
+                disabled={isLocked}
+                onChange={(uom) => setForm((current) => ({ ...current, uom }))}
+              />
+            </Field>
+            <Field label="Estimated Production Time">
+              <input className={inputClass()} type="number" min="0" step="1" placeholder="Minutes" value={form.estimated_production_time_minutes || ""} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, estimated_production_time_minutes: event.target.value }))} />
+            </Field>
+            <div className="md:col-span-3">
+              <Field label="Remarks">
+                <textarea className={inputClass()} rows={3} value={form.remarks || ""} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
+              </Field>
             </div>
-          </Field>
-        </div>
-        <Field label="Remarks">
-          <textarea className={inputClass()} rows={3} value={form.remarks || ""} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
-        </Field>
+          </div>
+        </Card>
         <Card
           title="BOM Materials"
-          description="Standard quantities are scaled into production material usage. Operators can adjust actual usage during completion."
+          description="Standard quantities are scaled into production material usage."
           action={!isLocked ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={addItem}><Package size={14} /> Add Material</button> : null}
         >
-          <div className="overflow-x-auto">
-            <table className="w-full min-w-[980px] text-left">
+          <div className="space-y-3 md:hidden">
+            {form.items.map((item) => {
+              const material = rawMaterials.find((row) => row.id === item.raw_material_id);
+              const materialOptions = rawMaterials.filter((row) => row.status === "active" || row.id === item.raw_material_id).map((materialOption) => ({
+                value: materialOption.id,
+                label: rawMaterialLabel(materialOption),
+                helper: rawMaterialHelper(materialOption) || materialOption.category || "Raw material",
+              }));
+              return (
+                <div key={item.id} className="rounded-2xl border border-border bg-slate-50 p-3">
+                  <div className="grid gap-3">
+                    <Field label="Raw Material">
+                      <SearchableSelect
+                        value={item.raw_material_id || ""}
+                        options={materialOptions}
+                        placeholder="Select raw material"
+                        searchPlaceholder="Search raw materials"
+                        emptyText="No matching raw materials"
+                        disabled={isLocked}
+                        onChange={(rawMaterialId) => {
+                          const nextMaterial = rawMaterials.find((row) => row.id === rawMaterialId);
+                          updateItem(item.id, { raw_material_id: rawMaterialId, uom: nextMaterial?.uom || item.uom });
+                        }}
+                      />
+                    </Field>
+                    <div className="grid grid-cols-2 gap-3">
+                      <Field label="Required Qty">
+                        <input className={inputClass()} type="number" min="0" step="0.0001" value={item.quantity_used || ""} disabled={isLocked} onChange={(event) => updateItem(item.id, { quantity_used: event.target.value })} />
+                      </Field>
+                      <Field label="UOM">
+                        <SearchableSelect
+                          value={item.uom || material?.uom || "kg"}
+                          options={uomOptions}
+                          placeholder="Select UOM"
+                          searchPlaceholder="Search UOM"
+                          disabled={isLocked}
+                          onChange={(uom) => updateItem(item.id, { uom })}
+                        />
+                      </Field>
+                    </div>
+                    <Field label="Wastage %">
+                      <input className={inputClass()} type="number" min="0" step="0.01" value={item.wastage_percent || 0} disabled={isLocked} onChange={(event) => updateItem(item.id, { wastage_percent: event.target.value })} />
+                    </Field>
+                    <Field label="Remarks">
+                      <input className={inputClass()} value={item.remarks || ""} disabled={isLocked} onChange={(event) => updateItem(item.id, { remarks: event.target.value })} />
+                    </Field>
+                    {!isLocked ? <button className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => removeItem(item.id)}>Remove Material</button> : null}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <div className="hidden overflow-x-auto md:block">
+            <table className="w-full min-w-[900px] text-left">
               <thead>
-                <tr className="border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">
+                <tr className="border-b border-border bg-slate-50 text-[10.5px] font-semibold text-[rgb(107,114,128)]">
                   <th className="px-4 py-2.5">Raw Material</th>
                   <th className="px-4 py-2.5">Required Qty</th>
                   <th className="px-4 py-2.5">UOM</th>
@@ -3253,35 +3315,43 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
               <tbody>
                 {form.items.map((item) => {
                   const material = rawMaterials.find((row) => row.id === item.raw_material_id);
+                  const materialOptions = rawMaterials.filter((row) => row.status === "active" || row.id === item.raw_material_id).map((materialOption) => ({
+                    value: materialOption.id,
+                    label: rawMaterialLabel(materialOption),
+                    helper: rawMaterialHelper(materialOption) || materialOption.category || "Raw material",
+                  }));
                   return (
                     <tr key={item.id} className="border-b border-border last:border-0">
                       <td className="px-4 py-3">
-                        <select
-                          className={inputClass()}
+                        <SearchableSelect
                           value={item.raw_material_id || ""}
+                          options={materialOptions}
+                          placeholder="Select raw material"
+                          searchPlaceholder="Search raw materials"
+                          emptyText="No matching raw materials"
                           disabled={isLocked}
-                          onChange={(event) => {
-                            const nextMaterial = rawMaterials.find((row) => row.id === event.target.value);
-                            updateItem(item.id, { raw_material_id: event.target.value, uom: nextMaterial?.uom || item.uom });
+                          onChange={(rawMaterialId) => {
+                            const nextMaterial = rawMaterials.find((row) => row.id === rawMaterialId);
+                            updateItem(item.id, { raw_material_id: rawMaterialId, uom: nextMaterial?.uom || item.uom });
                           }}
-                        >
-                          <option value="">Select raw material</option>
-                          {rawMaterials.filter((row) => row.status === "active" || row.id === item.raw_material_id).map((materialOption) => (
-                            <option key={materialOption.id} value={materialOption.id}>{rawMaterialLabel(materialOption)} · {quantity(materialOption.current_balance, materialOption.uom)}</option>
-                          ))}
-                        </select>
+                        />
                         <div className="mt-1 text-xs text-text-secondary">{material?.category || "Raw material BOM item"}</div>
                       </td>
                       <td className="px-4 py-3"><input className={inputClass()} type="number" min="0" step="0.0001" value={item.quantity_used || ""} disabled={isLocked} onChange={(event) => updateItem(item.id, { quantity_used: event.target.value })} /></td>
                       <td className="px-4 py-3">
-                        <select className={inputClass()} value={item.uom || material?.uom || "kg"} disabled={isLocked} onChange={(event) => updateItem(item.id, { uom: event.target.value })}>
-                          {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
-                        </select>
+                        <SearchableSelect
+                          value={item.uom || material?.uom || "kg"}
+                          options={uomOptions}
+                          placeholder="Select UOM"
+                          searchPlaceholder="Search UOM"
+                          disabled={isLocked}
+                          onChange={(uom) => updateItem(item.id, { uom })}
+                        />
                       </td>
                       <td className="px-4 py-3"><input className={inputClass()} type="number" min="0" step="0.01" value={item.wastage_percent || 0} disabled={isLocked} onChange={(event) => updateItem(item.id, { wastage_percent: event.target.value })} /></td>
                       <td className="px-4 py-3"><input className={inputClass()} value={item.remarks || ""} disabled={isLocked} onChange={(event) => updateItem(item.id, { remarks: event.target.value })} /></td>
                       <td className="px-4 py-3 text-right">
-                        {!isLocked ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => removeItem(item.id)}>Remove</button> : null}
+                        {!isLocked ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => removeItem(item.id)}>Remove</button> : null}
                       </td>
                     </tr>
                   );
@@ -3295,36 +3365,53 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
   );
 }
 
-function ProductRecipeDetailModal({ recipe, onClose, onEdit, onNewVersion, onActivate, onArchive, onDelete, canCreateRecipe, canEditRecipe, canManageRecipe, canDeleteRecipe }) {
-  const status = String(recipe.status || "draft").toLowerCase();
+function ProductRecipeDetailModal({ recipe, onClose }) {
+  const finishedGoodName = recipe.product_name_en || recipe.product_name || "Finished Good";
+  const finishedGoodCn = recipe.product_name_cn || "";
   return (
     <Modal
-      title={recipe.recipe_name || "Production Standard / BOM"}
-      description={`${recipe.product_name} · ${recipe.version || "v1"}`}
+      title={recipe.recipe_name || "Product Recipe / BOM"}
+      description={`${finishedGoodName} · ${recipe.version || "v1"}`}
       size="2xl"
       onClose={onClose}
       footer={(
-        <>
-          <button className="btn-secondary" type="button" onClick={onClose}>Close</button>
-          {canEditRecipe && status === "draft" ? <button className="btn-secondary" type="button" onClick={() => onEdit(recipe)}>Edit</button> : null}
-          {canManageRecipe && status === "draft" ? <button className="btn-primary" type="button" onClick={() => onActivate(recipe)}>Activate</button> : null}
-          {canDeleteRecipe && status === "draft" ? <button className="btn-danger" type="button" onClick={() => onDelete(recipe)}>Delete</button> : null}
-          {canCreateRecipe && status === "active" ? <button className="btn-secondary" type="button" onClick={() => onNewVersion(recipe)}>New Version</button> : null}
-          {canDeleteRecipe && status === "active" ? <button className="btn-danger" type="button" onClick={() => onArchive(recipe)}>Archive</button> : null}
-        </>
+        <button className="btn-secondary" type="button" onClick={onClose}>Close</button>
       )}
     >
       <div className="space-y-5">
-        <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={PackageCheck} label="Production Quantity" value={quantity(recipe.yield_quantity, recipe.uom)} helper="Standard output" />
-          <MetricCard icon={Clock3} label="Estimated Time" value={productionTimeLabel(recipe.estimated_production_time_minutes)} helper="Production standard" />
-          <MetricCard icon={Package} label="Materials" value={recipe.items?.length || 0} helper="BOM rows" />
-          <MetricCard icon={CheckCircle2} label="Status" value={jobStatusLabel(recipe.status)} helper={recipe.updated_at ? `Updated ${formatFactoryDate(recipe.updated_at)}` : "Not updated"} />
-        </div>
-        <Card title="BOM Materials" description="Standard raw material requirements for this production quantity.">
+        <Card title="Recipe Summary">
+          <div className="grid gap-3 md:grid-cols-3">
+            <div>
+              <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Finished Good</div>
+              <div className="mt-1 text-sm font-bold text-text-primary">{finishedGoodName}</div>
+              {finishedGoodCn ? <div className="text-xs font-semibold text-text-secondary">{finishedGoodCn}</div> : null}
+            </div>
+            <div>
+              <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Version</div>
+              <div className="mt-1"><Badge tone="info">{recipe.version || "v1"}</Badge></div>
+            </div>
+            <div>
+              <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Status</div>
+              <div className="mt-1"><Badge tone={recipe.status === "active" ? "success" : recipe.status === "draft" ? "info" : "neutral"}>{jobStatusLabel(recipe.status)}</Badge></div>
+            </div>
+            <div>
+              <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Standard Output</div>
+              <div className="mt-1 text-sm font-bold text-text-primary">{quantity(recipe.yield_quantity, recipe.uom)}</div>
+            </div>
+            <div>
+              <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Estimated Production Time</div>
+              <div className="mt-1 text-sm font-bold text-text-primary">{productionTimeLabel(recipe.estimated_production_time_minutes)}</div>
+            </div>
+            <div>
+              <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Updated</div>
+              <div className="mt-1 text-sm font-bold text-text-primary">{formatFactoryDate(recipe.updated_at)}</div>
+            </div>
+          </div>
+        </Card>
+        <Card title="BOM Materials">
           <FactoryTable
             columns={[
-              { key: "raw_material", label: "Raw Material", render: (row) => <div><div className="font-semibold text-text-primary">{row.raw_material_name}</div><div className="text-xs text-text-secondary">BOM item</div></div> },
+              { key: "raw_material", label: "Raw Material", render: (row) => <div className="font-semibold text-text-primary">{row.raw_material_name || "Raw Material"}</div> },
               { key: "required_qty", label: "Required Qty", render: (row) => quantity(row.quantity_used, row.uom) },
               { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
               { key: "wastage_percent", label: "Wastage %", render: (row) => percent(row.wastage_percent) },
@@ -4619,11 +4706,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   async function saveProductRecipe(form) {
     try {
       await factoryService.saveProductRecipe(form, auth?.profile?.id);
-      ui?.notify?.({ title: form.id ? "Production standard updated" : "Production standard created", tone: "success" });
+      ui?.notify?.({ title: form.id ? "Product recipe updated" : "Product recipe created", tone: "success" });
       setModal(null);
       await loadData();
     } catch (error) {
-      ui?.notify?.({ title: "Failed to save production standard", message: error.message, tone: "error" });
+      ui?.notify?.({ title: "Failed to save product recipe", message: error.message, tone: "error" });
       throw error;
     }
   }
@@ -4642,7 +4729,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   async function activateProductRecipe(recipe) {
     const confirmed = await ui?.confirm?.({
       title: "Activate Product Recipe?",
-      message: `${recipe.recipe_name || recipe.recipe_code} will become the production default for ${recipe.product_name}.`,
+      message: `${recipe.recipe_name || recipe.recipe_code} will become the active recipe for ${recipe.product_name}.`,
       confirmLabel: "Activate",
       tone: "warning",
     });
@@ -4659,7 +4746,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   async function archiveProductRecipe(recipe) {
     const confirmed = await ui?.confirm?.({
       title: "Archive Product Recipe?",
-      message: `${recipe.recipe_name || recipe.recipe_code} will remain readable for history but will not prefill production usage.`,
+      message: `${recipe.recipe_name || recipe.recipe_code} will remain readable for history but will not be used as an active recipe.`,
       confirmLabel: "Archive",
       tone: "warning",
     });
@@ -4687,6 +4774,23 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to delete draft standard", message: error.message, tone: "error" });
+    }
+  }
+
+  async function restoreProductRecipe(recipe) {
+    const confirmed = await ui?.confirm?.({
+      title: "Restore Product Recipe?",
+      message: `${recipe.recipe_name || recipe.recipe_code} will be restored as a draft for review before activation.`,
+      confirmLabel: "Restore",
+      tone: "warning",
+    });
+    if (!confirmed) return;
+    try {
+      await factoryService.restoreProductRecipe(recipe);
+      ui?.notify?.({ title: "Product recipe restored as draft", tone: "success" });
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to restore product recipe", message: error.message, tone: "error" });
     }
   }
 
@@ -5057,20 +5161,25 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   ];
 
   const recipeColumns = [
-    { key: "finished_good", label: "Finished Good", render: (row) => <div><div className="font-semibold text-text-primary">{row.product_name}</div><div className="text-xs text-text-secondary">{row.product_code || row.recipe_name || "Production Standard"}</div></div> },
+    { key: "finished_good", label: "Finished Good", render: (row) => {
+      const englishName = row.product_name_en || row.product_name || row.product_family_name || "Finished Good";
+      const chineseName = row.product_name_cn || "";
+      return <div><div className="font-semibold text-text-primary">{englishName}</div>{chineseName ? <div className="text-xs text-text-secondary">{chineseName}</div> : null}</div>;
+    } },
     { key: "version", label: "Version", render: (row) => <Badge tone="info">{row.version || "v1"}</Badge> },
-    { key: "production_quantity", label: "Production Quantity", render: (row) => quantity(row.yield_quantity, row.uom) },
-    { key: "items", label: "Material Count", render: (row) => row.items?.length || 0 },
+    { key: "standard_output", label: "Standard Output", render: (row) => quantity(row.yield_quantity, row.uom) },
+    { key: "items", label: "Materials", render: (row) => row.items?.length || 0 },
     { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : row.status === "draft" ? "info" : "neutral"}>{row.status}</Badge> },
-    { key: "updated_at", label: "Updated Date", render: (row) => formatFactoryDate(row.updated_at) },
+    { key: "updated_at", label: "Updated", render: (row) => formatFactoryDate(row.updated_at) },
     { key: "actions", label: "Actions", align: "right", render: (row) => (
       <div className="flex flex-wrap justify-end gap-2" onClick={(event) => event.stopPropagation()}>
         <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "recipe-detail", value: row })}>View</button>
         {row.status === "draft" && can("factory_product_recipes.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "recipe", value: row })}>Edit</button> : null}
         {row.status === "draft" && can("factory_product_recipes.manage") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => activateProductRecipe(row)}>Activate</button> : null}
-        {row.status === "draft" && can("factory_product_recipes.delete") ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => deleteProductRecipe(row)}>Delete</button> : null}
+        {row.status === "draft" && can("factory_product_recipes.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => deleteProductRecipe(row)}>Delete</button> : null}
         {row.status === "active" && can("factory_product_recipes.create") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => openNewRecipeVersion(row)}>New Version</button> : null}
-        {row.status === "active" && can("factory_product_recipes.delete") ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => archiveProductRecipe(row)}>Archive</button> : null}
+        {row.status === "active" && can("factory_product_recipes.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => archiveProductRecipe(row)}>Archive</button> : null}
+        {row.status === "archived" && can("factory_product_recipes.edit") ? <button className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50" type="button" onClick={() => restoreProductRecipe(row)}>Restore</button> : null}
       </div>
     ) },
   ];
@@ -6048,22 +6157,22 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       <div className="space-y-5">
         <PageHeader
           section="Master Data"
-          title="Production Standards / BOM"
-          description="Manage standard finished good output quantities, production time and raw material BOMs. Production uses active standards as default material usage."
-          actions={can("factory_product_recipes.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "recipe" })}><BookOpen size={15} /> Create Standard</button> : null}
+          title="Product Recipes / BOM"
+          description="Manage finished good recipes, standard output quantities and raw material requirements."
+          actions={can("factory_product_recipes.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "recipe" })}><BookOpen size={15} /> Create Recipe</button> : null}
         />
         <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={ClipboardCheck} label="Draft" value={draftRecipes.length} helper="Editable standard versions" />
+          <MetricCard icon={ClipboardCheck} label="Draft" value={draftRecipes.length} helper="Editable recipes" />
           <MetricCard icon={CheckCircle2} label="Active" value={activeRecipes.length} helper="Production defaults" tone="success" />
-          <MetricCard icon={PackageCheck} label="FG Without Recipe" value={activeFinishedGoodsWithoutRecipe.length} helper="Active Finished Goods needing BOM" tone={activeFinishedGoodsWithoutRecipe.length ? "warning" : "success"} />
-          <MetricCard icon={Clock3} label="Archived" value={archivedRecipes.length} helper="Historical versions" />
+          <MetricCard icon={PackageCheck} label="FG Without Recipe" value={activeFinishedGoodsWithoutRecipe.length} helper="Finished goods missing active recipe" tone={activeFinishedGoodsWithoutRecipe.length ? "warning" : "success"} />
+          <MetricCard icon={Clock3} label="Archived" value={archivedRecipes.length} helper="Historical recipes" />
         </div>
-        <Card title="Production Standard Records" description="One Finished Good can have one active standard version. Drafts can be edited before activation. Click a row to view BOM details.">
+        <Card title="Recipe Records" description="One Finished Good can have one active recipe version. Drafts can be edited before activation. Click a row to view BOM details.">
           <FactoryTable
             columns={recipeColumns}
             rows={data.recipes}
-            emptyTitle="No Production Standards"
-            emptyDescription="Create a Production Standard / BOM to prefill production material usage."
+            emptyTitle="No Product Recipes"
+            emptyDescription="Create a Product Recipe / BOM to prefill production material usage."
             onRowClick={(row) => setModal({ type: "recipe-detail", value: row })}
           />
         </Card>
@@ -6313,7 +6422,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             <FactoryTable
               columns={[
                 { key: "recipe", label: "Recipe", render: (row) => <div><div className="font-bold text-text-primary">{row.recipe_code}</div><div className="text-xs text-text-secondary">{row.product_name}</div></div> },
-                { key: "yield", label: "Production Quantity", render: (row) => quantity(row.yield_quantity, row.uom) },
+                { key: "yield", label: "Standard Output", render: (row) => quantity(row.yield_quantity, row.uom) },
                 { key: "items", label: "Items", render: (row) => row.items?.length || 0 },
                 { key: "standardCost", label: "Standard Cost", align: "right", render: (row) => costDisplay(row.standardCost, row.missingCostRows) },
                 { key: "costPerUnit", label: "Cost / Unit", align: "right", render: (row) => costDisplay(row.costPerUnit, row.missingCostRows) },
