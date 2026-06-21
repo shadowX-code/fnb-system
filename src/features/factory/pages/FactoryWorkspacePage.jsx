@@ -5215,20 +5215,18 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   ];
 
   const rawMaterialInventoryColumns = [
-    { key: "name", label: "Raw Material", render: (row) => <div><div className="font-bold text-text-primary">{rawMaterialLabel(row)}</div><div className="text-xs text-text-secondary">{[row.name_cn, row.name_bm].filter(Boolean).join(" · ") || "No CN/BM name"}</div></div> },
+    { key: "name", label: "Raw Material", render: (row) => {
+      const secondaryNames = [row.name_cn, row.name_bm].filter(Boolean).join(" · ");
+      return <div><div className="font-bold text-text-primary">{rawMaterialLabel(row)}</div>{secondaryNames ? <div className="text-xs text-text-secondary">{secondaryNames}</div> : null}</div>;
+    } },
     { key: "material_code", label: "Code", render: (row) => row.material_code || "—" },
     { key: "category", label: "Category", render: (row) => row.category || "No category" },
     { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
     { key: "current_balance", label: "Current Balance", render: (row) => quantity(row.current_balance, row.uom) },
-    { key: "min_stock_level", label: "Min Stock", render: (row) => quantity(row.min_stock_level, row.uom) },
+    { key: "latest_cost", label: "Latest Cost", render: (row) => row.latest_cost_missing ? "Missing Cost" : row.latest_cost_uom ? `${money(row.latest_cost)}/${normalizedCostUnit(row.latest_cost_uom)?.display || row.latest_cost_uom}` : "Unsupported UOM" },
     { key: "last_receiving_date", label: "Last Receiving", render: (row) => formatFactoryDate(row.last_receiving_date) },
     { key: "last_consumption_date", label: "Last Consumption", render: (row) => formatFactoryDate(row.last_consumption_date) },
-    { key: "status", label: "Status", render: (row) => (
-      <div className="flex flex-wrap gap-1.5">
-        <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge>
-        <Badge tone={row.stock_status === "Out of Stock" ? "danger" : row.stock_status === "Low Stock" ? "warning" : "success"}>{row.stock_status}</Badge>
-      </div>
-    ) },
+    { key: "status", label: "Status", render: (row) => <Badge tone={row.stock_status === "Out of Stock" ? "danger" : row.stock_status === "Low Stock" ? "warning" : "success"}>{row.stock_status}</Badge> },
     { key: "actions", label: "Actions", align: "right", render: (row) => (
       <div className="flex flex-wrap justify-end gap-2">
         <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "raw-material-detail", material: row })}>Detail</button>
@@ -5247,13 +5245,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         {can("factory_storage_locations.edit") || can("factory_storage_locations.manage") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "storage-locations", value: row })}>Manage</button> : null}
       </div>
     ) },
-  ];
-
-  const lowStockColumns = [
-    { key: "name", label: "Raw Material", render: (row) => <div><div className="font-semibold text-text-primary">{rawMaterialLabel(row)}</div><div className="text-xs text-text-secondary">{row.category || "Uncategorized"} · {row.storage_location || "No location"}</div></div> },
-    { key: "current_balance", label: "On Hand", render: (row) => quantity(row.current_balance, row.uom) },
-    { key: "min_stock_level", label: "Min Stock", render: (row) => quantity(row.min_stock_level, row.uom) },
-    { key: "status", label: "Status", render: () => <Badge tone="warning">Low Stock</Badge> },
   ];
 
   const productionColumns = [
@@ -5479,12 +5470,20 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       const consumptionRows = materialMovements.filter((row) => Number(row.quantity || 0) < 0 || String(row.movement_type || "").toLowerCase().includes("production"));
       const lastReceiving = [...materialReceivings].sort((a, b) => new Date(b.received_date || b.created_at || 0) - new Date(a.received_date || a.created_at || 0))[0];
       const lastConsumption = [...consumptionRows].sort((a, b) => new Date(b.movement_date || b.created_at || 0) - new Date(a.movement_date || a.created_at || 0))[0];
+      const latestCost = latestReceivingCostInfo(data.receivings, material.id);
       const balance = Number(material.current_balance || 0);
       const minStock = Number(material.min_stock_level || 0);
+      const costBalance = latestCost.missingCost ? null : convertCostQuantity(balance, material.uom, latestCost.uom);
+      const inventoryValue = costBalance == null ? null : costBalance * latestCost.unitCost;
       return {
         ...material,
         last_receiving_date: lastReceiving?.received_date || "",
         last_consumption_date: lastConsumption?.movement_date || "",
+        latest_cost: latestCost.unitCost,
+        latest_cost_uom: latestCost.uom,
+        latest_cost_missing: latestCost.missingCost,
+        latest_cost_unsupported: !latestCost.missingCost && costBalance == null,
+        inventory_value: inventoryValue,
         stock_status: balance <= 0 ? "Out of Stock" : minStock > 0 && balance <= minStock ? "Low Stock" : "In Stock",
       };
     });
@@ -6141,24 +6140,18 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   function renderRawInventory() {
     const rows = filteredRawMaterialRows();
     const activeRows = data.rawMaterials.filter((item) => item.status === "active");
-    const totalStock = activeRows.reduce((sum, item) => sum + Number(item.current_balance || 0), 0);
+    const activeInventoryRows = rawMaterialRows().filter((item) => item.status === "active");
+    const inventoryValue = activeInventoryRows.reduce((sum, item) => sum + Number(item.inventory_value || 0), 0);
+    const missingCostRows = activeInventoryRows.filter((item) => item.latest_cost_missing).length;
+    const unsupportedCostRows = activeInventoryRows.filter((item) => item.latest_cost_unsupported).length;
+    const inventoryValueDisplay = missingCostRows ? "Missing Cost" : unsupportedCostRows ? "Incomplete Cost" : money(inventoryValue);
+    const inventoryValueHelper = missingCostRows
+      ? "One or more raw materials have no receiving cost."
+      : unsupportedCostRows
+        ? "One or more raw materials use unsupported cost UOM conversion."
+        : "Current balance × latest cost";
     const lowStockItems = activeRows.filter((item) => Number(item.current_balance || 0) > 0 && Number(item.current_balance || 0) <= Number(item.min_stock_level || 0));
     const outOfStockItems = activeRows.filter((item) => Number(item.current_balance || 0) <= 0);
-    const lowStockRows = rawMaterialRows().filter((item) => item.status === "active" && item.stock_status !== "In Stock").slice(0, 8);
-    const recentReceiving = [...data.receivings].sort((a, b) => new Date(b.received_date || b.created_at || 0) - new Date(a.received_date || a.created_at || 0)).slice(0, 8);
-    const recentConsumption = data.rawMaterialMovements
-      .filter((movement) => Number(movement.quantity || 0) < 0 || String(movement.movement_type || "").toLowerCase().includes("production"))
-      .slice(0, 8);
-    const canProduceRows = data.recipes.filter((recipe) => recipe.status === "active" && recipe.items?.length).map((recipe) => {
-      const possibleUnits = recipe.items.map((item) => {
-        const material = data.rawMaterials.find((raw) => raw.id === item.raw_material_id);
-        const perRecipe = Number(item.quantity_used || 0) * (1 + Number(item.wastage_percent || 0) / 100);
-        if (!material || perRecipe <= 0) return Infinity;
-        return Math.floor(Number(material.current_balance || 0) / perRecipe) * Number(recipe.yield_quantity || 1);
-      });
-      const estimated = Math.max(0, Math.min(...possibleUnits.filter(Number.isFinite)));
-      return { id: recipe.id, recipe_name: recipe.recipe_name || recipe.recipe_code, product_name: recipe.product_name, can_produce_qty: estimated, uom: recipe.uom };
-    }).sort((a, b) => Number(a.can_produce_qty || 0) - Number(b.can_produce_qty || 0)).slice(0, 8);
     return (
       <div className="space-y-5">
         <PageHeader
@@ -6174,49 +6167,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={Warehouse} label="Total Raw Materials" value={activeRows.length} helper="Active master records" />
-          <MetricCard icon={PackageCheck} label="Total Stock Qty" value={quantity(totalStock, "")} helper="Current balance total" />
+          <MetricCard icon={PackageCheck} label="Inventory Value" value={inventoryValueDisplay} helper={inventoryValueHelper} tone={missingCostRows || unsupportedCostRows ? "warning" : "success"} />
           <MetricCard icon={AlertTriangle} label="Low Stock Items" value={lowStockItems.length} helper="Above zero, at or below min" tone={lowStockItems.length ? "warning" : "success"} />
           <MetricCard icon={Clock3} label="Out of Stock" value={outOfStockItems.length} helper="Current balance zero" tone={outOfStockItems.length ? "danger" : "success"} />
-        </div>
-        <div className="grid gap-4 xl:grid-cols-4">
-          <Card title="Low Stock List" description="Materials needing replenishment before production.">
-            <FactoryTable columns={lowStockColumns} rows={lowStockRows} emptyTitle="No low stock raw materials" emptyDescription="Raw material stock is currently healthy." />
-          </Card>
-          <Card title="Recent Receiving" description="Latest supplier stock-in rows.">
-            <FactoryTable
-              columns={[
-                { key: "receipt_no", label: "Receipt", render: (row) => <div><div className="font-bold text-text-primary">{row.receipt_no}</div><div className="text-xs text-text-secondary">{formatFactoryDate(row.received_date)}</div></div> },
-                { key: "raw_material_name", label: "Raw Material", render: (row) => row.raw_material_name },
-                { key: "qty", label: "Qty", render: (row) => quantity(row.received_qty, row.uom) },
-              ]}
-              rows={recentReceiving}
-              emptyTitle="No receiving yet"
-              emptyDescription="Record receiving by selecting a Raw Material master record."
-            />
-          </Card>
-          <Card title="Recent Consumption" description="Latest production usage and stock-out movements.">
-            <FactoryTable
-              columns={[
-                { key: "reference_no", label: "Reference", render: (row) => <div><div className="font-bold text-text-primary">{row.reference_no || "—"}</div><div className="text-xs text-text-secondary">{formatFactoryDate(row.movement_date)}</div></div> },
-                { key: "raw_material_name", label: "Raw Material", render: (row) => row.raw_material_name },
-                { key: "quantity", label: "Qty", render: (row) => quantity(row.quantity, row.uom) },
-              ]}
-              rows={recentConsumption}
-              emptyTitle="No consumption yet"
-              emptyDescription="Production actual usage deductions will appear here."
-            />
-          </Card>
-          <Card title="Can Produce Estimate" description="Estimated output from active recipes and current raw stock.">
-            <FactoryTable
-              columns={[
-                { key: "recipe_name", label: "Recipe", render: (row) => <div><div className="font-bold text-text-primary">{row.recipe_name}</div><div className="text-xs text-text-secondary">{row.product_name}</div></div> },
-                { key: "can_produce_qty", label: "Estimate", render: (row) => quantity(row.can_produce_qty, row.uom) },
-              ]}
-              rows={canProduceRows}
-              emptyTitle="No recipe estimate"
-              emptyDescription="Create active Product Recipes to estimate production capacity from raw stock."
-            />
-          </Card>
         </div>
         {rawMaterialFilterControls()}
         <Card title="Raw Material Master and Inventory" description="Master records define valid materials. Balances are updated by receiving, production actual usage and approved stock checks.">
