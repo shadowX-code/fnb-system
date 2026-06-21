@@ -1554,7 +1554,7 @@ function RawMaterialMasterModal({ initialValue, categories, storageLocations = [
     ...initialValue,
   }));
   const [saving, setSaving] = useState(false);
-  const [uploadingImage, setUploadingImage] = useState(false);
+  const [isRawMaterialImageUploading, setIsRawMaterialImageUploading] = useState(false);
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
   const activeCategories = categories.filter((category) => category.status === "active" || category.id === form.category_id);
@@ -1603,8 +1603,8 @@ function RawMaterialMasterModal({ initialValue, categories, storageLocations = [
           <span />
           <div className="flex gap-2">
             {error ? <div className="self-center text-sm font-semibold text-rose-600">{error}</div> : null}
-            <button className="btn-secondary" type="button" disabled={saving || uploadingImage} onClick={onClose}>Cancel</button>
-            <button className="btn-primary" type="submit" form="factory-raw-material-form" disabled={saving || uploadingImage}>{saving ? "Saving..." : "Save Raw Material"}</button>
+            <button className="btn-secondary" type="button" disabled={saving || isRawMaterialImageUploading} onClick={onClose}>Cancel</button>
+            <button className="btn-primary" type="submit" form="factory-raw-material-form" disabled={saving || isRawMaterialImageUploading}>{saving ? "Saving..." : "Save Raw Material"}</button>
           </div>
         </>
       )}
@@ -1644,18 +1644,18 @@ function RawMaterialMasterModal({ initialValue, categories, storageLocations = [
             <input className={inputClass()} placeholder="https://..." value={form.image_url || ""} onChange={(event) => setForm((current) => ({ ...current, image_url: event.target.value }))} />
           </Field>
           <div className="flex flex-wrap gap-2">
-            <label className={`btn-secondary cursor-pointer ${uploadingImage ? "opacity-70" : ""}`}>
-              {uploadingImage ? "Uploading..." : "Upload Image"}
+            <label className={`btn-secondary cursor-pointer ${isRawMaterialImageUploading ? "opacity-70" : ""}`}>
+              {isRawMaterialImageUploading ? "Uploading..." : "Upload Image"}
               <input
                 className="sr-only"
                 type="file"
                 accept={IMAGE_UPLOAD_ACCEPT}
-                disabled={uploadingImage}
+                disabled={isRawMaterialImageUploading}
                 onChange={async (event) => {
                   const file = event.target.files?.[0];
                   event.target.value = "";
                   if (!file) return;
-                  setUploadingImage(true);
+                  setIsRawMaterialImageUploading(true);
                   setError("");
                   try {
                     const uploaded = await factoryService.uploadRawMaterialImage(file, form);
@@ -1663,12 +1663,12 @@ function RawMaterialMasterModal({ initialValue, categories, storageLocations = [
                   } catch (uploadError) {
                     setError(uploadError.message || "Unable to upload image.");
                   } finally {
-                    setUploadingImage(false);
+                    setIsRawMaterialImageUploading(false);
                   }
                 }}
               />
             </label>
-            {form.image_url ? <button className="btn-secondary" type="button" disabled={uploadingImage} onClick={() => setForm((current) => ({ ...current, image_url: "" }))}>Remove Image</button> : null}
+            {form.image_url ? <button className="btn-secondary" type="button" disabled={isRawMaterialImageUploading} onClick={() => setForm((current) => ({ ...current, image_url: "" }))}>Remove Image</button> : null}
           </div>
           {form.image_url ? (
             <div className="flex items-center gap-3 rounded-xl border border-border bg-slate-50 p-3">
