@@ -124,6 +124,7 @@ function mapRawMaterial(row) {
     name_en: row.name_en || row.name || "",
     name_cn: row.name_cn || "",
     name_bm: row.name_bm || "",
+    image_url: row.image_url || "",
     category_id: row.category_id || "",
     category: categoryName,
     uom: row.uom || "",
@@ -713,8 +714,8 @@ const finishedGoodFullSelect = "id,product_code,product_name,product_name_en,pro
 const storageLocationSelect = "id,location_name,location_code,location_type,status,remarks,created_at,updated_at";
 const factorySupplierSelect = "id,supplier_name,supplier_code,contact_person,phone,email,status,remarks,created_at,updated_at";
 const factoryCustomerSelect = "id,customer_code,customer_name,customer_type,contact_person,phone,email,address,status,remarks,created_at,updated_at";
-const rawMaterialSelect = `id,material_code,name,name_en,name_cn,name_bm,category_id,category,uom,current_balance,min_stock_level,manual_unit_cost,manual_cost_uom,preferred_supplier,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_raw_material_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)`;
-const rawMaterialRelationSelect = "name,name_en,name_cn,name_bm,material_code,uom,manual_unit_cost,manual_cost_uom,storage_location,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)";
+const rawMaterialSelect = `id,material_code,name,name_en,name_cn,name_bm,image_url,category_id,category,uom,current_balance,min_stock_level,manual_unit_cost,manual_cost_uom,preferred_supplier,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_raw_material_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)`;
+const rawMaterialRelationSelect = "name,name_en,name_cn,name_bm,image_url,material_code,uom,manual_unit_cost,manual_cost_uom,storage_location,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)";
 const productFamilyRelationSelect = "id,name_en,name_cn,name_bm,status";
 const recipeSelect = `id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`;
 const recipeSummarySelect = `id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),finished_good:factory_finished_goods(${finishedGoodSelect})`;
@@ -1177,6 +1178,7 @@ export const factoryService = {
       name_en: materialNameEn,
       name_cn: String(material.name_cn || "").trim(),
       name_bm: String(material.name_bm || "").trim(),
+      image_url: String(material.image_url || "").trim(),
       category_id: material.category_id || null,
       category: String(material.category || "").trim(),
       uom: String(material.uom || "").trim(),

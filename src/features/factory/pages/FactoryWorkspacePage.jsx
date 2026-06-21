@@ -1526,7 +1526,7 @@ function RawMaterialDetailModal({ material, receivings, movements, stockChecks, 
   );
 }
 
-function RawMaterialMasterModal({ initialValue, categories, storageLocations = [], onClose, onSave, onArchive }) {
+function RawMaterialMasterModal({ initialValue, categories, storageLocations = [], onClose, onSave }) {
   const fieldRefs = useRef({});
   const [form, setForm] = useState(() => ({
     material_code: "",
@@ -1534,6 +1534,7 @@ function RawMaterialMasterModal({ initialValue, categories, storageLocations = [
     name_en: initialValue?.name_en || initialValue?.name || "",
     name_cn: "",
     name_bm: "",
+    image_url: "",
     category_id: "",
     category: "",
     uom: "kg",
@@ -1584,16 +1585,6 @@ function RawMaterialMasterModal({ initialValue, categories, storageLocations = [
     }
   }
 
-  async function archive() {
-    if (!onArchive || !initialValue?.id) return;
-    setSaving(true);
-    try {
-      await onArchive(initialValue);
-    } finally {
-      setSaving(false);
-    }
-  }
-
   return (
     <Modal
       title={initialValue?.id ? "Edit Raw Material" : "Create Raw Material"}
@@ -1602,7 +1593,7 @@ function RawMaterialMasterModal({ initialValue, categories, storageLocations = [
       onClose={saving ? undefined : onClose}
       footer={(
         <>
-          {initialValue?.id && initialValue.status !== "archived" ? <button className="btn-danger" type="button" disabled={saving} onClick={archive}>Archive</button> : <span />}
+          <span />
           <div className="flex gap-2">
             {error ? <div className="self-center text-sm font-semibold text-rose-600">{error}</div> : null}
             <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
@@ -1637,6 +1628,24 @@ function RawMaterialMasterModal({ initialValue, categories, storageLocations = [
             setForm((current) => ({ ...current, name_en: event.target.value, name: event.target.value }));
           }} />
         </Field>
+        <section className="space-y-3">
+          <div>
+            <div className="text-sm font-bold text-text-primary">Image</div>
+            <div className="text-xs font-semibold text-text-secondary">Optional URL for raw material identification.</div>
+          </div>
+          <Field label="Image URL">
+            <input className={inputClass()} placeholder="https://..." value={form.image_url || ""} onChange={(event) => setForm((current) => ({ ...current, image_url: event.target.value }))} />
+          </Field>
+          {form.image_url ? (
+            <div className="flex items-center gap-3 rounded-xl border border-border bg-slate-50 p-3">
+              <img className="h-16 w-16 rounded-lg object-cover" src={form.image_url} alt={form.name_en || "Raw material"} />
+              <div className="min-w-0 text-xs font-semibold text-text-secondary">
+                <div className="font-bold text-text-primary">Preview</div>
+                <div className="truncate">{form.image_url}</div>
+              </div>
+            </div>
+          ) : null}
+        </section>
         <Field label="Default UOM *" error={fieldErrors.uom}>
           <select ref={(node) => { fieldRefs.current.uom = node; }} className={inputClass(fieldErrors.uom)} value={form.uom} onChange={(event) => {
             setFieldErrors((current) => ({ ...current, uom: "" }));
@@ -1648,10 +1657,9 @@ function RawMaterialMasterModal({ initialValue, categories, storageLocations = [
         <section className="space-y-3 rounded-xl border border-border bg-slate-50 p-3">
           <div>
             <div className="text-sm font-bold text-text-primary">Cost Information</div>
-            <div className="text-xs font-semibold text-text-secondary">Used only when no receiving cost exists. Receiving cost remains preferred.</div>
           </div>
           <div className="grid gap-3 sm:grid-cols-2">
-            <Field label="Manual Unit Cost">
+            <Field label="Unit Cost">
               <input className={inputClass()} type="number" min="0" step="0.0001" placeholder="10" value={form.manual_unit_cost ?? ""} onChange={(event) => setForm((current) => ({ ...current, manual_unit_cost: event.target.value }))} />
             </Field>
             <Field label="Cost UOM">
@@ -1689,6 +1697,68 @@ function RawMaterialMasterModal({ initialValue, categories, storageLocations = [
         </Field>
         <Field label="Remarks">
           <textarea className={inputClass()} rows={3} value={form.remarks || ""} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
+        </Field>
+      </form>
+    </Modal>
+  );
+}
+
+function RawMaterialCostModal({ material, onClose, onSave }) {
+  const [form, setForm] = useState(() => ({
+    manual_unit_cost: material?.manual_unit_cost ?? "",
+    manual_cost_uom: material?.manual_cost_uom || material?.uom || "kg",
+  }));
+  const [saving, setSaving] = useState(false);
+  const receivingCostActive = material?.latest_cost_source === "Receiving Cost";
+
+  async function submit(event) {
+    event.preventDefault();
+    setSaving(true);
+    try {
+      await onSave({
+        ...material,
+        manual_unit_cost: form.manual_unit_cost,
+        manual_cost_uom: form.manual_cost_uom,
+      });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      title="Update Unit Cost"
+      description="Update the fallback master cost for this raw material."
+      size="sm"
+      onClose={saving ? undefined : onClose}
+      footer={(
+        <div className="flex w-full justify-end gap-2">
+          <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
+          <button className="btn-primary" type="submit" form="factory-raw-material-cost-form" disabled={saving}>{saving ? "Saving..." : "Save"}</button>
+        </div>
+      )}
+    >
+      <form id="factory-raw-material-cost-form" className="space-y-4" onSubmit={submit}>
+        <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
+          <div className="text-sm font-bold text-text-primary">{rawMaterialLabel(material)}</div>
+          <div className="text-xs font-semibold text-text-secondary">{material?.material_code || "Raw Material"}</div>
+        </div>
+        {receivingCostActive ? (
+          <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">
+            Receiving cost is currently used. Unit Cost is fallback when no receiving cost exists.
+          </div>
+        ) : null}
+        <Field label="Unit Cost">
+          <input className={inputClass()} type="number" min="0" step="0.0001" value={form.manual_unit_cost ?? ""} onChange={(event) => setForm((current) => ({ ...current, manual_unit_cost: event.target.value }))} />
+        </Field>
+        <Field label="Cost UOM">
+          <SearchableSelect
+            value={form.manual_cost_uom || ""}
+            options={commonUoms.map((uom) => ({ value: uom, label: uom }))}
+            placeholder="Select Cost UOM"
+            searchPlaceholder="Search UOM"
+            onChange={(manualCostUom) => setForm((current) => ({ ...current, manual_cost_uom: manualCostUom }))}
+          />
         </Field>
       </form>
     </Modal>
@@ -5258,7 +5328,19 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const rawMaterialInventoryColumns = [
     { key: "name", label: "Raw Material", render: (row) => {
       const secondaryNames = [row.name_cn, row.name_bm].filter(Boolean).join(" · ");
-      return <div><div className="font-bold text-text-primary">{rawMaterialLabel(row)}</div>{secondaryNames ? <div className="text-xs text-text-secondary">{secondaryNames}</div> : null}</div>;
+      return (
+        <div className="flex items-center gap-3">
+          {row.image_url ? (
+            <img className="h-10 w-10 rounded-lg object-cover" src={row.image_url} alt={rawMaterialLabel(row)} />
+          ) : (
+            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-text-secondary"><Package size={18} /></div>
+          )}
+          <div className="min-w-0">
+            <div className="font-bold text-text-primary">{rawMaterialLabel(row)}</div>
+            {secondaryNames ? <div className="text-xs text-text-secondary">{secondaryNames}</div> : null}
+          </div>
+        </div>
+      );
     } },
     { key: "material_code", label: "Code", render: (row) => row.material_code || "—" },
     { key: "category", label: "Category", render: (row) => row.category || "No category" },
@@ -5266,8 +5348,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     { key: "current_balance", label: "Current Balance", render: (row) => quantity(row.current_balance, row.uom) },
     { key: "latest_cost", label: "Latest Cost", render: (row) => (
       <div>
-        <div className="font-semibold text-text-primary">{row.latest_cost_missing ? "Missing Cost" : row.latest_cost_uom ? `${money(row.latest_cost)}/${normalizedCostUnit(row.latest_cost_uom)?.display || row.latest_cost_uom}` : "Unsupported UOM"}</div>
-        {!row.latest_cost_missing ? <div className="text-xs text-text-secondary">{row.latest_cost_source || "Receiving Cost"}</div> : null}
+        <button className="font-semibold text-primary underline-offset-2 hover:underline" type="button" onClick={() => setModal({ type: "raw-material-cost", material: row })}>
+          {row.latest_cost_missing ? "Missing Cost" : row.latest_cost_uom ? `${money(row.latest_cost)}/${normalizedCostUnit(row.latest_cost_uom)?.display || row.latest_cost_uom}` : "Unsupported UOM"}
+        </button>
       </div>
     ) },
     { key: "last_receiving_date", label: "Last Receiving", render: (row) => formatFactoryDate(row.last_receiving_date) },
@@ -7073,7 +7156,13 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           storageLocations={data.storageLocations}
           onClose={() => setModal(null)}
           onSave={saveRawMaterial}
-          onArchive={archiveRawMaterial}
+        />
+      ) : null}
+      {modal?.type === "raw-material-cost" ? (
+        <RawMaterialCostModal
+          material={modal.material}
+          onClose={() => setModal(null)}
+          onSave={saveRawMaterial}
         />
       ) : null}
       {modal?.type === "raw-material-category" ? (
