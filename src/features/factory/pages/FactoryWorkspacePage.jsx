@@ -621,6 +621,14 @@ function packSizeText(sku) {
   return Number(sku?.pack_size_qty || 0) > 0 ? `${sku.pack_size_qty} ${sku.pack_size_uom || ""}`.trim() : "";
 }
 
+function compactPackSizeText(sku) {
+  return Number(sku?.pack_size_qty || 0) > 0 ? `${sku.pack_size_qty}${sku.pack_size_uom || ""}`.trim() : "";
+}
+
+function packagingSkuDisplayName(sku) {
+  return [compactPackSizeText(sku), packagingTypeLabel(sku)].filter(Boolean).join(" ") || sku?.variant_name || "Packaging SKU";
+}
+
 function packagingTypeLabel(sku) {
   return sku?.packaging_type || "Pack";
 }
@@ -1122,7 +1130,6 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
       category_id: !form.category_id ? "Category is required." : "",
       product_code: !String(form.product_code || "").trim() ? "SKU Code is required." : "",
       product_name_en: !String(form.product_name_en || form.product_name || parentName || "").trim() ? "Finished Good name is required." : "",
-      variant_name: !String(form.variant_name || "").trim() ? "Packaging Variant is required." : "",
       pack_size_qty: !Number(form.pack_size_qty || 0) ? "Pack Size Qty is required." : "",
       pack_size_uom: !String(form.pack_size_uom || "").trim() ? "Pack Size UOM is required." : "",
       uom: !String(form.uom || "").trim() ? "UOM is required." : "",
@@ -1139,7 +1146,7 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
     setSaving(true);
     try {
       const skuUom = form.pack_size_uom || form.uom;
-      const variantName = String(form.variant_name || "").trim();
+      const variantName = packagingSkuDisplayName(form);
       const parentProductName = selectedFamily?.name_en || form.product_family_name || parentName;
       const productName = [parentProductName, variantName].filter(Boolean).join(" - ") || String(form.product_code || "").trim();
       await onSave({
@@ -1150,9 +1157,10 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
         product_name_bm: selectedFamily?.name_bm || form.product_name_bm || "",
         category: selectedCategory?.name || selectedFamily?.category || form.category || "",
         product_family_id: selectedFamily?.id || form.product_family_id || "",
-      product_family_name: parentProductName || "",
-      packaging_type: form.packaging_type || "Pack",
-      base_qty: form.pack_size_qty,
+        product_family_name: parentProductName || "",
+        variant_name: variantName,
+        packaging_type: form.packaging_type || "Pack",
+        base_qty: form.pack_size_qty,
         base_uom: skuUom,
         uom: skuUom,
       });
@@ -1204,12 +1212,6 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
                 setForm((current) => ({ ...current, product_code: event.target.value }));
               }} />
             </Field>
-            <Field label="Packaging Variant *" error={fieldErrors.variant_name}>
-              <input ref={(node) => { fieldRefs.current.variant_name = node; }} className={inputClass(fieldErrors.variant_name)} value={form.variant_name || ""} placeholder="1kg Pack, 2kg Pack, 5kg Pail" onChange={(event) => {
-                setFieldErrors((current) => ({ ...current, variant_name: "" }));
-                setForm((current) => ({ ...current, variant_name: event.target.value }));
-              }} />
-            </Field>
             <div className="grid gap-3 md:grid-cols-3">
               <Field label="Packaging Type">
                 <select className={inputClass()} value={form.packaging_type || "Pack"} onChange={(event) => setForm((current) => ({ ...current, packaging_type: event.target.value }))}>
@@ -1241,6 +1243,10 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
                   {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
                 </select>
               </Field>
+            </div>
+            <div className="rounded-xl border border-border bg-white px-3 py-2">
+              <div className="text-[10.5px] font-semibold text-text-muted">Display</div>
+              <div className="mt-1 text-sm font-bold text-text-primary">{packagingSkuDisplayName(form)}</div>
             </div>
             <Field label="Storage Location">
               <SearchableSelect
@@ -5150,6 +5156,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         id: `__sku_${sku.id}`,
         groupKey: `__sku_${sku.id}`,
         product_group_name: sku.product_name_en || sku.product_name || sku.product_code || "Unassigned Finished Good",
+        name_cn: sku.product_name_cn || "",
+        name_bm: sku.product_name_bm || "",
         category: sku.category || "No category",
         category_id: sku.category_id || "",
         status: sku.status || "active",
@@ -6428,28 +6436,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const outOfStockItems = data.finishedGoods.filter((row) => Number(row.current_balance || 0) <= 0);
     const canManageFinishedGoods = can("factory_finished_goods.create") || can("factory_finished_goods.edit");
     const activeRecipeCount = data.recipes.filter((recipe) => recipe.status === "active").length;
-    const showVariantColumn = data.finishedGoods.some((sku) => !variantIsPackSize(sku));
     const actionItemClass = "flex w-full items-center rounded-xl px-3 py-2 text-left text-sm font-semibold text-text-primary transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50";
     const dangerActionItemClass = "flex w-full items-center rounded-xl px-3 py-2 text-left text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50";
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    const recentProductions = data.productions.filter((production) => new Date(production.production_date || production.created_at || 0) >= thirtyDaysAgo);
-    const producedByProduct = [...recentProductions.reduce((map, production) => {
-      const key = production.product_name || "Unknown product";
-      const current = map.get(key) || { id: key, label: key, value: 0, helper: "Last 30 days" };
-      current.value += Number(production.good_output_qty || production.produced_quantity || 0);
-      map.set(key, current);
-      return map;
-    }, new Map()).values()].sort((a, b) => b.value - a.value).slice(0, 5);
-    const stockDistribution = [...data.finishedGoods]
-      .sort((a, b) => Number(b.current_balance || 0) - Number(a.current_balance || 0))
-      .slice(0, 6)
-      .map((product) => ({ id: product.id, label: product.product_name_en || product.product_name, value: Number(product.current_balance || 0), helper: product.uom }));
-    const recentMovements = data.productMovements.filter((movement) => new Date(movement.movement_date || movement.created_at || 0) >= thirtyDaysAgo);
-    const productionInQty = recentMovements.filter((movement) => Number(movement.quantity || 0) > 0 && String(movement.movement_type || "").toLowerCase().includes("production")).reduce((sum, movement) => sum + Number(movement.quantity || 0), 0);
-    const stockOutQty = Math.abs(recentMovements.filter((movement) => Number(movement.quantity || 0) < 0).reduce((sum, movement) => sum + Number(movement.quantity || 0), 0));
-    const latestBatch = [...data.productions].filter((production) => production.batch_no).sort((a, b) => new Date(b.production_date || b.created_at || 0) - new Date(a.production_date || a.created_at || 0))[0];
-    const batchCount = new Set(data.productions.map((production) => production.batch_no).filter(Boolean)).size;
     return (
       <div className="space-y-5">
         <PageHeader
@@ -6469,40 +6457,16 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={BookOpen} label="Active Recipes" value={activeRecipeCount} helper="Production standards" tone={activeRecipeCount ? "success" : "warning"} />
           <MetricCard icon={Clock3} label="Out of Stock SKUs" value={outOfStockItems.length} helper="Current balance zero" tone={outOfStockItems.length ? "danger" : "success"} />
         </div>
-        <div className="grid gap-4 xl:grid-cols-3">
-          <Card title="Stock Distribution by Product" description="Current finished goods balance by SKU.">
-            <WarehouseBarList rows={stockDistribution} valueLabel={(value, row) => quantity(value, row.helper)} />
-          </Card>
-          <Card title="Top Produced Products" description="Good output from completed production in the last 30 days.">
-            <WarehouseBarList rows={producedByProduct} valueLabel={(value) => quantity(value, "")} />
-          </Card>
-          <Card title="Movement and Batch Summary" description="Production stock-in versus stock-out movement signals.">
-            <div className="grid gap-3 p-4 sm:grid-cols-2">
-              {[
-                { label: "Production In", value: quantity(productionInQty, ""), helper: "Last 30 days" },
-                { label: "Stock Out", value: quantity(stockOutQty, ""), helper: "Last 30 days" },
-                { label: "Batch Count", value: batchCount, helper: "Total tracked batches" },
-                { label: "Latest Batch", value: latestBatch?.batch_no || "—", helper: latestBatch?.production_date ? formatFactoryDate(latestBatch.production_date) : "No batches yet" },
-              ].map((item) => (
-                <div key={item.label} className="rounded-xl border border-border bg-slate-50 p-3">
-                  <div className="text-xs font-semibold uppercase tracking-wide text-text-muted">{item.label}</div>
-                  <div className="mt-1 text-lg font-bold text-text-primary">{item.value}</div>
-                  <div className="mt-1 text-xs text-text-secondary">{item.helper}</div>
-                </div>
-              ))}
-            </div>
-          </Card>
-        </div>
         {warehouseFilterControls()}
         <Card title="Finished Goods and Packaging SKUs" description="Each Finished Good can have one or more packaging SKUs. Inventory balances are tracked per SKU.">
           {!productGroups.length ? (
             <EmptyState title="No Finished Goods" description="Create a Finished Good, then add Packaging SKUs for production stock-in." />
           ) : (
             <div className="space-y-4 p-4">
-              <div className="hidden rounded-xl border border-border bg-slate-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted md:grid md:grid-cols-[minmax(260px,1.5fr)_1fr_140px_130px_140px_48px]">
+              <div className="hidden rounded-xl border border-border bg-slate-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted md:grid md:grid-cols-[minmax(260px,1.5fr)_1fr_180px_130px_140px_48px]">
                 <div>Finished Good</div>
                 <div>Category</div>
-                <div>Packaging SKUs</div>
+                <div>Packaging SKU</div>
                 <div>Total Base Balance</div>
                 <div>Status</div>
                 <div />
@@ -6510,11 +6474,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
               {productGroups.map((group) => {
                 const groupKey = group.groupKey;
                 const isExpanded = expandedProductGroups[groupKey] ?? false;
-                const skuCountLabel = `${group.skus.length} Packaging SKU${group.skus.length === 1 ? "" : "s"}`;
                 const activeSkuLabel = `${group.active_sku_count} Active SKU${group.active_sku_count === 1 ? "" : "s"}`;
+                const skuBadges = group.skus.slice(0, 4).map((sku) => compactPackSizeText(sku) || sku.product_code || "SKU");
+                const extraSkuCount = Math.max(0, group.skus.length - skuBadges.length);
                 return (
                   <div key={groupKey} className="overflow-visible rounded-2xl border border-border bg-white shadow-sm">
-                    <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(260px,1.5fr)_1fr_140px_130px_140px_48px] md:items-center">
+                    <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(260px,1.5fr)_1fr_180px_130px_140px_48px] md:items-center">
                       <button
                         className="flex items-start gap-3 rounded-xl text-left transition hover:text-primary"
                         type="button"
@@ -6523,11 +6488,16 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                         <span className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border bg-slate-50 text-sm font-bold text-text-secondary">{isExpanded ? "▼" : "▶"}</span>
                         <span>
                           <span className="block text-base font-bold text-text-primary">{group.product_group_name}</span>
-                          <span className="mt-0.5 block text-xs font-semibold text-text-secondary md:hidden">{skuCountLabel}</span>
+                          {group.name_cn ? <span className="mt-0.5 block text-sm font-semibold text-text-secondary">{group.name_cn}</span> : null}
                         </span>
                       </button>
                       <div className="text-sm font-semibold text-text-secondary">{group.category || "No category"}</div>
-                      <div className="text-sm font-bold text-text-primary">{skuCountLabel}</div>
+                      <div className="flex flex-wrap gap-1.5">
+                        {skuBadges.length ? skuBadges.map((label, index) => (
+                          <span key={`${groupKey}-${label}-${index}`} className="rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 text-xs font-bold text-primary">[{label}]</span>
+                        )) : <span className="text-sm font-semibold text-text-secondary">No SKU</span>}
+                        {extraSkuCount ? <span className="rounded-full border border-border bg-slate-50 px-2.5 py-1 text-xs font-bold text-text-secondary">+{extraSkuCount}</span> : null}
+                      </div>
                       <div className="text-sm font-bold text-text-primary">{group.total_base_balance?.label || "—"}</div>
                       <div className="text-sm font-bold text-text-primary">
                         {activeSkuLabel}
@@ -6556,11 +6526,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                           <EmptyState title="No Packaging SKUs" description="Add a Packaging SKU before production stock-in." />
                         ) : (
                           <div className="ml-3 overflow-x-auto rounded-xl border border-border bg-white shadow-inner">
-                            <table className={`w-full text-left ${showVariantColumn ? "min-w-[820px]" : "min-w-[720px]"}`}>
+                            <table className="w-full min-w-[720px] text-left">
                               <thead>
                                 <tr className="border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">
                                   <th className="px-4 py-2.5">SKU</th>
-                                  {showVariantColumn ? <th className="px-4 py-2.5">Variant</th> : null}
                                   <th className="px-4 py-2.5">Pack Size</th>
                                   <th className="px-4 py-2.5">Balance</th>
                                   <th className="px-4 py-2.5">Recipe</th>
@@ -6577,9 +6546,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                                     <tr key={sku.id} className="border-b border-border text-sm last:border-0">
                                       <td className="px-4 py-2.5">
                                         <div className="font-bold text-text-primary">{sku.product_code || "No SKU"}</div>
-                                        <div className="text-xs text-text-secondary">{sku.product_name_en || sku.product_name || group.product_group_name}</div>
+                                        <div className="text-xs text-text-secondary">{packagingSkuDisplayName(sku)}</div>
                                       </td>
-                                      {showVariantColumn ? <td className="px-4 py-2.5 font-semibold text-text-primary">{sku.variant_name || "Default SKU"}</td> : null}
                                       <td className="px-4 py-2.5">
                                         <div className="font-semibold text-text-primary">{packSize}</div>
                                       </td>
