@@ -3742,7 +3742,7 @@ function ProductRecipeDetailModal({ recipe, receivings = [], onClose }) {
     >
       <div className="space-y-5">
         <Card title="Recipe Summary">
-          <div className="grid gap-3 md:grid-cols-3">
+          <div className="grid gap-x-8 gap-y-3 px-2 py-1 sm:px-4 md:grid-cols-3 lg:px-6">
             <div>
               <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Finished Good</div>
               <div className="mt-1 text-sm font-bold text-text-primary">{finishedGoodName}</div>
@@ -3776,6 +3776,7 @@ function ProductRecipeDetailModal({ recipe, receivings = [], onClose }) {
               <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Cost / {recipe.uom || "UOM"}</div>
               <div className="mt-1 text-sm font-bold text-text-primary">{costDisplay(recipeCost.costPerUnit, recipeCost.missingCostRows, recipeCost.unsupportedCostRows)}</div>
             </div>
+            <div className="hidden md:block" aria-hidden="true" />
           </div>
         </Card>
         <Card title="BOM Materials">
