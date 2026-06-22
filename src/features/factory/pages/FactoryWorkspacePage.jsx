@@ -1661,11 +1661,8 @@ function RawMaterialMasterModal({ initialValue, categories, storageLocations = [
         <section className="space-y-3">
           <div>
             <div className="text-sm font-bold text-text-primary">Image</div>
-            <div className="text-xs font-semibold text-text-secondary">Optional URL for raw material identification.</div>
+            <div className="text-xs font-semibold text-text-secondary">Optional image for raw material identification.</div>
           </div>
-          <Field label="Image URL">
-            <input className={inputClass()} placeholder="https://..." value={form.image_url || ""} onChange={(event) => setForm((current) => ({ ...current, image_url: event.target.value }))} />
-          </Field>
           <div className="flex flex-wrap gap-2">
             <label className={`btn-secondary cursor-pointer ${isRawMaterialImageUploading ? "opacity-70" : ""}`}>
               {isRawMaterialImageUploading ? "Uploading..." : "Upload Image"}
@@ -1696,10 +1693,7 @@ function RawMaterialMasterModal({ initialValue, categories, storageLocations = [
           {form.image_url ? (
             <div className="flex items-center gap-3 rounded-xl border border-border bg-slate-50 p-3">
               <img className="h-16 w-16 rounded-lg object-cover" src={form.image_url} alt={form.name_en || "Raw material"} />
-              <div className="min-w-0 text-xs font-semibold text-text-secondary">
-                <div className="font-bold text-text-primary">Preview</div>
-                <div className="truncate">{form.image_url}</div>
-              </div>
+              <div className="text-xs font-bold text-text-primary">Preview</div>
             </div>
           ) : null}
         </section>
@@ -6012,7 +6006,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   function filteredRawMaterialRows() {
     return rawMaterialRows().filter((row) => includesText(`${row.name} ${row.name_en} ${row.name_cn} ${row.name_bm} ${row.material_code}`, rawMaterialFilters.material)
-      && (!rawMaterialFilters.status || row.status === rawMaterialFilters.status)
+      && (!rawMaterialFilters.status || row.status === rawMaterialFilters.status || row.stock_status === rawMaterialFilters.status)
       && (!rawMaterialFilters.category || row.category_id === rawMaterialFilters.category || row.category === rawMaterialFilters.category));
   }
 
@@ -6214,30 +6208,42 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   function rawMaterialFilterControls() {
-    const statuses = [...new Set(data.rawMaterials.map((row) => row.status).filter(Boolean))];
     const categories = data.rawMaterialCategories.length
       ? data.rawMaterialCategories
       : [...new Set(data.rawMaterials.map((row) => row.category).filter(Boolean))].map((name) => ({ id: name, name }));
+    const statusOptions = [
+      { value: "", label: "All Status" },
+      { value: "In Stock", label: "In Stock" },
+      { value: "Low Stock", label: "Low Stock" },
+      { value: "Out of Stock", label: "Out of Stock" },
+      { value: "archived", label: "Archived" },
+    ];
+    const categoryOptions = categories.map((category) => ({ value: category.id || category.name, label: category.name }));
     return (
-      <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 md:grid-cols-4">
+      <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 md:grid-cols-3">
         <Field label="Raw Material">
           <input className={inputClass()} value={rawMaterialFilters.material} onChange={(event) => setRawMaterialFilters((current) => ({ ...current, material: event.target.value }))} placeholder="Search material/code" />
         </Field>
         <Field label="Status">
-          <select className={inputClass()} value={rawMaterialFilters.status} onChange={(event) => setRawMaterialFilters((current) => ({ ...current, status: event.target.value }))}>
-            <option value="">All statuses</option>
-            {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
-          </select>
+          <SearchableSelect
+            value={rawMaterialFilters.status}
+            options={statusOptions}
+            placeholder="All Status"
+            searchPlaceholder="Search status"
+            emptyText="No matching status"
+            onChange={(status) => setRawMaterialFilters((current) => ({ ...current, status }))}
+          />
         </Field>
         <Field label="Category">
-          <select className={inputClass()} value={rawMaterialFilters.category} onChange={(event) => setRawMaterialFilters((current) => ({ ...current, category: event.target.value }))}>
-            <option value="">All categories</option>
-            {categories.map((category) => <option key={category.id || category.name} value={category.id || category.name}>{category.name}</option>)}
-          </select>
+          <SearchableSelect
+            value={rawMaterialFilters.category}
+            options={[{ value: "", label: "All Categories" }, ...categoryOptions]}
+            placeholder="All Categories"
+            searchPlaceholder="Search categories"
+            emptyText="No matching categories"
+            onChange={(category) => setRawMaterialFilters((current) => ({ ...current, category }))}
+          />
         </Field>
-        <div className="flex items-end">
-          <button className="btn-secondary w-full" type="button" onClick={() => setRawMaterialFilters({ material: "", status: "", category: "" })}>Clear</button>
-        </div>
       </div>
     );
   }
