@@ -2616,6 +2616,9 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
   const normalizedPreviewProductionUom = productionPlan && !productionPlan.error ? productionPlan.production_uom : productionUom;
   const packSizeMissing = selectedProduct && productionPlan?.error === "Packaging SKU needs Pack Size before creating Job Order.";
   const recipeUomMismatch = selectedProduct && (productionPlan?.error === "Production UOM must match the active recipe UOM." || productionPlan?.error === "Production UOM cannot convert to the selected Packaging SKU Pack Size.");
+  const activeRecipeVersion = matchingRecipe?.version || "v1";
+  const activeRecipeName = matchingRecipe?.recipe_name || matchingRecipe?.recipe_code || "";
+  const activeRecipeLabel = activeRecipeName && activeRecipeName !== activeRecipeVersion ? `${activeRecipeName} ${activeRecipeVersion}` : activeRecipeVersion;
   const bomRows = matchingRecipe?.items?.length ? matchingRecipe.items.map((item) => {
     const material = rawMaterials.find((row) => row.id === item.raw_material_id);
     const recipeYield = Number(matchingRecipe.yield_quantity || 1) || 1;
@@ -2717,16 +2720,6 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
               }}
             />
           </Field>
-          <Field label="Target Production Qty *">
-            <input className={inputClass()} type="number" min="0" step="0.01" value={form.target_production_qty || form.target_quantity || ""} disabled={isReadOnly} onChange={(event) => {
-              const nextQty = event.target.value;
-              setForm((current) => ({ ...current, target_production_qty: nextQty, target_quantity: nextQty }));
-            }} />
-          </Field>
-          <Field label="Production UOM">
-            <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-bold text-text-primary">{productionUom || "—"}</div>
-            <div className="mt-1 text-xs font-semibold text-text-secondary">Inherited from active recipe / finished good output UOM.</div>
-          </Field>
           <Field label="Packaging SKU *" error={!form.finished_good_id && error.includes("Packaging SKU") ? "Packaging SKU is required." : ""}>
             <SearchableSelect
               value={form.finished_good_id || ""}
@@ -2745,6 +2738,16 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
                 }));
               }}
             />
+          </Field>
+          <Field label="Target Production Qty *">
+            <div className="flex overflow-hidden rounded-xl border border-border bg-white focus-within:border-primary focus-within:ring-2 focus-within:ring-primary/10">
+              <input className="min-h-[42px] min-w-0 flex-1 border-0 bg-transparent px-3 py-2 text-sm font-medium text-text-primary outline-none disabled:bg-slate-50 disabled:text-text-secondary" type="number" min="0" step="0.01" value={form.target_production_qty || form.target_quantity || ""} disabled={isReadOnly} onChange={(event) => {
+                const nextQty = event.target.value;
+                setForm((current) => ({ ...current, target_production_qty: nextQty, target_quantity: nextQty }));
+              }} />
+              <div className="flex min-w-[86px] items-center justify-center border-l border-border bg-slate-50 px-3 text-sm font-bold text-text-primary">{productionUom || "—"}</div>
+            </div>
+            <div className="mt-1 text-xs font-semibold text-text-secondary">UOM inherited from active recipe / finished good output UOM.</div>
           </Field>
           <Field label="Estimated Pack Qty">
             <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-bold text-text-primary">
@@ -2772,7 +2775,8 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
           {selectedParent && matchingRecipe ? (
             <div className="space-y-3">
               <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-semibold text-emerald-800">
-                {matchingRecipe.recipe_name || matchingRecipe.recipe_code} · {matchingRecipe.version || "v1"} · Standard Output {quantity(matchingRecipe.yield_quantity, matchingRecipe.uom)}
+                <div>Active Recipe: {activeRecipeLabel}</div>
+                <div className="text-xs">Standard Output: {quantity(matchingRecipe.yield_quantity, matchingRecipe.uom)}</div>
               </div>
               <div className="overflow-x-auto">
                 <table className="w-full min-w-[760px] text-left">
@@ -5421,11 +5425,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       );
     } },
     { key: "priority", label: "Priority", render: (row) => <Badge tone={row.priority === "Urgent" || row.priority === "High" ? "warning" : "neutral"}>{row.priority}</Badge> },
-    { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{jobStatusLabel(row.status)}</Badge> },
     { key: "actions", label: "Actions", align: "right", render: (row) => (
       <div className="flex flex-wrap justify-end gap-2">
         {row.status === "draft" && can("factory_job_orders.edit") ? (
-          <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => releaseJobOrder(row)}>Release</button>
+          <button className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50" type="button" onClick={() => releaseJobOrder(row)}>Release</button>
         ) : null}
         {row.status === "released" && can("factory_production.complete") ? (
           <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "start-production", job: row })}><Play size={13} /> Start Production</button>
@@ -5436,7 +5439,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         {row.status === "draft" && can("factory_job_orders.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "job", value: row })}>Edit</button> : null}
         {row.status === "completed" ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => viewCompletedJobOrder(row)}>View</button> : null}
         {row.status === "cancelled" ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "job", value: row })}>View</button> : null}
-        {row.status === "draft" && can("factory_job_orders.delete") ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => deleteJobOrder(row)}>Delete</button> : null}
+        {row.status === "draft" && can("factory_job_orders.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => deleteJobOrder(row)}>Delete</button> : null}
       </div>
     ) },
   ];
