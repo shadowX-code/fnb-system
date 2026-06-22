@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
 import { Activity, AlertTriangle, BookOpen, CheckCircle2, ClipboardCheck, ClipboardList, Clock3, DollarSign, Factory, FileText, Package, PackageCheck, Play, RefreshCw, Tag, Truck, Warehouse } from "lucide-react";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
@@ -272,7 +271,6 @@ function RawMaterialCellPicker({ value, materials, placeholder, open, openUpward
 
 function FeedXDatePicker({ value, onChange, placeholder = "Select date", error, buttonRef, required = false, disabled = false }) {
   const [open, setOpen] = useState(false);
-  const [rect, setRect] = useState(null);
   const [visibleMonth, setVisibleMonth] = useState(() => monthStart(value));
   const [pickerMode, setPickerMode] = useState("days");
   const [yearRangeStart, setYearRangeStart] = useState(() => {
@@ -280,7 +278,7 @@ function FeedXDatePicker({ value, onChange, placeholder = "Select date", error, 
     return startYear - (startYear % 12);
   });
   const buttonNode = useRef(null);
-  const panelNode = useRef(null);
+  const anchorRef = buttonNode;
   const todayIso = todayInput();
   const selectedIso = value || "";
   const monthOptions = Array.from({ length: 12 }, (_, index) => ({ value: index, label: new Date(2026, index, 1).toLocaleDateString("en-MY", { month: "short" }) }));
@@ -295,10 +293,6 @@ function FeedXDatePicker({ value, onChange, placeholder = "Select date", error, 
       return date;
     });
   }, [visibleMonth]);
-
-  function updateRect() {
-    setRect(anchoredRect(buttonNode.current, 300, 360));
-  }
 
   function selectDate(nextDate) {
     onChange(isoDate(nextDate));
@@ -328,27 +322,7 @@ function FeedXDatePicker({ value, onChange, placeholder = "Select date", error, 
   }, [value]);
 
   useEffect(() => {
-    if (!open) return undefined;
-    const close = () => setOpen(false);
-    const onPointerDown = (event) => {
-      if (buttonNode.current?.contains(event.target) || panelNode.current?.contains(event.target)) return;
-      close();
-    };
-    const onKeyDown = (event) => {
-      if (event.key === "Escape") close();
-    };
-    updateRect();
-    setPickerMode("days");
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    window.addEventListener("resize", close);
-    window.addEventListener("scroll", close, true);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-      window.removeEventListener("resize", close);
-      window.removeEventListener("scroll", close, true);
-    };
+    if (open) setPickerMode("days");
   }, [open]);
 
   return (
@@ -361,20 +335,23 @@ function FeedXDatePicker({ value, onChange, placeholder = "Select date", error, 
         className={`${inputClass(error)} flex items-center justify-between bg-white text-left disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-70 ${value ? "text-text-primary" : "text-text-muted"}`}
         type="button"
         disabled={disabled}
-        onClick={() => {
-          setOpen((current) => !current);
-          updateRect();
-        }}
+        onClick={() => setOpen((current) => !current)}
       >
         <span>{formatDateDisplay(value, placeholder)}</span>
         <span className="text-xs font-semibold text-text-muted">{required ? "Required" : "Optional"}</span>
       </button>
-      {open && rect ? createPortal(
-        <div
-          ref={panelNode}
-          className="fixed z-[80] rounded-2xl border border-border bg-white p-3 shadow-2xl"
-          style={{ left: rect.left, top: rect.top, width: rect.width }}
-        >
+      <FloatingLayer
+        open={open}
+        onOpenChange={setOpen}
+        anchorRef={anchorRef}
+        align="start"
+        minWidth={300}
+        estimatedHeight={360}
+        maxHeight={420}
+        layer="popover"
+        className="p-3 shadow-2xl"
+        contentClassName=""
+      >
           <div className="flex items-center gap-2">
             <button className="btn-secondary px-2 py-1 text-xs" type="button" onClick={() => shiftMonth(-1)}>Prev</button>
             <button
@@ -461,9 +438,7 @@ function FeedXDatePicker({ value, onChange, placeholder = "Select date", error, 
               setOpen(false);
             }}>Clear</button>
           </div>
-        </div>,
-        document.body
-      ) : null}
+      </FloatingLayer>
     </div>
   );
 }
