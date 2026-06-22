@@ -4702,6 +4702,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const [modal, setModal] = useState(null);
   const [receivingTab, setReceivingTab] = useState("history");
   const [dispatchTab, setDispatchTab] = useState("history");
+  const [receivingHistoryFilters, setReceivingHistoryFilters] = useState({ dateFrom: "", dateTo: "", supplier: "" });
+  const [dispatchHistoryFilters, setDispatchHistoryFilters] = useState({ dateFrom: "", dateTo: "", customer: "", status: "" });
   const [expandedProductGroups, setExpandedProductGroups] = useState({});
   const [finishedGoodActionMenu, setFinishedGoodActionMenu] = useState(null);
   const [warehouseFilters, setWarehouseFilters] = useState({ product: "", family: "", category: "", status: "", batch: "", movementType: "", dateFrom: "", dateTo: "" });
@@ -6026,6 +6028,122 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     );
   }
 
+  function filteredReceivingBatches() {
+    return data.receivingBatches.filter((batch) => {
+      const receivedDate = batch.received_date || "";
+      const supplierMatch = !receivingHistoryFilters.supplier
+        || batch.supplier_id === receivingHistoryFilters.supplier
+        || batch.supplier_name === receivingHistoryFilters.supplier;
+      return (!receivingHistoryFilters.dateFrom || receivedDate >= receivingHistoryFilters.dateFrom)
+        && (!receivingHistoryFilters.dateTo || receivedDate <= receivingHistoryFilters.dateTo)
+        && supplierMatch;
+    });
+  }
+
+  function receivingHistoryFilterControls() {
+    const supplierOptions = data.factorySuppliers.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name, helper: supplier.supplier_code || supplier.status }));
+    const fallbackSupplierOptions = [...new Set(data.receivingBatches.map((batch) => batch.supplier_name).filter(Boolean))]
+      .filter((name) => !data.factorySuppliers.some((supplier) => supplier.supplier_name === name))
+      .map((name) => ({ value: name, label: name, helper: "Legacy supplier" }));
+    return (
+      <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 lg:grid-cols-4">
+        <Field label="Date From">
+          <FeedXDatePicker
+            value={receivingHistoryFilters.dateFrom}
+            placeholder="Start date"
+            onChange={(dateFrom) => setReceivingHistoryFilters((current) => ({ ...current, dateFrom }))}
+          />
+        </Field>
+        <Field label="Date To">
+          <FeedXDatePicker
+            value={receivingHistoryFilters.dateTo}
+            placeholder="End date"
+            onChange={(dateTo) => setReceivingHistoryFilters((current) => ({ ...current, dateTo }))}
+          />
+        </Field>
+        <Field label="Supplier">
+          <SearchableSelect
+            value={receivingHistoryFilters.supplier}
+            options={[{ value: "", label: "All Suppliers" }, ...supplierOptions, ...fallbackSupplierOptions]}
+            placeholder="All Suppliers"
+            searchPlaceholder="Search suppliers"
+            emptyText="No matching suppliers"
+            onChange={(supplier) => setReceivingHistoryFilters((current) => ({ ...current, supplier }))}
+          />
+        </Field>
+        <div className="flex items-end">
+          <button className="btn-secondary w-full" type="button" onClick={() => setReceivingHistoryFilters({ dateFrom: "", dateTo: "", supplier: "" })}>Clear</button>
+        </div>
+      </div>
+    );
+  }
+
+  function filteredFinishedGoodDispatches() {
+    return data.finishedGoodDispatches.filter((dispatch) => {
+      const dispatchDate = dispatch.dispatch_date || "";
+      const customerMatch = !dispatchHistoryFilters.customer
+        || dispatch.customer_id === dispatchHistoryFilters.customer
+        || dispatch.customer_name === dispatchHistoryFilters.customer;
+      return (!dispatchHistoryFilters.dateFrom || dispatchDate >= dispatchHistoryFilters.dateFrom)
+        && (!dispatchHistoryFilters.dateTo || dispatchDate <= dispatchHistoryFilters.dateTo)
+        && customerMatch
+        && (!dispatchHistoryFilters.status || dispatch.status === dispatchHistoryFilters.status);
+    });
+  }
+
+  function dispatchHistoryFilterControls() {
+    const customerOptions = data.factoryCustomers.map((customer) => ({ value: customer.id, label: customer.customer_name, helper: customer.customer_code || customer.customer_type || customer.status }));
+    const fallbackCustomerOptions = [...new Set(data.finishedGoodDispatches.map((dispatch) => dispatch.customer_name).filter(Boolean))]
+      .filter((name) => !data.factoryCustomers.some((customer) => customer.customer_name === name))
+      .map((name) => ({ value: name, label: name, helper: "Legacy customer" }));
+    return (
+      <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 lg:grid-cols-5">
+        <Field label="Date From">
+          <FeedXDatePicker
+            value={dispatchHistoryFilters.dateFrom}
+            placeholder="Start date"
+            onChange={(dateFrom) => setDispatchHistoryFilters((current) => ({ ...current, dateFrom }))}
+          />
+        </Field>
+        <Field label="Date To">
+          <FeedXDatePicker
+            value={dispatchHistoryFilters.dateTo}
+            placeholder="End date"
+            onChange={(dateTo) => setDispatchHistoryFilters((current) => ({ ...current, dateTo }))}
+          />
+        </Field>
+        <Field label="Customer">
+          <SearchableSelect
+            value={dispatchHistoryFilters.customer}
+            options={[{ value: "", label: "All Customers" }, ...customerOptions, ...fallbackCustomerOptions]}
+            placeholder="All Customers"
+            searchPlaceholder="Search customers"
+            emptyText="No matching customers"
+            onChange={(customer) => setDispatchHistoryFilters((current) => ({ ...current, customer }))}
+          />
+        </Field>
+        <Field label="Status">
+          <SearchableSelect
+            value={dispatchHistoryFilters.status}
+            options={[
+              { value: "", label: "All Status" },
+              { value: "draft", label: "Draft" },
+              { value: "completed", label: "Completed" },
+              { value: "cancelled", label: "Cancelled" },
+            ]}
+            placeholder="All Status"
+            searchPlaceholder="Search status"
+            emptyText="No matching status"
+            onChange={(status) => setDispatchHistoryFilters((current) => ({ ...current, status }))}
+          />
+        </Field>
+        <div className="flex items-end">
+          <button className="btn-secondary w-full" type="button" onClick={() => setDispatchHistoryFilters({ dateFrom: "", dateTo: "", customer: "", status: "" })}>Clear</button>
+        </div>
+      </div>
+    );
+  }
+
   function rawMaterialFilterControls() {
     const statuses = [...new Set(data.rawMaterials.map((row) => row.status).filter(Boolean))];
     const categories = data.rawMaterialCategories.length
@@ -6416,6 +6534,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const activeSuppliers = data.factorySuppliers.filter((supplier) => supplier.status === "active");
     const totalItems = data.receivingBatches.reduce((sum, batch) => sum + Number(batch.items_count || 0), 0);
     const totalQty = data.receivingBatches.reduce((sum, batch) => sum + Number(batch.total_qty || 0), 0);
+    const receivingRows = filteredReceivingBatches();
     return (
       <div className="space-y-5">
         <PageHeader
@@ -6443,10 +6562,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             onSave={saveReceivingBatch}
           />
         ) : (
-          <Card title="Receiving History" description={`Showing ${data.receivingBatches.length} receiving document(s).`}>
+          <Card title="Receiving History" description={`Showing ${receivingRows.length} receiving document(s).`}>
+            <div className="p-4 pb-0">{receivingHistoryFilterControls()}</div>
             <FactoryTable
               columns={receivingBatchColumns}
-              rows={data.receivingBatches}
+              rows={receivingRows}
               emptyTitle="No raw material receiving"
               emptyDescription="Use Receive Raw Material to record a supplier delivery with one or more item rows."
             />
@@ -7500,6 +7620,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const draftRows = data.finishedGoodDispatches.filter((row) => row.status === "draft");
     const completedToday = data.finishedGoodDispatches.filter((row) => row.status === "completed" && String(row.completed_at || row.dispatch_date || "").slice(0, 10) === today);
     const customersToday = new Set(completedToday.map((row) => row.customer_id || row.customer_name).filter(Boolean)).size;
+    const dispatchRows = filteredFinishedGoodDispatches();
     const dispatchColumns = [
       { key: "dispatch_date", label: "Date", render: (row) => formatFactoryDate(row.dispatch_date) },
       { key: "dispatch_no", label: "Dispatch No.", render: (row) => <div className="font-bold text-text-primary">{row.dispatch_no}</div> },
@@ -7549,12 +7670,15 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                 <EmptyState title="Create permission required" description="Your role can view dispatch history but cannot create new dispatch drafts." />
               )
             ) : (
-              <FactoryTable
-                columns={dispatchColumns}
-                rows={data.finishedGoodDispatches}
-                emptyTitle="No finished goods dispatches"
-                emptyDescription="Create a dispatch draft to record outbound Packaging SKU delivery."
-              />
+              <div className="space-y-4">
+                {dispatchHistoryFilterControls()}
+                <FactoryTable
+                  columns={dispatchColumns}
+                  rows={dispatchRows}
+                  emptyTitle="No finished goods dispatches"
+                  emptyDescription="Create a dispatch draft to record outbound Packaging SKU delivery."
+                />
+              </div>
             )}
           </div>
         </Card>
