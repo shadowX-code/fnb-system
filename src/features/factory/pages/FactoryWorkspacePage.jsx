@@ -6042,31 +6042,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   function rawMovementFilterControls() {
     const movementTypes = [...new Set(data.rawMaterialMovements.map((row) => row.movement_type).filter(Boolean))];
     const storageLocations = [...new Set(rawMaterialMovementRows().map((row) => row.storage_location).filter(Boolean))];
-    const materialOptions = data.rawMaterials.map((material) => ({ value: material.id, label: rawMaterialLabel(material), helper: rawMaterialSummary(material) }));
+    const materialOptions = data.rawMaterials.map((material) => ({ value: material.id, label: rawMaterialLabel(material) }));
+    const movementTypeOptions = movementTypes.map((type) => ({ value: type, label: type }));
+    const storageLocationOptions = storageLocations.map((location) => ({ value: location, label: location }));
     return (
       <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 lg:grid-cols-6">
-        <Field label="Raw Material">
-          <SearchableSelect
-            value={rawMovementFilters.material}
-            options={[{ value: "", label: "All Raw Materials", helper: "No material filter" }, ...materialOptions]}
-            placeholder="All Raw Materials"
-            searchPlaceholder="Search material"
-            emptyText="No matching materials"
-            onChange={(material) => setRawMovementFilters((current) => ({ ...current, material }))}
-          />
-        </Field>
-        <Field label="Movement Type">
-          <select className={inputClass()} value={rawMovementFilters.movementType} onChange={(event) => setRawMovementFilters((current) => ({ ...current, movementType: event.target.value }))}>
-            <option value="">All movements</option>
-            {movementTypes.map((type) => <option key={type} value={type}>{type}</option>)}
-          </select>
-        </Field>
-        <Field label="Storage Location">
-          <select className={inputClass()} value={rawMovementFilters.storageLocation} onChange={(event) => setRawMovementFilters((current) => ({ ...current, storageLocation: event.target.value }))}>
-            <option value="">All locations</option>
-            {storageLocations.map((location) => <option key={location} value={location}>{location}</option>)}
-          </select>
-        </Field>
         <Field label="Date From">
           <FeedXDatePicker
             value={rawMovementFilters.dateFrom}
@@ -6081,12 +6061,39 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             onChange={(nextDate) => setRawMovementFilters((current) => ({ ...current, dateTo: nextDate }))}
           />
         </Field>
+        <Field label="Raw Material">
+          <SearchableSelect
+            value={rawMovementFilters.material}
+            options={[{ value: "", label: "All Raw Materials" }, ...materialOptions]}
+            placeholder="All Raw Materials"
+            searchPlaceholder="Search material"
+            emptyText="No matching materials"
+            onChange={(material) => setRawMovementFilters((current) => ({ ...current, material }))}
+          />
+        </Field>
+        <Field label="Movement Type">
+          <SearchableSelect
+            value={rawMovementFilters.movementType}
+            options={[{ value: "", label: "All Movements" }, ...movementTypeOptions]}
+            placeholder="All Movements"
+            searchPlaceholder="Search movements"
+            emptyText="No matching movements"
+            onChange={(movementType) => setRawMovementFilters((current) => ({ ...current, movementType }))}
+          />
+        </Field>
+        <Field label="Storage Location">
+          <SearchableSelect
+            value={rawMovementFilters.storageLocation}
+            options={[{ value: "", label: "All Locations" }, ...storageLocationOptions]}
+            placeholder="All Locations"
+            searchPlaceholder="Search locations"
+            emptyText="No matching locations"
+            onChange={(storageLocation) => setRawMovementFilters((current) => ({ ...current, storageLocation }))}
+          />
+        </Field>
         <Field label="Search">
           <input className={inputClass()} value={rawMovementFilters.search} onChange={(event) => setRawMovementFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Reference, batch, remarks" />
         </Field>
-        <div className="flex items-end lg:col-span-6">
-          <button className="btn-secondary" type="button" onClick={() => setRawMovementFilters({ material: "", movementType: "", storageLocation: "", dateFrom: "", dateTo: "", search: "" })}>Clear Filters</button>
-        </div>
       </div>
     );
   }
@@ -6750,14 +6757,13 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const stockInRows = rows.filter((row) => Number(row.quantity || 0) > 0);
     const stockOutRows = rows.filter((row) => Number(row.quantity || 0) < 0);
     const movementColumns = [
-      { key: "raw_material", label: "Raw Material", render: (row) => <div><div className="font-bold text-text-primary">{row.raw_material_name || "Raw Material"}</div><div className="text-xs text-text-secondary">{row.raw_material_code || "No SKU"}</div></div> },
+      { key: "movement_date", label: "Date", render: (row) => formatFactoryDate(row.movement_date) },
       { key: "movement_type", label: "Movement Type", render: (row) => <Badge tone={Number(row.quantity || 0) >= 0 ? "success" : "warning"}>{row.movement_type || "Movement"}</Badge> },
+      { key: "raw_material", label: "Raw Material", render: (row) => <div><div className="font-bold text-text-primary">{row.raw_material_name || "Raw Material"}</div><div className="text-xs text-text-secondary">{row.raw_material_code || "No SKU"}</div></div> },
       { key: "quantity", label: "Qty", render: (row) => quantity(row.quantity, row.uom) },
-      { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
       { key: "storage_location", label: "Storage Location", render: (row) => row.storage_location || "—" },
-      { key: "batch_no", label: "Batch No.", render: (row) => row.batch_no || "—" },
-      { key: "reference", label: "Reference / Source", render: (row) => <div><div className="font-semibold text-text-primary">{row.reference_no || "—"}</div><div className="text-xs text-text-secondary">{row.reference_type || "—"}</div></div> },
-      { key: "movement_date", label: "Movement Date", render: (row) => formatFactoryDate(row.movement_date) },
+      { key: "batch_no", label: "Batch / Lot No.", render: (row) => row.batch_no || "—" },
+      { key: "reference", label: "Reference", render: (row) => row.reference_no || "—" },
       { key: "created_by", label: "Created By", render: (row) => row.created_by_name || "—" },
       { key: "remarks", label: "Remarks", render: (row) => row.remarks || "—" },
     ];
