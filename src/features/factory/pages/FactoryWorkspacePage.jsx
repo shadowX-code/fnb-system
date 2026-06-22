@@ -270,7 +270,7 @@ function RawMaterialCellPicker({ value, materials, placeholder, open, openUpward
   );
 }
 
-function FeedXDatePicker({ value, onChange, placeholder = "Select date", error, buttonRef, required = false }) {
+function FeedXDatePicker({ value, onChange, placeholder = "Select date", error, buttonRef, required = false, disabled = false }) {
   const [open, setOpen] = useState(false);
   const [rect, setRect] = useState(null);
   const [visibleMonth, setVisibleMonth] = useState(() => monthStart(value));
@@ -358,8 +358,9 @@ function FeedXDatePicker({ value, onChange, placeholder = "Select date", error, 
           buttonNode.current = node;
           if (buttonRef) buttonRef(node);
         }}
-        className={`${inputClass(error)} flex items-center justify-between bg-white text-left ${value ? "text-text-primary" : "text-text-muted"}`}
+        className={`${inputClass(error)} flex items-center justify-between bg-white text-left disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-70 ${value ? "text-text-primary" : "text-text-muted"}`}
         type="button"
+        disabled={disabled}
         onClick={() => {
           setOpen((current) => !current);
           updateRect();
@@ -2398,7 +2399,12 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
           {!form.dispatch_no ? <div className="text-[11px] font-semibold text-text-muted">Generated on save</div> : null}
         </div>
         <Field label="Dispatch Date *">
-          <input className={inputClass()} type="date" value={form.dispatch_date || ""} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, dispatch_date: event.target.value }))} />
+          <FeedXDatePicker
+            value={form.dispatch_date || ""}
+            required
+            disabled={isReadOnly}
+            onChange={(nextDate) => setForm((current) => ({ ...current, dispatch_date: nextDate }))}
+          />
         </Field>
         <Field label="Customer *">
           {isReadOnly && !form.customer_id ? (
@@ -2755,7 +2761,11 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
             </div>
           </Field>
           <Field label="Scheduled Date">
-            <input className={inputClass()} type="date" value={form.planned_date || ""} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, planned_date: event.target.value }))} />
+            <FeedXDatePicker
+              value={form.planned_date || ""}
+              disabled={isReadOnly}
+              onChange={(nextDate) => setForm((current) => ({ ...current, planned_date: nextDate }))}
+            />
           </Field>
           <Field label="Priority">
             <select className={inputClass()} value={form.priority} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, priority: event.target.value }))}>
@@ -3824,7 +3834,10 @@ function StartProductionModal({ job, auth, onClose, onSave }) {
             <input className={inputClass()} value={form.operator_name || ""} onChange={(event) => setForm((current) => ({ ...current, operator_name: event.target.value }))} />
           </Field>
           <Field label="Production Date">
-            <input className={inputClass()} type="date" value={form.production_date || ""} onChange={(event) => setForm((current) => ({ ...current, production_date: event.target.value }))} />
+            <FeedXDatePicker
+              value={form.production_date || ""}
+              onChange={(nextDate) => setForm((current) => ({ ...current, production_date: nextDate }))}
+            />
           </Field>
           <Field label="Start Time">
             <input className={inputClass()} type="time" value={form.start_time || ""} onChange={(event) => setForm((current) => ({ ...current, start_time: event.target.value }))} />
@@ -3979,7 +3992,11 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
               </div>
             </Field>
             <Field label="Production Date">
-              <input className={inputClass()} type="date" value={form.production_date || ""} readOnly={Boolean(job.started_at)} onChange={(event) => setForm((current) => ({ ...current, production_date: event.target.value }))} />
+              <FeedXDatePicker
+                value={form.production_date || ""}
+                disabled={Boolean(job.started_at)}
+                onChange={(nextDate) => setForm((current) => ({ ...current, production_date: nextDate }))}
+              />
             </Field>
             <Field label="Operator">
               <input className={inputClass()} value={form.operator_name || ""} readOnly={Boolean(job.started_at)} onChange={(event) => setForm((current) => ({ ...current, operator_name: event.target.value }))} />
@@ -4282,7 +4299,10 @@ function ProductionSopModal({ initialValue, onClose, onSave }) {
             <input className={inputClass()} value={form.sop_code || "Generated on save"} onChange={(event) => setForm((current) => ({ ...current, sop_code: event.target.value }))} />
           </Field>
           <Field label="Effective Date">
-            <input className={inputClass()} type="date" value={form.effective_date || ""} onChange={(event) => setForm((current) => ({ ...current, effective_date: event.target.value }))} />
+            <FeedXDatePicker
+              value={form.effective_date || ""}
+              onChange={(nextDate) => setForm((current) => ({ ...current, effective_date: nextDate }))}
+            />
           </Field>
           <Field label="Status">
             <select className={inputClass()} value={form.status || "active"} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
@@ -4511,7 +4531,11 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
             </Field>
           ) : null}
           <Field label="Check Date">
-            <input className={inputClass()} type="date" value={form.check_date || ""} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, check_date: event.target.value }))} />
+            <FeedXDatePicker
+              value={form.check_date || ""}
+              disabled={isLocked}
+              onChange={(nextDate) => setForm((current) => ({ ...current, check_date: nextDate }))}
+            />
           </Field>
           <Field label="Reference">
             <div className="rounded-xl border border-border bg-slate-50 px-3 py-2 text-sm font-bold text-text-primary">{form.check_no || "Generated on save"}</div>
@@ -5852,10 +5876,18 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           </select>
         </Field>
         <Field label="Date From">
-          <input className={inputClass()} type="date" value={rawMovementFilters.dateFrom} onChange={(event) => setRawMovementFilters((current) => ({ ...current, dateFrom: event.target.value }))} />
+          <FeedXDatePicker
+            value={rawMovementFilters.dateFrom}
+            placeholder="Start date"
+            onChange={(nextDate) => setRawMovementFilters((current) => ({ ...current, dateFrom: nextDate }))}
+          />
         </Field>
         <Field label="Date To">
-          <input className={inputClass()} type="date" value={rawMovementFilters.dateTo} onChange={(event) => setRawMovementFilters((current) => ({ ...current, dateTo: event.target.value }))} />
+          <FeedXDatePicker
+            value={rawMovementFilters.dateTo}
+            placeholder="End date"
+            onChange={(nextDate) => setRawMovementFilters((current) => ({ ...current, dateTo: nextDate }))}
+          />
         </Field>
         <Field label="Search">
           <input className={inputClass()} value={rawMovementFilters.search} onChange={(event) => setRawMovementFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Reference, batch, remarks" />
