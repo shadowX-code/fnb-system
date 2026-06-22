@@ -2066,8 +2066,7 @@ function CompletedJobOrderResultModal({ job, production, recipes = [], onClose }
     ["Packaging SKU", jobPackagingSkuLabel(job || production || {})],
     ["Target Production Qty", quantity(job?.target_production_qty || job?.target_quantity, job?.uom)],
     ["Estimated Pack Qty", quantity(job?.target_pack_qty || 0, "packs")],
-    ["Planned Date", formatFactoryDate(job?.planned_date)],
-    ["Due Date", formatFactoryDate(job?.due_date)],
+    ["Scheduled Date", formatFactoryDate(job?.planned_date)],
     ["Priority", job?.priority || "—"],
   ];
   const resultItems = production ? [
@@ -2609,7 +2608,8 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
   const legacyRecipe = selectedProduct ? activeRecipeForSku(recipes, selectedProduct, selectedParent?.name || form.product_name) : null;
   const matchingRecipe = parentRecipe || legacyRecipe;
   const targetProductionQty = Number(form.target_production_qty || form.target_quantity || 0);
-  const productionUom = form.uom || matchingRecipe?.uom || "";
+  const inheritedProductionUom = matchingRecipe?.uom || inheritedRecipeUom(selectedParent?.product_family_id, activeFinishedGoods, form.uom || selectedProduct?.base_uom || selectedProduct?.pack_size_uom || "");
+  const productionUom = form.uom || inheritedProductionUom || "";
   const productionPlan = selectedProduct ? packagingPackEstimate(targetProductionQty, productionUom, selectedProduct, matchingRecipe?.uom) : null;
   const estimatedPackQty = productionPlan && !productionPlan.error ? productionPlan.target_pack_qty : null;
   const normalizedPreviewProductionQty = productionPlan && !productionPlan.error ? productionPlan.target_production_qty : targetProductionQty;
@@ -2646,7 +2646,7 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
       setError("Target Production Qty must be greater than 0.");
       return;
     }
-    if (!String(form.uom || "").trim()) {
+    if (!String(productionUom || "").trim()) {
       setError("Production UOM is required.");
       return;
     }
@@ -2712,7 +2712,7 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
                   product_family_key: parentKey,
                   finished_good_id: "",
                   product_name: parent?.name || "",
-                  uom: recipe?.uom || current.uom,
+                  uom: recipe?.uom || inheritedRecipeUom(parent?.product_family_id, activeFinishedGoods, current.uom),
                 }));
               }}
             />
@@ -2723,8 +2723,9 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
               setForm((current) => ({ ...current, target_production_qty: nextQty, target_quantity: nextQty }));
             }} />
           </Field>
-          <Field label="Production UOM *">
-            <input className={inputClass()} value={form.uom || ""} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, uom: event.target.value }))} placeholder={matchingRecipe?.uom || "kg / L"} />
+          <Field label="Production UOM">
+            <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-bold text-text-primary">{productionUom || "—"}</div>
+            <div className="mt-1 text-xs font-semibold text-text-secondary">Inherited from active recipe / finished good output UOM.</div>
           </Field>
           <Field label="Packaging SKU *" error={!form.finished_good_id && error.includes("Packaging SKU") ? "Packaging SKU is required." : ""}>
             <SearchableSelect
@@ -2750,19 +2751,13 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
               {selectedProduct && targetProductionQty > 0 && estimatedPackQty != null ? quantity(estimatedPackQty, "packs") : "—"}
             </div>
           </Field>
-          <Field label="Planned Date">
+          <Field label="Scheduled Date">
             <input className={inputClass()} type="date" value={form.planned_date || ""} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, planned_date: event.target.value }))} />
-          </Field>
-          <Field label="Due Date">
-            <input className={inputClass()} type="date" value={form.due_date || ""} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, due_date: event.target.value }))} />
           </Field>
           <Field label="Priority">
             <select className={inputClass()} value={form.priority} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, priority: event.target.value }))}>
               {priorityOptions.map((option) => <option key={option} value={option}>{option}</option>)}
             </select>
-          </Field>
-          <Field label="Assigned Team">
-            <input className={inputClass()} value={form.assigned_team || ""} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, assigned_team: event.target.value }))} />
           </Field>
         </div>
         {selectedProduct ? (
@@ -2783,7 +2778,7 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
                 <table className="w-full min-w-[760px] text-left">
                   <thead>
                     <tr className="border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">
-                      <th className="px-4 py-2.5">Material</th>
+                      <th className="px-4 py-2.5">Raw Material</th>
                       <th className="px-4 py-2.5">Required Qty</th>
                       <th className="px-4 py-2.5">Available Balance</th>
                       <th className="px-4 py-2.5">Status</th>
@@ -3818,7 +3813,7 @@ function StartProductionModal({ job, auth, onClose, onSave }) {
         <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
           <div className="text-sm font-semibold text-primary">Job Order Summary</div>
           <div className="mt-1 text-lg font-bold text-text-primary">{job.job_order_no} · {job.product_name}</div>
-        <div className="mt-1 text-sm font-semibold text-text-secondary">Target {quantity(job.target_quantity, job.uom)} · Due {job.due_date ? formatFactoryDate(job.due_date) : "No due date"} · Team {job.assigned_team || "Unassigned"}</div>
+          <div className="mt-1 text-sm font-semibold text-text-secondary">Target {quantity(job.target_production_qty || job.target_quantity, job.uom)} · Scheduled {formatFactoryDate(job.planned_date)}</div>
         </div>
         <div className="grid gap-3 md:grid-cols-2">
           <Field label="Operator">
@@ -5410,8 +5405,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     { key: "finished_good", label: "Finished Good", render: (row) => <div><div className="font-semibold text-text-primary">{jobFinishedGoodName(row)}</div><div className="text-xs text-text-secondary">{row.product_name_cn || row.product_name_bm || "Finished Good"}</div></div> },
     { key: "product_code", label: "Packaging SKU", render: (row) => <div><div className="font-semibold text-text-primary">{row.variant_name || packSizeText(row) || "Packaging SKU"}</div><div className="text-xs text-text-secondary">{row.product_code || "No SKU"}</div></div> },
     { key: "target", label: "Target Production", render: (row) => <div><div className="font-semibold text-text-primary">{quantity(row.target_production_qty || row.target_quantity, row.uom)}</div><div className="text-xs text-text-secondary">{quantity(row.target_pack_qty || 0, "packs")}</div></div> },
-    { key: "planned_date", label: "Planned Date", render: (row) => formatFactoryDate(row.planned_date) },
-    { key: "due_date", label: "Due Date", render: (row) => formatFactoryDate(row.due_date) },
+    { key: "planned_date", label: "Scheduled Date", render: (row) => formatFactoryDate(row.planned_date) },
     { key: "progress", label: "Progress", render: (row) => {
       const progress = jobProgressPercent(row);
       return (
@@ -6675,7 +6669,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       { key: "job", label: "Job Order", render: (row) => <div><div className="font-bold text-text-primary">{row.job_order_no}</div><div className="text-xs text-text-secondary">{row.priority} · {jobStatusLabel(row.status)}</div></div> },
       { key: "finished_good", label: "Finished Good", render: (row) => <div><div className="font-semibold text-text-primary">{row.product_name}</div><div className="text-xs text-text-secondary">{row.product_code || "No SKU"}</div></div> },
       { key: "target", label: "Target", render: (row) => <div><div className="font-semibold text-text-primary">{quantity(row.target_pack_qty || row.target_quantity, "packs")}</div><div className="text-xs text-text-secondary">{quantity(row.target_production_qty || row.target_quantity, row.uom)}</div></div> },
-      { key: "due_date", label: "Due Date", render: (row) => formatFactoryDate(row.due_date) },
+      { key: "planned_date", label: "Scheduled Date", render: (row) => formatFactoryDate(row.planned_date) },
       { key: "recipe", label: "Recipe", render: (row) => {
         const recipe = recipeForJob(row);
         return <Badge tone={recipe ? "success" : "warning"}>{recipe ? recipe.recipe_code || "Available" : "Missing"}</Badge>;
@@ -7187,7 +7181,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const customersToday = new Set(completedToday.map((row) => row.customer_id || row.customer_name).filter(Boolean)).size;
     const dispatchColumns = [
       { key: "dispatch_date", label: "Date", render: (row) => formatFactoryDate(row.dispatch_date) },
-      { key: "dispatch_no", label: "Dispatch No.", render: (row) => <div><div className="font-bold text-text-primary">{row.dispatch_no}</div><div className="text-xs text-text-secondary">{row.reference_no || "No reference"}</div></div> },
+      { key: "dispatch_no", label: "Dispatch No.", render: (row) => <div className="font-bold text-text-primary">{row.dispatch_no}</div> },
       { key: "customer_name", label: "Customer", render: (row) => <div><div className="font-semibold text-text-primary">{row.customer_name || "—"}</div><div className="text-xs text-text-secondary">{row.customer_code || row.customer_type || "Dispatch destination"}</div></div> },
       { key: "items_count", label: "Items", render: (row) => Number(row.items_count || 0).toLocaleString("en-MY") },
       { key: "total_qty", label: "Total Dispatch", render: (row) => dispatchTotalLabel(row) },
@@ -7196,7 +7190,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <div className="flex flex-wrap justify-end gap-2">
           <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-dispatch", value: row, mode: "view" })}>View</button>
           {row.status === "draft" && can("factory_finished_goods_dispatch.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-dispatch", value: row, mode: "edit" })}>Edit</button> : null}
-          {row.status === "draft" && can("factory_finished_goods_dispatch.complete") ? <button className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white transition hover:bg-emerald-700" type="button" onClick={() => completeFinishedGoodDispatch(row)}>Complete</button> : null}
+          {row.status === "draft" && can("factory_finished_goods_dispatch.complete") ? <button className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50" type="button" onClick={() => completeFinishedGoodDispatch(row)}>Complete</button> : null}
           {row.status === "draft" && can("factory_finished_goods_dispatch.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => cancelFinishedGoodDispatch(row)}>Cancel</button> : null}
         </div>
       ) },
