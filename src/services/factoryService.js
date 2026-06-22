@@ -426,6 +426,8 @@ function mapProductMovement(row) {
     sku_product_name: finishedGood.product_name_en || finishedGood.product_name || row.product_name || "",
     product_family_id: finishedGood.product_family_id || "",
     product_family_name: finishedGood.product_family?.name_en || "",
+    category_id: finishedGood.category_id || "",
+    category: finishedGood.category_ref?.name || finishedGood.category || "",
     variant_name: finishedGood.variant_name || "",
     packaging_type: finishedGood.packaging_type || "Pack",
     pack_size_qty: optionalNumber(finishedGood.pack_size_qty || finishedGood.base_qty),
@@ -711,7 +713,7 @@ function emptyFactoryData() {
   };
 }
 
-const finishedGoodSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,uom,current_balance,status,product_family:factory_product_families(name_en,name_cn,name_bm,status)";
+const finishedGoodSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,category_id,category,uom,current_balance,status,category_ref:factory_finished_good_categories(name),product_family:factory_product_families(name_en,name_cn,name_bm,status)";
 const finishedGoodFullSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,category_id,category,uom,current_balance,min_stock_level,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),product_family:factory_product_families(name_en,name_cn,name_bm,status)";
 const storageLocationSelect = "id,location_name,location_code,location_type,status,remarks,created_at,updated_at";
 const factorySupplierSelect = "id,supplier_name,supplier_code,contact_person,phone,email,status,remarks,created_at,updated_at";

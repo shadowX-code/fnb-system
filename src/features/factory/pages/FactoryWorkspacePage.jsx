@@ -737,6 +737,13 @@ function skuBalanceLabel(sku) {
   return quantity(balance, pluralizePackagingType(packagingTypeLabel(sku), balance));
 }
 
+function skuBaseEquivalentLabel(sku) {
+  const balance = Number(sku?.current_balance || 0);
+  const base = normalizePackSizeToBase(sku?.pack_size_qty || sku?.base_qty, sku?.pack_size_uom || sku?.base_uom);
+  if (!base) return "";
+  return quantity(balance * base.amount, base.uom);
+}
+
 function movementPackagingQtyLabel(movement) {
   const movementQty = Number(movement?.quantity || 0);
   const label = quantity(Math.abs(movementQty), pluralizePackagingType(packagingTypeLabel(movement), Math.abs(movementQty)));
@@ -3941,6 +3948,34 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
     const prefix = numericValue > 0 ? "+" : "";
     return `${prefix}${quantity(numericValue, unit)}`;
   };
+  const receivingLotOptionsByMaterial = useMemo(() => {
+    return receivings.reduce((groups, receiving) => {
+      if (!receiving.raw_material_id || (!receiving.batch_no && !receiving.receipt_no) || Number(receiving.received_qty || 0) <= 0) return groups;
+      const lotLabel = receiving.batch_no || receiving.receipt_no;
+      const helper = [
+        receiving.received_date ? formatFactoryDate(receiving.received_date) : "",
+        receiving.supplier_name || "",
+        `Received ${quantity(receiving.received_qty, receiving.uom)}`,
+      ].filter(Boolean).join(" · ");
+      if (!groups[receiving.raw_material_id]) groups[receiving.raw_material_id] = [];
+      groups[receiving.raw_material_id].push({
+        value: receiving.id,
+        label: lotLabel,
+        helper,
+        batch_no: receiving.batch_no || "",
+        receipt_no: receiving.receipt_no || "",
+      });
+      return groups;
+    }, {});
+  }, [receivings]);
+
+  function selectUsageLot(rowId, receivingId) {
+    const selectedLot = receivings.find((receiving) => receiving.id === receivingId);
+    updateUsageRow(rowId, {
+      raw_material_receiving_id: receivingId || "",
+      raw_material_lot_no: selectedLot ? selectedLot.batch_no || selectedLot.receipt_no || "" : "",
+    });
+  }
 
   return (
     <Modal
@@ -4064,6 +4099,7 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
                   <th className="px-4 py-2.5">Raw Material</th>
                   <th className="px-4 py-2.5">Standard</th>
                   <th className="px-4 py-2.5">Actual Used</th>
+                  <th className="px-4 py-2.5">Lot</th>
                   <th className="px-4 py-2.5">Difference</th>
                   <th className="px-4 py-2.5">Reason</th>
                   {!hasRecipeBom ? <th className="px-4 py-2.5 text-right">Action</th> : null}
@@ -4076,6 +4112,7 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
                   const needsReason = Math.abs(variance) > varianceReasonTolerance;
                   const showReasonError = submitAttempted && needsReason && !String(row.variance_reason || "").trim();
                   const rowUom = row.uom || material?.uom || "";
+                  const lotOptions = receivingLotOptionsByMaterial[row.raw_material_id] || [];
                   return (
                     <tr key={row.id} className={`border-b border-border last:border-0 ${showReasonError ? "bg-amber-50" : ""}`}>
                       <td className="px-4 py-3">
@@ -4107,6 +4144,23 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
                           <input className={`${inputClass()} pr-14 font-bold`} type="number" min="0" step="0.0001" value={row.actual_usage} onChange={(event) => updateUsageRow(row.id, { actual_usage: event.target.value })} />
                           {rowUom ? <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-text-secondary">{rowUom}</span> : null}
                         </div>
+                      </td>
+                      <td className="px-4 py-3 min-w-[220px]">
+                        {row.raw_material_id && lotOptions.length ? (
+                          <SearchableSelect
+                            value={row.raw_material_receiving_id || ""}
+                            options={[{ value: "", label: "No receiving lot linked", helper: "Manual lot linking only" }, ...lotOptions]}
+                            placeholder="Select Lot"
+                            searchPlaceholder="Search lots"
+                            emptyText="No matching lots"
+                            onChange={(receivingId) => selectUsageLot(row.id, receivingId)}
+                          />
+                        ) : (
+                          <div className="rounded-xl border border-dashed border-border bg-slate-50 px-3 py-2 text-xs font-semibold text-text-secondary">
+                            No receiving lot linked
+                          </div>
+                        )}
+                        <div className="mt-1 text-[10.5px] font-semibold text-text-muted">Manual link only. No FIFO or lot-balance enforcement.</div>
                       </td>
                       <td className={`px-4 py-3 text-sm font-semibold ${variance > 0 ? "text-amber-600" : variance < 0 ? "text-emerald-600" : "text-text-secondary"}`}>
                         {formatSignedQuantity(variance, rowUom)}
@@ -4650,8 +4704,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const [dispatchTab, setDispatchTab] = useState("history");
   const [expandedProductGroups, setExpandedProductGroups] = useState({});
   const [finishedGoodActionMenu, setFinishedGoodActionMenu] = useState(null);
-  const [packagingSkuActionMenu, setPackagingSkuActionMenu] = useState(null);
-  const [warehouseFilters, setWarehouseFilters] = useState({ product: "", family: "", category: "", status: "", batch: "", movementType: "" });
+  const [warehouseFilters, setWarehouseFilters] = useState({ product: "", family: "", category: "", status: "", batch: "", movementType: "", dateFrom: "", dateTo: "" });
   const [rawMaterialFilters, setRawMaterialFilters] = useState({ material: "", status: "", category: "" });
   const [rawMovementFilters, setRawMovementFilters] = useState({ material: "", movementType: "", storageLocation: "", dateFrom: "", dateTo: "", search: "" });
   const can = (code) => Boolean(auth?.hasPermission?.(code));
@@ -5646,18 +5699,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   function filteredFinishedGoodRows() {
     return finishedGoodRows().filter((row) => {
-      const productKey = String(row.product_name || "").toLowerCase();
-      const productProductions = data.productions.filter((production) => String(production.product_name || "").toLowerCase() === productKey);
-      const productMovements = data.productMovements.filter((movement) => movement.finished_good_id === row.id || String(movement.product_name || "").toLowerCase() === productKey);
-      const batchMatch = !warehouseFilters.batch || productProductions.some((production) => includesText(production.batch_no, warehouseFilters.batch));
-      const movementTypeMatch = !warehouseFilters.movementType || productMovements.some((movement) => movement.movement_type === warehouseFilters.movementType);
       const productText = `${row.product_family_name} ${row.product_name} ${row.product_name_en} ${row.product_name_cn} ${row.product_name_bm} ${row.product_code} ${row.variant_name}`;
+      const stockStatus = Number(row.current_balance || 0) <= 0 ? "out_of_stock" : "in_stock";
       return includesText(productText, warehouseFilters.product)
-        && (!warehouseFilters.family || row.product_family_id === warehouseFilters.family)
         && (!warehouseFilters.category || row.category_id === warehouseFilters.category)
-        && (!warehouseFilters.status || row.status === warehouseFilters.status)
-        && batchMatch
-        && movementTypeMatch;
+        && (!warehouseFilters.status || row.status === warehouseFilters.status || stockStatus === warehouseFilters.status);
     });
   }
 
@@ -5698,22 +5744,128 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       const groupText = `${group.product_group_name} ${group.name_cn || ""} ${group.name_bm || ""}`;
       const groupNameMatches = includesText(groupText, warehouseFilters.product);
       const matchesProductSearch = groupNameMatches || group.skus.length > 0;
-      const matchesFamily = !warehouseFilters.family || group.id === warehouseFilters.family;
       const matchesCategory = !warehouseFilters.category || group.category_id === warehouseFilters.category || group.skus.some((sku) => sku.category_id === warehouseFilters.category);
-      const matchesStatus = !warehouseFilters.status || group.status === warehouseFilters.status || group.skus.some((sku) => sku.status === warehouseFilters.status);
-      const canShowEmptyGroup = !warehouseFilters.batch && !warehouseFilters.movementType && (!warehouseFilters.product || groupNameMatches);
-      return matchesProductSearch && matchesFamily && matchesCategory && matchesStatus && (group.skus.length > 0 || canShowEmptyGroup);
+      const matchesStatus = !warehouseFilters.status
+        || group.status === warehouseFilters.status
+        || group.skus.some((sku) => sku.status === warehouseFilters.status || (Number(sku.current_balance || 0) <= 0 ? "out_of_stock" : "in_stock") === warehouseFilters.status);
+      const canShowEmptyGroup = !warehouseFilters.product || groupNameMatches;
+      return matchesProductSearch && matchesCategory && matchesStatus && (group.skus.length > 0 || canShowEmptyGroup);
     });
+  }
+
+  function finishedGoodFilterControls() {
+    const categoryOptions = data.finishedGoodCategories.map((category) => ({ value: category.id, label: category.name, helper: "Category" }));
+    const statusOptions = [
+      { value: "", label: "All Status", helper: "No status filter" },
+      { value: "active", label: "Active", helper: "Active finished goods and SKUs" },
+      { value: "archived", label: "Archived", helper: "Archived finished goods and SKUs" },
+      { value: "out_of_stock", label: "Out of Stock", helper: "Packaging SKUs with zero balance" },
+    ];
+    return (
+      <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 md:grid-cols-4">
+        <Field label="Product">
+          <input className={inputClass()} value={warehouseFilters.product} onChange={(event) => setWarehouseFilters((current) => ({ ...current, product: event.target.value }))} placeholder="Search product" />
+        </Field>
+        <Field label="Category">
+          <SearchableSelect
+            value={warehouseFilters.category}
+            options={[{ value: "", label: "All Categories", helper: "No category filter" }, ...categoryOptions]}
+            placeholder="All Categories"
+            searchPlaceholder="Search categories"
+            emptyText="No matching categories"
+            onChange={(category) => setWarehouseFilters((current) => ({ ...current, category }))}
+          />
+        </Field>
+        <Field label="Status">
+          <SearchableSelect
+            value={warehouseFilters.status}
+            options={statusOptions}
+            placeholder="All Status"
+            searchPlaceholder="Search status"
+            emptyText="No matching status"
+            onChange={(status) => setWarehouseFilters((current) => ({ ...current, status }))}
+          />
+        </Field>
+        <div className="flex items-end">
+          <button className="btn-secondary w-full" type="button" onClick={() => setWarehouseFilters((current) => ({ ...current, product: "", category: "", status: "" }))}>Clear</button>
+        </div>
+      </div>
+    );
   }
 
   function filteredProductMovements() {
     return data.productMovements.filter((row) => {
       const linkedProduction = data.productions.find((production) => production.id === row.reference_id || production.production_no === row.reference_no);
-      const batchMatch = !warehouseFilters.batch || includesText(linkedProduction?.batch_no, warehouseFilters.batch) || includesText(row.reference_no, warehouseFilters.batch);
+      const batchSourceText = `${linkedProduction?.batch_no || ""} ${row.reference_no || ""} ${row.reference_type || ""} ${movementSourceLabel(row)} ${row.notes || ""}`;
+      const batchMatch = !warehouseFilters.batch || includesText(batchSourceText, warehouseFilters.batch);
+      const movementDate = row.movement_date || "";
       return includesText(row.product_name, warehouseFilters.product)
+        && (!warehouseFilters.category || productMovementCategoryId(row) === warehouseFilters.category)
         && (!warehouseFilters.movementType || row.movement_type === warehouseFilters.movementType)
+        && (!warehouseFilters.dateFrom || movementDate >= warehouseFilters.dateFrom)
+        && (!warehouseFilters.dateTo || movementDate <= warehouseFilters.dateTo)
         && batchMatch;
     });
+  }
+
+  function productMovementCategoryId(movement) {
+    const sku = data.finishedGoods.find((item) => item.id === movement.finished_good_id);
+    return movement.category_id || sku?.category_id || "";
+  }
+
+  function productMovementCategoryOptions() {
+    const categories = new Map();
+    data.productMovements.forEach((movement) => {
+      const categoryId = productMovementCategoryId(movement);
+      if (!categoryId) return;
+      const category = data.finishedGoodCategories.find((item) => item.id === categoryId);
+      categories.set(categoryId, category?.name || movement.category || "Uncategorized");
+    });
+    return [...categories.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  }
+
+  function productMovementFilterControls() {
+    const movementTypes = [...new Set(data.productMovements.map((row) => row.movement_type).filter(Boolean))];
+    const categories = productMovementCategoryOptions();
+    return (
+      <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 lg:grid-cols-7">
+        <Field label="Date From">
+          <FeedXDatePicker
+            value={warehouseFilters.dateFrom}
+            placeholder="Start date"
+            onChange={(nextDate) => setWarehouseFilters((current) => ({ ...current, dateFrom: nextDate }))}
+          />
+        </Field>
+        <Field label="Date To">
+          <FeedXDatePicker
+            value={warehouseFilters.dateTo}
+            placeholder="End date"
+            onChange={(nextDate) => setWarehouseFilters((current) => ({ ...current, dateTo: nextDate }))}
+          />
+        </Field>
+        <Field label="Product Search">
+          <input className={inputClass()} value={warehouseFilters.product} onChange={(event) => setWarehouseFilters((current) => ({ ...current, product: event.target.value }))} placeholder="Search product" />
+        </Field>
+        <Field label="Category">
+          <select className={inputClass()} value={warehouseFilters.category} onChange={(event) => setWarehouseFilters((current) => ({ ...current, category: event.target.value }))}>
+            <option value="">All categories</option>
+            {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
+          </select>
+        </Field>
+        <Field label="Movement Type">
+          <select className={inputClass()} value={warehouseFilters.movementType} onChange={(event) => setWarehouseFilters((current) => ({ ...current, movementType: event.target.value }))}>
+            <option value="">All movements</option>
+            {movementTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+          </select>
+        </Field>
+        <Field label="Batch / Source">
+          <input className={inputClass()} value={warehouseFilters.batch} onChange={(event) => setWarehouseFilters((current) => ({ ...current, batch: event.target.value }))} placeholder="Search batch/source" />
+        </Field>
+        <div className="flex items-end">
+          <button className="btn-secondary w-full" type="button" onClick={() => setWarehouseFilters((current) => ({ ...current, product: "", category: "", batch: "", movementType: "", dateFrom: "", dateTo: "" }))}>Clear</button>
+        </div>
+      </div>
+    );
   }
 
   function warehouseFilterControls({ showStatus = true } = {}) {
@@ -5754,7 +5906,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           </select>
         </Field>
         <div className="flex items-end">
-          <button className="btn-secondary w-full" type="button" onClick={() => setWarehouseFilters({ product: "", family: "", category: "", status: "", batch: "", movementType: "" })}>Clear</button>
+          <button className="btn-secondary w-full" type="button" onClick={() => setWarehouseFilters({ product: "", family: "", category: "", status: "", batch: "", movementType: "", dateFrom: "", dateTo: "" })}>Clear</button>
         </div>
       </div>
     );
@@ -6937,7 +7089,15 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                                 <div key={item.id} className="rounded-lg border border-border bg-white px-3 py-2 text-xs font-semibold text-text-secondary">
                                   <div className="text-sm font-bold text-text-primary">{item.raw_material_name || "Raw Material"}</div>
                                   <div>Required / Actual: {quantity(item.standard_usage || item.actual_usage, item.uom)} / {quantity(item.actual_usage, item.uom)}</div>
-                                  <div>Lot: {item.raw_material_lot_no || item.receiving_ref || "Lot not linked"}</div>
+                                  {item.raw_material_lot_no || item.receiving_ref ? (
+                                    <>
+                                      <div>Lot: {item.raw_material_lot_no || "Lot not linked"}</div>
+                                      <div>Receiving: {item.receiving_ref || "—"}</div>
+                                      {item.supplier_name ? <div>Supplier: {item.supplier_name}</div> : null}
+                                    </>
+                                  ) : (
+                                    <div>Lot not linked</div>
+                                  )}
                                 </div>
                               ))}
                             </div>
@@ -7185,7 +7345,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={BookOpen} label="Active Recipes" value={activeRecipeCount} helper="Production standards" tone={activeRecipeCount ? "success" : "warning"} />
           <MetricCard icon={Clock3} label="Out of Stock SKUs" value={outOfStockItems.length} helper="Current balance zero" tone={outOfStockItems.length ? "danger" : "success"} />
         </div>
-        {warehouseFilterControls()}
+        {finishedGoodFilterControls()}
         <Card title="Finished Goods and Packaging SKUs" description="Each Finished Good can have one or more packaging SKUs. Inventory balances are tracked per SKU.">
           {!productGroups.length ? (
             <EmptyState title="No Finished Goods" description="Create a Finished Good, then add Packaging SKUs for production stock-in." />
@@ -7203,15 +7363,31 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                 const groupKey = group.groupKey;
                 const isExpanded = expandedProductGroups[groupKey] ?? false;
                 const activeSkuLabel = `${group.active_sku_count} Active SKU${group.active_sku_count === 1 ? "" : "s"}`;
+                const outOfStockSkuCount = group.skus.filter((sku) => Number(sku.current_balance || 0) <= 0).length;
+                const outOfStockSkuLabel = `${outOfStockSkuCount} Out of Stock SKU${outOfStockSkuCount === 1 ? "" : "s"}`;
                 const skuBadges = group.skus.slice(0, 4).map((sku) => compactPackSizeText(sku) || sku.product_code || "SKU");
                 const extraSkuCount = Math.max(0, group.skus.length - skuBadges.length);
                 return (
                   <div key={groupKey} className="overflow-visible rounded-2xl border border-border bg-white shadow-sm">
-                    <div className="grid gap-3 px-5 py-4 md:grid-cols-[minmax(260px,1.5fr)_1fr_180px_130px_140px_48px] md:items-center">
+                    <div
+                      className="grid cursor-pointer gap-3 px-5 py-4 transition hover:bg-slate-50/70 md:grid-cols-[minmax(260px,1.5fr)_1fr_180px_130px_140px_48px] md:items-center"
+                      role="button"
+                      tabIndex={0}
+                      onClick={() => setExpandedProductGroups((current) => ({ ...current, [groupKey]: !isExpanded }))}
+                      onKeyDown={(event) => {
+                        if (event.key === "Enter" || event.key === " ") {
+                          event.preventDefault();
+                          setExpandedProductGroups((current) => ({ ...current, [groupKey]: !isExpanded }));
+                        }
+                      }}
+                    >
                       <button
                         className="flex items-start gap-3 rounded-xl text-left transition hover:text-primary"
                         type="button"
-                        onClick={() => setExpandedProductGroups((current) => ({ ...current, [groupKey]: !isExpanded }))}
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          setExpandedProductGroups((current) => ({ ...current, [groupKey]: !isExpanded }));
+                        }}
                       >
                         <span className="mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border border-border bg-slate-50 text-sm font-bold text-text-secondary">{isExpanded ? "▼" : "▶"}</span>
                         <span>
@@ -7222,13 +7398,14 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                       <div className="text-sm font-semibold text-text-secondary">{group.category || "No category"}</div>
                       <div className="flex flex-wrap gap-1.5">
                         {skuBadges.length ? skuBadges.map((label, index) => (
-                          <span key={`${groupKey}-${label}-${index}`} className="rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 text-xs font-bold text-primary">[{label}]</span>
+                          <span key={`${groupKey}-${label}-${index}`} className="rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 text-xs font-bold text-primary">{label}</span>
                         )) : <span className="text-sm font-semibold text-text-secondary">No SKU</span>}
                         {extraSkuCount ? <span className="rounded-full border border-border bg-slate-50 px-2.5 py-1 text-xs font-bold text-text-secondary">+{extraSkuCount}</span> : null}
                       </div>
                       <div className="text-sm font-bold text-text-primary">{group.total_base_balance?.label || "—"}</div>
                       <div className="text-sm font-bold text-text-primary">
                         {activeSkuLabel}
+                        {outOfStockSkuCount ? <span className="text-text-secondary"> / {outOfStockSkuLabel}</span> : null}
                         {group.status === "archived" ? <div className="mt-0.5 text-xs font-semibold text-text-secondary">Archived Finished Good</div> : null}
                       </div>
                       <div className="flex justify-start md:justify-end">
@@ -7238,12 +7415,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                             onOpenChange={(open) => setFinishedGoodActionMenu(open ? groupKey : null)}
                             width={220}
                             trigger={({ toggle, ariaLabel }) => (
-                              <button className="icon-btn h-9 w-9" type="button" onClick={toggle} aria-label={ariaLabel}>⋮</button>
+                              <button className="icon-btn h-9 w-9" type="button" onClick={(event) => { event.stopPropagation(); toggle(); }} aria-label={ariaLabel}>⋮</button>
                             )}
                           >
-                            {can("factory_finished_goods.create") ? <button className={actionItemClass} type="button" onClick={() => { setFinishedGoodActionMenu(null); openPackagingSkuModal(group); }}>Add Packaging SKU</button> : null}
-                            {can("factory_finished_goods.edit") ? <button className={actionItemClass} type="button" onClick={() => { setFinishedGoodActionMenu(null); setModal({ type: "product-group", value: group }); }}>Edit Finished Good</button> : null}
-                            {can("factory_finished_goods.edit") && group.status !== "archived" ? <button className={dangerActionItemClass} type="button" onClick={() => { setFinishedGoodActionMenu(null); archiveProductGroup(group); }}>Archive Finished Good</button> : null}
+                            {can("factory_finished_goods.create") ? <button className={actionItemClass} type="button" onClick={(event) => { event.stopPropagation(); setFinishedGoodActionMenu(null); openPackagingSkuModal(group); }}>Add Packaging SKU</button> : null}
+                            {can("factory_finished_goods.edit") ? <button className={actionItemClass} type="button" onClick={(event) => { event.stopPropagation(); setFinishedGoodActionMenu(null); setModal({ type: "product-group", value: group }); }}>Edit Finished Good</button> : null}
+                            {can("factory_finished_goods.edit") && group.status !== "archived" ? <button className={dangerActionItemClass} type="button" onClick={(event) => { event.stopPropagation(); setFinishedGoodActionMenu(null); archiveProductGroup(group); }}>Archive Finished Good</button> : null}
                           </ActionMenu>
                         ) : null}
                       </div>
@@ -7251,7 +7428,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                     {isExpanded ? (
                       <div className="border-t border-border bg-slate-50/70 px-5 py-4">
                         {!group.skus.length ? (
-                          <EmptyState title="No Packaging SKUs" description="Add a Packaging SKU before production stock-in." />
+                          <EmptyState title="No Packaging SKU configured" description="Add a Packaging SKU before production stock-in." />
                         ) : (
                           <div className="ml-3 overflow-x-auto rounded-xl border border-border bg-white shadow-inner">
                             <table className="w-full min-w-[720px] text-left">
@@ -7269,7 +7446,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                                 {group.skus.map((sku) => {
                                   const packSize = packSizeText(sku) || "—";
                                   const activeStandard = activeRecipeForSku(data.recipes, sku, group.product_group_name);
-                                  const skuMenuKey = `${groupKey}:${sku.id}`;
+                                  const skuIsArchived = sku.status === "archived";
+                                  const skuStockStatus = Number(sku.current_balance || 0) <= 0 ? "Out of Stock" : "In Stock";
+                                  const baseEquivalent = skuBaseEquivalentLabel(sku);
                                   return (
                                     <tr key={sku.id} className="border-b border-border text-sm last:border-0">
                                       <td className="px-4 py-2.5">
@@ -7279,27 +7458,23 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                                       <td className="px-4 py-2.5">
                                         <div className="font-semibold text-text-primary">{packSize}</div>
                                       </td>
-                                      <td className="px-4 py-2.5 font-bold text-text-primary">{skuBalanceLabel(sku)}</td>
-                                      <td className="px-4 py-2.5 font-semibold text-text-secondary">{activeStandard ? activeStandard.version || activeStandard.recipe_name || "Active" : "—"}</td>
+                                      <td className="px-4 py-2.5">
+                                        <div className="font-bold text-text-primary">{skuBalanceLabel(sku)}</div>
+                                        {baseEquivalent ? <div className="text-xs font-semibold text-text-secondary">{baseEquivalent}</div> : null}
+                                      </td>
+                                      <td className="px-4 py-2.5 font-semibold text-text-secondary">{activeStandard ? activeStandard.version || activeStandard.recipe_name || "v1" : "No Recipe"}</td>
                                       <td className="px-4 py-2.5">
                                         <div className="flex flex-wrap gap-1.5">
-                                          <Badge tone={sku.status === "active" ? "success" : "neutral"}>{sku.status}</Badge>
-                                          <Badge tone={Number(sku.current_balance || 0) <= 0 ? "danger" : "success"}>{Number(sku.current_balance || 0) <= 0 ? "out of stock" : "in stock"}</Badge>
+                                          <Badge tone={sku.status === "active" ? "success" : "neutral"}>{jobStatusLabel(sku.status)}</Badge>
+                                          <Badge tone={skuStockStatus === "Out of Stock" ? "danger" : "success"}>{skuStockStatus}</Badge>
                                         </div>
                                       </td>
                                       <td className="px-4 py-2.5 text-right">
-                                        <ActionMenu
-                                          open={packagingSkuActionMenu === skuMenuKey}
-                                          onOpenChange={(open) => setPackagingSkuActionMenu(open ? skuMenuKey : null)}
-                                          width={188}
-                                          trigger={({ toggle, ariaLabel }) => (
-                                            <button className="icon-btn h-8 w-8" type="button" onClick={toggle} aria-label={ariaLabel}>⋮</button>
-                                          )}
-                                        >
-                                          <button className={actionItemClass} type="button" onClick={() => { setPackagingSkuActionMenu(null); setModal({ type: "finished-good-detail", product: sku }); }}>View SKU</button>
-                                          {can("factory_finished_goods.edit") ? <button className={actionItemClass} type="button" onClick={() => { setPackagingSkuActionMenu(null); openPackagingSkuModal(group.isStandalone ? null : group, sku); }}>Edit SKU</button> : null}
-                                          {can("factory_finished_goods.edit") && sku.status !== "archived" ? <button className={dangerActionItemClass} type="button" onClick={() => { setPackagingSkuActionMenu(null); archiveFinishedGood(sku); }}>Archive SKU</button> : null}
-                                        </ActionMenu>
+                                        <div className="flex flex-wrap justify-end gap-2">
+                                          <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-detail", product: sku })}>View</button>
+                                          {can("factory_finished_goods.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => openPackagingSkuModal(group.isStandalone ? null : group, sku)}>Edit</button> : null}
+                                          {can("factory_finished_goods.edit") && !skuIsArchived ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => archiveFinishedGood(sku)}>Archive</button> : null}
+                                        </div>
                                       </td>
                                     </tr>
                                   );
@@ -7414,6 +7589,18 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         movement_type_label: movementTypeLabel(movement),
       };
     });
+    const currentSkuBalanceByType = [...new Set(data.productMovements.map((movement) => movement.finished_good_id).filter(Boolean))]
+      .map((skuId) => data.finishedGoods.find((sku) => sku.id === skuId) || data.productMovements.find((movement) => movement.finished_good_id === skuId))
+      .filter(Boolean)
+      .reduce((groups, sku) => {
+        const type = pluralizePackagingType(packagingTypeLabel(sku), Number(sku.current_balance || 0));
+        groups[type] = (groups[type] || 0) + Number(sku.current_balance || 0);
+        return groups;
+      }, {});
+    const currentSkuBalanceTypes = Object.keys(currentSkuBalanceByType);
+    const currentSkuBalanceValue = currentSkuBalanceTypes.length === 1
+      ? quantity(currentSkuBalanceByType[currentSkuBalanceTypes[0]], currentSkuBalanceTypes[0])
+      : currentSkuBalanceTypes.length > 1 ? "Mixed" : "—";
     const movementColumns = [
       { key: "movement_date", label: "Date", render: (row) => <span className="whitespace-nowrap font-semibold text-text-primary">{formatFactoryDate(row.movement_date)}</span> },
       { key: "movement_type", label: "Type", render: (row) => <Badge tone={row.quantity >= 0 ? "success" : "warning"}>{row.movement_type_label}</Badge> },
@@ -7429,15 +7616,14 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <PageHeader
           section="Warehouse"
           title="Product Movements"
-          actions={<button className="btn-secondary" type="button" onClick={loadData}><RefreshCw size={15} /> Refresh</button>}
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={Activity} label="Movements" value={data.productMovements.length} helper="Ledger entries" />
           <MetricCard icon={PackageCheck} label="Stock In" value={data.productMovements.filter((row) => Number(row.quantity || 0) > 0).length} helper="Inbound entries" tone="success" />
           <MetricCard icon={AlertTriangle} label="Stock Out" value={data.productMovements.filter((row) => Number(row.quantity || 0) < 0).length} helper="Outbound entries" tone="warning" />
-          <MetricCard icon={Factory} label="Production Sources" value={data.productMovements.filter((row) => row.reference_type === "production").length} helper="Production entries" />
+          <MetricCard icon={Warehouse} label="Current SKU Balance" value={currentSkuBalanceValue} helper="Across moved Packaging SKUs" />
         </div>
-        {warehouseFilterControls({ showStatus: false })}
+        {productMovementFilterControls()}
         <Card>
           <div className="md:hidden">
             {!rows.length ? (
