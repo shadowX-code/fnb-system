@@ -3131,7 +3131,7 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], storageLocations
   return (
     <Card title="Receive Raw Material" description="Record one supplier delivery with multiple raw material item rows.">
       <form className="space-y-5 p-5" onSubmit={submit}>
-        <div className="grid gap-3 lg:grid-cols-3">
+        <div className="grid gap-3 lg:grid-cols-4">
           <Field label="Supplier *" error={fieldErrors.supplier_id}>
             <SearchableSelect
               value={form.supplier_id}
@@ -3148,7 +3148,7 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], storageLocations
             />
           </Field>
           <Field label="Reference No.">
-            <input className={inputClass()} value={form.reference_no} onChange={(event) => setForm((current) => ({ ...current, reference_no: event.target.value }))} />
+            <div className="rounded-xl border border-border bg-slate-50 px-3 py-2 text-sm font-semibold text-text-secondary">Generated on save</div>
           </Field>
           <Field label="Received Date *" error={fieldErrors.received_date}>
             <FeedXDatePicker
@@ -3161,6 +3161,9 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], storageLocations
                 setForm((current) => ({ ...current, received_date: nextDate }));
               }}
             />
+          </Field>
+          <Field label="Supplier DO / Invoice No.">
+            <input className={inputClass()} value={form.reference_no} onChange={(event) => setForm((current) => ({ ...current, reference_no: event.target.value }))} placeholder="Optional" />
           </Field>
         </div>
         <Field label="Remarks">
@@ -3188,7 +3191,7 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], storageLocations
             <thead className="border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">
               <tr>
                 <th className="px-4 py-3">Raw Material *</th>
-                <th className="px-4 py-3">Batch No.</th>
+                <th className="px-4 py-3">Batch / Lot No.</th>
                 <th className="px-4 py-3">Qty *</th>
                 <th className="px-4 py-3">Storage Location</th>
                 <th className="px-4 py-3">Expiry Date</th>
@@ -3295,18 +3298,49 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], storageLocations
 
 function ReceivingBatchDetailModal({ batch, onClose }) {
   return (
-    <Modal title={batch.batch_no || "Receiving Detail"} description={`${batch.supplier_name || "No supplier"} · ${batch.received_date || "No date"}`} onClose={onClose} size="2xl">
-      <FactoryTable
-        columns={[
-          { key: "raw_material_name", label: "Raw Material", render: (row) => <div><div className="font-semibold text-text-primary">{row.raw_material_name}</div><div className="text-xs text-text-secondary">{row.batch_no || "No batch"}</div></div> },
-          { key: "qty", label: "Qty", render: (row) => quantity(row.received_qty, row.uom) },
-          { key: "storage_location", label: "Storage Location", render: (row) => row.storage_location || "—" },
-          { key: "expiry_date", label: "Expiry Date", render: (row) => row.expiry_date || "—" },
-        ]}
-        rows={batch.items || []}
-        emptyTitle="No receiving items"
-        emptyDescription="This receiving document has no item rows."
-      />
+    <Modal title="Raw Material Receiving" description="Read-only receiving document" onClose={onClose} size="3xl">
+      <div className="space-y-5">
+        <div className="rounded-2xl border border-border bg-white p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-text-muted">Receiving No.</div>
+              <div className="mt-1 font-mono text-2xl font-black text-text-primary">{batch.batch_no || "—"}</div>
+            </div>
+            <Badge tone={batch.status === "active" ? "success" : "neutral"}>{jobStatusLabel(batch.status)}</Badge>
+          </div>
+          <div className="mt-5 grid gap-3 md:grid-cols-2 lg:grid-cols-4">
+            <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
+              <div className="text-[10.5px] font-semibold text-text-muted">Supplier</div>
+              <div className="mt-1 text-sm font-bold text-text-primary">{batch.supplier_name || "—"}</div>
+            </div>
+            <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
+              <div className="text-[10.5px] font-semibold text-text-muted">Received Date</div>
+              <div className="mt-1 text-sm font-bold text-text-primary">{formatFactoryDate(batch.received_date)}</div>
+            </div>
+            <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
+              <div className="text-[10.5px] font-semibold text-text-muted">Supplier DO / Invoice</div>
+              <div className="mt-1 text-sm font-bold text-text-primary">{batch.reference_no || "—"}</div>
+            </div>
+            <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
+              <div className="text-[10.5px] font-semibold text-text-muted">Created By</div>
+              <div className="mt-1 text-sm font-bold text-text-primary">{batch.created_by_name || batch.created_by || "—"}</div>
+            </div>
+          </div>
+        </div>
+        <FactoryTable
+          columns={[
+            { key: "raw_material_name", label: "Raw Material", render: (row) => <div className="font-semibold text-text-primary">{row.raw_material_name}</div> },
+            { key: "batch_no", label: "Batch / Lot No.", render: (row) => row.batch_no || "—" },
+            { key: "qty", label: "Qty", render: (row) => quantity(row.received_qty, row.uom) },
+            { key: "unit_cost", label: "Unit Cost", render: (row) => money(row.unit_cost) },
+            { key: "storage_location", label: "Storage Location", render: (row) => row.storage_location || "—" },
+            { key: "expiry_date", label: "Expiry Date", render: (row) => formatFactoryDate(row.expiry_date) },
+          ]}
+          rows={batch.items || []}
+          emptyTitle="No receiving items"
+          emptyDescription="This receiving document has no item rows."
+        />
+      </div>
     </Modal>
   );
 }
@@ -5500,9 +5534,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   const receivingBatchColumns = [
     { key: "received_date", label: "Received Date", render: (row) => formatFactoryDate(row.received_date) },
-    { key: "reference_no", label: "Reference No.", render: (row) => <div><div className="font-bold text-text-primary">{row.reference_no || row.batch_no}</div><div className="text-xs text-text-secondary">{row.batch_no}</div></div> },
+    { key: "batch_no", label: "Receiving No.", render: (row) => <div><div className="font-bold text-text-primary">{row.batch_no || "—"}</div>{row.reference_no ? <div className="text-xs text-text-secondary">DO: {row.reference_no}</div> : null}</div> },
     { key: "supplier_name", label: "Supplier", render: (row) => row.supplier_name || "—" },
-    { key: "items_count", label: "Items Count", render: (row) => Number(row.items_count || 0).toLocaleString("en-MY") },
+    { key: "items_count", label: "Items", render: (row) => Number(row.items_count || 0).toLocaleString("en-MY") },
     { key: "total_qty", label: "Total Qty", render: (row) => quantity(row.total_qty, "") },
     { key: "created_by", label: "Created By", render: (row) => row.created_by_name || row.created_by || "—" },
     { key: "actions", label: "Actions", align: "right", render: (row) => (
