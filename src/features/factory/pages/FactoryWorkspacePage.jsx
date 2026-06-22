@@ -6745,8 +6745,123 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const rows = data.productions.map((production) => {
       const job = data.jobOrders.find((item) => item.id === production.job_order_id);
       const stockInMovements = data.productMovements.filter((movement) => movement.reference_type === "production" && movement.reference_id === production.id);
-      return { ...production, job, stockInMovements };
+      const finishedGood = data.finishedGoods.find((item) => item.id === production.finished_good_id || item.id === job?.finished_good_id);
+      const recipe = data.recipes.find((item) => item.id === production.recipe_id)
+        || data.recipes.find((item) => item.status === "active" && item.product_family_id && item.product_family_id === (production.product_family_id || finishedGood?.product_family_id))
+        || data.recipes.find((item) => item.status === "active" && item.finished_good_id && item.finished_good_id === (production.finished_good_id || job?.finished_good_id));
+      return { ...production, job, stockInMovements, finishedGood, recipe };
     });
+    const totalStockInByType = rows.flatMap((row) => row.stockInMovements).reduce((groups, movement) => {
+      const type = pluralizePackagingType(packagingTypeLabel(movement), Number(movement.quantity || 0));
+      groups[type] = (groups[type] || 0) + Number(movement.quantity || 0);
+      return groups;
+    }, {});
+    const stockInTypes = Object.keys(totalStockInByType);
+    const finishedGoodsProducedValue = stockInTypes.length === 1
+      ? quantity(totalStockInByType[stockInTypes[0]], stockInTypes[0])
+      : stockInTypes.length > 1 ? "Mixed" : "—";
+    const traceabilityGapCount = rows.reduce((sum, row) => sum + traceabilitySteps(row).filter((step) => step.status !== "complete").length, 0);
+
+    function stockInBaseEquivalent(movement) {
+      const base = normalizePackSizeToBase(movement.pack_size_qty || movement.base_qty, movement.pack_size_uom || movement.base_uom);
+      const qty = Number(movement.quantity || 0);
+      if (!base || !qty) return "";
+      return quantity(qty * base.amount, base.uom);
+    }
+
+    function stockInOutputLabel(row) {
+      const movements = row.stockInMovements || [];
+      if (!movements.length) return "—";
+      const types = [...new Set(movements.map((movement) => packagingTypeLabel(movement)).filter(Boolean))];
+      if (types.length !== 1) return "Mixed";
+      const total = movements.reduce((sum, movement) => sum + Number(movement.quantity || 0), 0);
+      return quantity(total, pluralizePackagingType(types[0], total));
+    }
+
+    function batchStatus(row) {
+      const steps = traceabilitySteps(row);
+      const gaps = steps.filter((step) => step.status === "missing").length;
+      if (gaps) return { label: "Gap Found", tone: "danger" };
+      if (steps.some((step) => step.status === "pending")) return { label: "Pending Review", tone: "warning" };
+      return { label: "Complete", tone: "success" };
+    }
+
+    function traceabilityScore(row) {
+      const steps = traceabilitySteps(row);
+      const completed = steps.filter((step) => step.status === "complete").length;
+      return steps.length ? Math.round((completed / steps.length) * 100) : 0;
+    }
+
+    function recipeLabel(recipe) {
+      if (!recipe) return "Not linked";
+      const version = recipe.version || "v1";
+      const name = recipe.recipe_name || recipe.recipe_code || "";
+      return name && name !== version ? `${name} ${version}` : version;
+    }
+
+    function traceabilitySteps(row) {
+      const hasUsage = (row.material_usage || []).length > 0;
+      const hasLots = hasUsage && row.material_usage.every((item) => item.raw_material_lot_no || item.receiving_ref);
+      const hasQc = (row.qc_checkpoints || []).length > 0;
+      return [
+        {
+          key: "recipe",
+          title: "Recipe Used",
+          status: row.recipe ? "complete" : "missing",
+          main: `Active Recipe: ${recipeLabel(row.recipe)}`,
+          detail: row.recipe ? `Standard Output: ${quantity(row.recipe.yield_quantity, row.recipe.uom)}` : "No active recipe linked.",
+        },
+        {
+          key: "materials",
+          title: "Raw Material Lots",
+          status: hasLots ? "complete" : hasUsage ? "missing" : "pending",
+          main: hasUsage ? `${row.material_usage.length} material usage row${row.material_usage.length === 1 ? "" : "s"}` : "No material usage rows",
+          detail: hasLots ? "All material rows have lot/reference links." : hasUsage ? "One or more rows have lot not linked." : "Production usage was not captured.",
+        },
+        {
+          key: "production",
+          title: "Production Record",
+          status: row.production_no || row.job?.job_order_no ? "complete" : "missing",
+          main: `Job Order: ${row.job?.job_order_no || "—"}`,
+          detail: `Production Record: ${row.production_no || "—"} · Production Date: ${formatFactoryDate(row.production_date)}`,
+        },
+        {
+          key: "stock-in",
+          title: "Finished Goods Stock-In",
+          status: row.stockInMovements.length ? "complete" : "missing",
+          main: stockInOutputLabel(row),
+          detail: row.stockInMovements.length ? row.stockInMovements.map((movement) => [movement.reference_no, stockInBaseEquivalent(movement)].filter(Boolean).join(" · ")).join(", ") : "No finished goods stock-in movement linked.",
+        },
+        {
+          key: "dispatch",
+          title: "Dispatch",
+          status: "pending",
+          main: "Not linked yet",
+          detail: "Dispatch batch allocation planned for Phase 2.",
+        },
+        {
+          key: "customer",
+          title: "Customer",
+          status: "pending",
+          main: "Not linked yet",
+          detail: "Requires Dispatch Batch Allocation.",
+        },
+        {
+          key: "qc",
+          title: "QC",
+          status: hasQc ? "complete" : "pending",
+          main: hasQc ? `${row.qc_checkpoints.length} checkpoint${row.qc_checkpoints.length === 1 ? "" : "s"}` : "Not configured",
+          detail: hasQc ? row.qc_checkpoints.map((checkpoint) => `Step ${checkpoint.step_no}: ${checkpoint.qc_status || "Pending"}`).join(", ") : "QC checkpoints have not been configured for this batch.",
+        },
+      ];
+    }
+
+    function stepTone(step) {
+      if (step.status === "complete") return "success";
+      if (step.status === "missing") return "danger";
+      return "neutral";
+    }
+
     return (
       <div className="space-y-5">
         <PageHeader
@@ -6756,63 +6871,84 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           actions={<button className="btn-secondary" type="button" onClick={loadData}><RefreshCw size={15} /> Refresh</button>}
         />
         <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={Factory} label="Batches" value={rows.length} helper="Completed production runs" />
-          <MetricCard icon={PackageCheck} label="Stock-In Links" value={rows.reduce((sum, row) => sum + row.stockInMovements.length, 0)} helper="Finished goods movements" />
-          <MetricCard icon={Truck} label="Material Lots" value={rows.flatMap((row) => row.material_usage || []).filter((item) => item.raw_material_lot_no).length} helper="Lot-tagged usage rows" />
-          <MetricCard icon={AlertTriangle} label="QC Alerts" value={metrics.qcAlertBatches.length} helper="Pending, hold or failed" tone={metrics.qcAlertBatches.length ? "danger" : "success"} />
+          <MetricCard icon={Factory} label="Production Batches" value={rows.length} helper="Completed production batches" />
+          <MetricCard icon={Truck} label="Raw Material Lots" value={rows.flatMap((row) => row.material_usage || []).filter((item) => item.raw_material_lot_no || item.receiving_ref).length} helper="Lot-linked material usage" />
+          <MetricCard icon={PackageCheck} label="Finished Goods Produced" value={finishedGoodsProducedValue} helper="Packaging units stocked in" />
+          <MetricCard icon={AlertTriangle} label="Traceability Gaps" value={traceabilityGapCount} helper="Missing lot / QC / dispatch links" tone={traceabilityGapCount ? "warning" : "success"} />
         </div>
-        <Card title="Batch Traceability Records" description="Batch traceability connects product, production, raw material usage and finished goods movement.">
+        <Card title="Batch Traceability Records" description="Follow each production batch from recipe through raw material lots, stock-in, QC and Phase 2 dispatch allocation readiness.">
           <div className="space-y-4 p-4">
-            {rows.length ? rows.map((row) => (
-              <div key={row.id} className="rounded-2xl border border-border bg-white p-4">
-                <div className="flex flex-wrap items-start justify-between gap-3">
-                  <div>
-                    <div className="text-xs font-semibold uppercase tracking-wide text-text-muted">Batch No</div>
-                    <div className="mt-1 text-lg font-bold text-text-primary">{row.batch_no || "No batch"}</div>
-                    <div className="text-sm text-text-secondary">{row.product_name} · {row.production_no}</div>
-                  </div>
-                  <Badge tone={row.qc_status === "Pass" ? "success" : row.qc_status === "Failed" ? "danger" : row.qc_status === "Hold" ? "warning" : "neutral"}>{row.qc_status}</Badge>
-                </div>
-                <div className="mt-4 grid gap-3 md:grid-cols-4">
-                  <div><div className="text-xs font-semibold text-text-muted">Job Order</div><div className="text-sm font-semibold text-text-primary">{row.job?.job_order_no || "—"}</div></div>
-                  <div><div className="text-xs font-semibold text-text-muted">Production Date</div><div className="text-sm font-semibold text-text-primary">{formatFactoryDate(row.production_date)}</div></div>
-                  <div><div className="text-xs font-semibold text-text-muted">Operator</div><div className="text-sm font-semibold text-text-primary">{row.operator_name || "—"}</div></div>
-                  <div><div className="text-xs font-semibold text-text-muted">SOP Used</div><div className="text-sm font-semibold text-text-primary">{row.sop_title ? `${row.sop_title} ${row.sop_version}` : row.sop_version || "—"}</div></div>
-                </div>
-                <div className="mt-4 grid gap-4 lg:grid-cols-3">
-                  <div className="rounded-xl border border-border bg-slate-50 p-3">
-                    <div className="text-sm font-bold text-text-primary">Raw Material Lots Used</div>
-                    <div className="mt-2 space-y-2">
-                      {(row.material_usage || []).length ? row.material_usage.map((item) => (
-                        <div key={item.id} className="text-xs text-text-secondary">
-                          <span className="font-semibold text-text-primary">{item.raw_material_name}</span> · {quantity(item.actual_usage, item.uom)} · Lot {item.raw_material_lot_no || "—"} {item.receiving_ref ? `· ${item.receiving_ref}` : ""}
+            {rows.length ? rows.map((row) => {
+              const status = batchStatus(row);
+              const score = traceabilityScore(row);
+              const timeline = traceabilitySteps(row);
+              return (
+                <div key={row.id} className="rounded-2xl border border-border bg-white p-4">
+                  <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
+                    <div>
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-wide text-text-muted">Batch No</div>
+                          <div className="mt-1 text-xl font-black text-text-primary">{row.batch_no || "No batch"}</div>
+                          <div className="mt-1 text-sm font-semibold text-text-primary">{row.product_family_name || row.product_name || "Finished Good"}</div>
+                          {row.product_name_cn ? <div className="text-xs font-semibold text-text-secondary">{row.product_name_cn}</div> : null}
                         </div>
-                      )) : <div className="text-xs text-text-secondary">No material usage rows.</div>}
+                        <Badge tone={status.tone}>{status.label}</Badge>
+                      </div>
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+                        <div><div className="text-xs font-semibold text-text-muted">Packaging SKU</div><div className="text-sm font-semibold text-text-primary">{packagingSkuDisplayName(row.finishedGood || row) || row.product_code || "—"}</div></div>
+                        <div><div className="text-xs font-semibold text-text-muted">Output</div><div className="text-sm font-semibold text-text-primary">{stockInOutputLabel(row)}</div></div>
+                        <div><div className="text-xs font-semibold text-text-muted">Production Date</div><div className="text-sm font-semibold text-text-primary">{formatFactoryDate(row.production_date)}</div></div>
+                        <div><div className="text-xs font-semibold text-text-muted">Operator</div><div className="text-sm font-semibold text-text-primary">{row.operator_name || "—"}</div></div>
+                      </div>
+                    </div>
+                    <div className="rounded-2xl border border-border bg-slate-50 p-4">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <div className="text-sm font-bold text-text-primary">Traceability Score</div>
+                          <div className="text-xs font-semibold text-text-secondary">Linked evidence across production journey</div>
+                        </div>
+                        <div className="text-2xl font-black text-text-primary">{score}%</div>
+                      </div>
+                      <div className="mt-3 h-2 rounded-full bg-white">
+                        <div className="h-full rounded-full bg-primary" style={{ width: `${score}%` }} />
+                      </div>
                     </div>
                   </div>
-                  <div className="rounded-xl border border-border bg-slate-50 p-3">
-                    <div className="text-sm font-bold text-text-primary">Finished Goods Stock-In</div>
-                    <div className="mt-2 space-y-2">
-                      {row.stockInMovements.length ? row.stockInMovements.map((movement) => (
-                        <div key={movement.id} className="text-xs text-text-secondary">
-                          <span className="font-semibold text-text-primary">{movement.reference_no}</span> · {quantity(movement.quantity, movement.uom)} · {formatFactoryDate(movement.movement_date)}
+                  <div className="mt-5 space-y-3">
+                    {timeline.map((step, index) => (
+                      <div key={step.key} className="relative flex gap-3">
+                        {index < timeline.length - 1 ? <div className="absolute left-[13px] top-8 h-[calc(100%-12px)] w-px bg-border" /> : null}
+                        <div className={`relative z-10 mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-black ${step.status === "complete" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : step.status === "missing" ? "border-rose-200 bg-rose-50 text-rose-700" : "border-slate-200 bg-slate-50 text-text-muted"}`}>
+                          {step.status === "complete" ? "✓" : step.status === "missing" ? "!" : "•"}
                         </div>
-                      )) : <div className="text-xs text-text-secondary">No finished goods movement linked.</div>}
-                    </div>
-                  </div>
-                  <div className="rounded-xl border border-border bg-slate-50 p-3">
-                    <div className="text-sm font-bold text-text-primary">QC Checkpoints</div>
-                    <div className="mt-2 space-y-2">
-                      {(row.qc_checkpoints || []).length ? row.qc_checkpoints.map((checkpoint) => (
-                        <div key={checkpoint.id} className="text-xs text-text-secondary">
-                          <span className="font-semibold text-text-primary">Step {checkpoint.step_no}: {checkpoint.process_name}</span> · {checkpoint.control_point || "No control point"} · {checkpoint.qc_status}
+                        <div className="min-w-0 flex-1 rounded-xl border border-border bg-slate-50 p-3">
+                          <div className="flex flex-wrap items-start justify-between gap-2">
+                            <div>
+                              <div className="text-sm font-bold text-text-primary">{step.title}</div>
+                              <div className="mt-1 text-sm font-semibold text-text-primary">{step.main}</div>
+                              <div className="mt-1 text-xs font-semibold text-text-secondary">{step.detail}</div>
+                            </div>
+                            <Badge tone={stepTone(step)}>{step.status === "complete" ? "Linked" : step.status === "missing" ? "Missing" : "Not linked yet"}</Badge>
+                          </div>
+                          {step.key === "materials" && (row.material_usage || []).length ? (
+                            <div className="mt-3 grid gap-2 md:grid-cols-2">
+                              {row.material_usage.map((item) => (
+                                <div key={item.id} className="rounded-lg border border-border bg-white px-3 py-2 text-xs font-semibold text-text-secondary">
+                                  <div className="text-sm font-bold text-text-primary">{item.raw_material_name || "Raw Material"}</div>
+                                  <div>Required / Actual: {quantity(item.standard_usage || item.actual_usage, item.uom)} / {quantity(item.actual_usage, item.uom)}</div>
+                                  <div>Lot: {item.raw_material_lot_no || item.receiving_ref || "Lot not linked"}</div>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
                         </div>
-                      )) : <div className="text-xs text-text-secondary">No SOP QC checkpoints attached.</div>}
-                    </div>
+                      </div>
+                    ))}
                   </div>
                 </div>
-              </div>
-            )) : <EmptyState title="No batch traceability records" description="Complete production to create batch traceability records." />}
+              );
+            }) : <EmptyState title="No batch traceability records" description="Complete production to create batch traceability records." />}
           </div>
         </Card>
       </div>
