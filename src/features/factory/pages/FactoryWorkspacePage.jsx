@@ -6548,6 +6548,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={Warehouse} label="Total Qty" value={quantity(totalQty, "")} helper="Across received items" />
           <MetricCard icon={Tag} label="Active Suppliers" value={activeSuppliers.length} helper="Available for receiving" />
         </div>
+        {receivingTab === "history" ? receivingHistoryFilterControls() : null}
 
         <div className="inline-flex rounded-xl border border-border bg-white p-1">
           <button className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${receivingTab === "history" ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-slate-50"}`} type="button" onClick={() => setReceivingTab("history")}>Receiving History</button>
@@ -6563,7 +6564,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           />
         ) : (
           <Card title="Receiving History" description={`Showing ${receivingRows.length} receiving document(s).`}>
-            <div className="p-4 pb-0">{receivingHistoryFilterControls()}</div>
             <FactoryTable
               columns={receivingBatchColumns}
               rows={receivingRows}
@@ -7651,6 +7651,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={PackageCheck} label="Dispatched Today" value={completedToday.length} helper="Completed dispatch records" />
           <MetricCard icon={Truck} label="Customers Today" value={customersToday} helper="Unique dispatch customers" />
         </div>
+        {dispatchTab === "history" ? dispatchHistoryFilterControls() : null}
         <Card title="Finished Goods Dispatch" description="Create drafts first, then complete them to deduct Packaging SKU stock and create Product Movement rows.">
           <div className="space-y-4 p-4">
             <div className="inline-flex rounded-xl border border-border bg-white p-1">
@@ -7670,15 +7671,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                 <EmptyState title="Create permission required" description="Your role can view dispatch history but cannot create new dispatch drafts." />
               )
             ) : (
-              <div className="space-y-4">
-                {dispatchHistoryFilterControls()}
-                <FactoryTable
-                  columns={dispatchColumns}
-                  rows={dispatchRows}
-                  emptyTitle="No finished goods dispatches"
-                  emptyDescription="Create a dispatch draft to record outbound Packaging SKU delivery."
-                />
-              </div>
+              <FactoryTable
+                columns={dispatchColumns}
+                rows={dispatchRows}
+                emptyTitle="No finished goods dispatches"
+                emptyDescription="Create a dispatch draft to record outbound Packaging SKU delivery."
+              />
             )}
           </div>
         </Card>
