@@ -3301,64 +3301,81 @@ function ReceivingBatchDetailModal({ batch, onClose }) {
   const totalQty = itemRows.reduce((sum, row) => sum + Number(row.received_qty || 0), 0);
   const totalUoms = Array.from(new Set(itemRows.map((row) => row.uom).filter(Boolean)));
   const totalQtyDisplay = totalUoms.length === 1 ? quantity(totalQty, totalUoms[0]) : quantity(batch.total_qty || totalQty, "");
+  const totalCost = itemRows.reduce((sum, row) => {
+    const rowTotal = row.total_cost ?? (Number(row.received_qty || 0) * Number(row.unit_cost || 0));
+    return sum + Number(rowTotal || 0);
+  }, 0);
 
   return (
-    <Modal title="Raw Material Receiving" description="Read-only receiving document" onClose={onClose} size="4xl">
-      <div className="space-y-5">
-        <div className="border-b border-border pb-5">
-          <div className="flex flex-wrap items-start justify-between gap-5">
+    <Modal title="Raw Material Receiving" description="Read-only receiving document" onClose={onClose} size="2xl">
+      <div className="rounded-2xl border border-border bg-white p-5 sm:p-6">
+        <div className="flex flex-wrap items-start justify-between gap-5 border-b border-border pb-5">
+          <div>
+            <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-text-muted">Receiving No.</div>
+            <div className="mt-1 font-mono text-3xl font-black text-text-primary">{batch.batch_no || "—"}</div>
+            <div className="mt-4">
+              <div className="text-lg font-black text-text-primary">{batch.supplier_name || "—"}</div>
+              <div className="text-sm font-semibold text-text-secondary">Raw Material Supplier</div>
+            </div>
+          </div>
+          <div className="text-right">
+            <div className="mb-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-text-muted">Status</div>
+            <Badge tone={batch.status === "active" ? "success" : "neutral"}>{jobStatusLabel(batch.status)}</Badge>
+          </div>
+        </div>
+
+        <section className="mt-6">
+          <h3 className="text-sm font-black uppercase tracking-[0.08em] text-text-primary">Document Information</h3>
+          <div className="mt-4 grid gap-x-12 gap-y-3 md:grid-cols-2">
+            {[
+              ["Received Date", formatFactoryDate(batch.received_date)],
+              ["Supplier DO / Invoice", batch.reference_no || "—"],
+              ["Created By", batch.created_by_name || batch.created_by || "—"],
+              ["Status", jobStatusLabel(batch.status)],
+            ].map(([label, value]) => (
+              <div key={label} className="grid gap-1 sm:grid-cols-[170px_minmax(0,1fr)] sm:items-baseline">
+                <div className="whitespace-nowrap text-sm font-semibold text-text-secondary">{label}</div>
+                <div className="text-sm font-bold text-text-primary">{value}</div>
+              </div>
+            ))}
+          </div>
+        </section>
+
+        <section className="mt-6">
+          <h3 className="mb-3 text-sm font-black uppercase tracking-[0.08em] text-text-primary">Received Items</h3>
+          <FactoryTable
+            columns={[
+              { key: "raw_material_name", label: "Raw Material", render: (row) => <div className="font-semibold text-text-primary">{row.raw_material_name}</div> },
+              { key: "batch_no", label: "Batch / Lot No.", render: (row) => row.batch_no ? <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">Lot {row.batch_no}</span> : "—" },
+              { key: "qty", label: "Qty", render: (row) => quantity(row.received_qty, row.uom) },
+              { key: "unit_cost", label: "Unit Cost", render: (row) => money(row.unit_cost) },
+              { key: "storage_location", label: "Storage Location", render: (row) => row.storage_location ? <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-text-secondary">{row.storage_location}</span> : "—" },
+              { key: "expiry_date", label: "Expiry Date", render: (row) => formatFactoryDate(row.expiry_date) },
+            ]}
+            rows={itemRows}
+            emptyTitle="No receiving items"
+            emptyDescription="This receiving document has no item rows."
+          />
+        </section>
+
+        <section className="mt-6 border-t border-border pt-4">
+          <h3 className="mb-3 text-sm font-black uppercase tracking-[0.08em] text-text-primary">Receiving Summary</h3>
+          <div className="grid gap-3 sm:grid-cols-3">
             <div>
-              <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-text-muted">Receiving No.</div>
-              <div className="mt-1 font-mono text-2xl font-black text-text-primary">{batch.batch_no || "—"}</div>
+              <div className="text-xs font-semibold text-text-secondary">Items Received</div>
+              <div className="mt-1 text-xl font-black text-text-primary">{Number(itemRows.length || 0).toLocaleString("en-MY")}</div>
             </div>
-            <div className="text-right">
-              <div className="mb-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-text-muted">Status</div>
-              <Badge tone={batch.status === "active" ? "success" : "neutral"}>{jobStatusLabel(batch.status)}</Badge>
+            <div>
+              <div className="text-xs font-semibold text-text-secondary">Total Quantity</div>
+              <div className="mt-1 text-xl font-black text-text-primary">{totalQtyDisplay}</div>
             </div>
-          </div>
-          <div className="mt-5 grid gap-x-10 gap-y-3 md:grid-cols-2">
-            <div className="grid grid-cols-[150px_minmax(0,1fr)] items-baseline gap-3">
-              <div className="whitespace-nowrap text-sm font-semibold text-text-secondary">Supplier</div>
-              <div className="text-sm font-bold text-text-primary">{batch.supplier_name || "—"}</div>
-            </div>
-            <div className="grid grid-cols-[150px_minmax(0,1fr)] items-baseline gap-3">
-              <div className="whitespace-nowrap text-sm font-semibold text-text-secondary">Received Date</div>
-              <div className="text-sm font-bold text-text-primary">{formatFactoryDate(batch.received_date)}</div>
-            </div>
-            <div className="grid grid-cols-[150px_minmax(0,1fr)] items-baseline gap-3">
-              <div className="whitespace-nowrap text-sm font-semibold text-text-secondary">Supplier DO / Invoice</div>
-              <div className="text-sm font-bold text-text-primary">{batch.reference_no || "—"}</div>
-            </div>
-            <div className="grid grid-cols-[150px_minmax(0,1fr)] items-baseline gap-3">
-              <div className="whitespace-nowrap text-sm font-semibold text-text-secondary">Created By</div>
-              <div className="text-sm font-bold text-text-primary">{batch.created_by_name || batch.created_by || "—"}</div>
+            <div>
+              <div className="text-xs font-semibold text-text-secondary">Total Cost</div>
+              <div className="mt-1 text-xl font-black text-text-primary">{money(totalCost)}</div>
             </div>
           </div>
+        </section>
         </div>
-        <FactoryTable
-          columns={[
-            { key: "raw_material_name", label: "Raw Material", render: (row) => <div className="font-semibold text-text-primary">{row.raw_material_name}</div> },
-            { key: "batch_no", label: "Batch / Lot No.", render: (row) => row.batch_no ? <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">Lot {row.batch_no}</span> : "—" },
-            { key: "qty", label: "Qty", render: (row) => quantity(row.received_qty, row.uom) },
-            { key: "unit_cost", label: "Unit Cost", render: (row) => money(row.unit_cost) },
-            { key: "storage_location", label: "Storage Location", render: (row) => row.storage_location ? <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-text-secondary">{row.storage_location}</span> : "—" },
-            { key: "expiry_date", label: "Expiry Date", render: (row) => formatFactoryDate(row.expiry_date) },
-          ]}
-          rows={itemRows}
-          emptyTitle="No receiving items"
-          emptyDescription="This receiving document has no item rows."
-        />
-        <div className="flex flex-wrap justify-end gap-6 border-t border-border pt-4 text-sm">
-          <div>
-            <span className="font-semibold text-text-secondary">Total Items: </span>
-            <span className="font-black text-text-primary">{Number(itemRows.length || 0).toLocaleString("en-MY")}</span>
-          </div>
-          <div>
-            <span className="font-semibold text-text-secondary">Total Qty: </span>
-            <span className="font-black text-text-primary">{totalQtyDisplay}</span>
-          </div>
-        </div>
-      </div>
     </Modal>
   );
 }
