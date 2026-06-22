@@ -581,16 +581,24 @@ function mapRecipe(row) {
 }
 
 function mapProductionSop(row) {
+  const finishedGood = row.finished_good || {};
   return {
     id: row.id,
     sop_code: row.sop_code || "",
     title: row.title || "",
-    product_name: row.product_name || "",
+    sop_name: row.title || "",
+    finished_good_id: row.finished_good_id || "",
+    product_name: finishedGood.name_en || row.product_name || "",
+    product_name_en: finishedGood.name_en || row.product_name || "",
+    product_name_cn: finishedGood.name_cn || "",
+    product_name_bm: finishedGood.name_bm || "",
     version: row.version || "v1",
     effective_date: row.effective_date || "",
     equipment: row.equipment || "",
-    status: row.status || "active",
-    notes: row.notes || "",
+    estimated_minutes: normalizeNumber(row.estimated_minutes),
+    status: row.status === "inactive" ? "archived" : row.status || "draft",
+    notes: row.notes || row.remarks || "",
+    remarks: row.remarks || row.notes || "",
     created_by: row.created_by || "",
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -599,13 +607,17 @@ function mapProductionSop(row) {
       sop_id: step.sop_id,
       step_no: normalizeNumber(step.step_no),
       process_name: step.process_name || step.instruction || "",
+      step_name: step.process_name || step.instruction || "",
       description: step.description || step.instruction || "",
-      control_point: step.control_point || "",
+      control_point: step.control_point || step.qc_label || "",
+      qc_label: step.qc_label || step.control_point || "",
       materials: step.materials || "",
       equipment: step.equipment || "",
       estimated_time_minutes: normalizeNumber(step.estimated_time_minutes || step.expected_duration_minutes),
       is_qc_checkpoint: Boolean(step.is_qc_checkpoint),
-      safety_note: step.safety_note || "",
+      qc_required: Boolean(step.is_qc_checkpoint),
+      safety_note: step.safety_note || step.remarks || "",
+      remarks: step.remarks || step.safety_note || "",
       created_at: step.created_at,
       updated_at: step.updated_at,
     })).sort((a, b) => a.step_no - b.step_no),
@@ -766,14 +778,14 @@ function factoryDataPlan(scope, hasPermission) {
     productionDetails: needsProductionDetails,
     finishedGoods: (isDashboard && can("factory_dashboard.view")) || (isJobOrders && (can("factory_job_orders.view") || can("factory_job_orders.create") || can("factory_job_orders.edit"))) || (isProductRecipes && can("factory_product_recipes.view")) || ((isProduction || isFinishedGoods || isFinishedGoodsDispatch || isProductMovements) && can("factory_finished_goods.view")) || (isFinishedGoodsDispatch && (can("factory_finished_goods_dispatch.view") || can("factory_finished_goods_dispatch.create") || can("factory_finished_goods_dispatch.edit") || can("factory_finished_goods_dispatch.complete"))) || (isProduction && can("factory_production.complete")) || (isProductStockCheck && can("factory_product_stock_check.view")),
     finishedGoodCategories: isFinishedGoods && can("factory_finished_goods.view"),
-    productFamilies: (isFinishedGoods && can("factory_finished_goods.view")) || (isProductRecipes && (can("factory_product_recipes.view") || can("factory_product_recipes.create") || can("factory_product_recipes.edit") || can("factory_product_recipes.manage"))) || (isJobOrders && (can("factory_job_orders.view") || can("factory_job_orders.create") || can("factory_job_orders.edit"))) || (isProduction && (can("factory_product_recipes.view") || can("factory_production.complete"))),
+    productFamilies: (isFinishedGoods && can("factory_finished_goods.view")) || (isProductRecipes && (can("factory_product_recipes.view") || can("factory_product_recipes.create") || can("factory_product_recipes.edit") || can("factory_product_recipes.manage"))) || (isProductionSop && (can("factory_production_sop.view") || can("factory_production_sop.create") || can("factory_production_sop.edit") || can("factory_production_sop.manage"))) || (isJobOrders && (can("factory_job_orders.view") || can("factory_job_orders.create") || can("factory_job_orders.edit"))) || (isProduction && (can("factory_product_recipes.view") || can("factory_production.complete"))),
     productMovements: (isDashboard && can("factory_dashboard.view")) || ((isProduction || isProductMovements) && can("factory_product_movements.view")) || (isFinishedGoods && can("factory_finished_goods.view")) || (isFinishedGoodsDispatch && can("factory_finished_goods_dispatch.view")) || (isReports && can("factory_product_movements.view")) || (isBatchTraceability && canTraceBatches),
     finishedGoodDispatches: isFinishedGoodsDispatch && can("factory_finished_goods_dispatch.view"),
     rawStockChecks: (isRawInventory && can("factory_raw_inventory.view")) || (isRawStockCheck && can("factory_raw_stock_check.view")),
     productStockChecks: isProductStockCheck && can("factory_product_stock_check.view"),
     recipes: (isDashboard && can("factory_dashboard.view")) || (isRawInventory && can("factory_raw_inventory.view")) || (isProductRecipes && can("factory_product_recipes.view")) || (isJobOrders && can("factory_product_recipes.view")) || (isProduction && (can("factory_product_recipes.view") || can("factory_production.complete"))) || (isReports && can("factory_production_reports.view")),
     recipeSummaries: isFinishedGoods && can("factory_product_recipes.view"),
-    sops: (isProduction || isProductionSop) && can("factory_production_sop.view"),
+    sops: (isProduction || isProductionSop || isBatchTraceability) && can("factory_production_sop.view"),
   };
 }
 
@@ -906,7 +918,7 @@ export const factoryService = {
       .limit(300), (rows) => rows.map(mapRecipe));
     addTask(plan.sops, "sops", "Production SOP", () => supabase
       .from("factory_production_sops")
-      .select("id,sop_code,title,product_name,version,effective_date,equipment,status,notes,created_by,created_at,updated_at,steps:factory_production_sop_steps(id,sop_id,step_no,instruction,process_name,description,control_point,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,safety_note,created_at,updated_at)")
+      .select("id,sop_code,title,product_name,finished_good_id,version,effective_date,equipment,estimated_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_product_families(id,name_en,name_cn,name_bm,status),steps:factory_production_sop_steps(id,sop_id,step_no,instruction,process_name,description,control_point,qc_label,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,safety_note,remarks,created_at,updated_at)")
       .order("product_name", { ascending: true })
       .limit(150), (rows) => rows.map(mapProductionSop));
 
@@ -2170,30 +2182,47 @@ export const factoryService = {
     const steps = (sop.steps ?? [])
       .map((step, index) => ({
         step_no: normalizeNumber(step.step_no, index + 1),
-        process_name: String(step.process_name || "").trim(),
+        process_name: String(step.step_name || step.process_name || "").trim(),
         description: String(step.description || "").trim(),
-        control_point: String(step.control_point || "").trim(),
+        control_point: String(step.qc_label || step.control_point || "").trim(),
+        qc_label: String(step.qc_label || step.control_point || "").trim(),
         materials: String(step.materials || "").trim(),
         equipment: String(step.equipment || "").trim(),
         estimated_time_minutes: normalizeNumber(step.estimated_time_minutes),
-        is_qc_checkpoint: Boolean(step.is_qc_checkpoint),
-        safety_note: String(step.safety_note || "").trim(),
+        is_qc_checkpoint: Boolean(step.qc_required ?? step.is_qc_checkpoint),
+        safety_note: String(step.remarks || step.safety_note || "").trim(),
+        remarks: String(step.remarks || step.safety_note || "").trim(),
       }))
       .filter((step) => step.process_name || step.description);
 
-    if (!String(sop.title || "").trim()) throw new Error("SOP title is required.");
-    if (!String(sop.product_name || "").trim()) throw new Error("Product name is required.");
+    if (!String(sop.title || sop.sop_name || "").trim()) throw new Error("SOP name is required.");
+    if (!String(sop.finished_good_id || sop.product_name || "").trim()) throw new Error("Finished Good is required.");
     if (!steps.length) throw new Error("At least one SOP step is required.");
+
+    if (isUpdate) {
+      const { data: existing, error: lookupError } = await supabase
+        .from("factory_production_sops")
+        .select("id,status")
+        .eq("id", sop.id)
+        .single();
+      throwSupabaseError("factory.sop.lookup", lookupError);
+      if (String(existing.status || "").toLowerCase() !== "draft") {
+        throw new Error("Only draft Production SOPs can be edited. Create a new version to change an active SOP.");
+      }
+    }
 
     const payload = {
       sop_code: sop.sop_code || makeFactoryRef("SOP"),
-      title: String(sop.title || "").trim(),
+      title: String(sop.title || sop.sop_name || "").trim(),
+      finished_good_id: sop.finished_good_id || null,
       product_name: String(sop.product_name || "").trim(),
       version: String(sop.version || "v1").trim(),
       effective_date: sop.effective_date || null,
-      equipment: String(sop.equipment || "").trim(),
-      status: sop.status || "active",
-      notes: String(sop.notes || "").trim(),
+      equipment: "",
+      estimated_minutes: normalizeNumber(sop.estimated_minutes),
+      status: sop.status || "draft",
+      notes: String(sop.remarks || sop.notes || "").trim(),
+      remarks: String(sop.remarks || sop.notes || "").trim(),
       updated_at: new Date().toISOString(),
     };
     if (!isUpdate) payload.created_by = employeeId || null;
@@ -2203,7 +2232,7 @@ export const factoryService = {
       : supabase.from("factory_production_sops").insert(payload);
 
     const { data, error } = await query
-      .select("id,sop_code,title,product_name,version,effective_date,equipment,status,notes,created_by,created_at,updated_at")
+      .select("id,sop_code,title,product_name,finished_good_id,version,effective_date,equipment,estimated_minutes,status,notes,remarks,created_by,created_at,updated_at")
       .single();
     throwSupabaseError("factory.sop.save", error);
 
@@ -2219,19 +2248,21 @@ export const factoryService = {
       process_name: step.process_name,
       description: step.description,
       control_point: step.control_point,
+      qc_label: step.qc_label,
       materials: step.materials,
       equipment: step.equipment,
       expected_duration_minutes: step.estimated_time_minutes,
       estimated_time_minutes: step.estimated_time_minutes,
       is_qc_checkpoint: step.is_qc_checkpoint,
       safety_note: step.safety_note,
+      remarks: step.remarks,
       updated_at: new Date().toISOString(),
     })));
     throwSupabaseError("factory.sop.steps_insert", insertResult.error);
 
     const { data: saved, error: fetchError } = await supabase
       .from("factory_production_sops")
-      .select("id,sop_code,title,product_name,version,effective_date,equipment,status,notes,created_by,created_at,updated_at,steps:factory_production_sop_steps(id,sop_id,step_no,instruction,process_name,description,control_point,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,safety_note,created_at,updated_at)")
+      .select("id,sop_code,title,product_name,finished_good_id,version,effective_date,equipment,estimated_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_product_families(id,name_en,name_cn,name_bm,status),steps:factory_production_sop_steps(id,sop_id,step_no,instruction,process_name,description,control_point,qc_label,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,safety_note,remarks,created_at,updated_at)")
       .eq("id", data.id)
       .single();
     throwSupabaseError("factory.sop.fetch_saved", fetchError);
@@ -2243,6 +2274,82 @@ export const factoryService = {
       after: saved,
     });
     return mapProductionSop(saved);
+  },
+
+  async activateProductionSop(sop) {
+    const { data: activated, error: activateError } = await supabase.rpc("factory_activate_production_sop", {
+      p_sop_id: sop.id,
+    });
+    throwSupabaseError("factory.sop.activate_rpc", activateError);
+    const sopId = Array.isArray(activated) ? activated[0]?.sop_id : activated?.sop_id;
+    if (!sopId) throw new Error("Production SOP activation did not return an SOP id.");
+    const { data, error } = await supabase
+      .from("factory_production_sops")
+      .select("id,sop_code,title,product_name,finished_good_id,version,effective_date,equipment,estimated_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_product_families(id,name_en,name_cn,name_bm,status),steps:factory_production_sop_steps(id,sop_id,step_no,instruction,process_name,description,control_point,qc_label,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,safety_note,remarks,created_at,updated_at)")
+      .eq("id", sopId)
+      .single();
+    throwSupabaseError("factory.sop.activate_fetch", error);
+    await logFactoryAction({ action: "factory_production_sop_activated", target: data.sop_code, description: "Factory Production SOP activated.", after: data });
+    return mapProductionSop(data);
+  },
+
+  async createProductionSopNewVersion(sop) {
+    const { data: created, error: createError } = await supabase.rpc("factory_create_production_sop_new_version", {
+      p_source_sop_id: sop.id,
+    });
+    throwSupabaseError("factory.sop.new_version_rpc", createError);
+    const sopId = Array.isArray(created) ? created[0]?.sop_id : created?.sop_id;
+    if (!sopId) throw new Error("New Production SOP version was not created.");
+    const { data, error } = await supabase
+      .from("factory_production_sops")
+      .select("id,sop_code,title,product_name,finished_good_id,version,effective_date,equipment,estimated_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_product_families(id,name_en,name_cn,name_bm,status),steps:factory_production_sop_steps(id,sop_id,step_no,instruction,process_name,description,control_point,qc_label,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,safety_note,remarks,created_at,updated_at)")
+      .eq("id", sopId)
+      .single();
+    throwSupabaseError("factory.sop.new_version_fetch", error);
+    await logFactoryAction({ action: "factory_production_sop_new_version_created", target: data.sop_code, description: "Factory Production SOP draft version created.", after: data });
+    return mapProductionSop(data);
+  },
+
+  async deleteProductionSop(sop) {
+    const { data: existing, error: lookupError } = await supabase
+      .from("factory_production_sops")
+      .select("id,sop_code,title,status")
+      .eq("id", sop.id)
+      .single();
+    throwSupabaseError("factory.sop.delete_lookup", lookupError);
+    if (String(existing.status || "").toLowerCase() !== "draft") throw new Error("Only draft Production SOPs can be deleted.");
+    const { error } = await supabase.from("factory_production_sops").delete().eq("id", sop.id).eq("status", "draft");
+    throwSupabaseError("factory.sop.delete", error);
+    await logFactoryAction({ action: "factory_production_sop_deleted", target: existing.sop_code, description: "Factory Production SOP draft deleted.", before: existing });
+    return true;
+  },
+
+  async archiveProductionSop(sop) {
+    if (!["active", "draft"].includes(String(sop.status || "").toLowerCase())) throw new Error("Only active or draft Production SOPs can be archived.");
+    const { data, error } = await supabase
+      .from("factory_production_sops")
+      .update({ status: "archived", updated_at: new Date().toISOString() })
+      .eq("id", sop.id)
+      .in("status", ["active", "draft"])
+      .select("id,sop_code,title,product_name,finished_good_id,version,effective_date,equipment,estimated_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_product_families(id,name_en,name_cn,name_bm,status),steps:factory_production_sop_steps(id,sop_id,step_no,instruction,process_name,description,control_point,qc_label,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,safety_note,remarks,created_at,updated_at)")
+      .single();
+    throwSupabaseError("factory.sop.archive", error);
+    await logFactoryAction({ action: "factory_production_sop_archived", target: data.sop_code, description: "Factory Production SOP archived.", after: data });
+    return mapProductionSop(data);
+  },
+
+  async restoreProductionSop(sop) {
+    if (String(sop.status || "").toLowerCase() !== "archived") throw new Error("Only archived Production SOPs can be restored.");
+    const { data, error } = await supabase
+      .from("factory_production_sops")
+      .update({ status: "draft", updated_at: new Date().toISOString() })
+      .eq("id", sop.id)
+      .eq("status", "archived")
+      .select("id,sop_code,title,product_name,finished_good_id,version,effective_date,equipment,estimated_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_product_families(id,name_en,name_cn,name_bm,status),steps:factory_production_sop_steps(id,sop_id,step_no,instruction,process_name,description,control_point,qc_label,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,safety_note,remarks,created_at,updated_at)")
+      .single();
+    throwSupabaseError("factory.sop.restore", error);
+    await logFactoryAction({ action: "factory_production_sop_restored", target: data.sop_code, description: "Factory Production SOP restored as draft.", after: data });
+    return mapProductionSop(data);
   },
 
   async saveStockCheck(stockType, stockCheck, employeeId) {
