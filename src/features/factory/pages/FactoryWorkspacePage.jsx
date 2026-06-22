@@ -5756,10 +5756,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   function finishedGoodFilterControls() {
     const categoryOptions = data.finishedGoodCategories.map((category) => ({ value: category.id, label: category.name, helper: "Category" }));
     const statusOptions = [
-      { value: "", label: "All Status", helper: "No status filter" },
-      { value: "active", label: "Active", helper: "Active finished goods and SKUs" },
-      { value: "archived", label: "Archived", helper: "Archived finished goods and SKUs" },
-      { value: "out_of_stock", label: "Out of Stock", helper: "Packaging SKUs with zero balance" },
+      { value: "", label: "All Status" },
+      { value: "active", label: "Active" },
+      { value: "archived", label: "Archived" },
+      { value: "out_of_stock", label: "Out of Stock" },
     ];
     return (
       <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 md:grid-cols-4">
@@ -7473,7 +7473,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                                         <div className="flex flex-wrap justify-end gap-2">
                                           <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-detail", product: sku })}>View</button>
                                           {can("factory_finished_goods.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => openPackagingSkuModal(group.isStandalone ? null : group, sku)}>Edit</button> : null}
-                                          {can("factory_finished_goods.edit") && !skuIsArchived ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => archiveFinishedGood(sku)}>Archive</button> : null}
+                                          {can("factory_finished_goods.edit") && !skuIsArchived ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50" type="button" onClick={() => archiveFinishedGood(sku)}>Archive</button> : null}
                                         </div>
                                       </td>
                                     </tr>
