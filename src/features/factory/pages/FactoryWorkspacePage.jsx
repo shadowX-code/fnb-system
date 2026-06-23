@@ -2973,6 +2973,61 @@ function FactorySupplierModal({ initialValue, onClose, onSave }) {
   );
 }
 
+function ProductionPlanningParModal({ sku, onClose, onSave }) {
+  const [parLevel, setParLevel] = useState(sku?.min_stock_level ? String(sku.min_stock_level) : "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const packagingUnit = pluralizePackagingType(packagingTypeLabel(sku), Number(parLevel || sku?.min_stock_level || 0));
+
+  async function submit(event) {
+    event.preventDefault();
+    setError("");
+    if (parLevel !== "" && Number(parLevel) < 0) {
+      setError("Par Level cannot be negative.");
+      return;
+    }
+    setSaving(true);
+    try {
+      await onSave({ sku, par_level: parLevel });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal
+      title="Set Par Level"
+      description="Set the target warehouse stock level for this Packaging SKU."
+      size="md"
+      onClose={saving ? undefined : onClose}
+      footer={(
+        <>
+          <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
+          <button className="btn-primary" type="submit" form="production-planning-par-form" disabled={saving}>{saving ? "Saving..." : "Save Par Level"}</button>
+        </>
+      )}
+    >
+      <form id="production-planning-par-form" className="space-y-4" onSubmit={submit}>
+        {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
+        <div className="rounded-2xl border border-border bg-slate-50 p-4">
+          <div className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">Packaging SKU</div>
+          <div className="mt-1 text-lg font-bold text-text-primary">{sku?.product_code || "SKU"}</div>
+          <div className="text-sm font-semibold text-text-secondary">{packagingSkuDisplayName(sku)}</div>
+          <div className="mt-2 text-sm text-text-secondary">Current Balance: <span className="font-bold text-text-primary">{skuBalanceLabel(sku)}</span></div>
+        </div>
+        <div className="grid gap-3 md:grid-cols-[1fr_140px] md:items-end">
+          <Field label="Par Level Qty">
+            <input className={inputClass()} type="number" min="0" step="0.001" value={parLevel} onChange={(event) => setParLevel(event.target.value)} placeholder="e.g. 100" />
+          </Field>
+          <Field label="Unit">
+            <div className="rounded-xl border border-border bg-slate-50 px-3 py-2 text-sm font-bold text-text-secondary">{packagingUnit}</div>
+          </Field>
+        </div>
+      </form>
+    </Modal>
+  );
+}
+
 function FactoryCustomerModal({ initialValue, onClose, onSave }) {
   const emptyForm = { customer_name: "", customer_code: "", customer_type: "Outlet", contact_person: "", phone: "", email: "", address: "", status: "active", remarks: "" };
   const [form, setForm] = useState(() => ({
@@ -5017,6 +5072,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const [dispatchHistoryFilters, setDispatchHistoryFilters] = useState({ dateFrom: "", dateTo: "", customer: "", status: "" });
   const [expandedProductGroups, setExpandedProductGroups] = useState({});
   const [finishedGoodActionMenu, setFinishedGoodActionMenu] = useState(null);
+  const [productionPlanningFilters, setProductionPlanningFilters] = useState({ product: "", category: "", status: "" });
   const [warehouseFilters, setWarehouseFilters] = useState({ product: "", family: "", category: "", status: "", batch: "", movementType: "", dateFrom: "", dateTo: "" });
   const [rawMaterialFilters, setRawMaterialFilters] = useState({ material: "", status: "", category: "" });
   const [rawMovementFilters, setRawMovementFilters] = useState({ material: "", movementType: "", storageLocation: "", dateFrom: "", dateTo: "", search: "" });
@@ -5179,6 +5235,18 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to save job order", message: error.message, tone: "error" });
+      throw error;
+    }
+  }
+
+  async function savePlanningParLevel(form) {
+    try {
+      await factoryService.updateFinishedGoodParLevel(form.sku, form.par_level);
+      ui?.notify?.({ title: "Par level updated", tone: "success" });
+      setModal(null);
+      await loadData();
+    } catch (error) {
+      ui?.notify?.({ title: "Failed to update par level", message: error.message, tone: "error" });
       throw error;
     }
   }
@@ -6165,6 +6233,285 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <div className="flex items-end">
           <button className="btn-secondary w-full" type="button" onClick={() => setWarehouseFilters((current) => ({ ...current, product: "", category: "", status: "" }))}>Clear</button>
         </div>
+      </div>
+    );
+  }
+
+  function productionPlanningRows() {
+    const openJobsBySku = data.jobOrders.reduce((groups, job) => {
+      const status = String(job.status || "").toLowerCase();
+      if (!job.finished_good_id || status === "completed" || status === "cancelled") return groups;
+      groups.set(job.finished_good_id, [...(groups.get(job.finished_good_id) || []), job]);
+      return groups;
+    }, new Map());
+
+    return data.finishedGoods
+      .filter((sku) => sku.status === "active")
+      .map((sku) => {
+        const recipe = activeRecipeForSku(data.recipes, sku, sku.product_family_name || sku.product_name);
+        const openJobs = openJobsBySku.get(sku.id) || [];
+        const openJobQty = openJobs.reduce((sum, job) => {
+          const explicitPackQty = Number(job.target_pack_qty || 0);
+          if (explicitPackQty) return sum + explicitPackQty;
+          const estimate = packagingPackEstimate(job.target_production_qty || job.target_quantity, job.uom, sku, recipe?.uom);
+          return sum + (estimate.error ? 0 : Number(estimate.target_pack_qty || 0));
+        }, 0);
+        const currentBalance = Number(sku.current_balance || 0);
+        const parLevel = Number(sku.min_stock_level || 0);
+        const coverage = parLevel > 0 ? (currentBalance / parLevel) * 100 : null;
+        const suggestedProduction = parLevel > 0 ? Math.max(parLevel - currentBalance - openJobQty, 0) : 0;
+        const status = parLevel <= 0 ? "No Par Level" : currentBalance <= 0 ? "Out of Stock" : currentBalance < parLevel ? "Low Stock" : "Healthy";
+        return {
+          ...sku,
+          planning_status: status,
+          coverage_percent: coverage,
+          open_job_qty: openJobQty,
+          suggested_production_qty: suggestedProduction,
+          active_recipe: recipe,
+          finished_good_name: sku.product_family_name || sku.product_name,
+          finished_good_name_cn: sku.product_family_name_cn || sku.product_name_cn || "",
+        };
+      });
+  }
+
+  function filteredProductionPlanningRows() {
+    return productionPlanningRows().filter((row) => includesText(`${row.finished_good_name} ${row.finished_good_name_cn} ${row.product_name} ${row.product_code} ${row.variant_name}`, productionPlanningFilters.product)
+      && (!productionPlanningFilters.category || row.category_id === productionPlanningFilters.category || row.category === productionPlanningFilters.category)
+      && (!productionPlanningFilters.status || row.planning_status === productionPlanningFilters.status));
+  }
+
+  function productionPlanningStatusTone(status) {
+    if (status === "Healthy") return "success";
+    if (status === "Low Stock") return "warning";
+    if (status === "Out of Stock") return "danger";
+    return "neutral";
+  }
+
+  function productionPlanningUnitLabel(row, value) {
+    return quantity(value, pluralizePackagingType(packagingTypeLabel(row), value));
+  }
+
+  function productionPlanningFilterControls() {
+    const categoryMap = new Map();
+    data.finishedGoodCategories.forEach((category) => {
+      if (category.id || category.name) categoryMap.set(category.id || category.name, category.name);
+    });
+    data.finishedGoods.forEach((sku) => {
+      if (sku.category_id || sku.category) categoryMap.set(sku.category_id || sku.category, sku.category || "Category");
+    });
+    const categoryOptions = [...categoryMap.entries()].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
+    const statusOptions = [
+      { value: "", label: "All Status" },
+      { value: "Healthy", label: "Healthy" },
+      { value: "Low Stock", label: "Low Stock" },
+      { value: "Out of Stock", label: "Out of Stock" },
+      { value: "No Par Level", label: "No Par Level" },
+    ];
+    return (
+      <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 md:grid-cols-3">
+        <Field label="Product">
+          <input className={inputClass()} value={productionPlanningFilters.product} onChange={(event) => setProductionPlanningFilters((current) => ({ ...current, product: event.target.value }))} placeholder="Search product or SKU" />
+        </Field>
+        <Field label="Category">
+          <SearchableSelect
+            value={productionPlanningFilters.category}
+            options={[{ value: "", label: "All Categories" }, ...categoryOptions]}
+            placeholder="All Categories"
+            searchPlaceholder="Search categories"
+            emptyText="No matching categories"
+            onChange={(category) => setProductionPlanningFilters((current) => ({ ...current, category }))}
+          />
+        </Field>
+        <Field label="Status">
+          <SearchableSelect
+            value={productionPlanningFilters.status}
+            options={statusOptions}
+            placeholder="All Status"
+            searchPlaceholder="Search status"
+            emptyText="No matching status"
+            onChange={(status) => setProductionPlanningFilters((current) => ({ ...current, status }))}
+          />
+        </Field>
+      </div>
+    );
+  }
+
+  function openProductionPlanningJobOrder(row) {
+    const suggestedPackQty = Number(row.suggested_production_qty || 0);
+    const recipe = row.active_recipe || activeRecipeForSku(data.recipes, row, row.finished_good_name || row.product_name);
+    const productionPlan = suggestedPackQty > 0 ? packagingProductionPlan(suggestedPackQty, row, recipe?.uom) : null;
+    const targetProductionQty = productionPlan && !productionPlan.error ? productionPlan.target_production_qty : "";
+    const productionUom = productionPlan && !productionPlan.error ? productionPlan.production_uom : recipe?.uom || inheritedRecipeUom(row.product_family_id, data.finishedGoods, row.base_uom || row.pack_size_uom || row.uom || "");
+    setModal({
+      type: "job",
+      value: {
+        product_family_key: finishedGoodParentKey(row),
+        finished_good_id: row.id,
+        product_name: row.finished_good_name || row.product_name,
+        target_production_qty: targetProductionQty || "",
+        target_quantity: targetProductionQty || "",
+        uom: productionUom || "",
+        planned_date: todayInput(),
+        priority: "Normal",
+        status: "draft",
+      },
+    });
+  }
+
+  function renderProductionPlanning() {
+    const planningRows = productionPlanningRows();
+    const rows = filteredProductionPlanningRows();
+    const activeSkus = planningRows.length;
+    const lowStockRows = planningRows.filter((row) => row.planning_status === "Low Stock");
+    const outOfStockRows = planningRows.filter((row) => row.planning_status === "Out of Stock");
+    const suggestedGroups = planningRows.filter((row) => Number(row.suggested_production_qty || 0) > 0).reduce((groups, row) => {
+      const unit = pluralizePackagingType(packagingTypeLabel(row), 2);
+      groups.set(unit, (groups.get(unit) || 0) + Number(row.suggested_production_qty || 0));
+      return groups;
+    }, new Map());
+    const suggestedValue = suggestedGroups.size > 1
+      ? "Mixed"
+      : suggestedGroups.size === 1
+        ? quantity([...suggestedGroups.values()][0], [...suggestedGroups.keys()][0])
+        : "0";
+
+    return (
+      <div className="space-y-5">
+        <PageHeader
+          section="Warehouse"
+          title="Production Planning"
+          description="Monitor finished goods stock against par levels and create job orders quickly."
+        />
+        <div className="grid gap-3 md:grid-cols-4">
+          <MetricCard icon={PackageCheck} label="Planning SKUs" value={activeSkus} helper="Active packaging SKUs" />
+          <MetricCard icon={AlertTriangle} label="Low Stock" value={lowStockRows.length} helper="Below par level" tone={lowStockRows.length ? "warning" : "success"} />
+          <MetricCard icon={Clock3} label="Out of Stock" value={outOfStockRows.length} helper="Current balance zero" tone={outOfStockRows.length ? "danger" : "success"} />
+          <MetricCard icon={Factory} label="Suggested Production" value={suggestedValue} helper="Needed to reach par" tone={suggestedGroups.size ? "info" : "success"} />
+        </div>
+        {productionPlanningFilterControls()}
+        <Card title="Daily Production Planning Board" description="Par Level uses Packaging SKU stock counts. Open Job Orders are subtracted from suggested production.">
+          {!rows.length ? (
+            <EmptyState title="No Planning SKUs" description="Active Packaging SKUs with Finished Good setup will appear here." />
+          ) : (
+            <div className="space-y-4 p-4">
+              <div className="hidden rounded-xl border border-border bg-slate-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted xl:grid xl:grid-cols-[1.25fr_1.1fr_1fr_1fr_1fr_0.8fr_0.8fr_160px]">
+                <div>Finished Good</div>
+                <div>Packaging SKU</div>
+                <div>Current Balance</div>
+                <div>Par Level</div>
+                <div>Coverage</div>
+                <div>Open JO</div>
+                <div>Status</div>
+                <div className="text-right">Actions</div>
+              </div>
+              <div className="hidden xl:block">
+                {rows.map((row) => {
+                  const coverage = row.coverage_percent == null ? null : Math.max(0, Math.min(100, row.coverage_percent));
+                  const parLevel = Number(row.min_stock_level || 0);
+                  const parLevelLabel = parLevel > 0 ? productionPlanningUnitLabel(row, parLevel) : "Set Par Level";
+                  return (
+                    <div key={row.id} className="grid grid-cols-[1.25fr_1.1fr_1fr_1fr_1fr_0.8fr_0.8fr_160px] items-center gap-3 border-b border-border px-4 py-4 text-sm last:border-0">
+                      <div>
+                        <div className="font-bold text-text-primary">{row.finished_good_name || row.product_name}</div>
+                        {row.finished_good_name_cn ? <div className="text-xs font-semibold text-text-secondary">{row.finished_good_name_cn}</div> : null}
+                        <div className="text-xs text-text-muted">{row.category || "No category"}</div>
+                      </div>
+                      <div>
+                        <div className="font-bold text-text-primary">{row.product_code || "No SKU"}</div>
+                        <div className="text-xs font-semibold text-text-secondary">{packagingSkuDisplayName(row)}</div>
+                      </div>
+                      <div>
+                        <div className="font-bold text-text-primary">{skuBalanceLabel(row)}</div>
+                        {skuBaseEquivalentLabel(row) ? <div className="text-xs font-semibold text-text-secondary">{skuBaseEquivalentLabel(row)}</div> : null}
+                      </div>
+                      <div>
+                        {can("factory_finished_goods.edit") ? (
+                          <button className="text-left font-bold text-text-primary underline decoration-dotted underline-offset-4 hover:text-primary" type="button" onClick={() => setModal({ type: "production-planning-par", sku: row })}>{parLevelLabel}</button>
+                        ) : (
+                          <span className="font-bold text-text-primary">{parLevel > 0 ? parLevelLabel : "—"}</span>
+                        )}
+                      </div>
+                      <div>
+                        {coverage == null ? (
+                          <span className="font-bold text-text-secondary">—</span>
+                        ) : (
+                          <div className="space-y-1">
+                            <div className="font-bold text-text-primary">{percent(row.coverage_percent)}</div>
+                            <div className="h-2 rounded-full bg-slate-100">
+                              <div className={`h-2 rounded-full ${row.planning_status === "Healthy" ? "bg-emerald-500" : row.planning_status === "Low Stock" ? "bg-amber-500" : "bg-rose-500"}`} style={{ width: `${coverage}%` }} />
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                      <div className="font-semibold text-text-primary">{row.open_job_qty > 0 ? productionPlanningUnitLabel(row, row.open_job_qty) : "—"}</div>
+                      <div><Badge tone={productionPlanningStatusTone(row.planning_status)}>{row.planning_status}</Badge></div>
+                      <div className="flex flex-wrap justify-end gap-2">
+                        {can("factory_job_orders.create") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => openProductionPlanningJobOrder(row)}>Create Job Order</button> : null}
+                        {can("factory_finished_goods.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production-planning-par", sku: row })}>Edit Par</button> : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+              <div className="space-y-3 xl:hidden">
+                {rows.map((row) => {
+                  const coverage = row.coverage_percent == null ? null : Math.max(0, Math.min(100, row.coverage_percent));
+                  const parLevel = Number(row.min_stock_level || 0);
+                  const parLevelLabel = parLevel > 0 ? productionPlanningUnitLabel(row, parLevel) : "Set Par Level";
+                  return (
+                    <div key={row.id} className="rounded-2xl border border-border bg-white p-4 shadow-sm">
+                      <div className="flex flex-wrap items-start justify-between gap-3">
+                        <div>
+                          <div className="text-base font-bold text-text-primary">{row.finished_good_name || row.product_name}</div>
+                          {row.finished_good_name_cn ? <div className="text-sm font-semibold text-text-secondary">{row.finished_good_name_cn}</div> : null}
+                          <div className="mt-1 text-sm font-bold text-text-primary">{row.product_code || "No SKU"}</div>
+                          <div className="text-xs font-semibold text-text-secondary">{packagingSkuDisplayName(row)}</div>
+                        </div>
+                        <Badge tone={productionPlanningStatusTone(row.planning_status)}>{row.planning_status}</Badge>
+                      </div>
+                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">Current Balance</div>
+                          <div className="font-bold text-text-primary">{skuBalanceLabel(row)}</div>
+                          {skuBaseEquivalentLabel(row) ? <div className="text-xs font-semibold text-text-secondary">{skuBaseEquivalentLabel(row)}</div> : null}
+                        </div>
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">Par Level</div>
+                          {can("factory_finished_goods.edit") ? (
+                            <button className="font-bold text-text-primary underline decoration-dotted underline-offset-4 hover:text-primary" type="button" onClick={() => setModal({ type: "production-planning-par", sku: row })}>{parLevelLabel}</button>
+                          ) : (
+                            <div className="font-bold text-text-primary">{parLevel > 0 ? parLevelLabel : "—"}</div>
+                          )}
+                        </div>
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">Open JO</div>
+                          <div className="font-bold text-text-primary">{row.open_job_qty > 0 ? productionPlanningUnitLabel(row, row.open_job_qty) : "—"}</div>
+                        </div>
+                        <div>
+                          <div className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">Suggested</div>
+                          <div className="font-bold text-text-primary">{row.suggested_production_qty > 0 ? productionPlanningUnitLabel(row, row.suggested_production_qty) : "—"}</div>
+                        </div>
+                      </div>
+                      <div className="mt-4">
+                        <div className="flex items-center justify-between text-xs font-bold text-text-secondary">
+                          <span>Coverage</span>
+                          <span>{coverage == null ? "—" : percent(row.coverage_percent)}</span>
+                        </div>
+                        <div className="mt-1 h-2 rounded-full bg-slate-100">
+                          {coverage == null ? null : <div className={`h-2 rounded-full ${row.planning_status === "Healthy" ? "bg-emerald-500" : row.planning_status === "Low Stock" ? "bg-amber-500" : "bg-rose-500"}`} style={{ width: `${coverage}%` }} />}
+                        </div>
+                      </div>
+                      <div className="mt-4 flex flex-wrap gap-2">
+                        {can("factory_job_orders.create") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => openProductionPlanningJobOrder(row)}>Create Job Order</button> : null}
+                        {can("factory_finished_goods.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production-planning-par", sku: row })}>Edit Par</button> : null}
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </Card>
       </div>
     );
   }
@@ -8363,7 +8710,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   return (
     <>
       <AccessIssueNotice issues={data.accessIssues} />
-      {initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-inventory" ? renderRawInventory() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-movements" ? renderRawMaterialMovements() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? renderBatchTraceability() : initialTab === "finished-goods" ? renderFinishedGoods() : initialTab === "finished-goods-dispatch" ? renderFinishedGoodsDispatch() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? renderProductRecipes() : initialTab === "production-sop" ? renderProductionSop() : initialTab === "audit-logs" ? renderFactoryAuditLogs() : initialTab === "storage-locations" ? renderStorageLocations() : initialTab === "suppliers" ? renderSuppliers() : initialTab === "customers" ? renderCustomers() : renderDashboard()}
+      {initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-inventory" ? renderRawInventory() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-movements" ? renderRawMaterialMovements() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? renderBatchTraceability() : initialTab === "finished-goods" ? renderFinishedGoods() : initialTab === "production-planning" ? renderProductionPlanning() : initialTab === "finished-goods-dispatch" ? renderFinishedGoodsDispatch() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? renderProductRecipes() : initialTab === "production-sop" ? renderProductionSop() : initialTab === "audit-logs" ? renderFactoryAuditLogs() : initialTab === "storage-locations" ? renderStorageLocations() : initialTab === "suppliers" ? renderSuppliers() : initialTab === "customers" ? renderCustomers() : renderDashboard()}
       {modal?.type === "job" ? (
         <JobOrderModal
           initialValue={modal.value}
@@ -8390,6 +8737,13 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           onClose={() => setModal(null)}
           onSave={saveFinishedGoodDispatch}
           mode={modal.mode}
+        />
+      ) : null}
+      {modal?.type === "production-planning-par" ? (
+        <ProductionPlanningParModal
+          sku={modal.sku}
+          onClose={() => setModal(null)}
+          onSave={savePlanningParLevel}
         />
       ) : null}
       {modal?.type === "receiving-batch-detail" ? (

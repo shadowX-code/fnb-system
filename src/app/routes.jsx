@@ -273,6 +273,12 @@ const routeDetails = {
     permission: "factory_finished_goods.view",
     props: { initialTab: "finished-goods" },
   },
+  factory_production_planning: {
+    description: "Monitor finished goods stock against par levels and create production job orders.",
+    component: FactoryWorkspacePage,
+    permission: "factory_production_planning.view",
+    props: { initialTab: "production-planning" },
+  },
   factory_finished_goods_dispatch: {
     description: "Record outbound finished goods dispatches and finished goods stock-out movement.",
     component: FactoryWorkspacePage,
