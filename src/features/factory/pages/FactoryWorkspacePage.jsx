@@ -76,6 +76,78 @@ function formatFactoryDate(value) {
   return String(value).slice(0, 10) || "—";
 }
 
+function formatFactoryDateTime(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return String(value).slice(0, 16).replace("T", " ");
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function humanizeFactoryToken(value) {
+  return String(value || "")
+    .replace(/^factory_/, "")
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (letter) => letter.toUpperCase())
+    .trim();
+}
+
+function factoryAuditActionLabel(action) {
+  const value = String(action || "").toLowerCase();
+  const actionMap = [
+    ["cancelled", "Cancelled"],
+    ["completed", "Completed"],
+    ["approved", "Approved"],
+    ["submitted", "Submitted"],
+    ["activated", "Activated"],
+    ["archived", "Archived"],
+    ["restored", "Restored"],
+    ["deleted", "Deleted"],
+    ["created", "Created"],
+    ["updated", "Updated"],
+    ["received", "Received"],
+    ["released", "Released"],
+    ["started", "Started"],
+    ["saved", "Saved"],
+  ];
+  return actionMap.find(([token]) => value.includes(token))?.[1] || humanizeFactoryToken(value || "event");
+}
+
+function factoryAuditModuleLabel(row) {
+  const action = String(row?.action || "").toLowerCase();
+  const module = String(row?.module || "").toLowerCase();
+  const source = `${module} ${action}`;
+  const moduleMap = [
+    ["raw_material_receiving", "Raw Material Receiving"],
+    ["raw_material", "Raw Material"],
+    ["raw_stock_check", "Raw Material Stock Check"],
+    ["finished_good_dispatch", "Finished Goods Dispatch"],
+    ["finished_goods_dispatch", "Finished Goods Dispatch"],
+    ["finished_good", "Finished Goods"],
+    ["product_movements", "Product Movements"],
+    ["product_recipe", "Product Recipes / BOM"],
+    ["production_sop", "Production SOP"],
+    ["job_order", "Job Orders"],
+    ["production", "Production"],
+    ["supplier", "Suppliers"],
+    ["customer", "Customers"],
+    ["storage_location", "Storage Locations"],
+  ];
+  return moduleMap.find(([token]) => source.includes(token))?.[1] || "Factory";
+}
+
+function factoryAuditStatusTone(status) {
+  const value = String(status || "success").toLowerCase();
+  if (["failed", "failure", "error"].includes(value)) return "danger";
+  if (["warning", "partial"].includes(value)) return "warning";
+  return "success";
+}
+
+function compactJsonValue(value) {
+  if (value === null || value === undefined || value === "") return "";
+  if (typeof value === "object") return JSON.stringify(value, null, 2);
+  return String(value);
+}
+
 function monthStart(value) {
   const date = value ? new Date(`${value}T00:00:00`) : new Date();
   return new Date(date.getFullYear(), date.getMonth(), 1);
@@ -4574,6 +4646,65 @@ function ProductionSopDetailModal({ sop, onClose }) {
   );
 }
 
+function FactoryAuditLogDetailModal({ event, onClose }) {
+  const metadataEntries = Object.entries(event.metadata || {})
+    .filter(([key, value]) => !["target", "outlet", "outlet_id", "status"].includes(key) && compactJsonValue(value))
+    .slice(0, 12);
+  return (
+    <Modal
+      title="Audit Event"
+      description={`${factoryAuditActionLabel(event.action)} ${factoryAuditModuleLabel(event)}`}
+      size="xl"
+      onClose={onClose}
+      footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}
+    >
+      <div className="space-y-5">
+        <div className="rounded-2xl border border-border bg-white p-5">
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div>
+              <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-text-muted">Factory Audit Logs</div>
+              <div className="mt-1 text-2xl font-black text-text-primary">{factoryAuditActionLabel(event.action)} {factoryAuditModuleLabel(event)}</div>
+              <div className="mt-1 text-sm font-semibold text-text-secondary">{event.target || "No reference"}</div>
+            </div>
+            <Badge tone={factoryAuditStatusTone(event.status)}>{jobStatusLabel(event.status || "success")}</Badge>
+          </div>
+          <div className="mt-5 grid gap-4 md:grid-cols-3">
+            {[
+              ["Date / Time", formatFactoryDateTime(event.created_at)],
+              ["Module", factoryAuditModuleLabel(event)],
+              ["Action", factoryAuditActionLabel(event.action)],
+              ["Reference", event.target || "—"],
+              ["User", event.actor_name || "System"],
+              ["Status", jobStatusLabel(event.status || "success")],
+            ].map(([label, value]) => (
+              <div key={label}>
+                <div className="text-[10.5px] font-semibold text-text-muted">{label}</div>
+                <div className="mt-1 text-sm font-bold text-text-primary">{value}</div>
+              </div>
+            ))}
+          </div>
+          {event.description ? <div className="mt-4 rounded-xl bg-slate-50 px-3 py-2 text-sm font-semibold text-text-secondary">{event.description}</div> : null}
+        </div>
+        <div className="rounded-2xl border border-border bg-white p-5">
+          <div className="text-sm font-black uppercase tracking-[0.08em] text-text-primary">Metadata</div>
+          {metadataEntries.length ? (
+            <div className="mt-4 divide-y divide-border">
+              {metadataEntries.map(([key, value]) => (
+                <div key={key} className="grid gap-2 py-3 md:grid-cols-[180px_1fr]">
+                  <div className="text-xs font-bold uppercase tracking-[0.08em] text-text-muted">{humanizeFactoryToken(key)}</div>
+                  <pre className="whitespace-pre-wrap break-words rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-text-secondary">{compactJsonValue(value)}</pre>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="mt-4 rounded-xl border border-dashed border-border bg-slate-50 p-4 text-sm font-semibold text-text-secondary">No additional metadata captured.</div>
+          )}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function buildStockCheckRows(stockType, stockItems, initialValue, categoryId = "") {
   if (initialValue?.items?.length) {
     return initialValue.items.map((item) => ({
@@ -4877,7 +5008,7 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
 }
 
 export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, auth }) {
-  const [data, setData] = useState({ jobOrders: [], rawMaterials: [], rawMaterialCategories: [], rawMaterialMovements: [], receivings: [], receivingBatches: [], factorySuppliers: [], factoryCustomers: [], productions: [], finishedGoods: [], finishedGoodCategories: [], productFamilies: [], productMovements: [], finishedGoodDispatches: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [], accessIssues: [] });
+  const [data, setData] = useState({ jobOrders: [], rawMaterials: [], rawMaterialCategories: [], rawMaterialMovements: [], receivings: [], receivingBatches: [], factorySuppliers: [], factoryCustomers: [], productions: [], finishedGoods: [], finishedGoodCategories: [], productFamilies: [], productMovements: [], finishedGoodDispatches: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [], auditLogs: [], accessIssues: [] });
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [receivingTab, setReceivingTab] = useState("history");
@@ -4889,6 +5020,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const [warehouseFilters, setWarehouseFilters] = useState({ product: "", family: "", category: "", status: "", batch: "", movementType: "", dateFrom: "", dateTo: "" });
   const [rawMaterialFilters, setRawMaterialFilters] = useState({ material: "", status: "", category: "" });
   const [rawMovementFilters, setRawMovementFilters] = useState({ material: "", movementType: "", storageLocation: "", dateFrom: "", dateTo: "", search: "" });
+  const [auditLogFilters, setAuditLogFilters] = useState({ dateFrom: "", dateTo: "", module: "", action: "", user: "", search: "" });
   const can = (code) => Boolean(auth?.hasPermission?.(code));
 
   async function loadData() {
@@ -6429,6 +6561,85 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             emptyText="No matching categories"
             onChange={(category) => setRawMaterialFilters((current) => ({ ...current, category }))}
           />
+        </Field>
+      </div>
+    );
+  }
+
+  function filteredFactoryAuditLogs() {
+    return data.auditLogs.filter((event) => {
+      const eventDate = String(event.created_at || "").slice(0, 10);
+      const moduleLabel = factoryAuditModuleLabel(event);
+      const actionLabel = factoryAuditActionLabel(event.action);
+      const searchText = `${event.action} ${event.description} ${event.target} ${event.actor_name} ${moduleLabel} ${actionLabel} ${JSON.stringify(event.metadata || {})}`;
+      return (!auditLogFilters.dateFrom || eventDate >= auditLogFilters.dateFrom)
+        && (!auditLogFilters.dateTo || eventDate <= auditLogFilters.dateTo)
+        && (!auditLogFilters.module || moduleLabel === auditLogFilters.module)
+        && (!auditLogFilters.action || actionLabel === auditLogFilters.action)
+        && (!auditLogFilters.user || event.actor_name === auditLogFilters.user)
+        && (!auditLogFilters.search || includesText(searchText, auditLogFilters.search));
+    });
+  }
+
+  function factoryAuditFilterControls() {
+    const rows = data.auditLogs;
+    const moduleOptions = [...new Set(rows.map((event) => factoryAuditModuleLabel(event)).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b))
+      .map((label) => ({ value: label, label }));
+    const actionOptions = [...new Set(rows.map((event) => factoryAuditActionLabel(event.action)).filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b))
+      .map((label) => ({ value: label, label }));
+    const userOptions = [...new Set(rows.map((event) => event.actor_name || "System").filter(Boolean))]
+      .sort((a, b) => a.localeCompare(b))
+      .map((label) => ({ value: label, label }));
+    return (
+      <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 lg:grid-cols-6">
+        <Field label="Date From">
+          <FeedXDatePicker
+            value={auditLogFilters.dateFrom}
+            placeholder="Start date"
+            onChange={(dateFrom) => setAuditLogFilters((current) => ({ ...current, dateFrom }))}
+          />
+        </Field>
+        <Field label="Date To">
+          <FeedXDatePicker
+            value={auditLogFilters.dateTo}
+            placeholder="End date"
+            onChange={(dateTo) => setAuditLogFilters((current) => ({ ...current, dateTo }))}
+          />
+        </Field>
+        <Field label="Module">
+          <SearchableSelect
+            value={auditLogFilters.module}
+            options={[{ value: "", label: "All Modules" }, ...moduleOptions]}
+            placeholder="All Modules"
+            searchPlaceholder="Search modules"
+            emptyText="No matching modules"
+            onChange={(module) => setAuditLogFilters((current) => ({ ...current, module }))}
+          />
+        </Field>
+        <Field label="Action">
+          <SearchableSelect
+            value={auditLogFilters.action}
+            options={[{ value: "", label: "All Actions" }, ...actionOptions]}
+            placeholder="All Actions"
+            searchPlaceholder="Search actions"
+            emptyText="No matching actions"
+            onChange={(action) => setAuditLogFilters((current) => ({ ...current, action }))}
+          />
+        </Field>
+        <Field label="User">
+          <SearchableSelect
+            value={auditLogFilters.user}
+            options={[{ value: "", label: "All Users" }, ...userOptions]}
+            placeholder="All Users"
+            searchPlaceholder="Search users"
+            emptyText="No matching users"
+            onChange={(user) => setAuditLogFilters((current) => ({ ...current, user }))}
+          />
+        </Field>
+        <Field label="Search">
+          <input className={inputClass()} value={auditLogFilters.search} onChange={(event) => setAuditLogFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Reference, action, metadata" />
         </Field>
       </div>
     );
@@ -8078,6 +8289,73 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     );
   }
 
+  function renderFactoryAuditLogs() {
+    const rows = filteredFactoryAuditLogs();
+    const today = todayInput();
+    const users = new Set(data.auditLogs.map((event) => event.actor_name || "System").filter(Boolean));
+    const failedRows = data.auditLogs.filter((event) => factoryAuditStatusTone(event.status) === "danger");
+    const auditColumns = [
+      { key: "created_at", label: "Date / Time", render: (row) => <span className="whitespace-nowrap font-semibold text-text-primary">{formatFactoryDateTime(row.created_at)}</span> },
+      { key: "module", label: "Module", render: (row) => <div className="font-semibold text-text-primary">{factoryAuditModuleLabel(row)}</div> },
+      { key: "action", label: "Action", render: (row) => <Badge tone="info">{factoryAuditActionLabel(row.action)}</Badge> },
+      { key: "reference", label: "Reference", render: (row) => <div className="font-semibold text-text-primary">{row.target || "—"}</div> },
+      { key: "user", label: "User", render: (row) => <div className="font-semibold text-text-secondary">{row.actor_name || "System"}</div> },
+      { key: "status", label: "Status", render: (row) => <Badge tone={factoryAuditStatusTone(row.status)}>{jobStatusLabel(row.status || "success")}</Badge> },
+      { key: "details", label: "Details", align: "right", render: (row) => <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "factory-audit-log", value: row })}>View</button> },
+    ];
+    return (
+      <div className="space-y-5">
+        <PageHeader
+          section="System"
+          title="Factory Audit Logs"
+          description="Track important Factory actions, document changes and system events."
+        />
+        <div className="grid gap-3 md:grid-cols-4">
+          <MetricCard icon={ClipboardList} label="Audit Events" value={data.auditLogs.length} helper="Factory event records" />
+          <MetricCard icon={Clock3} label="Today" value={data.auditLogs.filter((event) => String(event.created_at || "").slice(0, 10) === today).length} helper={today} />
+          <MetricCard icon={Factory} label="Users" value={users.size} helper="Actors in current log" />
+          <MetricCard icon={AlertTriangle} label="Failed Events" value={failedRows.length} helper="Events marked failed" tone={failedRows.length ? "danger" : "success"} />
+        </div>
+        {factoryAuditFilterControls()}
+        <Card title="Audit Ledger">
+          <div className="md:hidden">
+            {!rows.length ? (
+              <div className="p-4"><EmptyState title="No Audit Logs Yet" description="Factory actions will appear here once audit logging is enabled." /></div>
+            ) : (
+              <div className="divide-y divide-border">
+                {rows.map((row) => (
+                  <div key={row.id} className="space-y-3 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-xs font-semibold text-text-muted">{formatFactoryDateTime(row.created_at)}</div>
+                        <div className="mt-1 font-bold text-text-primary">{factoryAuditModuleLabel(row)}</div>
+                        <div className="text-sm font-semibold text-text-secondary">{row.target || "No reference"}</div>
+                      </div>
+                      <Badge tone={factoryAuditStatusTone(row.status)}>{jobStatusLabel(row.status || "success")}</Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div><div className="text-[10.5px] font-semibold text-text-muted">Action</div><div className="font-bold text-text-primary">{factoryAuditActionLabel(row.action)}</div></div>
+                      <div><div className="text-[10.5px] font-semibold text-text-muted">User</div><div className="font-semibold text-text-primary">{row.actor_name || "System"}</div></div>
+                    </div>
+                    <button className="btn-secondary w-full px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "factory-audit-log", value: row })}>View Details</button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+          <div className="hidden md:block">
+            <FactoryTable
+              columns={auditColumns}
+              rows={rows}
+              emptyTitle="No Audit Logs Yet"
+              emptyDescription="Factory actions will appear here once audit logging is enabled."
+            />
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
   if (loading) {
     return <div className="card p-6 text-sm font-semibold text-text-secondary">Loading Factory workspace...</div>;
   }
@@ -8085,7 +8363,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   return (
     <>
       <AccessIssueNotice issues={data.accessIssues} />
-      {initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-inventory" ? renderRawInventory() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-movements" ? renderRawMaterialMovements() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? renderBatchTraceability() : initialTab === "finished-goods" ? renderFinishedGoods() : initialTab === "finished-goods-dispatch" ? renderFinishedGoodsDispatch() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? renderProductRecipes() : initialTab === "production-sop" ? renderProductionSop() : initialTab === "storage-locations" ? renderStorageLocations() : initialTab === "suppliers" ? renderSuppliers() : initialTab === "customers" ? renderCustomers() : renderDashboard()}
+      {initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-inventory" ? renderRawInventory() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-movements" ? renderRawMaterialMovements() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? renderBatchTraceability() : initialTab === "finished-goods" ? renderFinishedGoods() : initialTab === "finished-goods-dispatch" ? renderFinishedGoodsDispatch() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? renderProductRecipes() : initialTab === "production-sop" ? renderProductionSop() : initialTab === "audit-logs" ? renderFactoryAuditLogs() : initialTab === "storage-locations" ? renderStorageLocations() : initialTab === "suppliers" ? renderSuppliers() : initialTab === "customers" ? renderCustomers() : renderDashboard()}
       {modal?.type === "job" ? (
         <JobOrderModal
           initialValue={modal.value}
@@ -8213,6 +8491,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       {modal?.type === "sop-detail" ? (
         <ProductionSopDetailModal
           sop={modal.value}
+          onClose={() => setModal(null)}
+        />
+      ) : null}
+      {modal?.type === "factory-audit-log" ? (
+        <FactoryAuditLogDetailModal
+          event={modal.value}
           onClose={() => setModal(null)}
         />
       ) : null}

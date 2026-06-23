@@ -303,6 +303,12 @@ const routeDetails = {
     permission: "factory_production_sop.view",
     props: { initialTab: "production-sop" },
   },
+  factory_audit_logs: {
+    description: "Review read-only Factory module audit events and document changes.",
+    component: FactoryWorkspacePage,
+    permission: "factory_audit_logs.view",
+    props: { initialTab: "audit-logs" },
+  },
   factory_storage_locations: {
     description: "Manage Factory storage locations used by raw material and finished goods master records.",
     component: FactoryWorkspacePage,

@@ -624,6 +624,25 @@ function mapProductionSop(row) {
   };
 }
 
+function mapFactoryAuditLog(row) {
+  const metadata = row.metadata || {};
+  return {
+    id: row.id,
+    action: row.action || "",
+    module: metadata.module || row.module || "factory",
+    description: row.description || metadata.message || "",
+    target: metadata.target || row.description || "—",
+    entity_reference: metadata.target || "",
+    actor_id: row.user_id || "",
+    actor_name: row.user_name || "System",
+    status: metadata.status || row.status || "success",
+    metadata,
+    before: metadata.before ?? null,
+    after: metadata.after ?? null,
+    created_at: row.created_at,
+  };
+}
+
 function makeFactoryRef(prefix) {
   const date = new Date();
   const stamp = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, "0")}${String(date.getDate()).padStart(2, "0")}`;
@@ -721,6 +740,7 @@ function emptyFactoryData() {
     productStockChecks: [],
     recipes: [],
     sops: [],
+    auditLogs: [],
     accessIssues: [],
   };
 }
@@ -760,6 +780,7 @@ function factoryDataPlan(scope, hasPermission) {
   const isProductMovements = scope === "product-movements";
   const isProductStockCheck = scope === "product-stock-check";
   const isProductionSop = scope === "production-sop";
+  const isAuditLogs = scope === "audit-logs";
   const needsProductionSummary = isDashboard || isProduction || isReports || isBatchTraceability || isFinishedGoods || isFinishedGoodsDispatch || isProductMovements;
   const canTraceBatches = can("factory_batch_traceability.view");
   const canReadProductionReports = can("factory_production_reports.view") || canTraceBatches;
@@ -786,6 +807,7 @@ function factoryDataPlan(scope, hasPermission) {
     recipes: (isDashboard && can("factory_dashboard.view")) || (isRawInventory && can("factory_raw_inventory.view")) || (isProductRecipes && can("factory_product_recipes.view")) || (isJobOrders && can("factory_product_recipes.view")) || (isProduction && (can("factory_product_recipes.view") || can("factory_production.complete"))) || (isReports && can("factory_production_reports.view")),
     recipeSummaries: isFinishedGoods && can("factory_product_recipes.view"),
     sops: (isProduction || isProductionSop || isBatchTraceability) && can("factory_production_sop.view"),
+    auditLogs: isAuditLogs && can("factory_audit_logs.view"),
   };
 }
 
@@ -921,6 +943,12 @@ export const factoryService = {
       .select("id,sop_code,title,product_name,finished_good_id,version,effective_date,equipment,estimated_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_product_families(id,name_en,name_cn,name_bm,status),steps:factory_production_sop_steps(id,sop_id,step_no,instruction,process_name,description,control_point,qc_label,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,safety_note,remarks,created_at,updated_at)")
       .order("product_name", { ascending: true })
       .limit(150), (rows) => rows.map(mapProductionSop));
+    addTask(plan.auditLogs, "auditLogs", "Factory Audit Logs", () => supabase
+      .from("audit_logs")
+      .select("id,action,module,user_id,user_name,description,metadata,created_at")
+      .eq("module", "factory")
+      .order("created_at", { ascending: false })
+      .limit(300), (rows) => rows.map(mapFactoryAuditLog));
 
     const results = await Promise.allSettled(tasks.map((task) => task.query()));
     results.forEach((result, index) => {
