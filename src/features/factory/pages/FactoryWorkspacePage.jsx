@@ -27,11 +27,34 @@ function todayInput() {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 }
 
-function previewProductionBatchNo(value) {
+function yymmddFromDate(value) {
   const source = value || todayInput();
   const [year, month, day] = String(source).slice(0, 10).split("-");
-  if (!year || !month || !day) return "PBYYMMDD-01";
-  return `PB${String(year).slice(-2)}${month}${day}-01`;
+  if (!year || !month || !day) return "";
+  return `${String(year).slice(-2)}${month}${day}`;
+}
+
+function escapeRegExp(value) {
+  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+function previewDailyDocumentNo({ prefix, date, records = [], codeKey, dateKey, pad = 2, prefixSeparator = "", legacyPrefixSeparators = [] }) {
+  const yymmdd = yymmddFromDate(date);
+  if (!yymmdd) return `${prefix}${prefixSeparator}YYMMDD-${"_".repeat(pad)}`;
+  const escapedPrefix = escapeRegExp(prefix);
+  const separators = [prefixSeparator, ...legacyPrefixSeparators];
+  const patterns = separators.map((separator) => {
+    const escapedSeparator = escapeRegExp(separator);
+    return new RegExp(`^${escapedPrefix}${escapedSeparator}${yymmdd}-(\\d+)$`);
+  });
+  const maxSequence = records.reduce((max, row) => {
+    const rowDate = String(row?.[dateKey] || row?.created_at || "").slice(0, 10);
+    if (dateKey && rowDate && yymmddFromDate(rowDate) !== yymmdd) return max;
+    const value = String(row?.[codeKey] || "");
+    const match = patterns.map((pattern) => value.match(pattern)).find(Boolean);
+    return match ? Math.max(max, Number(match[1] || 0)) : max;
+  }, 0);
+  return `${prefix}${prefixSeparator}${yymmdd}-${String(maxSequence + 1).padStart(pad, "0")}`;
 }
 
 function money(value) {
@@ -2225,7 +2248,7 @@ function CompletedJobOrderResultModal({ job, production, recipes = [], onClose }
   );
 }
 
-function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers = [], onClose, onSave, embedded = false, mode = "edit" }) {
+function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers = [], dispatches = [], onClose, onSave, embedded = false, mode = "edit" }) {
   const makeItem = () => ({ row_id: Math.random().toString(36).slice(2), finished_good_id: "", quantity: "", batch_no: "", remarks: "" });
   const [form, setForm] = useState(() => ({
     dispatch_date: todayInput(),
@@ -2241,6 +2264,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
   const [error, setError] = useState("");
   const isViewMode = mode === "view" || (Boolean(initialValue?.id) && initialValue.status !== "draft");
   const isReadOnly = isViewMode;
+  const dispatchNoPreview = form.dispatch_no || previewDailyDocumentNo({ prefix: "D", date: form.dispatch_date, records: dispatches, codeKey: "dispatch_no", dateKey: "dispatch_date" });
   const activeSkus = finishedGoods.filter((sku) => sku.status === "active" || form.items.some((item) => item.finished_good_id === sku.id));
   const activeCustomers = customers.filter((customer) => customer.status === "active" || customer.id === form.customer_id);
   const customerOptions = activeCustomers.map((customer) => ({
@@ -2469,7 +2493,8 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
         </Field>
         <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
           <div className="text-[10.5px] font-semibold text-text-muted">Dispatch No.</div>
-          <div className={`mt-1 text-sm font-bold ${form.dispatch_no ? "text-text-primary" : "text-text-muted"}`}>{form.dispatch_no || "Auto Generated"}</div>
+          <div className={`mt-1 text-sm font-bold ${form.dispatch_no ? "text-text-primary" : "text-text-secondary"}`}>{dispatchNoPreview}</div>
+          {!form.dispatch_no ? <div className="mt-0.5 text-[10.5px] font-semibold text-text-muted">Preview only</div> : null}
         </div>
         {showReferenceField ? <Field label="Reference / DO No.">
           <input className={inputClass()} value={form.reference_no || ""} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, reference_no: event.target.value }))} />
@@ -2605,7 +2630,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
   );
 }
 
-function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes = [], onClose, onSave }) {
+function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes = [], jobOrders = [], onClose, onSave }) {
   const initialSku = finishedGoods.find((product) => product.id === initialValue?.finished_good_id);
   const initialParentKey = initialSku ? finishedGoodParentKey(initialSku) : "";
   const [form, setForm] = useState(() => ({
@@ -2672,6 +2697,8 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
   const activeRecipeVersion = matchingRecipe?.version || "v1";
   const activeRecipeName = matchingRecipe?.recipe_name || matchingRecipe?.recipe_code || "";
   const activeRecipeLabel = activeRecipeName && activeRecipeName !== activeRecipeVersion ? `${activeRecipeName} ${activeRecipeVersion}` : activeRecipeVersion;
+  // TODO: align backend generators with these preview formats; saved values remain backend-authoritative.
+  const jobOrderNoPreview = form.job_order_no || previewDailyDocumentNo({ prefix: "JO", date: todayInput(), records: jobOrders, codeKey: "job_order_no", dateKey: "created_at", pad: 2 });
   const bomRows = matchingRecipe?.items?.length ? matchingRecipe.items.map((item) => {
     const material = rawMaterials.find((row) => row.id === item.raw_material_id);
     const recipeYield = Number(matchingRecipe.yield_quantity || 1) || 1;
@@ -2750,6 +2777,14 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
       <form id="factory-job-order-form" className="space-y-4" onSubmit={submit}>
         {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
         {isReadOnly ? <div className="rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-semibold text-text-secondary">This Job Order is {jobStatusLabel(normalizedStatus)} and is read-only. Use the production lifecycle actions for the next step.</div> : null}
+        <div className="grid gap-3 md:grid-cols-3">
+          <Field label="Job Order No.">
+            <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
+              <div className={`font-mono text-sm font-black ${form.job_order_no ? "text-text-primary" : "text-text-secondary"}`}>{jobOrderNoPreview}</div>
+              {!form.job_order_no ? <div className="mt-0.5 text-[10.5px] font-semibold text-text-muted">Preview only</div> : null}
+            </div>
+          </Field>
+        </div>
         <div className="grid gap-3 md:grid-cols-2">
           <Field label="Finished Good *" error={!form.product_family_key && error.includes("Finished Good") ? "Finished Good is required." : ""}>
             <SearchableSelect
@@ -3146,7 +3181,7 @@ function FactoryCustomerModal({ initialValue, onClose, onSave }) {
   );
 }
 
-function RawReceivingEntryPanel({ rawMaterials, suppliers = [], storageLocations = [], onSave }) {
+function RawReceivingEntryPanel({ rawMaterials, suppliers = [], storageLocations = [], receivingBatches = [], onSave }) {
   const fieldRefs = useRef({});
   const qtyRefs = useRef({});
   const makeRow = () => ({ row_id: Math.random().toString(36).slice(2), raw_material_id: "", batch_no: "", received_qty: "", uom: "", storage_location_id: "", storage_location: "", expiry_date: "" });
@@ -3169,6 +3204,7 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], storageLocations
     { value: "", label: "Select Storage Location", helper: "Optional" },
     ...activeStorageLocations.map((location) => ({ value: location.id, label: location.location_name, helper: [location.location_code, location.location_type].filter(Boolean).join(" · ") || location.status })),
   ];
+  const receivingNoPreview = previewDailyDocumentNo({ prefix: "R", date: form.received_date, records: receivingBatches, codeKey: "batch_no", dateKey: "received_date" });
 
   function updateItem(rowId, patch) {
     setForm((current) => ({
@@ -3268,7 +3304,10 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], storageLocations
             />
           </Field>
           <Field label="Reference No.">
-            <div className="rounded-xl border border-border bg-slate-50 px-3 py-2 text-sm font-semibold text-text-secondary">Generated on save</div>
+            <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
+              <div className="text-sm font-bold text-text-secondary">{receivingNoPreview}</div>
+              <div className="mt-0.5 text-[10.5px] font-semibold text-text-muted">Preview only</div>
+            </div>
           </Field>
           <Field label="Received Date *" error={fieldErrors.received_date}>
             <FeedXDatePicker
@@ -4023,7 +4062,7 @@ function StartProductionModal({ job, auth, onClose, onSave }) {
   );
 }
 
-function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops, finishedGoods = [], auth, onClose, onSave }) {
+function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops, finishedGoods = [], productions = [], auth, onClose, onSave }) {
   const activeFinishedGoods = finishedGoods.filter((product) => product.status === "active");
   const matchingFinishedGood = activeFinishedGoods.find((product) => product.id === job.finished_good_id) || activeFinishedGoods.find((product) => product.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
   const matchingRecipe = activeRecipeForSku(recipes, matchingFinishedGood || job, job.product_name);
@@ -4057,6 +4096,7 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
   const [saving, setSaving] = useState(false);
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [error, setError] = useState("");
+  const batchNoPreview = previewDailyDocumentNo({ prefix: "PB", date: form.production_date, records: productions, codeKey: "batch_no", dateKey: "production_date" });
 
   function addUsageRow() {
     setForm((current) => ({
@@ -4187,7 +4227,7 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
           <div className="mt-3 grid gap-3 md:grid-cols-3">
             <Field label="Batch No.">
               <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
-                <div className="font-mono text-sm font-black text-text-primary">{previewProductionBatchNo(form.production_date)}</div>
+                <div className="font-mono text-sm font-black text-text-primary">{batchNoPreview}</div>
                 <div className="mt-0.5 text-[10.5px] font-semibold text-text-secondary">Preview only</div>
               </div>
             </Field>
@@ -4788,7 +4828,7 @@ function buildStockCheckRows(stockType, stockItems, initialValue, categoryId = "
   }));
 }
 
-function StockCheckModal({ stockType, title, initialValue, stockItems, rawMaterialCategories = [], onClose, onSave }) {
+function StockCheckModal({ stockType, title, initialValue, stockItems, rawMaterialCategories = [], existingChecks = [], onClose, onSave }) {
   const inferredCategoryId = initialValue?.category_id || (stockType === "raw" ? stockItems.find((item) => item.id === initialValue?.items?.[0]?.raw_material_id)?.category_id || "" : "");
   const [form, setForm] = useState(() => ({
     check_date: todayInput(),
@@ -4805,6 +4845,16 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
   const itemIdKey = stockType === "raw" ? "raw_material_id" : "finished_good_id";
   const itemLabel = stockType === "raw" ? "Raw Material" : "Finished Good";
   const isRaw = stockType === "raw";
+  const checkNoPreview = form.check_no || previewDailyDocumentNo({
+    prefix: isRaw ? "RMSC" : "FGSC",
+    prefixSeparator: "",
+    legacyPrefixSeparators: ["-"],
+    date: form.check_date,
+    records: existingChecks,
+    codeKey: "check_no",
+    dateKey: "check_date",
+    pad: 2,
+  });
 
   function updateRow(rowId, patch) {
     setForm((current) => ({
@@ -4932,7 +4982,10 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
             />
           </Field>
           <Field label="Reference">
-            <div className="rounded-xl border border-border bg-slate-50 px-3 py-2 text-sm font-bold text-text-primary">{form.check_no || "Generated on save"}</div>
+            <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
+              <div className={`text-sm font-bold ${form.check_no ? "text-text-primary" : "text-text-secondary"}`}>{checkNoPreview}</div>
+              {!form.check_no ? <div className="mt-0.5 text-[10.5px] font-semibold text-text-muted">Preview only</div> : null}
+            </div>
           </Field>
         </div>
         <Card title={`${itemLabel} Count`} description={isLocked ? "Submitted and approved checks are locked snapshots." : "Draft system quantity refreshes from current stock before submission. Submit locks the snapshot for approval."}>
@@ -7378,6 +7431,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             rawMaterials={data.rawMaterials}
             suppliers={data.factorySuppliers}
             storageLocations={data.storageLocations}
+            receivingBatches={data.receivingBatches}
             onSave={saveReceivingBatch}
           />
         ) : (
@@ -8490,6 +8544,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                 <FinishedGoodDispatchModal
                   finishedGoods={data.finishedGoods}
                   customers={data.factoryCustomers}
+                  dispatches={data.finishedGoodDispatches}
                   onClose={() => setDispatchTab("history")}
                   onSave={saveFinishedGoodDispatch}
                   embedded
@@ -8716,6 +8771,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           finishedGoods={data.finishedGoods}
           rawMaterials={data.rawMaterials}
           recipes={data.recipes}
+          jobOrders={data.jobOrders}
           onClose={() => setModal(null)}
           onSave={saveJobOrder}
         />
@@ -8733,6 +8789,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           initialValue={modal.value}
           finishedGoods={data.finishedGoods}
           customers={data.factoryCustomers}
+          dispatches={data.finishedGoodDispatches}
           onClose={() => setModal(null)}
           onSave={saveFinishedGoodDispatch}
           mode={modal.mode}
@@ -8820,6 +8877,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           recipes={data.recipes}
           sops={data.sops}
           finishedGoods={data.finishedGoods}
+          productions={data.productions}
           auth={auth}
           onClose={() => setModal(null)}
           onSave={completeProduction}
@@ -8896,6 +8954,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           initialValue={modal.value}
           stockItems={modal.stockType === "raw" ? data.rawMaterials : data.finishedGoods}
           rawMaterialCategories={data.rawMaterialCategories}
+          existingChecks={modal.stockType === "raw" ? data.rawStockChecks : data.productStockChecks}
           onClose={() => setModal(null)}
           onSave={(form) => saveStockCheck(modal.stockType, form)}
         />
