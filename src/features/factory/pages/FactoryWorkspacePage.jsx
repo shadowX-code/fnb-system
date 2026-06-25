@@ -1574,43 +1574,72 @@ function RawMaterialDetailModal({ material, receivings, movements, stockChecks, 
   const materialChecks = stockChecks
     .flatMap((check) => (check.items || []).filter((item) => item.raw_material_id === material.id).map((item) => ({ ...item, check_no: check.check_no, check_date: check.check_date, status: check.status })));
   const latestCost = latestReceivingCostInfo(receivings, material.id, material);
-  const consumptionRows = materialMovements.filter((row) => Number(row.quantity || 0) < 0 || String(row.movement_type || "").toLowerCase().includes("production"));
-  const costTrendRows = materialReceivings.filter((row) => Number(row.unit_cost || 0) > 0).slice(0, 8);
+  const latestReceiving = materialReceivings[0];
+  const convertedCurrentBalance = latestCost.missingCost ? 0 : convertCostQuantity(material.current_balance, material.uom, latestCost.uom);
+  const currentValueLabel = latestCost.missingCost ? "Missing Cost" : convertedCurrentBalance == null ? "Incomplete Cost" : money(convertedCurrentBalance * latestCost.unitCost);
+  const currentValueHelper = latestCost.missingCost
+    ? "No unit cost available"
+    : convertedCurrentBalance == null
+      ? "Unsupported UOM conversion"
+      : `${quantity(material.current_balance, material.uom)} at ${unitCostDisplay(latestCost)}`;
+  const materialInfo = [
+    ["Category", material.category || "No category"],
+    ["Code", material.material_code || "—"],
+    ["UOM", material.uom || "—"],
+    ["Storage Location", material.storage_location || "—"],
+    ["Status", <Badge key="status" tone={material.stock_status === "Out of Stock" ? "danger" : material.stock_status === "Low Stock" ? "warning" : "success"}>{material.stock_status || material.status || "Active"}</Badge>],
+  ];
   return (
-    <Modal title={rawMaterialLabel(material)} description="Raw material stock, receiving, consumption and count detail" onClose={onClose} size="2xl">
+    <Modal title="Material Record" description={rawMaterialLabel(material)} onClose={onClose} size="2xl">
       <div className="space-y-4">
-        {material.image_url ? (
-          <div className="overflow-hidden rounded-2xl border border-border bg-slate-50">
-            <img className="max-h-72 w-full object-contain" src={material.image_url} alt={rawMaterialLabel(material)} />
+        <div className="rounded-2xl border border-border bg-white p-4">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 flex-1">
+              <div className="text-lg font-black text-text-primary">{rawMaterialLabel(material)}</div>
+              <div className="mt-3 grid gap-x-6 gap-y-3 sm:grid-cols-2">
+                {materialInfo.map(([label, value]) => (
+                  <div key={label}>
+                    <div className="text-xs font-semibold text-text-muted">{label}</div>
+                    <div className="mt-0.5 text-sm font-bold text-text-primary">{value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+            {material.image_url ? (
+              <img className="h-[120px] w-[120px] shrink-0 rounded-2xl border border-border bg-slate-50 object-cover" src={material.image_url} alt={rawMaterialLabel(material)} />
+            ) : (
+              <div className="flex h-[120px] w-[120px] shrink-0 items-center justify-center rounded-2xl border border-border bg-slate-50 text-text-secondary"><Package size={34} /></div>
+            )}
           </div>
-        ) : null}
+        </div>
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={Warehouse} label="Current Balance" value={quantity(material.current_balance, material.uom)} helper={material.material_code || "Raw material"} />
-          <MetricCard icon={Truck} label="Receiving Rows" value={materialReceivings.length} helper="Supplier deliveries" />
-          <MetricCard icon={Factory} label="Consumption Rows" value={consumptionRows.length} helper="Production usage / stock-out" />
           <MetricCard icon={PackageCheck} label="Latest Unit Cost" value={latestCost.missingCost ? "Missing Cost" : unitCostDisplay(latestCost)} helper={latestCost.receivedDate || latestCost.costSource || "No receiving cost"} />
+          <MetricCard icon={DollarSign} label="Current Value" value={currentValueLabel} helper={currentValueHelper} tone={latestCost.missingCost || convertedCurrentBalance == null ? "warning" : "success"} />
+          <MetricCard icon={Truck} label="Last Receiving" value={latestReceiving ? formatFactoryDate(latestReceiving.received_date) : "—"} helper={latestReceiving?.supplier_name || "No receiving yet"} />
         </div>
         <Card title="Receiving History" description="Supplier receiving rows linked to this raw material.">
           <FactoryTable
             columns={[
-              { key: "receipt", label: "Receipt", render: (row) => <div><div className="font-bold text-text-primary">{row.receipt_no}</div><div className="text-xs text-text-secondary">{formatFactoryDate(row.received_date)}</div></div> },
+              { key: "received_date", label: "Date", render: (row) => formatFactoryDate(row.received_date) },
+              { key: "receipt", label: "Receipt", render: (row) => <span className="font-bold text-text-primary">{row.receipt_no || row.batch_no || "—"}</span> },
               { key: "supplier_name", label: "Supplier", render: (row) => row.supplier_name || "—" },
-              { key: "batch_no", label: "Batch", render: (row) => row.batch_no || "—" },
+              { key: "batch_no", label: "Lot", render: (row) => row.batch_no ? <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-text-secondary">Lot {row.batch_no}</span> : "—" },
               { key: "qty", label: "Qty", render: (row) => quantity(row.received_qty, row.uom) },
-              { key: "unit_cost", label: "Unit Cost", align: "right", render: (row) => money(row.unit_cost) },
+              { key: "unit_cost", label: "Unit Cost", align: "right", render: (row) => Number(row.unit_cost || 0) > 0 ? `${money(row.unit_cost)}/${row.uom || material.uom || ""}` : "—" },
             ]}
             rows={materialReceivings}
             emptyTitle="No receiving history"
             emptyDescription="Record receiving for this raw material to populate receiving history."
           />
         </Card>
-        <Card title="Consumption and Movement History" description="Movement log from receiving, production actual usage and approved stock checks.">
+        <Card title="Stock Movement History" description="Receiving, production usage and approved stock check movements.">
           <FactoryTable
             columns={[
-              { key: "reference", label: "Reference", render: (row) => <div><div className="font-bold text-text-primary">{row.reference_no || "—"}</div><div className="text-xs text-text-secondary">{row.reference_type || "No source"}</div></div> },
-              { key: "movement_type", label: "Movement", render: (row) => <Badge tone={row.quantity >= 0 ? "success" : "warning"}>{row.movement_type}</Badge> },
-              { key: "quantity", label: "Qty", render: (row) => quantity(row.quantity, row.uom) },
               { key: "movement_date", label: "Date", render: (row) => formatFactoryDate(row.movement_date) },
+              { key: "movement_type", label: "Type", render: (row) => <Badge tone={row.quantity >= 0 ? "success" : "warning"}>{row.movement_type}</Badge> },
+              { key: "reference", label: "Reference", render: (row) => <span className="font-bold text-text-primary">{row.reference_no || "—"}</span> },
+              { key: "quantity", label: "Qty", render: (row) => signedQuantity(row.quantity, row.uom) },
               { key: "notes", label: "Notes", render: (row) => row.notes || "—" },
             ]}
             rows={materialMovements}
@@ -1618,12 +1647,12 @@ function RawMaterialDetailModal({ material, receivings, movements, stockChecks, 
             emptyDescription="Receiving, production usage and approved stock checks will create movement history."
           />
         </Card>
-        <Card title="Stock Check History" description="Physical count rows for this raw material.">
+        {materialChecks.length ? <Card title="Stock Check History" description="Physical count rows for this raw material.">
           <FactoryTable
             columns={[
-              { key: "check_no", label: "Check", render: (row) => <div><div className="font-bold text-text-primary">{row.check_no}</div><div className="text-xs text-text-secondary">{formatFactoryDate(row.check_date)}</div></div> },
+              { key: "check_date", label: "Date", render: (row) => formatFactoryDate(row.check_date) },
+              { key: "check_no", label: "Check No.", render: (row) => <span className="font-bold text-text-primary">{row.check_no || "—"}</span> },
               { key: "variance_qty", label: "Variance Qty", render: (row) => quantity(row.variance_qty, row.uom) },
-              { key: "variance_percent", label: "Variance %", render: (row) => percent(row.variance_percent) },
               { key: "variance_status", label: "Variance", render: (row) => <Badge tone={stockVarianceTone(row.variance_status)}>{row.variance_status}</Badge> },
               { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{row.status}</Badge> },
             ]}
@@ -1631,20 +1660,7 @@ function RawMaterialDetailModal({ material, receivings, movements, stockChecks, 
             emptyTitle="No stock check history"
             emptyDescription="Approved and submitted raw stock checks for this material will appear here."
           />
-        </Card>
-        <Card title="Supplier Cost Trend" description="Recent receiving unit cost by supplier.">
-          <FactoryTable
-            columns={[
-              { key: "received_date", label: "Date", render: (row) => formatFactoryDate(row.received_date) },
-              { key: "supplier_name", label: "Supplier", render: (row) => row.supplier_name || "—" },
-              { key: "batch_no", label: "Batch", render: (row) => row.batch_no || "—" },
-              { key: "unit_cost", label: "Unit Cost", align: "right", render: (row) => money(row.unit_cost) },
-            ]}
-            rows={costTrendRows}
-            emptyTitle="No cost trend"
-            emptyDescription="Receiving rows with unit cost will populate supplier cost trend."
-          />
-        </Card>
+        </Card> : null}
       </div>
     </Modal>
   );
