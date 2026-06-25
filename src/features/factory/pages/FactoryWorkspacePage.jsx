@@ -4839,7 +4839,7 @@ function buildStockCheckRows(stockType, stockItems, initialValue, categoryId = "
       uom: item.uom || "",
     }));
   }
-  return stockItems.filter((item) => item.status === "active" && (stockType !== "raw" || item.category_id === categoryId)).map((item) => ({
+  return stockItems.filter((item) => item.status === "active" && (stockType === "raw" ? item.category_id === categoryId : !categoryId || item.category_id === categoryId)).map((item) => ({
     id: `${stockType}-${item.id}`,
     raw_material_id: stockType === "raw" ? item.id : "",
     finished_good_id: stockType === "product" ? item.id : "",
@@ -4852,8 +4852,8 @@ function buildStockCheckRows(stockType, stockItems, initialValue, categoryId = "
   }));
 }
 
-function StockCheckModal({ stockType, title, initialValue, stockItems, rawMaterialCategories = [], existingChecks = [], onClose, onSave }) {
-  const inferredCategoryId = initialValue?.category_id || (stockType === "raw" ? stockItems.find((item) => item.id === initialValue?.items?.[0]?.raw_material_id)?.category_id || "" : "");
+function StockCheckModal({ stockType, title, initialValue, stockItems, rawMaterialCategories = [], finishedGoodCategories = [], existingChecks = [], onClose, onSave }) {
+  const inferredCategoryId = initialValue?.category_id || stockItems.find((item) => item.id === initialValue?.items?.[0]?.raw_material_id || item.id === initialValue?.items?.[0]?.finished_good_id)?.category_id || "";
   const [form, setForm] = useState(() => ({
     check_date: todayInput(),
     status: "draft",
@@ -4891,7 +4891,7 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
     setForm((current) => ({
       ...current,
       category_id: categoryId,
-      items: categoryId ? buildStockCheckRows(stockType, stockItems, null, categoryId) : [],
+      items: buildStockCheckRows(stockType, stockItems, null, categoryId),
     }));
     setError("");
   }
@@ -4939,9 +4939,14 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
   const criticalRows = form.items.filter((row) => row.count_status !== "skip" && row.physical_qty !== "" && stockCheckVariance(row.system_qty, row.physical_qty).status === "Critical");
   const skippedRows = form.items.filter((row) => row.count_status === "skip");
   const isLocked = ["submitted", "approved"].includes(form.status);
-  const categoryOptions = rawMaterialCategories
+  const categorySource = isRaw ? rawMaterialCategories : finishedGoodCategories;
+  const categoryOptions = [
+    ...(isRaw ? [] : [{ value: "", label: "All Categories", helper: "Show all Packaging SKUs" }]),
+    ...categorySource
     .filter((category) => category.status === "active" || category.id === form.category_id)
-    .map((category) => ({ value: category.id, label: category.name, helper: category.status }));
+      .map((category) => ({ value: category.id, label: category.name, helper: category.status })),
+  ];
+  const selectedCategoryLabel = categorySource.find((category) => category.id === form.category_id)?.name || "";
 
   function rowState(row) {
     const isSkipped = row.count_status === "skip";
@@ -4984,14 +4989,14 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
           <MetricCard icon={CheckCircle2} label="Status" value={jobStatusLabel(form.status)} helper="Stock check status" />
         </div>
         <div className="grid gap-3 md:grid-cols-3">
-          {isRaw ? (
-            <Field label="Category *">
+          {isRaw || stockType === "product" ? (
+            <Field label={isRaw ? "Category *" : "Category"}>
               <SearchableSelect
                 value={form.category_id || ""}
                 options={categoryOptions}
-                placeholder="Select category"
+                placeholder={isRaw ? "Select category" : "All Categories"}
                 searchPlaceholder="Search categories"
-                emptyText="No raw material categories"
+                emptyText={isRaw ? "No raw material categories" : "No finished good categories"}
                 error={submitAttempted && !form.category_id}
                 disabled={isLocked || Boolean(initialValue?.id)}
                 onChange={selectCategory}
@@ -5014,6 +5019,13 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
         </div>
         <Card title={`${itemLabel} Count`} description={isLocked ? "Submitted and approved checks are locked snapshots." : "Draft system quantity refreshes from current stock before submission. Submit locks the snapshot for approval."}>
           {isRaw && !form.category_id ? <EmptyState title="Select a category to start stock check." description="Choose a raw material category before loading items to count." /> : null}
+          {!isRaw && form.category_id ? (
+            <div className="mb-3 rounded-xl border border-primary/15 bg-primary/5 px-3 py-2 text-sm font-semibold text-text-primary">
+              Showing: <span className="font-black">{selectedCategoryLabel || "Selected Category"}</span>
+              <span className="mx-2 text-text-muted">·</span>
+              {form.items.length.toLocaleString("en-MY")} Packaging SKU{form.items.length === 1 ? "" : "s"}
+            </div>
+          ) : null}
           <div className="space-y-3 md:hidden">
             {form.items.map((row) => {
               const { isSkipped, variance, showReasonError, showCountError } = rowState(row);
@@ -6178,8 +6190,16 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   ];
 
   function stockCheckColumns(stockType) {
+    const renderActions = (row) => (
+      <div className="flex justify-end gap-2">
+        <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "stock-check", stockType, value: row })}>{row.status === "draft" ? "Edit" : "View"}</button>
+        {row.status === "submitted" && can(stockType === "raw" ? "factory_raw_stock_check.approve" : "factory_product_stock_check.approve") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => approveStockCheck(stockType, row)}>Approve</button> : null}
+        {row.status === "draft" && can(stockType === "raw" ? "factory_raw_stock_check.delete" : "factory_product_stock_check.delete") ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => deleteStockCheck(stockType, row)}>Delete</button> : null}
+      </div>
+    );
     return [
       { key: "check_date", label: "Date", render: (row) => formatFactoryDate(row.check_date) },
+      { key: "created_by", label: "Created By", render: (row) => row.created_by_name || row.created_by || "—" },
       { key: "check_no", label: "Check No.", render: (row) => <div className="font-bold text-text-primary">{row.check_no}</div> },
       { key: "items", label: "Items", render: (row) => row.items?.length || 0 },
       { key: "variance", label: "Variance", render: (row) => {
@@ -6188,14 +6208,48 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       } },
       { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{jobStatusLabel(row.status)}</Badge> },
       { key: "notes", label: "Notes", render: (row) => row.notes || "—" },
-      { key: "actions", label: "Actions", align: "right", render: (row) => (
-        <div className="flex justify-end gap-2">
-          <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "stock-check", stockType, value: row })}>{row.status === "draft" ? "Edit" : "View"}</button>
-          {row.status === "submitted" && can(stockType === "raw" ? "factory_raw_stock_check.approve" : "factory_product_stock_check.approve") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => approveStockCheck(stockType, row)}>Approve</button> : null}
-          {row.status === "draft" && can(stockType === "raw" ? "factory_raw_stock_check.delete" : "factory_product_stock_check.delete") ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => deleteStockCheck(stockType, row)}>Delete</button> : null}
-        </div>
-      ) },
+      { key: "actions", label: "Actions", align: "right", render: renderActions },
     ];
+  }
+
+  function stockCheckHistoryList(stockType, rows, emptyTitle, emptyDescription) {
+    return (
+      <>
+        <div className="md:hidden">
+          {!rows.length ? (
+            <div className="p-4"><EmptyState title={emptyTitle} description={emptyDescription} /></div>
+          ) : (
+            <div className="divide-y divide-border">
+              {rows.map((row) => {
+                const summary = stockCheckVarianceSummary(row.items || []);
+                const actionsColumn = stockCheckColumns(stockType).find((column) => column.key === "actions");
+                return (
+                  <div key={row.id} className="space-y-3 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <div className="text-xs font-semibold text-text-muted">{formatFactoryDate(row.check_date)}</div>
+                        <div className="mt-1 font-bold text-text-primary">{row.check_no || "—"}</div>
+                      </div>
+                      <Badge tone={statusTone(row.status)}>{jobStatusLabel(row.status)}</Badge>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3 text-sm">
+                      <div><div className="text-[10.5px] font-semibold text-text-muted">Items</div><div className="font-bold text-text-primary">{row.items?.length || 0}</div></div>
+                      <div><div className="text-[10.5px] font-semibold text-text-muted">Variance</div><Badge tone={summary.tone}>{summary.label}</Badge></div>
+                      <div><div className="text-[10.5px] font-semibold text-text-muted">Created By</div><div className="font-bold text-text-primary">{row.created_by_name || row.created_by || "—"}</div></div>
+                      <div><div className="text-[10.5px] font-semibold text-text-muted">Notes</div><div className="font-semibold text-text-primary">{row.notes || "—"}</div></div>
+                    </div>
+                    <div className="flex justify-end">{actionsColumn?.render(row)}</div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <div className="hidden md:block">
+          <FactoryTable columns={stockCheckColumns(stockType)} rows={rows} emptyTitle={emptyTitle} emptyDescription={emptyDescription} />
+        </div>
+      </>
+    );
   }
 
   function finishedGoodRows() {
@@ -7689,7 +7743,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={AlertTriangle} label="Critical Rows" value={criticalRows.length} helper="Requires review" tone={criticalRows.length ? "danger" : "success"} />
         </div>
         <Card title="Raw Material Stock Checks" description="Draft and submitted checks do not adjust stock. Approval applies the variance adjustment.">
-          <FactoryTable columns={stockCheckColumns("raw")} rows={data.rawStockChecks} emptyTitle="No raw material stock checks" emptyDescription="Create a stock check to capture physical counts." />
+          {stockCheckHistoryList("raw", data.rawStockChecks, "No raw material stock checks", "Create a stock check to capture physical counts.")}
         </Card>
       </div>
     );
@@ -8542,21 +8596,23 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const completedToday = data.finishedGoodDispatches.filter((row) => row.status === "completed" && String(row.completed_at || row.dispatch_date || "").slice(0, 10) === today);
     const customersToday = new Set(completedToday.map((row) => row.customer_id || row.customer_name).filter(Boolean)).size;
     const dispatchRows = filteredFinishedGoodDispatches();
+    const renderDispatchActions = (row) => (
+      <div className="flex flex-wrap justify-end gap-2">
+        <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-dispatch", value: row, mode: "view" })}>View</button>
+        {row.status === "draft" && can("factory_finished_goods_dispatch.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-dispatch", value: row, mode: "edit" })}>Edit</button> : null}
+        {row.status === "draft" && can("factory_finished_goods_dispatch.complete") ? <button className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50" type="button" onClick={() => completeFinishedGoodDispatch(row)}>Complete</button> : null}
+        {row.status === "draft" && can("factory_finished_goods_dispatch.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => cancelFinishedGoodDispatch(row)}>Cancel</button> : null}
+      </div>
+    );
     const dispatchColumns = [
       { key: "dispatch_date", label: "Date", render: (row) => formatFactoryDate(row.dispatch_date) },
       { key: "dispatch_no", label: "Dispatch No.", render: (row) => <div className="font-bold text-text-primary">{row.dispatch_no}</div> },
       { key: "customer_name", label: "Customer", render: (row) => <div><div className="font-semibold text-text-primary">{row.customer_name || "—"}</div><div className="text-xs text-text-secondary">{row.customer_code || row.customer_type || "Dispatch destination"}</div></div> },
       { key: "items_count", label: "Items", render: (row) => Number(row.items_count || 0).toLocaleString("en-MY") },
       { key: "total_qty", label: "Total Dispatch", render: (row) => dispatchTotalLabel(row) },
+      { key: "created_by", label: "Created By", render: (row) => row.created_by_name || row.created_by || "—" },
       { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "completed" ? "success" : row.status === "cancelled" ? "neutral" : "warning"}>{jobStatusLabel(row.status)}</Badge> },
-      { key: "actions", label: "Actions", align: "right", render: (row) => (
-        <div className="flex flex-wrap justify-end gap-2">
-          <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-dispatch", value: row, mode: "view" })}>View</button>
-          {row.status === "draft" && can("factory_finished_goods_dispatch.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-dispatch", value: row, mode: "edit" })}>Edit</button> : null}
-          {row.status === "draft" && can("factory_finished_goods_dispatch.complete") ? <button className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50" type="button" onClick={() => completeFinishedGoodDispatch(row)}>Complete</button> : null}
-          {row.status === "draft" && can("factory_finished_goods_dispatch.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => cancelFinishedGoodDispatch(row)}>Cancel</button> : null}
-        </div>
-      ) },
+      { key: "actions", label: "Actions", align: "right", render: renderDispatchActions },
     ];
 
     return (
@@ -8593,12 +8649,42 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                 <EmptyState title="Create permission required" description="Your role can view dispatch history but cannot create new dispatch drafts." />
               )
             ) : (
-              <FactoryTable
-                columns={dispatchColumns}
-                rows={dispatchRows}
-                emptyTitle="No finished goods dispatches"
-                emptyDescription="Create a dispatch draft to record outbound Packaging SKU delivery."
-              />
+              <>
+                <div className="md:hidden">
+                  {!dispatchRows.length ? (
+                    <div className="p-4"><EmptyState title="No finished goods dispatches" description="Create a dispatch draft to record outbound Packaging SKU delivery." /></div>
+                  ) : (
+                    <div className="divide-y divide-border">
+                      {dispatchRows.map((row) => (
+                        <div key={row.id} className="space-y-3 p-4">
+                          <div className="flex items-start justify-between gap-3">
+                            <div>
+                              <div className="text-xs font-semibold text-text-muted">{formatFactoryDate(row.dispatch_date)}</div>
+                              <div className="mt-1 font-bold text-text-primary">{row.dispatch_no || "—"}</div>
+                              <div className="text-sm font-semibold text-text-secondary">{row.customer_name || "—"}</div>
+                            </div>
+                            <Badge tone={row.status === "completed" ? "success" : row.status === "cancelled" ? "neutral" : "warning"}>{jobStatusLabel(row.status)}</Badge>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3 text-sm">
+                            <div><div className="text-[10.5px] font-semibold text-text-muted">Items</div><div className="font-bold text-text-primary">{Number(row.items_count || 0).toLocaleString("en-MY")}</div></div>
+                            <div><div className="text-[10.5px] font-semibold text-text-muted">Total Dispatch</div><div className="font-bold text-text-primary">{dispatchTotalLabel(row)}</div></div>
+                            <div><div className="text-[10.5px] font-semibold text-text-muted">Created By</div><div className="font-bold text-text-primary">{row.created_by_name || row.created_by || "—"}</div></div>
+                          </div>
+                          <div className="flex justify-end">{renderDispatchActions(row)}</div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+                <div className="hidden md:block">
+                  <FactoryTable
+                    columns={dispatchColumns}
+                    rows={dispatchRows}
+                    emptyTitle="No finished goods dispatches"
+                    emptyDescription="Create a dispatch draft to record outbound Packaging SKU delivery."
+                  />
+                </div>
+              </>
             )}
           </div>
         </Card>
@@ -8724,7 +8810,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={AlertTriangle} label="Variance Rows" value={data.productStockChecks.flatMap((row) => row.items || []).filter((item) => item.variance_status !== "Normal").length} helper="Above 2%" tone="warning" />
         </div>
         <Card title="Finished Goods Stock Checks" description="Draft and submitted checks do not adjust stock. Approval applies the variance adjustment.">
-          <FactoryTable columns={stockCheckColumns("product")} rows={data.productStockChecks} emptyTitle="No finished goods stock checks" emptyDescription="Create a stock check to capture physical counts." />
+          {stockCheckHistoryList("product", data.productStockChecks, "No finished goods stock checks", "Create a stock check to capture physical counts.")}
         </Card>
       </div>
     );
@@ -8994,6 +9080,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           initialValue={modal.value}
           stockItems={modal.stockType === "raw" ? data.rawMaterials : data.finishedGoods}
           rawMaterialCategories={data.rawMaterialCategories}
+          finishedGoodCategories={data.finishedGoodCategories}
           existingChecks={modal.stockType === "raw" ? data.rawStockChecks : data.productStockChecks}
           onClose={() => setModal(null)}
           onSave={(form) => saveStockCheck(modal.stockType, form)}
