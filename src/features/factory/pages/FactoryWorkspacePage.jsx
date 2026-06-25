@@ -897,6 +897,14 @@ function compareProductMovementsDesc(a, b) {
   return String(b?.id || "").localeCompare(String(a?.id || ""));
 }
 
+function compareRawMaterialMovementsDesc(a, b) {
+  const dateCompare = String(b?.movement_date || "").localeCompare(String(a?.movement_date || ""));
+  if (dateCompare) return dateCompare;
+  const createdCompare = String(b?.created_at || "").localeCompare(String(a?.created_at || ""));
+  if (createdCompare) return createdCompare;
+  return String(b?.id || "").localeCompare(String(a?.id || ""));
+}
+
 function normalizePackSizeToBase(qty, uom) {
   const amount = Number(qty || 0);
   const unit = String(uom || "").trim().toLowerCase();
@@ -6737,6 +6745,21 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   function rawMaterialMovementRows() {
+    const balanceByMovementId = new Map();
+    const movementsByMaterial = data.rawMaterialMovements.reduce((groups, movement) => {
+      const key = movement.raw_material_id || movement.raw_material_code || movement.raw_material_name || "unknown";
+      groups.set(key, [...(groups.get(key) || []), movement]);
+      return groups;
+    }, new Map());
+    movementsByMaterial.forEach((materialMovements, key) => {
+      const material = data.rawMaterials.find((row) => row.id === key);
+      let runningBalance = material?.current_balance;
+      if (runningBalance == null) return;
+      [...materialMovements].sort(compareRawMaterialMovementsDesc).forEach((movement) => {
+        balanceByMovementId.set(movement.id, runningBalance);
+        runningBalance -= Number(movement.quantity || 0);
+      });
+    });
     return data.rawMaterialMovements.map((movement) => {
       const material = data.rawMaterials.find((row) => row.id === movement.raw_material_id);
       const receiving = data.receivings.find((row) => row.id === movement.reference_id || row.receipt_no === movement.reference_no);
@@ -6746,6 +6769,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         raw_material_name: movement.raw_material_name || rawMaterialLabel(material) || "",
         storage_location: receiving?.storage_location || movement.storage_location || material?.storage_location || "",
         batch_no: receiving?.batch_no || movement.batch_no || "",
+        balance_after: balanceByMovementId.get(movement.id),
         remarks: movement.remarks || movement.notes || "",
         created_by_name: movement.created_by_name || movement.created_by || "",
       };
@@ -7559,19 +7583,19 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   function renderRawMaterialMovements() {
-    const rows = filteredRawMaterialMovements();
+    const rows = filteredRawMaterialMovements().sort(compareRawMaterialMovementsDesc);
     const stockInRows = rows.filter((row) => Number(row.quantity || 0) > 0);
     const stockOutRows = rows.filter((row) => Number(row.quantity || 0) < 0);
     const movementColumns = [
-      { key: "movement_date", label: "Date", render: (row) => formatFactoryDate(row.movement_date) },
+      { key: "movement_date", label: "Date", render: (row) => <span className="whitespace-nowrap font-semibold text-text-primary">{formatFactoryDate(row.movement_date)}</span> },
       { key: "movement_type", label: "Movement Type", render: (row) => <Badge tone={Number(row.quantity || 0) >= 0 ? "success" : "warning"}>{row.movement_type || "Movement"}</Badge> },
       { key: "raw_material", label: "Raw Material", render: (row) => <div><div className="font-bold text-text-primary">{row.raw_material_name || "Raw Material"}</div><div className="text-xs text-text-secondary">{row.raw_material_code || "No SKU"}</div></div> },
-      { key: "quantity", label: "Qty", render: (row) => quantity(row.quantity, row.uom) },
+      { key: "quantity", label: "Qty", render: (row) => <span className={`font-bold ${Number(row.quantity || 0) >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{signedQuantity(row.quantity, row.uom)}</span> },
+      { key: "balance", label: "Balance", render: (row) => <span className="font-bold text-text-primary">{row.balance_after == null ? "—" : quantity(row.balance_after, row.uom)}</span> },
       { key: "storage_location", label: "Storage Location", render: (row) => row.storage_location || "—" },
       { key: "batch_no", label: "Batch / Lot No.", render: (row) => row.batch_no || "—" },
       { key: "reference", label: "Reference", render: (row) => row.reference_no || "—" },
       { key: "created_by", label: "Created By", render: (row) => row.created_by_name || "—" },
-      { key: "remarks", label: "Remarks", render: (row) => row.remarks || "—" },
     ];
     return (
       <div className="space-y-5">
