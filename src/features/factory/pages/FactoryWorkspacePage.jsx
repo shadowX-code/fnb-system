@@ -1270,10 +1270,16 @@ function ProductGroupModal({ initialValue, categories = [], onClose, onSave, onA
             />
           </Field>
           <Field label="Status *">
-            <select className={inputClass()} value={form.status || "active"} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
-              <option value="active">Active</option>
-              <option value="archived">Archived</option>
-            </select>
+            <SearchableSelect
+              value={form.status || "active"}
+              options={[
+                { value: "active", label: "Active" },
+                { value: "archived", label: "Archived" },
+              ]}
+              placeholder="Select Status"
+              searchPlaceholder="Search status"
+              onChange={(status) => setForm((current) => ({ ...current, status }))}
+            />
           </Field>
         </section>
         <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
@@ -1416,9 +1422,13 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
             </Field>
             <div className="grid gap-3 md:grid-cols-3">
               <Field label="Packaging Type">
-                <select className={inputClass()} value={form.packaging_type || "Pack"} onChange={(event) => setForm((current) => ({ ...current, packaging_type: event.target.value }))}>
-                  {packagingTypes.map((type) => <option key={type} value={type}>{type}</option>)}
-                </select>
+                <SearchableSelect
+                  value={form.packaging_type || "Pack"}
+                  options={packagingTypes.map((type) => ({ value: type, label: type }))}
+                  placeholder="Select Packaging Type"
+                  searchPlaceholder="Search packaging types"
+                  onChange={(packagingType) => setForm((current) => ({ ...current, packaging_type: packagingType }))}
+                />
               </Field>
               <Field label="Pack Size Qty *" error={fieldErrors.pack_size_qty}>
                 <input ref={(node) => { fieldRefs.current.pack_size_qty = node; }} className={inputClass(fieldErrors.pack_size_qty)} type="number" min="0" step="0.0001" value={form.pack_size_qty ?? ""} onChange={(event) => {
@@ -1432,8 +1442,13 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
                 }} />
               </Field>
               <Field label="Pack Size UOM *" error={fieldErrors.pack_size_uom}>
-                <select ref={(node) => { fieldRefs.current.pack_size_uom = node; }} className={inputClass(fieldErrors.pack_size_uom)} value={form.pack_size_uom || "kg"} onChange={(event) => {
-                  const value = event.target.value;
+                <SearchableSelect
+                  value={form.pack_size_uom || "kg"}
+                  options={commonUoms.map((uom) => ({ value: uom, label: uom }))}
+                  placeholder="Select UOM"
+                  searchPlaceholder="Search UOM"
+                  error={fieldErrors.pack_size_uom}
+                  onChange={(value) => {
                   setFieldErrors((current) => ({ ...current, pack_size_uom: "", uom: "" }));
                   setForm((current) => ({
                     ...current,
@@ -1441,9 +1456,8 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
                     base_uom: value,
                     uom: value,
                   }));
-                }}>
-                  {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
-                </select>
+                }}
+                />
               </Field>
             </div>
             <div className="rounded-xl border border-border bg-white px-3 py-2">
@@ -1461,13 +1475,20 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
               />
             </Field>
             <Field label="Status *" error={fieldErrors.status}>
-              <select ref={(node) => { fieldRefs.current.status = node; }} className={inputClass(fieldErrors.status)} value={form.status} onChange={(event) => {
-                setFieldErrors((current) => ({ ...current, status: "" }));
-                setForm((current) => ({ ...current, status: event.target.value }));
-              }}>
-                <option value="active">Active</option>
-                <option value="archived">Archived</option>
-              </select>
+              <SearchableSelect
+                value={form.status}
+                options={[
+                  { value: "active", label: "Active" },
+                  { value: "archived", label: "Archived" },
+                ]}
+                placeholder="Select Status"
+                searchPlaceholder="Search status"
+                error={fieldErrors.status}
+                onChange={(status) => {
+                  setFieldErrors((current) => ({ ...current, status: "" }));
+                  setForm((current) => ({ ...current, status }));
+                }}
+              />
             </Field>
           </section>
 
@@ -1546,10 +1567,16 @@ function FinishedGoodCategoryModal({ categories, onClose, onSave, onArchive }) {
             <textarea className={inputClass()} rows={3} value={form.description || ""} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} />
           </Field>
           <Field label="Status">
-            <select className={inputClass()} value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
-              <option value="active">Active</option>
-              <option value="archived">Archived</option>
-            </select>
+            <SearchableSelect
+              value={form.status}
+              options={[
+                { value: "active", label: "Active" },
+                { value: "archived", label: "Archived" },
+              ]}
+              placeholder="Select Status"
+              searchPlaceholder="Search status"
+              onChange={(status) => setForm((current) => ({ ...current, status }))}
+            />
           </Field>
           <div className="flex flex-wrap gap-2">
             <button className="btn-primary" type="submit" disabled={saving}>{saving ? "Saving..." : form.id ? "Update Category" : "Create Category"}</button>
@@ -1817,12 +1844,17 @@ function RawMaterialMasterModal({ initialValue, categories, storageLocations = [
           ) : null}
         </section>
         <Field label="Default UOM *" error={fieldErrors.uom}>
-          <select ref={(node) => { fieldRefs.current.uom = node; }} className={inputClass(fieldErrors.uom)} value={form.uom} onChange={(event) => {
-            setFieldErrors((current) => ({ ...current, uom: "" }));
-            setForm((current) => ({ ...current, uom: event.target.value }));
-          }}>
-            {commonUoms.map((uom) => <option key={uom} value={uom}>{uom}</option>)}
-          </select>
+          <SearchableSelect
+            value={form.uom}
+            options={commonUoms.map((uom) => ({ value: uom, label: uom }))}
+            placeholder="Select UOM"
+            searchPlaceholder="Search UOM"
+            error={fieldErrors.uom}
+            onChange={(uom) => {
+              setFieldErrors((current) => ({ ...current, uom: "" }));
+              setForm((current) => ({ ...current, uom }));
+            }}
+          />
         </Field>
         <section className="space-y-3 rounded-xl border border-border bg-slate-50 p-3">
           <div>
@@ -1857,13 +1889,20 @@ function RawMaterialMasterModal({ initialValue, categories, storageLocations = [
           />
         </Field>
         <Field label="Status *" error={fieldErrors.status}>
-          <select ref={(node) => { fieldRefs.current.status = node; }} className={inputClass(fieldErrors.status)} value={form.status} onChange={(event) => {
-            setFieldErrors((current) => ({ ...current, status: "" }));
-            setForm((current) => ({ ...current, status: event.target.value }));
-          }}>
-            <option value="active">Active</option>
-            <option value="archived">Archived</option>
-          </select>
+          <SearchableSelect
+            value={form.status}
+            options={[
+              { value: "active", label: "Active" },
+              { value: "archived", label: "Archived" },
+            ]}
+            placeholder="Select Status"
+            searchPlaceholder="Search status"
+            error={fieldErrors.status}
+            onChange={(status) => {
+              setFieldErrors((current) => ({ ...current, status: "" }));
+              setForm((current) => ({ ...current, status }));
+            }}
+          />
         </Field>
         <Field label="Remarks">
           <textarea className={inputClass()} rows={3} value={form.remarks || ""} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
@@ -2009,10 +2048,16 @@ function RawMaterialCategoryModal({ categories, onClose, onSave, onArchive }) {
             <textarea className={inputClass()} rows={3} value={form.description || ""} onChange={(event) => setForm((current) => ({ ...current, description: event.target.value }))} />
           </Field>
           <Field label="Status">
-            <select className={inputClass()} value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
-              <option value="active">Active</option>
-              <option value="archived">Archived</option>
-            </select>
+            <SearchableSelect
+              value={form.status}
+              options={[
+                { value: "active", label: "Active" },
+                { value: "archived", label: "Archived" },
+              ]}
+              placeholder="Select Status"
+              searchPlaceholder="Search status"
+              onChange={(status) => setForm((current) => ({ ...current, status }))}
+            />
           </Field>
           <div className="flex flex-wrap gap-2">
             <button className="btn-primary" type="submit" disabled={saving}>{saving ? "Saving..." : form.id ? "Update Category" : "Create Category"}</button>
@@ -2039,13 +2084,14 @@ function RawMaterialCategoryModal({ categories, onClose, onSave, onArchive }) {
   );
 }
 
-function StorageLocationModal({ locations, onClose, onSave, onArchive }) {
+function StorageLocationModal({ initialValue, onClose, onSave }) {
   const [form, setForm] = useState(() => ({
     location_name: "",
     location_code: "",
     location_type: storageLocationTypes[0],
     status: "active",
     remarks: "",
+    ...initialValue,
   }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -2060,28 +2106,6 @@ function StorageLocationModal({ locations, onClose, onSave, onArchive }) {
     setSaving(true);
     try {
       await onSave(form);
-      setForm({ location_name: "", location_code: "", location_type: storageLocationTypes[0], status: "active", remarks: "" });
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  function edit(location) {
-    setForm({
-      id: location.id,
-      location_name: location.location_name || "",
-      location_code: location.location_code || "",
-      location_type: location.location_type || storageLocationTypes[0],
-      status: location.status || "active",
-      remarks: location.remarks || "",
-    });
-    setError("");
-  }
-
-  async function archive(location) {
-    setSaving(true);
-    try {
-      await onArchive(location);
     } finally {
       setSaving(false);
     }
@@ -2089,14 +2113,19 @@ function StorageLocationModal({ locations, onClose, onSave, onArchive }) {
 
   return (
     <Modal
-      title="Storage Locations"
-      description="Manage Factory storage locations used by raw material and finished goods master records."
+      title={initialValue?.id ? "Edit Storage Location" : "Create Storage Location"}
+      description="Factory storage locations used by raw material and finished goods master records."
       size="lg"
       onClose={saving ? undefined : onClose}
-      footer={<button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Close</button>}
+      footer={(
+        <>
+          <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
+          <button className="btn-primary" type="submit" form="factory-storage-location-form" disabled={saving}>{saving ? "Saving..." : initialValue?.id ? "Save Location" : "Create Location"}</button>
+        </>
+      )}
     >
-      <div className="space-y-4">
-        <form id="factory-storage-location-form" className="space-y-4 rounded-xl border border-border bg-slate-50 p-4" onSubmit={submit}>
+      <div>
+        <form id="factory-storage-location-form" className="space-y-4" onSubmit={submit}>
           {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
           <div className="grid gap-3 md:grid-cols-2">
             <Field label="Location Name *">
@@ -2106,41 +2135,31 @@ function StorageLocationModal({ locations, onClose, onSave, onArchive }) {
               <input className={inputClass()} value={form.location_code || ""} onChange={(event) => setForm((current) => ({ ...current, location_code: event.target.value }))} />
             </Field>
             <Field label="Location Type">
-              <select className={inputClass()} value={form.location_type || ""} onChange={(event) => setForm((current) => ({ ...current, location_type: event.target.value }))}>
-                {storageLocationTypes.map((type) => <option key={type} value={type}>{type}</option>)}
-              </select>
+              <SearchableSelect
+                value={form.location_type || ""}
+                options={storageLocationTypes.map((type) => ({ value: type, label: type }))}
+                placeholder="Select Location Type"
+                searchPlaceholder="Search location types"
+                onChange={(locationType) => setForm((current) => ({ ...current, location_type: locationType }))}
+              />
             </Field>
             <Field label="Status">
-              <select className={inputClass()} value={form.status} onChange={(event) => setForm((current) => ({ ...current, status: event.target.value }))}>
-                <option value="active">Active</option>
-                <option value="archived">Archived</option>
-              </select>
+              <SearchableSelect
+                value={form.status}
+                options={[
+                  { value: "active", label: "Active" },
+                  { value: "archived", label: "Archived" },
+                ]}
+                placeholder="Select Status"
+                searchPlaceholder="Search status"
+                onChange={(status) => setForm((current) => ({ ...current, status }))}
+              />
             </Field>
           </div>
           <Field label="Remarks">
             <textarea className={inputClass()} rows={3} value={form.remarks || ""} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
           </Field>
-          <div className="flex justify-end gap-2">
-            <button className="btn-primary" type="submit" disabled={saving}>{saving ? "Saving..." : form.id ? "Update Location" : "Create Location"}</button>
-            {form.id ? <button className="btn-secondary" type="button" disabled={saving} onClick={() => setForm({ location_name: "", location_code: "", location_type: storageLocationTypes[0], status: "active", remarks: "" })}>New</button> : null}
-          </div>
         </form>
-
-        <div className="space-y-2">
-          {locations.length ? locations.map((location) => (
-            <div key={location.id} className="flex items-center justify-between gap-3 rounded-xl border border-border bg-surface p-3">
-              <div>
-                <div className="font-semibold text-text-primary">{location.location_name}</div>
-                <div className="text-xs text-text-secondary">{[location.location_code, location.location_type, location.status].filter(Boolean).join(" · ")}</div>
-                {location.remarks ? <div className="mt-1 text-xs text-text-secondary">{location.remarks}</div> : null}
-              </div>
-              <div className="flex gap-2">
-                <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={saving} onClick={() => edit(location)}>Edit</button>
-                {location.status !== "archived" ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" disabled={saving} onClick={() => archive(location)}>Archive</button> : null}
-              </div>
-            </div>
-          )) : <EmptyState title="No storage locations" description="Create storage locations before assigning warehouse locations to Factory master records." />}
-        </div>
       </div>
     </Modal>
   );
@@ -2874,9 +2893,14 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
             />
           </Field>
           <Field label="Priority">
-            <select className={inputClass()} value={form.priority} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, priority: event.target.value }))}>
-              {priorityOptions.map((option) => <option key={option} value={option}>{option}</option>)}
-            </select>
+            <SearchableSelect
+              value={form.priority}
+              options={priorityOptions.map((option) => ({ value: option, label: option }))}
+              placeholder="Select Priority"
+              searchPlaceholder="Search priority"
+              disabled={isReadOnly}
+              onChange={(priority) => setForm((current) => ({ ...current, priority }))}
+            />
           </Field>
         </div>
         {selectedProduct ? (
@@ -6700,16 +6724,22 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <input className={inputClass()} value={warehouseFilters.product} onChange={(event) => setWarehouseFilters((current) => ({ ...current, product: event.target.value }))} placeholder="Search product" />
         </Field>
         <Field label="Category">
-          <select className={inputClass()} value={warehouseFilters.category} onChange={(event) => setWarehouseFilters((current) => ({ ...current, category: event.target.value }))}>
-            <option value="">All categories</option>
-            {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-          </select>
+          <SearchableSelect
+            value={warehouseFilters.category}
+            options={[{ value: "", label: "All Categories" }, ...categories.map((category) => ({ value: category.id, label: category.name }))]}
+            placeholder="All Categories"
+            searchPlaceholder="Search categories"
+            onChange={(category) => setWarehouseFilters((current) => ({ ...current, category }))}
+          />
         </Field>
         <Field label="Movement Type">
-          <select className={inputClass()} value={warehouseFilters.movementType} onChange={(event) => setWarehouseFilters((current) => ({ ...current, movementType: event.target.value }))}>
-            <option value="">All movements</option>
-            {movementTypes.map((type) => <option key={type} value={type}>{type}</option>)}
-          </select>
+          <SearchableSelect
+            value={warehouseFilters.movementType}
+            options={[{ value: "", label: "All Movements" }, ...movementTypes.map((type) => ({ value: type, label: type }))]}
+            placeholder="All Movements"
+            searchPlaceholder="Search movements"
+            onChange={(movementType) => setWarehouseFilters((current) => ({ ...current, movementType }))}
+          />
         </Field>
         <Field label="Batch / Source">
           <input className={inputClass()} value={warehouseFilters.batch} onChange={(event) => setWarehouseFilters((current) => ({ ...current, batch: event.target.value }))} placeholder="Search batch/source" />
@@ -6730,33 +6760,45 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <input className={inputClass()} value={warehouseFilters.product} onChange={(event) => setWarehouseFilters((current) => ({ ...current, product: event.target.value }))} placeholder="Search product" />
         </Field>
         <Field label="Finished Good">
-          <select className={inputClass()} value={warehouseFilters.family} onChange={(event) => setWarehouseFilters((current) => ({ ...current, family: event.target.value }))}>
-            <option value="">All finished goods</option>
-            {data.productFamilies.map((family) => <option key={family.id} value={family.id}>{family.name_en}</option>)}
-          </select>
+          <SearchableSelect
+            value={warehouseFilters.family}
+            options={[{ value: "", label: "All Finished Goods" }, ...data.productFamilies.map((family) => ({ value: family.id, label: family.name_en }))]}
+            placeholder="All Finished Goods"
+            searchPlaceholder="Search finished goods"
+            onChange={(family) => setWarehouseFilters((current) => ({ ...current, family }))}
+          />
         </Field>
         <Field label="Category">
-          <select className={inputClass()} value={warehouseFilters.category} onChange={(event) => setWarehouseFilters((current) => ({ ...current, category: event.target.value }))}>
-            <option value="">All categories</option>
-            {data.finishedGoodCategories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-          </select>
+          <SearchableSelect
+            value={warehouseFilters.category}
+            options={[{ value: "", label: "All Categories" }, ...data.finishedGoodCategories.map((category) => ({ value: category.id, label: category.name }))]}
+            placeholder="All Categories"
+            searchPlaceholder="Search categories"
+            onChange={(category) => setWarehouseFilters((current) => ({ ...current, category }))}
+          />
         </Field>
         {showStatus ? (
           <Field label="Status">
-            <select className={inputClass()} value={warehouseFilters.status} onChange={(event) => setWarehouseFilters((current) => ({ ...current, status: event.target.value }))}>
-              <option value="">All statuses</option>
-              {statuses.map((status) => <option key={status} value={status}>{status}</option>)}
-            </select>
+            <SearchableSelect
+              value={warehouseFilters.status}
+              options={[{ value: "", label: "All Status" }, ...statuses.map((status) => ({ value: status, label: jobStatusLabel(status) }))]}
+              placeholder="All Status"
+              searchPlaceholder="Search status"
+              onChange={(status) => setWarehouseFilters((current) => ({ ...current, status }))}
+            />
           </Field>
         ) : null}
         <Field label="Batch">
           <input className={inputClass()} value={warehouseFilters.batch} onChange={(event) => setWarehouseFilters((current) => ({ ...current, batch: event.target.value }))} placeholder="Search batch/source" />
         </Field>
         <Field label="Movement Type">
-          <select className={inputClass()} value={warehouseFilters.movementType} onChange={(event) => setWarehouseFilters((current) => ({ ...current, movementType: event.target.value }))}>
-            <option value="">All movements</option>
-            {movementTypes.map((type) => <option key={type} value={type}>{type}</option>)}
-          </select>
+          <SearchableSelect
+            value={warehouseFilters.movementType}
+            options={[{ value: "", label: "All Movements" }, ...movementTypes.map((type) => ({ value: type, label: type }))]}
+            placeholder="All Movements"
+            searchPlaceholder="Search movements"
+            onChange={(movementType) => setWarehouseFilters((current) => ({ ...current, movementType }))}
+          />
         </Field>
         <div className="flex items-end">
           <button className="btn-secondary w-full" type="button" onClick={() => setWarehouseFilters({ product: "", family: "", category: "", status: "", batch: "", movementType: "", dateFrom: "", dateTo: "" })}>Clear</button>
@@ -8975,10 +9017,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       ) : null}
       {modal?.type === "storage-locations" ? (
         <StorageLocationModal
-          locations={data.storageLocations}
+          initialValue={modal.value}
           onClose={() => setModal(null)}
-          onSave={(form) => saveStorageLocation(form, { keepOpen: true })}
-          onArchive={(location) => archiveStorageLocation(location, { keepOpen: true })}
+          onSave={saveStorageLocation}
         />
       ) : null}
       {modal?.type === "factory-suppliers" ? (
