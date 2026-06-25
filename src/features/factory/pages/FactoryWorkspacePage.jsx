@@ -2441,19 +2441,6 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
     <form id={embedded ? undefined : "factory-finished-good-dispatch-form"} className="space-y-4" onSubmit={submit}>
       {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
       <div className={`grid gap-3 ${showReferenceField ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
-        <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
-          <div className="text-[10.5px] font-semibold text-text-muted">Dispatch No.</div>
-          <div className="mt-1 text-sm font-bold text-text-primary">{form.dispatch_no || "DYYMMDD-01"}</div>
-          {!form.dispatch_no ? <div className="text-[11px] font-semibold text-text-muted">Generated on save</div> : null}
-        </div>
-        <Field label="Dispatch Date *">
-          <FeedXDatePicker
-            value={form.dispatch_date || ""}
-            required
-            disabled={isReadOnly}
-            onChange={(nextDate) => setForm((current) => ({ ...current, dispatch_date: nextDate }))}
-          />
-        </Field>
         <Field label="Customer *">
           {isReadOnly && !form.customer_id ? (
             <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-semibold text-text-primary">{form.customer_name || "—"}</div>
@@ -2472,6 +2459,18 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
             />
           )}
         </Field>
+        <Field label="Dispatch Date *">
+          <FeedXDatePicker
+            value={form.dispatch_date || ""}
+            required
+            disabled={isReadOnly}
+            onChange={(nextDate) => setForm((current) => ({ ...current, dispatch_date: nextDate }))}
+          />
+        </Field>
+        <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
+          <div className="text-[10.5px] font-semibold text-text-muted">Dispatch No.</div>
+          <div className={`mt-1 text-sm font-bold ${form.dispatch_no ? "text-text-primary" : "text-text-muted"}`}>{form.dispatch_no || "Auto Generated"}</div>
+        </div>
         {showReferenceField ? <Field label="Reference / DO No.">
           <input className={inputClass()} value={form.reference_no || ""} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, reference_no: event.target.value }))} />
         </Field> : null}
