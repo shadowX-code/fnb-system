@@ -1986,13 +1986,12 @@ export const factoryService = {
       notes: item.notes || "",
     }));
     const productionNo = production.production_no || makeFactoryRef("PRD");
-    const batchNo = production.batch_no || makeFactoryRef("PB");
     const { data: productionId, error } = await supabase.rpc("factory_complete_production", {
       p_job_order_id: production.job_order_id || null,
       p_finished_good_id: production.finished_good_id || null,
       p_production_no: productionNo,
       p_product_name: String(production.product_name || "").trim(),
-      p_batch_no: batchNo,
+      p_batch_no: production.batch_no || "",
       p_production_date: production.production_date || new Date().toISOString().slice(0, 10),
       p_operator_id: production.operator_id || employeeId || null,
       p_operator_name: production.operator_name || "",

@@ -30,8 +30,8 @@ function todayInput() {
 function previewProductionBatchNo(value) {
   const source = value || todayInput();
   const [year, month, day] = String(source).slice(0, 10).split("-");
-  if (!year || !month || !day) return "PB-YYMMDD-001";
-  return `PB-${String(year).slice(-2)}${month}${day}-001`;
+  if (!year || !month || !day) return "PBYYMMDD-01";
+  return `PB${String(year).slice(-2)}${month}${day}-01`;
 }
 
 function money(value) {
