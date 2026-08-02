@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Activity, AlertTriangle, BookOpen, CheckCircle2, ClipboardCheck, ClipboardList, Clock3, DollarSign, Factory, FileText, Package, PackageCheck, Play, RefreshCw, Tag, Truck, Warehouse } from "lucide-react";
+import { Activity, AlertTriangle, ArrowDown, ArrowUp, BookOpen, CheckCircle2, ClipboardCheck, ClipboardList, Clock3, Copy, DollarSign, Factory, FileText, Package, PackageCheck, Play, Plus, RefreshCw, Tag, Trash2, Truck, Warehouse } from "lucide-react";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
@@ -18,6 +18,12 @@ const packagingTypes = ["Pack", "Bottle", "Sachet", "Tub", "Pail", "Bag", "Carto
 const factoryCustomerTypes = ["Outlet", "Distributor", "Retailer", "OEM", "Export", "Other"];
 const storageLocationTypes = ["Dry Store", "Chiller", "Freezer", "Production Area", "Finished Goods Area", "Packaging Area"];
 const qcStatusOptions = ["Pending", "Pass", "Hold", "Failed"];
+const sopQcMeasurementOptions = [
+  { value: "numeric", label: "Numeric" },
+  { value: "pass_fail", label: "Pass / Fail" },
+  { value: "text", label: "Text" },
+  { value: "checklist", label: "Checklist" },
+];
 const varianceThresholdPercent = 5;
 const varianceReasonTolerance = 0.000001;
 const stockCheckCriticalPercent = 5;
@@ -4492,6 +4498,254 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
   );
 }
 
+function emptySopStep(index = 0) {
+  return {
+    id: `step-${Date.now()}-${index}`,
+    step_no: index + 1,
+    step_name: "",
+    description: "",
+    estimated_time_minutes: "",
+    ingredient_material_ids: [],
+    qc_required: false,
+    qc_label: "",
+    qc_measurement_type: "pass_fail",
+    qc_target_value: "",
+    qc_minimum: "",
+    qc_maximum: "",
+    qc_uom: "",
+    qc_required_before_completion: false,
+    remarks: "",
+    sub_steps: [],
+  };
+}
+
+function SopIngredientPicker({ ingredients = [], value = [], disabled = false, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const anchorRef = useRef(null);
+  const selectedIds = new Set(value || []);
+  const selectedIngredients = ingredients.filter((item) => selectedIds.has(item.raw_material_id));
+  const visibleIngredients = ingredients.filter((item) => `${item.raw_material_name || ""} ${item.uom || ""}`.toLowerCase().includes(query.toLowerCase()));
+
+  function toggleIngredient(rawMaterialId) {
+    const next = new Set(value || []);
+    if (next.has(rawMaterialId)) next.delete(rawMaterialId);
+    else next.add(rawMaterialId);
+    onChange([...next]);
+  }
+
+  return (
+    <div>
+      <button ref={anchorRef} className={`${inputClass()} min-h-[42px] text-left disabled:cursor-not-allowed disabled:opacity-70`} type="button" disabled={disabled || !ingredients.length} onClick={() => setOpen((current) => !current)}>
+        {selectedIngredients.length ? <span className="flex flex-wrap gap-1.5">{selectedIngredients.map((item) => <span key={item.raw_material_id} className="rounded-full bg-primary/10 px-2 py-0.5 text-xs font-bold text-primary">{item.raw_material_name}</span>)}</span> : <span className="text-text-muted">{ingredients.length ? "Select recipe ingredients" : "No recipe ingredients"}</span>}
+      </button>
+      <FloatingLayer open={open} onOpenChange={setOpen} anchorRef={anchorRef} align="start" minWidth={300} estimatedHeight={340} maxHeight={380}>
+        <input className={inputClass()} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search recipe ingredients" autoFocus />
+        <div className="mt-2 max-h-64 space-y-1 overflow-y-auto">
+          {visibleIngredients.length ? visibleIngredients.map((item) => (
+            <label key={item.raw_material_id} className="flex cursor-pointer items-center gap-3 rounded-lg px-3 py-2 hover:bg-primary/10">
+              <input type="checkbox" checked={selectedIds.has(item.raw_material_id)} onChange={() => toggleIngredient(item.raw_material_id)} />
+              <span className="min-w-0"><span className="block text-sm font-bold text-text-primary">{item.raw_material_name}</span><span className="block text-xs text-text-secondary">{quantity(item.quantity_used, item.uom)}</span></span>
+            </label>
+          )) : <div className="px-3 py-4 text-sm font-semibold text-text-secondary">No matching ingredients</div>}
+        </div>
+      </FloatingLayer>
+    </div>
+  );
+}
+
+function ProductionSopBuilderModal({ initialValue, productFamilies = [], recipes = [], sops = [], onClose, onSave }) {
+  const isEdit = Boolean(initialValue?.id);
+  const initialSteps = initialValue?.steps?.length
+    ? initialValue.steps.map((step, index) => ({
+        ...emptySopStep(index),
+        ...step,
+        id: step.id || `step-${Date.now()}-${index}`,
+        step_no: index + 1,
+        ingredient_material_ids: step.ingredient_material_ids || [],
+        sub_steps: (step.sub_steps || []).map((subStep, subIndex) => ({ ...subStep, id: subStep.id || `sub-${Date.now()}-${index}-${subIndex}`, sequence_no: subIndex + 1 })),
+      }))
+    : [emptySopStep(0)];
+  const productOptions = productFamilies
+    .filter((family) => family.status === "active" || family.id === initialValue?.finished_good_id)
+    .map((family) => ({ value: family.id, label: family.name_en, helper: family.name_cn || family.category || "Finished Good" }));
+  const [form, setForm] = useState(() => ({
+    sop_code: "",
+    finished_good_id: "",
+    product_name: "",
+    recipe_id: "",
+    recipe_version: "",
+    version: "v1",
+    effective_date: todayInput(),
+    remarks: "",
+    ...initialValue,
+    title: initialValue?.title || initialValue?.sop_name || "",
+    sop_name: initialValue?.sop_name || initialValue?.title || "",
+    status: initialValue?.status || "draft",
+    steps: initialSteps,
+  }));
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+  const isLocked = isEdit && form.status !== "draft";
+  const activeRecipe = useMemo(() => recipes.find((recipe) => recipe.product_family_id === form.finished_good_id && recipe.status === "active") || null, [recipes, form.finished_good_id]);
+  const recipeReference = useMemo(() => {
+    if (!form.recipe_id) return null;
+    return recipes.find((recipe) => recipe.id === form.recipe_id) || (initialValue?.linked_recipe?.id === form.recipe_id ? initialValue.linked_recipe : null);
+  }, [form.recipe_id, recipes, initialValue]);
+  const recipeIngredients = recipeReference?.items || [];
+  const recipeIngredientIds = new Set(recipeIngredients.map((item) => item.raw_material_id));
+  const calculatedMinutes = form.steps.reduce((sum, step) => sum + Number(step.estimated_time_minutes || 0), 0);
+
+  function nextVersionForFinishedGood(finishedGoodId) {
+    const maxVersion = sops.filter((sop) => sop.finished_good_id === finishedGoodId).reduce((max, sop) => Math.max(max, Number(String(sop.version || "").replace(/\D/g, "")) || 0), 0);
+    return `v${maxVersion + 1}`;
+  }
+
+  const resequenceSteps = (steps) => steps.map((step, index) => ({ ...step, step_no: index + 1 }));
+
+  function updateStep(rowId, patch) {
+    setForm((current) => ({ ...current, steps: current.steps.map((step) => (step.id === rowId ? { ...step, ...patch } : step)) }));
+  }
+
+  function addStep() {
+    setForm((current) => ({ ...current, steps: [...current.steps, emptySopStep(current.steps.length)] }));
+  }
+
+  function removeStep(rowId) {
+    setForm((current) => ({ ...current, steps: resequenceSteps(current.steps.filter((step) => step.id !== rowId)) }));
+  }
+
+  function moveStep(rowId, direction) {
+    setForm((current) => {
+      const index = current.steps.findIndex((step) => step.id === rowId);
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= current.steps.length) return current;
+      const steps = [...current.steps];
+      [steps[index], steps[target]] = [steps[target], steps[index]];
+      return { ...current, steps: resequenceSteps(steps) };
+    });
+  }
+
+  function duplicateStep(rowId) {
+    setForm((current) => {
+      const index = current.steps.findIndex((step) => step.id === rowId);
+      if (index < 0) return current;
+      const source = current.steps[index];
+      const duplicate = { ...source, id: `step-${Date.now()}-${index}`, sub_steps: (source.sub_steps || []).map((subStep, subIndex) => ({ ...subStep, id: `sub-${Date.now()}-${index}-${subIndex}` })) };
+      const steps = [...current.steps];
+      steps.splice(index + 1, 0, duplicate);
+      return { ...current, steps: resequenceSteps(steps) };
+    });
+  }
+
+  function addSubStep(stepId) {
+    setForm((current) => ({
+      ...current,
+      steps: current.steps.map((step) => step.id === stepId ? { ...step, sub_steps: [...(step.sub_steps || []), { id: `sub-${Date.now()}-${step.sub_steps?.length || 0}`, sequence_no: (step.sub_steps?.length || 0) + 1, instruction: "", estimated_minutes: "", remarks: "" }] } : step),
+    }));
+  }
+
+  function updateSubStep(stepId, subStepId, patch) {
+    setForm((current) => ({ ...current, steps: current.steps.map((step) => step.id === stepId ? { ...step, sub_steps: (step.sub_steps || []).map((subStep) => subStep.id === subStepId ? { ...subStep, ...patch } : subStep) } : step) }));
+  }
+
+  function removeSubStep(stepId, subStepId) {
+    setForm((current) => ({ ...current, steps: current.steps.map((step) => step.id === stepId ? { ...step, sub_steps: (step.sub_steps || []).filter((subStep) => subStep.id !== subStepId).map((subStep, index) => ({ ...subStep, sequence_no: index + 1 })) } : step) }));
+  }
+
+  function selectFinishedGood(finishedGoodId) {
+    const product = productFamilies.find((family) => family.id === finishedGoodId);
+    const nextRecipe = recipes.find((recipe) => recipe.product_family_id === finishedGoodId && recipe.status === "active") || null;
+    setForm((current) => {
+      const currentName = String(current.sop_name || current.title || "");
+      const shouldSuggestName = !currentName.trim() || currentName.endsWith(" Production SOP");
+      const suggestedName = shouldSuggestName && product?.name_en ? `${product.name_en} Production SOP` : currentName;
+      return { ...current, finished_good_id: finishedGoodId, product_name: product?.name_en || "", sop_name: suggestedName, title: suggestedName, version: isEdit ? current.version : nextVersionForFinishedGood(finishedGoodId), recipe_id: nextRecipe?.id || "", recipe_version: nextRecipe?.version || "", steps: current.steps.map((step) => ({ ...step, ingredient_material_ids: [] })) };
+    });
+  }
+
+  function linkActiveRecipe() {
+    if (!activeRecipe) return;
+    setForm((current) => ({ ...current, recipe_id: activeRecipe.id, recipe_version: activeRecipe.version || "", steps: current.steps.map((step) => ({ ...step, ingredient_material_ids: [] })) }));
+  }
+
+  async function submit(event) {
+    event.preventDefault();
+    setError("");
+    if (isLocked) return setError("Only draft SOPs can be edited.");
+    if (!form.finished_good_id) return setError("Finished Good is required.");
+    if (!String(form.sop_name || form.title || "").trim()) return setError("SOP name is required.");
+    if (!form.steps.length) return setError("At least one SOP step is required.");
+    for (let index = 0; index < form.steps.length; index += 1) {
+      const step = form.steps[index];
+      if (!String(step.step_name || step.process_name || "").trim()) return setError(`Step ${index + 1} requires a Step Name.`);
+      if ((step.qc_required || step.is_qc_checkpoint) && !String(step.qc_label || "").trim()) return setError(`Step ${index + 1} requires a QC Check Name.`);
+      if (
+        step.qc_minimum !== "" && step.qc_minimum != null
+        && step.qc_maximum !== "" && step.qc_maximum != null
+        && Number(step.qc_minimum) > Number(step.qc_maximum)
+      ) return setError(`Step ${index + 1} minimum cannot exceed maximum.`);
+      const emptySubStep = (step.sub_steps || []).findIndex((subStep) => !String(subStep.instruction || "").trim());
+      if (emptySubStep >= 0) return setError(`Sub-step ${index + 1}.${emptySubStep + 1} requires an instruction.`);
+      if ((step.ingredient_material_ids || []).some((materialId) => !recipeIngredientIds.has(materialId))) return setError(`Step ${index + 1} contains an ingredient outside the linked Product Recipe.`);
+    }
+    const product = productFamilies.find((family) => family.id === form.finished_good_id);
+    setSaving(true);
+    try {
+      await onSave({ ...form, title: form.sop_name || form.title, product_name: product?.name_en || form.product_name, estimated_minutes: calculatedMinutes });
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <Modal title={isEdit ? "Edit Production SOP" : "Create Production SOP"} description="Build the production process. Ingredient quantities and costing remain controlled by Product Recipes / BOM." size="2xl" onClose={saving ? undefined : onClose} footer={<><button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>{!isLocked ? <button className="btn-primary" type="submit" form="factory-sop-builder-form" disabled={saving}>{saving ? "Saving..." : "Save SOP"}</button> : null}</>}>
+      <form id="factory-sop-builder-form" className="space-y-6" onSubmit={submit}>
+        {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
+        <section>
+          <div className="mb-3 text-sm font-black text-text-primary">SOP Header</div>
+          <div className="grid gap-3 md:grid-cols-3">
+            <Field label="Finished Good *"><SearchableSelect value={form.finished_good_id || ""} options={productOptions} placeholder="Select Finished Good" searchPlaceholder="Search finished goods" emptyText="No finished goods" disabled={isLocked} onChange={selectFinishedGood} /></Field>
+            <Field label="SOP Name *"><input className={inputClass()} value={form.sop_name || form.title || ""} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, sop_name: event.target.value, title: event.target.value }))} /></Field>
+            <Field label="Version"><div className="rounded-xl border border-border bg-slate-50 px-3 py-2 text-sm font-bold text-text-primary">{form.version || "v1"}</div></Field>
+            <Field label="Estimated Time"><div className="rounded-xl border border-border bg-slate-50 px-3 py-2"><div className="text-sm font-bold text-text-primary">{productionTimeLabel(calculatedMinutes)}</div><div className="text-[10.5px] font-semibold text-text-muted">Calculated from step times</div></div></Field>
+            <Field label="Effective Date"><FeedXDatePicker value={form.effective_date || ""} disabled={isLocked} onChange={(nextDate) => setForm((current) => ({ ...current, effective_date: nextDate }))} /></Field>
+            <Field label="Status"><div className="rounded-xl border border-border bg-slate-50 px-3 py-2"><Badge tone={form.status === "active" ? "success" : form.status === "draft" ? "info" : "neutral"}>{jobStatusLabel(form.status)}</Badge></div></Field>
+          </div>
+          <div className="mt-3"><Field label="Remarks"><textarea className={inputClass()} rows={2} value={form.remarks || form.notes || ""} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value, notes: event.target.value }))} /></Field></div>
+        </section>
+
+        <section className="border-y border-border bg-slate-50 px-4 py-4 sm:px-5">
+          <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="text-sm font-black text-text-primary">Recipe Reference</div><div className="mt-1 text-xs font-semibold text-text-secondary">Read-only ingredient reference pinned to this SOP version.</div></div>{!recipeReference && isEdit && activeRecipe && !isLocked ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={linkActiveRecipe}>Link Active Recipe</button> : null}</div>
+          {recipeReference ? <div className="mt-4 space-y-3">
+            <div className="grid gap-3 sm:grid-cols-3"><div><div className="text-[10.5px] font-semibold text-text-muted">Active Recipe</div><div className="mt-1 text-sm font-bold text-text-primary">{recipeReference.version || form.recipe_version || "—"}</div></div><div><div className="text-[10.5px] font-semibold text-text-muted">Standard Output</div><div className="mt-1 text-sm font-bold text-text-primary">{quantity(recipeReference.yield_quantity, recipeReference.uom)}</div></div><div><div className="text-[10.5px] font-semibold text-text-muted">Ingredients</div><div className="mt-1 text-sm font-bold text-text-primary">{recipeIngredients.length}</div></div></div>
+            <div className="hidden overflow-hidden rounded-xl border border-border bg-white sm:block"><table className="w-full text-left text-sm"><thead><tr className="border-b border-border bg-slate-50 text-xs font-semibold text-text-secondary"><th className="px-3 py-2">Ingredient</th><th className="px-3 py-2">Recipe Qty</th><th className="px-3 py-2">UOM</th><th className="px-3 py-2">Wastage</th></tr></thead><tbody>{recipeIngredients.map((item) => <tr key={item.id || item.raw_material_id} className="border-b border-border last:border-0"><td className="px-3 py-2 font-bold text-text-primary">{item.raw_material_name || "Raw Material"}</td><td className="px-3 py-2">{Number(item.quantity_used || 0).toLocaleString("en-MY", { maximumFractionDigits: 4 })}</td><td className="px-3 py-2">{item.uom || "—"}</td><td className="px-3 py-2">{percent(item.wastage_percent)}</td></tr>)}</tbody></table></div>
+            <div className="space-y-2 sm:hidden">{recipeIngredients.map((item) => <div key={item.id || item.raw_material_id} className="rounded-xl border border-border bg-white p-3"><div className="font-bold text-text-primary">{item.raw_material_name || "Raw Material"}</div><div className="mt-1 text-xs font-semibold text-text-secondary">{quantity(item.quantity_used, item.uom)} · Wastage {percent(item.wastage_percent)}</div></div>)}</div>
+          </div> : <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 px-4 py-3"><div className="text-sm font-bold text-amber-900">No Active Recipe</div><div className="mt-1 text-xs font-semibold text-amber-800">Activate a Product Recipe before using ingredient references in this SOP.</div></div>}
+        </section>
+
+        <section>
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><div className="text-sm font-black text-text-primary">SOP Steps</div><div className="mt-1 text-xs font-semibold text-text-secondary">Steps re-sequence automatically after moving or removing.</div></div>{!isLocked ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={addStep}><Plus size={14} /> Add Step</button> : null}</div>
+          <div className="space-y-4">{form.steps.map((step, index) => {
+            const qcRequired = Boolean(step.qc_required ?? step.is_qc_checkpoint);
+            return <article key={step.id} className="rounded-xl border border-border bg-white p-4 sm:p-5">
+              <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3"><div className="flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-black text-white">{index + 1}</span><div><div className="text-sm font-black text-text-primary">Step {index + 1}</div><div className="text-xs font-semibold text-text-secondary">{step.step_name || "Unnamed process step"}</div></div></div>{!isLocked ? <div className="flex flex-wrap gap-1"><button className="icon-btn" title="Move step up" type="button" disabled={index === 0} onClick={() => moveStep(step.id, -1)}><ArrowUp size={15} /></button><button className="icon-btn" title="Move step down" type="button" disabled={index === form.steps.length - 1} onClick={() => moveStep(step.id, 1)}><ArrowDown size={15} /></button><button className="icon-btn" title="Duplicate step" type="button" onClick={() => duplicateStep(step.id)}><Copy size={15} /></button><button className="icon-btn text-rose-600" title="Remove step" type="button" disabled={form.steps.length === 1} onClick={() => removeStep(step.id)}><Trash2 size={15} /></button></div> : null}</div>
+              <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_180px]"><Field label="Step Name *"><input className={inputClass()} value={step.step_name || step.process_name || ""} disabled={isLocked} onChange={(event) => updateStep(step.id, { step_name: event.target.value, process_name: event.target.value })} /></Field><Field label="Estimated Minutes"><input className={inputClass()} type="number" min="0" value={step.estimated_time_minutes ?? ""} disabled={isLocked} onChange={(event) => updateStep(step.id, { estimated_time_minutes: event.target.value })} /></Field></div>
+              <div className="mt-3"><Field label="Description"><textarea className={inputClass()} rows={3} value={step.description || ""} disabled={isLocked} onChange={(event) => updateStep(step.id, { description: event.target.value })} /></Field></div>
+              <div className="mt-3"><Field label="Ingredient References"><SopIngredientPicker ingredients={recipeIngredients} value={step.ingredient_material_ids || []} disabled={isLocked || !recipeReference} onChange={(ingredientMaterialIds) => updateStep(step.id, { ingredient_material_ids: ingredientMaterialIds })} /></Field><div className="mt-1 text-[10.5px] font-semibold text-text-muted">Reference only. Recipe quantities, costing and stock movements are unchanged.</div></div>
+              <div className="mt-4 border-t border-border pt-4"><div className="grid gap-3 md:grid-cols-2"><Field label="QC Requirement"><SearchableSelect value={qcRequired ? "required" : "none"} options={[{ value: "none", label: "No QC Required" }, { value: "required", label: "QC Check Required" }]} placeholder="Select QC requirement" disabled={isLocked} onChange={(value) => updateStep(step.id, { qc_required: value === "required", is_qc_checkpoint: value === "required", qc_measurement_type: value === "required" ? step.qc_measurement_type || "pass_fail" : "" })} /></Field>{qcRequired ? <Field label="QC Check Name *"><input className={inputClass()} value={step.qc_label || step.control_point || ""} disabled={isLocked} onChange={(event) => updateStep(step.id, { qc_label: event.target.value, control_point: event.target.value })} /></Field> : null}</div>
+                {qcRequired ? <><div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><Field label="Measurement Type"><SearchableSelect value={step.qc_measurement_type || "pass_fail"} options={sopQcMeasurementOptions} placeholder="Select type" disabled={isLocked} onChange={(value) => updateStep(step.id, { qc_measurement_type: value })} /></Field><Field label="Target Value"><input className={inputClass()} value={step.qc_target_value || ""} disabled={isLocked} onChange={(event) => updateStep(step.id, { qc_target_value: event.target.value })} /></Field><Field label="QC UOM"><input className={inputClass()} value={step.qc_uom || ""} disabled={isLocked} onChange={(event) => updateStep(step.id, { qc_uom: event.target.value })} /></Field><Field label="Minimum"><input className={inputClass()} type="number" step="0.0001" value={step.qc_minimum ?? ""} disabled={isLocked} onChange={(event) => updateStep(step.id, { qc_minimum: event.target.value })} /></Field><Field label="Maximum"><input className={inputClass()} type="number" step="0.0001" value={step.qc_maximum ?? ""} disabled={isLocked} onChange={(event) => updateStep(step.id, { qc_maximum: event.target.value })} /></Field><label className="flex min-h-[42px] items-center gap-2 self-end rounded-xl border border-border bg-slate-50 px-3 py-2 text-sm font-semibold text-text-secondary"><input type="checkbox" checked={Boolean(step.qc_required_before_completion)} disabled={isLocked} onChange={(event) => updateStep(step.id, { qc_required_before_completion: event.target.checked })} /> Required Before Completion</label></div><div className="mt-2 text-[10.5px] font-semibold text-amber-700">QC standards are reference-only in Phase 1. Production QC result recording will be added in a later phase.</div></> : null}
+              </div>
+              <div className="mt-4 border-t border-border pt-4"><div className="flex flex-wrap items-center justify-between gap-3"><div className="text-xs font-black text-text-primary">Sub-steps</div>{!isLocked ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => addSubStep(step.id)}><Plus size={13} /> Add Sub-step</button> : null}</div>{step.sub_steps?.length ? <div className="mt-3 space-y-2">{step.sub_steps.map((subStep, subIndex) => <div key={subStep.id} className="grid gap-2 rounded-xl bg-slate-50 p-3 md:grid-cols-[48px_minmax(0,1fr)_140px_minmax(0,0.7fr)_36px]"><div className="pt-2 text-sm font-black text-primary">{index + 1}.{subIndex + 1}</div><input className={inputClass()} placeholder="Instruction *" value={subStep.instruction || ""} disabled={isLocked} onChange={(event) => updateSubStep(step.id, subStep.id, { instruction: event.target.value })} /><input className={inputClass()} type="number" min="0" placeholder="Minutes" value={subStep.estimated_minutes ?? ""} disabled={isLocked} onChange={(event) => updateSubStep(step.id, subStep.id, { estimated_minutes: event.target.value })} /><input className={inputClass()} placeholder="Remarks" value={subStep.remarks || ""} disabled={isLocked} onChange={(event) => updateSubStep(step.id, subStep.id, { remarks: event.target.value })} />{!isLocked ? <button className="icon-btn text-rose-600" title="Remove sub-step" type="button" onClick={() => removeSubStep(step.id, subStep.id)}><Trash2 size={14} /></button> : null}</div>)}</div> : <div className="mt-3 text-xs font-semibold text-text-muted">No sub-steps added.</div>}</div>
+              <div className="mt-4"><Field label="Step Remarks"><textarea className={inputClass()} rows={2} value={step.remarks || step.safety_note || ""} disabled={isLocked} onChange={(event) => updateStep(step.id, { remarks: event.target.value, safety_note: event.target.value })} /></Field></div>
+            </article>;
+          })}</div>
+        </section>
+      </form>
+    </Modal>
+  );
+}
+
 function ProductionSopModal({ initialValue, productFamilies = [], onClose, onSave }) {
   const isEdit = Boolean(initialValue?.id);
   const activeProductFamilies = productFamilies.filter((family) => String(family.status || "active").toLowerCase() === "active" || family.id === initialValue?.finished_good_id);
@@ -4783,6 +5037,50 @@ function ProductionSopDetailModal({ sop, onClose }) {
             }) : <EmptyState title="No SOP steps" description="This SOP has no saved process steps." />}
           </div>
         </div>
+      </div>
+    </Modal>
+  );
+}
+
+function ProductionSopDocumentModal({ sop, onClose }) {
+  const steps = [...(sop.steps || [])].sort((a, b) => Number(a.step_no || 0) - Number(b.step_no || 0));
+  const qcCount = steps.filter((step) => step.qc_required || step.is_qc_checkpoint).length;
+  const recipe = sop.linked_recipe;
+  const referencedIngredientCount = new Set(steps.flatMap((step) => step.ingredient_material_ids || [])).size;
+  return (
+    <Modal title={sop.sop_name || sop.title || "Production SOP"} description="Read-only standard process reference" size="2xl" onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}>
+      <div className="space-y-6">
+        <section className="border-b border-border pb-5">
+          <div className="flex flex-wrap items-start justify-between gap-4"><div><div className="text-xl font-black text-text-primary">{sop.sop_name || sop.title || "—"}</div><div className="mt-1 text-sm font-semibold text-text-secondary">{sop.product_name || "No Finished Good"}{sop.product_name_cn ? ` · ${sop.product_name_cn}` : ""}</div></div><Badge tone={sop.status === "active" ? "success" : sop.status === "draft" ? "info" : "neutral"}>{jobStatusLabel(sop.status)}</Badge></div>
+          <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[["Version", sop.version || "v1"], ["Estimated Time", productionTimeLabel(sop.estimated_minutes)], ["Effective Date", formatFactoryDate(sop.effective_date)], ["Steps", steps.length], ["QC Points", qcCount], ["Updated", formatFactoryDate(sop.updated_at)]].map(([label, value]) => <div key={label}><div className="text-[10.5px] font-semibold text-text-muted">{label}</div><div className="mt-1 text-sm font-bold text-text-primary">{value}</div></div>)}</div>
+          {sop.remarks || sop.notes ? <div className="mt-4 max-w-[70ch] text-sm font-semibold text-text-secondary">{sop.remarks || sop.notes}</div> : null}
+        </section>
+
+        <section className="bg-slate-50 px-4 py-4 sm:px-5">
+          <div className="text-sm font-black text-text-primary">Recipe Reference</div>
+          {recipe ? <div className="mt-3 grid gap-3 sm:grid-cols-3"><div><div className="text-[10.5px] font-semibold text-text-muted">Linked Recipe</div><div className="mt-1 text-sm font-bold text-text-primary">{recipe.recipe_name && recipe.recipe_name !== recipe.version ? `${recipe.recipe_name} ${sop.recipe_version || recipe.version}` : sop.recipe_version || recipe.version}</div></div><div><div className="text-[10.5px] font-semibold text-text-muted">Standard Output</div><div className="mt-1 text-sm font-bold text-text-primary">{quantity(recipe.yield_quantity, recipe.uom)}</div></div><div><div className="text-[10.5px] font-semibold text-text-muted">Referenced Ingredients</div><div className="mt-1 text-sm font-bold text-text-primary">{referencedIngredientCount} of {recipe.items?.length || 0}</div></div></div> : <div className="mt-3"><div className="text-sm font-bold text-text-primary">No Recipe Linked</div><div className="mt-1 text-xs font-semibold text-text-secondary">This SOP predates recipe snapshot linking or was saved without an active recipe.</div></div>}
+        </section>
+
+        <section>
+          <div className="mb-3 text-sm font-black text-text-primary">SOP Timeline</div>
+          <div className="relative space-y-4 before:absolute before:bottom-4 before:left-4 before:top-4 before:w-px before:bg-border sm:before:left-5">
+            {steps.length ? steps.map((step) => {
+              const qcRequired = step.qc_required || step.is_qc_checkpoint;
+              const measurementLabel = sopQcMeasurementOptions.find((option) => option.value === step.qc_measurement_type)?.label;
+              return (
+                <article key={step.id} className="relative ml-10 rounded-xl border border-border bg-white p-4 sm:ml-12 sm:p-5">
+                  <span className="absolute -left-[34px] top-4 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-black text-white sm:-left-[40px]">{step.step_no}</span>
+                  <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="text-base font-black text-text-primary">{step.step_name || step.process_name || "Unnamed Step"}</div><div className="mt-1 text-xs font-bold text-text-secondary">{productionTimeLabel(step.estimated_time_minutes)}</div></div>{qcRequired ? <Badge tone="warning">QC Required</Badge> : <Badge tone="neutral">Process Step</Badge>}</div>
+                  {step.description ? <div className="mt-3 max-w-[75ch] text-sm font-semibold text-text-secondary">{step.description}</div> : null}
+                  {step.ingredient_references?.length ? <div className="mt-3"><div className="text-[10.5px] font-semibold text-text-muted">Recipe Ingredients</div><div className="mt-1.5 flex flex-wrap gap-1.5">{step.ingredient_references.map((item) => <span key={item.raw_material_id} className="rounded-full bg-primary/10 px-2 py-1 text-xs font-bold text-primary">{item.raw_material_name}</span>)}</div></div> : null}
+                  {step.sub_steps?.length ? <div className="mt-4 space-y-2">{step.sub_steps.map((subStep, index) => <div key={subStep.id} className="flex gap-3 rounded-lg bg-slate-50 px-3 py-2"><span className="shrink-0 text-xs font-black text-primary">{step.step_no}.{index + 1}</span><div className="min-w-0"><div className="text-sm font-semibold text-text-primary">{subStep.instruction}</div><div className="mt-0.5 flex flex-wrap gap-3 text-xs font-semibold text-text-secondary">{subStep.estimated_minutes != null ? <span>{productionTimeLabel(subStep.estimated_minutes)}</span> : null}{subStep.remarks ? <span>{subStep.remarks}</span> : null}</div></div></div>)}</div> : null}
+                  {qcRequired ? <div className="mt-4 border-t border-border pt-3"><div className="text-xs font-black text-text-primary">QC Standard: {step.qc_label || step.control_point}</div><div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold text-text-secondary">{measurementLabel ? <span>Type: {measurementLabel}</span> : null}{step.qc_target_value ? <span>Target: {step.qc_target_value}{step.qc_uom ? ` ${step.qc_uom}` : ""}</span> : null}{step.qc_minimum != null ? <span>Minimum: {step.qc_minimum}{step.qc_uom ? ` ${step.qc_uom}` : ""}</span> : null}{step.qc_maximum != null ? <span>Maximum: {step.qc_maximum}{step.qc_uom ? ` ${step.qc_uom}` : ""}</span> : null}{step.qc_required_before_completion ? <span>Marked required before completion</span> : null}</div><div className="mt-2 text-[10.5px] font-semibold text-amber-700">Reference-only in Phase 1; production does not record or enforce this result yet.</div></div> : null}
+                  {step.remarks || step.safety_note ? <div className="mt-3 text-xs font-semibold text-text-secondary">Remarks: {step.remarks || step.safety_note}</div> : null}
+                </article>
+              );
+            }) : <EmptyState title="No SOP steps" description="This SOP has no saved process steps." />}
+          </div>
+        </section>
       </div>
     </Modal>
   );
@@ -9059,15 +9357,17 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         />
       ) : null}
       {modal?.type === "sop" ? (
-        <ProductionSopModal
+        <ProductionSopBuilderModal
           initialValue={modal.value}
           productFamilies={data.productFamilies}
+          recipes={data.recipes}
+          sops={data.sops}
           onClose={() => setModal(null)}
           onSave={saveProductionSop}
         />
       ) : null}
       {modal?.type === "sop-detail" ? (
-        <ProductionSopDetailModal
+        <ProductionSopDocumentModal
           sop={modal.value}
           onClose={() => setModal(null)}
         />

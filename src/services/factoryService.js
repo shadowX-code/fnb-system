@@ -583,12 +583,16 @@ function mapRecipe(row) {
 
 function mapProductionSop(row) {
   const finishedGood = row.finished_good || {};
+  const linkedRecipe = row.linked_recipe ? mapRecipe(row.linked_recipe) : null;
   return {
     id: row.id,
     sop_code: row.sop_code || "",
     title: row.title || "",
     sop_name: row.title || "",
     finished_good_id: row.finished_good_id || "",
+    recipe_id: row.recipe_id || linkedRecipe?.id || "",
+    recipe_version: row.recipe_version || linkedRecipe?.version || "",
+    linked_recipe: linkedRecipe,
     product_name: finishedGood.name_en || row.product_name || "",
     product_name_en: finishedGood.name_en || row.product_name || "",
     product_name_cn: finishedGood.name_cn || "",
@@ -617,6 +621,28 @@ function mapProductionSop(row) {
       estimated_time_minutes: normalizeNumber(step.estimated_time_minutes || step.expected_duration_minutes),
       is_qc_checkpoint: Boolean(step.is_qc_checkpoint),
       qc_required: Boolean(step.is_qc_checkpoint),
+      qc_measurement_type: step.qc_measurement_type || "",
+      qc_target_value: step.qc_target_value || "",
+      qc_minimum: optionalNumber(step.qc_minimum),
+      qc_maximum: optionalNumber(step.qc_maximum),
+      qc_uom: step.qc_uom || "",
+      qc_required_before_completion: Boolean(step.qc_required_before_completion),
+      ingredient_material_ids: (step.ingredient_refs ?? []).map((reference) => reference.raw_material_id).filter(Boolean),
+      ingredient_references: (step.ingredient_refs ?? []).map((reference) => ({
+        raw_material_id: reference.raw_material_id,
+        raw_material_name: reference.raw_material?.name_en || reference.raw_material?.name || "Raw Material",
+        uom: reference.raw_material?.uom || "",
+      })),
+      sub_steps: (step.sub_steps ?? []).map((subStep) => ({
+        id: subStep.id,
+        sop_step_id: subStep.sop_step_id,
+        sequence_no: normalizeNumber(subStep.sequence_no),
+        instruction: subStep.instruction || "",
+        estimated_minutes: optionalNumber(subStep.estimated_minutes),
+        remarks: subStep.remarks || "",
+        created_at: subStep.created_at,
+        updated_at: subStep.updated_at,
+      })).sort((a, b) => a.sequence_no - b.sequence_no),
       safety_note: step.safety_note || step.remarks || "",
       remarks: step.remarks || step.safety_note || "",
       created_at: step.created_at,
@@ -756,6 +782,7 @@ const rawMaterialRelationSelect = "name,name_en,name_cn,name_bm,image_url,materi
 const productFamilyRelationSelect = "id,name_en,name_cn,name_bm,status";
 const recipeSelect = `id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`;
 const recipeSummarySelect = `id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),finished_good:factory_finished_goods(${finishedGoodSelect})`;
+const sopSelect = `id,sop_code,title,product_name,finished_good_id,recipe_id,recipe_version,version,effective_date,equipment,estimated_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_product_families(id,name_en,name_cn,name_bm,status),linked_recipe:factory_product_recipes(id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,status,notes,remarks,created_by,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))),steps:factory_production_sop_steps(id,sop_id,step_no,instruction,process_name,description,control_point,qc_label,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,qc_measurement_type,qc_target_value,qc_minimum,qc_maximum,qc_uom,qc_required_before_completion,safety_note,remarks,created_at,updated_at,sub_steps:factory_production_sop_sub_steps(id,sop_step_id,sequence_no,instruction,estimated_minutes,remarks,created_at,updated_at),ingredient_refs:factory_production_sop_step_materials(raw_material_id,raw_material:factory_raw_materials(name,name_en,material_code,uom)))`;
 const jobOrderSelect = `id,job_order_no,finished_good_id,product_name,target_pack_qty,target_production_qty,target_quantity,produced_quantity,uom,planned_date,due_date,priority,status,assigned_team,remarks,created_by,released_at,released_by,started_at,started_by,production_operator_id,production_operator_name,production_date,start_time,completed_at,completed_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect})`;
 const productionSelectBasic = `id,job_order_id,finished_good_id,production_no,product_name,batch_no,actual_pack_qty,actual_output_qty,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,operator_id,operator_name,start_time,end_time,qc_status,production_sop_id,sop_version,status,notes,created_by,completed_at,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),job_order:factory_job_orders(job_order_no,finished_good_id,product_name,target_pack_qty,target_production_qty,finished_good:factory_finished_goods(product_code,product_name,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom))`;
 const productionSelectDetailed = `${productionSelectBasic},material_usage:factory_production_material_usage(id,production_id,raw_material_id,raw_material_receiving_id,raw_material_lot_no,quantity_used,standard_usage,actual_usage,variance_qty,variance_percent,variance_reason,uom,wastage_quantity,notes,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect}),raw_receiving:factory_raw_material_receivings(receipt_no,batch_no,supplier_name,received_date,unit_cost)),qc_checkpoints:factory_production_qc_checkpoints(id,production_id,production_sop_id,sop_step_id,step_no,process_name,control_point,qc_status,notes,created_at,updated_at)`;
@@ -806,7 +833,7 @@ function factoryDataPlan(scope, hasPermission) {
     finishedGoodDispatches: isFinishedGoodsDispatch && can("factory_finished_goods_dispatch.view"),
     rawStockChecks: (isRawInventory && can("factory_raw_inventory.view")) || (isRawStockCheck && can("factory_raw_stock_check.view")),
     productStockChecks: isProductStockCheck && can("factory_product_stock_check.view"),
-    recipes: (isDashboard && can("factory_dashboard.view")) || (isRawInventory && can("factory_raw_inventory.view")) || (isProductRecipes && can("factory_product_recipes.view")) || (isJobOrders && can("factory_product_recipes.view")) || (isProductionPlanning && can("factory_product_recipes.view")) || (isProduction && (can("factory_product_recipes.view") || can("factory_production.complete"))) || (isReports && can("factory_production_reports.view")),
+    recipes: (isDashboard && can("factory_dashboard.view")) || (isRawInventory && can("factory_raw_inventory.view")) || (isProductRecipes && can("factory_product_recipes.view")) || (isProductionSop && (can("factory_production_sop.view") || can("factory_production_sop.create") || can("factory_production_sop.edit") || can("factory_production_sop.manage"))) || (isJobOrders && can("factory_product_recipes.view")) || (isProductionPlanning && can("factory_product_recipes.view")) || (isProduction && (can("factory_product_recipes.view") || can("factory_production.complete"))) || (isReports && can("factory_production_reports.view")),
     recipeSummaries: isFinishedGoods && can("factory_product_recipes.view"),
     sops: (isProduction || isProductionSop || isBatchTraceability) && can("factory_production_sop.view"),
     auditLogs: isAuditLogs && can("factory_audit_logs.view"),
@@ -942,7 +969,7 @@ export const factoryService = {
       .limit(300), (rows) => rows.map(mapRecipe));
     addTask(plan.sops, "sops", "Production SOP", () => supabase
       .from("factory_production_sops")
-      .select("id,sop_code,title,product_name,finished_good_id,version,effective_date,equipment,estimated_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_product_families(id,name_en,name_cn,name_bm,status),steps:factory_production_sop_steps(id,sop_id,step_no,instruction,process_name,description,control_point,qc_label,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,safety_note,remarks,created_at,updated_at)")
+      .select(sopSelect)
       .order("product_name", { ascending: true })
       .limit(150), (rows) => rows.map(mapProductionSop));
     addTask(plan.auditLogs, "auditLogs", "Factory Audit Logs", () => supabase
@@ -2232,91 +2259,65 @@ export const factoryService = {
 
   async saveProductionSop(sop, employeeId) {
     const isUpdate = Boolean(sop.id);
-    const steps = (sop.steps ?? [])
-      .map((step, index) => ({
-        step_no: normalizeNumber(step.step_no, index + 1),
-        process_name: String(step.step_name || step.process_name || "").trim(),
+    const steps = (sop.steps ?? []).map((step, index) => {
+      const qcRequired = Boolean(step.qc_required ?? step.is_qc_checkpoint);
+      return {
+        step_no: index + 1,
+        step_name: String(step.step_name || step.process_name || "").trim(),
         description: String(step.description || "").trim(),
-        control_point: String(step.qc_label || step.control_point || "").trim(),
-        qc_label: String(step.qc_label || step.control_point || "").trim(),
-        materials: String(step.materials || "").trim(),
-        equipment: String(step.equipment || "").trim(),
         estimated_time_minutes: normalizeNumber(step.estimated_time_minutes),
-        is_qc_checkpoint: Boolean(step.qc_required ?? step.is_qc_checkpoint),
-        safety_note: String(step.remarks || step.safety_note || "").trim(),
+        qc_required: qcRequired,
+        qc_label: qcRequired ? String(step.qc_label || step.control_point || "").trim() : "",
+        qc_measurement_type: qcRequired ? String(step.qc_measurement_type || "pass_fail").trim().toLowerCase() : "",
+        qc_target_value: qcRequired ? String(step.qc_target_value || "").trim() : "",
+        qc_minimum: qcRequired ? optionalNumber(step.qc_minimum) : null,
+        qc_maximum: qcRequired ? optionalNumber(step.qc_maximum) : null,
+        qc_uom: qcRequired ? String(step.qc_uom || "").trim() : "",
+        qc_required_before_completion: qcRequired && Boolean(step.qc_required_before_completion),
         remarks: String(step.remarks || step.safety_note || "").trim(),
-      }))
-      .filter((step) => step.process_name || step.description);
+        ingredient_material_ids: [...new Set((step.ingredient_material_ids ?? []).filter(Boolean))],
+        sub_steps: (step.sub_steps ?? []).map((subStep, subIndex) => ({
+          sequence_no: subIndex + 1,
+          instruction: String(subStep.instruction || "").trim(),
+          estimated_minutes: optionalNumber(subStep.estimated_minutes),
+          remarks: String(subStep.remarks || "").trim(),
+        })),
+      };
+    });
 
     if (!String(sop.title || sop.sop_name || "").trim()) throw new Error("SOP name is required.");
     if (!String(sop.finished_good_id || sop.product_name || "").trim()) throw new Error("Finished Good is required.");
     if (!steps.length) throw new Error("At least one SOP step is required.");
 
-    if (isUpdate) {
-      const { data: existing, error: lookupError } = await supabase
-        .from("factory_production_sops")
-        .select("id,status")
-        .eq("id", sop.id)
-        .single();
-      throwSupabaseError("factory.sop.lookup", lookupError);
-      if (String(existing.status || "").toLowerCase() !== "draft") {
-        throw new Error("Only draft Production SOPs can be edited. Create a new version to change an active SOP.");
+    steps.forEach((step, index) => {
+      if (!step.step_name) throw new Error(`Step ${index + 1} requires a Step Name.`);
+      if (step.qc_required && !step.qc_label) throw new Error(`Step ${index + 1} requires a QC Check Name.`);
+      if (step.qc_minimum != null && step.qc_maximum != null && step.qc_minimum > step.qc_maximum) {
+        throw new Error(`Step ${index + 1} minimum cannot exceed maximum.`);
       }
-    }
+      const emptySubStep = step.sub_steps.findIndex((subStep) => !subStep.instruction);
+      if (emptySubStep >= 0) throw new Error(`Sub-step ${index + 1}.${emptySubStep + 1} requires an instruction.`);
+    });
 
-    const payload = {
-      sop_code: sop.sop_code || makeFactoryRef("SOP"),
-      title: String(sop.title || sop.sop_name || "").trim(),
-      finished_good_id: sop.finished_good_id || null,
-      product_name: String(sop.product_name || "").trim(),
-      version: String(sop.version || "v1").trim(),
-      effective_date: sop.effective_date || null,
-      equipment: "",
-      estimated_minutes: normalizeNumber(sop.estimated_minutes),
-      status: sop.status || "draft",
-      notes: String(sop.remarks || sop.notes || "").trim(),
-      remarks: String(sop.remarks || sop.notes || "").trim(),
-      updated_at: new Date().toISOString(),
-    };
-    if (!isUpdate) payload.created_by = employeeId || null;
-
-    const query = isUpdate
-      ? supabase.from("factory_production_sops").update(payload).eq("id", sop.id)
-      : supabase.from("factory_production_sops").insert(payload);
-
-    const { data, error } = await query
-      .select("id,sop_code,title,product_name,finished_good_id,version,effective_date,equipment,estimated_minutes,status,notes,remarks,created_by,created_at,updated_at")
-      .single();
-    throwSupabaseError("factory.sop.save", error);
-
-    if (isUpdate) {
-      const deleteResult = await supabase.from("factory_production_sop_steps").delete().eq("sop_id", data.id);
-      throwSupabaseError("factory.sop.steps_delete", deleteResult.error);
-    }
-
-    const insertResult = await supabase.from("factory_production_sop_steps").insert(steps.map((step) => ({
-      sop_id: data.id,
-      step_no: step.step_no,
-      instruction: step.description || step.process_name,
-      process_name: step.process_name,
-      description: step.description,
-      control_point: step.control_point,
-      qc_label: step.qc_label,
-      materials: step.materials,
-      equipment: step.equipment,
-      expected_duration_minutes: step.estimated_time_minutes,
-      estimated_time_minutes: step.estimated_time_minutes,
-      is_qc_checkpoint: step.is_qc_checkpoint,
-      safety_note: step.safety_note,
-      remarks: step.remarks,
-      updated_at: new Date().toISOString(),
-    })));
-    throwSupabaseError("factory.sop.steps_insert", insertResult.error);
+    const { data: result, error } = await supabase.rpc("factory_save_production_sop_structure", {
+      p_sop_id: sop.id || null,
+      p_finished_good_id: sop.finished_good_id || null,
+      p_title: String(sop.title || sop.sop_name || "").trim(),
+      p_effective_date: sop.effective_date || null,
+      p_remarks: String(sop.remarks || sop.notes || "").trim(),
+      p_recipe_id: sop.recipe_id || null,
+      p_recipe_version: sop.recipe_version || null,
+      p_steps: steps,
+      p_created_by: employeeId || null,
+    });
+    throwSupabaseError("factory.sop.save_structure", error);
+    const sopId = Array.isArray(result) ? result[0]?.sop_id : result?.sop_id;
+    if (!sopId) throw new Error("Production SOP save did not return an SOP id.");
 
     const { data: saved, error: fetchError } = await supabase
       .from("factory_production_sops")
-      .select("id,sop_code,title,product_name,finished_good_id,version,effective_date,equipment,estimated_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_product_families(id,name_en,name_cn,name_bm,status),steps:factory_production_sop_steps(id,sop_id,step_no,instruction,process_name,description,control_point,qc_label,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,safety_note,remarks,created_at,updated_at)")
-      .eq("id", data.id)
+      .select(sopSelect)
+      .eq("id", sopId)
       .single();
     throwSupabaseError("factory.sop.fetch_saved", fetchError);
 
@@ -2338,7 +2339,7 @@ export const factoryService = {
     if (!sopId) throw new Error("Production SOP activation did not return an SOP id.");
     const { data, error } = await supabase
       .from("factory_production_sops")
-      .select("id,sop_code,title,product_name,finished_good_id,version,effective_date,equipment,estimated_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_product_families(id,name_en,name_cn,name_bm,status),steps:factory_production_sop_steps(id,sop_id,step_no,instruction,process_name,description,control_point,qc_label,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,safety_note,remarks,created_at,updated_at)")
+      .select(sopSelect)
       .eq("id", sopId)
       .single();
     throwSupabaseError("factory.sop.activate_fetch", error);
@@ -2355,7 +2356,7 @@ export const factoryService = {
     if (!sopId) throw new Error("New Production SOP version was not created.");
     const { data, error } = await supabase
       .from("factory_production_sops")
-      .select("id,sop_code,title,product_name,finished_good_id,version,effective_date,equipment,estimated_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_product_families(id,name_en,name_cn,name_bm,status),steps:factory_production_sop_steps(id,sop_id,step_no,instruction,process_name,description,control_point,qc_label,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,safety_note,remarks,created_at,updated_at)")
+      .select(sopSelect)
       .eq("id", sopId)
       .single();
     throwSupabaseError("factory.sop.new_version_fetch", error);
@@ -2378,13 +2379,17 @@ export const factoryService = {
   },
 
   async archiveProductionSop(sop) {
-    if (!["active", "draft"].includes(String(sop.status || "").toLowerCase())) throw new Error("Only active or draft Production SOPs can be archived.");
+    if (String(sop.status || "").toLowerCase() !== "active") throw new Error("Only active Production SOPs can be archived.");
+    const { data: archived, error: archiveError } = await supabase.rpc("factory_archive_production_sop", {
+      p_sop_id: sop.id,
+    });
+    throwSupabaseError("factory.sop.archive_rpc", archiveError);
+    const sopId = Array.isArray(archived) ? archived[0]?.sop_id : archived?.sop_id;
+    if (!sopId) throw new Error("Production SOP archive did not return an SOP id.");
     const { data, error } = await supabase
       .from("factory_production_sops")
-      .update({ status: "archived", updated_at: new Date().toISOString() })
-      .eq("id", sop.id)
-      .in("status", ["active", "draft"])
-      .select("id,sop_code,title,product_name,finished_good_id,version,effective_date,equipment,estimated_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_product_families(id,name_en,name_cn,name_bm,status),steps:factory_production_sop_steps(id,sop_id,step_no,instruction,process_name,description,control_point,qc_label,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,safety_note,remarks,created_at,updated_at)")
+      .select(sopSelect)
+      .eq("id", sopId)
       .single();
     throwSupabaseError("factory.sop.archive", error);
     await logFactoryAction({ action: "factory_production_sop_archived", target: data.sop_code, description: "Factory Production SOP archived.", after: data });
@@ -2393,12 +2398,16 @@ export const factoryService = {
 
   async restoreProductionSop(sop) {
     if (String(sop.status || "").toLowerCase() !== "archived") throw new Error("Only archived Production SOPs can be restored.");
+    const { data: restored, error: restoreError } = await supabase.rpc("factory_restore_production_sop", {
+      p_sop_id: sop.id,
+    });
+    throwSupabaseError("factory.sop.restore_rpc", restoreError);
+    const sopId = Array.isArray(restored) ? restored[0]?.sop_id : restored?.sop_id;
+    if (!sopId) throw new Error("Production SOP restore did not return an SOP id.");
     const { data, error } = await supabase
       .from("factory_production_sops")
-      .update({ status: "draft", updated_at: new Date().toISOString() })
-      .eq("id", sop.id)
-      .eq("status", "archived")
-      .select("id,sop_code,title,product_name,finished_good_id,version,effective_date,equipment,estimated_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_product_families(id,name_en,name_cn,name_bm,status),steps:factory_production_sop_steps(id,sop_id,step_no,instruction,process_name,description,control_point,qc_label,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,safety_note,remarks,created_at,updated_at)")
+      .select(sopSelect)
+      .eq("id", sopId)
       .single();
     throwSupabaseError("factory.sop.restore", error);
     await logFactoryAction({ action: "factory_production_sop_restored", target: data.sop_code, description: "Factory Production SOP restored as draft.", after: data });
