@@ -12,6 +12,15 @@ function optionalNumber(value) {
   return value === null || value === undefined || value === "" ? "" : normalizeNumber(value);
 }
 
+function normalizeSopMinutes(value, label, blankValue = 0) {
+  if (value === null || value === undefined || value === "") return blankValue;
+  const numeric = Number(value);
+  if (!Number.isFinite(numeric) || !Number.isInteger(numeric) || numeric < 0) {
+    throw new Error(`${label} must be a non-negative whole number.`);
+  }
+  return numeric;
+}
+
 function databaseUuid(value) {
   const text = String(value || "").trim();
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text) ? text : null;
@@ -927,7 +936,7 @@ function factoryDataPlan(scope, hasPermission) {
     recipes: (isDashboard && can("factory_dashboard.view")) || (isRawInventory && can("factory_raw_inventory.view")) || (isProductRecipes && can("factory_product_recipes.view")) || (isProductionSop && (can("factory_production_sop.view") || can("factory_production_sop.create") || can("factory_production_sop.edit") || can("factory_production_sop.manage"))) || (isJobOrders && can("factory_product_recipes.view")) || (isProductionPlanning && can("factory_product_recipes.view")) || (isProduction && (can("factory_product_recipes.view") || can("factory_production.complete"))) || (isReports && can("factory_production_reports.view")),
     recipeSummaries: isFinishedGoods && can("factory_product_recipes.view"),
     sops: (isProduction || isProductionSop || isBatchTraceability) && can("factory_production_sop.view"),
-    qcChecklistTemplates: isProductionSop && can("factory_production_sop.view"),
+    qcChecklistTemplates: isProductionSop && (can("factory_production_sop.view") || can("factory_production_sop.create") || can("factory_production_sop.edit") || can("factory_production_sop.manage")),
     auditLogs: isAuditLogs && can("factory_audit_logs.view"),
   };
 }
@@ -1067,7 +1076,7 @@ export const factoryService = {
     addTask(plan.qcChecklistTemplates, "qcChecklistTemplates", "QC Checklist Presets", () => supabase
       .from("factory_qc_checklist_templates")
       .select("id,name,category,description,result_mode,is_active,created_at,updated_at")
-      .eq("is_active", true)
+      .order("is_active", { ascending: false })
       .order("category", { ascending: true })
       .order("name", { ascending: true }), (rows) => rows);
     addTask(plan.auditLogs, "auditLogs", "Factory Audit Logs", () => supabase
@@ -2445,15 +2454,83 @@ export const factoryService = {
     return mapFinishedGoodDispatch(data);
   },
 
+  async createQcChecklistTemplate(template, employeeId) {
+    const name = String(template.name || "").trim();
+    const resultMode = String(template.result_mode || "checklist").trim().toLowerCase();
+    if (!name) throw new Error("QC Check Name is required.");
+    if (!["checklist", "remarks"].includes(resultMode)) throw new Error("Result Mode must be Checklist or Remarks.");
+    const { data: result, error } = await supabase.rpc("factory_create_qc_checklist_template", {
+      p_name: name,
+      p_result_mode: resultMode,
+      p_description: String(template.description || "").trim() || null,
+      p_created_by: employeeId || null,
+    });
+    throwSupabaseError("factory.qc_template.create", error);
+    const templateId = Array.isArray(result) ? result[0]?.template_id : result?.template_id;
+    const { data, error: fetchError } = await supabase.from("factory_qc_checklist_templates").select("id,name,category,description,result_mode,is_active,created_at,updated_at").eq("id", templateId).single();
+    throwSupabaseError("factory.qc_template.create_fetch", fetchError);
+    await logFactoryAction({ action: "factory_qc_template_created", target: data.name, description: "Factory QC Checklist Preset created.", after: data });
+    return data;
+  },
+
+  async updateQcChecklistTemplate(template) {
+    const name = String(template.name || "").trim();
+    const resultMode = String(template.result_mode || "checklist").trim().toLowerCase();
+    if (!name) throw new Error("QC Check Name is required.");
+    if (!["checklist", "remarks"].includes(resultMode)) throw new Error("Result Mode must be Checklist or Remarks.");
+    const { data: result, error } = await supabase.rpc("factory_update_qc_checklist_template", {
+      p_template_id: template.id,
+      p_name: name,
+      p_result_mode: resultMode,
+      p_description: String(template.description || "").trim() || null,
+    });
+    throwSupabaseError("factory.qc_template.update", error);
+    const templateId = Array.isArray(result) ? result[0]?.template_id : result?.template_id;
+    const { data, error: fetchError } = await supabase.from("factory_qc_checklist_templates").select("id,name,category,description,result_mode,is_active,created_at,updated_at").eq("id", templateId).single();
+    throwSupabaseError("factory.qc_template.update_fetch", fetchError);
+    await logFactoryAction({ action: "factory_qc_template_updated", target: data.name, description: "Factory QC Checklist Preset updated.", before: template, after: data });
+    return data;
+  },
+
+  async archiveQcChecklistTemplate(template) {
+    const { error } = await supabase.rpc("factory_archive_qc_checklist_template", { p_template_id: template.id });
+    throwSupabaseError("factory.qc_template.archive", error);
+    await logFactoryAction({ action: "factory_qc_template_archived", target: template.name, description: "Factory QC Checklist Preset archived.", before: template });
+    return true;
+  },
+
+  async restoreQcChecklistTemplate(template) {
+    const { error } = await supabase.rpc("factory_restore_qc_checklist_template", { p_template_id: template.id });
+    throwSupabaseError("factory.qc_template.restore", error);
+    await logFactoryAction({ action: "factory_qc_template_restored", target: template.name, description: "Factory QC Checklist Preset restored.", before: template });
+    return true;
+  },
+
+  async deleteQcChecklistTemplate(template) {
+    const { error } = await supabase.rpc("factory_delete_qc_checklist_template", { p_template_id: template.id });
+    throwSupabaseError("factory.qc_template.delete", error);
+    await logFactoryAction({ action: "factory_qc_template_deleted", target: template.name, description: "Unused Factory QC Checklist Preset deleted.", before: template });
+    return true;
+  },
+
   async saveProductionSop(sop, employeeId) {
     const isUpdate = Boolean(sop.id);
     const steps = (sop.steps ?? []).map((step, index) => {
+      const subSteps = (step.sub_steps ?? []).map((subStep, subIndex) => ({
+        sequence_no: subIndex + 1,
+        instruction: String(subStep.instruction || "").trim(),
+        estimated_minutes: normalizeSopMinutes(subStep.estimated_minutes, `Sub-step ${index + 1}.${subIndex + 1} minutes`, ""),
+        remarks: String(subStep.remarks || "").trim(),
+      }));
+      const estimatedMinutes = subSteps.length
+        ? subSteps.reduce((sum, subStep) => sum + Number(subStep.estimated_minutes || 0), 0)
+        : normalizeSopMinutes(step.estimated_time_minutes, `Step ${index + 1} minutes`);
       return {
         id: databaseUuid(step.id),
         step_no: index + 1,
         step_name: String(step.step_name || step.process_name || "").trim(),
         description: String(step.description || "").trim(),
-        estimated_time_minutes: normalizeNumber(step.estimated_time_minutes),
+        estimated_time_minutes: estimatedMinutes,
         qc_checks: (step.qc_checks ?? []).map((qc, qcIndex) => ({
           id: databaseUuid(qc.id),
           sequence_no: qcIndex + 1,
@@ -2465,12 +2542,7 @@ export const factoryService = {
         })),
         remarks: String(step.remarks || step.safety_note || "").trim(),
         ingredient_material_ids: [...new Set((step.ingredient_material_ids ?? []).filter(Boolean))],
-        sub_steps: (step.sub_steps ?? []).map((subStep, subIndex) => ({
-          sequence_no: subIndex + 1,
-          instruction: String(subStep.instruction || "").trim(),
-          estimated_minutes: optionalNumber(subStep.estimated_minutes),
-          remarks: String(subStep.remarks || "").trim(),
-        })),
+        sub_steps: subSteps,
       };
     });
 

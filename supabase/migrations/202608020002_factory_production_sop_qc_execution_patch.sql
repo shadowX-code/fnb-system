@@ -25,6 +25,34 @@ create table if not exists public.factory_qc_checklist_templates (
   constraint factory_qc_checklist_templates_result_mode check (result_mode in ('checklist', 'remarks'))
 );
 
+-- 202608020001 created this table before result_mode was introduced. CREATE
+-- TABLE IF NOT EXISTS does not add columns to that deployed shape.
+alter table public.factory_qc_checklist_templates
+  add column if not exists result_mode text not null default 'checklist';
+
+update public.factory_qc_checklist_templates
+set result_mode = 'checklist'
+where result_mode is null or result_mode not in ('checklist', 'remarks');
+
+alter table public.factory_qc_checklist_templates
+  alter column result_mode set default 'checklist',
+  alter column result_mode set not null;
+
+do $$
+begin
+  if not exists (
+    select 1
+    from pg_constraint
+    where conname = 'factory_qc_checklist_templates_result_mode'
+      and conrelid = 'public.factory_qc_checklist_templates'::regclass
+  ) then
+    alter table public.factory_qc_checklist_templates
+      add constraint factory_qc_checklist_templates_result_mode
+      check (result_mode in ('checklist', 'remarks'));
+  end if;
+end;
+$$;
+
 create table if not exists public.factory_production_sop_step_qc_checks (
   id uuid primary key default gen_random_uuid(),
   sop_step_id uuid not null references public.factory_production_sop_steps(id) on delete cascade,
@@ -41,6 +69,11 @@ create table if not exists public.factory_production_sop_step_qc_checks (
   constraint factory_production_sop_step_qc_checks_name_required check (btrim(qc_name) <> ''),
   unique (sop_step_id, sequence_no)
 );
+
+-- 202608020001 restricted every template-linked definition to checklist mode.
+-- Preset result_mode is now the authority and may legitimately be remarks.
+alter table public.factory_production_sop_step_qc_checks
+  drop constraint if exists factory_production_sop_step_qc_checks_template_type;
 
 -- Production records are created only at completion in the current Factory flow.
 -- The job order therefore owns the immutable SOP/QC snapshot while work is in progress.
@@ -100,6 +133,58 @@ create table if not exists public.factory_production_qc_results (
   unique (production_step_execution_id, sequence_no)
 );
 
+-- Preserve the IDs referenced by SOP history while normalizing the original
+-- 202608020001 seed labels into the operator-facing preset names. If a target
+-- name already exists, retain the old row as archived history instead.
+do $$
+declare
+  v_mapping record;
+  v_old_id uuid;
+begin
+  for v_mapping in
+    select * from (values
+      ('Raw material condition acceptable', 'Raw Material Condition'),
+      ('Equipment cleaned', 'Equipment Cleanliness'),
+      ('Temperature checked', 'Temperature Check'),
+      ('Texture acceptable', 'Product Texture'),
+      ('Colour acceptable', 'Product Colour'),
+      ('No foreign matter', 'No Foreign Matter'),
+      ('Packaging seal complete', 'Packaging Seal'),
+      ('Label correct', 'Label Accuracy'),
+      ('Weight checked', 'Product Weight'),
+      ('No leakage', 'No Leakage')
+    ) as mapping(old_name, new_name)
+  loop
+    select template.id into v_old_id
+    from public.factory_qc_checklist_templates template
+    where template.name = v_mapping.old_name;
+
+    if v_old_id is null then
+      continue;
+    end if;
+
+    if exists (
+      select 1
+      from public.factory_qc_checklist_templates template
+      where lower(btrim(template.name)) = lower(btrim(v_mapping.new_name))
+        and template.id <> v_old_id
+    ) then
+      update public.factory_qc_checklist_templates
+      set is_active = false,
+          result_mode = 'checklist',
+          updated_at = now()
+      where id = v_old_id;
+    else
+      update public.factory_qc_checklist_templates
+      set name = v_mapping.new_name,
+          result_mode = 'checklist',
+          updated_at = now()
+      where id = v_old_id;
+    end if;
+  end loop;
+end;
+$$;
+
 insert into public.factory_qc_checklist_templates (name, category, description, result_mode)
 values
   ('Raw Material Condition', 'Material', 'Confirm raw material condition is acceptable for production.', 'checklist'),
@@ -157,6 +242,9 @@ create policy "factory qc checklist templates view" on public.factory_qc_checkli
 for select to authenticated
 using (
   public.current_user_has_permission('factory_production_sop.view')
+  or public.current_user_has_permission('factory_production_sop.create')
+  or public.current_user_has_permission('factory_production_sop.edit')
+  or public.current_user_has_permission('factory_production_sop.manage')
 );
 
 drop policy if exists "factory sop step qc checks view" on public.factory_production_sop_step_qc_checks;
@@ -225,6 +313,199 @@ revoke insert, update, delete on public.factory_production_sop_step_qc_checks fr
 revoke insert, update, delete on public.factory_production_step_executions from authenticated;
 revoke insert, update, delete on public.factory_production_qc_results from authenticated;
 revoke insert, update, delete on public.factory_qc_checklist_templates from authenticated;
+
+create or replace function public.factory_create_qc_checklist_template(
+  p_name text,
+  p_result_mode text,
+  p_description text default null,
+  p_created_by uuid default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_id uuid;
+  v_name text := nullif(btrim(coalesce(p_name, '')), '');
+  v_result_mode text := lower(btrim(coalesce(p_result_mode, '')));
+begin
+  if not public.current_user_has_permission('factory_production_sop.manage') then
+    raise exception 'Missing permission: factory_production_sop.manage';
+  end if;
+  if v_name is null then raise exception 'QC Check Name is required.'; end if;
+  if v_result_mode not in ('checklist', 'remarks') then
+    raise exception 'Result Mode must be Checklist or Remarks.';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext('factory_qc_checklist_template:' || lower(v_name)));
+  if exists (
+    select 1 from public.factory_qc_checklist_templates template
+    where lower(btrim(template.name)) = lower(v_name)
+  ) then
+    raise exception 'A QC Checklist Preset with this name already exists.';
+  end if;
+
+  insert into public.factory_qc_checklist_templates (
+    name, description, result_mode, is_active, created_by, updated_at
+  ) values (
+    v_name, nullif(btrim(coalesce(p_description, '')), ''), v_result_mode, true, p_created_by, now()
+  )
+  returning id into v_id;
+
+  return jsonb_build_object('template_id', v_id);
+exception
+  when unique_violation then
+    raise exception 'A QC Checklist Preset with this name already exists.';
+end;
+$$;
+
+create or replace function public.factory_update_qc_checklist_template(
+  p_template_id uuid,
+  p_name text,
+  p_result_mode text,
+  p_description text default null
+)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_template public.factory_qc_checklist_templates%rowtype;
+  v_name text := nullif(btrim(coalesce(p_name, '')), '');
+  v_result_mode text := lower(btrim(coalesce(p_result_mode, '')));
+begin
+  if not public.current_user_has_permission('factory_production_sop.manage') then
+    raise exception 'Missing permission: factory_production_sop.manage';
+  end if;
+  if v_name is null then raise exception 'QC Check Name is required.'; end if;
+  if v_result_mode not in ('checklist', 'remarks') then
+    raise exception 'Result Mode must be Checklist or Remarks.';
+  end if;
+
+  perform pg_advisory_xact_lock(hashtext('factory_qc_checklist_template:' || lower(v_name)));
+
+  select template.* into v_template
+  from public.factory_qc_checklist_templates template
+  where template.id = p_template_id
+  for update;
+  if not found then raise exception 'QC Checklist Preset not found.'; end if;
+  if exists (
+    select 1 from public.factory_qc_checklist_templates template
+    where lower(btrim(template.name)) = lower(v_name)
+      and template.id <> v_template.id
+  ) then
+    raise exception 'A QC Checklist Preset with this name already exists.';
+  end if;
+
+  update public.factory_qc_checklist_templates template
+  set name = v_name,
+      result_mode = v_result_mode,
+      description = nullif(btrim(coalesce(p_description, '')), ''),
+      updated_at = now()
+  where template.id = v_template.id;
+
+  return jsonb_build_object('template_id', v_template.id);
+exception
+  when unique_violation then
+    raise exception 'A QC Checklist Preset with this name already exists.';
+end;
+$$;
+
+create or replace function public.factory_archive_qc_checklist_template(p_template_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_template public.factory_qc_checklist_templates%rowtype;
+begin
+  if not public.current_user_has_permission('factory_production_sop.manage') then
+    raise exception 'Missing permission: factory_production_sop.manage';
+  end if;
+  select template.* into v_template
+  from public.factory_qc_checklist_templates template
+  where template.id = p_template_id
+  for update;
+  if not found then raise exception 'QC Checklist Preset not found.'; end if;
+  if not v_template.is_active then raise exception 'Only Active QC Checklist Presets can be archived.'; end if;
+
+  update public.factory_qc_checklist_templates template
+  set is_active = false, updated_at = now()
+  where template.id = v_template.id;
+  return jsonb_build_object('template_id', v_template.id);
+end;
+$$;
+
+create or replace function public.factory_restore_qc_checklist_template(p_template_id uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_template public.factory_qc_checklist_templates%rowtype;
+begin
+  if not public.current_user_has_permission('factory_production_sop.manage') then
+    raise exception 'Missing permission: factory_production_sop.manage';
+  end if;
+  select template.* into v_template
+  from public.factory_qc_checklist_templates template
+  where template.id = p_template_id
+  for update;
+  if not found then raise exception 'QC Checklist Preset not found.'; end if;
+  if v_template.is_active then raise exception 'Only Archived QC Checklist Presets can be restored.'; end if;
+
+  update public.factory_qc_checklist_templates template
+  set is_active = true, updated_at = now()
+  where template.id = v_template.id;
+  return jsonb_build_object('template_id', v_template.id);
+end;
+$$;
+
+create or replace function public.factory_delete_qc_checklist_template(p_template_id uuid)
+returns void
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  v_template public.factory_qc_checklist_templates%rowtype;
+begin
+  if not public.current_user_has_permission('factory_production_sop.manage') then
+    raise exception 'Missing permission: factory_production_sop.manage';
+  end if;
+  select template.* into v_template
+  from public.factory_qc_checklist_templates template
+  where template.id = p_template_id
+  for update;
+  if not found then raise exception 'QC Checklist Preset not found.'; end if;
+
+  if exists (
+    select 1
+    from public.factory_production_sop_step_qc_checks qc
+    where qc.checklist_template_id = v_template.id
+  ) then
+    raise exception 'Referenced QC Checklist Presets cannot be deleted. Archive this preset instead.';
+  end if;
+
+  delete from public.factory_qc_checklist_templates template
+  where template.id = v_template.id;
+end;
+$$;
+
+grant execute on function public.factory_create_qc_checklist_template(text, text, text, uuid) to authenticated;
+grant execute on function public.factory_update_qc_checklist_template(uuid, text, text, text) to authenticated;
+grant execute on function public.factory_archive_qc_checklist_template(uuid) to authenticated;
+grant execute on function public.factory_restore_qc_checklist_template(uuid) to authenticated;
+grant execute on function public.factory_delete_qc_checklist_template(uuid) to authenticated;
+revoke execute on function public.factory_create_qc_checklist_template(text, text, text, uuid) from public, anon;
+revoke execute on function public.factory_update_qc_checklist_template(uuid, text, text, text) from public, anon;
+revoke execute on function public.factory_archive_qc_checklist_template(uuid) from public, anon;
+revoke execute on function public.factory_restore_qc_checklist_template(uuid) from public, anon;
+revoke execute on function public.factory_delete_qc_checklist_template(uuid) from public, anon;
 
 drop policy if exists "factory sops insert draft archived" on public.factory_production_sops;
 drop policy if exists "factory sops update draft" on public.factory_production_sops;
@@ -640,7 +921,9 @@ declare
   v_existing_step_id uuid;
   v_existing_qc_id uuid;
   v_step_no integer := 0;
+  v_step_minutes integer := 0;
   v_sub_step_no integer;
+  v_sub_step_minutes integer;
   v_qc_no integer;
   v_estimated_minutes integer := 0;
   v_qc_type text;
@@ -852,7 +1135,25 @@ begin
       raise exception 'Step % requires a Step Name.', v_step_no;
     end if;
 
-    v_estimated_minutes := v_estimated_minutes + greatest(coalesce(nullif(v_step->>'estimated_time_minutes', '')::integer, 0), 0);
+    v_step_minutes := 0;
+    if jsonb_array_length(coalesce(v_step->'sub_steps', '[]'::jsonb)) > 0 then
+      for v_sub_step in select value from jsonb_array_elements(v_step->'sub_steps')
+      loop
+        if nullif(btrim(coalesce(v_sub_step->>'estimated_minutes', '')), '') is not null then
+          if btrim(v_sub_step->>'estimated_minutes') !~ '^\d+$' then
+            raise exception 'Sub-step minutes must be a non-negative whole number.';
+          end if;
+          v_sub_step_minutes := btrim(v_sub_step->>'estimated_minutes')::integer;
+          v_step_minutes := v_step_minutes + v_sub_step_minutes;
+        end if;
+      end loop;
+    elsif nullif(btrim(coalesce(v_step->>'estimated_time_minutes', '')), '') is not null then
+      if btrim(v_step->>'estimated_time_minutes') !~ '^\d+$' then
+        raise exception 'Step minutes must be a non-negative whole number.';
+      end if;
+      v_step_minutes := btrim(v_step->>'estimated_time_minutes')::integer;
+    end if;
+    v_estimated_minutes := v_estimated_minutes + v_step_minutes;
 
     insert into public.factory_production_sop_steps (
       sop_id,
@@ -887,8 +1188,8 @@ begin
       null,
       '',
       '',
-      greatest(coalesce(nullif(v_step->>'estimated_time_minutes', '')::integer, 0), 0),
-      greatest(coalesce(nullif(v_step->>'estimated_time_minutes', '')::integer, 0), 0),
+      v_step_minutes,
+      v_step_minutes,
       false,
       null,
       null,
@@ -922,7 +1223,7 @@ begin
         v_step_id,
         v_sub_step_no,
         btrim(v_sub_step->>'instruction'),
-        nullif(v_sub_step->>'estimated_minutes', '')::integer,
+        nullif(btrim(coalesce(v_sub_step->>'estimated_minutes', '')), '')::integer,
         nullif(btrim(coalesce(v_sub_step->>'remarks', '')), ''),
         now()
       );
@@ -1010,6 +1311,9 @@ declare
   v_source_step public.factory_production_sop_steps%rowtype;
   v_new_id uuid;
   v_new_step_id uuid;
+  v_new_step_minutes integer;
+  v_new_sop_minutes integer := 0;
+  v_source_sub_step_count integer;
   v_next_version integer;
   v_lock_key text;
 begin
@@ -1082,7 +1386,7 @@ begin
     'v' || v_next_version::text,
     v_source.effective_date,
     v_source.equipment,
-    v_source.estimated_minutes,
+    0,
     'draft',
     v_source.notes,
     v_source.remarks,
@@ -1097,6 +1401,16 @@ begin
     where step.sop_id = v_source.id
     order by step.step_no, step.id
   loop
+    select count(*), coalesce(sum(coalesce(sub_step.estimated_minutes, 0)), 0)
+    into v_source_sub_step_count, v_new_step_minutes
+    from public.factory_production_sop_sub_steps sub_step
+    where sub_step.sop_step_id = v_source_step.id;
+
+    if v_source_sub_step_count = 0 then
+      v_new_step_minutes := greatest(coalesce(v_source_step.estimated_time_minutes, 0), 0);
+    end if;
+    v_new_sop_minutes := v_new_sop_minutes + v_new_step_minutes;
+
     insert into public.factory_production_sop_steps (
       sop_id,
       step_no,
@@ -1130,8 +1444,8 @@ begin
       v_source_step.qc_label,
       v_source_step.materials,
       v_source_step.equipment,
-      v_source_step.expected_duration_minutes,
-      v_source_step.estimated_time_minutes,
+      v_new_step_minutes,
+      v_new_step_minutes,
       v_source_step.is_qc_checkpoint,
       v_source_step.qc_measurement_type,
       v_source_step.qc_target_value,
@@ -1184,6 +1498,11 @@ begin
     where qc.sop_step_id = v_source_step.id
     order by qc.sequence_no, qc.id;
   end loop;
+
+  update public.factory_production_sops sop
+  set estimated_minutes = v_new_sop_minutes,
+      updated_at = now()
+  where sop.id = v_new_id;
 
   return jsonb_build_object('sop_id', v_new_id, 'version', 'v' || v_next_version::text);
 end;

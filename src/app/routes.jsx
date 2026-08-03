@@ -306,7 +306,7 @@ const routeDetails = {
   factory_production_sop: {
     description: "Manage standard production SOP steps and QC checkpoint references by product.",
     component: FactoryWorkspacePage,
-    permission: "factory_production_sop.view",
+    permission: "factory_production_sop.view OR factory_production_sop.create OR factory_production_sop.edit OR factory_production_sop.manage",
     props: { initialTab: "production-sop" },
   },
   factory_audit_logs: {
