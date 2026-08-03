@@ -8,7 +8,7 @@ import Badge from "../../../components/ui/Badge.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
-import { factoryService } from "../../../services/factoryService.js";
+import { factoryService, productionQcStatus } from "../../../services/factoryService.js";
 import { IMAGE_UPLOAD_ACCEPT } from "../../../utils/imageUpload.js";
 
 const priorityOptions = ["Low", "Normal", "High", "Urgent"];
@@ -2181,6 +2181,12 @@ function CompletedJobOrderResultModal({ job, production, recipes = [], onClose }
   const recipeBaseQty = Number(matchingRecipe?.yield_quantity || 0);
   const scaleFactor = production && recipeBaseQty ? outputQty / recipeBaseQty : null;
   const materialRows = production?.material_usage || [];
+  const processSteps = production?.step_executions || [];
+  const processQcResults = processSteps.flatMap((step) => step.qc_results || []);
+  const processQcState = productionQcStatus(processQcResults);
+  const qcSummary = !processSteps.length
+    ? "No QC Snapshot / Legacy Production"
+    : processQcState.status === "No QC Required" ? processQcState.status : `QC ${processQcState.status}`;
   const summaryItems = [
     ["JO No", job?.job_order_no || "—"],
     ["Finished Good", jobFinishedGoodName(job || production || {})],
@@ -2288,6 +2294,33 @@ function CompletedJobOrderResultModal({ job, production, recipes = [], onClose }
                 </div>
               ) : (
                 <EmptyState title="No material usage rows" description="This completed production record has no saved material usage rows." />
+              )}
+            </Card>
+
+            <Card title="Production Process & QC" description="Read-only SOP and QC snapshot saved with this production.">
+              {!processSteps.length ? (
+                <div className="p-4"><EmptyState title="No QC Snapshot / Legacy Production" description="This production was completed before Production QC execution snapshots were available." /></div>
+              ) : (
+                <div className="space-y-3 p-4">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <div className="text-sm font-bold text-text-primary">{processSteps.filter((step) => step.status === "completed").length} of {processSteps.length} steps completed</div>
+                    <Badge tone={processQcState.status === "Failed" ? "danger" : ["Not Started", "In Progress"].includes(processQcState.status) ? "warning" : processQcState.status === "Passed" ? "success" : "neutral"}>{qcSummary}</Badge>
+                  </div>
+                  {processSteps.map((step) => (
+                    <article key={step.id} className="rounded-xl border border-border bg-white p-3">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <div><div className="text-xs font-black text-primary">Step {step.step_no}</div><div className="mt-0.5 text-sm font-bold text-text-primary">{step.step_name}</div>{step.description ? <div className="mt-1 text-xs font-semibold text-text-secondary">{step.description}</div> : null}</div>
+                        <Badge tone={step.status === "completed" ? "success" : "neutral"}>{step.status === "completed" ? "Completed" : "Pending"}</Badge>
+                      </div>
+                      {step.sub_steps?.length ? <div className="mt-2 space-y-1">{step.sub_steps.map((subStep) => <div key={`${step.id}-${subStep.sequence_no}`} className="text-xs font-semibold text-text-secondary"><span className="mr-1 font-black text-primary">{step.step_no}.{subStep.sequence_no}</span>{subStep.instruction}</div>)}</div> : null}
+                      {step.qc_results?.length ? <div className="mt-3 grid gap-2 sm:grid-cols-2">{step.qc_results.map((result) => {
+                        const resultLabel = result.qc_type === "remarks" ? (result.remarks ? "Recorded" : "Not recorded") : result.checklist_result ? result.checklist_result === "na" ? "N/A" : jobStatusLabel(result.checklist_result) : "Not recorded";
+                        const resultTone = result.checklist_result === "fail" ? "danger" : result.checklist_result === "pass" || (result.qc_type === "remarks" && result.remarks) ? "success" : "neutral";
+                        return <div key={result.id} className="rounded-lg bg-slate-50 px-3 py-2"><div className="flex flex-wrap items-center justify-between gap-2"><div className="text-xs font-bold text-text-primary">{result.qc_name}</div><Badge tone={resultTone}>{resultLabel}</Badge></div>{result.instructions ? <div className="mt-1 text-xs font-semibold text-text-secondary">{result.instructions}</div> : null}{result.remarks ? <div className="mt-1 text-xs text-text-secondary">{result.remarks}</div> : null}{result.checked_at ? <div className="mt-1 text-[10.5px] font-semibold text-text-muted">Checked {factoryTimeLabel(result.checked_at)}</div> : null}</div>;
+                      })}</div> : <div className="mt-2 text-xs font-semibold text-text-muted">No QC Required</div>}
+                    </article>
+                  ))}
+                </div>
               )}
             </Card>
           </>
@@ -4116,7 +4149,7 @@ function StartProductionModal({ job, auth, onClose, onSave }) {
   );
 }
 
-function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops, finishedGoods = [], productions = [], auth, onClose, onSave }) {
+function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops, finishedGoods = [], productions = [], auth, readOnly = false, onClose, onSave }) {
   const activeFinishedGoods = finishedGoods.filter((product) => product.status === "active");
   const matchingFinishedGood = activeFinishedGoods.find((product) => product.id === job.finished_good_id) || activeFinishedGoods.find((product) => product.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
   const matchingRecipe = activeRecipeForSku(recipes, matchingFinishedGood || job, job.product_name);
@@ -4148,9 +4181,45 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
     material_usage: buildInitialUsageRows({ ...job, finished_good: matchingFinishedGood, actual_output_qty: initialOutputQty }, rawMaterials, recipes),
   }));
   const [saving, setSaving] = useState(false);
+  const [savingQc, setSavingQc] = useState(false);
+  const [executionLoading, setExecutionLoading] = useState(true);
+  const [execution, setExecution] = useState({ steps: [], snapshotCreatedAt: "", sopId: "", sopVersion: "" });
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [error, setError] = useState("");
   const batchNoPreview = previewDailyDocumentNo({ prefix: "PB", date: form.production_date, records: productions, codeKey: "batch_no", dateKey: "production_date" });
+
+  useEffect(() => {
+    let active = true;
+    setExecutionLoading(true);
+    factoryService.getProductionExecution(job.id)
+      .then((nextExecution) => { if (active) setExecution(nextExecution); })
+      .catch((loadError) => { if (active) setError(loadError.message || "Unable to load Production QC."); })
+      .finally(() => { if (active) setExecutionLoading(false); });
+    return () => { active = false; };
+  }, [job.id]);
+
+  function updateExecutionStep(stepId, patch) {
+    setExecution((current) => ({ ...current, steps: current.steps.map((step) => step.id === stepId ? { ...step, ...patch } : step) }));
+  }
+
+  function updateExecutionQc(stepId, qcId, patch) {
+    setExecution((current) => ({ ...current, steps: current.steps.map((step) => step.id === stepId ? { ...step, qc_results: (step.qc_results || []).map((qc) => qc.id === qcId ? { ...qc, ...patch } : qc) } : step) }));
+  }
+
+  async function saveQcProgress() {
+    if (readOnly) throw new Error("Production QC is read-only for your account.");
+    if (!execution.snapshotCreatedAt) return execution;
+    const missingNaReason = execution.steps.flatMap((step) => step.qc_results || []).some((qc) => qc.qc_type === "checklist" && qc.checklist_result === "na" && !String(qc.remarks || "").trim());
+    if (missingNaReason) throw new Error("Add a reason when selecting N/A.");
+    setSavingQc(true);
+    try {
+      const saved = await factoryService.saveProductionQcProgress(job.id, execution, auth?.profile?.id, employeeDisplayName(auth));
+      setExecution(saved);
+      return saved;
+    } finally {
+      setSavingQc(false);
+    }
+  }
 
   function addUsageRow() {
     setForm((current) => ({
@@ -4199,6 +4268,16 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
       return Math.abs(variance) > varianceReasonTolerance && !String(row.variance_reason || "").trim();
     });
     if (missingReason) return "Reason is required when actual usage differs from standard usage.";
+    if (execution.snapshotCreatedAt) {
+      const qcResults = execution.steps.flatMap((step) => step.qc_results || []);
+      if (qcResults.some((qc) => qc.qc_type === "checklist" && qc.checklist_result === "na" && !String(qc.remarks || "").trim())) return "Add a reason when selecting N/A.";
+      const incompleteQc = qcResults.find((qc) => qc.is_required && (
+        (qc.qc_type === "checklist" && (!qc.checklist_result || (qc.checklist_result === "na" && !String(qc.remarks || "").trim())))
+        || (qc.qc_type === "remarks" && !String(qc.remarks || "").trim())
+      ));
+      if (incompleteQc) return "Complete all required QC checks before completing production.";
+      if (qcResults.some((qc) => qc.is_required && qc.qc_type === "checklist" && qc.checklist_result === "fail")) return "Production has failed QC checks that require review.";
+    }
     return "";
   }
 
@@ -4210,6 +4289,7 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
     if (validationError) return;
     setSaving(true);
     try {
+      await saveQcProgress();
       await onSave({
         ...form,
         actual_produced_qty: form.actual_output_qty || form.good_output_qty,
@@ -4227,6 +4307,12 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
   const estimatedPackQty = Number(job.target_pack_qty || job.target_quantity || 0);
   const actualPackQty = Number(form.actual_pack_qty || 0);
   const packDifference = actualPackQty - estimatedPackQty;
+  const executionQcResults = execution.steps.flatMap((step) => step.qc_results || []);
+  const executionQcState = productionQcStatus(executionQcResults);
+  const completedQcCount = executionQcState.entered;
+  const failedQcCount = executionQcState.failed;
+  const executionQcLabel = executionQcState.status === "No QC Required" ? executionQcState.status : `QC ${executionQcState.status}`;
+  const completedStepCount = execution.steps.filter((step) => step.status === "completed").length;
   const formatSignedQuantity = (value, unit) => {
     const numericValue = Number(value || 0);
     const prefix = numericValue > 0 ? "+" : "";
@@ -4263,11 +4349,11 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
 
   return (
     <Modal
-      title="Complete Production"
-      description={`${job.job_order_no} · ${job.product_name}`}
+      title={readOnly ? "Production Process & QC" : "Complete Production"}
+      description={`${job.job_order_no} · ${job.product_name}${readOnly ? " · Read-only" : ""}`}
       size="xl"
       onClose={saving ? undefined : onClose}
-      footer={(
+      footer={readOnly ? <button className="btn-secondary" type="button" onClick={onClose}>Close</button> : (
         <>
           <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
           <button className="btn-primary" type="submit" form="factory-production-form" disabled={saving}>{saving ? "Completing..." : "Complete Production"}</button>
@@ -4276,6 +4362,29 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
     >
       <form id="factory-production-form" className="space-y-5" onSubmit={submit}>
         {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
+        <section className="rounded-2xl border border-border bg-white p-4 sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div><div className="text-sm font-black text-text-primary">Production Process</div><div className="mt-1 text-xs font-semibold text-text-secondary">Complete the snapshotted SOP steps and required QC checks before final production confirmation.</div></div>
+            {execution.snapshotCreatedAt ? <div className="flex flex-wrap items-center gap-2"><Badge tone={executionQcState.status === "Failed" ? "danger" : executionQcState.status === "Passed" ? "success" : executionQcState.status === "No QC Required" ? "neutral" : "warning"}>{executionQcLabel}</Badge>{!readOnly ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={savingQc || saving} onClick={() => saveQcProgress().catch((saveError) => setError(saveError.message))}>{savingQc ? "Saving..." : "Save Process"}</button> : null}</div> : null}
+          </div>
+          {executionLoading ? <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm font-semibold text-text-secondary">Loading production process...</div> : execution.snapshotCreatedAt ? (
+            <>
+              <div className="mt-4 grid gap-3 sm:grid-cols-3">
+                <div className="rounded-xl bg-slate-50 px-3 py-2"><div className="text-[10.5px] font-semibold text-text-muted">Steps Completed</div><div className="mt-1 text-lg font-black text-text-primary">{completedStepCount} / {execution.steps.length}</div></div>
+                <div className="rounded-xl bg-slate-50 px-3 py-2"><div className="text-[10.5px] font-semibold text-text-muted">QC Completed</div><div className="mt-1 text-lg font-black text-text-primary">{completedQcCount} / {executionQcResults.length}</div></div>
+                <div className="rounded-xl bg-slate-50 px-3 py-2"><div className="text-[10.5px] font-semibold text-text-muted">QC Failed</div><div className={`mt-1 text-lg font-black ${failedQcCount ? "text-rose-700" : "text-text-primary"}`}>{failedQcCount}</div></div>
+              </div>
+              {execution.steps.length ? <div className="mt-4 space-y-3">{execution.steps.map((step) => (
+                <article key={step.id} className={`rounded-xl border p-4 ${step.status === "completed" ? "border-emerald-200 bg-emerald-50/40" : "border-border bg-white"}`}>
+                  <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><div className="text-xs font-black text-primary">Step {step.step_no}</div><div className="mt-1 text-base font-black text-text-primary">{step.step_name}</div>{step.description ? <div className="mt-1 max-w-[75ch] text-sm font-semibold text-text-secondary">{step.description}</div> : null}</div><label className={`inline-flex min-h-10 items-center gap-2 rounded-lg border border-border bg-white px-3 py-2 text-sm font-bold text-text-primary ${readOnly ? "cursor-default" : "cursor-pointer"}`}><input type="checkbox" checked={step.status === "completed"} disabled={readOnly} onChange={(event) => updateExecutionStep(step.id, { status: event.target.checked ? "completed" : "pending" })} /> Step Complete</label></div>
+                  {step.sub_steps?.length ? <div className="mt-3 space-y-1.5">{step.sub_steps.map((subStep) => <div key={`${step.id}-${subStep.sequence_no}`} className="flex gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-text-secondary"><span className="font-black text-primary">{step.step_no}.{subStep.sequence_no}</span><span>{subStep.instruction}</span></div>)}</div> : null}
+                  {step.qc_results?.length ? <div className="mt-4 border-t border-border pt-3"><div className="text-xs font-black text-text-primary">QC Checks</div><div className="mt-2 space-y-2">{step.qc_results.map((qc) => <div key={qc.id} className="rounded-lg bg-slate-50 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><div className="text-sm font-bold text-text-primary">{qc.qc_name}{qc.is_required ? <span className="ml-1 text-rose-700">*</span> : null}</div>{qc.instructions ? <div className="mt-0.5 text-xs font-semibold text-text-secondary">{qc.instructions}</div> : null}</div><Badge tone={qc.qc_type === "remarks" ? "info" : "neutral"}>{qc.qc_type === "remarks" ? "Remarks" : "Checklist"}</Badge></div>{qc.qc_type === "checklist" ? <><div className="mt-3 flex flex-wrap gap-2">{[["pass", "Pass"], ["fail", "Fail"], ["na", "N/A"]].map(([value, label]) => <button key={value} className={`rounded-lg border px-3 py-2 text-xs font-bold disabled:cursor-default ${qc.checklist_result === value ? value === "fail" ? "border-rose-300 bg-rose-50 text-rose-700" : "border-primary bg-primary/10 text-primary" : "border-border bg-white text-text-secondary"}`} type="button" disabled={readOnly} onClick={() => updateExecutionQc(step.id, qc.id, { checklist_result: value })}>{label}</button>)}</div>{qc.checklist_result === "na" ? <textarea className={`${inputClass()} mt-2`} rows={2} placeholder="Reason for N/A *" value={qc.remarks || ""} readOnly={readOnly} onChange={(event) => updateExecutionQc(step.id, qc.id, { remarks: event.target.value })} /> : null}</> : <textarea className={`${inputClass()} mt-3`} rows={3} placeholder={qc.is_required ? "Remarks required" : "Add remarks"} value={qc.remarks || ""} readOnly={readOnly} onChange={(event) => updateExecutionQc(step.id, qc.id, { remarks: event.target.value })} />}{readOnly && (qc.checked_by_name || qc.checked_by || qc.checked_at) ? <div className="mt-2 text-[10.5px] font-semibold text-text-muted">Checked by {qc.checked_by_name || qc.checked_by || "—"}{qc.checked_at ? ` · ${factoryTimeLabel(qc.checked_at)}` : ""}</div> : null}</div>)}</div></div> : null}
+                </article>
+              ))}</div> : <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm font-semibold text-text-secondary">No SOP steps were linked. Production may continue without QC.</div>}
+            </>
+          ) : <div className="mt-4 rounded-xl border border-dashed border-border bg-slate-50 p-4"><div className="text-sm font-bold text-text-primary">No QC Snapshot / Legacy Production</div><div className="mt-1 text-xs font-semibold text-text-secondary">This production was started without the new SOP QC workflow and is not blocked by QC execution.</div></div>}
+        </section>
+        {!readOnly ? <>
         <div className="rounded-2xl border border-border bg-white p-4">
           <div className="text-sm font-bold text-text-primary">Production Information</div>
           <div className="mt-3 grid gap-3 md:grid-cols-3">
@@ -4493,9 +4602,22 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
         <Field label="Production Notes">
           <textarea className={inputClass()} rows={3} value={form.notes || ""} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} />
         </Field>
+        </> : null}
       </form>
     </Modal>
   );
+}
+
+function emptySopQcCheck(index = 0) {
+  return {
+    id: `qc-${Date.now()}-${index}`,
+    sequence_no: index + 1,
+    qc_type: "checklist",
+    checklist_template_id: "",
+    qc_name: "",
+    instructions: "",
+    is_required: true,
+  };
 }
 
 function emptySopStep(index = 0) {
@@ -4506,14 +4628,7 @@ function emptySopStep(index = 0) {
     description: "",
     estimated_time_minutes: "",
     ingredient_material_ids: [],
-    qc_required: false,
-    qc_label: "",
-    qc_measurement_type: "pass_fail",
-    qc_target_value: "",
-    qc_minimum: "",
-    qc_maximum: "",
-    qc_uom: "",
-    qc_required_before_completion: false,
+    qc_checks: [],
     remarks: "",
     sub_steps: [],
   };
@@ -4554,8 +4669,9 @@ function SopIngredientPicker({ ingredients = [], value = [], disabled = false, o
   );
 }
 
-function ProductionSopBuilderModal({ initialValue, productFamilies = [], recipes = [], sops = [], onClose, onSave }) {
+function ProductionSopBuilderModal({ initialValue, productFamilies = [], recipes = [], sops = [], qcChecklistTemplates = [], onClose, onSave }) {
   const isEdit = Boolean(initialValue?.id);
+  const activeQcTemplateIds = new Set(qcChecklistTemplates.map((template) => template.id));
   const initialSteps = initialValue?.steps?.length
     ? initialValue.steps.map((step, index) => ({
         ...emptySopStep(index),
@@ -4564,6 +4680,17 @@ function ProductionSopBuilderModal({ initialValue, productFamilies = [], recipes
         step_no: index + 1,
         ingredient_material_ids: step.ingredient_material_ids || [],
         sub_steps: (step.sub_steps || []).map((subStep, subIndex) => ({ ...subStep, id: subStep.id || `sub-${Date.now()}-${index}-${subIndex}`, sequence_no: subIndex + 1 })),
+        qc_checks: step.qc_checks?.length
+          ? step.qc_checks.map((qc, qcIndex) => ({
+              ...emptySopQcCheck(qcIndex),
+              ...qc,
+              id: qc.id || `qc-${Date.now()}-${index}-${qcIndex}`,
+              sequence_no: qcIndex + 1,
+              checklist_template_id: activeQcTemplateIds.has(qc.checklist_template_id) ? qc.checklist_template_id : "",
+            }))
+          : (step.qc_required || step.is_qc_checkpoint)
+            ? [{ ...emptySopQcCheck(0), qc_name: step.qc_label || step.control_point || "QC Check", instructions: step.qc_target_value || "" }]
+            : [],
       }))
     : [emptySopStep(0)];
   const productOptions = productFamilies
@@ -4595,6 +4722,10 @@ function ProductionSopBuilderModal({ initialValue, productFamilies = [], recipes
   const recipeIngredients = recipeReference?.items || [];
   const recipeIngredientIds = new Set(recipeIngredients.map((item) => item.raw_material_id));
   const calculatedMinutes = form.steps.reduce((sum, step) => sum + Number(step.estimated_time_minutes || 0), 0);
+  const qcPresetOptions = [
+    ...qcChecklistTemplates.map((template) => ({ value: template.id, label: template.name, helper: template.category || "Checklist" })),
+    { value: "custom", label: "Custom Checklist" },
+  ];
 
   function nextVersionForFinishedGood(finishedGoodId) {
     const maxVersion = sops.filter((sop) => sop.finished_good_id === finishedGoodId).reduce((max, sop) => Math.max(max, Number(String(sop.version || "").replace(/\D/g, "")) || 0), 0);
@@ -4631,7 +4762,12 @@ function ProductionSopBuilderModal({ initialValue, productFamilies = [], recipes
       const index = current.steps.findIndex((step) => step.id === rowId);
       if (index < 0) return current;
       const source = current.steps[index];
-      const duplicate = { ...source, id: `step-${Date.now()}-${index}`, sub_steps: (source.sub_steps || []).map((subStep, subIndex) => ({ ...subStep, id: `sub-${Date.now()}-${index}-${subIndex}` })) };
+      const duplicate = {
+        ...source,
+        id: `step-${Date.now()}-${index}`,
+        sub_steps: (source.sub_steps || []).map((subStep, subIndex) => ({ ...subStep, id: `sub-${Date.now()}-${index}-${subIndex}` })),
+        qc_checks: (source.qc_checks || []).map((qc, qcIndex) => ({ ...qc, id: `qc-${Date.now()}-${index}-${qcIndex}` })),
+      };
       const steps = [...current.steps];
       steps.splice(index + 1, 0, duplicate);
       return { ...current, steps: resequenceSteps(steps) };
@@ -4651,6 +4787,50 @@ function ProductionSopBuilderModal({ initialValue, productFamilies = [], recipes
 
   function removeSubStep(stepId, subStepId) {
     setForm((current) => ({ ...current, steps: current.steps.map((step) => step.id === stepId ? { ...step, sub_steps: (step.sub_steps || []).filter((subStep) => subStep.id !== subStepId).map((subStep, index) => ({ ...subStep, sequence_no: index + 1 })) } : step) }));
+  }
+
+  function updateQcCheck(stepId, qcId, patch) {
+    setForm((current) => ({ ...current, steps: current.steps.map((step) => step.id === stepId ? { ...step, qc_checks: (step.qc_checks || []).map((qc) => qc.id === qcId ? { ...qc, ...patch } : qc) } : step) }));
+  }
+
+  function addQcCheck(stepId) {
+    setForm((current) => ({ ...current, steps: current.steps.map((step) => step.id === stepId ? { ...step, qc_checks: [...(step.qc_checks || []), emptySopQcCheck(step.qc_checks?.length || 0)] } : step) }));
+  }
+
+  function removeQcCheck(stepId, qcId) {
+    setForm((current) => ({ ...current, steps: current.steps.map((step) => step.id === stepId ? { ...step, qc_checks: (step.qc_checks || []).filter((qc) => qc.id !== qcId).map((qc, index) => ({ ...qc, sequence_no: index + 1 })) } : step) }));
+  }
+
+  function moveQcCheck(stepId, qcId, direction) {
+    setForm((current) => ({ ...current, steps: current.steps.map((step) => {
+      if (step.id !== stepId) return step;
+      const checks = [...(step.qc_checks || [])];
+      const index = checks.findIndex((qc) => qc.id === qcId);
+      const target = index + direction;
+      if (index < 0 || target < 0 || target >= checks.length) return step;
+      [checks[index], checks[target]] = [checks[target], checks[index]];
+      return { ...step, qc_checks: checks.map((qc, qcIndex) => ({ ...qc, sequence_no: qcIndex + 1 })) };
+    }) }));
+  }
+
+  function duplicateQcCheck(stepId, qcId) {
+    setForm((current) => ({ ...current, steps: current.steps.map((step) => {
+      if (step.id !== stepId) return step;
+      const checks = [...(step.qc_checks || [])];
+      const index = checks.findIndex((qc) => qc.id === qcId);
+      if (index < 0) return step;
+      checks.splice(index + 1, 0, { ...checks[index], id: `qc-${Date.now()}-${index}` });
+      return { ...step, qc_checks: checks.map((qc, qcIndex) => ({ ...qc, sequence_no: qcIndex + 1 })) };
+    }) }));
+  }
+
+  function selectQcPreset(stepId, qcId, templateId) {
+    const template = qcChecklistTemplates.find((item) => item.id === templateId);
+    updateQcCheck(stepId, qcId, {
+      checklist_template_id: templateId === "custom" ? "" : templateId,
+      qc_name: template?.name || "",
+      instructions: template?.description || "",
+    });
   }
 
   function selectFinishedGood(finishedGoodId) {
@@ -4679,12 +4859,8 @@ function ProductionSopBuilderModal({ initialValue, productFamilies = [], recipes
     for (let index = 0; index < form.steps.length; index += 1) {
       const step = form.steps[index];
       if (!String(step.step_name || step.process_name || "").trim()) return setError(`Step ${index + 1} requires a Step Name.`);
-      if ((step.qc_required || step.is_qc_checkpoint) && !String(step.qc_label || "").trim()) return setError(`Step ${index + 1} requires a QC Check Name.`);
-      if (
-        step.qc_minimum !== "" && step.qc_minimum != null
-        && step.qc_maximum !== "" && step.qc_maximum != null
-        && Number(step.qc_minimum) > Number(step.qc_maximum)
-      ) return setError(`Step ${index + 1} minimum cannot exceed maximum.`);
+      const invalidQc = (step.qc_checks || []).findIndex((qc) => !["checklist", "remarks"].includes(qc.qc_type) || !String(qc.qc_name || "").trim());
+      if (invalidQc >= 0) return setError(`Step ${index + 1} QC ${invalidQc + 1} requires a Type and QC Name.`);
       const emptySubStep = (step.sub_steps || []).findIndex((subStep) => !String(subStep.instruction || "").trim());
       if (emptySubStep >= 0) return setError(`Sub-step ${index + 1}.${emptySubStep + 1} requires an instruction.`);
       if ((step.ingredient_material_ids || []).some((materialId) => !recipeIngredientIds.has(materialId))) return setError(`Step ${index + 1} contains an ingredient outside the linked Product Recipe.`);
@@ -4727,14 +4903,20 @@ function ProductionSopBuilderModal({ initialValue, productFamilies = [], recipes
         <section>
           <div className="mb-3 flex flex-wrap items-center justify-between gap-3"><div><div className="text-sm font-black text-text-primary">SOP Steps</div><div className="mt-1 text-xs font-semibold text-text-secondary">Steps re-sequence automatically after moving or removing.</div></div>{!isLocked ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={addStep}><Plus size={14} /> Add Step</button> : null}</div>
           <div className="space-y-4">{form.steps.map((step, index) => {
-            const qcRequired = Boolean(step.qc_required ?? step.is_qc_checkpoint);
             return <article key={step.id} className="rounded-xl border border-border bg-white p-4 sm:p-5">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border pb-3"><div className="flex items-center gap-3"><span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary text-sm font-black text-white">{index + 1}</span><div><div className="text-sm font-black text-text-primary">Step {index + 1}</div><div className="text-xs font-semibold text-text-secondary">{step.step_name || "Unnamed process step"}</div></div></div>{!isLocked ? <div className="flex flex-wrap gap-1"><button className="icon-btn" title="Move step up" type="button" disabled={index === 0} onClick={() => moveStep(step.id, -1)}><ArrowUp size={15} /></button><button className="icon-btn" title="Move step down" type="button" disabled={index === form.steps.length - 1} onClick={() => moveStep(step.id, 1)}><ArrowDown size={15} /></button><button className="icon-btn" title="Duplicate step" type="button" onClick={() => duplicateStep(step.id)}><Copy size={15} /></button><button className="icon-btn text-rose-600" title="Remove step" type="button" disabled={form.steps.length === 1} onClick={() => removeStep(step.id)}><Trash2 size={15} /></button></div> : null}</div>
               <div className="mt-4 grid gap-3 md:grid-cols-[minmax(0,1fr)_180px]"><Field label="Step Name *"><input className={inputClass()} value={step.step_name || step.process_name || ""} disabled={isLocked} onChange={(event) => updateStep(step.id, { step_name: event.target.value, process_name: event.target.value })} /></Field><Field label="Estimated Minutes"><input className={inputClass()} type="number" min="0" value={step.estimated_time_minutes ?? ""} disabled={isLocked} onChange={(event) => updateStep(step.id, { estimated_time_minutes: event.target.value })} /></Field></div>
               <div className="mt-3"><Field label="Description"><textarea className={inputClass()} rows={3} value={step.description || ""} disabled={isLocked} onChange={(event) => updateStep(step.id, { description: event.target.value })} /></Field></div>
               <div className="mt-3"><Field label="Ingredient References"><SopIngredientPicker ingredients={recipeIngredients} value={step.ingredient_material_ids || []} disabled={isLocked || !recipeReference} onChange={(ingredientMaterialIds) => updateStep(step.id, { ingredient_material_ids: ingredientMaterialIds })} /></Field><div className="mt-1 text-[10.5px] font-semibold text-text-muted">Reference only. Recipe quantities, costing and stock movements are unchanged.</div></div>
-              <div className="mt-4 border-t border-border pt-4"><div className="grid gap-3 md:grid-cols-2"><Field label="QC Requirement"><SearchableSelect value={qcRequired ? "required" : "none"} options={[{ value: "none", label: "No QC Required" }, { value: "required", label: "QC Check Required" }]} placeholder="Select QC requirement" disabled={isLocked} onChange={(value) => updateStep(step.id, { qc_required: value === "required", is_qc_checkpoint: value === "required", qc_measurement_type: value === "required" ? step.qc_measurement_type || "pass_fail" : "" })} /></Field>{qcRequired ? <Field label="QC Check Name *"><input className={inputClass()} value={step.qc_label || step.control_point || ""} disabled={isLocked} onChange={(event) => updateStep(step.id, { qc_label: event.target.value, control_point: event.target.value })} /></Field> : null}</div>
-                {qcRequired ? <><div className="mt-3 grid gap-3 sm:grid-cols-2 lg:grid-cols-3"><Field label="Measurement Type"><SearchableSelect value={step.qc_measurement_type || "pass_fail"} options={sopQcMeasurementOptions} placeholder="Select type" disabled={isLocked} onChange={(value) => updateStep(step.id, { qc_measurement_type: value })} /></Field><Field label="Target Value"><input className={inputClass()} value={step.qc_target_value || ""} disabled={isLocked} onChange={(event) => updateStep(step.id, { qc_target_value: event.target.value })} /></Field><Field label="QC UOM"><input className={inputClass()} value={step.qc_uom || ""} disabled={isLocked} onChange={(event) => updateStep(step.id, { qc_uom: event.target.value })} /></Field><Field label="Minimum"><input className={inputClass()} type="number" step="0.0001" value={step.qc_minimum ?? ""} disabled={isLocked} onChange={(event) => updateStep(step.id, { qc_minimum: event.target.value })} /></Field><Field label="Maximum"><input className={inputClass()} type="number" step="0.0001" value={step.qc_maximum ?? ""} disabled={isLocked} onChange={(event) => updateStep(step.id, { qc_maximum: event.target.value })} /></Field><label className="flex min-h-[42px] items-center gap-2 self-end rounded-xl border border-border bg-slate-50 px-3 py-2 text-sm font-semibold text-text-secondary"><input type="checkbox" checked={Boolean(step.qc_required_before_completion)} disabled={isLocked} onChange={(event) => updateStep(step.id, { qc_required_before_completion: event.target.checked })} /> Required Before Completion</label></div><div className="mt-2 text-[10.5px] font-semibold text-amber-700">QC standards are reference-only in Phase 1. Production QC result recording will be added in a later phase.</div></> : null}
+              <div className="mt-4 border-t border-border pt-4">
+                <div className="flex flex-wrap items-center justify-between gap-3"><div><div className="text-xs font-black text-text-primary">QC Checks</div><div className="mt-0.5 text-[10.5px] font-semibold text-text-muted">Checklist and remarks checks are completed during Production.</div></div>{!isLocked ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => addQcCheck(step.id)}><Plus size={13} /> Add QC Check</button> : null}</div>
+                {step.qc_checks?.length ? <div className="mt-3 space-y-3">{step.qc_checks.map((qc, qcIndex) => (
+                  <div key={qc.id} className="rounded-xl border border-border bg-slate-50 p-3">
+                    <div className="flex flex-wrap items-center justify-between gap-2"><div className="text-xs font-black text-primary">QC {qcIndex + 1}</div>{!isLocked ? <div className="flex gap-1"><button className="icon-btn" title="Move QC up" type="button" disabled={qcIndex === 0} onClick={() => moveQcCheck(step.id, qc.id, -1)}><ArrowUp size={14} /></button><button className="icon-btn" title="Move QC down" type="button" disabled={qcIndex === step.qc_checks.length - 1} onClick={() => moveQcCheck(step.id, qc.id, 1)}><ArrowDown size={14} /></button><button className="icon-btn" title="Duplicate QC" type="button" onClick={() => duplicateQcCheck(step.id, qc.id)}><Copy size={14} /></button><button className="icon-btn text-rose-600" title="Remove QC" type="button" onClick={() => removeQcCheck(step.id, qc.id)}><Trash2 size={14} /></button></div> : null}</div>
+                    <div className="mt-3 grid gap-3 md:grid-cols-2"><Field label="Type"><SearchableSelect value={qc.qc_type || "checklist"} options={[{ value: "checklist", label: "Checklist" }, { value: "remarks", label: "Remarks" }]} disabled={isLocked} onChange={(value) => updateQcCheck(step.id, qc.id, { qc_type: value, checklist_template_id: "", qc_name: "", instructions: "" })} /></Field>{qc.qc_type === "checklist" ? <Field label="Checklist Preset"><SearchableSelect value={qc.checklist_template_id || (qc.qc_name ? "custom" : "")} options={qcPresetOptions} placeholder="Select preset" searchPlaceholder="Search presets" disabled={isLocked} onChange={(value) => selectQcPreset(step.id, qc.id, value)} /></Field> : null}<Field label="QC Name *"><input className={inputClass()} value={qc.qc_name || ""} disabled={isLocked || (qc.qc_type === "checklist" && Boolean(qc.checklist_template_id))} onChange={(event) => updateQcCheck(step.id, qc.id, { qc_name: event.target.value })} /></Field><Field label={qc.qc_type === "remarks" ? "Prompt / Instructions" : "Instructions"}><textarea className={inputClass()} rows={2} value={qc.instructions || ""} disabled={isLocked} onChange={(event) => updateQcCheck(step.id, qc.id, { instructions: event.target.value })} /></Field></div>
+                    <label className="mt-3 inline-flex items-center gap-2 text-sm font-semibold text-text-secondary"><input type="checkbox" checked={qc.is_required !== false} disabled={isLocked} onChange={(event) => updateQcCheck(step.id, qc.id, { is_required: event.target.checked })} /> Required before production completion</label>
+                  </div>
+                ))}</div> : <div className="mt-3 text-xs font-semibold text-text-muted">No QC checks for this step.</div>}
               </div>
               <div className="mt-4 border-t border-border pt-4"><div className="flex flex-wrap items-center justify-between gap-3"><div className="text-xs font-black text-text-primary">Sub-steps</div>{!isLocked ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => addSubStep(step.id)}><Plus size={13} /> Add Sub-step</button> : null}</div>{step.sub_steps?.length ? <div className="mt-3 space-y-2">{step.sub_steps.map((subStep, subIndex) => <div key={subStep.id} className="grid gap-2 rounded-xl bg-slate-50 p-3 md:grid-cols-[48px_minmax(0,1fr)_140px_minmax(0,0.7fr)_36px]"><div className="pt-2 text-sm font-black text-primary">{index + 1}.{subIndex + 1}</div><input className={inputClass()} placeholder="Instruction *" value={subStep.instruction || ""} disabled={isLocked} onChange={(event) => updateSubStep(step.id, subStep.id, { instruction: event.target.value })} /><input className={inputClass()} type="number" min="0" placeholder="Minutes" value={subStep.estimated_minutes ?? ""} disabled={isLocked} onChange={(event) => updateSubStep(step.id, subStep.id, { estimated_minutes: event.target.value })} /><input className={inputClass()} placeholder="Remarks" value={subStep.remarks || ""} disabled={isLocked} onChange={(event) => updateSubStep(step.id, subStep.id, { remarks: event.target.value })} />{!isLocked ? <button className="icon-btn text-rose-600" title="Remove sub-step" type="button" onClick={() => removeSubStep(step.id, subStep.id)}><Trash2 size={14} /></button> : null}</div>)}</div> : <div className="mt-3 text-xs font-semibold text-text-muted">No sub-steps added.</div>}</div>
               <div className="mt-4"><Field label="Step Remarks"><textarea className={inputClass()} rows={2} value={step.remarks || step.safety_note || ""} disabled={isLocked} onChange={(event) => updateStep(step.id, { remarks: event.target.value, safety_note: event.target.value })} /></Field></div>
@@ -5044,7 +5226,7 @@ function ProductionSopDetailModal({ sop, onClose }) {
 
 function ProductionSopDocumentModal({ sop, onClose }) {
   const steps = [...(sop.steps || [])].sort((a, b) => Number(a.step_no || 0) - Number(b.step_no || 0));
-  const qcCount = steps.filter((step) => step.qc_required || step.is_qc_checkpoint).length;
+  const qcCount = steps.reduce((count, step) => count + (step.qc_checks?.length || ((step.qc_required || step.is_qc_checkpoint) ? 1 : 0)), 0);
   const recipe = sop.linked_recipe;
   const referencedIngredientCount = new Set(steps.flatMap((step) => step.ingredient_material_ids || [])).size;
   return (
@@ -5065,16 +5247,15 @@ function ProductionSopDocumentModal({ sop, onClose }) {
           <div className="mb-3 text-sm font-black text-text-primary">SOP Timeline</div>
           <div className="relative space-y-4 before:absolute before:bottom-4 before:left-4 before:top-4 before:w-px before:bg-border sm:before:left-5">
             {steps.length ? steps.map((step) => {
-              const qcRequired = step.qc_required || step.is_qc_checkpoint;
-              const measurementLabel = sopQcMeasurementOptions.find((option) => option.value === step.qc_measurement_type)?.label;
+              const qcChecks = step.qc_checks?.length ? step.qc_checks : (step.qc_required || step.is_qc_checkpoint) ? [{ id: `legacy-${step.id}`, qc_type: "checklist", qc_name: step.qc_label || step.control_point || "QC Check", instructions: step.qc_target_value || "", is_required: true, legacy: true }] : [];
               return (
                 <article key={step.id} className="relative ml-10 rounded-xl border border-border bg-white p-4 sm:ml-12 sm:p-5">
                   <span className="absolute -left-[34px] top-4 flex h-7 w-7 items-center justify-center rounded-full bg-primary text-xs font-black text-white sm:-left-[40px]">{step.step_no}</span>
-                  <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="text-base font-black text-text-primary">{step.step_name || step.process_name || "Unnamed Step"}</div><div className="mt-1 text-xs font-bold text-text-secondary">{productionTimeLabel(step.estimated_time_minutes)}</div></div>{qcRequired ? <Badge tone="warning">QC Required</Badge> : <Badge tone="neutral">Process Step</Badge>}</div>
+                  <div className="flex flex-wrap items-start justify-between gap-3"><div><div className="text-base font-black text-text-primary">{step.step_name || step.process_name || "Unnamed Step"}</div><div className="mt-1 text-xs font-bold text-text-secondary">{productionTimeLabel(step.estimated_time_minutes)}</div></div>{qcChecks.length ? <Badge tone="warning">{qcChecks.length} QC {qcChecks.length === 1 ? "Check" : "Checks"}</Badge> : <Badge tone="neutral">Process Step</Badge>}</div>
                   {step.description ? <div className="mt-3 max-w-[75ch] text-sm font-semibold text-text-secondary">{step.description}</div> : null}
                   {step.ingredient_references?.length ? <div className="mt-3"><div className="text-[10.5px] font-semibold text-text-muted">Recipe Ingredients</div><div className="mt-1.5 flex flex-wrap gap-1.5">{step.ingredient_references.map((item) => <span key={item.raw_material_id} className="rounded-full bg-primary/10 px-2 py-1 text-xs font-bold text-primary">{item.raw_material_name}</span>)}</div></div> : null}
                   {step.sub_steps?.length ? <div className="mt-4 space-y-2">{step.sub_steps.map((subStep, index) => <div key={subStep.id} className="flex gap-3 rounded-lg bg-slate-50 px-3 py-2"><span className="shrink-0 text-xs font-black text-primary">{step.step_no}.{index + 1}</span><div className="min-w-0"><div className="text-sm font-semibold text-text-primary">{subStep.instruction}</div><div className="mt-0.5 flex flex-wrap gap-3 text-xs font-semibold text-text-secondary">{subStep.estimated_minutes != null ? <span>{productionTimeLabel(subStep.estimated_minutes)}</span> : null}{subStep.remarks ? <span>{subStep.remarks}</span> : null}</div></div></div>)}</div> : null}
-                  {qcRequired ? <div className="mt-4 border-t border-border pt-3"><div className="text-xs font-black text-text-primary">QC Standard: {step.qc_label || step.control_point}</div><div className="mt-2 flex flex-wrap gap-x-4 gap-y-1 text-xs font-semibold text-text-secondary">{measurementLabel ? <span>Type: {measurementLabel}</span> : null}{step.qc_target_value ? <span>Target: {step.qc_target_value}{step.qc_uom ? ` ${step.qc_uom}` : ""}</span> : null}{step.qc_minimum != null ? <span>Minimum: {step.qc_minimum}{step.qc_uom ? ` ${step.qc_uom}` : ""}</span> : null}{step.qc_maximum != null ? <span>Maximum: {step.qc_maximum}{step.qc_uom ? ` ${step.qc_uom}` : ""}</span> : null}{step.qc_required_before_completion ? <span>Marked required before completion</span> : null}</div><div className="mt-2 text-[10.5px] font-semibold text-amber-700">Reference-only in Phase 1; production does not record or enforce this result yet.</div></div> : null}
+                  {qcChecks.length ? <div className="mt-4 border-t border-border pt-3"><div className="text-xs font-black text-text-primary">QC Checks</div><div className="mt-2 grid gap-2 sm:grid-cols-2">{qcChecks.map((qc) => <div key={qc.id} className="rounded-lg bg-slate-50 px-3 py-2"><div className="flex flex-wrap items-center gap-2"><Badge tone={qc.qc_type === "remarks" ? "info" : "warning"}>{qc.qc_type === "remarks" ? "Remarks" : "Checklist"}</Badge>{qc.is_required ? <span className="text-[10.5px] font-bold text-rose-700">Required</span> : <span className="text-[10.5px] font-bold text-text-muted">Optional</span>}</div><div className="mt-1 text-sm font-bold text-text-primary">{qc.qc_name}</div>{qc.checklist_template_name ? <div className="mt-0.5 text-xs font-semibold text-text-secondary">Preset: {qc.checklist_template_name}</div> : null}{qc.instructions ? <div className="mt-1 text-xs font-semibold text-text-secondary">{qc.instructions}</div> : null}{qc.legacy ? <div className="mt-1 text-[10.5px] font-semibold text-text-muted">Legacy QC definition</div> : null}</div>)}</div></div> : null}
                   {step.remarks || step.safety_note ? <div className="mt-3 text-xs font-semibold text-text-secondary">Remarks: {step.remarks || step.safety_note}</div> : null}
                 </article>
               );
@@ -5473,7 +5654,7 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
 }
 
 export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, auth }) {
-  const [data, setData] = useState({ jobOrders: [], rawMaterials: [], rawMaterialCategories: [], rawMaterialMovements: [], receivings: [], receivingBatches: [], factorySuppliers: [], factoryCustomers: [], productions: [], finishedGoods: [], finishedGoodCategories: [], productFamilies: [], productMovements: [], finishedGoodDispatches: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [], auditLogs: [], accessIssues: [] });
+  const [data, setData] = useState({ jobOrders: [], rawMaterials: [], rawMaterialCategories: [], rawMaterialMovements: [], receivings: [], receivingBatches: [], factorySuppliers: [], factoryCustomers: [], productions: [], finishedGoods: [], finishedGoodCategories: [], productFamilies: [], productMovements: [], finishedGoodDispatches: [], rawStockChecks: [], productStockChecks: [], recipes: [], sops: [], qcChecklistTemplates: [], auditLogs: [], accessIssues: [] });
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [receivingTab, setReceivingTab] = useState("history");
@@ -6331,6 +6512,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         {row.status === "in_progress" && can("factory_production.complete") ? (
           <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production", job: row })}>Complete</button>
         ) : null}
+        {row.status === "in_progress" && !can("factory_production.complete") && can("factory_production.view") ? (
+          <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production", job: row, readOnly: true })}>View Process</button>
+        ) : null}
         {row.status === "draft" && can("factory_job_orders.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "job", value: row })}>Edit</button> : null}
         {row.status === "completed" ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => viewCompletedJobOrder(row)}>View</button> : null}
         {row.status === "cancelled" ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "job", value: row })}>View</button> : null}
@@ -6462,7 +6646,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     { key: "finished_good", label: "Finished Good", render: (row) => <div><div className="font-bold text-text-primary">{row.product_name || "Finished Good"}</div>{row.product_name_cn ? <div className="text-xs text-text-secondary">{row.product_name_cn}</div> : null}</div> },
     { key: "version", label: "Version", render: (row) => <Badge tone="info">{row.version || "v1"}</Badge> },
     { key: "steps", label: "Steps", render: (row) => row.steps?.length || 0 },
-    { key: "qc", label: "QC Points", render: (row) => <Badge tone={row.steps?.some((step) => step.qc_required || step.is_qc_checkpoint) ? "warning" : "neutral"}>{(row.steps || []).filter((step) => step.qc_required || step.is_qc_checkpoint).length}</Badge> },
+    { key: "qc", label: "QC Points", render: (row) => { const count = (row.steps || []).reduce((sum, step) => sum + (step.qc_checks?.length || ((step.qc_required || step.is_qc_checkpoint) ? 1 : 0)), 0); return <Badge tone={count ? "warning" : "neutral"}>{count}</Badge>; } },
     { key: "estimated_time", label: "Estimated Time", render: (row) => productionTimeLabel(row.estimated_minutes) },
     { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : row.status === "draft" ? "info" : "neutral"}>{jobStatusLabel(row.status)}</Badge> },
     { key: "updated", label: "Updated", render: (row) => formatFactoryDate(row.updated_at) },
@@ -7712,6 +7896,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       if (job.status === "in_progress" && can("factory_production.complete")) {
         return <button className="btn-primary w-full justify-center px-3 py-2 text-xs" type="button" onClick={() => setModal({ type: "production", job })}>Complete Production</button>;
       }
+      if (job.status === "in_progress" && can("factory_production.view")) {
+        return <button className="btn-secondary w-full justify-center px-3 py-2 text-xs" type="button" onClick={() => setModal({ type: "production", job, readOnly: true })}>View Process</button>;
+      }
       return null;
     };
     const renderJobCard = (job, columnKey) => {
@@ -8090,7 +8277,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   function renderProductionSop() {
-    const qcCheckpointCount = data.sops.flatMap((sop) => sop.steps || []).filter((step) => step.qc_required || step.is_qc_checkpoint).length;
+    const qcCheckpointCount = data.sops.flatMap((sop) => sop.steps || []).reduce((sum, step) => sum + (step.qc_checks?.length || ((step.qc_required || step.is_qc_checkpoint) ? 1 : 0)), 0);
     const coveredProducts = new Set(data.sops.map((sop) => sop.finished_good_id || sop.product_name).filter(Boolean)).size;
     return (
       <div className="space-y-5">
@@ -8275,7 +8462,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         row.status === "in_progress"
           ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production", job: row })}>Complete</button>
           : <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "start-production", job: row })}><Play size={13} /> Start</button>
-      ) : null },
+      ) : row.status === "in_progress" && can("factory_production.view") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production", job: row, readOnly: true })}>View Process</button> : null },
     ];
     return (
       <div className="space-y-5">
@@ -8382,7 +8569,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     function traceabilitySteps(row) {
       const hasUsage = (row.material_usage || []).length > 0;
       const hasLots = hasUsage && row.material_usage.every((item) => item.raw_material_lot_no || item.receiving_ref);
-      const hasQc = (row.qc_checkpoints || []).length > 0;
+      const qcResults = (row.step_executions || []).flatMap((step) => step.qc_results || []);
+      const hasQc = qcResults.length > 0 || (row.qc_checkpoints || []).length > 0;
+      const qcState = productionQcStatus(qcResults);
+      const qcMain = qcResults.length ? (qcState.status === "No QC Required" ? qcState.status : `QC ${qcState.status}`) : hasQc ? `${row.qc_checkpoints.length} legacy checkpoint${row.qc_checkpoints.length === 1 ? "" : "s"}` : "No QC Required";
       return [
         {
           key: "recipe",
@@ -8436,9 +8626,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         {
           key: "qc",
           title: "QC",
-          status: hasQc ? "complete" : "pending",
-          main: hasQc ? `${row.qc_checkpoints.length} checkpoint${row.qc_checkpoints.length === 1 ? "" : "s"}` : "Not configured",
-          detail: hasQc ? row.qc_checkpoints.map((checkpoint) => `Step ${checkpoint.step_no}: ${checkpoint.qc_status || "Pending"}`).join(", ") : "QC checkpoints have not been configured for this batch.",
+          status: qcFailed || qcIncomplete ? "missing" : "complete",
+          main: qcMain,
+          detail: qcResults.length ? `${qcResults.filter((result) => result.checked_at).length} of ${qcResults.length} QC records completed.` : hasQc ? row.qc_checkpoints.map((checkpoint) => `Step ${checkpoint.step_no}: ${checkpoint.qc_status || "Pending"}`).join(", ") : "No QC checks were required by the snapshotted SOP.",
         },
       ];
     }
@@ -9344,6 +9534,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           finishedGoods={data.finishedGoods}
           productions={data.productions}
           auth={auth}
+          readOnly={Boolean(modal.readOnly)}
           onClose={() => setModal(null)}
           onSave={completeProduction}
         />
@@ -9362,6 +9553,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           productFamilies={data.productFamilies}
           recipes={data.recipes}
           sops={data.sops}
+          qcChecklistTemplates={data.qcChecklistTemplates}
           onClose={() => setModal(null)}
           onSave={saveProductionSop}
         />
