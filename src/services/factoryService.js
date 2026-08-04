@@ -31,6 +31,24 @@ export function strictTimeValueMinutes(value) {
   return match ? (Number(match[1]) * 60) + Number(match[2]) : null;
 }
 
+export function strictDateValue(value) {
+  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || "").trim());
+  if (!match) return null;
+  const year = Number(match[1]);
+  const month = Number(match[2]);
+  const day = Number(match[3]);
+  const timestamp = Date.UTC(year, month - 1, day);
+  const parsed = new Date(timestamp);
+  return parsed.getUTCFullYear() === year && parsed.getUTCMonth() === month - 1 && parsed.getUTCDate() === day ? timestamp : null;
+}
+
+export function strictDateTimeValue(dateValue, timeValue) {
+  const dateTimestamp = strictDateValue(dateValue);
+  const timeMinutes = strictTimeValueMinutes(timeValue);
+  if (dateTimestamp === null || timeMinutes === null) return null;
+  return dateTimestamp + (timeMinutes * 60 * 1000);
+}
+
 export function productionQcStatus(results = []) {
   const rows = Array.isArray(results) ? results : [];
   const isEntered = (result) => result.qc_type === "checklist"
@@ -428,6 +446,12 @@ function mapProduction(row) {
     wastage_qty: normalizeNumber(row.wastage_qty),
     uom: row.uom || "",
     production_date: row.production_date || "",
+    end_date: row.end_date || "",
+    expiry_date: row.expiry_date || "",
+    storage_location_id: row.storage_location_id || "",
+    storage_location: row.storage_location_ref?.location_name || "",
+    shelf_life_days_snapshot: optionalNumber(row.shelf_life_days_snapshot),
+    expiry_override_reason: row.expiry_override_reason || "",
     operator_id: row.operator_id || "",
     operator_name: row.operator_name || "",
     start_time: row.start_time || "",
@@ -474,8 +498,10 @@ function mapFinishedGood(row) {
     uom: row.uom || "",
     current_balance: normalizeNumber(row.current_balance),
     min_stock_level: normalizeNumber(row.min_stock_level),
+    shelf_life_days: optionalNumber(row.shelf_life_days),
     storage_location_id: row.storage_location_id || "",
     storage_location: storageLocationName,
+    storage_location_type: row.storage_location_ref?.location_type || "",
     status: row.status || "active",
     remarks: row.remarks || "",
     created_at: row.created_at,
@@ -878,8 +904,8 @@ function emptyFactoryData() {
   };
 }
 
-const finishedGoodSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,category_id,category,uom,current_balance,status,category_ref:factory_finished_good_categories(name),product_family:factory_product_families(name_en,name_cn,name_bm,status)";
-const finishedGoodFullSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,category_id,category,uom,current_balance,min_stock_level,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),product_family:factory_product_families(name_en,name_cn,name_bm,status)";
+const finishedGoodSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,category_id,category,uom,current_balance,shelf_life_days,status,category_ref:factory_finished_good_categories(name),product_family:factory_product_families(name_en,name_cn,name_bm,status)";
+const finishedGoodFullSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,category_id,category,uom,current_balance,min_stock_level,shelf_life_days,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),product_family:factory_product_families(name_en,name_cn,name_bm,status)";
 const storageLocationSelect = "id,location_name,location_code,location_type,status,remarks,created_at,updated_at";
 const factorySupplierSelect = "id,supplier_name,supplier_code,contact_person,phone,email,status,remarks,created_at,updated_at";
 const factoryCustomerSelect = "id,customer_code,customer_name,customer_type,contact_person,phone,email,address,status,remarks,created_at,updated_at";
@@ -890,7 +916,7 @@ const recipeSelect = `id,recipe_code,finished_good_id,product_family_id,recipe_n
 const recipeSummarySelect = `id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),finished_good:factory_finished_goods(${finishedGoodSelect})`;
 const sopSelect = `id,sop_code,title,product_name,finished_good_id,recipe_id,recipe_version,version,effective_date,equipment,estimated_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_product_families(id,name_en,name_cn,name_bm,status),linked_recipe:factory_product_recipes(id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,status,notes,remarks,created_by,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))),steps:factory_production_sop_steps(id,sop_id,step_no,instruction,process_name,description,control_point,qc_label,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,qc_measurement_type,qc_target_value,qc_minimum,qc_maximum,qc_uom,qc_required_before_completion,safety_note,remarks,created_at,updated_at,sub_steps:factory_production_sop_sub_steps(id,sop_step_id,sequence_no,instruction,estimated_minutes,remarks,created_at,updated_at),ingredient_refs:factory_production_sop_step_materials(raw_material_id,raw_material:factory_raw_materials(name,name_en,material_code,uom)),qc_checks:factory_production_sop_step_qc_checks(id,sop_step_id,sequence_no,qc_type,checklist_template_id,qc_name,instructions,is_required,checklist_template:factory_qc_checklist_templates(name,result_mode)))`;
 const jobOrderSelect = `id,job_order_no,finished_good_id,product_name,target_pack_qty,target_production_qty,target_quantity,produced_quantity,uom,planned_date,due_date,priority,status,assigned_team,remarks,created_by,released_at,released_by,started_at,started_by,production_operator_id,production_operator_name,production_date,start_time,production_sop_id,sop_version,qc_snapshot_created_at,completed_at,completed_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),step_executions:factory_production_step_executions(id,job_order_id,production_id,production_sop_id,sop_step_id,step_no,step_name,description,sub_steps,status,completed_by,completed_at,qc_results:factory_production_qc_results(id,job_order_id,production_id,production_step_execution_id,sop_qc_check_id,sequence_no,qc_type,qc_name,instructions,is_required,checklist_result,remarks,checked_by,checked_by_name,checked_at))`;
-const productionSelectBasic = `id,job_order_id,finished_good_id,production_no,product_name,batch_no,actual_pack_qty,actual_output_qty,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,operator_id,operator_name,start_time,end_time,qc_status,production_sop_id,sop_version,status,notes,created_by,completed_at,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),job_order:factory_job_orders(job_order_no,finished_good_id,product_name,target_pack_qty,target_production_qty,finished_good:factory_finished_goods(product_code,product_name,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom))`;
+const productionSelectBasic = `id,job_order_id,finished_good_id,production_no,product_name,batch_no,actual_pack_qty,actual_output_qty,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,end_date,expiry_date,storage_location_id,shelf_life_days_snapshot,expiry_override_reason,operator_id,operator_name,start_time,end_time,qc_status,production_sop_id,sop_version,status,notes,created_by,completed_at,created_at,updated_at,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),finished_good:factory_finished_goods(${finishedGoodSelect}),job_order:factory_job_orders(job_order_no,finished_good_id,product_name,target_pack_qty,target_production_qty,finished_good:factory_finished_goods(product_code,product_name,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,shelf_life_days))`;
 const productionSelectDetailed = `${productionSelectBasic},material_usage:factory_production_material_usage(id,production_id,raw_material_id,raw_material_receiving_id,raw_material_lot_no,quantity_used,standard_usage,actual_usage,variance_qty,variance_percent,variance_reason,uom,wastage_quantity,notes,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect}),raw_receiving:factory_raw_material_receivings(receipt_no,batch_no,supplier_name,received_date,unit_cost)),qc_checkpoints:factory_production_qc_checkpoints(id,production_id,production_sop_id,sop_step_id,step_no,process_name,control_point,qc_status,notes,created_at,updated_at),step_executions:factory_production_step_executions(id,job_order_id,production_id,production_sop_id,sop_step_id,step_no,step_name,description,sub_steps,status,completed_by,completed_at,qc_results:factory_production_qc_results(id,job_order_id,production_id,production_step_execution_id,sop_qc_check_id,sequence_no,qc_type,qc_name,instructions,is_required,checklist_result,remarks,checked_by,checked_by_name,checked_at))`;
 const finishedGoodDispatchSelect = `id,dispatch_no,dispatch_date,customer_id,customer_name,reference_no,status,remarks,created_by,created_at,updated_at,completed_at,cancelled_at,creator:employees(nickname,full_name),customer:factory_customers(${factoryCustomerSelect}),items:factory_finished_good_dispatch_items(id,dispatch_id,finished_good_id,quantity,batch_no,remarks,created_at,finished_good:factory_finished_goods(${finishedGoodFullSelect}))`;
 
@@ -927,7 +953,7 @@ function factoryDataPlan(scope, hasPermission) {
     factorySuppliers: (isSuppliers && can("factory_suppliers.view")) || (isRawReceiving && can("factory_raw_receiving.view")),
     factoryCustomers: (isCustomers && can("factory_customers.view")) || (isFinishedGoodsDispatch && (can("factory_customers.view") || can("factory_finished_goods_dispatch.view") || can("factory_finished_goods_dispatch.create") || can("factory_finished_goods_dispatch.edit"))),
     receivingBatches: isRawReceiving && can("factory_raw_receiving.view"),
-    storageLocations: (isStorageLocations && can("factory_storage_locations.view")) || ((isRawInventory || isRawReceiving || isRawMovements || isFinishedGoods) && (can("factory_storage_locations.view") || can("factory_raw_inventory.view") || can("factory_raw_receiving.view") || can("factory_raw_movements.view") || can("factory_finished_goods.view"))),
+    storageLocations: (isStorageLocations && can("factory_storage_locations.view")) || ((isRawInventory || isRawReceiving || isRawMovements || isFinishedGoods || isProduction) && (can("factory_storage_locations.view") || can("factory_raw_inventory.view") || can("factory_raw_receiving.view") || can("factory_raw_movements.view") || can("factory_finished_goods.view") || can("factory_production.view") || can("factory_production.complete"))),
     rawMaterialMovements: (isRawInventory && can("factory_raw_inventory.view")) || (isRawMovements && can("factory_raw_movements.view")),
     receivings: (isDashboard && can("factory_dashboard.view")) || (isRawInventory && can("factory_raw_inventory.view")) || (isRawReceiving && can("factory_raw_receiving.view")) || (isRawMovements && can("factory_raw_movements.view")) || (isReports && can("factory_production_reports.view")) || ((isProduction || isBatchTraceability) && can("factory_raw_receiving.view")),
     productions: needsProductionSummary && (can("factory_dashboard.view") || can("factory_production.view") || canReadProductionReports || can("factory_finished_goods.view") || can("factory_product_movements.view")),
@@ -1703,6 +1729,7 @@ export const factoryService = {
       category: String(product.category || "").trim(),
       uom: product.uom || "",
       min_stock_level: normalizeNumber(product.min_stock_level),
+      shelf_life_days: product.shelf_life_days === "" || product.shelf_life_days == null ? null : Number(product.shelf_life_days),
       storage_location_id: product.storage_location_id || null,
       storage_location: storageLocationName || String(product.storage_location || "").trim(),
       status: product.status || "active",
@@ -1712,6 +1739,9 @@ export const factoryService = {
     if (!payload.product_name) throw new Error("Product name is required.");
     if (!payload.category_id) throw new Error("Category is required.");
     if (!payload.uom) throw new Error("UOM is required.");
+    if (payload.shelf_life_days !== null && (!Number.isInteger(payload.shelf_life_days) || payload.shelf_life_days <= 0)) {
+      throw new Error("Shelf Life must be a whole number greater than zero.");
+    }
     if (!["active", "archived"].includes(payload.status)) payload.status = "active";
     if (!isUpdate) payload.created_by = employeeId || null;
 
@@ -2160,12 +2190,19 @@ export const factoryService = {
   },
 
   async completeProduction(production, employeeId) {
+    if (!String(production.end_date || "").trim()) throw new Error("End Date is required.");
     if (!String(production.end_time || "").trim()) throw new Error("End Time is required.");
-    const startTimeMinutes = strictTimeValueMinutes(production.start_time);
-    const endTimeMinutes = strictTimeValueMinutes(production.end_time);
-    if (startTimeMinutes === null) throw new Error("Enter a valid Start Time.");
-    if (endTimeMinutes === null) throw new Error("Enter a valid End Time.");
-    if (endTimeMinutes < startTimeMinutes) throw new Error("End Time cannot be earlier than Start Time.");
+    const { data: authoritativeJob, error: jobError } = await supabase
+      .from("factory_job_orders")
+      .select("id,production_date,start_time")
+      .eq("id", production.job_order_id)
+      .single();
+    throwSupabaseError("factory.production.job_order_time_lookup", jobError);
+    const startDateTime = strictDateTimeValue(authoritativeJob?.production_date, String(authoritativeJob?.start_time || "").slice(0, 5));
+    const endDateTime = strictDateTimeValue(production.end_date, production.end_time);
+    if (startDateTime === null) throw new Error("Job Order Production Date and Start Time are required before completing production.");
+    if (endDateTime === null) throw new Error("Enter a valid End Date and End Time.");
+    if (endDateTime < startDateTime) throw new Error("Production End Date and Time cannot be earlier than Start Date and Time.");
     const actualPackQty = Number(production.actual_pack_qty);
     if (!Number.isInteger(actualPackQty) || actualPackQty <= 0) {
       throw new Error("Actual Pack Qty must be a whole number greater than zero.");
@@ -2187,11 +2224,27 @@ export const factoryService = {
     if (production.finished_good_id) {
       const { data, error } = await supabase
         .from("factory_finished_goods")
-        .select("id,product_code,product_name,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,uom,status")
+        .select("id,product_code,product_name,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,uom,shelf_life_days,status")
         .eq("id", production.finished_good_id)
         .single();
       throwSupabaseError("factory.production.finished_good_lookup", error);
       finishedGood = data;
+    }
+    const shelfLifeConfigured = finishedGood?.shelf_life_days !== null && finishedGood?.shelf_life_days !== undefined && finishedGood?.shelf_life_days !== "";
+    if (shelfLifeConfigured && strictDateValue(production.expiry_date) === null) {
+      throw new Error("Expiry Date is required for this Packaging SKU.");
+    }
+    if (production.expiry_date && strictDateValue(production.expiry_date) === null) throw new Error("Enter a valid Expiry Date.");
+    if (production.expiry_date && strictDateValue(production.expiry_date) < strictDateValue(authoritativeJob.production_date)) {
+      throw new Error("Expiry Date cannot be earlier than Manufacturing Date.");
+    }
+    const calculatedExpiryTimestamp = shelfLifeConfigured
+      ? strictDateValue(authoritativeJob.production_date) + (Number(finishedGood.shelf_life_days) * 86400000)
+      : null;
+    if (calculatedExpiryTimestamp !== null
+        && strictDateValue(production.expiry_date) !== calculatedExpiryTimestamp
+        && !String(production.expiry_override_reason || "").trim()) {
+      throw new Error("Expiry override reason is required when changing the calculated Expiry Date.");
     }
     let activeRecipeUom = "";
     if (finishedGood?.product_family_id) {
@@ -2229,17 +2282,21 @@ export const factoryService = {
       notes: item.notes || "",
     }));
     const productionNo = production.production_no || makeFactoryRef("PRD");
-    const { data: productionId, error } = await supabase.rpc("factory_complete_production", {
+    const { data: productionId, error } = await supabase.rpc("factory_complete_production_with_batch", {
       p_job_order_id: production.job_order_id || null,
       p_finished_good_id: production.finished_good_id || null,
       p_production_no: productionNo,
       p_product_name: String(production.product_name || "").trim(),
       p_batch_no: production.batch_no || "",
-      p_production_date: production.production_date || new Date().toISOString().slice(0, 10),
+      p_production_date: authoritativeJob.production_date,
       p_operator_id: production.operator_id || employeeId || null,
       p_operator_name: production.operator_name || "",
-      p_start_time: production.start_time || null,
+      p_start_time: authoritativeJob.start_time || null,
+      p_end_date: production.end_date || null,
       p_end_time: production.end_time || null,
+      p_expiry_date: production.expiry_date || null,
+      p_storage_location_id: production.storage_location_id || null,
+      p_expiry_override_reason: String(production.expiry_override_reason || "").trim() || null,
       p_actual_pack_qty: actualPackQty,
       p_actual_output_qty: actualOutputQty,
       p_actual_produced_qty: actualOutputQty,

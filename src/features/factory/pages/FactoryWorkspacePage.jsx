@@ -8,7 +8,7 @@ import Badge from "../../../components/ui/Badge.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
-import { factoryService, productionQcStatus, strictTimeValueMinutes } from "../../../services/factoryService.js";
+import { factoryService, productionQcStatus, strictDateTimeValue, strictDateValue, strictTimeValueMinutes } from "../../../services/factoryService.js";
 import { IMAGE_UPLOAD_ACCEPT } from "../../../utils/imageUpload.js";
 
 const priorityOptions = ["Low", "Normal", "High", "Urgent"];
@@ -234,6 +234,24 @@ function anchoredRect(anchor, width, height) {
 function timeInput() {
   const date = new Date();
   return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
+}
+
+function addDaysToFactoryDate(value, days) {
+  const timestamp = strictDateValue(value);
+  const dayCount = Number(days);
+  if (timestamp === null || !Number.isInteger(dayCount) || dayCount < 0) return "";
+  return new Date(timestamp + (dayCount * 86400000)).toISOString().slice(0, 10);
+}
+
+function productionDurationLabel(startDate, startTime, endDate, endTime) {
+  const start = strictDateTimeValue(startDate, startTime);
+  const end = strictDateTimeValue(endDate, endTime);
+  if (start === null || end === null || end < start) return "—";
+  const totalMinutes = Math.floor((end - start) / 60000);
+  const hours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (!hours) return `${minutes} min${minutes === 1 ? "" : "s"}`;
+  return `${hours} hr${hours === 1 ? "" : "s"}${minutes ? ` ${minutes} min${minutes === 1 ? "" : "s"}` : ""}`;
 }
 
 function employeeDisplayName(auth) {
@@ -1380,6 +1398,7 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
     category: "",
     uom: "kg",
     min_stock_level: 0,
+    shelf_life_days: "",
     storage_location_id: "",
     storage_location: "",
     status: "active",
@@ -1409,6 +1428,7 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
       pack_size_qty: !Number(form.pack_size_qty || 0) ? "Pack Size Qty is required." : "",
       pack_size_uom: !String(form.pack_size_uom || "").trim() ? "Pack Size UOM is required." : "",
       uom: !String(form.uom || "").trim() ? "UOM is required." : "",
+      shelf_life_days: form.shelf_life_days !== "" && (!Number.isInteger(Number(form.shelf_life_days)) || Number(form.shelf_life_days) <= 0) ? "Shelf Life must be a whole number greater than zero." : "",
       status: !String(form.status || "").trim() ? "Status is required." : "",
     };
     const activeErrors = Object.fromEntries(Object.entries(nextErrors).filter(([, message]) => message));
@@ -1532,16 +1552,32 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
               <div className="text-[10.5px] font-semibold text-text-muted">Display</div>
               <div className="mt-1 text-sm font-bold text-text-primary">{packagingSkuDisplayName(form)}</div>
             </div>
-            <Field label="Storage Location">
-              <SearchableSelect
-                value={form.storage_location_id || ""}
-                options={storageLocationOptions}
-                placeholder="Select Storage Location"
-                searchPlaceholder="Search locations"
-                emptyText="No storage locations"
-                onChange={(locationId) => setForm((current) => ({ ...current, storage_location_id: locationId }))}
-              />
-            </Field>
+            <div className="grid gap-3 md:grid-cols-2">
+              <Field label="Shelf Life (Days)" error={fieldErrors.shelf_life_days}>
+                <input
+                  className={inputClass(fieldErrors.shelf_life_days)}
+                  type="number"
+                  min="1"
+                  step="1"
+                  placeholder="No expiry"
+                  value={form.shelf_life_days ?? ""}
+                  onChange={(event) => {
+                    setFieldErrors((current) => ({ ...current, shelf_life_days: "" }));
+                    setForm((current) => ({ ...current, shelf_life_days: event.target.value }));
+                  }}
+                />
+              </Field>
+              <Field label="Storage Location">
+                <SearchableSelect
+                  value={form.storage_location_id || ""}
+                  options={storageLocationOptions}
+                  placeholder="Select Storage Location"
+                  searchPlaceholder="Search locations"
+                  emptyText="No storage locations"
+                  onChange={(locationId) => setForm((current) => ({ ...current, storage_location_id: locationId }))}
+                />
+              </Field>
+            </div>
             <Field label="Status *" error={fieldErrors.status}>
               <SearchableSelect
                 value={form.status}
@@ -2260,10 +2296,15 @@ function CompletedJobOrderResultModal({ job, production, recipes = [], onClose }
   ];
   const resultItems = production ? [
     ["Batch No", production.batch_no || "—"],
-    ["Production Date", formatFactoryDate(production.production_date)],
+    ["Manufacturing Date", formatFactoryDate(production.production_date)],
     ["Operator", production.operator_name || "—"],
-    ["Start Time", factoryTimeLabel(production.start_time)],
-    ["End Time", factoryTimeLabel(production.end_time)],
+    ["Production Start", production.production_date && production.start_time ? `${formatFactoryDate(production.production_date)} · ${factoryTimeLabel(production.start_time)}` : "—"],
+    ["Production End", production.end_date ? `${formatFactoryDate(production.end_date)} · ${factoryTimeLabel(production.end_time)}` : factoryTimeLabel(production.end_time)],
+    ["Duration", production.end_date ? productionDurationLabel(production.production_date, String(production.start_time || "").slice(0, 5), production.end_date, String(production.end_time || "").slice(0, 5)) : "Legacy Production"],
+    ["Expiry Date", production.expiry_date ? formatFactoryDate(production.expiry_date) : "—"],
+    ["Storage Location", production.storage_location || "—"],
+    ["Shelf Life Applied", production.shelf_life_days_snapshot !== "" ? `${production.shelf_life_days_snapshot} days` : "—"],
+    ...(production.expiry_override_reason ? [["Expiry Override Reason", production.expiry_override_reason]] : []),
     ["Actual Pack Qty", quantity(production.actual_pack_qty || production.good_output_qty, "packs")],
     ["Actual Output Qty", quantity(outputQty, production.uom)],
     ["Production Notes", production.notes || "—"],
@@ -4237,7 +4278,7 @@ function StartProductionModal({ job, sops = [], auth, onClose, onSave }) {
   );
 }
 
-function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops, finishedGoods = [], productions = [], auth, readOnly = false, processOnly = false, onViewProcess, onClose, onSave }) {
+function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops, finishedGoods = [], storageLocations = [], productions = [], auth, readOnly = false, processOnly = false, onViewProcess, onClose, onSave }) {
   const activeFinishedGoods = finishedGoods.filter((product) => product.status === "active");
   const matchingFinishedGood = activeFinishedGoods.find((product) => product.id === job.finished_good_id) || activeFinishedGoods.find((product) => product.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
   const matchingRecipe = activeRecipeForSku(recipes, matchingFinishedGood || job, job.product_name);
@@ -4245,17 +4286,29 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
   const initialProductionPlan = packagingProductionPlan(initialPackQty, matchingFinishedGood, matchingRecipe?.uom || job.uom);
   const initialProductionUom = initialProductionPlan.production_uom || matchingRecipe?.uom || job.uom || "";
   const initialOutputQty = initialProductionPlan.error ? Number(job.actual_output_qty || job.target_production_qty || job.target_quantity || 0) : initialProductionPlan.target_production_qty;
+  const authoritativeProductionDate = job.production_date || "";
+  const authoritativeStartTime = job.start_time ? String(job.start_time).slice(0, 5) : "";
+  const manufacturingDate = authoritativeProductionDate;
+  const defaultEndDate = manufacturingDate && manufacturingDate > todayInput() ? manufacturingDate : todayInput();
+  const shelfLifeConfigured = matchingFinishedGood?.shelf_life_days !== "" && matchingFinishedGood?.shelf_life_days !== null && matchingFinishedGood?.shelf_life_days !== undefined;
+  const calculatedExpiryDate = shelfLifeConfigured ? addDaysToFactoryDate(manufacturingDate, Number(matchingFinishedGood.shelf_life_days)) : "";
+  const finishedGoodsLocations = storageLocations.filter((location) => location.status === "active" && String(location.location_type || "").toLowerCase() === "finished goods area");
+  const defaultStorageLocationId = finishedGoodsLocations.some((location) => location.id === matchingFinishedGood?.storage_location_id) ? matchingFinishedGood.storage_location_id : "";
   const [form, setForm] = useState(() => ({
     job_order_id: job.id,
     finished_good_id: matchingFinishedGood?.id || job.finished_good_id || "",
     production_no: "",
     product_name: matchingFinishedGood?.product_name || job.product_name || "",
     batch_no: "",
-    production_date: job.production_date || todayInput(),
+    production_date: manufacturingDate,
     operator_id: job.production_operator_id || auth?.profile?.id || "",
     operator_name: job.production_operator_name || employeeDisplayName(auth),
-    start_time: job.start_time ? String(job.start_time).slice(0, 5) : timeInput(),
-    end_time: "",
+    start_time: authoritativeStartTime,
+    end_date: defaultEndDate,
+    end_time: timeInput(),
+    expiry_date: calculatedExpiryDate,
+    storage_location_id: defaultStorageLocationId,
+    expiry_override_reason: "",
     actual_pack_qty: initialPackQty,
     actual_output_qty: initialOutputQty || "",
     actual_produced_qty: initialOutputQty || "",
@@ -4273,8 +4326,15 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
   const [executionLoading, setExecutionLoading] = useState(true);
   const [execution, setExecution] = useState({ steps: [], snapshotCreatedAt: "", sopId: "", sopVersion: "" });
   const [submitAttempted, setSubmitAttempted] = useState(false);
+  const [expiryManuallyChanged, setExpiryManuallyChanged] = useState(false);
   const [error, setError] = useState("");
-  const batchNoPreview = previewDailyDocumentNo({ prefix: "PB", date: form.production_date, records: productions, codeKey: "batch_no", dateKey: "production_date" });
+  const batchNoPreview = previewDailyDocumentNo({ prefix: "PB", date: authoritativeProductionDate, records: productions, codeKey: "batch_no", dateKey: "production_date" });
+
+  useEffect(() => {
+    if (!expiryManuallyChanged && shelfLifeConfigured) {
+      setForm((current) => ({ ...current, expiry_date: calculatedExpiryDate, expiry_override_reason: "" }));
+    }
+  }, [calculatedExpiryDate, expiryManuallyChanged, shelfLifeConfigured]);
 
   useEffect(() => {
     let active = true;
@@ -4343,13 +4403,18 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
     if (!form.job_order_id) return "Select a job order before completing production.";
     const finishedGood = activeFinishedGoods.find((product) => product.id === form.finished_good_id);
     if (!finishedGood) return "Production must start from a job order linked to an active finished good.";
+    if (!form.end_date) return "End Date is required.";
     if (!form.end_time) return "End Time is required.";
-    const startMinutes = strictTimeValueMinutes(form.start_time);
-    const endMinutes = strictTimeValueMinutes(form.end_time);
-    if (startMinutes === null) return "Enter a valid Start Time.";
-    if (endMinutes === null) return "Enter a valid End Time.";
-    if (endMinutes < startMinutes) return "End Time cannot be earlier than Start Time.";
+    const startDateTime = strictDateTimeValue(authoritativeProductionDate, authoritativeStartTime);
+    const endDateTime = strictDateTimeValue(form.end_date, form.end_time);
+    if (startDateTime === null) return "Job Order Production Date and Start Time are required before completing production.";
+    if (endDateTime === null) return "Enter a valid End Date and End Time.";
+    if (endDateTime < startDateTime) return "Production End Date and Time cannot be earlier than Start Date and Time.";
     if (!Number.isInteger(Number(form.actual_pack_qty)) || Number(form.actual_pack_qty) <= 0) return "Actual Pack Qty must be a whole number greater than zero.";
+    if (shelfLifeConfigured && strictDateValue(form.expiry_date) === null) return "Expiry Date is required for this Packaging SKU.";
+    if (form.expiry_date && strictDateValue(form.expiry_date) === null) return "Enter a valid Expiry Date.";
+    if (form.expiry_date && strictDateValue(form.expiry_date) < strictDateValue(authoritativeProductionDate)) return "Expiry Date cannot be earlier than Manufacturing Date.";
+    if (shelfLifeConfigured && form.expiry_date !== calculatedExpiryDate && !String(form.expiry_override_reason || "").trim()) return "Expiry override reason is required when changing the calculated Expiry Date.";
     if (!form.material_usage.length) return "At least one material usage row is required.";
     const invalidRow = form.material_usage.find((row) => !row.raw_material_id || row.actual_usage === "" || row.actual_usage === null || row.actual_usage === undefined || Number(row.actual_usage) < 0);
     if (invalidRow) return "Every material usage row needs a raw material and actual usage.";
@@ -4404,33 +4469,46 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
   const remainingQcCount = Math.max(executionQcState.total - executionQcState.entered, 0);
   const executionQcLabel = productionQcDisplayLabel(executionQcState.status);
   const linkedSop = sops.find((sop) => sop.id === (execution.sopId || job.production_sop_id));
-  const startMinutes = strictTimeValueMinutes(form.start_time);
-  const endMinutes = strictTimeValueMinutes(form.end_time);
-  const endTimeValid = startMinutes !== null && endMinutes !== null && endMinutes >= startMinutes;
-  const endTimeValidationMessage = !form.end_time
-    ? ""
-    : endMinutes === null
-      ? "Enter a valid End Time."
-      : startMinutes === null
-        ? "Enter a valid Start Time."
-        : endMinutes < startMinutes
-          ? "End Time cannot be earlier than Start Time."
-          : "";
+  const startDateTime = strictDateTimeValue(authoritativeProductionDate, authoritativeStartTime);
+  const authoritativeStartValid = startDateTime !== null;
+  const endDateValueValid = strictDateValue(form.end_date) !== null;
+  const endTimeValueValid = strictTimeValueMinutes(form.end_time) !== null;
+  const endDateTime = strictDateTimeValue(form.end_date, form.end_time);
+  const endDateTimeValid = startDateTime !== null && endDateTime !== null && endDateTime >= startDateTime;
+  const endDateTimeValidationMessage = !form.end_date
+    ? "End Date is required."
+    : !endDateValueValid
+      ? "Enter a valid End Date."
+      : !form.end_time
+        ? "End Time is required."
+        : !endTimeValueValid
+          ? "Enter a valid End Time."
+          : startDateTime === null
+            ? "Job Order Production Date and Start Time are required before completing production."
+            : endDateTime < startDateTime
+              ? "Production End Date and Time cannot be earlier than Start Date and Time."
+              : "";
   const actualPackQtyValid = Number.isInteger(Number(form.actual_pack_qty)) && Number(form.actual_pack_qty) > 0;
-  const requiredDetailsRemaining = Number(!endTimeValid) + Number(!actualPackQtyValid);
+  const expiryDateValid = !shelfLifeConfigured || strictDateValue(form.expiry_date) !== null;
+  const expiryOverrideRequired = shelfLifeConfigured && Boolean(form.expiry_date) && form.expiry_date !== calculatedExpiryDate;
+  const expiryOverrideValid = !expiryOverrideRequired || Boolean(String(form.expiry_override_reason || "").trim());
+  const requiredDetailsRemaining = Number(!endDateValueValid) + Number(!endTimeValueValid || (endDateValueValid && endTimeValueValid && !endDateTimeValid)) + Number(!actualPackQtyValid) + Number(!expiryDateValid) + Number(!expiryOverrideValid);
   const requiredQcIncomplete = executionQcState.requiredCompleted < executionQcState.requiredTotal;
   const requiredQcFailed = executionQcResults.some((qc) => qc.is_required && qc.qc_type === "checklist" && qc.checklist_result === "fail");
   const qcCompletionBlocked = Boolean(execution.snapshotCreatedAt) && (requiredQcIncomplete || requiredQcFailed);
-  const completionDisabled = saving || savingQc || executionLoading || requiredDetailsRemaining > 0 || qcCompletionBlocked;
+  const completionDisabled = saving || savingQc || executionLoading || !authoritativeStartValid || requiredDetailsRemaining > 0 || qcCompletionBlocked;
   const completionDisabledReason = executionLoading
     ? "Loading Production QC."
+    : !authoritativeStartValid
+      ? "Job Order Production Date and Start Time are required before completing production."
     : requiredDetailsRemaining > 0
-    ? endTimeValidationMessage || `Enter ${[!endTimeValid ? "End Time" : "", !actualPackQtyValid ? "Actual Pack Qty" : ""].filter(Boolean).join(" and ")}.`
+    ? endDateTimeValidationMessage || `Complete ${[!endDateValueValid ? "End Date" : "", !endTimeValueValid || !endDateTimeValid ? "End Time" : "", !actualPackQtyValid ? "Actual Pack Qty" : "", !expiryDateValid ? "Expiry Date" : "", !expiryOverrideValid ? "Expiry Override Reason" : ""].filter(Boolean).join(", ")}.`
     : requiredQcFailed
       ? "Resolve failed required QC checks."
       : requiredQcIncomplete
         ? "Complete required QC checks."
         : "";
+  const durationLabel = productionDurationLabel(authoritativeProductionDate, authoritativeStartTime, form.end_date, form.end_time);
   const formatSignedQuantity = (value, unit) => {
     const numericValue = Number(value || 0);
     const prefix = numericValue > 0 ? "+" : "";
@@ -4559,15 +4637,73 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
             <div><div className="text-sm font-black text-text-primary">Required Completion Details</div><div className="mt-1 text-xs font-semibold text-text-secondary">Complete these fields before confirming production.</div></div>
             <Badge tone={requiredDetailsRemaining ? "warning" : "success"}>{requiredDetailsRemaining ? `${requiredDetailsRemaining} required field${requiredDetailsRemaining === 1 ? "" : "s"} remaining` : "Completion details ready"}</Badge>
           </div>
-          <div className="mt-4 grid gap-4 md:grid-cols-2">
+          <div className="mt-4 grid gap-4 md:grid-cols-3">
+            <Field label="End Date *">
+              <FeedXDatePicker
+                value={form.end_date || ""}
+                error={submitAttempted && !endDateValueValid}
+                required
+                onChange={(nextDate) => setForm((current) => ({ ...current, end_date: nextDate }))}
+              />
+            </Field>
             <Field label="End Time *">
-              <input className={`${inputClass(submitAttempted && !endTimeValid)} ${endTimeValid ? "border-emerald-300 bg-white" : "border-amber-400 bg-white"}`} type="time" value={form.end_time || ""} onChange={(event) => setForm((current) => ({ ...current, end_time: event.target.value }))} />
-              <div className={`mt-1 text-xs font-semibold ${endTimeValidationMessage ? "text-rose-700" : "text-text-secondary"}`}>{endTimeValidationMessage || `Started at ${factoryTimeLabel(form.start_time)}`}</div>
+              <input className={`${inputClass(submitAttempted && !endDateTimeValid)} ${endDateTimeValid ? "border-emerald-300 bg-white" : "border-amber-400 bg-white"}`} type="time" value={form.end_time || ""} onChange={(event) => setForm((current) => ({ ...current, end_time: event.target.value }))} />
+              <div className={`mt-1 text-xs font-semibold ${endDateTimeValidationMessage ? "text-rose-700" : "text-text-secondary"}`}>{endDateTimeValidationMessage || `Duration: ${durationLabel}`}</div>
             </Field>
             <Field label="Actual Pack Qty *">
               <div className="relative"><input className={`${inputClass(submitAttempted && !actualPackQtyValid)} ${actualPackQtyValid ? "border-emerald-300 bg-white" : "border-amber-400 bg-white"} pr-16 text-xl font-black`} type="number" min="1" step="1" value={form.actual_pack_qty} onChange={(event) => updateActualPackQty(event.target.value)} /><span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-text-secondary">packs</span></div>
               {!actualPackQtyValid && form.actual_pack_qty !== "" ? <div className="mt-1 text-xs font-semibold text-rose-700">Enter a whole number greater than 0.</div> : null}
             </Field>
+          </div>
+          <div className="mt-5 border-t border-amber-200 pt-4">
+            <div className="text-sm font-black text-text-primary">Batch & Shelf Life</div>
+            <div className="mt-1 text-xs font-semibold text-text-secondary">Expiry is calculated from the Packaging SKU shelf life and saved with this production batch.</div>
+            <div className="mt-3 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+              <Field label="Manufacturing Date">
+                <div className="rounded-xl border border-border bg-slate-50 px-3 py-2 text-sm font-bold text-text-primary">{formatFactoryDate(authoritativeProductionDate)}</div>
+              </Field>
+              <Field label={shelfLifeConfigured ? "Expiry Date *" : "Expiry Date"}>
+                <FeedXDatePicker
+                  value={form.expiry_date || ""}
+                  error={submitAttempted && !expiryDateValid}
+                  required={shelfLifeConfigured}
+                  onChange={(nextDate) => {
+                    setExpiryManuallyChanged(true);
+                    setForm((current) => ({
+                      ...current,
+                      expiry_date: nextDate,
+                      expiry_override_reason: nextDate === calculatedExpiryDate ? "" : current.expiry_override_reason,
+                    }));
+                  }}
+                />
+                <div className="mt-1 text-xs font-semibold text-text-secondary">{shelfLifeConfigured ? `Calculated: ${formatFactoryDate(calculatedExpiryDate)}` : "No Expiry / Not Applicable is allowed."}</div>
+              </Field>
+              <Field label="Storage Location">
+                <SearchableSelect
+                  value={form.storage_location_id || ""}
+                  options={[{ value: "", label: "No Storage Location" }, ...finishedGoodsLocations.map((location) => ({ value: location.id, label: location.location_name }))]}
+                  placeholder="Select Finished Goods Area"
+                  searchPlaceholder="Search finished goods locations"
+                  emptyText="No active Finished Goods Area"
+                  onChange={(storageLocationId) => setForm((current) => ({ ...current, storage_location_id: storageLocationId }))}
+                />
+              </Field>
+              <Field label="Shelf Life Applied">
+                <div className="rounded-xl border border-border bg-slate-50 px-3 py-2 text-sm font-bold text-text-primary">{shelfLifeConfigured ? `${matchingFinishedGood.shelf_life_days} days` : "Not configured"}</div>
+              </Field>
+            </div>
+            {expiryOverrideRequired ? (
+              <div className="mt-3">
+                <Field label="Expiry Override Reason *">
+                  <input className={inputClass(submitAttempted && !expiryOverrideValid)} value={form.expiry_override_reason || ""} placeholder="Explain why the calculated expiry was changed" onChange={(event) => setForm((current) => ({ ...current, expiry_override_reason: event.target.value }))} />
+                </Field>
+              </div>
+            ) : null}
+            <div className="mt-3">
+              <Field label="Batch Remarks">
+                <textarea className={inputClass()} rows={2} value={form.notes || ""} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} />
+              </Field>
+            </div>
           </div>
         </section>
         <section className="rounded-2xl border border-border bg-white p-4 sm:p-5">
@@ -4586,17 +4722,13 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
               </div>
             </Field>
             <Field label="Production Date">
-              <FeedXDatePicker
-                value={form.production_date || ""}
-                disabled={Boolean(job.started_at)}
-                onChange={(nextDate) => setForm((current) => ({ ...current, production_date: nextDate }))}
-              />
+              <div className={`rounded-xl border px-3 py-2 text-sm font-bold ${authoritativeProductionDate ? "border-border bg-slate-50 text-text-primary" : "border-rose-300 bg-rose-50 text-rose-700"}`}>{authoritativeProductionDate ? formatFactoryDate(authoritativeProductionDate) : "Missing on Job Order"}</div>
             </Field>
             <Field label="Operator">
               <input className={inputClass()} value={form.operator_name || ""} readOnly={Boolean(job.started_at)} onChange={(event) => setForm((current) => ({ ...current, operator_name: event.target.value }))} />
             </Field>
             <Field label="Start Time">
-              <input className={inputClass()} type="time" value={form.start_time || ""} readOnly={Boolean(job.started_at)} onChange={(event) => setForm((current) => ({ ...current, start_time: event.target.value }))} />
+              <div className={`rounded-xl border px-3 py-2 text-sm font-bold ${authoritativeStartTime ? "border-border bg-slate-50 text-text-primary" : "border-rose-300 bg-rose-50 text-rose-700"}`}>{authoritativeStartTime ? factoryTimeLabel(authoritativeStartTime) : "Missing on Job Order"}</div>
             </Field>
           </div>
         </div>
@@ -4760,9 +4892,6 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
             ))}
           </div>
         </Card>
-        <Field label="Production Notes">
-          <textarea className={inputClass()} rows={3} value={form.notes || ""} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} />
-        </Field>
       </form>
     </Modal>
   );
@@ -9019,8 +9148,17 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                       <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
                         <div><div className="text-xs font-semibold text-text-muted">Packaging SKU</div><div className="text-sm font-semibold text-text-primary">{packagingSkuDisplayName(row.finishedGood || row) || row.product_code || "—"}</div></div>
                         <div><div className="text-xs font-semibold text-text-muted">Output</div><div className="text-sm font-semibold text-text-primary">{stockInOutputLabel(row)}</div></div>
-                        <div><div className="text-xs font-semibold text-text-muted">Production Date</div><div className="text-sm font-semibold text-text-primary">{formatFactoryDate(row.production_date)}</div></div>
+                        <div><div className="text-xs font-semibold text-text-muted">Manufacturing Date</div><div className="text-sm font-semibold text-text-primary">{formatFactoryDate(row.production_date)}</div></div>
                         <div><div className="text-xs font-semibold text-text-muted">Operator</div><div className="text-sm font-semibold text-text-primary">{row.operator_name || "—"}</div></div>
+                      </div>
+                      <div className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-2 lg:grid-cols-3">
+                        <div><div className="text-xs font-semibold text-text-muted">Production Start</div><div className="text-sm font-semibold text-text-primary">{row.production_date && row.start_time ? `${formatFactoryDate(row.production_date)} · ${factoryTimeLabel(row.start_time)}` : "—"}</div></div>
+                        <div><div className="text-xs font-semibold text-text-muted">Production End</div><div className="text-sm font-semibold text-text-primary">{row.end_date ? `${formatFactoryDate(row.end_date)} · ${factoryTimeLabel(row.end_time)}` : "—"}</div></div>
+                        <div><div className="text-xs font-semibold text-text-muted">Duration</div><div className="text-sm font-semibold text-text-primary">{row.end_date ? productionDurationLabel(row.production_date, String(row.start_time || "").slice(0, 5), row.end_date, String(row.end_time || "").slice(0, 5)) : "Legacy Production"}</div></div>
+                        <div><div className="text-xs font-semibold text-text-muted">Expiry Date</div><div className="text-sm font-semibold text-text-primary">{row.expiry_date ? formatFactoryDate(row.expiry_date) : "—"}</div></div>
+                        <div><div className="text-xs font-semibold text-text-muted">Storage Location</div><div className="text-sm font-semibold text-text-primary">{row.storage_location || "—"}</div></div>
+                        <div><div className="text-xs font-semibold text-text-muted">Shelf Life Applied</div><div className="text-sm font-semibold text-text-primary">{row.shelf_life_days_snapshot !== "" ? `${row.shelf_life_days_snapshot} days` : "—"}</div></div>
+                        {row.expiry_override_reason ? <div><div className="text-xs font-semibold text-text-muted">Expiry Override Reason</div><div className="text-sm font-semibold text-text-primary">{row.expiry_override_reason}</div></div> : null}
                       </div>
                     </div>
                     <div className="rounded-2xl border border-border bg-slate-50 p-4">
@@ -9876,6 +10014,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           recipes={data.recipes}
           sops={data.sops}
           finishedGoods={data.finishedGoods}
+          storageLocations={data.storageLocations}
           productions={data.productions}
           auth={auth}
           onClose={() => setModal(null)}
@@ -9891,6 +10030,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           recipes={data.recipes}
           sops={data.sops}
           finishedGoods={data.finishedGoods}
+          storageLocations={data.storageLocations}
           productions={data.productions}
           auth={auth}
           processOnly
