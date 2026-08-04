@@ -4309,7 +4309,7 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
     production_no: "",
     product_name: matchingFinishedGood?.product_name || job.product_name || "",
     batch_no: "",
-    production_date: manufacturingDate,
+    production_date: defaultEndDate,
     operator_id: job.production_operator_id || auth?.profile?.id || "",
     operator_name: job.production_operator_name || employeeDisplayName(auth),
     start_time: authoritativeStartTime,
