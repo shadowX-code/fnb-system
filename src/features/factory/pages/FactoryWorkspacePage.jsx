@@ -1128,12 +1128,26 @@ function jobProductionQcState(job) {
   return productionQcStatus((job?.step_executions || []).flatMap((step) => step.qc_results || []));
 }
 
-function factoryActivitySortValue(value, fallbackDate = todayInput()) {
-  if (!value) return 0;
-  const text = String(value);
-  if (/^\d{2}:\d{2}/.test(text)) return new Date(`${fallbackDate}T${text.slice(0, 5)}:00`).getTime();
-  const timestamp = new Date(value).getTime();
-  return Number.isNaN(timestamp) ? 0 : timestamp;
+function factoryActivityDateTime(dateValue, timeValue, timestampValue = "") {
+  const dateTimestamp = strictDateValue(dateValue);
+  const timeMinutes = strictTimeValueMinutes(String(timeValue || "").slice(0, 5));
+  if (dateTimestamp !== null && timeMinutes !== null) {
+    const [year, month, day] = String(dateValue).split("-");
+    const monthLabel = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][Number(month) - 1];
+    const localDate = new Date(Number(year), Number(month) - 1, Number(day), Math.floor(timeMinutes / 60), timeMinutes % 60);
+    return {
+      sortValue: localDate.getTime(),
+      dateLabel: monthLabel ? `${day} ${monthLabel} ${year}` : "—",
+      timeLabel: factoryTimeAmPmLabel(timeValue),
+    };
+  }
+  const timestamp = new Date(timestampValue);
+  if (Number.isNaN(timestamp.getTime())) return { sortValue: 0, dateLabel: "—", timeLabel: "—" };
+  return {
+    sortValue: timestamp.getTime(),
+    dateLabel: timestamp.toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" }),
+    timeLabel: timestamp.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit", hour12: true }).toUpperCase(),
+  };
 }
 
 function productionOutputLabel(production) {
@@ -8432,24 +8446,54 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const releasedBoardJobs = metrics.releasedJobs;
     const inProgressBoardJobs = metrics.inProgressJobs;
     const completedBoardJobs = metrics.completedTodayJobs;
-    const productionActivity = [
-      ...data.jobOrders.filter((job) => job.status === "in_progress" && (job.started_at || job.start_time)).map((job) => ({
-        id: `start-${job.id}`,
-        time: job.started_at || job.start_time,
-        title: "Started Production",
-        product: jobFinishedGoodName(job),
-        tone: "warning",
-      })),
-      ...completedTodayProductions.map((production) => ({
+    const jobById = new Map(data.jobOrders.map((job) => [job.id, job]));
+    const jobByReference = new Map(data.jobOrders.map((job) => [job.job_order_no, job]));
+    const startedActivities = data.jobOrders.filter((job) => job.production_date && job.start_time).map((job) => ({
+      id: `start-${job.id}`,
+      ...factoryActivityDateTime(job.production_date, job.start_time, job.started_at),
+      label: "Production Started",
+      product: jobFinishedGoodName(job),
+      reference: job.job_order_no || "—",
+      detail: `Operator: ${job.production_operator_name || "—"}`,
+      tone: "warning",
+    }));
+    const completedActivities = data.productions.map((production) => {
+      const job = jobById.get(production.job_order_id);
+      return {
         id: `complete-${production.id}`,
-        time: production.completed_at || production.end_time || production.production_date,
-        title: "Completed Production",
-        product: production.product_name || data.jobOrders.find((job) => job.id === production.job_order_id)?.product_name || "Production",
+        ...factoryActivityDateTime(production.end_date, production.end_time, production.completed_at || production.created_at),
+        label: "Production Completed",
+        product: production.product_name || jobFinishedGoodName(job),
+        reference: production.batch_no || job?.job_order_no || production.production_no || "—",
+        detail: `Actual output: ${productionOutputLabel(production)}`,
         tone: "success",
-      })),
-    ]
-      .filter((activity) => activity.time)
-      .sort((a, b) => factoryActivitySortValue(b.time, today) - factoryActivitySortValue(a.time, today))
+      };
+    });
+    const qcActionDetails = {
+      factory_production_qc_updated: { label: "QC Updated", tone: "info" },
+      factory_production_qc_passed: { label: "QC Passed", tone: "success" },
+      factory_production_qc_failed: { label: "QC Failed", tone: "danger" },
+    };
+    const qcActivities = data.auditLogs.filter((event) => qcActionDetails[event.action]).map((event) => {
+      const job = jobById.get(event.entity_reference) || jobByReference.get(event.entity_reference) || jobById.get(event.after?.job_order_id);
+      const eventStyle = qcActionDetails[event.action];
+      const completedCount = Number(event.after?.completed);
+      const totalCount = Number(event.after?.total);
+      const hasQcCount = Number.isFinite(completedCount) && Number.isFinite(totalCount);
+      const statusLabel = event.after?.current_status ? productionQcDisplayLabel(event.after.current_status) : eventStyle.label;
+      return {
+        id: `qc-${event.id}`,
+        ...factoryActivityDateTime("", "", event.created_at),
+        label: eventStyle.label,
+        product: job ? jobFinishedGoodName(job) : "Production QC",
+        reference: job?.job_order_no || event.entity_reference || "—",
+        detail: hasQcCount ? `${statusLabel} · ${completedCount}/${totalCount} checks` : statusLabel,
+        tone: eventStyle.tone,
+      };
+    });
+    const productionActivity = [...startedActivities, ...completedActivities, ...qcActivities]
+      .filter((activity) => activity.sortValue > 0)
+      .sort((a, b) => b.sortValue - a.sortValue || b.id.localeCompare(a.id))
       .slice(0, 8);
     const overviewCards = [
       { label: "Released", value: releasedBoardJobs.length, helper: "Ready to start", tone: "border-blue-200 bg-blue-50 text-blue-800" },
@@ -8504,8 +8548,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
               </div>
             ) : columnKey === "in_progress" ? (
               <div className="rounded-xl border border-border px-3 py-2">
-                <div className="text-text-muted">Started Time</div>
-                <div className="mt-1 text-sm font-black text-text-primary">{factoryTimeLabel(job.started_at || job.start_time)}</div>
+                <div className="text-text-muted">Started</div>
+                <div className="mt-1 text-sm font-black text-text-primary">{job.production_date && job.start_time ? `${formatFactoryDate(job.production_date)} · ${factoryTimeAmPmLabel(job.start_time)}` : "—"}</div>
               </div>
             ) : (
               <div className="rounded-xl border border-border px-3 py-2">
@@ -8572,20 +8616,20 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
               ))}
             </div>
           </Card>
-          <Card title="Recent Production Activity" description="Latest start and completion events from job order and production records.">
+          <Card title="Recent Production Activity" description="Latest production starts, meaningful QC updates and completed output.">
             <div className="space-y-3 p-4">
               {productionActivity.length ? productionActivity.map((activity) => (
-                <div key={activity.id} className="flex gap-3 rounded-2xl border border-border bg-white px-3 py-3">
-                  <div className={`flex h-10 w-14 shrink-0 items-center justify-center rounded-xl text-xs font-black ${activity.tone === "success" ? "bg-emerald-50 text-emerald-700" : "bg-amber-50 text-amber-700"}`}>
-                    {factoryTimeLabel(activity.time)}
+                <div key={activity.id} className="rounded-2xl border border-border bg-white px-3 py-3">
+                  <div className="flex flex-wrap items-start justify-between gap-2">
+                    <Badge tone={activity.tone}>{activity.label}</Badge>
+                    <div className="shrink-0 text-right text-[10.5px] font-semibold text-text-muted"><div>{activity.dateLabel}</div><div>{activity.timeLabel}</div></div>
                   </div>
-                  <div className="min-w-0">
-                    <div className="text-sm font-bold text-text-primary">{activity.title}</div>
-                    <div className="mt-0.5 truncate text-xs font-semibold text-text-secondary">{activity.product}</div>
-                  </div>
+                  <div className="mt-2 text-sm font-bold text-text-primary">{activity.product}</div>
+                  <div className="mt-0.5 font-mono text-[11px] font-bold text-text-secondary">{activity.reference}</div>
+                  <div className="mt-1 text-xs font-semibold text-text-secondary">{activity.detail}</div>
                 </div>
               )) : (
-                <EmptyState title="No production activity today" description="Started and completed production events will appear here." />
+                <EmptyState title="No production activity" description="Production starts, QC updates and completed output will appear here." />
               )}
             </div>
           </Card>

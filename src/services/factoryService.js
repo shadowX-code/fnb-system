@@ -972,7 +972,7 @@ function factoryDataPlan(scope, hasPermission) {
     sops: (isProduction || isProductionSop || isBatchTraceability || isJobOrders)
       && (can("factory_production_sop.view") || can("factory_production.view") || can("factory_production.complete")),
     qcChecklistTemplates: isProductionSop && (can("factory_production_sop.view") || can("factory_production_sop.create") || can("factory_production_sop.edit") || can("factory_production_sop.manage")),
-    auditLogs: isAuditLogs && can("factory_audit_logs.view"),
+    auditLogs: (isAuditLogs || isJobOrders) && can("factory_audit_logs.view"),
   };
 }
 
