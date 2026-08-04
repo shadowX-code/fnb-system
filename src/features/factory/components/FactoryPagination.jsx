@@ -1,5 +1,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import AlertTriangle from "lucide-react/dist/esm/icons/alert-triangle";
+import Check from "lucide-react/dist/esm/icons/check";
+import ChevronDown from "lucide-react/dist/esm/icons/chevron-down";
+import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
 
 const PAGE_SIZES = [20, 50, 100];
 
@@ -16,6 +19,116 @@ function nonNegativeTotal(value) {
 function positivePage(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) && numeric >= 1 ? Math.trunc(numeric) : 1;
+}
+
+function PageSizeSelect({ value, loading, onChange }) {
+  const [open, setOpen] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(() => Math.max(0, PAGE_SIZES.indexOf(value)));
+  const anchorRef = useRef(null);
+  const triggerRef = useRef(null);
+  const optionRefs = useRef([]);
+
+  useEffect(() => {
+    if (!open) return undefined;
+    const selectedIndex = Math.max(0, PAGE_SIZES.indexOf(value));
+    setActiveIndex(selectedIndex);
+    const frame = window.requestAnimationFrame(() => optionRefs.current[selectedIndex]?.focus());
+    return () => window.cancelAnimationFrame(frame);
+  }, [open, value]);
+
+  function selectPageSize(pageSize) {
+    onChange?.(pageSize);
+    setOpen(false);
+    triggerRef.current?.focus();
+  }
+
+  function moveActive(direction) {
+    const next = (activeIndex + direction + PAGE_SIZES.length) % PAGE_SIZES.length;
+    setActiveIndex(next);
+    optionRefs.current[next]?.focus();
+  }
+
+  function handleOpenChange(nextOpen) {
+    setOpen(nextOpen);
+    if (!nextOpen) window.requestAnimationFrame(() => triggerRef.current?.focus());
+  }
+
+  function handleTriggerKeyDown(event) {
+    if (!["ArrowDown", "ArrowUp"].includes(event.key)) return;
+    event.preventDefault();
+    setOpen(true);
+  }
+
+  function handleMenuKeyDown(event) {
+    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
+      event.preventDefault();
+      moveActive(event.key === "ArrowDown" ? 1 : -1);
+      return;
+    }
+    if (event.key === "Home" || event.key === "End") {
+      event.preventDefault();
+      const next = event.key === "Home" ? 0 : PAGE_SIZES.length - 1;
+      setActiveIndex(next);
+      optionRefs.current[next]?.focus();
+      return;
+    }
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      selectPageSize(PAGE_SIZES[activeIndex]);
+    }
+  }
+
+  return (
+    <div ref={anchorRef} className="relative w-[72px] shrink-0">
+      <button
+        ref={triggerRef}
+        className={`flex h-9 w-full items-center justify-between gap-1.5 rounded-lg border bg-white px-2.5 text-xs font-bold text-text-primary transition focus:outline-none focus:ring-2 focus:ring-primary/15 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-text-muted ${open ? "border-primary/40 shadow-sm" : "border-border hover:border-slate-300 hover:bg-slate-50"}`}
+        type="button"
+        aria-label="Rows per page"
+        aria-haspopup="listbox"
+        aria-expanded={open}
+        disabled={loading}
+        onClick={() => setOpen((current) => !current)}
+        onKeyDown={handleTriggerKeyDown}
+      >
+        <span>{value}</span>
+        <ChevronDown className={`shrink-0 text-text-muted transition ${open ? "rotate-180" : ""}`} size={14} />
+      </button>
+      <FloatingLayer
+        open={open}
+        onOpenChange={handleOpenChange}
+        anchorRef={anchorRef}
+        align="end"
+        minWidth={104}
+        estimatedHeight={126}
+        placement="auto"
+        focusOnOpen
+        className="rounded-xl p-1.5"
+      >
+        <div role="listbox" aria-label="Rows per page" className="space-y-1" onKeyDown={handleMenuKeyDown}>
+          {PAGE_SIZES.map((size, index) => {
+            const selected = size === value;
+            return (
+              <button
+                key={size}
+                ref={(node) => { optionRefs.current[index] = node; }}
+                className={`flex h-8 w-full items-center justify-between gap-3 rounded-lg px-2.5 text-left text-xs font-bold transition focus:outline-none focus:ring-2 focus:ring-primary/15 ${selected ? "bg-emerald-50 text-emerald-800" : "text-text-secondary hover:bg-emerald-50/60 hover:text-text-primary"}`}
+                type="button"
+                role="option"
+                aria-selected={selected}
+                tabIndex={index === activeIndex ? 0 : -1}
+                onFocus={() => setActiveIndex(index)}
+                onClick={() => selectPageSize(size)}
+              >
+                <span>{size}</span>
+                {selected ? <Check className="text-emerald-600" size={13} strokeWidth={3} /> : null}
+              </button>
+            );
+          })}
+        </div>
+      </FloatingLayer>
+    </div>
+  );
 }
 
 function storedPageSize(storageKey, fallback) {
@@ -212,12 +325,10 @@ export default function FactoryPagination({ page = 1, pageSize = 20, total = 0, 
       <div className="hidden items-center justify-between gap-4 md:flex">
         <div className="text-sm font-semibold text-text-secondary">Showing {from.toLocaleString("en-MY")}–{to.toLocaleString("en-MY")} of {safeTotal.toLocaleString("en-MY")} records</div>
         <div className="flex items-center gap-3">
-          <label className="flex items-center gap-2 text-xs font-semibold text-text-secondary">
+          <div className="flex items-center gap-2 text-xs font-semibold text-text-secondary">
             <span className="whitespace-nowrap">Rows per page</span>
-            <select className="rounded-lg border border-border bg-white px-2 py-2 text-xs font-bold text-text-primary" value={safePageSize} disabled={loading} onChange={(event) => onPageSizeChange?.(Number(event.target.value))}>
-              {PAGE_SIZES.map((size) => <option key={size} value={size}>{size}</option>)}
-            </select>
-          </label>
+            <PageSizeSelect value={safePageSize} loading={loading} onChange={onPageSizeChange} />
+          </div>
           <div className="flex items-center gap-1">
             <button className="btn-secondary px-3 py-2 text-xs" type="button" disabled={loading || safePage <= 1} onClick={() => onPageChange?.(safePage - 1)}>Previous</button>
             {items.map((item) => typeof item === "number" ? (
