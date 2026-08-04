@@ -2295,6 +2295,16 @@ function CompletedJobOrderResultModal({ job, production, recipes = [], onClose }
   const qcSummary = !processSteps.length
     ? "No QC Snapshot / Legacy Production"
     : productionQcDisplayLabel(processQcState.status);
+  const recipeVersion = matchingRecipe?.version || "";
+  const sopVersion = production?.sop_version || job?.sop_version || "";
+  const productionSopSummary = production?.sop_title
+    ? `${production.sop_title}${sopVersion ? ` · ${sopVersion}` : ""}`
+    : sopVersion || "No SOP Linked";
+  const shelfLifeConfigured = Number(production?.shelf_life_days_snapshot) > 0;
+  const productionDuration = production?.production_date && production?.start_time && production?.end_date && production?.end_time
+    ? productionDurationLabel(production.production_date, String(production.start_time).slice(0, 5), production.end_date, String(production.end_time).slice(0, 5))
+    : "—";
+  const expiryDisplay = production?.expiry_date ? formatFactoryDate(production.expiry_date) : shelfLifeConfigured ? "Missing" : "—";
   const summaryItems = [
     ["JO No", job?.job_order_no || "—"],
     ["Finished Good", jobFinishedGoodName(job || production || {})],
@@ -2302,22 +2312,26 @@ function CompletedJobOrderResultModal({ job, production, recipes = [], onClose }
     ["Target Production Qty", quantity(job?.target_production_qty || job?.target_quantity, job?.uom)],
     ["Estimated Pack Qty", quantity(job?.target_pack_qty || 0, "packs")],
     ["Scheduled Date", formatFactoryDate(job?.planned_date)],
-    ["Priority", job?.priority || "—"],
+    ["Production SOP", productionSopSummary],
   ];
-  const resultItems = production ? [
-    ["Batch No", production.batch_no || "—"],
-    ["Manufacturing Date", formatFactoryDate(production.manufacturing_date || production.production_date)],
-    ["Operator", production.operator_name || "—"],
-    ["Production Start", production.production_date && production.start_time ? `${formatFactoryDate(production.production_date)} ${factoryTimeAmPmLabel(production.start_time)}` : "—"],
-    ["Production End", production.end_date ? `${formatFactoryDate(production.end_date)} ${factoryTimeAmPmLabel(production.end_time)}` : factoryTimeAmPmLabel(production.end_time)],
-    ["Duration", production.end_date ? productionDurationLabel(production.production_date, String(production.start_time || "").slice(0, 5), production.end_date, String(production.end_time || "").slice(0, 5)) : "Legacy Production"],
-    ["Expiry Date", production.expiry_date ? formatFactoryDate(production.expiry_date) : "—"],
-    ["Storage Location", production.storage_location || "—"],
-    ["Shelf Life Applied", production.shelf_life_days_snapshot !== "" ? `${production.shelf_life_days_snapshot} days` : "—"],
-    ...(production.expiry_override_reason ? [["Expiry Override Reason", production.expiry_override_reason]] : []),
-    ["Actual Pack Qty", quantity(production.actual_pack_qty || production.good_output_qty, "packs")],
-    ["Actual Output Qty", quantity(outputQty, production.uom)],
-    ["Production Notes", production.notes || "—"],
+  const resultRows = production ? [
+    [
+      { label: "Batch No", value: production.batch_no || "—" },
+      { label: "Production Start", value: production.production_date && production.start_time ? `${formatFactoryDate(production.production_date)} ${factoryTimeAmPmLabel(production.start_time)}` : "—" },
+      { label: "Production End", value: production.end_date && production.end_time ? `${formatFactoryDate(production.end_date)} ${factoryTimeAmPmLabel(production.end_time)}` : "—" },
+      { label: "Duration", value: productionDuration },
+    ],
+    [
+      { label: "Manufacturing Date", value: production.manufacturing_date ? formatFactoryDate(production.manufacturing_date) : "—" },
+      { label: "Expiry Date", value: expiryDisplay, secondary: production.expiry_override_reason ? `Override: ${production.expiry_override_reason}` : "" },
+      { label: "Storage Location", value: production.storage_location || "—", secondary: production.storage_location ? production.storage_location_type || "—" : "" },
+      { label: "Operator", value: production.operator_name || "—" },
+    ],
+    [
+      { label: "Shelf Life Applied", value: shelfLifeConfigured ? `${production.shelf_life_days_snapshot} days` : "—" },
+      { label: "Actual Pack Qty", value: quantity(production.actual_pack_qty || production.good_output_qty, "packs") },
+      { label: "Actual Output Qty", value: quantity(outputQty, production.uom) },
+    ],
   ] : [];
 
   return (
@@ -2347,13 +2361,22 @@ function CompletedJobOrderResultModal({ job, production, recipes = [], onClose }
         ) : (
           <>
             <Card title="Production Result" description="Saved production completion output.">
-              <div className="grid gap-3 p-4 md:grid-cols-4">
-                {resultItems.map(([label, value]) => (
-                  <div key={label} className={`rounded-xl border border-border bg-white px-3 py-2 ${label === "Production Notes" ? "md:col-span-4" : ""}`}>
-                    <div className="text-[10.5px] font-semibold text-text-muted">{label}</div>
-                    <div className="mt-1 text-sm font-bold text-text-primary">{value || "—"}</div>
+              <div className="space-y-3 p-4">
+                {resultRows.map((row, rowIndex) => (
+                  <div key={`production-result-${rowIndex}`} className={`grid gap-3 ${row.length === 4 ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
+                    {row.map((item) => (
+                      <div key={item.label} className="rounded-xl border border-border bg-white px-3 py-2">
+                        <div className="text-[10.5px] font-semibold text-text-muted">{item.label}</div>
+                        <div className="mt-1 text-sm font-bold text-text-primary">{item.value || "—"}</div>
+                        {item.secondary ? <div className="mt-0.5 text-xs font-semibold text-text-secondary">{item.secondary}</div> : null}
+                      </div>
+                    ))}
                   </div>
                 ))}
+                <div className="rounded-xl border border-border bg-white px-3 py-2">
+                  <div className="text-[10.5px] font-semibold text-text-muted">Production Notes</div>
+                  <div className="mt-1 whitespace-pre-wrap text-sm font-bold text-text-primary">{production.notes || "—"}</div>
+                </div>
               </div>
             </Card>
 
@@ -2364,6 +2387,14 @@ function CompletedJobOrderResultModal({ job, production, recipes = [], onClose }
                   <div className="mt-1 text-sm font-bold text-text-primary">
                     {matchingRecipe ? `${matchingRecipe.recipe_name || matchingRecipe.product_name || "Production Standard"} ${matchingRecipe.version || ""}`.trim() : "Not recorded"}
                   </div>
+                </div>
+                <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
+                  <div className="text-[10.5px] font-semibold text-text-muted">Recipe Version</div>
+                  <div className="mt-1 text-sm font-bold text-text-primary">{recipeVersion || "—"}</div>
+                </div>
+                <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
+                  <div className="text-[10.5px] font-semibold text-text-muted">SOP Version</div>
+                  <div className="mt-1 text-sm font-bold text-text-primary">{sopVersion || "—"}</div>
                 </div>
                 <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
                   <div className="text-[10.5px] font-semibold text-text-muted">Base Recipe Qty</div>
@@ -4302,7 +4333,9 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
   const shelfLifeConfigured = matchingFinishedGood?.shelf_life_days !== "" && matchingFinishedGood?.shelf_life_days !== null && matchingFinishedGood?.shelf_life_days !== undefined;
   const initialCalculatedExpiryDate = shelfLifeConfigured ? addDaysToFactoryDate(defaultEndDate, Number(matchingFinishedGood.shelf_life_days)) : "";
   const finishedGoodsLocations = storageLocations.filter((location) => location.status === "active" && String(location.location_type || "").toLowerCase() === "finished goods area");
-  const defaultStorageLocationId = finishedGoodsLocations.some((location) => location.id === matchingFinishedGood?.storage_location_id) ? matchingFinishedGood.storage_location_id : "";
+  const defaultStorageLocation = storageLocations.find((location) => location.id === matchingFinishedGood?.storage_location_id);
+  const defaultStorageLocationId = defaultStorageLocation?.status === "active" && String(defaultStorageLocation.location_type || "").toLowerCase() === "finished goods area" ? defaultStorageLocation.id : "";
+  const defaultStorageLocationArchived = defaultStorageLocation && defaultStorageLocation.status !== "active";
   const [form, setForm] = useState(() => ({
     job_order_id: job.id,
     finished_good_id: matchingFinishedGood?.id || job.finished_good_id || "",
@@ -4694,16 +4727,9 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
                 {!shelfLifeConfigured ? <div className="mt-1 text-xs font-semibold text-text-secondary">No Expiry / Not Applicable is allowed.</div> : null}
               </Field>
               <Field label="Storage Location">
-                {finishedGoodsLocations.length ? (
-                  <SearchableSelect
-                    value={form.storage_location_id || ""}
-                    options={finishedGoodsLocations.map((location) => ({ value: location.id, label: location.location_name }))}
-                    placeholder="Select Finished Goods Area"
-                    searchPlaceholder="Search finished goods locations"
-                    emptyText="No active Finished Goods Area"
-                    onChange={(storageLocationId) => setForm((current) => ({ ...current, storage_location_id: storageLocationId }))}
-                  />
-                ) : <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">No active Finished Goods storage location found.</div>}
+                {finishedGoodsLocations.length ? <SearchableSelect value={form.storage_location_id || ""} options={finishedGoodsLocations.map((location) => ({ value: location.id, label: location.location_name }))} placeholder="Select Finished Goods Area" searchPlaceholder="Search finished goods locations" emptyText="No active Finished Goods Area" onChange={(storageLocationId) => setForm((current) => ({ ...current, storage_location_id: storageLocationId }))} /> : null}
+                {defaultStorageLocationArchived ? <div className="mt-1 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-800">The Packaging SKU default Storage Location, {defaultStorageLocation.location_name}, is archived. Select an active Finished Goods Area.</div> : null}
+                {!finishedGoodsLocations.length && !defaultStorageLocationArchived ? <div className="rounded-xl border border-amber-300 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">No active Finished Goods storage location found.</div> : null}
               </Field>
               <Field label="Shelf Life Applied">
                 <div className="rounded-xl border border-border bg-slate-50 px-3 py-2 text-sm font-bold text-text-primary">{shelfLifeConfigured ? `${matchingFinishedGood.shelf_life_days} days` : "Not configured"}</div>
