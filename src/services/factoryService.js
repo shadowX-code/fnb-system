@@ -3076,14 +3076,22 @@ export const factoryService = {
   },
 
   async getFinishedGoodBatchAvailability({ finishedGoodId, dispatchId = null, dispatchDate = null }) {
-    if (!finishedGoodId) return [];
+    if (!finishedGoodId) return {
+      finished_good_id: "",
+      aggregate_balance: 0,
+      allocatable_batch_balance: 0,
+      unavailable_balance: 0,
+      batches: [],
+      unavailable_batches: [],
+    };
     const { data, error } = await supabase.rpc("factory_get_finished_good_batch_availability", {
       p_finished_good_id: finishedGoodId,
       p_dispatch_id: dispatchId || null,
       p_dispatch_date: dispatchDate || null,
     });
     throwSupabaseError("factory.finished_good_dispatch.batch_availability", error);
-    return (data || []).map((row) => ({
+    const payload = data && !Array.isArray(data) ? data : {};
+    const mapBatch = (row) => ({
       batch_id: row.batch_id,
       production_id: row.production_id,
       batch_type: row.batch_type || "production",
@@ -3093,14 +3101,24 @@ export const factoryService = {
       storage_location_id: row.storage_location_id || "",
       storage_location: row.storage_location || "",
       storage_location_type: row.storage_location_type || "",
-      storage_location_status: "active",
-      location_valid: true,
-      location_issue: "",
+      storage_location_status: row.storage_location_status || "",
+      location_valid: !row.exclusion_reason,
+      location_issue: row.exclusion_reason || "",
       produced_qty: normalizeNumber(row.produced_qty),
       allocated_qty: normalizeNumber(row.allocated_qty),
       provisional_qty: normalizeNumber(row.provisional_qty),
       available_qty: normalizeNumber(row.available_qty),
-    }));
+      unavailable_qty: normalizeNumber(row.unavailable_qty),
+      exclusion_reason: row.exclusion_reason || "",
+    });
+    return {
+      finished_good_id: payload.finished_good_id || finishedGoodId,
+      aggregate_balance: normalizeNumber(payload.aggregate_balance),
+      allocatable_batch_balance: normalizeNumber(payload.allocatable_batch_balance),
+      unavailable_balance: normalizeNumber(payload.unavailable_balance),
+      batches: (Array.isArray(payload.batches) ? payload.batches : []).map(mapBatch),
+      unavailable_batches: (Array.isArray(payload.unavailable_batches) ? payload.unavailable_batches : []).map(mapBatch),
+    };
   },
 
   async getFinishedGoodInventoryReconciliation(finishedGoodId = null) {

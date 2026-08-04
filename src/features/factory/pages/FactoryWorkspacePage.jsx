@@ -2600,6 +2600,53 @@ function batchTypeLabel(value) {
   return "Production";
 }
 
+function DispatchStockAvailability({ sku, availability, onViewUnavailable, onRetry }) {
+  if (!sku) return <span className="text-sm font-semibold text-text-muted">—</span>;
+  if (!availability || (availability.loading && !availability.data)) return <span className="text-xs font-semibold text-text-muted">Loading batch stock...</span>;
+  if (!availability.data) return <div className="space-y-1"><div className="text-xs font-bold text-rose-700">{availability.operatorMessage || "Unable to load the latest batch availability."}</div>{availability.errorKind === "load" && onRetry ? <button className="text-xs font-bold text-primary hover:underline" type="button" onClick={onRetry}>Retry</button> : null}</div>;
+  const stock = availability.data;
+  const packagingType = packagingTypeLabel(sku);
+  const total = Number(stock.aggregate_balance || 0);
+  const allocatable = Number(stock.allocatable_batch_balance || 0);
+  const unavailable = Number(stock.unavailable_balance || 0);
+  return (
+    <div className="min-w-[145px] space-y-1 text-xs">
+      <div className="flex justify-between gap-3"><span className="font-semibold text-text-muted">Total Stock</span><span className="font-bold text-text-primary">{quantity(total, pluralizePackagingType(packagingType, total))}</span></div>
+      <div className="flex justify-between gap-3"><span className="font-semibold text-text-muted">Batch Available</span><span className="font-bold text-emerald-700">{quantity(allocatable, pluralizePackagingType(packagingType, allocatable))}</span></div>
+      <div className="flex justify-between gap-3"><span className="font-semibold text-text-muted">Unavailable</span><span className={unavailable > 0 ? "font-bold text-amber-700" : "font-bold text-text-primary"}>{quantity(unavailable, pluralizePackagingType(packagingType, unavailable))}</span></div>
+      {unavailable > 0 && onViewUnavailable ? <button className="font-bold text-primary hover:underline" type="button" onClick={onViewUnavailable}>View unavailable stock</button> : null}
+      {availability.isStale ? <div className="rounded-md bg-amber-50 px-2 py-1.5 font-semibold text-amber-800"><div>Unable to load the latest batch availability. Showing the last successfully loaded results.</div>{onRetry ? <button className="mt-1 font-bold text-primary hover:underline" type="button" onClick={onRetry}>Retry</button> : null}</div> : availability.loading ? <div className="font-semibold text-text-muted">Updating batch availability...</div> : null}
+    </div>
+  );
+}
+
+function UnavailableFinishedGoodStock({ batches = [], sku }) {
+  return batches.length ? (
+    <div className="space-y-2">
+      {batches.map((batch, index) => {
+        const amount = Number(batch.unavailable_qty || 0);
+        const batchLabel = batch.batch_type === "legacy_unallocated" ? "Legacy / Unallocated" : batch.batch_no || "Batch metadata unavailable";
+        return (
+          <div key={batch.batch_id || `${batchLabel}-${index}`} className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2.5">
+            <div className="flex items-start justify-between gap-3">
+              <div><div className="text-sm font-bold text-amber-950">{batchLabel}</div><div className="mt-0.5 text-xs font-semibold text-amber-800">{batch.exclusion_reason || "Metadata unavailable"}</div></div>
+              <div className="shrink-0 text-sm font-black text-amber-950">{quantity(amount, pluralizePackagingType(packagingTypeLabel(sku), amount))}</div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  ) : <EmptyState title="No Unavailable Stock" description="All represented stock is currently eligible for batch allocation." />;
+}
+
+function UnavailableFinishedGoodStockModal({ sku, availability, onClose }) {
+  return (
+    <Modal title="Unavailable Stock" description={[sku?.product_code, sku?.product_family_name || sku?.product_name_en || sku?.product_name].filter(Boolean).join(" · ")} size="lg" onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}>
+      <UnavailableFinishedGoodStock batches={availability?.unavailable_batches || []} sku={sku} />
+    </Modal>
+  );
+}
+
 function ReadOnlyBatchAllocationModal({ title = "Batch Allocation", subtitle = "", allocations = [], onClose }) {
   return (
     <Modal title={title} description={subtitle} size="lg" onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}>
@@ -2686,18 +2733,40 @@ function FinishedGoodBatchTraceabilityModal({ batch, onClose }) {
   );
 }
 
-function DispatchBatchAllocationModal({ item, sku, batches, loading, error, autoAllocateOnLoad, allowExpired = false, referenceDate = "", onRetry, onClose, onApply }) {
+function DispatchBatchAllocationModal({ item, sku, batches, unavailableBatches = [], aggregateBalance = 0, batchAvailable = null, availableToThisLine = null, otherLinesAllocated = 0, unavailableBalance = 0, loading, error, errorKind = "", isStale = false, autoAllocateOnLoad, allowExpired = false, referenceDate = "", onRetry, onClose, onApply }) {
   const [quantities, setQuantities] = useState(() => Object.fromEntries((item.allocations || []).map((allocation) => [allocation.batch_id || allocation.batch_balance_id, String(allocation.quantity)])));
+  const [showUnavailable, setShowUnavailable] = useState(false);
   const autoAllocatedRef = useRef(false);
   const requiredQty = Number(item.quantity || 0);
-  const allocatedQty = Object.values(quantities).reduce((sum, value) => sum + Number(value || 0), 0);
-  const totalAvailability = batches.reduce((sum, batch) => sum + Number(batch.available_qty || 0), 0);
+  const eligibleBatchIds = new Set(batches.map((batch) => batch.batch_id));
+  const eligibleBatchCapacity = batches.reduce((sum, batch) => sum + Number(batch.available_qty || 0), 0);
+  const explicitBatchAvailable = batchAvailable != null && Number.isFinite(Number(batchAvailable));
+  const explicitAvailableToThisLine = availableToThisLine != null && Number.isFinite(Number(availableToThisLine));
+  const resolvedBatchAvailable = Math.max(explicitBatchAvailable ? Number(batchAvailable) : eligibleBatchCapacity, 0);
+  const resolvedAvailableToThisLine = Math.max(
+    explicitAvailableToThisLine
+      ? Number(availableToThisLine)
+      : explicitBatchAvailable
+        ? resolvedBatchAvailable
+        : eligibleBatchCapacity,
+    0,
+  );
+  const staleAllocationKeys = Object.entries(quantities).filter(([batchId, value]) => value !== "" && !eligibleBatchIds.has(batchId));
+  const allocatedQty = Object.entries(quantities).reduce((sum, [batchId, value]) => eligibleBatchIds.has(batchId) ? sum + Number(value || 0) : sum, 0);
+  const shortage = Math.max(requiredQty - resolvedAvailableToThisLine, 0);
   const invalidQuantity = Object.values(quantities).some((value) => value !== "" && (!Number.isInteger(Number(value)) || Number(value) < 0));
   const exceedsAvailability = batches.some((batch) => Number(quantities[batch.batch_id] || 0) > Number(batch.available_qty || 0));
   const invalidLocationAllocations = (item.allocations || []).filter((allocation) => (
     allocation.location_valid === false && Number(quantities[allocation.batch_id || allocation.batch_balance_id] || 0) > 0
   ));
-  const canApply = !loading && !error && requiredQty > 0 && allocatedQty === requiredQty && !invalidQuantity && !exceedsAvailability && !invalidLocationAllocations.length;
+  const canApply = !loading && !error && !isStale
+    && Number.isInteger(requiredQty) && requiredQty > 0
+    && requiredQty <= resolvedAvailableToThisLine
+    && allocatedQty === requiredQty
+    && !staleAllocationKeys.length
+    && !invalidQuantity
+    && !exceedsAvailability
+    && !invalidLocationAllocations.length;
   const isExpired = (batch) => Boolean(referenceDate && batch.expiry_date && batch.expiry_date < referenceDate);
 
   function autoAllocate() {
@@ -2741,11 +2810,14 @@ function DispatchBatchAllocationModal({ item, sku, batches, loading, error, auto
       )}
     >
       <div className="space-y-4">
-        <div className="grid grid-cols-3 gap-2">
+        <div className="grid grid-cols-2 gap-2 lg:grid-cols-3">
           {[
             ["Required Qty", requiredQty],
             ["Allocated Qty", allocatedQty],
-            ["Total Batch Availability", totalAvailability],
+            ["Batch Available", resolvedBatchAvailable],
+            ["Available to This Line", resolvedAvailableToThisLine],
+            ["Unavailable Stock", unavailableBalance],
+            ["Shortage", shortage],
           ].map(([label, value]) => (
             <div key={label} className="rounded-lg border border-border bg-slate-50 px-3 py-2">
               <div className="text-[10.5px] font-semibold text-text-muted">{label}</div>
@@ -2753,19 +2825,30 @@ function DispatchBatchAllocationModal({ item, sku, batches, loading, error, auto
             </div>
           ))}
         </div>
+        {otherLinesAllocated > 0 ? <div className="text-xs font-semibold text-text-secondary">{quantity(otherLinesAllocated, pluralizePackagingType(packagingTypeLabel(sku), otherLinesAllocated))} are currently allocated to other lines in this Dispatch.</div> : null}
 
         <div className="flex flex-wrap gap-2">
           <button className="btn-secondary" type="button" disabled={loading || !batches.length} onClick={autoAllocate}><RefreshCw size={14} /> Auto Allocate FEFO</button>
           <button className="btn-secondary" type="button" disabled={loading} onClick={() => setQuantities({})}>Clear Allocation</button>
+          {Number(unavailableBalance || 0) > 0 ? <button className="btn-secondary" type="button" onClick={() => setShowUnavailable((current) => !current)}>{showUnavailable ? "Hide unavailable stock" : "View unavailable stock"}</button> : null}
         </div>
 
-        {loading ? <div className="rounded-xl border border-border bg-slate-50 px-4 py-8 text-center text-sm font-semibold text-text-secondary">Loading available batches...</div> : null}
-        {!loading && error ? (
-          <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">
-            <div>{error}</div>
-            <button className="mt-2 underline" type="button" onClick={onRetry}>Retry</button>
+        {showUnavailable ? (
+          <div className="rounded-xl border border-amber-200 bg-white p-3">
+            <div className="mb-2 flex flex-wrap items-center justify-between gap-2"><div className="font-bold text-text-primary">Unavailable / Reconciliation Required</div><div className="text-xs font-semibold text-text-muted">Total Stock {quantity(aggregateBalance, pluralizePackagingType(packagingTypeLabel(sku), aggregateBalance))}</div></div>
+            <UnavailableFinishedGoodStock batches={unavailableBatches} sku={sku} />
           </div>
         ) : null}
+
+        {loading ? <div className="rounded-xl border border-border bg-slate-50 px-4 py-8 text-center text-sm font-semibold text-text-secondary">Loading available batches...</div> : null}
+        {error ? (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">
+            <div>{error}</div>
+            {errorKind === "load" ? <button className="mt-2 underline" type="button" onClick={onRetry}>Retry</button> : null}
+          </div>
+        ) : null}
+        {isStale ? <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-800"><div>Unable to load the latest batch availability. Showing the last successfully loaded results.</div><button className="mt-2 underline" type="button" onClick={onRetry}>Retry</button></div> : null}
+        {staleAllocationKeys.length ? <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">One or more selected batches are no longer available. Please reallocate.</div> : null}
         {!loading && invalidLocationAllocations.length ? (
           <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
             <div className="font-bold">Storage location unavailable</div>
@@ -2779,7 +2862,7 @@ function DispatchBatchAllocationModal({ item, sku, batches, loading, error, auto
         ) : null}
         {!loading && !error && !batches.length ? <EmptyState title="No Available Batches" description={allowExpired ? "No active Finished Goods batches have available pack balance." : "No active, unexpired Finished Goods batches have available pack balance."} /> : null}
 
-        {!loading && !error && batches.length ? (
+        {!error && batches.length ? (
           <div className="space-y-3 md:hidden">
             {batches.map((batch) => (
               <div key={batch.batch_id} className="rounded-xl border border-border bg-white p-3">
@@ -2797,7 +2880,7 @@ function DispatchBatchAllocationModal({ item, sku, batches, loading, error, auto
             ))}
           </div>
         ) : null}
-        {!loading && !error && batches.length ? (
+        {!error && batches.length ? (
           <div className="hidden overflow-x-auto rounded-xl border border-border md:block">
             <table className="w-full min-w-[820px] text-left">
               <thead><tr className="border-b border-border bg-slate-50 text-[11px] font-semibold text-text-muted">
@@ -2841,6 +2924,9 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
   const [error, setError] = useState("");
   const [allocationEditor, setAllocationEditor] = useState(null);
   const [viewAllocation, setViewAllocation] = useState(null);
+  const [unavailableViewer, setUnavailableViewer] = useState(null);
+  const [batchAvailabilityBySku, setBatchAvailabilityBySku] = useState({});
+  const batchAvailabilityRequestRef = useRef({});
   const isViewMode = mode === "view" || (Boolean(initialValue?.id) && initialValue.status !== "draft");
   const isReadOnly = isViewMode;
   const dispatchNoPreview = form.dispatch_no || previewDailyDocumentNo({ prefix: "D", date: form.dispatch_date, records: dispatches, codeKey: "dispatch_no", dateKey: "dispatch_date" });
@@ -2854,9 +2940,86 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
   const skuOptions = activeSkus.map((sku) => ({
     value: sku.id,
     label: [sku.product_code || "No SKU", sku.product_family_name || sku.product_name_en || sku.product_name, sku.variant_name || packSizeText(sku)].filter(Boolean).join(" · "),
-    helper: `${skuBalanceLabel(sku)} available · ${packSizeText(sku) || "No pack size"}`,
+    helper: `Total stock ${skuBalanceLabel(sku)} · ${packSizeText(sku) || "No pack size"}`,
   }));
   const showReferenceField = Boolean(initialValue?.reference_no);
+
+  const selectedSkuSignature = Array.from(new Set(form.items.map((item) => item.finished_good_id).filter(Boolean))).sort().join("|");
+
+  async function loadBatchAvailability(finishedGoodId) {
+    if (!finishedGoodId) return null;
+    const requestId = Number(batchAvailabilityRequestRef.current[finishedGoodId] || 0) + 1;
+    batchAvailabilityRequestRef.current[finishedGoodId] = requestId;
+    setBatchAvailabilityBySku((current) => ({
+      ...current,
+      [finishedGoodId]: { ...current[finishedGoodId], loading: true, errorKind: "", operatorMessage: "", dispatchDate: form.dispatch_date },
+    }));
+    try {
+      const data = await factoryService.getFinishedGoodBatchAvailability({
+        finishedGoodId,
+        dispatchId: form.id || null,
+        dispatchDate: form.dispatch_date,
+      });
+      if (batchAvailabilityRequestRef.current[finishedGoodId] !== requestId) return null;
+      setBatchAvailabilityBySku((current) => ({
+        ...current,
+        [finishedGoodId]: { data, loading: false, errorKind: "", isStale: false, operatorMessage: "", dispatchDate: form.dispatch_date },
+      }));
+      return data;
+    } catch (loadError) {
+      if (batchAvailabilityRequestRef.current[finishedGoodId] !== requestId) return null;
+      const permissionDenied = isFactoryPermissionError(loadError);
+      console.error("[Factory] Unable to load Finished Goods batch availability.", loadError);
+      setBatchAvailabilityBySku((current) => ({
+        ...current,
+        [finishedGoodId]: permissionDenied
+          ? {
+            data: null,
+            loading: false,
+            errorKind: "permission",
+            isStale: false,
+            operatorMessage: "Some Finished Goods batch availability data is hidden by your current role.",
+            dispatchDate: form.dispatch_date,
+          }
+          : {
+            ...current[finishedGoodId],
+            loading: false,
+            errorKind: "load",
+            isStale: Boolean(current[finishedGoodId]?.data),
+            operatorMessage: current[finishedGoodId]?.data
+              ? "Unable to load the latest batch availability. Showing the last successfully loaded results."
+              : "Unable to load the latest batch availability.",
+            dispatchDate: form.dispatch_date,
+          },
+      }));
+      if (permissionDenied) {
+        setAllocationEditor((current) => {
+          const currentItem = form.items.find((item) => item.row_id === current?.rowId);
+          return currentItem?.finished_good_id === finishedGoodId ? null : current;
+        });
+        setUnavailableViewer((current) => current?.sku?.id === finishedGoodId ? null : current);
+        setForm((current) => ({
+          ...current,
+          items: current.items.map((item) => item.finished_good_id === finishedGoodId ? {
+            ...item,
+            allocations: [],
+            batch_no: "",
+            allocation_required: validDispatchPackQty(item.quantity),
+          } : item),
+        }));
+      }
+      throw loadError;
+    }
+  }
+
+  useEffect(() => {
+    const selectedSkuIds = selectedSkuSignature ? selectedSkuSignature.split("|") : [];
+    selectedSkuIds.forEach((finishedGoodId) => {
+      const current = batchAvailabilityBySku[finishedGoodId];
+      if (current?.dispatchDate === form.dispatch_date && (current.loading || current.data)) return;
+      loadBatchAvailability(finishedGoodId).catch(() => {});
+    });
+  }, [selectedSkuSignature, form.dispatch_date, form.id]);
 
   if (isViewMode) {
     const statusToneValue = form.status === "completed" ? "success" : form.status === "cancelled" ? "neutral" : "warning";
@@ -3009,28 +3172,75 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
 
   async function openBatchAllocation(item, autoAllocateOnLoad = false) {
     if (!item?.finished_good_id || !validDispatchPackQty(item.quantity)) return;
-    setAllocationEditor({ rowId: item.row_id, loading: true, error: "", batches: [], autoAllocateOnLoad });
+    setAllocationEditor((current) => current?.rowId === item.row_id ? {
+      ...current,
+      loading: true,
+      error: "",
+      errorKind: "",
+      autoAllocateOnLoad,
+    } : {
+      rowId: item.row_id,
+      loading: true,
+      error: "",
+      errorKind: "",
+      isStale: false,
+      batches: [],
+      unavailableBatches: [],
+      aggregateBalance: 0,
+      batchAvailable: 0,
+      availableToThisLine: 0,
+      otherLinesAllocated: 0,
+      unavailableBalance: 0,
+      autoAllocateOnLoad,
+    });
     try {
-      const batches = await factoryService.getFinishedGoodBatchAvailability({
-        finishedGoodId: item.finished_good_id,
-        dispatchId: form.id || null,
-        dispatchDate: form.dispatch_date,
-      });
+      const availability = await loadBatchAvailability(item.finished_good_id);
+      if (!availability) return;
+      const eligibleBatches = new Map(availability.batches.map((batch) => [batch.batch_id, batch]));
       const otherLineUsage = form.items.reduce((usage, line) => {
-        if (line.row_id === item.row_id) return usage;
+        if (line.row_id === item.row_id || line.finished_good_id !== item.finished_good_id) return usage;
         (line.allocations || []).forEach((allocation) => {
           const batchId = allocation.batch_id || allocation.batch_balance_id;
-          usage[batchId] = (usage[batchId] || 0) + Number(allocation.quantity || 0);
+          const allocationQty = Number(allocation.quantity || 0);
+          const eligibleBatch = eligibleBatches.get(batchId);
+          if (!eligibleBatch || !Number.isInteger(allocationQty) || allocationQty <= 0 || allocationQty > Number(eligibleBatch.available_qty || 0)) return;
+          usage[batchId] = (usage[batchId] || 0) + allocationQty;
         });
         return usage;
       }, {});
-      const availableBatches = batches.map((batch) => ({
+      const otherLinesAllocated = Object.values(otherLineUsage).reduce((sum, value) => sum + Number(value || 0), 0);
+      const availableToThisLine = Math.max(Number(availability.allocatable_batch_balance || 0) - otherLinesAllocated, 0);
+      const availableBatches = availability.batches.map((batch) => ({
         ...batch,
         available_qty: Math.max(Number(batch.available_qty || 0) - Number(otherLineUsage[batch.batch_id] || 0), 0),
       })).filter((batch) => batch.available_qty > 0);
-      setAllocationEditor((current) => current?.rowId === item.row_id ? { ...current, loading: false, batches: availableBatches } : current);
+      setAllocationEditor((current) => current?.rowId === item.row_id ? {
+        ...current,
+        loading: false,
+        batches: availableBatches,
+        unavailableBatches: availability.unavailable_batches,
+        aggregateBalance: availability.aggregate_balance,
+        batchAvailable: availability.allocatable_batch_balance,
+        availableToThisLine,
+        otherLinesAllocated,
+        unavailableBalance: availability.unavailable_balance,
+        error: "",
+        errorKind: "",
+        isStale: false,
+      } : current);
     } catch (loadError) {
-      setAllocationEditor((current) => current?.rowId === item.row_id ? { ...current, loading: false, error: loadError.message || "Unable to load available batches." } : current);
+      const permissionDenied = isFactoryPermissionError(loadError);
+      setAllocationEditor((current) => current?.rowId === item.row_id
+        ? permissionDenied
+          ? null
+          : {
+            ...current,
+            loading: false,
+            error: current.batches?.length ? "" : "Unable to load the latest batch availability.",
+            errorKind: "load",
+            isStale: Boolean(current.batches?.length),
+          }
+        : current);
     }
   }
 
@@ -3059,6 +3269,28 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
     setForm((current) => ({ ...current, items: current.items.length > 1 ? current.items.filter((item) => item.row_id !== rowId) : current.items }));
   }
 
+  function requestedQtyForSku(finishedGoodId, rows = form.items) {
+    return rows.filter((row) => row.finished_good_id === finishedGoodId)
+      .reduce((sum, row) => sum + (validDispatchPackQty(row.quantity) ? Number(row.quantity) : 0), 0);
+  }
+
+  function batchAvailabilityExceeded(item, rows = form.items) {
+    const availability = batchAvailabilityBySku[item.finished_good_id];
+    if (!availability?.data || availability.loading || availability.errorKind || availability.isStale || availability.dispatchDate !== form.dispatch_date) return false;
+    return requestedQtyForSku(item.finished_good_id, rows) > Number(availability.data.allocatable_batch_balance || 0);
+  }
+
+  function batchAvailabilityMessage(item, rows = form.items) {
+    if (!batchAvailabilityExceeded(item, rows)) return "";
+    const availability = batchAvailabilityBySku[item.finished_good_id].data;
+    const sku = activeSkus.find((row) => row.id === item.finished_good_id);
+    const available = Number(availability.allocatable_batch_balance || 0);
+    const unavailable = Number(availability.unavailable_balance || 0);
+    const unit = pluralizePackagingType(packagingTypeLabel(sku), available).toLowerCase();
+    const unavailableUnit = pluralizePackagingType(packagingTypeLabel(sku), unavailable).toLowerCase();
+    return `Only ${quantity(available, unit)} are currently available for batch allocation. ${quantity(unavailable, unavailableUnit)} require reconciliation or storage setup.`;
+  }
+
   async function submit(event) {
     event.preventDefault();
     setError("");
@@ -3081,13 +3313,17 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
       setError("Every dispatch item needs a Packaging SKU and quantity greater than 0.");
       return;
     }
-    const overBalance = rows.find((item) => {
-      const sku = activeSkus.find((row) => row.id === item.finished_good_id);
-      const skuDispatchQty = rows.filter((row) => row.finished_good_id === item.finished_good_id).reduce((sum, row) => sum + Number(row.quantity || 0), 0);
-      return sku && skuDispatchQty > Number(sku.current_balance || 0);
+    const unverifiedAvailability = rows.find((item) => {
+      const availability = batchAvailabilityBySku[item.finished_good_id];
+      return !availability?.data || availability.loading || availability.errorKind || availability.isStale || availability.dispatchDate !== form.dispatch_date;
     });
-    if (overBalance) {
-      setError("Dispatch quantity cannot exceed available balance.");
+    if (unverifiedAvailability) {
+      setError("Batch stock availability could not be verified. Retry before saving this Dispatch.");
+      return;
+    }
+    const overBatchAvailability = rows.find((item) => batchAvailabilityExceeded(item, rows));
+    if (overBatchAvailability) {
+      setError(batchAvailabilityMessage(overBatchAvailability, rows));
       return;
     }
     const invalidAllocation = rows.find((item) => (
@@ -3169,6 +3405,8 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
           <div className="space-y-3 md:hidden">
             {form.items.map((item) => {
               const sku = activeSkus.find((row) => row.id === item.finished_good_id);
+              const availability = batchAvailabilityBySku[item.finished_good_id];
+              const availabilityMessage = batchAvailabilityMessage(item);
               return (
                 <div key={item.row_id} className="space-y-3 rounded-2xl border border-border bg-white p-3">
                   <Field label="Packaging SKU">
@@ -3184,8 +3422,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
                   </Field>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
-                      <div className="text-[10.5px] font-semibold text-text-muted">Available</div>
-                      <div className="mt-1 text-sm font-bold text-text-primary">{sku ? skuBalanceLabel(sku) : "—"}</div>
+                      <DispatchStockAvailability sku={sku} availability={availability} onViewUnavailable={availability?.data ? () => setUnavailableViewer({ sku, availability: availability.data }) : null} onRetry={() => loadBatchAvailability(item.finished_good_id).catch(() => {})} />
                     </div>
                     <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
                       <div className="text-[10.5px] font-semibold text-text-muted">Pack Size</div>
@@ -3198,6 +3435,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
                       <span className="shrink-0 text-xs font-bold text-text-muted">{pluralizePackagingType(packagingTypeLabel(sku), item.quantity || 0)}</span>
                     </div>
                     {item.quantity !== "" && !validDispatchPackQty(item.quantity) ? <div className="mt-1 text-xs font-semibold text-rose-700">Enter a whole number greater than zero.</div> : null}
+                    {availabilityMessage ? <div className="mt-1 text-xs font-bold text-rose-700">{availabilityMessage}</div> : null}
                   </Field>
                   <Field label="Batch Allocation">
                     <div className={`rounded-xl border px-3 py-2 ${item.allocation_required ? "border-amber-300 bg-amber-50" : "border-border bg-slate-50"}`}><DispatchAllocationSummary item={item} sku={sku} onEdit={validDispatchPackQty(item.quantity) && item.finished_good_id ? () => openBatchAllocation(item) : null} /></div>
@@ -3215,7 +3453,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
               <thead>
                 <tr className="border-b border-border bg-slate-50 text-[11px] font-semibold text-text-muted">
                   <th className="px-3 py-2.5">Packaging SKU</th>
-                  <th className="px-3 py-2.5">Available</th>
+                  <th className="px-3 py-2.5">Stock Availability</th>
                   <th className="px-3 py-2.5">Dispatch Qty</th>
                   <th className="px-3 py-2.5">Batch Allocation</th>
                   <th className="px-3 py-2.5">Pack Size</th>
@@ -3226,6 +3464,8 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
               <tbody>
                 {form.items.map((item) => {
                   const sku = activeSkus.find((row) => row.id === item.finished_good_id);
+                  const availability = batchAvailabilityBySku[item.finished_good_id];
+                  const availabilityMessage = batchAvailabilityMessage(item);
                   return (
                     <tr key={item.row_id} className="border-b border-border last:border-0">
                       <td className="px-3 py-3">
@@ -3239,13 +3479,14 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
                           onChange={(value) => updateItemSku(item, value)}
                         />
                       </td>
-                      <td className="px-3 py-3 text-sm font-semibold text-text-secondary">{sku ? skuBalanceLabel(sku) : "—"}</td>
+                      <td className="px-3 py-3"><DispatchStockAvailability sku={sku} availability={availability} onViewUnavailable={availability?.data ? () => setUnavailableViewer({ sku, availability: availability.data }) : null} onRetry={() => loadBatchAvailability(item.finished_good_id).catch(() => {})} /></td>
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-2">
                           <input className={inputClass()} type="number" min="1" step="1" value={item.quantity || ""} disabled={isReadOnly} onChange={(event) => updateItemQuantity(item.row_id, event.target.value)} onBlur={() => promptAllocationOnce(item.row_id)} />
                           <span className="text-xs font-bold text-text-muted">{pluralizePackagingType(packagingTypeLabel(sku), item.quantity || 0)}</span>
                         </div>
                         {item.quantity !== "" && !validDispatchPackQty(item.quantity) ? <div className="mt-1 text-xs font-semibold text-rose-700">Whole packs only.</div> : null}
+                        {availabilityMessage ? <div className="mt-1 max-w-xs text-xs font-bold text-rose-700">{availabilityMessage}</div> : null}
                       </td>
                       <td className="max-w-[220px] px-3 py-3"><DispatchAllocationSummary item={item} sku={sku} onEdit={validDispatchPackQty(item.quantity) && item.finished_good_id ? () => openBatchAllocation(item) : null} /></td>
                       <td className="px-3 py-3 text-sm font-semibold text-text-secondary">{sku ? packSizeText(sku) || "—" : "—"}</td>
@@ -3282,8 +3523,16 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
       item={allocationItem}
       sku={allocationSku}
       batches={allocationEditor.batches || []}
+      unavailableBatches={allocationEditor.unavailableBatches || []}
+      aggregateBalance={allocationEditor.aggregateBalance || 0}
+      batchAvailable={allocationEditor.batchAvailable || 0}
+      availableToThisLine={allocationEditor.availableToThisLine || 0}
+      otherLinesAllocated={allocationEditor.otherLinesAllocated || 0}
+      unavailableBalance={allocationEditor.unavailableBalance || 0}
       loading={allocationEditor.loading}
       error={allocationEditor.error}
+      errorKind={allocationEditor.errorKind}
+      isStale={allocationEditor.isStale}
       autoAllocateOnLoad={allocationEditor.autoAllocateOnLoad}
       onRetry={() => openBatchAllocation(allocationItem, allocationEditor.autoAllocateOnLoad)}
       onClose={() => setAllocationEditor(null)}
@@ -3292,7 +3541,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
   ) : null;
 
   if (embedded) {
-    return <>{formContent}{allocationModal}</>;
+    return <>{formContent}{allocationModal}{unavailableViewer ? <UnavailableFinishedGoodStockModal sku={unavailableViewer.sku} availability={unavailableViewer.availability} onClose={() => setUnavailableViewer(null)} /> : null}</>;
   }
 
   return (
@@ -3312,6 +3561,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
         {formContent}
       </Modal>
       {allocationModal}
+      {unavailableViewer ? <UnavailableFinishedGoodStockModal sku={unavailableViewer.sku} availability={unavailableViewer.availability} onClose={() => setUnavailableViewer(null)} /> : null}
     </>
   );
 }
@@ -6398,12 +6648,56 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
   async function openStockCheckBatchAllocation(row) {
     const requiredQty = Math.abs(Math.min(stockCheckVariance(row.system_qty, row.physical_qty).variance, 0));
     if (!row.finished_good_id || !Number.isInteger(requiredQty) || requiredQty <= 0) return;
-    setBatchEditor({ rowId: row.id, loading: true, error: "", batches: [] });
+    setError("");
+    setBatchEditor((current) => current?.rowId === row.id ? {
+      ...current,
+      loading: true,
+      error: "",
+      errorKind: "",
+    } : {
+      rowId: row.id,
+      loading: true,
+      error: "",
+      errorKind: "",
+      isStale: false,
+      batches: [],
+      unavailableBatches: [],
+      aggregateBalance: 0,
+      batchAvailable: null,
+      availableToThisLine: null,
+      unavailableBalance: 0,
+    });
     try {
-      const batches = await factoryService.getFinishedGoodBatchAvailability({ finishedGoodId: row.finished_good_id });
-      setBatchEditor((current) => current?.rowId === row.id ? { ...current, loading: false, batches } : current);
+      const availability = await factoryService.getFinishedGoodBatchAvailability({ finishedGoodId: row.finished_good_id });
+      setBatchEditor((current) => current?.rowId === row.id ? {
+        ...current,
+        loading: false,
+        batches: availability.batches,
+        unavailableBatches: availability.unavailable_batches,
+        aggregateBalance: availability.aggregate_balance,
+        batchAvailable: availability.allocatable_batch_balance,
+        availableToThisLine: availability.allocatable_batch_balance,
+        unavailableBalance: availability.unavailable_balance,
+        error: "",
+        errorKind: "",
+        isStale: false,
+      } : current);
     } catch (loadError) {
-      setBatchEditor((current) => current?.rowId === row.id ? { ...current, loading: false, error: loadError.message || "Unable to load batch balances." } : current);
+      const permissionDenied = isFactoryPermissionError(loadError);
+      console.error("[Factory] Unable to load Product Stock Check batch availability.", loadError);
+      if (permissionDenied) {
+        updateRow(row.id, { batch_allocations: [] });
+        setBatchEditor(null);
+        setError("Batch availability is hidden by your current role.");
+        return;
+      }
+      setBatchEditor((current) => current?.rowId === row.id ? {
+        ...current,
+        loading: false,
+        error: current.batches?.length ? "" : "Unable to load the latest batch availability.",
+        errorKind: "load",
+        isStale: Boolean(current.batches?.length),
+      } : current);
     }
   }
 
@@ -6753,8 +7047,16 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
         item={{ ...batchItem, quantity: Math.abs(batchVariance), allocations: batchItem.batch_allocations || [] }}
         sku={batchSku}
         batches={batchEditor.batches || []}
+        unavailableBatches={batchEditor.unavailableBatches || []}
+        aggregateBalance={batchEditor.aggregateBalance || 0}
+        batchAvailable={batchEditor.batchAvailable}
+        availableToThisLine={batchEditor.availableToThisLine}
+        otherLinesAllocated={0}
+        unavailableBalance={batchEditor.unavailableBalance || 0}
         loading={batchEditor.loading}
         error={batchEditor.error}
+        errorKind={batchEditor.errorKind}
+        isStale={batchEditor.isStale}
         autoAllocateOnLoad={!batchItem.batch_allocations?.length}
         allowExpired
         referenceDate={form.check_date}
