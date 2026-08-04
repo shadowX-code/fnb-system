@@ -1091,6 +1091,25 @@ function factoryTimeAmPmLabel(value) {
   return `${String(displayHours).padStart(2, "0")}:${minutes} ${period}`;
 }
 
+function factorySavedTimeLabel(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  return date.toLocaleTimeString("en-MY", { hour: "numeric", minute: "2-digit", hour12: true }).toUpperCase();
+}
+
+function productionQcEditableSignature(execution) {
+  return JSON.stringify((execution?.steps || []).flatMap((step) => (step.qc_results || []).map((qc) => ({
+    id: qc.id,
+    checklist_result: String(qc.checklist_result || "").toLowerCase(),
+    remarks: String(qc.remarks || "").trim(),
+  }))));
+}
+
+function latestProductionQcSavedAt(execution) {
+  return (execution?.steps || []).flatMap((step) => step.qc_results || []).map((qc) => qc.checked_at).filter(Boolean).sort().at(-1) || "";
+}
+
 function productionQcDisplayLabel(status) {
   if (["Not Started", "In Progress"].includes(status)) return "QC Incomplete";
   if (status === "Failed") return "QC Failed";
@@ -4319,7 +4338,7 @@ function StartProductionModal({ job, sops = [], auth, onClose, onSave }) {
   );
 }
 
-function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops, finishedGoods = [], storageLocations = [], productions = [], auth, readOnly = false, processOnly = false, onViewProcess, onClose, onSave }) {
+function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops, finishedGoods = [], storageLocations = [], productions = [], auth, readOnly = false, processOnly = false, notify, onViewProcess, onClose, onSave }) {
   const activeFinishedGoods = finishedGoods.filter((product) => product.status === "active");
   const matchingFinishedGood = activeFinishedGoods.find((product) => product.id === job.finished_good_id) || activeFinishedGoods.find((product) => product.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
   const matchingRecipe = activeRecipeForSku(recipes, matchingFinishedGood || job, job.product_name);
@@ -4367,12 +4386,18 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
   const [savingQc, setSavingQc] = useState(false);
   const [executionLoading, setExecutionLoading] = useState(true);
   const [execution, setExecution] = useState({ steps: [], snapshotCreatedAt: "", sopId: "", sopVersion: "" });
+  const [savedQcSignature, setSavedQcSignature] = useState("");
+  const [qcSaveFeedback, setQcSaveFeedback] = useState("idle");
+  const [lastQcSavedAt, setLastQcSavedAt] = useState("");
+  const qcSaveResetTimerRef = useRef(null);
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [expiryManuallyChanged, setExpiryManuallyChanged] = useState(false);
   const [error, setError] = useState("");
   const manufacturingDate = strictDateValue(form.end_date) !== null ? form.end_date : "";
   const calculatedExpiryDate = shelfLifeConfigured ? addDaysToFactoryDate(manufacturingDate, Number(matchingFinishedGood.shelf_life_days)) : "";
   const batchNoPreview = previewDailyDocumentNo({ prefix: "PB", date: authoritativeProductionDate, records: productions, codeKey: "batch_no", dateKey: "production_date" });
+  const currentQcSignature = useMemo(() => productionQcEditableSignature(execution), [execution]);
+  const qcDirty = !executionLoading && Boolean(execution.snapshotCreatedAt) && currentQcSignature !== savedQcSignature;
 
   useEffect(() => {
     if (!shelfLifeConfigured) return;
@@ -4387,26 +4412,57 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
     let active = true;
     setExecutionLoading(true);
     factoryService.getProductionExecution(job.id)
-      .then((nextExecution) => { if (active) setExecution(nextExecution); })
+      .then((nextExecution) => {
+        if (!active) return;
+        setExecution(nextExecution);
+        setSavedQcSignature(productionQcEditableSignature(nextExecution));
+        setLastQcSavedAt(latestProductionQcSavedAt(nextExecution));
+        setQcSaveFeedback("idle");
+      })
       .catch((loadError) => { if (active) setError(loadError.message || "Unable to load Production QC."); })
       .finally(() => { if (active) setExecutionLoading(false); });
     return () => { active = false; };
   }, [job.id]);
 
+  useEffect(() => () => clearTimeout(qcSaveResetTimerRef.current), []);
+
   function updateExecutionQc(stepId, qcId, patch) {
+    clearTimeout(qcSaveResetTimerRef.current);
+    setQcSaveFeedback("idle");
+    setError("");
     setExecution((current) => ({ ...current, steps: current.steps.map((step) => step.id === stepId ? { ...step, qc_results: (step.qc_results || []).map((qc) => qc.id === qcId ? { ...qc, ...patch } : qc) } : step) }));
   }
 
-  async function saveQcProgress() {
+  async function saveQcProgress({ showFeedback = true } = {}) {
     if (readOnly) throw new Error("Production QC is read-only for your account.");
     if (!execution.snapshotCreatedAt) return execution;
+    if (!qcDirty) return execution;
     const missingNaReason = execution.steps.flatMap((step) => step.qc_results || []).some((qc) => qc.qc_type === "checklist" && qc.checklist_result === "na" && !String(qc.remarks || "").trim());
-    if (missingNaReason) throw new Error("Add a reason when selecting N/A.");
+    if (missingNaReason) {
+      const validationError = new Error("Add a reason when selecting N/A.");
+      setError(validationError.message);
+      notify?.({ title: "Failed to save Production Process & QC", message: validationError.message, tone: "error" });
+      throw validationError;
+    }
     setSavingQc(true);
+    setQcSaveFeedback("idle");
     try {
       const saved = await factoryService.saveProductionQcProgress(job.id, execution, auth?.profile?.id, employeeDisplayName(auth));
       setExecution(saved);
+      setSavedQcSignature(productionQcEditableSignature(saved));
+      setLastQcSavedAt(latestProductionQcSavedAt(saved) || new Date().toISOString());
+      setError("");
+      if (showFeedback) {
+        setQcSaveFeedback("saved");
+        notify?.({ title: "Production process saved successfully.", tone: "success" });
+        clearTimeout(qcSaveResetTimerRef.current);
+        qcSaveResetTimerRef.current = setTimeout(() => setQcSaveFeedback("idle"), 2500);
+      }
       return saved;
+    } catch (saveError) {
+      setError(saveError.message || "Unable to save Production Process & QC.");
+      notify?.({ title: "Failed to save Production Process & QC", message: saveError.message, tone: "error" });
+      throw saveError;
     } finally {
       setSavingQc(false);
     }
@@ -4491,7 +4547,7 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
     if (validationError) return;
     setSaving(true);
     try {
-      await saveQcProgress();
+      await saveQcProgress({ showFeedback: false });
       await onSave({
         ...form,
         actual_produced_qty: form.actual_output_qty || form.good_output_qty,
@@ -4623,10 +4679,15 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
         size="xl"
         onClose={savingQc ? undefined : onClose}
         footer={(
-          <>
-            <button className="btn-secondary" type="button" disabled={savingQc} onClick={onClose}>Close</button>
-            {!readOnly && execution.snapshotCreatedAt ? <button className="btn-primary" type="button" disabled={savingQc} onClick={() => saveQcProgress().catch((saveError) => setError(saveError.message))}>{savingQc ? "Saving..." : "Save Process"}</button> : null}
-          </>
+          <div className="flex w-full flex-wrap items-center justify-between gap-3">
+            <div className="text-xs font-semibold text-text-secondary">
+              {qcDirty ? <Badge tone="warning">Unsaved changes</Badge> : lastQcSavedAt ? `Last saved: ${factorySavedTimeLabel(lastQcSavedAt)}` : "All changes saved"}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button className="btn-secondary" type="button" disabled={savingQc} onClick={onClose}>Close</button>
+              {!readOnly && execution.snapshotCreatedAt ? <button className="btn-primary" type="button" disabled={savingQc || !qcDirty} onClick={() => saveQcProgress().catch(() => {})}>{savingQc ? "Saving..." : qcDirty ? "Save Changes" : qcSaveFeedback === "saved" ? "Saved ✓" : "Save Process"}</button> : null}
+            </div>
+          </div>
         )}
       >
         <div className="space-y-4">
@@ -4649,7 +4710,7 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
                     <div className="flex gap-3"><div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-black text-white">{step.step_no}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><div><div className="text-base font-black text-text-primary">{step.step_name}</div>{step.description ? <div className="mt-1 max-w-[75ch] text-sm font-semibold text-text-secondary">{step.description}</div> : null}</div>{sopStep?.estimated_time_minutes !== undefined ? <span className="text-xs font-bold text-text-secondary">{sopStep.estimated_time_minutes || 0} mins</span> : null}</div>
                       {step.sub_steps?.length ? <div className="mt-3 space-y-1.5">{step.sub_steps.map((subStep) => <div key={`${step.id}-${subStep.sequence_no}`} className="flex gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-text-secondary"><span className="font-black text-primary">{step.step_no}.{subStep.sequence_no}</span><span>{subStep.instruction}</span></div>)}</div> : null}
                       {sopStep?.ingredient_references?.length ? <div className="mt-3"><div className="text-[10.5px] font-bold text-text-muted">Ingredient References</div><div className="mt-1.5 flex flex-wrap gap-1.5">{sopStep.ingredient_references.map((ingredient) => <span key={`${step.id}-${ingredient.raw_material_id}`} className="rounded-full border border-border bg-slate-50 px-2.5 py-1 text-xs font-bold text-text-secondary">{ingredient.raw_material_name}</span>)}</div></div> : null}
-                      {step.qc_results?.length ? <div className="mt-4 border-t border-border pt-3"><div className="text-xs font-black text-text-primary">QC Checks</div><div className="mt-2 space-y-2">{step.qc_results.map((qc) => <div key={qc.id} className="rounded-lg bg-slate-50 p-3"><div><div className="text-sm font-bold text-text-primary">{qc.qc_name}{qc.is_required ? <span className="ml-1 text-rose-700">*</span> : null}</div>{qc.instructions ? <div className="mt-0.5 text-xs font-semibold text-text-secondary">{qc.instructions}</div> : null}</div>{qc.qc_type === "checklist" ? <><div className="mt-3 flex flex-wrap gap-2">{[["pass", "Pass"], ["fail", "Fail"], ["na", "N/A"]].map(([value, label]) => <button key={value} className={`rounded-lg border px-3 py-2 text-xs font-bold disabled:cursor-default ${qc.checklist_result === value ? value === "fail" ? "border-rose-300 bg-rose-50 text-rose-700" : "border-primary bg-primary/10 text-primary" : "border-border bg-white text-text-secondary"}`} type="button" disabled={readOnly} onClick={() => updateExecutionQc(step.id, qc.id, { checklist_result: value })}>{label}</button>)}</div>{qc.checklist_result === "na" ? <textarea className={`${inputClass()} mt-2`} rows={2} placeholder="Reason for N/A *" value={qc.remarks || ""} readOnly={readOnly} onChange={(event) => updateExecutionQc(step.id, qc.id, { remarks: event.target.value })} /> : null}</> : <textarea className={`${inputClass()} mt-3`} rows={3} placeholder={qc.is_required ? "Remarks required" : "Add remarks"} value={qc.remarks || ""} readOnly={readOnly} onChange={(event) => updateExecutionQc(step.id, qc.id, { remarks: event.target.value })} />}{readOnly && (qc.checked_by_name || qc.checked_by || qc.checked_at) ? <div className="mt-2 text-[10.5px] font-semibold text-text-muted">Checked by {qc.checked_by_name || qc.checked_by || "—"}{qc.checked_at ? ` · ${factoryTimeLabel(qc.checked_at)}` : ""}</div> : null}</div>)}</div></div> : <div className="mt-3 text-xs font-semibold text-text-muted">No QC Required</div>}
+                      {step.qc_results?.length ? <div className="mt-4 border-t border-border pt-3"><div className="text-xs font-black text-text-primary">QC Checks</div><div className="mt-2 space-y-2">{step.qc_results.map((qc) => <div key={qc.id} className="rounded-lg bg-slate-50 p-3"><div><div className="text-sm font-bold text-text-primary">{qc.qc_name}{qc.is_required ? <span className="ml-1 text-rose-700">*</span> : null}</div>{qc.instructions ? <div className="mt-0.5 text-xs font-semibold text-text-secondary">{qc.instructions}</div> : null}</div>{qc.qc_type === "checklist" ? <><div className="mt-3 flex flex-wrap gap-2">{[["pass", "Pass"], ["fail", "Fail"], ["na", "N/A"]].map(([value, label]) => <button key={value} className={`rounded-lg border px-3 py-2 text-xs font-bold disabled:cursor-default ${qc.checklist_result === value ? value === "fail" ? "border-rose-300 bg-rose-50 text-rose-700" : "border-primary bg-primary/10 text-primary" : "border-border bg-white text-text-secondary"}`} type="button" disabled={readOnly} onClick={() => updateExecutionQc(step.id, qc.id, { checklist_result: value })}>{label}</button>)}</div>{qc.checklist_result === "na" ? <textarea className={`${inputClass()} mt-2`} rows={2} placeholder="Reason for N/A *" value={qc.remarks || ""} readOnly={readOnly} onChange={(event) => updateExecutionQc(step.id, qc.id, { remarks: event.target.value })} /> : null}</> : <textarea className={`${inputClass()} mt-3`} rows={3} placeholder={qc.is_required ? "Remarks required" : "Add remarks"} value={qc.remarks || ""} readOnly={readOnly} onChange={(event) => updateExecutionQc(step.id, qc.id, { remarks: event.target.value })} />}{!qcDirty && (qc.checked_by_name || qc.checked_by || qc.checked_at) ? <div className="mt-2 text-[10.5px] font-semibold text-text-muted">Checked by {qc.checked_by_name || qc.checked_by || "—"}{qc.checked_at ? ` · Saved at ${factorySavedTimeLabel(qc.checked_at)}` : ""}</div> : null}</div>)}</div></div> : <div className="mt-3 text-xs font-semibold text-text-muted">No QC Required</div>}
                     </div></div>
                   </article>
                 );
@@ -10060,6 +10121,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           storageLocations={data.storageLocations}
           productions={data.productions}
           auth={auth}
+          notify={ui?.notify}
           onClose={() => setModal(null)}
           onViewProcess={() => setModal({ type: "production-process", job: modal.job, readOnly: false })}
           onSave={completeProduction}
@@ -10076,6 +10138,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           storageLocations={data.storageLocations}
           productions={data.productions}
           auth={auth}
+          notify={ui?.notify}
           processOnly
           readOnly={Boolean(modal.readOnly)}
           onClose={() => setModal(null)}
