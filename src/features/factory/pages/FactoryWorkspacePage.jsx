@@ -8,7 +8,7 @@ import Badge from "../../../components/ui/Badge.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
-import { factoryService, productionQcStatus } from "../../../services/factoryService.js";
+import { factoryService, productionQcStatus, strictTimeValueMinutes } from "../../../services/factoryService.js";
 import { IMAGE_UPLOAD_ACCEPT } from "../../../utils/imageUpload.js";
 
 const priorityOptions = ["Low", "Normal", "High", "Urgent"];
@@ -1061,6 +1061,24 @@ function factoryTimeLabel(value) {
   const date = new Date(value);
   if (Number.isNaN(date.getTime())) return String(value);
   return date.toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" });
+}
+
+function productionQcDisplayLabel(status) {
+  if (["Not Started", "In Progress"].includes(status)) return "QC Incomplete";
+  if (status === "Failed") return "QC Failed";
+  if (status === "Passed") return "QC Passed";
+  return "No QC Required";
+}
+
+function productionQcTone(status) {
+  if (status === "Failed") return "danger";
+  if (status === "Passed") return "success";
+  if (["Not Started", "In Progress"].includes(status)) return "warning";
+  return "neutral";
+}
+
+function jobProductionQcState(job) {
+  return productionQcStatus((job?.step_executions || []).flatMap((step) => step.qc_results || []));
 }
 
 function factoryActivitySortValue(value, fallbackDate = todayInput()) {
@@ -2230,7 +2248,7 @@ function CompletedJobOrderResultModal({ job, production, recipes = [], onClose }
   const processQcState = productionQcStatus(processQcResults);
   const qcSummary = !processSteps.length
     ? "No QC Snapshot / Legacy Production"
-    : processQcState.status === "No QC Required" ? processQcState.status : `QC ${processQcState.status}`;
+    : productionQcDisplayLabel(processQcState.status);
   const summaryItems = [
     ["JO No", job?.job_order_no || "—"],
     ["Finished Good", jobFinishedGoodName(job || production || {})],
@@ -2347,15 +2365,12 @@ function CompletedJobOrderResultModal({ job, production, recipes = [], onClose }
               ) : (
                 <div className="space-y-3 p-4">
                   <div className="flex flex-wrap items-center justify-between gap-2">
-                    <div className="text-sm font-bold text-text-primary">{processSteps.filter((step) => step.status === "completed").length} of {processSteps.length} steps completed</div>
+                    <div className="text-sm font-bold text-text-primary">SOP operating instructions and recorded QC results</div>
                     <Badge tone={processQcState.status === "Failed" ? "danger" : ["Not Started", "In Progress"].includes(processQcState.status) ? "warning" : processQcState.status === "Passed" ? "success" : "neutral"}>{qcSummary}</Badge>
                   </div>
                   {processSteps.map((step) => (
                     <article key={step.id} className="rounded-xl border border-border bg-white p-3">
-                      <div className="flex flex-wrap items-start justify-between gap-2">
-                        <div><div className="text-xs font-black text-primary">Step {step.step_no}</div><div className="mt-0.5 text-sm font-bold text-text-primary">{step.step_name}</div>{step.description ? <div className="mt-1 text-xs font-semibold text-text-secondary">{step.description}</div> : null}</div>
-                        <Badge tone={step.status === "completed" ? "success" : "neutral"}>{step.status === "completed" ? "Completed" : "Pending"}</Badge>
-                      </div>
+                      <div><div className="text-xs font-black text-primary">Step {step.step_no}</div><div className="mt-0.5 text-sm font-bold text-text-primary">{step.step_name}</div>{step.description ? <div className="mt-1 text-xs font-semibold text-text-secondary">{step.description}</div> : null}</div>
                       {step.sub_steps?.length ? <div className="mt-2 space-y-1">{step.sub_steps.map((subStep) => <div key={`${step.id}-${subStep.sequence_no}`} className="text-xs font-semibold text-text-secondary"><span className="mr-1 font-black text-primary">{step.step_no}.{subStep.sequence_no}</span>{subStep.instruction}</div>)}</div> : null}
                       {step.qc_results?.length ? <div className="mt-3 grid gap-2 sm:grid-cols-2">{step.qc_results.map((result) => {
                         const resultLabel = result.qc_type === "remarks" ? (result.remarks ? "Recorded" : "Not recorded") : result.checklist_result ? result.checklist_result === "na" ? "N/A" : jobStatusLabel(result.checklist_result) : "Not recorded";
@@ -4121,7 +4136,7 @@ function ProductRecipeDetailModal({ recipe, receivings = [], onClose }) {
   );
 }
 
-function StartProductionModal({ job, auth, onClose, onSave }) {
+function StartProductionModal({ job, sops = [], auth, onClose, onSave }) {
   const [form, setForm] = useState(() => ({
     operator_id: auth?.profile?.id || "",
     operator_name: employeeDisplayName(auth),
@@ -4131,6 +4146,9 @@ function StartProductionModal({ job, auth, onClose, onSave }) {
   }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const activeSop = sops.find((sop) => sop.status === "active" && sop.finished_good_id === job.product_family_id)
+    || sops.find((sop) => sop.status === "active" && String(sop.product_name || "").toLowerCase() === String(jobFinishedGoodName(job)).toLowerCase());
+  const sopQcCount = (activeSop?.steps || []).reduce((count, step) => count + (step.qc_checks || []).length, 0);
 
   async function submit(event) {
     event.preventDefault();
@@ -4155,7 +4173,7 @@ function StartProductionModal({ job, auth, onClose, onSave }) {
     <Modal
       title="Start Production"
       description={`${job.job_order_no} · ${job.product_name}`}
-      size="lg"
+      size="xl"
       onClose={saving ? undefined : onClose}
       footer={(
         <>
@@ -4164,14 +4182,18 @@ function StartProductionModal({ job, auth, onClose, onSave }) {
         </>
       )}
     >
-      <form id="factory-start-production-form" className="space-y-4" onSubmit={submit}>
+      <form id="factory-start-production-form" className="space-y-5" onSubmit={submit}>
         {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
-        <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
-          <div className="text-sm font-semibold text-primary">Job Order Summary</div>
-          <div className="mt-1 text-lg font-bold text-text-primary">{job.job_order_no} · {job.product_name}</div>
-          <div className="mt-1 text-sm font-semibold text-text-secondary">Target {quantity(job.target_production_qty || job.target_quantity, job.uom)} · Scheduled {formatFactoryDate(job.planned_date)}</div>
-        </div>
-        <div className="grid gap-3 md:grid-cols-2">
+        <section className="rounded-xl border border-border bg-slate-50 p-4">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div><div className="font-mono text-sm font-black text-text-primary">{job.job_order_no}</div><div className="mt-1 text-lg font-bold text-text-primary">{jobFinishedGoodName(job)}</div></div>
+            <div className="text-right text-sm font-semibold text-text-secondary"><div>Target {quantity(job.target_production_qty || job.target_quantity, job.uom)}</div><div className="mt-1">Scheduled {formatFactoryDate(job.planned_date)}</div></div>
+          </div>
+        </section>
+
+        <section>
+          <div className="mb-3"><div className="text-sm font-black text-text-primary">Production Setup</div><div className="mt-1 text-xs font-semibold text-text-secondary">Confirm the operator and start time before reviewing the process.</div></div>
+          <div className="grid gap-3 md:grid-cols-3">
           <Field label="Operator">
             <input className={inputClass()} value={form.operator_name || ""} onChange={(event) => setForm((current) => ({ ...current, operator_name: event.target.value }))} />
           </Field>
@@ -4184,7 +4206,29 @@ function StartProductionModal({ job, auth, onClose, onSave }) {
           <Field label="Start Time">
             <input className={inputClass()} type="time" value={form.start_time || ""} onChange={(event) => setForm((current) => ({ ...current, start_time: event.target.value }))} />
           </Field>
-        </div>
+          </div>
+        </section>
+
+        <section className="rounded-xl border border-border bg-white p-4 sm:p-5">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div><div className="flex items-center gap-2 text-sm font-black text-text-primary"><BookOpen size={16} /> Production SOP</div>{activeSop ? <div className="mt-1 text-lg font-black text-text-primary">{activeSop.title || activeSop.sop_name || "Production SOP"} · {activeSop.version || "v1"}</div> : null}</div>
+            {activeSop ? <div className="flex flex-wrap gap-2"><Badge tone="info">{activeSop.estimated_minutes || 0} mins</Badge><Badge tone={sopQcCount ? "warning" : "neutral"}>{sopQcCount ? `${sopQcCount} QC checks` : "No QC Required"}</Badge></div> : null}
+          </div>
+          {activeSop ? (
+            <div className="mt-4 space-y-3">
+              {(activeSop.steps || []).map((step) => (
+                <article key={step.id} className="rounded-xl border border-border bg-slate-50 p-3 sm:p-4">
+                  <div className="flex gap-3"><div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-black text-white">{step.step_no}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><div><div className="text-sm font-black text-text-primary">{step.step_name || step.process_name}</div>{step.description ? <div className="mt-1 text-sm font-semibold text-text-secondary">{step.description}</div> : null}</div><span className="text-xs font-bold text-text-secondary">{step.estimated_time_minutes || 0} mins</span></div>
+                    {step.sub_steps?.length ? <div className="mt-3 space-y-1.5">{step.sub_steps.map((subStep) => <div key={subStep.id || `${step.id}-${subStep.sequence_no}`} className="flex gap-2 text-xs font-semibold text-text-secondary"><span className="font-black text-primary">{step.step_no}.{subStep.sequence_no}</span><span>{subStep.instruction}</span></div>)}</div> : null}
+                    {step.ingredient_references?.length ? <div className="mt-3 flex flex-wrap gap-1.5">{step.ingredient_references.map((ingredient) => <span key={`${step.id}-${ingredient.raw_material_id}`} className="rounded-full border border-border bg-white px-2.5 py-1 text-xs font-bold text-text-secondary">{ingredient.raw_material_name}</span>)}</div> : null}
+                    {step.qc_checks?.length ? <div className="mt-3 border-t border-border pt-2"><div className="text-[10.5px] font-bold text-text-muted">QC during production</div><div className="mt-1.5 flex flex-wrap gap-1.5">{step.qc_checks.map((qc) => <span key={qc.id} className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800">{qc.qc_name}{qc.is_required ? " *" : ""}</span>)}</div></div> : null}
+                  </div></div>
+                </article>
+              ))}
+            </div>
+          ) : <div className="mt-4 rounded-xl border border-dashed border-amber-300 bg-amber-50 p-4"><div className="text-sm font-black text-amber-900">No SOP Linked</div><div className="mt-1 text-sm font-semibold text-amber-800">No SOP is linked. Production will start without SOP steps or QC checks.</div></div>}
+        </section>
+
         <Field label="Remarks">
           <textarea className={inputClass()} rows={3} value={form.remarks || ""} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
         </Field>
@@ -4193,7 +4237,7 @@ function StartProductionModal({ job, auth, onClose, onSave }) {
   );
 }
 
-function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops, finishedGoods = [], productions = [], auth, readOnly = false, onClose, onSave }) {
+function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops, finishedGoods = [], productions = [], auth, readOnly = false, processOnly = false, onViewProcess, onClose, onSave }) {
   const activeFinishedGoods = finishedGoods.filter((product) => product.status === "active");
   const matchingFinishedGood = activeFinishedGoods.find((product) => product.id === job.finished_good_id) || activeFinishedGoods.find((product) => product.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
   const matchingRecipe = activeRecipeForSku(recipes, matchingFinishedGood || job, job.product_name);
@@ -4210,7 +4254,7 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
     production_date: job.production_date || todayInput(),
     operator_id: job.production_operator_id || auth?.profile?.id || "",
     operator_name: job.production_operator_name || employeeDisplayName(auth),
-    start_time: job.start_time || timeInput(),
+    start_time: job.start_time ? String(job.start_time).slice(0, 5) : timeInput(),
     end_time: "",
     actual_pack_qty: initialPackQty,
     actual_output_qty: initialOutputQty || "",
@@ -4241,10 +4285,6 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
       .finally(() => { if (active) setExecutionLoading(false); });
     return () => { active = false; };
   }, [job.id]);
-
-  function updateExecutionStep(stepId, patch) {
-    setExecution((current) => ({ ...current, steps: current.steps.map((step) => step.id === stepId ? { ...step, ...patch } : step) }));
-  }
 
   function updateExecutionQc(stepId, qcId, patch) {
     setExecution((current) => ({ ...current, steps: current.steps.map((step) => step.id === stepId ? { ...step, qc_results: (step.qc_results || []).map((qc) => qc.id === qcId ? { ...qc, ...patch } : qc) } : step) }));
@@ -4303,7 +4343,13 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
     if (!form.job_order_id) return "Select a job order before completing production.";
     const finishedGood = activeFinishedGoods.find((product) => product.id === form.finished_good_id);
     if (!finishedGood) return "Production must start from a job order linked to an active finished good.";
-    if (Number(form.actual_pack_qty || 0) <= 0) return "Actual Pack Qty must be greater than 0.";
+    if (!form.end_time) return "End Time is required.";
+    const startMinutes = strictTimeValueMinutes(form.start_time);
+    const endMinutes = strictTimeValueMinutes(form.end_time);
+    if (startMinutes === null) return "Enter a valid Start Time.";
+    if (endMinutes === null) return "Enter a valid End Time.";
+    if (endMinutes < startMinutes) return "End Time cannot be earlier than Start Time.";
+    if (!Number.isInteger(Number(form.actual_pack_qty)) || Number(form.actual_pack_qty) <= 0) return "Actual Pack Qty must be a whole number greater than zero.";
     if (!form.material_usage.length) return "At least one material usage row is required.";
     const invalidRow = form.material_usage.find((row) => !row.raw_material_id || row.actual_usage === "" || row.actual_usage === null || row.actual_usage === undefined || Number(row.actual_usage) < 0);
     if (invalidRow) return "Every material usage row needs a raw material and actual usage.";
@@ -4355,8 +4401,36 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
   const executionQcState = productionQcStatus(executionQcResults);
   const completedQcCount = executionQcState.entered;
   const failedQcCount = executionQcState.failed;
-  const executionQcLabel = executionQcState.status === "No QC Required" ? executionQcState.status : `QC ${executionQcState.status}`;
-  const completedStepCount = execution.steps.filter((step) => step.status === "completed").length;
+  const remainingQcCount = Math.max(executionQcState.total - executionQcState.entered, 0);
+  const executionQcLabel = productionQcDisplayLabel(executionQcState.status);
+  const linkedSop = sops.find((sop) => sop.id === (execution.sopId || job.production_sop_id));
+  const startMinutes = strictTimeValueMinutes(form.start_time);
+  const endMinutes = strictTimeValueMinutes(form.end_time);
+  const endTimeValid = startMinutes !== null && endMinutes !== null && endMinutes >= startMinutes;
+  const endTimeValidationMessage = !form.end_time
+    ? ""
+    : endMinutes === null
+      ? "Enter a valid End Time."
+      : startMinutes === null
+        ? "Enter a valid Start Time."
+        : endMinutes < startMinutes
+          ? "End Time cannot be earlier than Start Time."
+          : "";
+  const actualPackQtyValid = Number.isInteger(Number(form.actual_pack_qty)) && Number(form.actual_pack_qty) > 0;
+  const requiredDetailsRemaining = Number(!endTimeValid) + Number(!actualPackQtyValid);
+  const requiredQcIncomplete = executionQcState.requiredCompleted < executionQcState.requiredTotal;
+  const requiredQcFailed = executionQcResults.some((qc) => qc.is_required && qc.qc_type === "checklist" && qc.checklist_result === "fail");
+  const qcCompletionBlocked = Boolean(execution.snapshotCreatedAt) && (requiredQcIncomplete || requiredQcFailed);
+  const completionDisabled = saving || savingQc || executionLoading || requiredDetailsRemaining > 0 || qcCompletionBlocked;
+  const completionDisabledReason = executionLoading
+    ? "Loading Production QC."
+    : requiredDetailsRemaining > 0
+    ? endTimeValidationMessage || `Enter ${[!endTimeValid ? "End Time" : "", !actualPackQtyValid ? "Actual Pack Qty" : ""].filter(Boolean).join(" and ")}.`
+    : requiredQcFailed
+      ? "Resolve failed required QC checks."
+      : requiredQcIncomplete
+        ? "Complete required QC checks."
+        : "";
   const formatSignedQuantity = (value, unit) => {
     const numericValue = Number(value || 0);
     const prefix = numericValue > 0 ? "+" : "";
@@ -4391,44 +4465,117 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
     });
   }
 
+  function updateActualPackQty(nextPackQty) {
+    const nextPlan = packagingProductionPlan(nextPackQty, matchingFinishedGood, matchingRecipe?.uom || form.uom);
+    setForm((current) => {
+      const outputQty = nextPlan.error ? current.actual_output_qty : nextPlan.target_production_qty;
+      const recipeYield = Number(matchingRecipe?.yield_quantity || 1) || 1;
+      const nextUsage = matchingRecipe?.items?.length
+        ? current.material_usage.map((row) => {
+          const recipeItem = matchingRecipe.items.find((item) => item.raw_material_id === row.raw_material_id);
+          if (!recipeItem) return row;
+          const standardUsage = (Number(recipeItem.quantity_used || 0) * Number(outputQty || 0)) / recipeYield;
+          return { ...row, standard_usage: Number(standardUsage.toFixed(4)), actual_usage: row.actual_usage === row.standard_usage ? Number(standardUsage.toFixed(4)) : row.actual_usage };
+        })
+        : current.material_usage;
+      return {
+        ...current,
+        actual_pack_qty: nextPackQty,
+        actual_output_qty: outputQty,
+        actual_produced_qty: outputQty,
+        good_output_qty: outputQty,
+        uom: nextPlan.production_uom || current.uom,
+        material_usage: nextUsage,
+      };
+    });
+  }
+
+  if (processOnly) {
+    return (
+      <Modal
+        title="Production Process & QC"
+        description={`${job.job_order_no} · ${jobFinishedGoodName(job)}${readOnly ? " · Read-only" : ""}`}
+        size="xl"
+        onClose={savingQc ? undefined : onClose}
+        footer={(
+          <>
+            <button className="btn-secondary" type="button" disabled={savingQc} onClick={onClose}>Close</button>
+            {!readOnly && execution.snapshotCreatedAt ? <button className="btn-primary" type="button" disabled={savingQc} onClick={() => saveQcProgress().catch((saveError) => setError(saveError.message))}>{savingQc ? "Saving..." : "Save Process"}</button> : null}
+          </>
+        )}
+      >
+        <div className="space-y-4">
+          {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <div><div className="text-sm font-black text-text-primary">{linkedSop?.title || "Production SOP"} · {execution.sopVersion || linkedSop?.version || "—"}</div><div className="mt-1 text-xs font-semibold text-text-secondary">SOP steps are operating instructions. Required QC governs production completion.</div></div>
+            <Badge tone={productionQcTone(executionQcState.status)}>{executionQcLabel}</Badge>
+          </div>
+          {executionLoading ? <div className="rounded-xl bg-slate-50 p-4 text-sm font-semibold text-text-secondary">Loading production process...</div> : execution.snapshotCreatedAt ? (
+            <>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <div className="rounded-xl bg-slate-50 px-3 py-2"><div className="text-[10.5px] font-semibold text-text-muted">QC Completed</div><div className="mt-1 text-lg font-black text-text-primary">{completedQcCount} / {executionQcState.total}</div></div>
+                <div className="rounded-xl bg-slate-50 px-3 py-2"><div className="text-[10.5px] font-semibold text-text-muted">QC Remaining</div><div className="mt-1 text-lg font-black text-text-primary">{remainingQcCount}</div></div>
+                <div className="rounded-xl bg-slate-50 px-3 py-2"><div className="text-[10.5px] font-semibold text-text-muted">QC Failed</div><div className={`mt-1 text-lg font-black ${failedQcCount ? "text-rose-700" : "text-text-primary"}`}>{failedQcCount}</div></div>
+              </div>
+              {execution.steps.length ? <div className="space-y-3">{execution.steps.map((step) => {
+                const sopStep = linkedSop?.steps?.find((item) => item.id === step.sop_step_id);
+                return (
+                  <article key={step.id} className="rounded-xl border border-border bg-white p-4">
+                    <div className="flex gap-3"><div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-black text-white">{step.step_no}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><div><div className="text-base font-black text-text-primary">{step.step_name}</div>{step.description ? <div className="mt-1 max-w-[75ch] text-sm font-semibold text-text-secondary">{step.description}</div> : null}</div>{sopStep?.estimated_time_minutes !== undefined ? <span className="text-xs font-bold text-text-secondary">{sopStep.estimated_time_minutes || 0} mins</span> : null}</div>
+                      {step.sub_steps?.length ? <div className="mt-3 space-y-1.5">{step.sub_steps.map((subStep) => <div key={`${step.id}-${subStep.sequence_no}`} className="flex gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-text-secondary"><span className="font-black text-primary">{step.step_no}.{subStep.sequence_no}</span><span>{subStep.instruction}</span></div>)}</div> : null}
+                      {sopStep?.ingredient_references?.length ? <div className="mt-3"><div className="text-[10.5px] font-bold text-text-muted">Ingredient References</div><div className="mt-1.5 flex flex-wrap gap-1.5">{sopStep.ingredient_references.map((ingredient) => <span key={`${step.id}-${ingredient.raw_material_id}`} className="rounded-full border border-border bg-slate-50 px-2.5 py-1 text-xs font-bold text-text-secondary">{ingredient.raw_material_name}</span>)}</div></div> : null}
+                      {step.qc_results?.length ? <div className="mt-4 border-t border-border pt-3"><div className="text-xs font-black text-text-primary">QC Checks</div><div className="mt-2 space-y-2">{step.qc_results.map((qc) => <div key={qc.id} className="rounded-lg bg-slate-50 p-3"><div><div className="text-sm font-bold text-text-primary">{qc.qc_name}{qc.is_required ? <span className="ml-1 text-rose-700">*</span> : null}</div>{qc.instructions ? <div className="mt-0.5 text-xs font-semibold text-text-secondary">{qc.instructions}</div> : null}</div>{qc.qc_type === "checklist" ? <><div className="mt-3 flex flex-wrap gap-2">{[["pass", "Pass"], ["fail", "Fail"], ["na", "N/A"]].map(([value, label]) => <button key={value} className={`rounded-lg border px-3 py-2 text-xs font-bold disabled:cursor-default ${qc.checklist_result === value ? value === "fail" ? "border-rose-300 bg-rose-50 text-rose-700" : "border-primary bg-primary/10 text-primary" : "border-border bg-white text-text-secondary"}`} type="button" disabled={readOnly} onClick={() => updateExecutionQc(step.id, qc.id, { checklist_result: value })}>{label}</button>)}</div>{qc.checklist_result === "na" ? <textarea className={`${inputClass()} mt-2`} rows={2} placeholder="Reason for N/A *" value={qc.remarks || ""} readOnly={readOnly} onChange={(event) => updateExecutionQc(step.id, qc.id, { remarks: event.target.value })} /> : null}</> : <textarea className={`${inputClass()} mt-3`} rows={3} placeholder={qc.is_required ? "Remarks required" : "Add remarks"} value={qc.remarks || ""} readOnly={readOnly} onChange={(event) => updateExecutionQc(step.id, qc.id, { remarks: event.target.value })} />}{readOnly && (qc.checked_by_name || qc.checked_by || qc.checked_at) ? <div className="mt-2 text-[10.5px] font-semibold text-text-muted">Checked by {qc.checked_by_name || qc.checked_by || "—"}{qc.checked_at ? ` · ${factoryTimeLabel(qc.checked_at)}` : ""}</div> : null}</div>)}</div></div> : <div className="mt-3 text-xs font-semibold text-text-muted">No QC Required</div>}
+                    </div></div>
+                  </article>
+                );
+              })}</div> : <div className="rounded-xl bg-slate-50 p-4 text-sm font-semibold text-text-secondary">No SOP steps were linked. Production may continue without QC.</div>}
+            </>
+          ) : <div className="rounded-xl border border-dashed border-border bg-slate-50 p-4"><div className="text-sm font-bold text-text-primary">No SOP Linked</div><div className="mt-1 text-xs font-semibold text-text-secondary">This production has no SOP or QC execution snapshot.</div></div>}
+        </div>
+      </Modal>
+    );
+  }
+
   return (
     <Modal
-      title={readOnly ? "Production Process & QC" : "Complete Production"}
-      description={`${job.job_order_no} · ${job.product_name}${readOnly ? " · Read-only" : ""}`}
+      title="Complete Production"
+      description={`${job.job_order_no} · ${job.product_name}`}
       size="xl"
       onClose={saving ? undefined : onClose}
-      footer={readOnly ? <button className="btn-secondary" type="button" onClick={onClose}>Close</button> : (
-        <>
+      footer={(
+        <div className="flex w-full flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+          <div className="text-xs font-semibold text-amber-700">{completionDisabledReason}</div>
+          <div className="flex justify-end gap-2">
           <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="submit" form="factory-production-form" disabled={saving}>{saving ? "Completing..." : "Complete Production"}</button>
-        </>
+          <button className="btn-primary" type="submit" form="factory-production-form" disabled={completionDisabled}>{saving ? "Completing..." : "Complete Production"}</button>
+          </div>
+        </div>
       )}
     >
       <form id="factory-production-form" className="space-y-5" onSubmit={submit}>
         {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
-        <section className="rounded-2xl border border-border bg-white p-4 sm:p-5">
+        <section className="rounded-2xl border-2 border-amber-300 bg-amber-50/70 p-4 sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div><div className="text-sm font-black text-text-primary">Production Process</div><div className="mt-1 text-xs font-semibold text-text-secondary">Complete the snapshotted SOP steps and required QC checks before final production confirmation.</div></div>
-            {execution.snapshotCreatedAt ? <div className="flex flex-wrap items-center gap-2"><Badge tone={executionQcState.status === "Failed" ? "danger" : executionQcState.status === "Passed" ? "success" : executionQcState.status === "No QC Required" ? "neutral" : "warning"}>{executionQcLabel}</Badge>{!readOnly ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={savingQc || saving} onClick={() => saveQcProgress().catch((saveError) => setError(saveError.message))}>{savingQc ? "Saving..." : "Save Process"}</button> : null}</div> : null}
+            <div><div className="text-sm font-black text-text-primary">Required Completion Details</div><div className="mt-1 text-xs font-semibold text-text-secondary">Complete these fields before confirming production.</div></div>
+            <Badge tone={requiredDetailsRemaining ? "warning" : "success"}>{requiredDetailsRemaining ? `${requiredDetailsRemaining} required field${requiredDetailsRemaining === 1 ? "" : "s"} remaining` : "Completion details ready"}</Badge>
           </div>
-          {executionLoading ? <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm font-semibold text-text-secondary">Loading production process...</div> : execution.snapshotCreatedAt ? (
-            <>
-              <div className="mt-4 grid gap-3 sm:grid-cols-3">
-                <div className="rounded-xl bg-slate-50 px-3 py-2"><div className="text-[10.5px] font-semibold text-text-muted">Steps Completed</div><div className="mt-1 text-lg font-black text-text-primary">{completedStepCount} / {execution.steps.length}</div></div>
-                <div className="rounded-xl bg-slate-50 px-3 py-2"><div className="text-[10.5px] font-semibold text-text-muted">QC Completed</div><div className="mt-1 text-lg font-black text-text-primary">{completedQcCount} / {executionQcResults.length}</div></div>
-                <div className="rounded-xl bg-slate-50 px-3 py-2"><div className="text-[10.5px] font-semibold text-text-muted">QC Failed</div><div className={`mt-1 text-lg font-black ${failedQcCount ? "text-rose-700" : "text-text-primary"}`}>{failedQcCount}</div></div>
-              </div>
-              {execution.steps.length ? <div className="mt-4 space-y-3">{execution.steps.map((step) => (
-                <article key={step.id} className={`rounded-xl border p-4 ${step.status === "completed" ? "border-emerald-200 bg-emerald-50/40" : "border-border bg-white"}`}>
-                  <div className="flex flex-wrap items-start justify-between gap-3"><div className="min-w-0"><div className="text-xs font-black text-primary">Step {step.step_no}</div><div className="mt-1 text-base font-black text-text-primary">{step.step_name}</div>{step.description ? <div className="mt-1 max-w-[75ch] text-sm font-semibold text-text-secondary">{step.description}</div> : null}</div><label className={`inline-flex min-h-10 items-center gap-2 rounded-lg border border-border bg-white px-3 py-2 text-sm font-bold text-text-primary ${readOnly ? "cursor-default" : "cursor-pointer"}`}><input type="checkbox" checked={step.status === "completed"} disabled={readOnly} onChange={(event) => updateExecutionStep(step.id, { status: event.target.checked ? "completed" : "pending" })} /> Step Complete</label></div>
-                  {step.sub_steps?.length ? <div className="mt-3 space-y-1.5">{step.sub_steps.map((subStep) => <div key={`${step.id}-${subStep.sequence_no}`} className="flex gap-2 rounded-lg bg-slate-50 px-3 py-2 text-sm font-semibold text-text-secondary"><span className="font-black text-primary">{step.step_no}.{subStep.sequence_no}</span><span>{subStep.instruction}</span></div>)}</div> : null}
-                  {step.qc_results?.length ? <div className="mt-4 border-t border-border pt-3"><div className="text-xs font-black text-text-primary">QC Checks</div><div className="mt-2 space-y-2">{step.qc_results.map((qc) => <div key={qc.id} className="rounded-lg bg-slate-50 p-3"><div className="flex flex-wrap items-center justify-between gap-2"><div><div className="text-sm font-bold text-text-primary">{qc.qc_name}{qc.is_required ? <span className="ml-1 text-rose-700">*</span> : null}</div>{qc.instructions ? <div className="mt-0.5 text-xs font-semibold text-text-secondary">{qc.instructions}</div> : null}</div><Badge tone={qc.qc_type === "remarks" ? "info" : "neutral"}>{qc.qc_type === "remarks" ? "Remarks" : "Checklist"}</Badge></div>{qc.qc_type === "checklist" ? <><div className="mt-3 flex flex-wrap gap-2">{[["pass", "Pass"], ["fail", "Fail"], ["na", "N/A"]].map(([value, label]) => <button key={value} className={`rounded-lg border px-3 py-2 text-xs font-bold disabled:cursor-default ${qc.checklist_result === value ? value === "fail" ? "border-rose-300 bg-rose-50 text-rose-700" : "border-primary bg-primary/10 text-primary" : "border-border bg-white text-text-secondary"}`} type="button" disabled={readOnly} onClick={() => updateExecutionQc(step.id, qc.id, { checklist_result: value })}>{label}</button>)}</div>{qc.checklist_result === "na" ? <textarea className={`${inputClass()} mt-2`} rows={2} placeholder="Reason for N/A *" value={qc.remarks || ""} readOnly={readOnly} onChange={(event) => updateExecutionQc(step.id, qc.id, { remarks: event.target.value })} /> : null}</> : <textarea className={`${inputClass()} mt-3`} rows={3} placeholder={qc.is_required ? "Remarks required" : "Add remarks"} value={qc.remarks || ""} readOnly={readOnly} onChange={(event) => updateExecutionQc(step.id, qc.id, { remarks: event.target.value })} />}{readOnly && (qc.checked_by_name || qc.checked_by || qc.checked_at) ? <div className="mt-2 text-[10.5px] font-semibold text-text-muted">Checked by {qc.checked_by_name || qc.checked_by || "—"}{qc.checked_at ? ` · ${factoryTimeLabel(qc.checked_at)}` : ""}</div> : null}</div>)}</div></div> : null}
-                </article>
-              ))}</div> : <div className="mt-4 rounded-xl bg-slate-50 p-4 text-sm font-semibold text-text-secondary">No SOP steps were linked. Production may continue without QC.</div>}
-            </>
-          ) : <div className="mt-4 rounded-xl border border-dashed border-border bg-slate-50 p-4"><div className="text-sm font-bold text-text-primary">No QC Snapshot / Legacy Production</div><div className="mt-1 text-xs font-semibold text-text-secondary">This production was started without the new SOP QC workflow and is not blocked by QC execution.</div></div>}
+          <div className="mt-4 grid gap-4 md:grid-cols-2">
+            <Field label="End Time *">
+              <input className={`${inputClass(submitAttempted && !endTimeValid)} ${endTimeValid ? "border-emerald-300 bg-white" : "border-amber-400 bg-white"}`} type="time" value={form.end_time || ""} onChange={(event) => setForm((current) => ({ ...current, end_time: event.target.value }))} />
+              <div className={`mt-1 text-xs font-semibold ${endTimeValidationMessage ? "text-rose-700" : "text-text-secondary"}`}>{endTimeValidationMessage || `Started at ${factoryTimeLabel(form.start_time)}`}</div>
+            </Field>
+            <Field label="Actual Pack Qty *">
+              <div className="relative"><input className={`${inputClass(submitAttempted && !actualPackQtyValid)} ${actualPackQtyValid ? "border-emerald-300 bg-white" : "border-amber-400 bg-white"} pr-16 text-xl font-black`} type="number" min="1" step="1" value={form.actual_pack_qty} onChange={(event) => updateActualPackQty(event.target.value)} /><span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-text-secondary">packs</span></div>
+              {!actualPackQtyValid && form.actual_pack_qty !== "" ? <div className="mt-1 text-xs font-semibold text-rose-700">Enter a whole number greater than 0.</div> : null}
+            </Field>
+          </div>
         </section>
-        {!readOnly ? <>
+        <section className="rounded-2xl border border-border bg-white p-4 sm:p-5">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div><div className="text-sm font-black text-text-primary">Production QC</div><div className="mt-1 text-xs font-semibold text-text-secondary">{execution.snapshotCreatedAt ? `${executionQcState.requiredCompleted} of ${executionQcState.requiredTotal} required checks complete` : "No QC snapshot is attached to this legacy production."}</div></div>
+            <div className="flex flex-wrap items-center gap-2"><Badge tone={productionQcTone(executionQcState.status)}>{executionLoading ? "Loading QC" : executionQcLabel}</Badge><button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={executionLoading} onClick={onViewProcess}>{qcCompletionBlocked ? "Complete QC" : "View QC Details"}</button></div>
+          </div>
+        </section>
         <div className="rounded-2xl border border-border bg-white p-4">
           <div className="text-sm font-bold text-text-primary">Production Information</div>
           <div className="mt-3 grid gap-3 md:grid-cols-3">
@@ -4451,9 +4598,6 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
             <Field label="Start Time">
               <input className={inputClass()} type="time" value={form.start_time || ""} readOnly={Boolean(job.started_at)} onChange={(event) => setForm((current) => ({ ...current, start_time: event.target.value }))} />
             </Field>
-            <Field label="End Time">
-              <input className={inputClass()} type="time" value={form.end_time || ""} onChange={(event) => setForm((current) => ({ ...current, end_time: event.target.value }))} />
-            </Field>
           </div>
         </div>
         <div className="rounded-2xl border border-border bg-surface p-4">
@@ -4467,38 +4611,11 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
         </div>
         <div className="rounded-2xl border border-primary/20 bg-primary/5 p-4">
           <div className="text-sm font-bold text-primary">Actual Packaging Output</div>
-          <div className="mt-3 grid gap-3 md:grid-cols-[1.2fr_1fr_1fr_1fr]">
+          <div className="mt-3 grid gap-3 md:grid-cols-3">
             <div className="rounded-xl border border-primary/20 bg-white px-3 py-3">
               <div className="text-[10.5px] font-semibold text-text-muted">Estimated Pack Qty</div>
               <div className="mt-1 text-lg font-bold text-text-primary">{quantity(estimatedPackQty, "packs")}</div>
             </div>
-            <Field label="Actual Pack Qty *">
-              <input className={`${inputClass(submitAttempted && Number(form.actual_pack_qty || 0) <= 0)} border-primary/40 bg-white text-xl font-black shadow-sm focus:border-primary focus:ring-2 focus:ring-primary/15`} type="number" min="0" step="0.01" value={form.actual_pack_qty} onChange={(event) => {
-                const nextPackQty = event.target.value;
-                const nextPlan = packagingProductionPlan(nextPackQty, matchingFinishedGood, matchingRecipe?.uom || form.uom);
-                setForm((current) => {
-                  const outputQty = nextPlan.error ? current.actual_output_qty : nextPlan.target_production_qty;
-                  const recipeYield = Number(matchingRecipe?.yield_quantity || 1) || 1;
-                  const nextUsage = matchingRecipe?.items?.length
-                    ? current.material_usage.map((row) => {
-                      const recipeItem = matchingRecipe.items.find((item) => item.raw_material_id === row.raw_material_id);
-                      if (!recipeItem) return row;
-                      const standardUsage = (Number(recipeItem.quantity_used || 0) * Number(outputQty || 0)) / recipeYield;
-                      return { ...row, standard_usage: Number(standardUsage.toFixed(4)), actual_usage: row.actual_usage === row.standard_usage ? Number(standardUsage.toFixed(4)) : row.actual_usage };
-                    })
-                    : current.material_usage;
-                  return {
-                    ...current,
-                    actual_pack_qty: nextPackQty,
-                    actual_output_qty: outputQty,
-                    actual_produced_qty: outputQty,
-                    good_output_qty: outputQty,
-                    uom: nextPlan.production_uom || current.uom,
-                    material_usage: nextUsage,
-                  };
-                });
-              }} />
-            </Field>
             <div className="rounded-xl border border-primary/20 bg-white px-3 py-3">
               <div className="text-[10.5px] font-semibold text-text-muted">Difference from Estimate</div>
               <div className={`mt-1 text-lg font-bold ${packDifference > 0 ? "text-amber-700" : packDifference < 0 ? "text-rose-700" : "text-emerald-700"}`}>{formatSignedQuantity(packDifference, "packs")}</div>
@@ -4646,7 +4763,6 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
         <Field label="Production Notes">
           <textarea className={inputClass()} rows={3} value={form.notes || ""} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} />
         </Field>
-        </> : null}
       </form>
     </Modal>
   );
@@ -6734,11 +6850,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         {row.status === "released" && can("factory_production.complete") ? (
           <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "start-production", job: row })}><Play size={13} /> Start Production</button>
         ) : null}
+        {row.status === "in_progress" && (can("factory_production.view") || can("factory_production.complete")) ? (
+          <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production-process", job: row, readOnly: !can("factory_production.complete") })}>View Process</button>
+        ) : null}
         {row.status === "in_progress" && can("factory_production.complete") ? (
           <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production", job: row })}>Complete</button>
-        ) : null}
-        {row.status === "in_progress" && !can("factory_production.complete") && can("factory_production.view") ? (
-          <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production", job: row, readOnly: true })}>View Process</button>
         ) : null}
         {row.status === "draft" && can("factory_job_orders.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "job", value: row })}>Edit</button> : null}
         {row.status === "completed" ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => viewCompletedJobOrder(row)}>View</button> : null}
@@ -8119,10 +8235,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         return <button className="btn-primary w-full justify-center px-3 py-2 text-xs" type="button" onClick={() => setModal({ type: "start-production", job })}><Play size={13} /> Start Production</button>;
       }
       if (job.status === "in_progress" && can("factory_production.complete")) {
-        return <button className="btn-primary w-full justify-center px-3 py-2 text-xs" type="button" onClick={() => setModal({ type: "production", job })}>Complete Production</button>;
+        return <div className="grid grid-cols-2 gap-2"><button className="btn-secondary justify-center px-3 py-2 text-xs" type="button" onClick={() => setModal({ type: "production-process", job, readOnly: false })}>View Process</button><button className="btn-primary justify-center px-3 py-2 text-xs" type="button" onClick={() => setModal({ type: "production", job })}>Complete Production</button></div>;
       }
       if (job.status === "in_progress" && can("factory_production.view")) {
-        return <button className="btn-secondary w-full justify-center px-3 py-2 text-xs" type="button" onClick={() => setModal({ type: "production", job, readOnly: true })}>View Process</button>;
+        return <button className="btn-secondary w-full justify-center px-3 py-2 text-xs" type="button" onClick={() => setModal({ type: "production-process", job, readOnly: true })}>View Process</button>;
       }
       return null;
     };
@@ -8142,6 +8258,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             <div className="text-[10.5px] font-semibold text-text-muted">Packaging SKU</div>
             <div className="mt-0.5 text-sm font-bold text-text-primary">{jobPackagingSkuLabel(job)}</div>
           </div>
+          {columnKey === "in_progress" ? <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-border px-3 py-2"><span className="text-xs font-semibold text-text-muted">Production QC</span><Badge tone={productionQcTone(jobProductionQcState(job).status)}>{productionQcDisplayLabel(jobProductionQcState(job).status)}</Badge></div> : null}
           <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-semibold">
             <div className="rounded-xl border border-border px-3 py-2">
               <div className="text-text-muted">Target Production</div>
@@ -8685,9 +8802,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       } },
       { key: "actions", label: "Actions", align: "right", render: (row) => can("factory_production.complete") ? (
         row.status === "in_progress"
-          ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production", job: row })}>Complete</button>
+          ? <div className="flex flex-wrap justify-end gap-2"><button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production-process", job: row, readOnly: false })}>View Process</button><button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production", job: row })}>Complete</button></div>
           : <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "start-production", job: row })}><Play size={13} /> Start</button>
-      ) : row.status === "in_progress" && can("factory_production.view") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production", job: row, readOnly: true })}>View Process</button> : null },
+      ) : row.status === "in_progress" && can("factory_production.view") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production-process", job: row, readOnly: true })}>View Process</button> : null },
     ];
     return (
       <div className="space-y-5">
@@ -8799,7 +8916,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       const qcState = productionQcStatus(qcResults);
       const qcFailed = qcState.status === "Failed";
       const qcIncomplete = ["Not Started", "In Progress"].includes(qcState.status);
-      const qcMain = qcResults.length ? (qcState.status === "No QC Required" ? qcState.status : qcIncomplete ? "QC Incomplete" : `QC ${qcState.status}`) : hasQc ? `${row.qc_checkpoints.length} legacy checkpoint${row.qc_checkpoints.length === 1 ? "" : "s"}` : "No QC Required";
+      const qcMain = qcResults.length ? productionQcDisplayLabel(qcState.status) : hasQc ? `${row.qc_checkpoints.length} legacy checkpoint${row.qc_checkpoints.length === 1 ? "" : "s"}` : "No QC Required";
       return [
         {
           key: "recipe",
@@ -9761,6 +9878,22 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           finishedGoods={data.finishedGoods}
           productions={data.productions}
           auth={auth}
+          onClose={() => setModal(null)}
+          onViewProcess={() => setModal({ type: "production-process", job: modal.job, readOnly: false })}
+          onSave={completeProduction}
+        />
+      ) : null}
+      {modal?.type === "production-process" ? (
+        <ProductionExecutionModal
+          job={modal.job}
+          rawMaterials={data.rawMaterials}
+          receivings={data.receivings}
+          recipes={data.recipes}
+          sops={data.sops}
+          finishedGoods={data.finishedGoods}
+          productions={data.productions}
+          auth={auth}
+          processOnly
           readOnly={Boolean(modal.readOnly)}
           onClose={() => setModal(null)}
           onSave={completeProduction}
@@ -9769,6 +9902,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       {modal?.type === "start-production" ? (
         <StartProductionModal
           job={modal.job}
+          sops={data.sops}
           auth={auth}
           onClose={() => setModal(null)}
           onSave={(form) => startJobOrder(modal.job, form)}

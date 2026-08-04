@@ -26,6 +26,11 @@ function databaseUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text) ? text : null;
 }
 
+export function strictTimeValueMinutes(value) {
+  const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(value || "").trim());
+  return match ? (Number(match[1]) * 60) + Number(match[2]) : null;
+}
+
 export function productionQcStatus(results = []) {
   const rows = Array.isArray(results) ? results : [];
   const isEntered = (result) => result.qc_type === "checklist"
@@ -156,6 +161,7 @@ function mapJobOrder(row) {
     production_sop_id: row.production_sop_id || "",
     sop_version: row.sop_version || "",
     qc_snapshot_created_at: row.qc_snapshot_created_at || "",
+    step_executions: (row.step_executions || []).map(mapProductionStepExecution).sort((a, b) => a.step_no - b.step_no),
     completed_at: row.completed_at || "",
     completed_by: row.completed_by || "",
     created_at: row.created_at,
@@ -883,7 +889,7 @@ const productFamilyRelationSelect = "id,name_en,name_cn,name_bm,status";
 const recipeSelect = `id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`;
 const recipeSummarySelect = `id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),finished_good:factory_finished_goods(${finishedGoodSelect})`;
 const sopSelect = `id,sop_code,title,product_name,finished_good_id,recipe_id,recipe_version,version,effective_date,equipment,estimated_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_product_families(id,name_en,name_cn,name_bm,status),linked_recipe:factory_product_recipes(id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,status,notes,remarks,created_by,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))),steps:factory_production_sop_steps(id,sop_id,step_no,instruction,process_name,description,control_point,qc_label,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,qc_measurement_type,qc_target_value,qc_minimum,qc_maximum,qc_uom,qc_required_before_completion,safety_note,remarks,created_at,updated_at,sub_steps:factory_production_sop_sub_steps(id,sop_step_id,sequence_no,instruction,estimated_minutes,remarks,created_at,updated_at),ingredient_refs:factory_production_sop_step_materials(raw_material_id,raw_material:factory_raw_materials(name,name_en,material_code,uom)),qc_checks:factory_production_sop_step_qc_checks(id,sop_step_id,sequence_no,qc_type,checklist_template_id,qc_name,instructions,is_required,checklist_template:factory_qc_checklist_templates(name,result_mode)))`;
-const jobOrderSelect = `id,job_order_no,finished_good_id,product_name,target_pack_qty,target_production_qty,target_quantity,produced_quantity,uom,planned_date,due_date,priority,status,assigned_team,remarks,created_by,released_at,released_by,started_at,started_by,production_operator_id,production_operator_name,production_date,start_time,production_sop_id,sop_version,qc_snapshot_created_at,completed_at,completed_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect})`;
+const jobOrderSelect = `id,job_order_no,finished_good_id,product_name,target_pack_qty,target_production_qty,target_quantity,produced_quantity,uom,planned_date,due_date,priority,status,assigned_team,remarks,created_by,released_at,released_by,started_at,started_by,production_operator_id,production_operator_name,production_date,start_time,production_sop_id,sop_version,qc_snapshot_created_at,completed_at,completed_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),step_executions:factory_production_step_executions(id,job_order_id,production_id,production_sop_id,sop_step_id,step_no,step_name,description,sub_steps,status,completed_by,completed_at,qc_results:factory_production_qc_results(id,job_order_id,production_id,production_step_execution_id,sop_qc_check_id,sequence_no,qc_type,qc_name,instructions,is_required,checklist_result,remarks,checked_by,checked_by_name,checked_at))`;
 const productionSelectBasic = `id,job_order_id,finished_good_id,production_no,product_name,batch_no,actual_pack_qty,actual_output_qty,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,operator_id,operator_name,start_time,end_time,qc_status,production_sop_id,sop_version,status,notes,created_by,completed_at,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),job_order:factory_job_orders(job_order_no,finished_good_id,product_name,target_pack_qty,target_production_qty,finished_good:factory_finished_goods(product_code,product_name,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom))`;
 const productionSelectDetailed = `${productionSelectBasic},material_usage:factory_production_material_usage(id,production_id,raw_material_id,raw_material_receiving_id,raw_material_lot_no,quantity_used,standard_usage,actual_usage,variance_qty,variance_percent,variance_reason,uom,wastage_quantity,notes,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect}),raw_receiving:factory_raw_material_receivings(receipt_no,batch_no,supplier_name,received_date,unit_cost)),qc_checkpoints:factory_production_qc_checkpoints(id,production_id,production_sop_id,sop_step_id,step_no,process_name,control_point,qc_status,notes,created_at,updated_at),step_executions:factory_production_step_executions(id,job_order_id,production_id,production_sop_id,sop_step_id,step_no,step_name,description,sub_steps,status,completed_by,completed_at,qc_results:factory_production_qc_results(id,job_order_id,production_id,production_step_execution_id,sop_qc_check_id,sequence_no,qc_type,qc_name,instructions,is_required,checklist_result,remarks,checked_by,checked_by_name,checked_at))`;
 const finishedGoodDispatchSelect = `id,dispatch_no,dispatch_date,customer_id,customer_name,reference_no,status,remarks,created_by,created_at,updated_at,completed_at,cancelled_at,creator:employees(nickname,full_name),customer:factory_customers(${factoryCustomerSelect}),items:factory_finished_good_dispatch_items(id,dispatch_id,finished_good_id,quantity,batch_no,remarks,created_at,finished_good:factory_finished_goods(${finishedGoodFullSelect}))`;
@@ -935,7 +941,8 @@ function factoryDataPlan(scope, hasPermission) {
     productStockChecks: isProductStockCheck && can("factory_product_stock_check.view"),
     recipes: (isDashboard && can("factory_dashboard.view")) || (isRawInventory && can("factory_raw_inventory.view")) || (isProductRecipes && can("factory_product_recipes.view")) || (isProductionSop && (can("factory_production_sop.view") || can("factory_production_sop.create") || can("factory_production_sop.edit") || can("factory_production_sop.manage"))) || (isJobOrders && can("factory_product_recipes.view")) || (isProductionPlanning && can("factory_product_recipes.view")) || (isProduction && (can("factory_product_recipes.view") || can("factory_production.complete"))) || (isReports && can("factory_production_reports.view")),
     recipeSummaries: isFinishedGoods && can("factory_product_recipes.view"),
-    sops: (isProduction || isProductionSop || isBatchTraceability) && can("factory_production_sop.view"),
+    sops: (isProduction || isProductionSop || isBatchTraceability || isJobOrders)
+      && (can("factory_production_sop.view") || can("factory_production.view") || can("factory_production.complete")),
     qcChecklistTemplates: isProductionSop && (can("factory_production_sop.view") || can("factory_production_sop.create") || can("factory_production_sop.edit") || can("factory_production_sop.manage")),
     auditLogs: isAuditLogs && can("factory_audit_logs.view"),
   };
@@ -2122,7 +2129,8 @@ export const factoryService = {
   async saveProductionQcProgress(jobOrderId, execution, employeeId, employeeName = "") {
     const { data, error } = await supabase.rpc("factory_save_production_qc_progress", {
       p_job_order_id: jobOrderId,
-      p_steps: (execution.steps || []).map((step) => ({ id: step.id, status: step.status || "pending" })),
+      // SOP steps are operating guidance. Production completion is governed by QC only.
+      p_steps: [],
       p_results: (execution.steps || []).flatMap((step) => (step.qc_results || []).map((result) => ({
         id: result.id,
         checklist_result: result.checklist_result || "",
@@ -2152,6 +2160,17 @@ export const factoryService = {
   },
 
   async completeProduction(production, employeeId) {
+    if (!String(production.end_time || "").trim()) throw new Error("End Time is required.");
+    const startTimeMinutes = strictTimeValueMinutes(production.start_time);
+    const endTimeMinutes = strictTimeValueMinutes(production.end_time);
+    if (startTimeMinutes === null) throw new Error("Enter a valid Start Time.");
+    if (endTimeMinutes === null) throw new Error("Enter a valid End Time.");
+    if (endTimeMinutes < startTimeMinutes) throw new Error("End Time cannot be earlier than Start Time.");
+    const actualPackQty = Number(production.actual_pack_qty);
+    if (!Number.isInteger(actualPackQty) || actualPackQty <= 0) {
+      throw new Error("Actual Pack Qty must be a whole number greater than zero.");
+    }
+
     const execution = await factoryService.getProductionExecution(production.job_order_id);
     if (execution.snapshotCreatedAt) {
       const results = execution.steps.flatMap((step) => step.qc_results || []);
@@ -2193,7 +2212,6 @@ export const factoryService = {
         .maybeSingle();
       activeRecipeUom = skuRecipe?.uom || "";
     }
-    const actualPackQty = normalizeNumber(production.actual_pack_qty || production.good_output_qty);
     const productionPlan = finishedGood ? packagingProductionPlan(actualPackQty, finishedGood, activeRecipeUom || production.uom) : null;
     if (productionPlan?.error) throw new Error(productionPlan.error);
     if (productionPlan && (!productionPlan.target_production_qty || !productionPlan.production_uom)) throw new Error("Packaging SKU Pack Size UOM cannot be used for production quantity.");
