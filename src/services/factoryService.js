@@ -1301,22 +1301,27 @@ export const factoryService = {
     });
   },
 
-  async startJobOrder(order, startInfo, employeeId) {
+  async startJobOrder(order, startInfo, employee) {
+    const operatorId = databaseUuid(employee?.id);
+    const operatorName = String(employee?.nickname || employee?.full_name || employee?.email || "").trim();
+    if (!operatorId || !operatorName) {
+      throw new Error("Current employee could not be resolved. Sign in again before starting production.");
+    }
     const { error } = await supabase.rpc("factory_start_job_order", {
       p_job_order_id: order.id,
-      p_operator_id: startInfo.operator_id || employeeId || null,
-      p_operator_name: startInfo.operator_name || "",
+      p_operator_id: operatorId,
+      p_operator_name: operatorName,
       p_production_date: startInfo.production_date || new Date().toISOString().slice(0, 10),
       p_start_time: startInfo.start_time || null,
       p_remarks: startInfo.remarks || "",
-      p_started_by: employeeId || null,
+      p_started_by: operatorId,
     });
     throwSupabaseError("factory.job_order.start", error);
     await logFactoryAction({
       action: "factory_job_order_started",
       target: order.job_order_no,
       description: "Factory Job Order started production.",
-      after: { ...order, ...startInfo },
+      after: { ...order, ...startInfo, operator_id: operatorId, operator_name: operatorName, started_by: operatorId },
     });
   },
 

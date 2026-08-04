@@ -4253,14 +4253,15 @@ function ProductRecipeDetailModal({ recipe, receivings = [], onClose }) {
 
 function StartProductionModal({ job, sops = [], auth, onClose, onSave }) {
   const [form, setForm] = useState(() => ({
-    operator_id: auth?.profile?.id || "",
-    operator_name: employeeDisplayName(auth),
     production_date: todayInput(),
     start_time: timeInput(),
     remarks: "",
   }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const operatorId = auth?.profile?.id || "";
+  const operatorName = employeeDisplayName(auth);
+  const operatorResolved = Boolean(operatorId && operatorName);
   const activeSop = sops.find((sop) => sop.status === "active" && sop.finished_good_id === job.product_family_id)
     || sops.find((sop) => sop.status === "active" && String(sop.product_name || "").toLowerCase() === String(jobFinishedGoodName(job)).toLowerCase());
   const sopQcCount = (activeSop?.steps || []).reduce((count, step) => count + (step.qc_checks || []).length, 0);
@@ -4268,6 +4269,10 @@ function StartProductionModal({ job, sops = [], auth, onClose, onSave }) {
   async function submit(event) {
     event.preventDefault();
     setError("");
+    if (!operatorResolved) {
+      setError("Current employee could not be resolved. Sign in again before starting production.");
+      return;
+    }
     if (!form.production_date) {
       setError("Production date is required.");
       return;
@@ -4293,7 +4298,7 @@ function StartProductionModal({ job, sops = [], auth, onClose, onSave }) {
       footer={(
         <>
           <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="submit" form="factory-start-production-form" disabled={saving}>{saving ? "Starting..." : "Start Production"}</button>
+          <button className="btn-primary" type="submit" form="factory-start-production-form" disabled={saving || !operatorResolved}>{saving ? "Starting..." : "Start Production"}</button>
         </>
       )}
     >
@@ -4307,10 +4312,12 @@ function StartProductionModal({ job, sops = [], auth, onClose, onSave }) {
         </section>
 
         <section>
-          <div className="mb-3"><div className="text-sm font-black text-text-primary">Production Setup</div><div className="mt-1 text-xs font-semibold text-text-secondary">Confirm the operator and start time before reviewing the process.</div></div>
+          <div className="mb-3"><div className="text-sm font-black text-text-primary">Production Setup</div><div className="mt-1 text-xs font-semibold text-text-secondary">Confirm the authenticated operator and start time before reviewing the process.</div></div>
           <div className="grid gap-3 md:grid-cols-3">
           <Field label="Operator">
-            <input className={inputClass()} value={form.operator_name || ""} onChange={(event) => setForm((current) => ({ ...current, operator_name: event.target.value }))} />
+            <div className={`${inputClass()} flex items-center bg-slate-50 font-semibold ${operatorResolved ? "text-text-primary" : "border-rose-300 text-rose-700"}`}>
+              {operatorName || "Current employee unavailable"}
+            </div>
           </Field>
           <Field label="Production Date">
             <FeedXDatePicker
@@ -4322,6 +4329,7 @@ function StartProductionModal({ job, sops = [], auth, onClose, onSave }) {
             <input className={inputClass()} type="time" value={form.start_time || ""} onChange={(event) => setForm((current) => ({ ...current, start_time: event.target.value }))} />
           </Field>
           </div>
+          {!operatorResolved ? <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">Current employee could not be resolved. Sign in again before starting production.</div> : null}
         </section>
 
         <section className="rounded-xl border border-border bg-white p-4 sm:p-5">
@@ -4336,7 +4344,22 @@ function StartProductionModal({ job, sops = [], auth, onClose, onSave }) {
                   <div className="flex gap-3"><div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-black text-white">{step.step_no}</div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-start justify-between gap-2"><div><div className="text-sm font-black text-text-primary">{step.step_name || step.process_name}</div>{step.description ? <div className="mt-1 text-sm font-semibold text-text-secondary">{step.description}</div> : null}</div><span className="text-xs font-bold text-text-secondary">{step.estimated_time_minutes || 0} mins</span></div>
                     {step.sub_steps?.length ? <div className="mt-3 space-y-1.5">{step.sub_steps.map((subStep) => <div key={subStep.id || `${step.id}-${subStep.sequence_no}`} className="flex gap-2 text-xs font-semibold text-text-secondary"><span className="font-black text-primary">{step.step_no}.{subStep.sequence_no}</span><span>{subStep.instruction}</span></div>)}</div> : null}
                     {step.ingredient_references?.length ? <div className="mt-3 flex flex-wrap gap-1.5">{step.ingredient_references.map((ingredient) => <span key={`${step.id}-${ingredient.raw_material_id}`} className="rounded-full border border-border bg-white px-2.5 py-1 text-xs font-bold text-text-secondary">{ingredient.raw_material_name}</span>)}</div> : null}
-                    {step.qc_checks?.length ? <div className="mt-3 border-t border-border pt-2"><div className="text-[10.5px] font-bold text-text-muted">QC during production</div><div className="mt-1.5 flex flex-wrap gap-1.5">{step.qc_checks.map((qc) => <span key={qc.id} className="rounded-full bg-amber-100 px-2.5 py-1 text-xs font-bold text-amber-800">{qc.qc_name}{qc.is_required ? " *" : ""}</span>)}</div></div> : null}
+                    {step.qc_checks?.length ? (
+                      <div className="mt-3 border-t border-border pt-3">
+                        <div className="text-[10.5px] font-bold text-text-muted">QC during production</div>
+                        <div className="mt-2 space-y-2">
+                          {step.qc_checks.map((qc) => (
+                            <div key={qc.id} className="rounded-lg border border-amber-200 bg-amber-50/70 px-3 py-2">
+                              <div className="flex flex-wrap items-start justify-between gap-2">
+                                <div className="text-xs font-black text-text-primary">{qc.qc_name}</div>
+                                <Badge tone={qc.is_required ? "warning" : "neutral"}>{qc.is_required ? "Required" : "Optional"}</Badge>
+                              </div>
+                              {String(qc.instructions || "").trim() ? <div className="mt-1 text-xs font-semibold leading-5 text-text-secondary">{qc.instructions}</div> : null}
+                            </div>
+                          ))}
+                        </div>
+                      </div>
+                    ) : null}
                   </div></div>
                 </article>
               ))}
@@ -6411,7 +6434,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   async function startJobOrder(order, form) {
     try {
-      await factoryService.startJobOrder(order, form, auth?.profile?.id);
+      await factoryService.startJobOrder(order, form, auth?.profile);
       ui?.notify?.({ title: "Production started", message: `${order.job_order_no} is now in progress.`, tone: "success" });
       setModal(null);
       await loadData();
