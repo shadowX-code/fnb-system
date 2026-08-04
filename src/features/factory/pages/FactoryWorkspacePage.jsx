@@ -3,6 +3,7 @@ import { Activity, AlertTriangle, ArrowDown, ArrowUp, BookOpen, CheckCircle2, Cl
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
+import FactoryPagination, { FactoryTableLoadState, useFactoryClientPagination, useFactoryPagedQuery } from "../components/FactoryPagination.jsx";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import Card from "../../../components/ui/Card.jsx";
@@ -943,17 +944,6 @@ function movementTypeLabel(movement) {
   return movement?.movement_type || "Movement";
 }
 
-function compactPageNumbers(currentPage, totalPages) {
-  const pages = [...new Set([1, currentPage - 1, currentPage, currentPage + 1, totalPages]
-    .filter((page) => page >= 1 && page <= totalPages))].sort((a, b) => a - b);
-  const items = [];
-  pages.forEach((page, index) => {
-    if (index && page - pages[index - 1] > 1) items.push(`ellipsis-${pages[index - 1]}`);
-    items.push(page);
-  });
-  return items;
-}
-
 function productMovementQuerySignature(page, pageSize, filters) {
   return JSON.stringify({
     page,
@@ -1261,6 +1251,51 @@ function AccessIssueNotice({ issues }) {
       ) : null}
     </div>
   );
+}
+
+function isFactoryPermissionError(error) {
+  const source = error?.cause || error;
+  const code = String(error?.code || source?.code || "").toUpperCase();
+  const status = Number(error?.status || error?.statusCode || source?.status || source?.statusCode || 0);
+  const message = String(error?.message || source?.message || "").toLowerCase();
+  return code === "42501"
+    || status === 401
+    || status === 403
+    || message.includes("permission denied")
+    || message.includes("insufficient permission")
+    || message.includes("not authorized")
+    || message.includes("unauthorized")
+    || message.includes("forbidden");
+}
+
+function groupedProductionSops(sops) {
+  const groups = new Map();
+  (sops || []).forEach((sop) => {
+    const storedProductName = sop.product_name_en || sop.product_name || "";
+    const productName = storedProductName || "Finished Good";
+    const legacyIdentity = String(storedProductName).trim().toLocaleLowerCase("en-MY");
+    const key = sop.finished_good_id
+      ? `finished-good:${sop.finished_good_id}`
+      : legacyIdentity
+        ? `legacy-product:${legacyIdentity}`
+        : `legacy-sop:${sop.id}`;
+    if (!groups.has(key)) groups.set(key, { id: key, productName, sops: [] });
+    groups.get(key).sops.push(sop);
+  });
+
+  return [...groups.values()]
+    .map((group) => ({
+      ...group,
+      sops: group.sops.sort((left, right) => (
+        String(right.version || "").localeCompare(String(left.version || ""), "en-MY", { numeric: true, sensitivity: "base" })
+        || String(right.updated_at || right.created_at || "").localeCompare(String(left.updated_at || left.created_at || ""))
+        || String(left.id || "").localeCompare(String(right.id || ""))
+      )),
+    }))
+    .sort((left, right) => (
+      left.productName.localeCompare(right.productName, "en-MY", { numeric: true, sensitivity: "base" })
+      || left.id.localeCompare(right.id)
+    ));
 }
 
 function FinishedGoodDetailModal({ product, productions, movements, productionCosts, onClose }) {
@@ -6244,111 +6279,239 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const [rawMaterialFilters, setRawMaterialFilters] = useState({ material: "", status: "", category: "" });
   const [rawMovementFilters, setRawMovementFilters] = useState({ material: "", movementType: "", storageLocation: "", dateFrom: "", dateTo: "", search: "" });
   const [auditLogFilters, setAuditLogFilters] = useState({ dateFrom: "", dateTo: "", module: "", action: "", user: "", search: "" });
-  const [productMovementLedger, setProductMovementLedger] = useState({
-    rows: [],
-    requestedPage: 1,
-    requestedPageSize: 20,
-    loadedPage: 1,
-    loadedPageSize: 20,
-    loadedTotal: 0,
-    loadedQuerySignature: "",
-    loadedFilterSignature: "",
-    hasLoaded: false,
-    stockInCount: 0,
-    stockOutCount: 0,
-    filteredSkus: [],
-    movementTypes: [],
-    categories: [],
-    loading: false,
-    error: "",
-    retryToken: 0,
-  });
-  const productMovementRequestRef = useRef(0);
+  const [operationalJobs, setOperationalJobs] = useState({ jobs: [], productions: [], summary: {}, hasLoaded: false, loading: false, error: "" });
+  const [productionPlanningOpenJobs, setProductionPlanningOpenJobs] = useState({ aggregates: [], diagnostics: {}, hasLoaded: false, loading: false, error: "", errorKind: "" });
+  const operationalJobsRequestRef = useRef(0);
+  const productionPlanningOpenJobsRequestRef = useRef(0);
+  const factoryDataRequestRef = useRef(0);
+  const factoryDataAbortRef = useRef(null);
+  const previousPermissionSignatureRef = useRef("");
   const can = (code) => Boolean(auth?.hasPermission?.(code));
+  const factoryPermissionSignature = JSON.stringify([...(auth?.permissions || [])].sort());
+  const serverListing = initialTab === "raw-receiving" ? "receiving-history"
+    : initialTab === "raw-movements" ? "raw-movements"
+      : initialTab === "raw-stock-check" ? "raw-stock-checks"
+        : initialTab === "job-orders" ? "job-orders"
+          : initialTab === "production" ? "production-history"
+            : initialTab === "finished-goods-dispatch" ? "dispatch-history"
+              : initialTab === "product-stock-check" ? "product-stock-checks"
+                : initialTab === "batch-traceability" ? "batch-traceability"
+                  : initialTab === "audit-logs" ? "audit-logs"
+                    : "";
+  const serverListingFilters = serverListing === "receiving-history" ? receivingHistoryFilters
+    : serverListing === "raw-movements" ? rawMovementFilters
+      : serverListing === "dispatch-history" ? dispatchHistoryFilters
+        : serverListing === "audit-logs" ? auditLogFilters
+          : {};
+  const serverListingSignature = JSON.stringify({ listing: serverListing, filters: serverListingFilters, permissions: factoryPermissionSignature });
+  const [factoryListingPage, factoryListingActions] = useFactoryPagedQuery({
+    storageKey: serverListing || "inactive",
+    enabled: Boolean(serverListing)
+      && !(serverListing === "receiving-history" && receivingTab !== "history")
+      && !(serverListing === "dispatch-history" && dispatchTab !== "history"),
+    querySignature: serverListingSignature,
+    loadPage: ({ page, pageSize }) => factoryService.listFactoryListingPage({ listing: serverListing, page, pageSize, filters: serverListingFilters }),
+    onError: (error) => {
+      console.error(`[Factory] Unable to load ${serverListing}.`, error);
+      ui?.notify?.({ title: "Failed to load Factory listing", message: error.message, tone: "error" });
+    },
+  });
+  const productMovementSignature = `${productMovementFilterSignature(20, warehouseFilters)}:${factoryPermissionSignature}`;
+  const [productMovementLedger, productMovementActions] = useFactoryPagedQuery({
+    storageKey: "product-movements",
+    enabled: initialTab === "product-movements" && can("factory_product_movements.view"),
+    querySignature: productMovementSignature,
+    loadPage: ({ page, pageSize }) => factoryService.listProductMovementsPage({ page, pageSize, filters: warehouseFilters }),
+    onError: (error) => {
+      console.error("[Factory] Unable to load Product Movements page.", error);
+      ui?.notify?.({ title: "Failed to load Product Movements", message: error.message, tone: "error" });
+    },
+  });
+  const rawInventoryMasterRows = filteredRawMaterialRows();
+  const finishedGoodsMasterGroups = finishedGoodProductGroups();
+  const productionPlanningMasterRows = filteredProductionPlanningRows();
+  const recipeParentCount = new Set(data.recipes.map((recipe) => recipe.product_family_id || recipe.finished_good_id || recipe.product_name || recipe.id)).size;
+  const rawInventoryPager = useFactoryClientPagination("raw-inventory", rawInventoryMasterRows.length, 20, JSON.stringify(rawMaterialFilters));
+  const finishedGoodsPager = useFactoryClientPagination("finished-goods", finishedGoodsMasterGroups.length, 20, JSON.stringify(warehouseFilters));
+  const productionPlanningPager = useFactoryClientPagination("production-planning", productionPlanningMasterRows.length, 20, JSON.stringify(productionPlanningFilters));
+  const recipesPager = useFactoryClientPagination("product-recipes", recipeParentCount);
+  const sopProductGroups = useMemo(() => groupedProductionSops(data.sops), [data.sops]);
+  const sopsPager = useFactoryClientPagination("production-sop", sopProductGroups.length);
+  const suppliersPager = useFactoryClientPagination("suppliers", data.factorySuppliers.length);
+  const customersPager = useFactoryClientPagination("customers", data.factoryCustomers.length);
+  const locationsPager = useFactoryClientPagination("storage-locations", data.storageLocations.length);
+
+  function currentListingRows(listing, fallbackRows) {
+    if (serverListing !== listing) return fallbackRows;
+    if (factoryListingPage.hasLoaded) return factoryListingPage.rows;
+    return factoryListingPage.loading ? fallbackRows : [];
+  }
+
+  function listingLoadState(listing, label) {
+    if (serverListing !== listing) return null;
+    return <FactoryTableLoadState state={factoryListingPage} label={label} onRetry={factoryListingActions.retry} />;
+  }
+
+  function listingPagination(listing) {
+    if (serverListing !== listing || !factoryListingPage.hasLoaded) return null;
+    return (
+      <FactoryPagination
+        page={factoryListingPage.loadedPage}
+        pageSize={factoryListingPage.loadedPageSize}
+        total={factoryListingPage.loadedTotal}
+        loading={factoryListingPage.loading}
+        onPageChange={factoryListingActions.requestPage}
+        onPageSizeChange={factoryListingActions.requestPageSize}
+      />
+    );
+  }
+
+  async function loadOperationalJobs() {
+    if (!["job-orders", "production"].includes(initialTab)) return;
+    const requestId = operationalJobsRequestRef.current + 1;
+    operationalJobsRequestRef.current = requestId;
+    setOperationalJobs((current) => ({ ...current, loading: true }));
+    try {
+      const result = await factoryService.listOperationalJobOrders({
+        date: todayInput(),
+        includeProductions: can("factory_production.view") || can("factory_production.complete"),
+      });
+      if (operationalJobsRequestRef.current !== requestId) return;
+      setOperationalJobs({
+        jobs: result.jobs || [],
+        productions: result.productions || [],
+        summary: result.summary || {},
+        hasLoaded: true,
+        loading: false,
+        error: "",
+      });
+    } catch (error) {
+      if (operationalJobsRequestRef.current !== requestId) return;
+      console.error("[Factory] Unable to load operational Job Orders.", error);
+      setOperationalJobs((current) => ({ ...current, loading: false, error: "Unable to load the latest operational Job Orders." }));
+    }
+  }
+
+  async function loadProductionPlanningOpenJobs() {
+    if (initialTab !== "production-planning") return;
+    const requestId = productionPlanningOpenJobsRequestRef.current + 1;
+    productionPlanningOpenJobsRequestRef.current = requestId;
+    if (!can("factory_job_orders.view")) {
+      setProductionPlanningOpenJobs({
+        aggregates: [],
+        diagnostics: {},
+        hasLoaded: false,
+        loading: false,
+        error: "Some Production Planning data is hidden by your current role.",
+        errorKind: "permission",
+      });
+      setModal((current) => current?.type === "job" ? null : current);
+      return;
+    }
+    setProductionPlanningOpenJobs((current) => ({ ...current, loading: true }));
+    try {
+      const result = await factoryService.getProductionPlanningOpenJobOrderAggregate();
+      if (productionPlanningOpenJobsRequestRef.current !== requestId) return;
+      setProductionPlanningOpenJobs({
+        aggregates: result.aggregates || [],
+        diagnostics: result.diagnostics || {},
+        hasLoaded: true,
+        loading: false,
+        error: "",
+        errorKind: "",
+      });
+    } catch (error) {
+      if (productionPlanningOpenJobsRequestRef.current !== requestId) return;
+      console.error("[Factory] Unable to load Production Planning open Job Order quantities.", error);
+      if (isFactoryPermissionError(error)) {
+        setProductionPlanningOpenJobs({
+          aggregates: [],
+          diagnostics: {},
+          hasLoaded: false,
+          loading: false,
+          error: "Some Production Planning data is hidden by your current role.",
+          errorKind: "permission",
+        });
+        setModal((current) => current?.type === "job" ? null : current);
+      } else {
+        setProductionPlanningOpenJobs((current) => ({
+          ...current,
+          loading: false,
+          error: current.hasLoaded
+            ? "Unable to load the latest Production Planning data. Showing the last successfully loaded results."
+            : "Unable to load the latest Production Planning data.",
+          errorKind: "load",
+        }));
+      }
+    }
+  }
 
   async function loadData() {
+    factoryDataAbortRef.current?.abort();
+    const controller = new AbortController();
+    factoryDataAbortRef.current = controller;
+    const requestId = factoryDataRequestRef.current + 1;
+    factoryDataRequestRef.current = requestId;
     setLoading(true);
+    const operationalLoad = ["job-orders", "production"].includes(initialTab) ? loadOperationalJobs() : Promise.resolve();
+    const productionPlanningLoad = initialTab === "production-planning" ? loadProductionPlanningOpenJobs() : Promise.resolve();
     try {
       const nextData = await factoryService.listFactoryData({
         scope: initialTab,
         hasPermission: (code) => auth?.hasPermission?.(code),
+        signal: controller.signal,
       });
-      setData(nextData);
+      if (factoryDataRequestRef.current !== requestId || controller.signal.aborted) return;
+      const permissionIssues = nextData.accessIssues.filter((issue) => issue.kind === "permission");
+      setData((current) => {
+        const merged = { ...nextData };
+        nextData.accessIssues
+          .filter((issue) => issue.kind === "load" && issue.complete && Array.isArray(current[issue.key]))
+          .forEach((issue) => {
+            merged[issue.key] = current[issue.key];
+          });
+        if (merged.sops.length && merged.recipes.length) {
+          const recipesById = new Map(merged.recipes.map((recipe) => [recipe.id, recipe]));
+          merged.sops = merged.sops.map((sop) => ({
+            ...sop,
+            linked_recipe: recipesById.get(sop.recipe_id) || sop.linked_recipe,
+          }));
+        }
+        return merged;
+      });
+      if (permissionIssues.length) {
+        setModal(null);
+        setExpandedProductGroups({});
+        setFinishedGoodActionMenu(null);
+      }
     } catch (error) {
+      if (factoryDataRequestRef.current !== requestId || controller.signal.aborted) return;
       ui?.notify?.({ title: "Failed to load Factory data", message: error.message, tone: "error" });
     } finally {
-      setLoading(false);
+      if (factoryDataRequestRef.current === requestId) setLoading(false);
     }
+    await Promise.all([operationalLoad, productionPlanningLoad]);
   }
 
   useEffect(() => {
     loadData();
-  }, [initialTab, auth?.permissions?.length]);
+  }, [initialTab, factoryPermissionSignature]);
 
   useEffect(() => {
-    if (initialTab !== "product-movements" || !auth?.hasPermission?.("factory_product_movements.view")) return undefined;
-    const requestId = productMovementRequestRef.current + 1;
-    productMovementRequestRef.current = requestId;
-    let active = true;
-    const requestedQuerySignature = productMovementQuerySignature(
-      productMovementLedger.requestedPage,
-      productMovementLedger.requestedPageSize,
-      warehouseFilters,
-    );
-    const requestedFilterSignature = productMovementFilterSignature(productMovementLedger.requestedPageSize, warehouseFilters);
-    setProductMovementLedger((current) => ({ ...current, loading: true }));
-    factoryService.listProductMovementsPage({
-      page: productMovementLedger.requestedPage,
-      pageSize: productMovementLedger.requestedPageSize,
-      filters: warehouseFilters,
-    }).then((result) => {
-      if (!active || productMovementRequestRef.current !== requestId) return;
-      const lastPage = Math.max(1, Math.ceil(result.totalCount / result.pageSize));
-      if (result.page > lastPage) {
-        setProductMovementLedger((current) => ({ ...current, requestedPage: lastPage, loading: true }));
-        return;
-      }
-      setProductMovementLedger((current) => ({
-        ...current,
-        rows: result.rows,
-        requestedPage: result.page,
-        requestedPageSize: result.pageSize,
-        loadedPage: result.page,
-        loadedPageSize: result.pageSize,
-        loadedTotal: result.totalCount,
-        loadedQuerySignature: requestedQuerySignature,
-        loadedFilterSignature: requestedFilterSignature,
-        hasLoaded: true,
-        stockInCount: result.stockInCount,
-        stockOutCount: result.stockOutCount,
-        filteredSkus: result.filteredSkus,
-        movementTypes: result.movementTypes,
-        categories: result.categories,
-        loading: false,
-        error: "",
-      }));
-    }).catch((error) => {
-      if (!active || productMovementRequestRef.current !== requestId) return;
-      console.error("[Factory] Unable to load Product Movements page.", error);
-      setProductMovementLedger((current) => ({ ...current, loading: false, error: error.message || "Unable to load Product Movements." }));
-      ui?.notify?.({ title: "Failed to load Product Movements", message: error.message, tone: "error" });
-    });
-    return () => {
-      active = false;
-    };
-  }, [
-    initialTab,
-    auth?.permissions?.length,
-    productMovementLedger.requestedPage,
-    productMovementLedger.requestedPageSize,
-    productMovementLedger.retryToken,
-    warehouseFilters.product,
-    warehouseFilters.category,
-    warehouseFilters.batch,
-    warehouseFilters.movementType,
-    warehouseFilters.dateFrom,
-    warehouseFilters.dateTo,
-  ]);
+    if (previousPermissionSignatureRef.current && previousPermissionSignatureRef.current !== factoryPermissionSignature) {
+      setModal(null);
+      setExpandedProductGroups({});
+      setFinishedGoodActionMenu(null);
+    }
+    previousPermissionSignatureRef.current = factoryPermissionSignature;
+  }, [factoryPermissionSignature]);
+
+  useEffect(() => () => {
+    operationalJobsRequestRef.current += 1;
+    productionPlanningOpenJobsRequestRef.current += 1;
+    factoryDataRequestRef.current += 1;
+    factoryDataAbortRef.current?.abort();
+  }, []);
 
   const metrics = useMemo(() => {
     const openJobs = data.jobOrders.filter((job) => !["completed", "cancelled"].includes(job.status));
@@ -7590,34 +7753,27 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   function productionPlanningRows() {
-    const openJobsBySku = data.jobOrders.reduce((groups, job) => {
-      const status = String(job.status || "").toLowerCase();
-      if (!job.finished_good_id || status === "completed" || status === "cancelled") return groups;
-      groups.set(job.finished_good_id, [...(groups.get(job.finished_good_id) || []), job]);
-      return groups;
-    }, new Map());
+    const openJobsBySku = new Map(productionPlanningOpenJobs.aggregates.map((row) => [row.packagingSkuId, row]));
 
     return data.finishedGoods
       .filter((sku) => sku.status === "active")
       .map((sku) => {
         const recipe = activeRecipeForSku(data.recipes, sku, sku.product_family_name || sku.product_name);
-        const openJobs = openJobsBySku.get(sku.id) || [];
-        const openJobQty = openJobs.reduce((sum, job) => {
-          const explicitPackQty = Number(job.target_pack_qty || 0);
-          if (explicitPackQty) return sum + explicitPackQty;
-          const estimate = packagingPackEstimate(job.target_production_qty || job.target_quantity, job.uom, sku, recipe?.uom);
-          return sum + (estimate.error ? 0 : Number(estimate.target_pack_qty || 0));
-        }, 0);
+        const openJobAggregate = openJobsBySku.get(sku.id);
+        const planningAggregateReady = productionPlanningOpenJobs.hasLoaded && !Number(openJobAggregate?.invalidJobOrderCount || 0);
+        const openJobQty = planningAggregateReady ? Number(openJobAggregate?.openJobOrderQty || 0) : null;
         const currentBalance = Number(sku.current_balance || 0);
         const parLevel = Number(sku.min_stock_level || 0);
         const coverage = parLevel > 0 ? (currentBalance / parLevel) * 100 : null;
-        const suggestedProduction = parLevel > 0 ? Math.max(parLevel - currentBalance - openJobQty, 0) : 0;
+        const suggestedProduction = planningAggregateReady && parLevel > 0 ? Math.max(parLevel - currentBalance - openJobQty, 0) : planningAggregateReady ? 0 : null;
         const status = parLevel <= 0 ? "No Par Level" : currentBalance <= 0 ? "Out of Stock" : currentBalance < parLevel ? "Low Stock" : "Healthy";
         return {
           ...sku,
           planning_status: status,
           coverage_percent: coverage,
           open_job_qty: openJobQty,
+          open_job_count: Number(openJobAggregate?.openJobOrderCount || 0),
+          open_job_quantity_incomplete: Number(openJobAggregate?.invalidJobOrderCount || 0) > 0,
           suggested_production_qty: suggestedProduction,
           active_recipe: recipe,
           finished_good_name: sku.product_family_name || sku.product_name,
@@ -7689,6 +7845,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   function openProductionPlanningJobOrder(row) {
+    if (row.suggested_production_qty == null) {
+      ui?.notify?.({ title: "Suggested quantity unavailable", message: "Reload open Job Order quantities before creating a prefilled Job Order.", tone: "error" });
+      return;
+    }
     const suggestedPackQty = Number(row.suggested_production_qty || 0);
     const recipe = row.active_recipe || activeRecipeForSku(data.recipes, row, row.finished_good_name || row.product_name);
     const productionPlan = suggestedPackQty > 0 ? packagingProductionPlan(suggestedPackQty, row, recipe?.uom) : null;
@@ -7712,16 +7872,22 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   function renderProductionPlanning() {
     const planningRows = productionPlanningRows();
-    const rows = filteredProductionPlanningRows();
+    const rows = productionPlanningMasterRows.slice(productionPlanningPager.from, productionPlanningPager.to);
     const activeSkus = planningRows.length;
     const lowStockRows = planningRows.filter((row) => row.planning_status === "Low Stock");
     const outOfStockRows = planningRows.filter((row) => row.planning_status === "Out of Stock");
+    const planningCalculationsComplete = productionPlanningOpenJobs.hasLoaded
+      && Number(productionPlanningOpenJobs.diagnostics.missingPackagingSkuCount || 0) === 0
+      && Number(productionPlanningOpenJobs.diagnostics.invalidQuantityCount || 0) === 0
+      && planningRows.every((row) => row.suggested_production_qty != null);
     const suggestedGroups = planningRows.filter((row) => Number(row.suggested_production_qty || 0) > 0).reduce((groups, row) => {
       const unit = pluralizePackagingType(packagingTypeLabel(row), 2);
       groups.set(unit, (groups.get(unit) || 0) + Number(row.suggested_production_qty || 0));
       return groups;
     }, new Map());
-    const suggestedValue = suggestedGroups.size > 1
+    const suggestedValue = !planningCalculationsComplete
+      ? "Unavailable"
+      : suggestedGroups.size > 1
       ? "Mixed"
       : suggestedGroups.size === 1
         ? quantity([...suggestedGroups.values()][0], [...suggestedGroups.keys()][0])
@@ -7740,19 +7906,31 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={Clock3} label="Out of Stock" value={outOfStockRows.length} helper="Current balance zero" tone={outOfStockRows.length ? "danger" : "success"} />
           <MetricCard icon={Factory} label="Suggested Production" value={suggestedValue} helper="Needed to reach par" tone={suggestedGroups.size ? "info" : "success"} />
         </div>
+        {productionPlanningOpenJobs.error ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+            <div className="flex items-start gap-2"><AlertTriangle className="mt-0.5 shrink-0" size={16} /><span>{productionPlanningOpenJobs.error}</span></div>
+            <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={productionPlanningOpenJobs.loading} onClick={loadProductionPlanningOpenJobs}>Retry</button>
+          </div>
+        ) : productionPlanningOpenJobs.loading ? (
+          <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-800">{productionPlanningOpenJobs.hasLoaded ? "Refreshing open Job Order quantities…" : "Loading open Job Order quantities…"}</div>
+        ) : null}
+        {productionPlanningOpenJobs.hasLoaded && (Number(productionPlanningOpenJobs.diagnostics.missingPackagingSkuCount || 0) > 0 || Number(productionPlanningOpenJobs.diagnostics.invalidQuantityCount || 0) > 0) ? (
+          <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">Some open Job Orders have incomplete Packaging SKU or quantity data. Suggested Qty is unavailable for affected SKUs.</div>
+        ) : null}
         {productionPlanningFilterControls()}
         <Card title="Daily Production Planning Board" description="Par Level uses Packaging SKU stock counts. Open Job Orders are subtracted from suggested production.">
           {!rows.length ? (
             <EmptyState title="No Planning SKUs" description="Active Packaging SKUs with Finished Good setup will appear here." />
           ) : (
             <div className="space-y-4 p-4">
-              <div className="hidden rounded-xl border border-border bg-slate-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted xl:grid xl:grid-cols-[1.25fr_1.1fr_1fr_1fr_1fr_0.8fr_0.8fr_160px]">
+              <div className="hidden rounded-xl border border-border bg-slate-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted xl:grid xl:grid-cols-[1.25fr_1.1fr_1fr_1fr_1fr_0.9fr_0.9fr_0.8fr_160px]">
                 <div>Finished Good</div>
                 <div>Packaging SKU</div>
                 <div>Current Balance</div>
                 <div>Par Level</div>
                 <div>Coverage</div>
                 <div>Open JO</div>
+                <div>Suggested Qty</div>
                 <div>Status</div>
                 <div className="text-right">Actions</div>
               </div>
@@ -7762,7 +7940,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                   const parLevel = Number(row.min_stock_level || 0);
                   const parLevelLabel = parLevel > 0 ? productionPlanningUnitLabel(row, parLevel) : "Set Par Level";
                   return (
-                    <div key={row.id} className="grid grid-cols-[1.25fr_1.1fr_1fr_1fr_1fr_0.8fr_0.8fr_160px] items-center gap-3 border-b border-border px-4 py-4 text-sm last:border-0">
+                    <div key={row.id} className="grid grid-cols-[1.25fr_1.1fr_1fr_1fr_1fr_0.9fr_0.9fr_0.8fr_160px] items-center gap-3 border-b border-border px-4 py-4 text-sm last:border-0">
                       <div>
                         <div className="font-bold text-text-primary">{row.finished_good_name || row.product_name}</div>
                         {row.finished_good_name_cn ? <div className="text-xs font-semibold text-text-secondary">{row.finished_good_name_cn}</div> : null}
@@ -7795,10 +7973,14 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                           </div>
                         )}
                       </div>
-                      <div className="font-semibold text-text-primary">{row.open_job_qty > 0 ? productionPlanningUnitLabel(row, row.open_job_qty) : "—"}</div>
+                      <div>
+                        <div className="font-semibold text-text-primary">{row.open_job_qty == null ? "Unavailable" : row.open_job_qty > 0 ? productionPlanningUnitLabel(row, row.open_job_qty) : "—"}</div>
+                        {row.open_job_count > 0 ? <div className="text-xs text-text-muted">{row.open_job_count} open {row.open_job_count === 1 ? "order" : "orders"}</div> : null}
+                      </div>
+                      <div className="font-semibold text-text-primary">{row.suggested_production_qty == null ? "Unavailable" : row.suggested_production_qty > 0 ? productionPlanningUnitLabel(row, row.suggested_production_qty) : "—"}</div>
                       <div><Badge tone={productionPlanningStatusTone(row.planning_status)}>{row.planning_status}</Badge></div>
                       <div className="flex flex-wrap justify-end gap-2">
-                        {can("factory_job_orders.create") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => openProductionPlanningJobOrder(row)}>Create Job Order</button> : null}
+                        {can("factory_job_orders.create") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" disabled={row.suggested_production_qty == null} onClick={() => openProductionPlanningJobOrder(row)}>Create Job Order</button> : null}
                         {can("factory_finished_goods.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production-planning-par", sku: row })}>Edit Par</button> : null}
                       </div>
                     </div>
@@ -7837,11 +8019,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                         </div>
                         <div>
                           <div className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">Open JO</div>
-                          <div className="font-bold text-text-primary">{row.open_job_qty > 0 ? productionPlanningUnitLabel(row, row.open_job_qty) : "—"}</div>
+                          <div className="font-bold text-text-primary">{row.open_job_qty == null ? "Unavailable" : row.open_job_qty > 0 ? productionPlanningUnitLabel(row, row.open_job_qty) : "—"}</div>
                         </div>
                         <div>
                           <div className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">Suggested</div>
-                          <div className="font-bold text-text-primary">{row.suggested_production_qty > 0 ? productionPlanningUnitLabel(row, row.suggested_production_qty) : "—"}</div>
+                          <div className="font-bold text-text-primary">{row.suggested_production_qty == null ? "Unavailable" : row.suggested_production_qty > 0 ? productionPlanningUnitLabel(row, row.suggested_production_qty) : "—"}</div>
                         </div>
                       </div>
                       <div className="mt-4">
@@ -7854,7 +8036,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                         </div>
                       </div>
                       <div className="mt-4 flex flex-wrap gap-2">
-                        {can("factory_job_orders.create") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => openProductionPlanningJobOrder(row)}>Create Job Order</button> : null}
+                        {can("factory_job_orders.create") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" disabled={row.suggested_production_qty == null} onClick={() => openProductionPlanningJobOrder(row)}>Create Job Order</button> : null}
                         {can("factory_finished_goods.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production-planning-par", sku: row })}>Edit Par</button> : null}
                       </div>
                     </div>
@@ -7863,6 +8045,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
               </div>
             </div>
           )}
+          <FactoryPagination page={productionPlanningPager.page} pageSize={productionPlanningPager.pageSize} total={productionPlanningMasterRows.length} onPageChange={productionPlanningPager.setPage} onPageSizeChange={productionPlanningPager.setPageSize} />
         </Card>
       </div>
     );
@@ -7870,12 +8053,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   function updateProductMovementFilters(patch) {
     setWarehouseFilters((current) => ({ ...current, ...patch }));
-    setProductMovementLedger((current) => ({ ...current, requestedPage: 1 }));
   }
 
   function productMovementFilterControls() {
-    const movementTypes = productMovementLedger.movementTypes;
-    const categories = productMovementLedger.categories;
+    const movementTypes = productMovementLedger.summary.movementTypes || [];
+    const categories = productMovementLedger.summary.categories || [];
     return (
       <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 lg:grid-cols-7">
         <Field label="Date From">
@@ -8058,8 +8240,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   function rawMovementFilterControls() {
-    const movementTypes = [...new Set(data.rawMaterialMovements.map((row) => row.movement_type).filter(Boolean))];
-    const storageLocations = [...new Set(rawMaterialMovementRows().map((row) => row.storage_location).filter(Boolean))];
+    const movementTypes = Array.isArray(factoryListingPage.summary.movement_types)
+      ? factoryListingPage.summary.movement_types
+      : [...new Set(data.rawMaterialMovements.map((row) => row.movement_type).filter(Boolean))];
+    const storageLocations = Array.isArray(factoryListingPage.summary.location_values)
+      ? factoryListingPage.summary.location_values
+      : [...new Set(rawMaterialMovementRows().map((row) => row.storage_location).filter(Boolean))];
     const materialOptions = data.rawMaterials.map((material) => ({ value: material.id, label: rawMaterialLabel(material) }));
     const movementTypeOptions = movementTypes.map((type) => ({ value: type, label: type }));
     const storageLocationOptions = storageLocations.map((location) => ({ value: location, label: location }));
@@ -8289,14 +8475,16 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   function factoryAuditFilterControls() {
-    const rows = data.auditLogs;
+    const summaryActions = Array.isArray(factoryListingPage.summary.action_values) ? factoryListingPage.summary.action_values : [];
+    const summaryUsers = Array.isArray(factoryListingPage.summary.user_values) ? factoryListingPage.summary.user_values : [];
+    const rows = summaryActions.length ? summaryActions.map((action) => ({ action, actor_name: "" })) : data.auditLogs;
     const moduleOptions = [...new Set(rows.map((event) => factoryAuditModuleLabel(event)).filter(Boolean))]
       .sort((a, b) => a.localeCompare(b))
       .map((label) => ({ value: label, label }));
     const actionOptions = [...new Set(rows.map((event) => factoryAuditActionLabel(event.action)).filter(Boolean))]
       .sort((a, b) => a.localeCompare(b))
       .map((label) => ({ value: label, label }));
-    const userOptions = [...new Set(rows.map((event) => event.actor_name || "System").filter(Boolean))]
+    const userOptions = [...new Set((summaryUsers.length ? summaryUsers : rows.map((event) => event.actor_name || "System")).filter(Boolean))]
       .sort((a, b) => a.localeCompare(b))
       .map((label) => ({ value: label, label }));
     return (
@@ -8535,22 +8723,17 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   function renderJobOrders() {
-    const today = todayInput();
-    const productionByJobId = new Map(data.productions.map((production) => [production.job_order_id, production]));
-    const completedTodayProductions = data.productions.filter((production) => {
-      const completionDate = (production.completed_at || production.production_date || production.created_at || "").slice(0, 10);
-      return production.status === "completed" && completionDate === today;
-    });
-    const outputTodayLabel = aggregateProductionOutput(completedTodayProductions);
-    const plannedTodayJobs = data.jobOrders.filter((job) => (job.planned_date || job.due_date || "").slice(0, 10) === today && !["cancelled"].includes(job.status));
-    const completedVsPlannedCount = plannedTodayJobs.length || metrics.completedTodayJobs.length;
-    const completionRate = completedVsPlannedCount ? (metrics.completedTodayJobs.length / completedVsPlannedCount) * 100 : 0;
-    const releasedBoardJobs = metrics.releasedJobs;
-    const inProgressBoardJobs = metrics.inProgressJobs;
-    const completedBoardJobs = metrics.completedTodayJobs;
-    const jobById = new Map(data.jobOrders.map((job) => [job.id, job]));
-    const jobByReference = new Map(data.jobOrders.map((job) => [job.job_order_no, job]));
-    const startedActivities = data.jobOrders.filter((job) => job.production_date && job.start_time).map((job) => ({
+    const operationalJobRows = operationalJobs.hasLoaded ? operationalJobs.jobs : [];
+    const completedTodayProductions = operationalJobs.hasLoaded ? operationalJobs.productions : [];
+    const productionByJobId = new Map(completedTodayProductions.map((production) => [production.job_order_id, production]));
+    const outputTodayLabel = aggregateProductionOutput(operationalJobs.summary.outputByUom || []);
+    const releasedBoardJobs = operationalJobRows.filter((job) => job.status === "released");
+    const inProgressBoardJobs = operationalJobRows.filter((job) => job.status === "in_progress");
+    const completedBoardJobs = operationalJobRows.filter((job) => job.status === "completed");
+    const completionRate = Number(operationalJobs.summary.completionRate || 0);
+    const jobById = new Map(operationalJobRows.map((job) => [job.id, job]));
+    const jobByReference = new Map(operationalJobRows.map((job) => [job.job_order_no, job]));
+    const startedActivities = operationalJobRows.filter((job) => job.production_date && job.start_time).map((job) => ({
       id: `start-${job.id}`,
       ...factoryActivityDateTime(job.production_date, job.start_time, job.started_at),
       label: "Production Started",
@@ -8559,7 +8742,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       detail: `Operator: ${job.production_operator_name || "—"}`,
       tone: "warning",
     }));
-    const completedActivities = data.productions.map((production) => {
+    const completedActivities = completedTodayProductions.map((production) => {
       const job = jobById.get(production.job_order_id);
       return {
         id: `complete-${production.id}`,
@@ -8597,12 +8780,13 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       .filter((activity) => activity.sortValue > 0)
       .sort((a, b) => b.sortValue - a.sortValue || b.id.localeCompare(a.id))
       .slice(0, 8);
+    const jobRecordRows = currentListingRows("job-orders", data.jobOrders);
     const overviewCards = [
-      { label: "Released", value: releasedBoardJobs.length, helper: "Ready to start", tone: "border-blue-200 bg-blue-50 text-blue-800" },
-      { label: "In Progress", value: inProgressBoardJobs.length, helper: "Currently running", tone: "border-amber-200 bg-amber-50 text-amber-800" },
-      { label: "Completed Today", value: completedBoardJobs.length, helper: "Finished today", tone: "border-emerald-200 bg-emerald-50 text-emerald-800" },
-      { label: "Output Today", value: outputTodayLabel, helper: "Total kg/L produced today", tone: "border-slate-200 bg-white text-text-primary" },
-      { label: "Completion Rate", value: percent(completionRate), helper: "Completed vs planned", tone: "border-primary/20 bg-primary/5 text-primary" },
+      { label: "Released", value: operationalJobs.hasLoaded ? Number(operationalJobs.summary.released || 0) : "—", helper: "Ready to start", tone: "border-blue-200 bg-blue-50 text-blue-800" },
+      { label: "In Progress", value: operationalJobs.hasLoaded ? Number(operationalJobs.summary.inProgress || 0) : "—", helper: "Currently running", tone: "border-amber-200 bg-amber-50 text-amber-800" },
+      { label: "Completed Today", value: operationalJobs.hasLoaded ? Number(operationalJobs.summary.completedToday || 0) : "—", helper: "Finished today", tone: "border-emerald-200 bg-emerald-50 text-emerald-800" },
+      { label: "Output Today", value: operationalJobs.hasLoaded ? outputTodayLabel : "—", helper: "Total kg/L produced today", tone: "border-slate-200 bg-white text-text-primary" },
+      { label: "Completion Rate", value: operationalJobs.hasLoaded ? percent(completionRate) : "—", helper: "Completed vs planned", tone: "border-primary/20 bg-primary/5 text-primary" },
     ];
     const boardColumns = [
       { key: "released", title: "Released", helper: "Ready to start", jobs: releasedBoardJobs, accent: "border-blue-200 bg-blue-50", badge: "info" },
@@ -8686,6 +8870,14 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           description="Plan, release, start and complete factory production job orders from one operational board."
           actions={can("factory_job_orders.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "job" })}><ClipboardList size={15} /> Create Job Order</button> : null}
         />
+        {operationalJobs.error ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+            <div className="flex items-start gap-2"><AlertTriangle className="mt-0.5 shrink-0" size={16} /><span>{operationalJobs.hasLoaded ? "Unable to refresh operational Job Orders. Showing the last successfully loaded pipeline." : "Unable to load operational Job Orders. The production pipeline is unavailable."}</span></div>
+            <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={operationalJobs.loading} onClick={loadOperationalJobs}>Retry</button>
+          </div>
+        ) : operationalJobs.loading ? (
+          <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-800">{operationalJobs.hasLoaded ? "Refreshing operational Job Orders…" : "Loading operational Job Orders…"}</div>
+        ) : null}
         <div className="grid gap-3 lg:grid-cols-5">
           {overviewCards.map((card) => (
             <div key={card.label} className={`rounded-2xl border p-4 shadow-sm ${card.tone}`}>
@@ -8697,7 +8889,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         </div>
         <div className="grid gap-5 xl:grid-cols-[minmax(0,1fr)_320px]">
           <Card title="Production Pipeline" description="Released jobs can start production. In-progress jobs are ready for completion confirmation.">
-            <div className="grid gap-4 p-4 lg:grid-cols-3">
+            {!operationalJobs.hasLoaded ? (
+              <div className="p-4"><EmptyState title={operationalJobs.error ? "Production pipeline unavailable" : "Loading production pipeline"} description={operationalJobs.error ? "Retry the operational Job Order query before continuing production work." : "Loading all Released, In Progress and today’s Completed Job Orders."} /></div>
+            ) : <div className="grid gap-4 p-4 lg:grid-cols-3">
               {boardColumns.map((column) => (
                 <div key={column.key} className={`rounded-2xl border p-3 ${column.accent}`}>
                   <div className="mb-3 flex items-center justify-between gap-3">
@@ -8716,11 +8910,13 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                   </div>
                 </div>
               ))}
-            </div>
+            </div>}
           </Card>
           <Card title="Recent Production Activity" description="Latest production starts, meaningful QC updates and completed output.">
             <div className="space-y-3 p-4">
-              {productionActivity.length ? productionActivity.map((activity) => (
+              {!operationalJobs.hasLoaded ? (
+                <EmptyState title={operationalJobs.error ? "Production activity unavailable" : "Loading production activity"} description="Operational activity appears after the complete pipeline loads." />
+              ) : productionActivity.length ? productionActivity.map((activity) => (
                 <div key={activity.id} className="rounded-2xl border border-border bg-white px-3 py-3">
                   <div className="flex flex-wrap items-start justify-between gap-2">
                     <Badge tone={activity.tone}>{activity.label}</Badge>
@@ -8736,8 +8932,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             </div>
           </Card>
         </div>
-        <Card title="Job Order Records" description={`Historical and current job order records. Showing ${data.jobOrders.length} job order(s).`}>
-          <FactoryTable columns={jobColumns} rows={data.jobOrders} emptyTitle="No job orders" emptyDescription="Create a finished good product first, then plan production demand with a job order." />
+        <Card title="Job Order Records" description={`Historical and current job order records. ${factoryListingPage.hasLoaded ? `${factoryListingPage.loadedTotal} total job order(s).` : ""}`}>
+          {listingLoadState("job-orders", "Job Orders")}
+          <div className={factoryListingPage.loading && factoryListingPage.hasLoaded ? "opacity-60 transition-opacity" : "transition-opacity"}>
+            <FactoryTable columns={jobColumns} rows={jobRecordRows} emptyTitle="No job orders" emptyDescription="Create a finished good product first, then plan production demand with a job order." />
+          </div>
+          {listingPagination("job-orders")}
         </Card>
       </div>
     );
@@ -8747,7 +8947,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const activeSuppliers = data.factorySuppliers.filter((supplier) => supplier.status === "active");
     const totalItems = data.receivingBatches.reduce((sum, batch) => sum + Number(batch.items_count || 0), 0);
     const totalQty = data.receivingBatches.reduce((sum, batch) => sum + Number(batch.total_qty || 0), 0);
-    const receivingRows = filteredReceivingBatches();
+    const receivingRows = currentListingRows("receiving-history", filteredReceivingBatches());
+    const receivingSummary = factoryListingPage.summary || {};
     return (
       <div className="space-y-5">
         <PageHeader
@@ -8756,9 +8957,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           description="Record supplier delivery documents with multiple raw material item rows."
         />
         <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={Truck} label="Receiving Documents" value={data.receivingBatches.length} helper="Supplier delivery batches" />
-          <MetricCard icon={PackageCheck} label="Items Received" value={totalItems} helper="Total item rows" />
-          <MetricCard icon={Warehouse} label="Total Qty" value={quantity(totalQty, "")} helper="Across received items" />
+          <MetricCard icon={Truck} label="Receiving Documents" value={factoryListingPage.hasLoaded ? Number(receivingSummary.documents || 0) : data.receivingBatches.length} helper="Supplier delivery batches" />
+          <MetricCard icon={PackageCheck} label="Items Received" value={factoryListingPage.hasLoaded ? Number(receivingSummary.items || 0) : totalItems} helper="Total item rows" />
+          <MetricCard icon={Warehouse} label="Total Qty" value={quantity(factoryListingPage.hasLoaded ? receivingSummary.total_qty : totalQty, "")} helper="Across received items" />
           <MetricCard icon={Tag} label="Active Suppliers" value={activeSuppliers.length} helper="Available for receiving" />
         </div>
         {receivingTab === "history" ? receivingHistoryFilterControls() : null}
@@ -8777,13 +8978,15 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             onSave={saveReceivingBatch}
           />
         ) : (
-          <Card title="Receiving History" description={`Showing ${receivingRows.length} receiving document(s).`}>
+          <Card title="Receiving History" description={factoryListingPage.hasLoaded ? `${factoryListingPage.loadedTotal} receiving document(s).` : "Supplier receiving documents."}>
+            {listingLoadState("receiving-history", "Receiving History")}
             <FactoryTable
               columns={receivingBatchColumns}
               rows={receivingRows}
               emptyTitle="No raw material receiving"
               emptyDescription="Use Receive Raw Material to record a supplier delivery with one or more item rows."
             />
+            {listingPagination("receiving-history")}
           </Card>
         )}
       </div>
@@ -8811,10 +9014,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Card title="Factory Supplier Master" description="Create, edit and archive suppliers for Factory raw material receiving.">
           <FactoryTable
             columns={factorySupplierColumns}
-            rows={data.factorySuppliers}
+            rows={data.factorySuppliers.slice(suppliersPager.from, suppliersPager.to)}
             emptyTitle="No Factory suppliers"
             emptyDescription="Create a Factory supplier before recording raw material receiving documents."
           />
+          <FactoryPagination page={suppliersPager.page} pageSize={suppliersPager.pageSize} total={data.factorySuppliers.length} onPageChange={suppliersPager.setPage} onPageSizeChange={suppliersPager.setPageSize} />
         </Card>
       </div>
     );
@@ -8842,10 +9046,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Card title="Factory Customer Master" description="Create, edit and archive customers for Factory finished goods dispatch.">
           <FactoryTable
             columns={factoryCustomerColumns}
-            rows={data.factoryCustomers}
+            rows={data.factoryCustomers.slice(customersPager.from, customersPager.to)}
             emptyTitle="No Factory customers"
             emptyDescription="Create a Factory customer before recording finished goods dispatch documents."
           />
+          <FactoryPagination page={customersPager.page} pageSize={customersPager.pageSize} total={data.factoryCustomers.length} onPageChange={customersPager.setPage} onPageSizeChange={customersPager.setPageSize} />
         </Card>
       </div>
     );
@@ -8875,19 +9080,21 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Card title="Storage Location Master" description="Create, edit and archive storage locations for Factory master data.">
           <FactoryTable
             columns={storageLocationColumns}
-            rows={data.storageLocations}
+            rows={data.storageLocations.slice(locationsPager.from, locationsPager.to)}
             emptyTitle="No storage locations"
             emptyDescription="Create storage locations before assigning warehouse locations to raw materials or finished goods."
           />
+          <FactoryPagination page={locationsPager.page} pageSize={locationsPager.pageSize} total={data.storageLocations.length} onPageChange={locationsPager.setPage} onPageSizeChange={locationsPager.setPageSize} />
         </Card>
       </div>
     );
   }
 
   function renderRawMaterialMovements() {
-    const rows = filteredRawMaterialMovements().sort(compareRawMaterialMovementsDesc);
+    const rows = currentListingRows("raw-movements", filteredRawMaterialMovements().sort(compareRawMaterialMovementsDesc));
     const stockInRows = rows.filter((row) => Number(row.quantity || 0) > 0);
     const stockOutRows = rows.filter((row) => Number(row.quantity || 0) < 0);
+    const movementSummary = factoryListingPage.summary || {};
     const movementColumns = [
       { key: "movement_date", label: "Date", render: (row) => <span className="whitespace-nowrap font-semibold text-text-primary">{formatFactoryDate(row.movement_date)}</span> },
       { key: "movement_type", label: "Movement Type", render: (row) => <Badge tone={Number(row.quantity || 0) >= 0 ? "success" : "warning"}>{row.movement_type || "Movement"}</Badge> },
@@ -8907,26 +9114,28 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           description="View raw material stock-in, stock-out and approved adjustment movement logs."
         />
         <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={RefreshCw} label="Movements" value={rows.length} helper="Filtered movement rows" />
-          <MetricCard icon={PackageCheck} label="Stock In" value={quantity(stockInRows.reduce((sum, row) => sum + Number(row.quantity || 0), 0), "")} helper="Positive movement qty" tone="success" />
-          <MetricCard icon={Factory} label="Stock Out" value={quantity(Math.abs(stockOutRows.reduce((sum, row) => sum + Number(row.quantity || 0), 0)), "")} helper="Negative movement qty" tone={stockOutRows.length ? "warning" : "success"} />
-          <MetricCard icon={Warehouse} label="Locations" value={new Set(rows.map((row) => row.storage_location).filter(Boolean)).size} helper="Locations in filtered rows" />
+          <MetricCard icon={RefreshCw} label="Movements" value={factoryListingPage.hasLoaded ? Number(movementSummary.movements || 0) : rows.length} helper="Filtered movement rows" />
+          <MetricCard icon={PackageCheck} label="Stock In" value={quantity(factoryListingPage.hasLoaded ? movementSummary.stock_in_qty : stockInRows.reduce((sum, row) => sum + Number(row.quantity || 0), 0), "")} helper="Positive movement qty" tone="success" />
+          <MetricCard icon={Factory} label="Stock Out" value={quantity(factoryListingPage.hasLoaded ? movementSummary.stock_out_qty : Math.abs(stockOutRows.reduce((sum, row) => sum + Number(row.quantity || 0), 0)), "")} helper="Negative movement qty" tone={Number(movementSummary.stock_out_qty || stockOutRows.length) ? "warning" : "success"} />
+          <MetricCard icon={Warehouse} label="Locations" value={factoryListingPage.hasLoaded ? Number(movementSummary.locations || 0) : new Set(rows.map((row) => row.storage_location).filter(Boolean)).size} helper="Locations in filtered rows" />
         </div>
         {rawMovementFilterControls()}
         <Card title="Raw Material Movement History" description="Read-only movement log from receiving, production usage and approved stock checks.">
+          {listingLoadState("raw-movements", "Raw Material Movements")}
           <FactoryTable
             columns={movementColumns}
             rows={rows}
             emptyTitle="No raw material movements"
             emptyDescription="Receiving, production actual usage and approved stock checks will create raw material movement rows."
           />
+          {listingPagination("raw-movements")}
         </Card>
       </div>
     );
   }
 
   function renderRawInventory() {
-    const rows = filteredRawMaterialRows();
+    const rows = rawInventoryMasterRows.slice(rawInventoryPager.from, rawInventoryPager.to);
     const activeRows = data.rawMaterials.filter((item) => item.status === "active");
     const activeInventoryRows = rawMaterialRows().filter((item) => item.status === "active");
     const inventoryValue = activeInventoryRows.reduce((sum, item) => sum + Number(item.inventory_value || 0), 0);
@@ -8967,13 +9176,15 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             emptyTitle="No raw materials"
             emptyDescription="Create a raw material before receiving stock or building Product Recipes."
           />
+          <FactoryPagination page={rawInventoryPager.page} pageSize={rawInventoryPager.pageSize} total={rawInventoryMasterRows.length} onPageChange={rawInventoryPager.setPage} onPageSizeChange={rawInventoryPager.setPageSize} />
         </Card>
       </div>
     );
   }
 
   function renderRawStockCheck() {
-    const criticalRows = data.rawStockChecks
+    const rawStockCheckRows = currentListingRows("raw-stock-checks", data.rawStockChecks);
+    const criticalRows = rawStockCheckRows
       .flatMap((check) => check.items || [])
       .filter((item) => item.variance_status !== "Skipped" && item.count_status !== "skip" && stockCheckVariance(item.system_qty, item.physical_qty).status === "Critical");
     return (
@@ -8986,12 +9197,14 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={Warehouse} label="Raw Materials" value={data.rawMaterials.length} helper="Available for count" />
-          <MetricCard icon={ClipboardCheck} label="Checks" value={data.rawStockChecks.length} helper="Raw material checks" />
-          <MetricCard icon={Clock3} label="Submitted" value={data.rawStockChecks.filter((row) => row.status === "submitted").length} helper="Awaiting approval" tone={data.rawStockChecks.some((row) => row.status === "submitted") ? "warning" : "success"} />
-          <MetricCard icon={AlertTriangle} label="Critical Rows" value={criticalRows.length} helper="Requires review" tone={criticalRows.length ? "danger" : "success"} />
+          <MetricCard icon={ClipboardCheck} label="Checks" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.checks || 0) : data.rawStockChecks.length} helper="Raw material checks" />
+          <MetricCard icon={Clock3} label="Submitted" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.submitted || 0) : data.rawStockChecks.filter((row) => row.status === "submitted").length} helper="Awaiting approval" tone={Number(factoryListingPage.summary.submitted || data.rawStockChecks.some((row) => row.status === "submitted")) ? "warning" : "success"} />
+          <MetricCard icon={AlertTriangle} label="Critical Rows" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.critical_rows || 0) : criticalRows.length} helper="Requires review" tone={Number(factoryListingPage.summary.critical_rows || criticalRows.length) ? "danger" : "success"} />
         </div>
         <Card title="Raw Material Stock Checks" description="Draft and submitted checks do not adjust stock. Approval applies the variance adjustment.">
-          {stockCheckHistoryList("raw", data.rawStockChecks, "No raw material stock checks", "Create a stock check to capture physical counts.")}
+          {listingLoadState("raw-stock-checks", "Raw Material Stock Checks")}
+          {stockCheckHistoryList("raw", rawStockCheckRows, "No raw material stock checks", "Create a stock check to capture physical counts.")}
+          {listingPagination("raw-stock-checks")}
         </Card>
       </div>
     );
@@ -9000,6 +9213,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   function renderProductionSop() {
     const qcCheckpointCount = data.sops.flatMap((sop) => sop.steps || []).reduce((sum, step) => sum + (step.qc_checks?.length || ((step.qc_required || step.is_qc_checkpoint) ? 1 : 0)), 0);
     const coveredProducts = new Set(data.sops.map((sop) => sop.finished_good_id || sop.product_name).filter(Boolean)).size;
+    const visibleSopRows = sopProductGroups
+      .slice(sopsPager.from, sopsPager.to)
+      .flatMap((group) => group.sops);
     return (
       <div className="space-y-5">
         <PageHeader
@@ -9015,7 +9231,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={CheckCircle2} label="Active SOPs" value={data.sops.filter((sop) => sop.status === "active").length} helper="Available for production" />
         </div>
         <Card title="Production SOP Records" description="SOPs are standard process references and do not represent actual production results.">
-          <FactoryTable columns={sopColumns} rows={data.sops} emptyTitle="No Production SOPs" emptyDescription="Create SOP steps before attaching a standard process to production batches." />
+          <FactoryTable columns={sopColumns} rows={visibleSopRows} emptyTitle="No Production SOPs" emptyDescription="Create SOP steps before attaching a standard process to production batches." />
+          <FactoryPagination page={sopsPager.page} pageSize={sopsPager.pageSize} total={sopProductGroups.length} onPageChange={sopsPager.setPage} onPageSizeChange={sopsPager.setPageSize} />
         </Card>
       </div>
     );
@@ -9053,6 +9270,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         return (statusRank[a.status] ?? 9) - (statusRank[b.status] ?? 9) || versionA - versionB;
       }),
     })).sort((a, b) => a.name.localeCompare(b.name));
+    const visibleRecipeGroups = recipeGroups.slice(recipesPager.from, recipesPager.to);
     return (
       <div className="space-y-5">
         <PageHeader
@@ -9070,7 +9288,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Card title="Recipe Records" description="Versions are grouped under each Finished Good. Drafts can be edited before activation. Click a version to view BOM details.">
           {recipeGroups.length ? (
             <div className="space-y-4">
-              {recipeGroups.map((group) => (
+              {visibleRecipeGroups.map((group) => (
                 <div key={group.id} className="overflow-hidden rounded-2xl border border-border bg-white">
                   <div className="flex flex-col gap-1 border-b border-border bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
@@ -9142,6 +9360,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
               <div className="mt-1 text-sm font-semibold text-text-secondary">Create a Product Recipe / BOM to prefill production material usage.</div>
             </div>
           )}
+          <FactoryPagination page={recipesPager.page} pageSize={recipesPager.pageSize} total={recipeGroups.length} onPageChange={recipesPager.setPage} onPageSizeChange={recipesPager.setPageSize} />
         </Card>
       </div>
     );
@@ -9161,7 +9380,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       if (shortages.length) return { label: `${shortages.length} shortage`, tone: "danger" };
       return { label: "Ready", tone: "success" };
     };
-    const readyJobs = data.jobOrders.filter((job) => ["released", "planned", "in_progress"].includes(job.status));
+    const readyJobs = operationalJobs.hasLoaded
+      ? operationalJobs.jobs.filter((job) => ["released", "in_progress"].includes(job.status))
+      : [];
+    const productionHistoryRows = currentListingRows("production-history", data.productions);
     const productionReadyJobColumns = [
       { key: "job", label: "Job Order", render: (row) => <div><div className="font-bold text-text-primary">{row.job_order_no}</div><div className="text-xs text-text-secondary">{row.priority} · {jobStatusLabel(row.status)}</div></div> },
       { key: "finished_good", label: "Finished Good", render: (row) => <div><div className="font-semibold text-text-primary">{row.product_name}</div><div className="text-xs text-text-secondary">{row.product_code || "No SKU"}</div></div> },
@@ -9193,22 +9415,32 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           description="Execute job orders, capture actual material usage, deduct raw stock and stock in finished goods."
           actions={readyJobs[0] && can("factory_production.complete") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: readyJobs[0].status === "in_progress" ? "production" : "start-production", job: readyJobs[0] })}><Play size={15} /> Next Production Step</button> : null}
         />
+        {operationalJobs.error ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
+            <div className="flex items-start gap-2"><AlertTriangle className="mt-0.5 shrink-0" size={16} /><span>{operationalJobs.hasLoaded ? "Unable to refresh operational Job Orders. Showing the last successfully loaded queue." : "Unable to load operational Job Orders. The production queue is unavailable."}</span></div>
+            <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={operationalJobs.loading} onClick={loadOperationalJobs}>Retry</button>
+          </div>
+        ) : operationalJobs.loading ? (
+          <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-800">{operationalJobs.hasLoaded ? "Refreshing operational Job Orders…" : "Loading operational Job Orders…"}</div>
+        ) : null}
         <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={Factory} label="Completed Runs" value={metrics.completedProductions.length} helper="Production completions" />
-          <MetricCard icon={PackageCheck} label="Good Output" value={quantity(metrics.totalGoodOutput, "")} helper="Finished goods stocked in" />
-          <MetricCard icon={AlertTriangle} label="Wastage Qty" value={quantity(metrics.totalWastage, "")} helper="Reported production wastage" tone={metrics.totalWastage ? "warning" : "success"} />
-          <MetricCard icon={Activity} label="High Variance" value={metrics.highVarianceUsage.length} helper="Material rows above 5%" tone={metrics.highVarianceUsage.length ? "warning" : "success"} />
+          <MetricCard icon={Factory} label="Completed Runs" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.completed_runs || 0) : metrics.completedProductions.length} helper="Production completions" />
+          <MetricCard icon={PackageCheck} label="Good Output" value={quantity(factoryListingPage.hasLoaded ? factoryListingPage.summary.good_output : metrics.totalGoodOutput, "")} helper="Finished goods stocked in" />
+          <MetricCard icon={AlertTriangle} label="Wastage Qty" value={quantity(factoryListingPage.hasLoaded ? factoryListingPage.summary.wastage_qty : metrics.totalWastage, "")} helper="Reported production wastage" tone={Number(factoryListingPage.summary.wastage_qty || metrics.totalWastage) ? "warning" : "success"} />
+          <MetricCard icon={Activity} label="High Variance" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.high_variance || 0) : metrics.highVarianceUsage.length} helper="Material rows above 5%" tone={Number(factoryListingPage.summary.high_variance || metrics.highVarianceUsage.length) ? "warning" : "success"} />
         </div>
         <div className="grid gap-4 xl:grid-cols-[1.1fr_0.9fr]">
           <Card title="Production Queue" description="Released jobs can be started. In Progress jobs can be completed.">
-            <FactoryTable columns={productionReadyJobColumns} rows={readyJobs} emptyTitle="No jobs ready for production" emptyDescription="Release a draft job order before starting production." />
+            {operationalJobs.hasLoaded ? <FactoryTable columns={productionReadyJobColumns} rows={readyJobs} emptyTitle="No jobs ready for production" emptyDescription="Release a draft job order before starting production." /> : <div className="p-4"><EmptyState title={operationalJobs.error ? "Production queue unavailable" : "Loading production queue"} description="The queue appears after all operational Job Orders load." /></div>}
           </Card>
           <Card title="Finished Goods Stock" description="Balances created from completed production stock-in movements.">
             <FactoryTable columns={finishedGoodsColumns} rows={data.finishedGoods.slice(0, 8)} emptyTitle="No finished goods stock" emptyDescription="Complete production to stock in finished goods." />
           </Card>
         </div>
-        <Card title="Production Completion History" description={`Showing ${data.productions.length} completed production record(s).`}>
-          <FactoryTable columns={productionColumns} rows={data.productions} emptyTitle="No production records" emptyDescription="Start production from a job order to create the first record." />
+        <Card title="Production Completion History" description={factoryListingPage.hasLoaded ? `${factoryListingPage.loadedTotal} production record(s).` : "Completed production records."}>
+          {listingLoadState("production-history", "Production History")}
+          <FactoryTable columns={productionColumns} rows={productionHistoryRows} emptyTitle="No production records" emptyDescription="Start production from a job order to create the first record." />
+          {listingPagination("production-history")}
         </Card>
         <Card title="Finished Goods Movements" description="Stock-in movements created by production completion.">
           <FactoryTable
@@ -9229,9 +9461,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   function renderBatchTraceability() {
-    const rows = data.productions.map((production) => {
+    const traceProductions = currentListingRows("batch-traceability", data.productions);
+    const rows = traceProductions.map((production) => {
       const job = data.jobOrders.find((item) => item.id === production.job_order_id);
-      const stockInMovements = data.productMovements.filter((movement) => movement.reference_type === "production" && movement.reference_id === production.id);
+      const stockInMovements = production.stock_in_movements || data.productMovements.filter((movement) => movement.reference_type === "production" && movement.reference_id === production.id);
       const finishedGood = data.finishedGoods.find((item) => item.id === production.finished_good_id || item.id === job?.finished_good_id);
       const recipe = data.recipes.find((item) => item.id === production.recipe_id)
         || data.recipes.find((item) => item.status === "active" && item.product_family_id && item.product_family_id === (production.product_family_id || finishedGood?.product_family_id))
@@ -9245,10 +9478,15 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       return groups;
     }, {});
     const stockInTypes = Object.keys(totalStockInByType);
-    const finishedGoodsProducedValue = stockInTypes.length === 1
+    const pageFinishedGoodsProducedValue = stockInTypes.length === 1
       ? quantity(totalStockInByType[stockInTypes[0]], stockInTypes[0])
       : stockInTypes.length > 1 ? "Mixed" : "—";
-    const traceabilityGapCount = rows.reduce((sum, row) => sum + traceabilitySteps(row).filter((step) => step.status !== "complete").length, 0);
+    const outputGroups = Array.isArray(factoryListingPage.summary.output_groups) ? factoryListingPage.summary.output_groups : [];
+    const finishedGoodsProducedValue = outputGroups.length === 1
+      ? quantity(outputGroups[0].quantity, pluralizePackagingType(outputGroups[0].unit, Number(outputGroups[0].quantity || 0)))
+      : outputGroups.length > 1 ? "Mixed" : pageFinishedGoodsProducedValue;
+    const pageTraceabilityGapCount = rows.reduce((sum, row) => sum + traceabilitySteps(row).filter((step) => step.status !== "complete").length, 0);
+    const traceabilityGapCount = factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.traceability_gaps || 0) : pageTraceabilityGapCount;
 
     function stockInBaseEquivalent(movement) {
       const base = normalizePackSizeToBase(movement.pack_size_qty || movement.base_qty, movement.pack_size_uom || movement.base_uom);
@@ -9371,12 +9609,13 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           actions={<button className="btn-secondary" type="button" onClick={loadData}><RefreshCw size={15} /> Refresh</button>}
         />
         <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={Factory} label="Production Batches" value={rows.length} helper="Completed production batches" />
-          <MetricCard icon={Truck} label="Raw Material Lots" value={rows.flatMap((row) => row.material_usage || []).filter((item) => item.raw_material_lot_no || item.receiving_ref).length} helper="Lot-linked material usage" />
+          <MetricCard icon={Factory} label="Production Batches" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.production_batches || 0) : rows.length} helper="Completed production batches" />
+          <MetricCard icon={Truck} label="Raw Material Lots" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.raw_material_lots || 0) : rows.flatMap((row) => row.material_usage || []).filter((item) => item.raw_material_lot_no || item.receiving_ref).length} helper="Lot-linked material usage" />
           <MetricCard icon={PackageCheck} label="Finished Goods Produced" value={finishedGoodsProducedValue} helper="Packaging units stocked in" />
           <MetricCard icon={AlertTriangle} label="Traceability Gaps" value={traceabilityGapCount} helper="Missing lot / QC / dispatch links" tone={traceabilityGapCount ? "warning" : "success"} />
         </div>
         <Card title="Batch Traceability Records" description="Follow each production batch from recipe through raw material lots, stock-in, QC and Phase 2 dispatch allocation readiness.">
+          {listingLoadState("batch-traceability", "Batch Traceability")}
           <div className="space-y-4 p-4">
             {rows.length ? rows.map((row) => {
               const status = batchStatus(row);
@@ -9467,6 +9706,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
               );
             }) : <EmptyState title="No batch traceability records" description="Complete production to create batch traceability records." />}
           </div>
+          {listingPagination("batch-traceability")}
         </Card>
       </div>
     );
@@ -9677,7 +9917,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   function renderFinishedGoods() {
-    const productGroups = finishedGoodProductGroups();
+    const allProductGroups = finishedGoodsMasterGroups;
+    const productGroups = allProductGroups.slice(finishedGoodsPager.from, finishedGoodsPager.to);
     const outOfStockItems = data.finishedGoods.filter((row) => Number(row.current_balance || 0) <= 0);
     const canManageFinishedGoods = can("factory_finished_goods.create") || can("factory_finished_goods.edit");
     const activeRecipeCount = data.recipes.filter((recipe) => recipe.status === "active").length;
@@ -9697,7 +9938,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           )}
         />
         <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={PackageCheck} label="Finished Goods" value={productGroups.length} helper="Product identities" />
+          <MetricCard icon={PackageCheck} label="Finished Goods" value={allProductGroups.length} helper="Product identities" />
           <MetricCard icon={Warehouse} label="Packaging SKUs" value={data.finishedGoods.length} helper="Inventory SKUs" />
           <MetricCard icon={BookOpen} label="Active Recipes" value={activeRecipeCount} helper="Production standards" tone={activeRecipeCount ? "success" : "warning"} />
           <MetricCard icon={Clock3} label="Out of Stock SKUs" value={outOfStockItems.length} helper="Current balance zero" tone={outOfStockItems.length ? "danger" : "success"} />
@@ -9847,6 +10088,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
               })}
             </div>
           )}
+          <FactoryPagination page={finishedGoodsPager.page} pageSize={finishedGoodsPager.pageSize} total={allProductGroups.length} onPageChange={finishedGoodsPager.setPage} onPageSizeChange={finishedGoodsPager.setPageSize} />
         </Card>
       </div>
     );
@@ -9857,7 +10099,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const draftRows = data.finishedGoodDispatches.filter((row) => row.status === "draft");
     const completedToday = data.finishedGoodDispatches.filter((row) => row.status === "completed" && String(row.completed_at || row.dispatch_date || "").slice(0, 10) === today);
     const customersToday = new Set(completedToday.map((row) => row.customer_id || row.customer_name).filter(Boolean)).size;
-    const dispatchRows = filteredFinishedGoodDispatches();
+    const dispatchRows = currentListingRows("dispatch-history", filteredFinishedGoodDispatches());
     const renderDispatchActions = (row) => (
       <div className="flex flex-wrap justify-end gap-2">
         <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-dispatch", value: row, mode: "view" })}>View</button>
@@ -9885,10 +10127,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           description="Record outbound Packaging SKU dispatches to customers or outlets. Completion creates finished goods stock-out movements."
         />
         <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={ClipboardCheck} label="Draft" value={draftRows.length} helper="Awaiting completion" tone={draftRows.length ? "warning" : "success"} />
-          <MetricCard icon={CheckCircle2} label="Completed Today" value={completedToday.length} helper="Finished dispatches" tone="success" />
-          <MetricCard icon={PackageCheck} label="Dispatched Today" value={completedToday.length} helper="Completed dispatch records" />
-          <MetricCard icon={Truck} label="Customers Today" value={customersToday} helper="Unique dispatch customers" />
+          <MetricCard icon={ClipboardCheck} label="Draft" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.draft || 0) : draftRows.length} helper="Awaiting completion" tone={Number(factoryListingPage.summary.draft || draftRows.length) ? "warning" : "success"} />
+          <MetricCard icon={CheckCircle2} label="Completed Today" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.completed_today || 0) : completedToday.length} helper="Finished dispatches" tone="success" />
+          <MetricCard icon={PackageCheck} label="Dispatched Today" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.completed_today || 0) : completedToday.length} helper="Completed dispatch records" />
+          <MetricCard icon={Truck} label="Customers Today" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.customers_today || 0) : customersToday} helper="Unique dispatch customers" />
         </div>
         {dispatchTab === "history" ? dispatchHistoryFilterControls() : null}
         <Card title="Finished Goods Dispatch" description="Create drafts first, then complete them to deduct Packaging SKU stock and create Product Movement rows.">
@@ -9912,6 +10154,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
               )
             ) : (
               <>
+                {listingLoadState("dispatch-history", "Dispatch History")}
                 <div className="md:hidden">
                   {!dispatchRows.length ? (
                     <div className="p-4"><EmptyState title="No finished goods dispatches" description="Create a dispatch draft to record outbound Packaging SKU delivery." /></div>
@@ -9946,6 +10189,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                     emptyDescription="Create a dispatch draft to record outbound Packaging SKU delivery."
                   />
                 </div>
+                {listingPagination("dispatch-history")}
               </>
             )}
           </div>
@@ -9960,7 +10204,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       source_label: movementSourceLabel(movement),
       movement_type_label: movementTypeLabel(movement),
     }));
-    const currentSkuBalanceByType = productMovementLedger.filteredSkus
+    const currentSkuBalanceByType = (productMovementLedger.summary.filteredSkus || [])
       .reduce((groups, sku) => {
         const type = pluralizePackagingType(packagingTypeLabel(sku), Number(sku.current_balance || 0));
         groups[type] = (groups[type] || 0) + Number(sku.current_balance || 0);
@@ -9970,22 +10214,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const currentSkuBalanceValue = currentSkuBalanceTypes.length === 1
       ? quantity(currentSkuBalanceByType[currentSkuBalanceTypes[0]], currentSkuBalanceTypes[0])
       : currentSkuBalanceTypes.length > 1 ? "Mixed" : "—";
-    const totalPages = Math.max(1, Math.ceil(productMovementLedger.loadedTotal / productMovementLedger.loadedPageSize));
-    const showingFrom = productMovementLedger.loadedTotal ? ((productMovementLedger.loadedPage - 1) * productMovementLedger.loadedPageSize) + 1 : 0;
-    const showingTo = Math.min(productMovementLedger.loadedPage * productMovementLedger.loadedPageSize, productMovementLedger.loadedTotal);
-    const pageItems = compactPageNumbers(productMovementLedger.loadedPage, totalPages);
-    const requestedQuerySignature = productMovementQuerySignature(productMovementLedger.requestedPage, productMovementLedger.requestedPageSize, warehouseFilters);
-    const requestedFilterSignature = productMovementFilterSignature(productMovementLedger.requestedPageSize, warehouseFilters);
-    const updatingDifferentQuery = productMovementLedger.hasLoaded && requestedQuerySignature !== productMovementLedger.loadedQuerySignature;
-    const loadingMessage = !productMovementLedger.hasLoaded
-      ? "Loading Product Movements…"
-      : requestedFilterSignature !== productMovementLedger.loadedFilterSignature
-        ? "Updating results…"
-        : productMovementLedger.requestedPage !== productMovementLedger.loadedPage
-        ? `Loading page ${productMovementLedger.requestedPage}…`
-        : updatingDifferentQuery ? "Updating results…" : "Refreshing results…";
-    const changePage = (page) => setProductMovementLedger((current) => ({ ...current, requestedPage: Math.max(1, Math.min(page, totalPages)) }));
-    const retryProductMovements = () => setProductMovementLedger((current) => ({ ...current, retryToken: current.retryToken + 1 }));
     const movementColumns = [
       { key: "movement_date", label: "Date", render: (row) => <span className="whitespace-nowrap font-semibold text-text-primary">{formatFactoryDate(row.movement_date)}</span> },
       { key: "movement_type", label: "Type", render: (row) => <Badge tone={row.quantity >= 0 ? "success" : "warning"}>{row.movement_type_label}</Badge> },
@@ -10004,23 +10232,14 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={Activity} label="Movements" value={productMovementLedger.loadedTotal} helper="Filtered ledger entries" />
-          <MetricCard icon={PackageCheck} label="Stock In" value={productMovementLedger.stockInCount} helper="Filtered inbound entries" tone="success" />
-          <MetricCard icon={AlertTriangle} label="Stock Out" value={productMovementLedger.stockOutCount} helper="Filtered outbound entries" tone="warning" />
+          <MetricCard icon={PackageCheck} label="Stock In" value={productMovementLedger.summary.stockInCount || 0} helper="Filtered inbound entries" tone="success" />
+          <MetricCard icon={AlertTriangle} label="Stock Out" value={productMovementLedger.summary.stockOutCount || 0} helper="Filtered outbound entries" tone="warning" />
           <MetricCard icon={Warehouse} label="Current SKU Balance" value={currentSkuBalanceValue} helper="Across moved Packaging SKUs" />
         </div>
         {productMovementFilterControls()}
         <Card className="relative">
           {productMovementLedger.loading ? <div className="absolute inset-x-0 top-0 z-10 h-1 overflow-hidden rounded-t-xl bg-primary/15"><div className="h-full w-1/3 animate-pulse rounded-full bg-primary" /></div> : null}
-          {productMovementLedger.error ? (
-            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3">
-              <div className="flex min-w-0 items-start gap-2 text-sm font-semibold text-amber-900">
-                <AlertTriangle className="mt-0.5 shrink-0" size={16} />
-                <span>{productMovementLedger.hasLoaded ? "Unable to load the latest Product Movements. Showing the last successfully loaded results." : "Unable to load Product Movements."}</span>
-              </div>
-              <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={productMovementLedger.loading} onClick={retryProductMovements}>Retry</button>
-            </div>
-          ) : null}
-          {productMovementLedger.loading ? <div className="border-b border-sky-200 bg-sky-50 px-4 py-2 text-xs font-bold text-sky-800">{loadingMessage}</div> : null}
+          <FactoryTableLoadState state={productMovementLedger} label="Product Movements" onRetry={productMovementActions.retry} />
           <div className={productMovementLedger.loading && productMovementLedger.hasLoaded ? "opacity-60 transition-opacity" : "transition-opacity"}>
             <div className="md:hidden">
             {!productMovementLedger.hasLoaded ? (
@@ -10059,55 +10278,14 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             />
             </div>
           </div>
-          {productMovementLedger.loadedTotal > 0 ? (
-            <div className="border-t border-border px-4 py-3">
-              <div className="hidden items-center justify-between gap-4 md:flex">
-                <div className="text-sm font-semibold text-text-secondary">Showing {showingFrom.toLocaleString("en-MY")}–{showingTo.toLocaleString("en-MY")} of {productMovementLedger.loadedTotal.toLocaleString("en-MY")} records</div>
-                <div className="flex items-center gap-3">
-                  <div className="flex items-center gap-2">
-                    <span className="whitespace-nowrap text-xs font-semibold text-text-secondary">Rows per page</span>
-                    <div className="w-24">
-                      <SearchableSelect
-                        value={productMovementLedger.loadedPageSize}
-                        options={[20, 50, 100].map((size) => ({ value: size, label: String(size) }))}
-                        placeholder="20"
-                        searchPlaceholder="Rows"
-                        disabled={productMovementLedger.loading}
-                        onChange={(pageSize) => setProductMovementLedger((current) => ({ ...current, requestedPage: 1, requestedPageSize: Number(pageSize) }))}
-                      />
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <button className="btn-secondary px-3 py-2 text-xs" type="button" disabled={productMovementLedger.loading || productMovementLedger.loadedPage <= 1} onClick={() => changePage(productMovementLedger.loadedPage - 1)}>Previous</button>
-                    {pageItems.map((item) => typeof item === "number" ? (
-                      <button
-                        key={item}
-                        className={`h-9 min-w-9 rounded-lg border px-2 text-xs font-bold transition ${item === productMovementLedger.loadedPage ? "border-primary bg-primary text-white" : "border-border bg-white text-text-secondary hover:border-primary hover:text-primary"}`}
-                        type="button"
-                        disabled={productMovementLedger.loading}
-                        aria-current={item === productMovementLedger.loadedPage ? "page" : undefined}
-                        onClick={() => changePage(item)}
-                      >
-                        {item}
-                      </button>
-                    ) : <span key={item} className="px-1 text-sm font-bold text-text-muted">…</span>)}
-                    <button className="btn-secondary px-3 py-2 text-xs" type="button" disabled={productMovementLedger.loading || productMovementLedger.loadedPage >= totalPages} onClick={() => changePage(productMovementLedger.loadedPage + 1)}>Next</button>
-                  </div>
-                </div>
-              </div>
-              <div className="flex items-center justify-between gap-3 md:hidden">
-                <button className="btn-secondary px-3 py-2 text-xs" type="button" disabled={productMovementLedger.loading || productMovementLedger.loadedPage <= 1} onClick={() => changePage(productMovementLedger.loadedPage - 1)}>Previous</button>
-                <span className="text-sm font-bold text-text-secondary">Page {productMovementLedger.loadedPage} of {totalPages}</span>
-                <button className="btn-secondary px-3 py-2 text-xs" type="button" disabled={productMovementLedger.loading || productMovementLedger.loadedPage >= totalPages} onClick={() => changePage(productMovementLedger.loadedPage + 1)}>Next</button>
-              </div>
-            </div>
-          ) : null}
+          {productMovementLedger.hasLoaded ? <FactoryPagination page={productMovementLedger.loadedPage} pageSize={productMovementLedger.loadedPageSize} total={productMovementLedger.loadedTotal} loading={productMovementLedger.loading} onPageChange={productMovementActions.requestPage} onPageSizeChange={productMovementActions.requestPageSize} /> : null}
         </Card>
       </div>
     );
   }
 
   function renderProductStockCheck() {
+    const productStockCheckRows = currentListingRows("product-stock-checks", data.productStockChecks);
     return (
       <div className="space-y-5">
         <PageHeader
@@ -10118,19 +10296,21 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={PackageCheck} label="Finished Goods" value={data.finishedGoods.length} helper="Available for count" />
-          <MetricCard icon={ClipboardCheck} label="Checks" value={data.productStockChecks.length} helper="Finished goods checks" />
-          <MetricCard icon={Clock3} label="Submitted" value={data.productStockChecks.filter((row) => row.status === "submitted").length} helper="Awaiting approval" tone={data.productStockChecks.some((row) => row.status === "submitted") ? "warning" : "success"} />
-          <MetricCard icon={AlertTriangle} label="Variance Rows" value={data.productStockChecks.flatMap((row) => row.items || []).filter((item) => item.variance_status !== "Normal").length} helper="Above 2%" tone="warning" />
+          <MetricCard icon={ClipboardCheck} label="Checks" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.checks || 0) : data.productStockChecks.length} helper="Finished goods checks" />
+          <MetricCard icon={Clock3} label="Submitted" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.submitted || 0) : data.productStockChecks.filter((row) => row.status === "submitted").length} helper="Awaiting approval" tone={Number(factoryListingPage.summary.submitted || data.productStockChecks.some((row) => row.status === "submitted")) ? "warning" : "success"} />
+          <MetricCard icon={AlertTriangle} label="Variance Rows" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.variance_rows || 0) : data.productStockChecks.flatMap((row) => row.items || []).filter((item) => item.variance_status !== "Normal").length} helper="Above 2%" tone="warning" />
         </div>
         <Card title="Finished Goods Stock Checks" description="Draft and submitted checks do not adjust stock. Approval applies the variance adjustment.">
-          {stockCheckHistoryList("product", data.productStockChecks, "No finished goods stock checks", "Create a stock check to capture physical counts.")}
+          {listingLoadState("product-stock-checks", "Product Stock Checks")}
+          {stockCheckHistoryList("product", productStockCheckRows, "No finished goods stock checks", "Create a stock check to capture physical counts.")}
+          {listingPagination("product-stock-checks")}
         </Card>
       </div>
     );
   }
 
   function renderFactoryAuditLogs() {
-    const rows = filteredFactoryAuditLogs();
+    const rows = currentListingRows("audit-logs", filteredFactoryAuditLogs());
     const today = todayInput();
     const users = new Set(data.auditLogs.map((event) => event.actor_name || "System").filter(Boolean));
     const failedRows = data.auditLogs.filter((event) => factoryAuditStatusTone(event.status) === "danger");
@@ -10151,13 +10331,14 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           description="Track important Factory actions, document changes and system events."
         />
         <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={ClipboardList} label="Audit Events" value={data.auditLogs.length} helper="Factory event records" />
-          <MetricCard icon={Clock3} label="Today" value={data.auditLogs.filter((event) => String(event.created_at || "").slice(0, 10) === today).length} helper={today} />
-          <MetricCard icon={Factory} label="Users" value={users.size} helper="Actors in current log" />
-          <MetricCard icon={AlertTriangle} label="Failed Events" value={failedRows.length} helper="Events marked failed" tone={failedRows.length ? "danger" : "success"} />
+          <MetricCard icon={ClipboardList} label="Audit Events" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.events || 0) : data.auditLogs.length} helper="Factory event records" />
+          <MetricCard icon={Clock3} label="Today" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.today || 0) : data.auditLogs.filter((event) => String(event.created_at || "").slice(0, 10) === today).length} helper={today} />
+          <MetricCard icon={Factory} label="Users" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.users || 0) : users.size} helper="Actors in current log" />
+          <MetricCard icon={AlertTriangle} label="Failed Events" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.failed || 0) : failedRows.length} helper="Events marked failed" tone={Number(factoryListingPage.summary.failed || failedRows.length) ? "danger" : "success"} />
         </div>
         {factoryAuditFilterControls()}
         <Card title="Audit Ledger">
+          {listingLoadState("audit-logs", "Factory Audit Logs")}
           <div className="md:hidden">
             {!rows.length ? (
               <div className="p-4"><EmptyState title="No Audit Logs Yet" description="Factory actions will appear here once audit logging is enabled." /></div>
@@ -10191,6 +10372,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
               emptyDescription="Factory actions will appear here once audit logging is enabled."
             />
           </div>
+          {listingPagination("audit-logs")}
         </Card>
       </div>
     );

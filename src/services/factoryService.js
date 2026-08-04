@@ -26,6 +26,20 @@ function databaseUuid(value) {
   return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(text) ? text : null;
 }
 
+function throwFactorySupabaseError(scope, error) {
+  if (!error) return;
+  try {
+    throwSupabaseError(scope, error);
+  } catch (wrappedError) {
+    wrappedError.code = error.code;
+    wrappedError.details = error.details;
+    wrappedError.hint = error.hint;
+    wrappedError.status = error.status;
+    wrappedError.statusCode = error.statusCode;
+    throw wrappedError;
+  }
+}
+
 export function strictTimeValueMinutes(value) {
   const match = /^([01]\d|2[0-3]):([0-5]\d)$/.exec(String(value || "").trim());
   return match ? (Number(match[1]) * 60) + Number(match[2]) : null;
@@ -333,14 +347,16 @@ function mapRawMaterialMovement(row) {
     movement_type: row.movement_type || "",
     quantity: normalizeNumber(row.quantity),
     uom: row.uom || rawMaterial.uom || "",
-    storage_location: rawMaterial.storage_location_ref?.location_name || rawMaterial.storage_location || "",
+    storage_location: row.storage_location || rawMaterial.storage_location_ref?.location_name || rawMaterial.storage_location || "",
+    batch_no: row.batch_no || "",
+    balance_after: row.balance_after == null ? null : normalizeNumber(row.balance_after),
     reference_type: row.reference_type || "",
     reference_id: row.reference_id || "",
     reference_no: row.reference_no || "",
     movement_date: row.movement_date || "",
     notes: row.notes || "",
     created_by: row.created_by || "",
-    created_by_name: row.creator?.nickname || row.creator?.full_name || row.created_by || "",
+    created_by_name: row.creator?.nickname || row.creator?.full_name || row.created_by_name || row.created_by || "",
     created_at: row.created_at,
   };
 }
@@ -917,13 +933,260 @@ const factoryCustomerSelect = "id,customer_code,customer_name,customer_type,cont
 const rawMaterialSelect = `id,material_code,name,name_en,name_cn,name_bm,image_url,category_id,category,uom,current_balance,min_stock_level,manual_unit_cost,manual_cost_uom,preferred_supplier,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_raw_material_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)`;
 const rawMaterialRelationSelect = "name,name_en,name_cn,name_bm,image_url,material_code,uom,manual_unit_cost,manual_cost_uom,storage_location,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status)";
 const productFamilyRelationSelect = "id,name_en,name_cn,name_bm,status";
-const recipeSelect = `id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),finished_good:factory_finished_goods(${finishedGoodSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`;
+const recipeRootSelect = `id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),finished_good:factory_finished_goods(${finishedGoodSelect})`;
+const recipeSelect = `${recipeRootSelect},items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`;
 const recipeSummarySelect = `id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),finished_good:factory_finished_goods(${finishedGoodSelect})`;
+const recipeItemSelect = `id,recipe_id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect})`;
+const sopRootSelect = `id,sop_code,title,product_name,finished_good_id,recipe_id,recipe_version,version,effective_date,equipment,estimated_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_product_families(id,name_en,name_cn,name_bm,status),linked_recipe:factory_product_recipes(id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,estimated_production_time_minutes,status,notes,remarks,created_by,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),finished_good:factory_finished_goods(${finishedGoodSelect}))`;
 const sopSelect = `id,sop_code,title,product_name,finished_good_id,recipe_id,recipe_version,version,effective_date,equipment,estimated_minutes,status,notes,remarks,created_by,created_at,updated_at,finished_good:factory_product_families(id,name_en,name_cn,name_bm,status),linked_recipe:factory_product_recipes(id,recipe_code,finished_good_id,product_family_id,recipe_name,product_name,version,yield_quantity,uom,status,notes,remarks,created_by,created_at,updated_at,product_family:factory_product_families(${productFamilyRelationSelect}),items:factory_product_recipe_items(id,raw_material_id,quantity_used,uom,wastage_percent,sort_order,notes,remarks,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))),steps:factory_production_sop_steps(id,sop_id,step_no,instruction,process_name,description,control_point,qc_label,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,qc_measurement_type,qc_target_value,qc_minimum,qc_maximum,qc_uom,qc_required_before_completion,safety_note,remarks,created_at,updated_at,sub_steps:factory_production_sop_sub_steps(id,sop_step_id,sequence_no,instruction,estimated_minutes,remarks,created_at,updated_at),ingredient_refs:factory_production_sop_step_materials(raw_material_id,raw_material:factory_raw_materials(name,name_en,material_code,uom)),qc_checks:factory_production_sop_step_qc_checks(id,sop_step_id,sequence_no,qc_type,checklist_template_id,qc_name,instructions,is_required,checklist_template:factory_qc_checklist_templates(name,result_mode)))`;
+const sopStepSelect = "id,sop_id,step_no,instruction,process_name,description,control_point,qc_label,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,qc_measurement_type,qc_target_value,qc_minimum,qc_maximum,qc_uom,qc_required_before_completion,safety_note,remarks,created_at,updated_at";
+const sopSubStepSelect = "id,sop_step_id,sequence_no,instruction,estimated_minutes,remarks,created_at,updated_at";
+const sopQcCheckSelect = "id,sop_step_id,sequence_no,qc_type,checklist_template_id,qc_name,instructions,is_required,created_at,updated_at,checklist_template:factory_qc_checklist_templates(name,result_mode)";
 const jobOrderSelect = `id,job_order_no,finished_good_id,product_name,target_pack_qty,target_production_qty,target_quantity,produced_quantity,uom,planned_date,due_date,priority,status,assigned_team,remarks,created_by,released_at,released_by,started_at,started_by,production_operator_id,production_operator_name,production_date,start_time,production_sop_id,sop_version,qc_snapshot_created_at,completed_at,completed_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),step_executions:factory_production_step_executions(id,job_order_id,production_id,production_sop_id,sop_step_id,step_no,step_name,description,sub_steps,status,completed_by,completed_at,qc_results:factory_production_qc_results(id,job_order_id,production_id,production_step_execution_id,sop_qc_check_id,sequence_no,qc_type,qc_name,instructions,is_required,checklist_result,remarks,checked_by,checked_by_name,checked_at))`;
 const productionSelectBasic = `id,job_order_id,finished_good_id,production_no,product_name,batch_no,actual_pack_qty,actual_output_qty,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,manufacturing_date,end_date,expiry_date,storage_location_id,shelf_life_days_snapshot,expiry_override_reason,operator_id,operator_name,start_time,end_time,qc_status,production_sop_id,sop_version,status,notes,created_by,completed_at,created_at,updated_at,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),finished_good:factory_finished_goods(${finishedGoodSelect}),job_order:factory_job_orders(job_order_no,finished_good_id,product_name,target_pack_qty,target_production_qty,finished_good:factory_finished_goods(product_code,product_name,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,shelf_life_days))`;
 const productionSelectDetailed = `${productionSelectBasic},material_usage:factory_production_material_usage(id,production_id,raw_material_id,raw_material_receiving_id,raw_material_lot_no,quantity_used,standard_usage,actual_usage,variance_qty,variance_percent,variance_reason,uom,wastage_quantity,notes,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect}),raw_receiving:factory_raw_material_receivings(receipt_no,batch_no,supplier_name,received_date,unit_cost)),qc_checkpoints:factory_production_qc_checkpoints(id,production_id,production_sop_id,sop_step_id,step_no,process_name,control_point,qc_status,notes,created_at,updated_at),step_executions:factory_production_step_executions(id,job_order_id,production_id,production_sop_id,sop_step_id,step_no,step_name,description,sub_steps,status,completed_by,completed_at,qc_results:factory_production_qc_results(id,job_order_id,production_id,production_step_execution_id,sop_qc_check_id,sequence_no,qc_type,qc_name,instructions,is_required,checklist_result,remarks,checked_by,checked_by_name,checked_at))`;
 const finishedGoodDispatchSelect = `id,dispatch_no,dispatch_date,customer_id,customer_name,reference_no,status,remarks,created_by,created_at,updated_at,completed_at,cancelled_at,creator:employees(nickname,full_name),customer:factory_customers(${factoryCustomerSelect}),items:factory_finished_good_dispatch_items(id,dispatch_id,finished_good_id,quantity,batch_no,remarks,created_at,finished_good:factory_finished_goods(${finishedGoodFullSelect}))`;
+
+const FACTORY_MASTER_ID_BATCH_SIZE = 300;
+
+function factoryLoadError(label, stage, error) {
+  if (error?.name === "AbortError") return error;
+  console.error(`[Factory] ${label} ${stage} failed.`, error);
+  const safeError = new Error(`Unable to load complete ${label}. Please retry.`);
+  safeError.code = error?.code;
+  safeError.status = error?.status || error?.statusCode;
+  safeError.cause = error;
+  return safeError;
+}
+
+function factoryAbortError() {
+  const error = new Error("Factory data load cancelled.");
+  error.name = "AbortError";
+  return error;
+}
+
+function chunkFactoryIds(values, size = FACTORY_MASTER_ID_BATCH_SIZE) {
+  const chunks = [];
+  for (let index = 0; index < values.length; index += size) chunks.push(values.slice(index, index + size));
+  return chunks;
+}
+
+async function runFactoryQuery(query, { label, stage, signal } = {}) {
+  if (signal?.aborted) throw factoryAbortError();
+  const result = await (signal ? query.abortSignal(signal) : query);
+  if (signal?.aborted) throw factoryAbortError();
+  if (result.error) throw factoryLoadError(label, stage, result.error);
+  return result.data;
+}
+
+function validateSnapshotIds(values, label) {
+  if (!Array.isArray(values)) throw factoryLoadError(label, "ID snapshot", new Error("Invalid snapshot response."));
+  const ids = values.map((value) => String(value || "")).filter(Boolean);
+  if (ids.length !== values.length || new Set(ids).size !== ids.length) {
+    throw factoryLoadError(label, "ID snapshot reconciliation", new Error("Invalid or duplicate snapshot ID."));
+  }
+  return ids;
+}
+
+async function fetchFactoryMasterIds(entity, { label, signal } = {}) {
+  const data = await runFactoryQuery(
+    supabase.rpc("factory_get_master_id_snapshot", { p_entity: entity }),
+    { label, stage: "ID snapshot", signal },
+  );
+  return validateSnapshotIds(data, label);
+}
+
+async function fetchFactoryChildSnapshot(entity, parentIds, { label, signal } = {}) {
+  const rows = [];
+  for (const parentChunk of chunkFactoryIds(parentIds)) {
+    const data = await runFactoryQuery(
+      supabase.rpc("factory_get_master_child_snapshot", { p_entity: entity, p_parent_ids: parentChunk }),
+      { label, stage: `${entity} snapshot`, signal },
+    );
+    if (!Array.isArray(data)) throw factoryLoadError(label, `${entity} snapshot`, new Error("Invalid child snapshot response."));
+    rows.push(...data);
+  }
+  return rows;
+}
+
+async function fetchFactoryRowsBySnapshot(ids, buildQuery, { label, signal } = {}) {
+  if (!ids.length) return [];
+  const expectedIds = new Set(ids);
+  const rowsById = new Map();
+  for (const idChunk of chunkFactoryIds(ids)) {
+    const data = await runFactoryQuery(buildQuery(idChunk), { label, stage: "detail batch", signal });
+    if (!Array.isArray(data)) throw factoryLoadError(label, "detail batch", new Error("Invalid detail response."));
+    for (const row of data) {
+      const id = String(row?.id || "");
+      if (!id || !expectedIds.has(id) || rowsById.has(id)) {
+        throw factoryLoadError(label, "detail reconciliation", new Error("Unexpected or duplicate detail row."));
+      }
+      rowsById.set(id, row);
+    }
+  }
+  const missingIds = ids.filter((id) => !rowsById.has(id));
+  if (missingIds.length) {
+    throw factoryLoadError(label, "detail reconciliation", new Error(`${missingIds.length} snapshot rows were no longer available.`));
+  }
+  return ids.map((id) => rowsById.get(id));
+}
+
+async function loadFactoryMasterWithRetry(loader, label) {
+  let firstError;
+  for (let attempt = 1; attempt <= 2; attempt += 1) {
+    try {
+      return await loader();
+    } catch (error) {
+      if (error?.name === "AbortError") throw error;
+      firstError ||= error;
+      if (attempt === 1) console.warn(`[Factory] Retrying complete ${label} load after snapshot mismatch or query failure.`);
+    }
+  }
+  throw firstError;
+}
+
+async function loadFactoryMasterRows({ entity, label, buildQuery, signal }) {
+  return loadFactoryMasterWithRetry(async () => {
+    const ids = await fetchFactoryMasterIds(entity, { label, signal });
+    return fetchFactoryRowsBySnapshot(ids, buildQuery, { label, signal });
+  }, label);
+}
+
+function validateChildSnapshotRows(rows, label, keyForRow) {
+  const seen = new Set();
+  for (const row of rows) {
+    const key = keyForRow(row);
+    if (!key || seen.has(key)) throw factoryLoadError(label, "child snapshot reconciliation", new Error("Invalid or duplicate child identity."));
+    seen.add(key);
+  }
+  return rows;
+}
+
+async function loadRecipeRows({ summaryOnly = false, signal }) {
+  const label = summaryOnly ? "Active Production Standard Summary" : "Product Recipes";
+  return loadFactoryMasterWithRetry(async () => {
+    const recipeIds = await fetchFactoryMasterIds(summaryOnly ? "active_product_recipes" : "product_recipes", { label, signal });
+    const recipes = await fetchFactoryRowsBySnapshot(recipeIds, (ids) => supabase
+      .from("factory_product_recipes")
+      .select(summaryOnly ? recipeSummarySelect : recipeRootSelect)
+      .in("id", ids), { label, signal });
+    if (summaryOnly || !recipeIds.length) return recipes;
+
+    const itemSnapshot = validateChildSnapshotRows(
+      await fetchFactoryChildSnapshot("recipe_items", recipeIds, { label, signal }),
+      label,
+      (row) => row?.id,
+    );
+    const itemIds = itemSnapshot.map((row) => String(row.id));
+    const items = await fetchFactoryRowsBySnapshot(itemIds, (ids) => supabase
+      .from("factory_product_recipe_items")
+      .select(recipeItemSelect)
+      .in("id", ids), { label, signal });
+    const itemsByRecipe = new Map();
+    itemSnapshot.forEach((snapshot, index) => {
+      const item = items[index];
+      if (String(item.recipe_id) !== String(snapshot.parent_id)) {
+        throw factoryLoadError(label, "Recipe item ownership reconciliation", new Error("A Recipe item changed parents during loading."));
+      }
+      const group = itemsByRecipe.get(item.recipe_id) || [];
+      group.push(item);
+      itemsByRecipe.set(item.recipe_id, group);
+    });
+    return recipes.map((recipe) => ({ ...recipe, items: itemsByRecipe.get(recipe.id) || [] }));
+  }, label);
+}
+
+async function loadProductionSopRows({ signal }) {
+  const label = "Production SOP";
+  return loadFactoryMasterWithRetry(async () => {
+    const sopIds = await fetchFactoryMasterIds("production_sops", { label, signal });
+    const sops = await fetchFactoryRowsBySnapshot(sopIds, (ids) => supabase
+      .from("factory_production_sops")
+      .select(sopRootSelect)
+      .in("id", ids), { label, signal });
+    if (!sopIds.length) return sops;
+
+    const stepSnapshot = validateChildSnapshotRows(
+      await fetchFactoryChildSnapshot("sop_steps", sopIds, { label, signal }),
+      label,
+      (row) => row?.id,
+    );
+    const stepIds = stepSnapshot.map((row) => String(row.id));
+    const steps = await fetchFactoryRowsBySnapshot(stepIds, (ids) => supabase
+      .from("factory_production_sop_steps")
+      .select(sopStepSelect)
+      .in("id", ids), { label, signal });
+    stepSnapshot.forEach((snapshot, index) => {
+      if (String(steps[index].sop_id) !== String(snapshot.parent_id)) {
+        throw factoryLoadError(label, "SOP Step ownership reconciliation", new Error("An SOP Step changed parents during loading."));
+      }
+    });
+
+    const [subStepSnapshotRows, qcSnapshotRows, materialSnapshotRows] = await Promise.all([
+      fetchFactoryChildSnapshot("sop_sub_steps", stepIds, { label, signal }),
+      fetchFactoryChildSnapshot("sop_qc_checks", stepIds, { label, signal }),
+      fetchFactoryChildSnapshot("sop_step_materials", stepIds, { label, signal }),
+    ]);
+    const subStepSnapshot = validateChildSnapshotRows(subStepSnapshotRows, label, (row) => row?.id);
+    const qcSnapshot = validateChildSnapshotRows(qcSnapshotRows, label, (row) => row?.id);
+    const materialSnapshot = validateChildSnapshotRows(
+      materialSnapshotRows,
+      label,
+      (row) => row?.sop_step_id && row?.raw_material_id ? `${row.sop_step_id}:${row.raw_material_id}` : "",
+    );
+
+    const [subSteps, qcChecks] = await Promise.all([
+      fetchFactoryRowsBySnapshot(subStepSnapshot.map((row) => String(row.id)), (ids) => supabase
+        .from("factory_production_sop_sub_steps")
+        .select(sopSubStepSelect)
+        .in("id", ids), { label, signal }),
+      fetchFactoryRowsBySnapshot(qcSnapshot.map((row) => String(row.id)), (ids) => supabase
+        .from("factory_production_sop_step_qc_checks")
+        .select(sopQcCheckSelect)
+        .in("id", ids), { label, signal }),
+    ]);
+    subStepSnapshot.forEach((snapshot, index) => {
+      if (String(subSteps[index].sop_step_id) !== String(snapshot.parent_id)) {
+        throw factoryLoadError(label, "SOP Sub-step ownership reconciliation", new Error("An SOP Sub-step changed parents during loading."));
+      }
+    });
+    qcSnapshot.forEach((snapshot, index) => {
+      if (String(qcChecks[index].sop_step_id) !== String(snapshot.parent_id)) {
+        throw factoryLoadError(label, "SOP QC ownership reconciliation", new Error("An SOP QC Check changed parents during loading."));
+      }
+    });
+
+    const rawMaterialIds = [...new Set(materialSnapshot.map((row) => String(row.raw_material_id)))];
+    const rawMaterials = await fetchFactoryRowsBySnapshot(rawMaterialIds, (ids) => supabase
+      .from("factory_raw_materials")
+      .select("id,name,name_en,material_code,uom")
+      .in("id", ids), { label, signal });
+    const rawMaterialsById = new Map(rawMaterials.map((row) => [row.id, row]));
+    const subStepsByStep = new Map();
+    subSteps.forEach((row) => subStepsByStep.set(row.sop_step_id, [...(subStepsByStep.get(row.sop_step_id) || []), row]));
+    const qcByStep = new Map();
+    qcChecks.forEach((row) => qcByStep.set(row.sop_step_id, [...(qcByStep.get(row.sop_step_id) || []), row]));
+    const materialsByStep = new Map();
+    materialSnapshot.forEach((row) => {
+      const rawMaterial = rawMaterialsById.get(String(row.raw_material_id));
+      if (!rawMaterial) throw factoryLoadError(label, "SOP material reconciliation", new Error("A referenced Raw Material was unavailable."));
+      const material = { raw_material_id: row.raw_material_id, raw_material: rawMaterial };
+      materialsByStep.set(row.sop_step_id, [...(materialsByStep.get(row.sop_step_id) || []), material]);
+    });
+
+    const stepsBySop = new Map();
+    steps.forEach((step) => {
+      const assembled = {
+        ...step,
+        sub_steps: subStepsByStep.get(step.id) || [],
+        ingredient_refs: materialsByStep.get(step.id) || [],
+        qc_checks: qcByStep.get(step.id) || [],
+      };
+      stepsBySop.set(step.sop_id, [...(stepsBySop.get(step.sop_id) || []), assembled]);
+    });
+    return sops.map((sop) => ({ ...sop, steps: stepsBySop.get(sop.id) || [] }));
+  }, label);
+}
 
 function factoryDataPlan(scope, hasPermission) {
   const can = (code) => !hasPermission || hasPermission(code);
@@ -999,50 +1262,63 @@ export const factoryService = {
     });
   },
 
-  async listFactoryData({ scope = "dashboard", hasPermission } = {}) {
+  async listFactoryData({ scope = "dashboard", hasPermission, signal } = {}) {
     const data = emptyFactoryData();
     const plan = factoryDataPlan(scope, hasPermission);
     const tasks = [];
-    const addTask = (enabled, key, label, query, mapper) => {
+    const addTask = (enabled, key, label, query, mapper, complete = false, loader = null) => {
       if (!enabled) return;
-      tasks.push({ key, label, query, mapper });
+      tasks.push({ key, label, query, mapper, complete, loader });
     };
+    const addMasterTask = (enabled, key, label, entity, query, mapper) => addTask(
+      enabled,
+      key,
+      label,
+      query,
+      mapper,
+      true,
+      () => loadFactoryMasterRows({ entity, label, buildQuery: query, signal }),
+    );
+    const addCompleteLoaderTask = (enabled, key, label, loader, mapper) => addTask(
+      enabled,
+      key,
+      label,
+      null,
+      mapper,
+      true,
+      loader,
+    );
 
     addTask(plan.jobOrders, "jobOrders", "Job Orders", () => supabase
       .from("factory_job_orders")
       .select(jobOrderSelect)
       .order("planned_date", { ascending: false })
       .limit(150), (rows) => rows.map(mapJobOrder));
-    addTask(plan.rawMaterials, "rawMaterials", "Raw Materials", () => supabase
+    addMasterTask(plan.rawMaterials, "rawMaterials", "Raw Materials", "raw_materials", (ids) => supabase
       .from("factory_raw_materials")
       .select(rawMaterialSelect)
-      .order("name", { ascending: true })
-      .limit(300), (rows) => rows.map(mapRawMaterial));
-    addTask(plan.rawMaterialCategories, "rawMaterialCategories", "Raw Material Categories", () => supabase
+      .in("id", ids), (rows) => rows.map(mapRawMaterial));
+    addMasterTask(plan.rawMaterialCategories, "rawMaterialCategories", "Raw Material Categories", "raw_material_categories", (ids) => supabase
       .from("factory_raw_material_categories")
       .select("id,name,description,status,created_at,updated_at")
-      .order("name", { ascending: true })
-      .limit(150), (rows) => rows.map(mapRawMaterialCategory));
-    addTask(plan.factorySuppliers, "factorySuppliers", "Factory Suppliers", () => supabase
+      .in("id", ids), (rows) => rows.map(mapRawMaterialCategory));
+    addMasterTask(plan.factorySuppliers, "factorySuppliers", "Factory Suppliers", "suppliers", (ids) => supabase
       .from("factory_suppliers")
       .select(factorySupplierSelect)
-      .order("supplier_name", { ascending: true })
-      .limit(200), (rows) => rows.map(mapFactorySupplier));
-    addTask(plan.factoryCustomers, "factoryCustomers", "Factory Customers", () => supabase
+      .in("id", ids), (rows) => rows.map(mapFactorySupplier));
+    addMasterTask(plan.factoryCustomers, "factoryCustomers", "Factory Customers", "customers", (ids) => supabase
       .from("factory_customers")
       .select(factoryCustomerSelect)
-      .order("customer_name", { ascending: true })
-      .limit(250), (rows) => rows.map(mapFactoryCustomer));
+      .in("id", ids), (rows) => rows.map(mapFactoryCustomer));
     addTask(plan.receivingBatches, "receivingBatches", "Receiving Batches", () => supabase
       .from("factory_raw_material_receiving_batches")
       .select(`id,batch_no,reference_no,supplier_id,supplier_name,received_date,remarks,status,created_by,created_at,updated_at,supplier:factory_suppliers(supplier_name),creator:employees(nickname,full_name),items:factory_raw_material_receivings(id,batch_id,receipt_no,raw_material_id,supplier_id,supplier_name,batch_no,received_qty,uom,unit_cost,total_cost,invoice_no,received_date,expiry_date,storage_location_id,storage_location,remarks,received_by,created_at,updated_at,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
       .order("received_date", { ascending: false })
       .limit(150), (rows) => rows.map(mapReceivingBatch));
-    addTask(plan.storageLocations, "storageLocations", "Storage Locations", () => supabase
+    addMasterTask(plan.storageLocations, "storageLocations", "Storage Locations", "storage_locations", (ids) => supabase
       .from("factory_storage_locations")
       .select(storageLocationSelect)
-      .order("location_name", { ascending: true })
-      .limit(200), (rows) => rows.map(mapStorageLocation));
+      .in("id", ids), (rows) => rows.map(mapStorageLocation));
     addTask(plan.rawMaterialMovements, "rawMaterialMovements", "Raw Material Movements", () => supabase
       .from("factory_raw_material_movements")
       .select(`id,raw_material_id,movement_type,quantity,uom,reference_type,reference_id,reference_no,movement_date,notes,created_by,created_at,creator:employees(nickname,full_name),raw_material:factory_raw_materials(${rawMaterialRelationSelect})`)
@@ -1058,21 +1334,18 @@ export const factoryService = {
       .select(plan.productionDetails ? productionSelectDetailed : productionSelectBasic)
       .order("production_date", { ascending: false })
       .limit(150), (rows) => rows.map(mapProduction));
-    addTask(plan.finishedGoods, "finishedGoods", "Finished Goods", () => supabase
+    addMasterTask(plan.finishedGoods, "finishedGoods", "Finished Goods", "finished_goods", (ids) => supabase
       .from("factory_finished_goods")
       .select(finishedGoodFullSelect)
-      .order("product_name", { ascending: true })
-      .limit(300), (rows) => rows.map(mapFinishedGood));
-    addTask(plan.finishedGoodCategories, "finishedGoodCategories", "Finished Good Categories", () => supabase
+      .in("id", ids), (rows) => rows.map(mapFinishedGood));
+    addMasterTask(plan.finishedGoodCategories, "finishedGoodCategories", "Finished Good Categories", "finished_good_categories", (ids) => supabase
       .from("factory_finished_good_categories")
       .select("id,name,description,status,created_at,updated_at")
-      .order("name", { ascending: true })
-      .limit(150), (rows) => rows.map(mapFinishedGoodCategory));
-    addTask(plan.productFamilies, "productFamilies", "Product Families", () => supabase
+      .in("id", ids), (rows) => rows.map(mapFinishedGoodCategory));
+    addMasterTask(plan.productFamilies, "productFamilies", "Product Families", "product_families", (ids) => supabase
       .from("factory_product_families")
       .select("id,name_en,name_cn,name_bm,category_id,status,remarks,created_at,updated_at,category:factory_finished_good_categories(name)")
-      .order("name_en", { ascending: true })
-      .limit(200), (rows) => rows.map(mapProductFamily));
+      .in("id", ids), (rows) => rows.map(mapProductFamily));
     addTask(plan.productMovements && scope !== "product-movements", "productMovements", "Product Movements", () => supabase
       .from("factory_product_stock_movements")
       .select(`id,finished_good_id,product_name,movement_type,quantity,uom,reference_type,reference_id,reference_no,movement_date,notes,created_by,created_at,finished_good:factory_finished_goods(${finishedGoodSelect})`)
@@ -1095,28 +1368,13 @@ export const factoryService = {
       .select("id,check_no,check_date,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at,creator:employees(nickname,full_name),items:factory_product_stock_check_items(id,stock_check_id,finished_good_id,system_qty,physical_qty,variance_qty,variance_percent,variance_status,variance_reason,uom,created_at,updated_at,finished_good:factory_finished_goods(product_name,uom))")
       .order("check_date", { ascending: false })
       .limit(100), (rows) => rows.map((row) => mapStockCheck(row, "product")));
-    addTask(plan.recipes, "recipes", "Product Recipes", () => supabase
-      .from("factory_product_recipes")
-      .select(recipeSelect)
-      .order("product_name", { ascending: true })
-      .limit(150), (rows) => rows.map(mapRecipe));
-    addTask(!plan.recipes && plan.recipeSummaries, "recipes", "Active Production Standard Summary", () => supabase
-      .from("factory_product_recipes")
-      .select(recipeSummarySelect)
-      .eq("status", "active")
-      .order("product_name", { ascending: true })
-      .limit(300), (rows) => rows.map(mapRecipe));
-    addTask(plan.sops, "sops", "Production SOP", () => supabase
-      .from("factory_production_sops")
-      .select(sopSelect)
-      .order("product_name", { ascending: true })
-      .limit(150), (rows) => rows.map(mapProductionSop));
-    addTask(plan.qcChecklistTemplates, "qcChecklistTemplates", "QC Checklist Presets", () => supabase
+    addCompleteLoaderTask(plan.recipes, "recipes", "Product Recipes", () => loadRecipeRows({ signal }), (rows) => rows.map(mapRecipe));
+    addCompleteLoaderTask(!plan.recipes && plan.recipeSummaries, "recipes", "Active Production Standard Summary", () => loadRecipeRows({ summaryOnly: true, signal }), (rows) => rows.map(mapRecipe));
+    addCompleteLoaderTask(plan.sops, "sops", "Production SOP", () => loadProductionSopRows({ signal }), (rows) => rows.map(mapProductionSop));
+    addMasterTask(plan.qcChecklistTemplates, "qcChecklistTemplates", "QC Checklist Presets", "qc_checklist_templates", (ids) => supabase
       .from("factory_qc_checklist_templates")
       .select("id,name,category,description,result_mode,is_active,created_at,updated_at")
-      .order("is_active", { ascending: false })
-      .order("category", { ascending: true })
-      .order("name", { ascending: true }), (rows) => rows);
+      .in("id", ids), (rows) => rows);
     addTask(plan.auditLogs, "auditLogs", "Factory Audit Logs", () => supabase
       .from("audit_logs")
       .select("id,action,module,user_id,user_name,description,metadata,created_at")
@@ -1143,10 +1401,20 @@ export const factoryService = {
         key: task.key,
         label: task.label,
         kind: isPermissionDenied(error) ? "permission" : "load",
+        complete: task.complete,
       });
     };
 
-    const results = await Promise.allSettled(tasks.map((task) => task.query()));
+    const results = await Promise.allSettled(tasks.map(async (task) => {
+      if (task.loader) return { data: await task.loader(), error: null };
+      const query = task.query();
+      return signal ? query.abortSignal(signal) : query;
+    }));
+    if (signal?.aborted) {
+      const abortError = new Error("Factory data load cancelled.");
+      abortError.name = "AbortError";
+      throw abortError;
+    }
     results.forEach((result, index) => {
       const task = tasks[index];
       if (result.status === "rejected") {
@@ -1159,6 +1427,13 @@ export const factoryService = {
       }
       data[task.key] = task.mapper(result.value.data ?? []);
     });
+    if (data.sops.length && data.recipes.length) {
+      const recipesById = new Map(data.recipes.map((recipe) => [recipe.id, recipe]));
+      data.sops = data.sops.map((sop) => ({
+        ...sop,
+        linked_recipe: recipesById.get(sop.recipe_id) || sop.linked_recipe,
+      }));
+    }
     return data;
   },
 
@@ -1190,11 +1465,177 @@ export const factoryService = {
     return {
       rows: (pageResult.data || []).map(mapProductMovement),
       totalCount: normalizeNumber(pageResult.count),
-      stockInCount: normalizeNumber(summary.stock_in_count),
-      stockOutCount: normalizeNumber(summary.stock_out_count),
-      filteredSkus: Array.isArray(summary.filtered_skus) ? summary.filtered_skus : [],
-      movementTypes: Array.isArray(summary.movement_types) ? summary.movement_types : [],
-      categories: Array.isArray(summary.categories) ? summary.categories : [],
+      summary: {
+        stockInCount: normalizeNumber(summary.stock_in_count),
+        stockOutCount: normalizeNumber(summary.stock_out_count),
+        filteredSkus: Array.isArray(summary.filtered_skus) ? summary.filtered_skus : [],
+        movementTypes: Array.isArray(summary.movement_types) ? summary.movement_types : [],
+        categories: Array.isArray(summary.categories) ? summary.categories : [],
+      },
+      page: normalizedPage,
+      pageSize: normalizedPageSize,
+    };
+  },
+
+  async listOperationalJobOrders({ date, includeProductions = true } = {}) {
+    if (strictDateValue(date) === null) throw new Error("Enter a valid operational date.");
+    const { data, error } = await supabase.rpc("factory_get_production_control_snapshot", {
+      p_operational_date: String(date),
+      p_include_productions: Boolean(includeProductions),
+    });
+    throwSupabaseError("factory.operational_job_orders.snapshot", error);
+
+    const snapshot = data && typeof data === "object" ? data : {};
+    const planned = Array.isArray(snapshot.planned) ? snapshot.planned.map(mapJobOrder) : [];
+    const inProgress = Array.isArray(snapshot.in_progress) ? snapshot.in_progress.map(mapJobOrder) : [];
+    const completedToday = Array.isArray(snapshot.completed_today) ? snapshot.completed_today.map(mapJobOrder) : [];
+    const summary = snapshot.summary && typeof snapshot.summary === "object" ? snapshot.summary : {};
+
+    return {
+      jobs: [...planned, ...inProgress, ...completedToday],
+      productions: Array.isArray(snapshot.productions) ? snapshot.productions.map(mapProduction) : [],
+      summary: {
+        released: normalizeNumber(summary.planned_released),
+        inProgress: normalizeNumber(summary.in_progress),
+        completedToday: normalizeNumber(summary.completed_today),
+        plannedToday: normalizeNumber(summary.planned_today),
+        completionRate: normalizeNumber(summary.completion_rate),
+        outputByUom: Array.isArray(summary.output_by_uom)
+          ? summary.output_by_uom.map((row) => ({ uom: row.uom || "", good_output_qty: normalizeNumber(row.quantity) }))
+          : [],
+      },
+    };
+  },
+
+  async getProductionPlanningOpenJobOrderAggregate() {
+    const { data, error } = await supabase.rpc("factory_get_open_job_order_qty_by_sku");
+    throwFactorySupabaseError("factory.production_planning.open_job_orders", error);
+    const snapshot = data && typeof data === "object" ? data : {};
+    const aggregates = Array.isArray(snapshot.aggregates) ? snapshot.aggregates : [];
+    const diagnostics = snapshot.diagnostics && typeof snapshot.diagnostics === "object" ? snapshot.diagnostics : {};
+    return {
+      aggregates: aggregates.map((row) => ({
+        packagingSkuId: row.packaging_sku_id,
+        openJobOrderQty: normalizeNumber(row.open_job_order_qty),
+        openJobOrderCount: normalizeNumber(row.open_job_order_count),
+        countedJobOrderCount: normalizeNumber(row.counted_job_order_count),
+        invalidJobOrderCount: normalizeNumber(row.invalid_job_order_count),
+      })),
+      diagnostics: {
+        qualifyingJobOrderCount: normalizeNumber(diagnostics.qualifying_job_order_count),
+        missingPackagingSkuCount: normalizeNumber(diagnostics.missing_packaging_sku_count),
+        invalidQuantityCount: normalizeNumber(diagnostics.invalid_quantity_count),
+      },
+    };
+  },
+
+  async listFactoryListingPage({ listing, page = 1, pageSize = 20, filters = {} } = {}) {
+    const normalizedPage = Math.max(1, Math.trunc(Number(page) || 1));
+    const normalizedPageSize = [20, 50, 100].includes(Number(pageSize)) ? Number(pageSize) : 20;
+    const from = (normalizedPage - 1) * normalizedPageSize;
+    const to = from + normalizedPageSize - 1;
+    let query;
+    let mapper = (rows) => rows;
+
+    if (listing === "receiving-history") {
+      query = supabase
+        .from("factory_raw_material_receiving_batches")
+        .select(`id,batch_no,reference_no,supplier_id,supplier_name,received_date,remarks,status,created_by,created_at,updated_at,supplier:factory_suppliers(supplier_name),creator:employees(nickname,full_name),items:factory_raw_material_receivings(id,batch_id,receipt_no,raw_material_id,supplier_id,supplier_name,batch_no,received_qty,uom,unit_cost,total_cost,invoice_no,received_date,expiry_date,storage_location_id,storage_location,remarks,received_by,created_at,updated_at,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`, { count: "exact" });
+      if (filters.dateFrom) query = query.gte("received_date", filters.dateFrom);
+      if (filters.dateTo) query = query.lte("received_date", filters.dateTo);
+      if (filters.supplier) query = databaseUuid(filters.supplier) ? query.eq("supplier_id", filters.supplier) : query.eq("supplier_name", filters.supplier);
+      query = query.order("received_date", { ascending: false }).order("created_at", { ascending: false }).order("id", { ascending: false });
+      mapper = (rows) => rows.map(mapReceivingBatch);
+    } else if (listing === "raw-movements") {
+      query = supabase
+        .rpc("factory_list_raw_material_movements", {
+          p_date_from: filters.dateFrom || null,
+          p_date_to: filters.dateTo || null,
+          p_raw_material_id: databaseUuid(filters.material),
+          p_movement_type: String(filters.movementType || "").trim() || null,
+          p_storage_location: String(filters.storageLocation || "").trim() || null,
+          p_search: String(filters.search || "").trim() || null,
+        }, { count: "exact" })
+        .order("movement_date", { ascending: false }).order("created_at", { ascending: false }).order("id", { ascending: false });
+      mapper = (rows) => rows.map(mapRawMaterialMovement);
+    } else if (listing === "raw-stock-checks" || listing === "product-stock-checks") {
+      const raw = listing === "raw-stock-checks";
+      query = raw
+        ? supabase.from("factory_raw_material_stock_checks").select(`id,check_no,check_date,category_id,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at,creator:employees(nickname,full_name),category:factory_raw_material_categories(name),items:factory_raw_material_stock_check_items(id,stock_check_id,raw_material_id,system_qty,physical_qty,variance_qty,variance_percent,count_status,variance_status,variance_reason,uom,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`, { count: "exact" })
+        : supabase.from("factory_product_stock_checks").select("id,check_no,check_date,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at,creator:employees(nickname,full_name),items:factory_product_stock_check_items(id,stock_check_id,finished_good_id,system_qty,physical_qty,variance_qty,variance_percent,variance_status,variance_reason,uom,created_at,updated_at,finished_good:factory_finished_goods(product_name,uom))", { count: "exact" });
+      query = query.order("check_date", { ascending: false }).order("created_at", { ascending: false }).order("id", { ascending: false });
+      mapper = (rows) => rows.map((row) => mapStockCheck(row, raw ? "raw" : "product"));
+    } else if (listing === "job-orders") {
+      query = supabase.from("factory_job_orders").select(jobOrderSelect, { count: "exact" })
+        .order("planned_date", { ascending: false }).order("created_at", { ascending: false }).order("id", { ascending: false });
+      mapper = (rows) => rows.map(mapJobOrder);
+    } else if (listing === "production-history" || listing === "batch-traceability") {
+      query = supabase.from("factory_productions").select(productionSelectDetailed, { count: "exact" })
+        .order("production_date", { ascending: false }).order("created_at", { ascending: false }).order("id", { ascending: false });
+      mapper = (rows) => rows.map(mapProduction);
+    } else if (listing === "dispatch-history") {
+      query = supabase.from("factory_finished_good_dispatches").select(finishedGoodDispatchSelect, { count: "exact" });
+      if (filters.dateFrom) query = query.gte("dispatch_date", filters.dateFrom);
+      if (filters.dateTo) query = query.lte("dispatch_date", filters.dateTo);
+      if (filters.customer) query = databaseUuid(filters.customer) ? query.eq("customer_id", filters.customer) : query.eq("customer_name", filters.customer);
+      if (filters.status) query = query.eq("status", filters.status);
+      query = query.order("dispatch_date", { ascending: false }).order("created_at", { ascending: false }).order("id", { ascending: false });
+      mapper = (rows) => rows.map(mapFinishedGoodDispatch);
+    } else if (listing === "audit-logs") {
+      const moduleToken = {
+        "Raw Material Receiving": "raw_material_receiving",
+        "Raw Material": "raw_material",
+        "Finished Goods Dispatch": "finished_goods_dispatch",
+        "Product Recipe": "product_recipe",
+        "Job Order": "job_order",
+        "Production SOP": "production_sop",
+        "Production QC": "production_qc",
+        "Production": "production",
+        "Stock Check": "stock_check",
+      }[filters.module] || null;
+      query = supabase.rpc("factory_list_audit_logs", {
+        p_date_from: filters.dateFrom || null,
+        p_date_to: filters.dateTo || null,
+        p_module_token: moduleToken,
+        p_action_token: filters.action ? String(filters.action).replace(/[^a-z0-9 ]/gi, "").replace(/ /g, "_").toLowerCase() : null,
+        p_user_name: filters.user || null,
+        p_search: String(filters.search || "").trim() || null,
+      }, { count: "exact" });
+      query = query.order("created_at", { ascending: false }).order("id", { ascending: false });
+      mapper = (rows) => rows.map(mapFactoryAuditLog);
+    } else {
+      throw new Error(`Unsupported Factory listing: ${listing}`);
+    }
+
+    const summaryParams = { p_listing: listing, p_filters: filters || {} };
+    const [pageResult, summaryResult] = await Promise.all([
+      query.range(from, to),
+      supabase.rpc("factory_listing_summary", summaryParams),
+    ]);
+    throwSupabaseError(`factory.${listing}.page`, pageResult.error);
+    throwSupabaseError(`factory.${listing}.summary`, summaryResult.error);
+    let rows = mapper(pageResult.data || []);
+    if (listing === "batch-traceability" && rows.length) {
+      const productionIds = rows.map((row) => row.id).filter(Boolean);
+      const stockInResult = await supabase
+        .from("factory_product_stock_movements")
+        .select(`id,finished_good_id,product_name,movement_type,quantity,uom,reference_type,reference_id,reference_no,movement_date,notes,created_by,created_at,finished_good:factory_finished_goods(${finishedGoodSelect})`)
+        .eq("reference_type", "production")
+        .in("reference_id", productionIds)
+        .order("movement_date", { ascending: false })
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false });
+      throwSupabaseError("factory.batch-traceability.stock-in", stockInResult.error);
+      const stockInByProduction = (stockInResult.data || []).map(mapProductMovement).reduce((groups, movement) => {
+        groups.set(movement.reference_id, [...(groups.get(movement.reference_id) || []), movement]);
+        return groups;
+      }, new Map());
+      rows = rows.map((row) => ({ ...row, stock_in_movements: stockInByProduction.get(row.id) || [] }));
+    }
+    return {
+      rows,
+      totalCount: normalizeNumber(pageResult.count),
+      summary: summaryResult.data || {},
       page: normalizedPage,
       pageSize: normalizedPageSize,
     };
