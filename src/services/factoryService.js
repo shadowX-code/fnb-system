@@ -566,6 +566,9 @@ function mapProductMovement(row) {
     notes: row.notes || "",
     created_by: row.created_by || "",
     created_at: row.created_at,
+    balance_after: row.balance_after == null ? null : normalizeNumber(row.balance_after),
+    batch_no: row.batch_no || "",
+    source_reference: row.source_reference || "",
   };
 }
 
@@ -1070,7 +1073,7 @@ export const factoryService = {
       .select("id,name_en,name_cn,name_bm,category_id,status,remarks,created_at,updated_at,category:factory_finished_good_categories(name)")
       .order("name_en", { ascending: true })
       .limit(200), (rows) => rows.map(mapProductFamily));
-    addTask(plan.productMovements, "productMovements", "Product Movements", () => supabase
+    addTask(plan.productMovements && scope !== "product-movements", "productMovements", "Product Movements", () => supabase
       .from("factory_product_stock_movements")
       .select(`id,finished_good_id,product_name,movement_type,quantity,uom,reference_type,reference_id,reference_no,movement_date,notes,created_by,created_at,finished_good:factory_finished_goods(${finishedGoodSelect})`)
       .order("movement_date", { ascending: false })
@@ -1157,6 +1160,44 @@ export const factoryService = {
       data[task.key] = task.mapper(result.value.data ?? []);
     });
     return data;
+  },
+
+  async listProductMovementsPage({ page = 1, pageSize = 20, filters = {} } = {}) {
+    const normalizedPage = Math.max(1, Math.trunc(Number(page) || 1));
+    const normalizedPageSize = [20, 50, 100].includes(Number(pageSize)) ? Number(pageSize) : 20;
+    const from = (normalizedPage - 1) * normalizedPageSize;
+    const to = from + normalizedPageSize - 1;
+    const params = {
+      p_date_from: filters.dateFrom || null,
+      p_date_to: filters.dateTo || null,
+      p_product_search: String(filters.product || "").trim() || null,
+      p_category_id: databaseUuid(filters.category),
+      p_movement_type: String(filters.movementType || "").trim() || null,
+      p_batch_source_search: String(filters.batch || "").trim() || null,
+    };
+    const [pageResult, summaryResult] = await Promise.all([
+      supabase
+        .rpc("factory_list_product_movements", params, { count: "exact" })
+        .order("movement_date", { ascending: false })
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(from, to),
+      supabase.rpc("factory_product_movements_summary", params),
+    ]);
+    throwSupabaseError("factory.product_movements.page", pageResult.error);
+    throwSupabaseError("factory.product_movements.summary", summaryResult.error);
+    const summary = summaryResult.data || {};
+    return {
+      rows: (pageResult.data || []).map(mapProductMovement),
+      totalCount: normalizeNumber(pageResult.count),
+      stockInCount: normalizeNumber(summary.stock_in_count),
+      stockOutCount: normalizeNumber(summary.stock_out_count),
+      filteredSkus: Array.isArray(summary.filtered_skus) ? summary.filtered_skus : [],
+      movementTypes: Array.isArray(summary.movement_types) ? summary.movement_types : [],
+      categories: Array.isArray(summary.categories) ? summary.categories : [],
+      page: normalizedPage,
+      pageSize: normalizedPageSize,
+    };
   },
 
   async saveJobOrder(order, employeeId) {

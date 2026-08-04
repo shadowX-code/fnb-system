@@ -943,12 +943,32 @@ function movementTypeLabel(movement) {
   return movement?.movement_type || "Movement";
 }
 
-function compareProductMovementsDesc(a, b) {
-  const dateCompare = String(b?.movement_date || "").localeCompare(String(a?.movement_date || ""));
-  if (dateCompare) return dateCompare;
-  const createdCompare = String(b?.created_at || "").localeCompare(String(a?.created_at || ""));
-  if (createdCompare) return createdCompare;
-  return String(b?.id || "").localeCompare(String(a?.id || ""));
+function compactPageNumbers(currentPage, totalPages) {
+  const pages = [...new Set([1, currentPage - 1, currentPage, currentPage + 1, totalPages]
+    .filter((page) => page >= 1 && page <= totalPages))].sort((a, b) => a - b);
+  const items = [];
+  pages.forEach((page, index) => {
+    if (index && page - pages[index - 1] > 1) items.push(`ellipsis-${pages[index - 1]}`);
+    items.push(page);
+  });
+  return items;
+}
+
+function productMovementQuerySignature(page, pageSize, filters) {
+  return JSON.stringify({
+    page,
+    pageSize,
+    dateFrom: filters.dateFrom || "",
+    dateTo: filters.dateTo || "",
+    product: String(filters.product || "").trim(),
+    category: filters.category || "",
+    movementType: filters.movementType || "",
+    batch: String(filters.batch || "").trim(),
+  });
+}
+
+function productMovementFilterSignature(pageSize, filters) {
+  return productMovementQuerySignature(1, pageSize, filters);
 }
 
 function compareRawMaterialMovementsDesc(a, b) {
@@ -6224,6 +6244,26 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const [rawMaterialFilters, setRawMaterialFilters] = useState({ material: "", status: "", category: "" });
   const [rawMovementFilters, setRawMovementFilters] = useState({ material: "", movementType: "", storageLocation: "", dateFrom: "", dateTo: "", search: "" });
   const [auditLogFilters, setAuditLogFilters] = useState({ dateFrom: "", dateTo: "", module: "", action: "", user: "", search: "" });
+  const [productMovementLedger, setProductMovementLedger] = useState({
+    rows: [],
+    requestedPage: 1,
+    requestedPageSize: 20,
+    loadedPage: 1,
+    loadedPageSize: 20,
+    loadedTotal: 0,
+    loadedQuerySignature: "",
+    loadedFilterSignature: "",
+    hasLoaded: false,
+    stockInCount: 0,
+    stockOutCount: 0,
+    filteredSkus: [],
+    movementTypes: [],
+    categories: [],
+    loading: false,
+    error: "",
+    retryToken: 0,
+  });
+  const productMovementRequestRef = useRef(0);
   const can = (code) => Boolean(auth?.hasPermission?.(code));
 
   async function loadData() {
@@ -6244,6 +6284,71 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   useEffect(() => {
     loadData();
   }, [initialTab, auth?.permissions?.length]);
+
+  useEffect(() => {
+    if (initialTab !== "product-movements" || !auth?.hasPermission?.("factory_product_movements.view")) return undefined;
+    const requestId = productMovementRequestRef.current + 1;
+    productMovementRequestRef.current = requestId;
+    let active = true;
+    const requestedQuerySignature = productMovementQuerySignature(
+      productMovementLedger.requestedPage,
+      productMovementLedger.requestedPageSize,
+      warehouseFilters,
+    );
+    const requestedFilterSignature = productMovementFilterSignature(productMovementLedger.requestedPageSize, warehouseFilters);
+    setProductMovementLedger((current) => ({ ...current, loading: true }));
+    factoryService.listProductMovementsPage({
+      page: productMovementLedger.requestedPage,
+      pageSize: productMovementLedger.requestedPageSize,
+      filters: warehouseFilters,
+    }).then((result) => {
+      if (!active || productMovementRequestRef.current !== requestId) return;
+      const lastPage = Math.max(1, Math.ceil(result.totalCount / result.pageSize));
+      if (result.page > lastPage) {
+        setProductMovementLedger((current) => ({ ...current, requestedPage: lastPage, loading: true }));
+        return;
+      }
+      setProductMovementLedger((current) => ({
+        ...current,
+        rows: result.rows,
+        requestedPage: result.page,
+        requestedPageSize: result.pageSize,
+        loadedPage: result.page,
+        loadedPageSize: result.pageSize,
+        loadedTotal: result.totalCount,
+        loadedQuerySignature: requestedQuerySignature,
+        loadedFilterSignature: requestedFilterSignature,
+        hasLoaded: true,
+        stockInCount: result.stockInCount,
+        stockOutCount: result.stockOutCount,
+        filteredSkus: result.filteredSkus,
+        movementTypes: result.movementTypes,
+        categories: result.categories,
+        loading: false,
+        error: "",
+      }));
+    }).catch((error) => {
+      if (!active || productMovementRequestRef.current !== requestId) return;
+      console.error("[Factory] Unable to load Product Movements page.", error);
+      setProductMovementLedger((current) => ({ ...current, loading: false, error: error.message || "Unable to load Product Movements." }));
+      ui?.notify?.({ title: "Failed to load Product Movements", message: error.message, tone: "error" });
+    });
+    return () => {
+      active = false;
+    };
+  }, [
+    initialTab,
+    auth?.permissions?.length,
+    productMovementLedger.requestedPage,
+    productMovementLedger.requestedPageSize,
+    productMovementLedger.retryToken,
+    warehouseFilters.product,
+    warehouseFilters.category,
+    warehouseFilters.batch,
+    warehouseFilters.movementType,
+    warehouseFilters.dateFrom,
+    warehouseFilters.dateTo,
+  ]);
 
   const metrics = useMemo(() => {
     const openJobs = data.jobOrders.filter((job) => !["completed", "cancelled"].includes(job.status));
@@ -7763,58 +7868,32 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     );
   }
 
-  function filteredProductMovements() {
-    return data.productMovements.filter((row) => {
-      const linkedProduction = data.productions.find((production) => production.id === row.reference_id || production.production_no === row.reference_no);
-      const batchSourceText = `${linkedProduction?.batch_no || ""} ${row.reference_no || ""} ${row.reference_type || ""} ${movementSourceLabel(row)} ${row.notes || ""}`;
-      const batchMatch = !warehouseFilters.batch || includesText(batchSourceText, warehouseFilters.batch);
-      const movementDate = row.movement_date || "";
-      return includesText(row.product_name, warehouseFilters.product)
-        && (!warehouseFilters.category || productMovementCategoryId(row) === warehouseFilters.category)
-        && (!warehouseFilters.movementType || row.movement_type === warehouseFilters.movementType)
-        && (!warehouseFilters.dateFrom || movementDate >= warehouseFilters.dateFrom)
-        && (!warehouseFilters.dateTo || movementDate <= warehouseFilters.dateTo)
-        && batchMatch;
-    });
-  }
-
-  function productMovementCategoryId(movement) {
-    const sku = data.finishedGoods.find((item) => item.id === movement.finished_good_id);
-    return movement.category_id || sku?.category_id || "";
-  }
-
-  function productMovementCategoryOptions() {
-    const categories = new Map();
-    data.productMovements.forEach((movement) => {
-      const categoryId = productMovementCategoryId(movement);
-      if (!categoryId) return;
-      const category = data.finishedGoodCategories.find((item) => item.id === categoryId);
-      categories.set(categoryId, category?.name || movement.category || "Uncategorized");
-    });
-    return [...categories.entries()].map(([id, name]) => ({ id, name })).sort((a, b) => a.name.localeCompare(b.name));
+  function updateProductMovementFilters(patch) {
+    setWarehouseFilters((current) => ({ ...current, ...patch }));
+    setProductMovementLedger((current) => ({ ...current, requestedPage: 1 }));
   }
 
   function productMovementFilterControls() {
-    const movementTypes = [...new Set(data.productMovements.map((row) => row.movement_type).filter(Boolean))];
-    const categories = productMovementCategoryOptions();
+    const movementTypes = productMovementLedger.movementTypes;
+    const categories = productMovementLedger.categories;
     return (
       <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 lg:grid-cols-7">
         <Field label="Date From">
           <FeedXDatePicker
             value={warehouseFilters.dateFrom}
             placeholder="Start date"
-            onChange={(nextDate) => setWarehouseFilters((current) => ({ ...current, dateFrom: nextDate }))}
+            onChange={(dateFrom) => updateProductMovementFilters({ dateFrom })}
           />
         </Field>
         <Field label="Date To">
           <FeedXDatePicker
             value={warehouseFilters.dateTo}
             placeholder="End date"
-            onChange={(nextDate) => setWarehouseFilters((current) => ({ ...current, dateTo: nextDate }))}
+            onChange={(dateTo) => updateProductMovementFilters({ dateTo })}
           />
         </Field>
         <Field label="Product Search">
-          <input className={inputClass()} value={warehouseFilters.product} onChange={(event) => setWarehouseFilters((current) => ({ ...current, product: event.target.value }))} placeholder="Search product" />
+          <input className={inputClass()} value={warehouseFilters.product} onChange={(event) => updateProductMovementFilters({ product: event.target.value })} placeholder="Search product" />
         </Field>
         <Field label="Category">
           <SearchableSelect
@@ -7822,7 +7901,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             options={[{ value: "", label: "All Categories" }, ...categories.map((category) => ({ value: category.id, label: category.name }))]}
             placeholder="All Categories"
             searchPlaceholder="Search categories"
-            onChange={(category) => setWarehouseFilters((current) => ({ ...current, category }))}
+            onChange={(category) => updateProductMovementFilters({ category })}
           />
         </Field>
         <Field label="Movement Type">
@@ -7831,14 +7910,14 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             options={[{ value: "", label: "All Movements" }, ...movementTypes.map((type) => ({ value: type, label: type }))]}
             placeholder="All Movements"
             searchPlaceholder="Search movements"
-            onChange={(movementType) => setWarehouseFilters((current) => ({ ...current, movementType }))}
+            onChange={(movementType) => updateProductMovementFilters({ movementType })}
           />
         </Field>
         <Field label="Batch / Source">
-          <input className={inputClass()} value={warehouseFilters.batch} onChange={(event) => setWarehouseFilters((current) => ({ ...current, batch: event.target.value }))} placeholder="Search batch/source" />
+          <input className={inputClass()} value={warehouseFilters.batch} onChange={(event) => updateProductMovementFilters({ batch: event.target.value })} placeholder="Search batch/source" />
         </Field>
         <div className="flex items-end">
-          <button className="btn-secondary w-full" type="button" onClick={() => setWarehouseFilters((current) => ({ ...current, product: "", category: "", batch: "", movementType: "", dateFrom: "", dateTo: "" }))}>Clear</button>
+          <button className="btn-secondary w-full" type="button" onClick={() => updateProductMovementFilters({ product: "", category: "", batch: "", movementType: "", dateFrom: "", dateTo: "" })}>Clear</button>
         </div>
       </div>
     );
@@ -9876,35 +9955,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   function renderProductMovements() {
-    const balanceByMovementId = new Map();
-    const movementsBySku = data.productMovements.reduce((groups, movement) => {
-      const key = movement.finished_good_id || movement.product_code || movement.product_name || "unknown";
-      groups.set(key, [...(groups.get(key) || []), movement]);
-      return groups;
-    }, new Map());
-    movementsBySku.forEach((skuMovements) => {
-      const sorted = [...skuMovements].sort(compareProductMovementsDesc);
-      let runningBalance = sorted.find((movement) => movement.current_balance != null)?.current_balance;
-      if (runningBalance == null) return;
-      sorted.forEach((movement) => {
-        balanceByMovementId.set(movement.id, runningBalance);
-        runningBalance -= Number(movement.quantity || 0);
-      });
-    });
-    const rows = filteredProductMovements().sort(compareProductMovementsDesc).map((movement) => {
-      const linkedProduction = data.productions.find((production) => production.id === movement.reference_id || production.production_no === movement.reference_no);
-      return {
-        ...movement,
-        batch_no: linkedProduction?.batch_no || "",
-        balance_after: balanceByMovementId.get(movement.id),
-        source_label: movementSourceLabel(movement),
-        source_reference: movement.reference_type === "production" ? linkedProduction?.job_order_no || movement.reference_no : movement.reference_no,
-        movement_type_label: movementTypeLabel(movement),
-      };
-    });
-    const currentSkuBalanceByType = [...new Set(data.productMovements.map((movement) => movement.finished_good_id).filter(Boolean))]
-      .map((skuId) => data.finishedGoods.find((sku) => sku.id === skuId) || data.productMovements.find((movement) => movement.finished_good_id === skuId))
-      .filter(Boolean)
+    const rows = productMovementLedger.rows.map((movement) => ({
+      ...movement,
+      source_label: movementSourceLabel(movement),
+      movement_type_label: movementTypeLabel(movement),
+    }));
+    const currentSkuBalanceByType = productMovementLedger.filteredSkus
       .reduce((groups, sku) => {
         const type = pluralizePackagingType(packagingTypeLabel(sku), Number(sku.current_balance || 0));
         groups[type] = (groups[type] || 0) + Number(sku.current_balance || 0);
@@ -9914,6 +9970,22 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const currentSkuBalanceValue = currentSkuBalanceTypes.length === 1
       ? quantity(currentSkuBalanceByType[currentSkuBalanceTypes[0]], currentSkuBalanceTypes[0])
       : currentSkuBalanceTypes.length > 1 ? "Mixed" : "—";
+    const totalPages = Math.max(1, Math.ceil(productMovementLedger.loadedTotal / productMovementLedger.loadedPageSize));
+    const showingFrom = productMovementLedger.loadedTotal ? ((productMovementLedger.loadedPage - 1) * productMovementLedger.loadedPageSize) + 1 : 0;
+    const showingTo = Math.min(productMovementLedger.loadedPage * productMovementLedger.loadedPageSize, productMovementLedger.loadedTotal);
+    const pageItems = compactPageNumbers(productMovementLedger.loadedPage, totalPages);
+    const requestedQuerySignature = productMovementQuerySignature(productMovementLedger.requestedPage, productMovementLedger.requestedPageSize, warehouseFilters);
+    const requestedFilterSignature = productMovementFilterSignature(productMovementLedger.requestedPageSize, warehouseFilters);
+    const updatingDifferentQuery = productMovementLedger.hasLoaded && requestedQuerySignature !== productMovementLedger.loadedQuerySignature;
+    const loadingMessage = !productMovementLedger.hasLoaded
+      ? "Loading Product Movements…"
+      : requestedFilterSignature !== productMovementLedger.loadedFilterSignature
+        ? "Updating results…"
+        : productMovementLedger.requestedPage !== productMovementLedger.loadedPage
+        ? `Loading page ${productMovementLedger.requestedPage}…`
+        : updatingDifferentQuery ? "Updating results…" : "Refreshing results…";
+    const changePage = (page) => setProductMovementLedger((current) => ({ ...current, requestedPage: Math.max(1, Math.min(page, totalPages)) }));
+    const retryProductMovements = () => setProductMovementLedger((current) => ({ ...current, retryToken: current.retryToken + 1 }));
     const movementColumns = [
       { key: "movement_date", label: "Date", render: (row) => <span className="whitespace-nowrap font-semibold text-text-primary">{formatFactoryDate(row.movement_date)}</span> },
       { key: "movement_type", label: "Type", render: (row) => <Badge tone={row.quantity >= 0 ? "success" : "warning"}>{row.movement_type_label}</Badge> },
@@ -9931,16 +10003,30 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           title="Product Movements"
         />
         <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={Activity} label="Movements" value={data.productMovements.length} helper="Ledger entries" />
-          <MetricCard icon={PackageCheck} label="Stock In" value={data.productMovements.filter((row) => Number(row.quantity || 0) > 0).length} helper="Inbound entries" tone="success" />
-          <MetricCard icon={AlertTriangle} label="Stock Out" value={data.productMovements.filter((row) => Number(row.quantity || 0) < 0).length} helper="Outbound entries" tone="warning" />
+          <MetricCard icon={Activity} label="Movements" value={productMovementLedger.loadedTotal} helper="Filtered ledger entries" />
+          <MetricCard icon={PackageCheck} label="Stock In" value={productMovementLedger.stockInCount} helper="Filtered inbound entries" tone="success" />
+          <MetricCard icon={AlertTriangle} label="Stock Out" value={productMovementLedger.stockOutCount} helper="Filtered outbound entries" tone="warning" />
           <MetricCard icon={Warehouse} label="Current SKU Balance" value={currentSkuBalanceValue} helper="Across moved Packaging SKUs" />
         </div>
         {productMovementFilterControls()}
-        <Card>
-          <div className="md:hidden">
-            {!rows.length ? (
-              <div className="p-4"><EmptyState title="No finished goods movements" description="Complete production first to create finished goods stock-in movement history." /></div>
+        <Card className="relative">
+          {productMovementLedger.loading ? <div className="absolute inset-x-0 top-0 z-10 h-1 overflow-hidden rounded-t-xl bg-primary/15"><div className="h-full w-1/3 animate-pulse rounded-full bg-primary" /></div> : null}
+          {productMovementLedger.error ? (
+            <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3">
+              <div className="flex min-w-0 items-start gap-2 text-sm font-semibold text-amber-900">
+                <AlertTriangle className="mt-0.5 shrink-0" size={16} />
+                <span>{productMovementLedger.hasLoaded ? "Unable to load the latest Product Movements. Showing the last successfully loaded results." : "Unable to load Product Movements."}</span>
+              </div>
+              <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={productMovementLedger.loading} onClick={retryProductMovements}>Retry</button>
+            </div>
+          ) : null}
+          {productMovementLedger.loading ? <div className="border-b border-sky-200 bg-sky-50 px-4 py-2 text-xs font-bold text-sky-800">{loadingMessage}</div> : null}
+          <div className={productMovementLedger.loading && productMovementLedger.hasLoaded ? "opacity-60 transition-opacity" : "transition-opacity"}>
+            <div className="md:hidden">
+            {!productMovementLedger.hasLoaded ? (
+              <div className="p-4"><EmptyState title={productMovementLedger.error ? "Product Movements unavailable" : "Loading Product Movements"} description={productMovementLedger.error ? "Retry to load the movement ledger." : "Loading the movement ledger."} /></div>
+            ) : !rows.length ? (
+              <div className="p-4"><EmptyState title="No Product Movements Found" description="No ledger entries match the selected filters." /></div>
             ) : (
               <div className="divide-y divide-border">
                 {rows.map((row) => (
@@ -9963,15 +10049,59 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                 ))}
               </div>
             )}
-          </div>
-          <div className="hidden md:block">
+            </div>
+            <div className="hidden md:block">
             <FactoryTable
               columns={movementColumns}
-              rows={rows}
-              emptyTitle="No finished goods movements"
-              emptyDescription="Complete production first to create finished goods stock-in movement history."
+              rows={productMovementLedger.hasLoaded ? rows : []}
+              emptyTitle={!productMovementLedger.hasLoaded ? (productMovementLedger.error ? "Product Movements unavailable" : "Loading Product Movements") : "No Product Movements Found"}
+              emptyDescription={!productMovementLedger.hasLoaded ? (productMovementLedger.error ? "Retry to load the movement ledger." : "Loading the movement ledger.") : "No ledger entries match the selected filters."}
             />
+            </div>
           </div>
+          {productMovementLedger.loadedTotal > 0 ? (
+            <div className="border-t border-border px-4 py-3">
+              <div className="hidden items-center justify-between gap-4 md:flex">
+                <div className="text-sm font-semibold text-text-secondary">Showing {showingFrom.toLocaleString("en-MY")}–{showingTo.toLocaleString("en-MY")} of {productMovementLedger.loadedTotal.toLocaleString("en-MY")} records</div>
+                <div className="flex items-center gap-3">
+                  <div className="flex items-center gap-2">
+                    <span className="whitespace-nowrap text-xs font-semibold text-text-secondary">Rows per page</span>
+                    <div className="w-24">
+                      <SearchableSelect
+                        value={productMovementLedger.loadedPageSize}
+                        options={[20, 50, 100].map((size) => ({ value: size, label: String(size) }))}
+                        placeholder="20"
+                        searchPlaceholder="Rows"
+                        disabled={productMovementLedger.loading}
+                        onChange={(pageSize) => setProductMovementLedger((current) => ({ ...current, requestedPage: 1, requestedPageSize: Number(pageSize) }))}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <button className="btn-secondary px-3 py-2 text-xs" type="button" disabled={productMovementLedger.loading || productMovementLedger.loadedPage <= 1} onClick={() => changePage(productMovementLedger.loadedPage - 1)}>Previous</button>
+                    {pageItems.map((item) => typeof item === "number" ? (
+                      <button
+                        key={item}
+                        className={`h-9 min-w-9 rounded-lg border px-2 text-xs font-bold transition ${item === productMovementLedger.loadedPage ? "border-primary bg-primary text-white" : "border-border bg-white text-text-secondary hover:border-primary hover:text-primary"}`}
+                        type="button"
+                        disabled={productMovementLedger.loading}
+                        aria-current={item === productMovementLedger.loadedPage ? "page" : undefined}
+                        onClick={() => changePage(item)}
+                      >
+                        {item}
+                      </button>
+                    ) : <span key={item} className="px-1 text-sm font-bold text-text-muted">…</span>)}
+                    <button className="btn-secondary px-3 py-2 text-xs" type="button" disabled={productMovementLedger.loading || productMovementLedger.loadedPage >= totalPages} onClick={() => changePage(productMovementLedger.loadedPage + 1)}>Next</button>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center justify-between gap-3 md:hidden">
+                <button className="btn-secondary px-3 py-2 text-xs" type="button" disabled={productMovementLedger.loading || productMovementLedger.loadedPage <= 1} onClick={() => changePage(productMovementLedger.loadedPage - 1)}>Previous</button>
+                <span className="text-sm font-bold text-text-secondary">Page {productMovementLedger.loadedPage} of {totalPages}</span>
+                <button className="btn-secondary px-3 py-2 text-xs" type="button" disabled={productMovementLedger.loading || productMovementLedger.loadedPage >= totalPages} onClick={() => changePage(productMovementLedger.loadedPage + 1)}>Next</button>
+              </div>
+            </div>
+          ) : null}
         </Card>
       </div>
     );
