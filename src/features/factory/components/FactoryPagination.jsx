@@ -150,7 +150,7 @@ export function factoryPageItems(page = 1, totalPages = 1) {
   return items;
 }
 
-export function useFactoryPagedQuery({ storageKey, enabled = true, querySignature, loadPage, defaultPageSize = 20, onError }) {
+export function useFactoryPagedQuery({ storageKey, enabled = true, querySignature, loadPage, defaultPageSize = 20, onError, shouldClearOnError, mapError }) {
   const [state, setState] = useState(() => {
     const pageSize = storedPageSize(storageKey, defaultPageSize);
     return {
@@ -165,14 +165,19 @@ export function useFactoryPagedQuery({ storageKey, enabled = true, querySignatur
       hasLoaded: false,
       loading: false,
       error: "",
+      errorKind: "",
       retryToken: 0,
     };
   });
   const requestRef = useRef(0);
   const loadPageRef = useRef(loadPage);
   const onErrorRef = useRef(onError);
+  const shouldClearOnErrorRef = useRef(shouldClearOnError);
+  const mapErrorRef = useRef(mapError);
   loadPageRef.current = loadPage;
   onErrorRef.current = onError;
+  shouldClearOnErrorRef.current = shouldClearOnError;
+  mapErrorRef.current = mapError;
 
   useEffect(() => {
     const pageSize = storedPageSize(storageKey, defaultPageSize);
@@ -189,6 +194,7 @@ export function useFactoryPagedQuery({ storageKey, enabled = true, querySignatur
       hasLoaded: false,
       loading: false,
       error: "",
+      errorKind: "",
     }));
   }, [defaultPageSize, storageKey]);
 
@@ -229,11 +235,27 @@ export function useFactoryPagedQuery({ storageKey, enabled = true, querySignatur
           hasLoaded: true,
           loading: false,
           error: "",
+          errorKind: "",
         }));
       })
       .catch((error) => {
         if (!active || requestRef.current !== requestId) return;
-        setState((current) => ({ ...current, loading: false, error: error?.message || "Unable to load records." }));
+        const mappedError = mapErrorRef.current?.(error) || {};
+        const errorKind = mappedError.kind === "permission" ? "permission" : "load";
+        const errorMessage = mappedError.message || "Unable to load records.";
+        setState((current) => shouldClearOnErrorRef.current?.(error)
+          ? {
+              ...current,
+              rows: [],
+              summary: {},
+              loadedTotal: 0,
+              loadedQuerySignature: "",
+              hasLoaded: false,
+              loading: false,
+              error: errorMessage,
+              errorKind,
+            }
+          : { ...current, loading: false, error: errorMessage, errorKind });
         onErrorRef.current?.(error);
       });
     return () => {
@@ -256,6 +278,20 @@ export function useFactoryPagedQuery({ storageKey, enabled = true, querySignatur
     },
     retry() {
       setState((current) => ({ ...current, retryToken: current.retryToken + 1 }));
+    },
+    clearForPermission(message = "Some data is hidden by your current role.") {
+      requestRef.current += 1;
+      setState((current) => ({
+        ...current,
+        rows: [],
+        summary: {},
+        loadedTotal: 0,
+        loadedQuerySignature: "",
+        hasLoaded: false,
+        loading: false,
+        error: message,
+        errorKind: "permission",
+      }));
     },
   }), [defaultPageSize, storageKey]);
 
@@ -290,14 +326,19 @@ export function useFactoryClientPagination(storageKey, totalRows = 0, defaultPag
   };
 }
 
-export function FactoryTableLoadState({ state, label, onRetry }) {
+export function FactoryTableLoadState({ state, label, onRetry, permissionMessage = "Some data is hidden by your current role.", staleMessage = "" }) {
+  const message = state.errorKind === "permission"
+    ? permissionMessage
+    : state.hasLoaded
+      ? staleMessage || `Unable to load the latest ${label}. Showing the last successfully loaded results.`
+      : `Unable to load ${label}.`;
   return (
     <>
       {state.error ? (
         <div className="flex flex-wrap items-center justify-between gap-3 border-b border-amber-200 bg-amber-50 px-4 py-3">
           <div className="flex min-w-0 items-start gap-2 text-sm font-semibold text-amber-900">
             <AlertTriangle className="mt-0.5 shrink-0" size={16} />
-            <span>{state.hasLoaded ? `Unable to load the latest ${label}. Showing the last successfully loaded results.` : `Unable to load ${label}.`}</span>
+            <span>{message}</span>
           </div>
           <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={state.loading} onClick={onRetry}>Retry</button>
         </div>

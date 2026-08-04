@@ -2559,8 +2559,274 @@ function CompletedJobOrderResultModal({ job, production, recipes = [], onClose }
   );
 }
 
+function dispatchAllocationTotal(allocations = []) {
+  return allocations.reduce((sum, allocation) => sum + Number(allocation.quantity || 0), 0);
+}
+
+function validDispatchPackQty(value) {
+  const numeric = Number(value);
+  return Number.isFinite(numeric) && Number.isInteger(numeric) && numeric > 0;
+}
+
+function DispatchAllocationSummary({ item, sku, onEdit }) {
+  const allocations = item.allocations || [];
+  const total = dispatchAllocationTotal(allocations);
+  const needsUpdate = Boolean(item.allocation_required) || total !== Number(item.quantity || 0);
+  const singleAllocationLabel = allocations.length === 1 && allocations[0].batch_type !== "production"
+    ? batchTypeLabel(allocations[0].batch_type)
+    : allocations[0]?.batch_no || "Batch";
+  if (!allocations.length) {
+    return (
+      <div className="space-y-1">
+        <div className="text-xs font-semibold text-text-muted">{item.batch_no ? `${item.batch_no} · Legacy batch reference` : "No allocation"}</div>
+        {onEdit && validDispatchPackQty(item.quantity) ? <button className="text-xs font-bold text-primary hover:underline" type="button" onClick={onEdit}>Allocate batches</button> : null}
+      </div>
+    );
+  }
+  return (
+    <div className="min-w-0 space-y-1">
+      <div className="text-xs font-bold text-text-primary">{allocations.length === 1 ? `${singleAllocationLabel} · ${quantity(total, pluralizePackagingType(packagingTypeLabel(sku), total))}` : `${allocations.length} Batches · ${quantity(total, pluralizePackagingType(packagingTypeLabel(sku), total))}`}</div>
+      {allocations.slice(0, 2).map((allocation) => <div key={allocation.batch_id || allocation.batch_balance_id} className="truncate text-[11px] text-text-secondary">{allocation.batch_no || "Batch"} · {quantity(allocation.quantity)}</div>)}
+      {allocations.length === 1 && allocations[0].expiry_date ? <div className="text-[11px] text-text-secondary">Expiry {formatFactoryDate(allocations[0].expiry_date)}</div> : null}
+      {needsUpdate ? <div className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800"><AlertTriangle size={11} /> Allocation update required</div> : null}
+      {onEdit ? <button className="block text-xs font-bold text-primary hover:underline" type="button" onClick={onEdit}>{item.read_only ? "View Batch Allocation" : "Edit Allocation"}</button> : null}
+    </div>
+  );
+}
+
+function batchTypeLabel(value) {
+  if (value === "adjustment") return "Adjustment";
+  if (value === "legacy_unallocated") return "Legacy / Unallocated";
+  return "Production";
+}
+
+function ReadOnlyBatchAllocationModal({ title = "Batch Allocation", subtitle = "", allocations = [], onClose }) {
+  return (
+    <Modal title={title} description={subtitle} size="lg" onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}>
+      <div className="space-y-3">
+        {allocations.length ? allocations.map((allocation) => (
+          <div key={allocation.id || allocation.allocation_id || allocation.batch_id || allocation.batch_balance_id} className="rounded-xl border border-border bg-white p-3">
+            <div className="flex flex-wrap items-start justify-between gap-2">
+              <div>
+                <div className="font-bold text-text-primary">{allocation.batch_no || batchTypeLabel(allocation.batch_type)}</div>
+                <div className="mt-1 text-xs font-semibold text-text-secondary">{batchTypeLabel(allocation.batch_type)}</div>
+              </div>
+              <div className="text-right">
+                <div className="text-[10.5px] font-semibold text-text-muted">Allocated Qty</div>
+                <div className="font-black text-text-primary">{quantity(allocation.quantity)}</div>
+              </div>
+            </div>
+            <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+              <div><span className="font-semibold text-text-muted">Manufacturing Date:</span> <span className="font-semibold text-text-primary">{formatFactoryDate(allocation.manufacturing_date)}</span></div>
+              <div><span className="font-semibold text-text-muted">Expiry Date:</span> <span className="font-semibold text-text-primary">{allocation.expiry_date ? formatFactoryDate(allocation.expiry_date) : "No Expiry Recorded"}</span></div>
+              <div><span className="font-semibold text-text-muted">Storage:</span> <span className="font-semibold text-text-primary">{allocation.storage_location || "—"}</span></div>
+              <div><span className="font-semibold text-text-muted">Current Balance:</span> <span className="font-semibold text-text-primary">{allocation.current_balance == null ? "—" : quantity(allocation.current_balance)}</span></div>
+            </div>
+            {allocation.location_valid === false ? <div className="mt-2 rounded-lg bg-rose-50 px-2.5 py-2 text-xs font-bold text-rose-700">Storage location unavailable · {allocation.location_issue}</div> : null}
+          </div>
+        )) : <EmptyState title="No Batch Allocations" description="No batch allocation rows are linked to this record." />}
+      </div>
+    </Modal>
+  );
+}
+
+function FinishedGoodBatchTraceabilityModal({ batch, onClose }) {
+  const dispatches = batch.dispatch_allocations || [];
+  const diagnostics = batch.diagnostics || [];
+  return (
+    <Modal title="Batch Traceability" description={[batch.batch_no, batch.packaging_sku_code, batch.packaging_sku_name].filter(Boolean).join(" · ")} size="xl" onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}>
+      <div className="space-y-5">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {[
+            ["Batch Type", batchTypeLabel(batch.batch_type)],
+            ["Original Qty", quantity(batch.original_qty)],
+            ["Dispatched Qty", quantity(batch.completed_dispatch_qty)],
+            ["Remaining Qty", quantity(batch.current_balance)],
+          ].map(([label, value]) => <div key={label} className="rounded-xl border border-border bg-slate-50 p-3"><div className="text-[10.5px] font-semibold text-text-muted">{label}</div><div className="mt-1 font-black text-text-primary">{value}</div></div>)}
+        </div>
+        <div className="grid gap-4 lg:grid-cols-2">
+          <Card title="Batch Information">
+            <div className="grid gap-3 p-4 text-sm sm:grid-cols-2">
+              <div><div className="text-xs font-semibold text-text-muted">Finished Good</div><div className="font-bold text-text-primary">{batch.finished_good_name || "—"}</div></div>
+              <div><div className="text-xs font-semibold text-text-muted">Packaging SKU</div><div className="font-bold text-text-primary">{[batch.packaging_sku_code, batch.packaging_sku_name].filter(Boolean).join(" · ") || "—"}</div></div>
+              <div><div className="text-xs font-semibold text-text-muted">Manufacturing Date</div><div className="font-bold text-text-primary">{formatFactoryDate(batch.manufacturing_date)}</div></div>
+              <div><div className="text-xs font-semibold text-text-muted">Expiry Date</div><div className="font-bold text-text-primary">{batch.expiry_date ? formatFactoryDate(batch.expiry_date) : "—"}</div></div>
+            </div>
+          </Card>
+          <Card title="Production / Adjustment Source">
+            <div className="grid gap-3 p-4 text-sm sm:grid-cols-2">
+              <div><div className="text-xs font-semibold text-text-muted">Source Reference</div><div className="font-bold text-text-primary">{batch.production_reference || batch.source_reference || "—"}</div></div>
+              <div><div className="text-xs font-semibold text-text-muted">Operator</div><div className="font-bold text-text-primary">{batch.operator_name || "—"}</div></div>
+              <div><div className="text-xs font-semibold text-text-muted">Recipe Version</div><div className="font-bold text-text-primary">{batch.recipe_version || "—"}</div></div>
+              <div><div className="text-xs font-semibold text-text-muted">SOP</div><div className="font-bold text-text-primary">{[batch.sop_name, batch.sop_version].filter(Boolean).join(" · ") || "—"}</div></div>
+              <div><div className="text-xs font-semibold text-text-muted">QC Status</div><div className="font-bold text-text-primary">{batch.qc_status ? productionQcDisplayLabel(batch.qc_status) : "—"}</div></div>
+              <div><div className="text-xs font-semibold text-text-muted">Reason / Remarks</div><div className="font-bold text-text-primary">{batch.source_reason || "Metadata unavailable"}</div></div>
+            </div>
+          </Card>
+        </div>
+        <Card title="Quantity Reconciliation">
+          <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
+            <div><div className="text-xs font-semibold text-text-muted">Opening</div><div className="font-black text-text-primary">{quantity(batch.original_qty)}</div></div>
+            <div><div className="text-xs font-semibold text-text-muted">Completed Dispatch</div><div className="font-black text-text-primary">{quantity(batch.completed_dispatch_qty)}</div></div>
+            <div><div className="text-xs font-semibold text-text-muted">Stock Check Reduction</div><div className="font-black text-text-primary">{quantity(batch.completed_negative_adjustment_qty)}</div></div>
+            <div><div className="text-xs font-semibold text-text-muted">Current Balance</div><div className="font-black text-text-primary">{quantity(batch.current_balance)}</div></div>
+          </div>
+        </Card>
+        <Card title="Dispatch History">
+          <div className="p-4">
+            {dispatches.length ? <div className="space-y-2">{dispatches.map((dispatch) => <div key={dispatch.allocation_id} className="grid gap-2 rounded-xl border border-border px-3 py-2 text-sm sm:grid-cols-5"><div className="font-bold text-text-primary">{dispatch.dispatch_no || "—"}</div><div>{dispatch.customer || "—"}</div><div>{formatFactoryDate(dispatch.dispatch_date)}</div><div className="font-bold">{quantity(dispatch.quantity)}</div><Badge tone="success">Completed</Badge></div>)}</div> : <EmptyState title="No Completed Dispatches" description="This batch has not been allocated to a completed Dispatch." />}
+          </div>
+        </Card>
+        <Card title="Storage and Expiry">
+          <div className="grid gap-3 p-4 text-sm sm:grid-cols-3"><div><div className="text-xs font-semibold text-text-muted">Location</div><div className="font-bold text-text-primary">{batch.storage_location_name || "—"}</div></div><div><div className="text-xs font-semibold text-text-muted">Location Type</div><div className="font-bold text-text-primary">{batch.storage_location_type || "—"}</div></div><div><div className="text-xs font-semibold text-text-muted">Current Status</div><div className="font-bold text-text-primary">{batch.storage_location_status || "—"}</div></div></div>
+        </Card>
+        {diagnostics.length ? <Card title="Historical Diagnostics"><div className="space-y-2 p-4">{diagnostics.map((diagnostic) => <div key={diagnostic.diagnostic_id} className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><div className="flex flex-wrap justify-between gap-2"><div className="font-bold">{diagnostic.dispatch_no || "Historical Dispatch"} · {diagnostic.legacy_batch_reference || "No batch reference"}</div><Badge tone="warning">{humanizeFactoryToken(diagnostic.status)}</Badge></div><div className="mt-1 text-xs font-semibold">{diagnostic.message} Affected Qty: {quantity(diagnostic.affected_quantity)} · Matches: {diagnostic.matching_batch_count}</div></div>)}</div></Card> : null}
+      </div>
+    </Modal>
+  );
+}
+
+function DispatchBatchAllocationModal({ item, sku, batches, loading, error, autoAllocateOnLoad, allowExpired = false, referenceDate = "", onRetry, onClose, onApply }) {
+  const [quantities, setQuantities] = useState(() => Object.fromEntries((item.allocations || []).map((allocation) => [allocation.batch_id || allocation.batch_balance_id, String(allocation.quantity)])));
+  const autoAllocatedRef = useRef(false);
+  const requiredQty = Number(item.quantity || 0);
+  const allocatedQty = Object.values(quantities).reduce((sum, value) => sum + Number(value || 0), 0);
+  const totalAvailability = batches.reduce((sum, batch) => sum + Number(batch.available_qty || 0), 0);
+  const invalidQuantity = Object.values(quantities).some((value) => value !== "" && (!Number.isInteger(Number(value)) || Number(value) < 0));
+  const exceedsAvailability = batches.some((batch) => Number(quantities[batch.batch_id] || 0) > Number(batch.available_qty || 0));
+  const invalidLocationAllocations = (item.allocations || []).filter((allocation) => (
+    allocation.location_valid === false && Number(quantities[allocation.batch_id || allocation.batch_balance_id] || 0) > 0
+  ));
+  const canApply = !loading && !error && requiredQty > 0 && allocatedQty === requiredQty && !invalidQuantity && !exceedsAvailability && !invalidLocationAllocations.length;
+  const isExpired = (batch) => Boolean(referenceDate && batch.expiry_date && batch.expiry_date < referenceDate);
+
+  function autoAllocate() {
+    let remaining = requiredQty;
+    const next = {};
+    batches.forEach((batch) => {
+      const allocation = Math.min(remaining, Math.floor(Number(batch.available_qty || 0)));
+      if (allocation > 0) next[batch.batch_id] = String(allocation);
+      remaining -= allocation;
+    });
+    setQuantities(next);
+  }
+
+  useEffect(() => {
+    if (!autoAllocateOnLoad || loading || error || autoAllocatedRef.current) return;
+    autoAllocatedRef.current = true;
+    autoAllocate();
+  }, [autoAllocateOnLoad, batches, error, loading]);
+
+  function applyAllocation() {
+    if (!canApply) return;
+    onApply(batches.flatMap((batch) => {
+      const allocationQty = Number(quantities[batch.batch_id] || 0);
+      return allocationQty > 0 ? [{ ...batch, quantity: allocationQty }] : [];
+    }));
+  }
+
+  return (
+    <Modal
+      title="Batch Allocation"
+      description={[sku?.product_family_name || sku?.product_name_en || sku?.product_name, sku?.product_code, sku?.variant_name || packSizeText(sku)].filter(Boolean).join(" · ")}
+      size="xl"
+      onClose={onClose}
+      panelClassName="max-md:h-[calc(100dvh-1rem)] max-md:max-h-none max-md:rounded-xl"
+      footerClassName="max-md:sticky"
+      footer={(
+        <>
+          <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" type="button" disabled={!canApply} onClick={applyAllocation}>Apply Allocation</button>
+        </>
+      )}
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-3 gap-2">
+          {[
+            ["Required Qty", requiredQty],
+            ["Allocated Qty", allocatedQty],
+            ["Total Batch Availability", totalAvailability],
+          ].map(([label, value]) => (
+            <div key={label} className="rounded-lg border border-border bg-slate-50 px-3 py-2">
+              <div className="text-[10.5px] font-semibold text-text-muted">{label}</div>
+              <div className="mt-1 text-sm font-black text-text-primary">{quantity(value, pluralizePackagingType(packagingTypeLabel(sku), value))}</div>
+            </div>
+          ))}
+        </div>
+
+        <div className="flex flex-wrap gap-2">
+          <button className="btn-secondary" type="button" disabled={loading || !batches.length} onClick={autoAllocate}><RefreshCw size={14} /> Auto Allocate FEFO</button>
+          <button className="btn-secondary" type="button" disabled={loading} onClick={() => setQuantities({})}>Clear Allocation</button>
+        </div>
+
+        {loading ? <div className="rounded-xl border border-border bg-slate-50 px-4 py-8 text-center text-sm font-semibold text-text-secondary">Loading available batches...</div> : null}
+        {!loading && error ? (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-700">
+            <div>{error}</div>
+            <button className="mt-2 underline" type="button" onClick={onRetry}>Retry</button>
+          </div>
+        ) : null}
+        {!loading && invalidLocationAllocations.length ? (
+          <div className="rounded-xl border border-rose-200 bg-rose-50 p-3 text-sm text-rose-800">
+            <div className="font-bold">Storage location unavailable</div>
+            {invalidLocationAllocations.map((allocation) => (
+              <div key={allocation.batch_id || allocation.batch_balance_id} className="mt-1 text-xs font-semibold">
+                {allocation.batch_no || "Saved batch"}: {allocation.location_issue || "Select a batch in an active Finished Goods Area."}
+              </div>
+            ))}
+            <div className="mt-2 text-xs">Clear or auto-allocate again before applying.</div>
+          </div>
+        ) : null}
+        {!loading && !error && !batches.length ? <EmptyState title="No Available Batches" description={allowExpired ? "No active Finished Goods batches have available pack balance." : "No active, unexpired Finished Goods batches have available pack balance."} /> : null}
+
+        {!loading && !error && batches.length ? (
+          <div className="space-y-3 md:hidden">
+            {batches.map((batch) => (
+              <div key={batch.batch_id} className="rounded-xl border border-border bg-white p-3">
+                <div className="flex items-start justify-between gap-3">
+                  <div><div className="flex flex-wrap items-center gap-2"><span className="font-bold text-text-primary">{batch.batch_no || "—"}</span><Badge tone={batch.batch_type === "legacy_unallocated" ? "warning" : "neutral"}>{batchTypeLabel(batch.batch_type)}</Badge>{isExpired(batch) ? <Badge tone="danger">Expired</Badge> : null}</div><div className="text-xs text-text-secondary">{batch.storage_location || "—"}</div></div>
+                  <div className="text-right text-xs"><div className="font-bold text-text-primary">{quantity(batch.available_qty, pluralizePackagingType(packagingTypeLabel(sku), batch.available_qty))}</div><div className="text-text-muted">Available</div></div>
+                </div>
+                <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-text-secondary">
+                  <div><div className="font-semibold text-text-muted">Manufactured</div>{formatFactoryDate(batch.manufacturing_date)}</div>
+                  <div><div className="font-semibold text-text-muted">Expiry</div>{batch.expiry_date ? formatFactoryDate(batch.expiry_date) : <span className="font-semibold text-amber-700">No Expiry Recorded</span>}</div>
+                </div>
+                {Number(batch.provisional_qty || 0) > 0 ? <div className="mt-2 text-xs font-semibold text-amber-700">Draft provisional: {quantity(batch.provisional_qty, pluralizePackagingType(packagingTypeLabel(sku), batch.provisional_qty))}</div> : null}
+                <div className="mt-3"><Field label="Allocate Qty"><input className={inputClass()} type="number" min="0" step="1" value={quantities[batch.batch_id] || ""} onChange={(event) => setQuantities((current) => ({ ...current, [batch.batch_id]: event.target.value }))} /></Field></div>
+              </div>
+            ))}
+          </div>
+        ) : null}
+        {!loading && !error && batches.length ? (
+          <div className="hidden overflow-x-auto rounded-xl border border-border md:block">
+            <table className="w-full min-w-[820px] text-left">
+              <thead><tr className="border-b border-border bg-slate-50 text-[11px] font-semibold text-text-muted">
+                <th className="px-3 py-2.5">Batch No.</th><th className="px-3 py-2.5">Manufacturing Date</th><th className="px-3 py-2.5">Expiry Date</th><th className="px-3 py-2.5">Storage Location</th><th className="px-3 py-2.5">Available Qty</th><th className="px-3 py-2.5">Draft Provisional</th><th className="px-3 py-2.5">Allocate Qty</th>
+              </tr></thead>
+              <tbody>{batches.map((batch) => (
+                <tr key={batch.batch_id} className="border-b border-border last:border-0">
+                  <td className="px-3 py-3 text-sm font-bold text-text-primary"><div className="flex flex-wrap items-center gap-2"><span>{batch.batch_no || "—"}</span><Badge tone={batch.batch_type === "legacy_unallocated" ? "warning" : "neutral"}>{batchTypeLabel(batch.batch_type)}</Badge>{isExpired(batch) ? <Badge tone="danger">Expired</Badge> : null}</div></td>
+                  <td className="whitespace-nowrap px-3 py-3 text-sm text-text-secondary">{formatFactoryDate(batch.manufacturing_date)}</td>
+                  <td className="whitespace-nowrap px-3 py-3 text-sm text-text-secondary">{batch.expiry_date ? formatFactoryDate(batch.expiry_date) : <span className="font-semibold text-amber-700">No Expiry Recorded</span>}</td>
+                  <td className="px-3 py-3 text-sm text-text-secondary"><div className="font-semibold text-text-primary">{batch.storage_location || "—"}</div><div className="text-xs">{batch.storage_location_type || "—"}</div></td>
+                  <td className="px-3 py-3 text-sm font-bold text-text-primary">{quantity(batch.available_qty, pluralizePackagingType(packagingTypeLabel(sku), batch.available_qty))}</td>
+                  <td className="px-3 py-3 text-sm font-semibold text-amber-700">{quantity(batch.provisional_qty || 0, pluralizePackagingType(packagingTypeLabel(sku), batch.provisional_qty || 0))}</td>
+                  <td className="w-40 px-3 py-3"><input className={inputClass()} type="number" min="0" step="1" value={quantities[batch.batch_id] || ""} onChange={(event) => setQuantities((current) => ({ ...current, [batch.batch_id]: event.target.value }))} /></td>
+                </tr>
+              ))}</tbody>
+            </table>
+          </div>
+        ) : null}
+
+        {!loading && !error && allocatedQty !== requiredQty ? <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">Allocate exactly {quantity(requiredQty, pluralizePackagingType(packagingTypeLabel(sku), requiredQty))} before applying.</div> : null}
+        {exceedsAvailability ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">An allocation exceeds the available batch balance.</div> : null}
+      </div>
+    </Modal>
+  );
+}
+
 function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers = [], dispatches = [], onClose, onSave, embedded = false, mode = "edit" }) {
-  const makeItem = () => ({ row_id: Math.random().toString(36).slice(2), finished_good_id: "", quantity: "", batch_no: "", remarks: "" });
+  const makeItem = () => ({ row_id: Math.random().toString(36).slice(2), finished_good_id: "", quantity: "", batch_no: "", remarks: "", allocations: [], allocation_prompted: false, allocation_required: false });
   const [form, setForm] = useState(() => ({
     dispatch_date: todayInput(),
     customer_id: "",
@@ -2569,10 +2835,12 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
     status: "draft",
     remarks: "",
     ...initialValue,
-    items: initialValue?.items?.length ? initialValue.items.map((item) => ({ ...item, row_id: item.id || Math.random().toString(36).slice(2) })) : [makeItem()],
+    items: initialValue?.items?.length ? initialValue.items.map((item) => ({ ...item, allocations: item.allocations || [], allocation_prompted: Boolean(item.allocations?.length), allocation_required: dispatchAllocationTotal(item.allocations) !== Number(item.quantity || 0), row_id: item.id || Math.random().toString(36).slice(2) })) : [makeItem()],
   }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [allocationEditor, setAllocationEditor] = useState(null);
+  const [viewAllocation, setViewAllocation] = useState(null);
   const isViewMode = mode === "view" || (Boolean(initialValue?.id) && initialValue.status !== "draft");
   const isReadOnly = isViewMode;
   const dispatchNoPreview = form.dispatch_no || previewDailyDocumentNo({ prefix: "D", date: form.dispatch_date, records: dispatches, codeKey: "dispatch_no", dateKey: "dispatch_date" });
@@ -2593,6 +2861,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
   if (isViewMode) {
     const statusToneValue = form.status === "completed" ? "success" : form.status === "cancelled" ? "neutral" : "warning";
     return (
+      <>
       <Modal
         title="Finished Goods Dispatch"
         description="Read-only finished goods dispatch document."
@@ -2646,19 +2915,21 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
                   <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                     <div><div className="text-[10.5px] font-semibold text-text-muted">Dispatch Qty</div><div className="font-bold text-text-primary">{quantity(item.quantity, pluralizePackagingType(packagingTypeLabel(item), item.quantity))}</div></div>
                     <div><div className="text-[10.5px] font-semibold text-text-muted">Pack Size</div><div className="font-bold text-text-primary">{packSizeText(item) || "—"}</div></div>
+                    <div className="col-span-2"><div className="text-[10.5px] font-semibold text-text-muted">Batch Allocation</div><DispatchAllocationSummary item={{ ...item, read_only: true }} sku={item} onEdit={() => setViewAllocation(item)} /></div>
                     <div><div className="text-[10.5px] font-semibold text-text-muted">Base Equivalent</div><div className="font-bold text-text-primary">{dispatchLineBaseEquivalentLabel(item)}</div></div>
                     <div><div className="text-[10.5px] font-semibold text-text-muted">Remarks</div><div className="font-bold text-text-primary">{item.remarks || "—"}</div></div>
                   </div>
                 </div>
               )) : <EmptyState title="No dispatch lines" description="No Packaging SKU rows were saved for this dispatch." />}
             </div>
-            <div className="hidden md:block">
-              <table className="w-full text-left">
+            <div className="hidden overflow-x-auto md:block">
+              <table className="w-full min-w-[900px] text-left">
                 <thead>
                   <tr className="border-b border-border bg-slate-50 text-[11px] font-semibold text-text-muted">
                     <th className="px-4 py-2.5">Packaging SKU</th>
                     <th className="px-4 py-2.5">Finished Good</th>
                     <th className="px-4 py-2.5">Dispatch Qty</th>
+                    <th className="px-4 py-2.5">Batch Allocation</th>
                     <th className="px-4 py-2.5">Pack Size</th>
                     <th className="px-4 py-2.5">Base Equivalent</th>
                     <th className="px-4 py-2.5">Remarks</th>
@@ -2670,12 +2941,13 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
                       <td className="px-4 py-3"><div className="font-bold text-text-primary">{item.product_code || "No SKU"}</div><div className="text-xs text-text-secondary">{item.variant_name || packSizeText(item) || "Packaging SKU"}</div></td>
                       <td className="px-4 py-3 text-sm font-semibold text-text-secondary">{item.product_name || item.sku_product_name || "—"}</td>
                       <td className="px-4 py-3 text-sm font-bold text-text-primary">{quantity(item.quantity, pluralizePackagingType(packagingTypeLabel(item), item.quantity))}</td>
+                      <td className="max-w-[220px] px-4 py-3"><DispatchAllocationSummary item={{ ...item, read_only: true }} sku={item} onEdit={() => setViewAllocation(item)} /></td>
                       <td className="px-4 py-3 text-sm font-semibold text-text-secondary">{packSizeText(item) || "—"}</td>
                       <td className="px-4 py-3 text-sm font-semibold text-text-secondary">{dispatchLineBaseEquivalentLabel(item)}</td>
                       <td className="px-4 py-3 text-sm text-text-secondary">{item.remarks || "—"}</td>
                     </tr>
                   )) : (
-                    <tr><td className="px-4 py-6 text-center text-sm font-semibold text-text-secondary" colSpan={6}>No dispatch lines were saved for this dispatch.</td></tr>
+                    <tr><td className="px-4 py-6 text-center text-sm font-semibold text-text-secondary" colSpan={7}>No dispatch lines were saved for this dispatch.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -2705,6 +2977,8 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
           ) : null}
         </div>
       </Modal>
+      {viewAllocation ? <ReadOnlyBatchAllocationModal title="Dispatch Batch Allocation" subtitle={[form.dispatch_no, viewAllocation.product_code, viewAllocation.product_name].filter(Boolean).join(" · ")} allocations={viewAllocation.allocations || []} onClose={() => setViewAllocation(null)} /> : null}
+      </>
     );
   }
 
@@ -2713,6 +2987,68 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
       ...current,
       items: current.items.map((item) => item.row_id === rowId ? { ...item, ...patch } : item),
     }));
+  }
+
+  function updateItemQuantity(rowId, value) {
+    setForm((current) => ({
+      ...current,
+      items: current.items.map((item) => {
+        if (item.row_id !== rowId) return item;
+        const matchesAllocation = validDispatchPackQty(value) && dispatchAllocationTotal(item.allocations) === Number(value);
+        return { ...item, quantity: value, allocation_required: !matchesAllocation && Boolean(item.allocations?.length) };
+      }),
+    }));
+  }
+
+  function updateItemSku(item, value) {
+    const shouldPrompt = validDispatchPackQty(item.quantity);
+    const nextItem = { ...item, finished_good_id: value, allocations: [], batch_no: "", allocation_prompted: shouldPrompt, allocation_required: shouldPrompt };
+    updateItem(item.row_id, nextItem);
+    if (value && shouldPrompt) openBatchAllocation(nextItem, true);
+  }
+
+  async function openBatchAllocation(item, autoAllocateOnLoad = false) {
+    if (!item?.finished_good_id || !validDispatchPackQty(item.quantity)) return;
+    setAllocationEditor({ rowId: item.row_id, loading: true, error: "", batches: [], autoAllocateOnLoad });
+    try {
+      const batches = await factoryService.getFinishedGoodBatchAvailability({
+        finishedGoodId: item.finished_good_id,
+        dispatchId: form.id || null,
+        dispatchDate: form.dispatch_date,
+      });
+      const otherLineUsage = form.items.reduce((usage, line) => {
+        if (line.row_id === item.row_id) return usage;
+        (line.allocations || []).forEach((allocation) => {
+          const batchId = allocation.batch_id || allocation.batch_balance_id;
+          usage[batchId] = (usage[batchId] || 0) + Number(allocation.quantity || 0);
+        });
+        return usage;
+      }, {});
+      const availableBatches = batches.map((batch) => ({
+        ...batch,
+        available_qty: Math.max(Number(batch.available_qty || 0) - Number(otherLineUsage[batch.batch_id] || 0), 0),
+      })).filter((batch) => batch.available_qty > 0);
+      setAllocationEditor((current) => current?.rowId === item.row_id ? { ...current, loading: false, batches: availableBatches } : current);
+    } catch (loadError) {
+      setAllocationEditor((current) => current?.rowId === item.row_id ? { ...current, loading: false, error: loadError.message || "Unable to load available batches." } : current);
+    }
+  }
+
+  function promptAllocationOnce(rowId) {
+    const item = form.items.find((row) => row.row_id === rowId);
+    if (!item || item.allocation_prompted || !validDispatchPackQty(item.quantity) || !item.finished_good_id) return;
+    updateItem(rowId, { allocation_prompted: true });
+    openBatchAllocation({ ...item, allocation_prompted: true }, true);
+  }
+
+  function applyBatchAllocation(rowId, allocations) {
+    updateItem(rowId, {
+      allocations,
+      allocation_prompted: true,
+      allocation_required: dispatchAllocationTotal(allocations) !== Number(form.items.find((item) => item.row_id === rowId)?.quantity || 0),
+      batch_no: allocations.length === 1 ? allocations[0].batch_no : "",
+    });
+    setAllocationEditor(null);
   }
 
   function addItem() {
@@ -2747,10 +3083,22 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
     }
     const overBalance = rows.find((item) => {
       const sku = activeSkus.find((row) => row.id === item.finished_good_id);
-      return sku && Number(item.quantity || 0) > Number(sku.current_balance || 0);
+      const skuDispatchQty = rows.filter((row) => row.finished_good_id === item.finished_good_id).reduce((sum, row) => sum + Number(row.quantity || 0), 0);
+      return sku && skuDispatchQty > Number(sku.current_balance || 0);
     });
     if (overBalance) {
       setError("Dispatch quantity cannot exceed available balance.");
+      return;
+    }
+    const invalidAllocation = rows.find((item) => (
+      !Number.isInteger(Number(item.quantity))
+      || !item.allocations?.length
+      || item.allocations.some((allocation) => !Number.isInteger(Number(allocation.quantity)) || Number(allocation.quantity) <= 0 || (allocation.available_qty != null && Number(allocation.quantity) > Number(allocation.available_qty)))
+      || dispatchAllocationTotal(item.allocations) !== Number(item.quantity)
+      || item.allocations.some((allocation) => allocation.expiry_date && allocation.expiry_date < form.dispatch_date)
+    ));
+    if (invalidAllocation) {
+      setError("Confirm a valid batch allocation that exactly matches every Dispatch Qty.");
       return;
     }
     setSaving(true);
@@ -2831,7 +3179,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
                       searchPlaceholder="Search SKU"
                       emptyText="No packaging SKUs"
                       disabled={isReadOnly}
-                      onChange={(value) => updateItem(item.row_id, { finished_good_id: value })}
+                      onChange={(value) => updateItemSku(item, value)}
                     />
                   </Field>
                   <div className="grid grid-cols-2 gap-3">
@@ -2846,9 +3194,13 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
                   </div>
                   <Field label="Dispatch Qty">
                     <div className="flex items-center gap-2">
-                      <input className={inputClass()} type="number" min="0" step="0.01" value={item.quantity || ""} disabled={isReadOnly} onChange={(event) => updateItem(item.row_id, { quantity: event.target.value })} />
+                      <input className={inputClass()} type="number" min="1" step="1" value={item.quantity || ""} disabled={isReadOnly} onChange={(event) => updateItemQuantity(item.row_id, event.target.value)} onBlur={() => promptAllocationOnce(item.row_id)} />
                       <span className="shrink-0 text-xs font-bold text-text-muted">{pluralizePackagingType(packagingTypeLabel(sku), item.quantity || 0)}</span>
                     </div>
+                    {item.quantity !== "" && !validDispatchPackQty(item.quantity) ? <div className="mt-1 text-xs font-semibold text-rose-700">Enter a whole number greater than zero.</div> : null}
+                  </Field>
+                  <Field label="Batch Allocation">
+                    <div className={`rounded-xl border px-3 py-2 ${item.allocation_required ? "border-amber-300 bg-amber-50" : "border-border bg-slate-50"}`}><DispatchAllocationSummary item={item} sku={sku} onEdit={validDispatchPackQty(item.quantity) && item.finished_good_id ? () => openBatchAllocation(item) : null} /></div>
                   </Field>
                   <Field label="Remarks">
                     <input className={inputClass()} value={item.remarks || ""} disabled={isReadOnly} onChange={(event) => updateItem(item.row_id, { remarks: event.target.value })} />
@@ -2859,12 +3211,13 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
             })}
           </div>
           <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[760px] text-left">
+            <table className="w-full min-w-[1080px] text-left">
               <thead>
                 <tr className="border-b border-border bg-slate-50 text-[11px] font-semibold text-text-muted">
                   <th className="px-3 py-2.5">Packaging SKU</th>
                   <th className="px-3 py-2.5">Available</th>
                   <th className="px-3 py-2.5">Dispatch Qty</th>
+                  <th className="px-3 py-2.5">Batch Allocation</th>
                   <th className="px-3 py-2.5">Pack Size</th>
                   <th className="px-3 py-2.5">Remarks</th>
                   <th className="px-3 py-2.5 text-right">Action</th>
@@ -2883,16 +3236,18 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
                           searchPlaceholder="Search SKU"
                           emptyText="No packaging SKUs"
                           disabled={isReadOnly}
-                          onChange={(value) => updateItem(item.row_id, { finished_good_id: value })}
+                          onChange={(value) => updateItemSku(item, value)}
                         />
                       </td>
                       <td className="px-3 py-3 text-sm font-semibold text-text-secondary">{sku ? skuBalanceLabel(sku) : "—"}</td>
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-2">
-                          <input className={inputClass()} type="number" min="0" step="0.01" value={item.quantity || ""} disabled={isReadOnly} onChange={(event) => updateItem(item.row_id, { quantity: event.target.value })} />
+                          <input className={inputClass()} type="number" min="1" step="1" value={item.quantity || ""} disabled={isReadOnly} onChange={(event) => updateItemQuantity(item.row_id, event.target.value)} onBlur={() => promptAllocationOnce(item.row_id)} />
                           <span className="text-xs font-bold text-text-muted">{pluralizePackagingType(packagingTypeLabel(sku), item.quantity || 0)}</span>
                         </div>
+                        {item.quantity !== "" && !validDispatchPackQty(item.quantity) ? <div className="mt-1 text-xs font-semibold text-rose-700">Whole packs only.</div> : null}
                       </td>
+                      <td className="max-w-[220px] px-3 py-3"><DispatchAllocationSummary item={item} sku={sku} onEdit={validDispatchPackQty(item.quantity) && item.finished_good_id ? () => openBatchAllocation(item) : null} /></td>
                       <td className="px-3 py-3 text-sm font-semibold text-text-secondary">{sku ? packSizeText(sku) || "—" : "—"}</td>
                       <td className="px-3 py-3"><input className={inputClass()} value={item.remarks || ""} disabled={isReadOnly} onChange={(event) => updateItem(item.row_id, { remarks: event.target.value })} /></td>
                       <td className="px-3 py-3 text-right">
@@ -2919,25 +3274,45 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
     </form>
   );
 
+  const allocationItem = allocationEditor ? form.items.find((item) => item.row_id === allocationEditor.rowId) : null;
+  const allocationSku = allocationItem ? activeSkus.find((sku) => sku.id === allocationItem.finished_good_id) : null;
+  const allocationModal = allocationEditor && allocationItem ? (
+    <DispatchBatchAllocationModal
+      key={`${allocationItem.row_id}-${allocationEditor.autoAllocateOnLoad ? "auto" : "edit"}`}
+      item={allocationItem}
+      sku={allocationSku}
+      batches={allocationEditor.batches || []}
+      loading={allocationEditor.loading}
+      error={allocationEditor.error}
+      autoAllocateOnLoad={allocationEditor.autoAllocateOnLoad}
+      onRetry={() => openBatchAllocation(allocationItem, allocationEditor.autoAllocateOnLoad)}
+      onClose={() => setAllocationEditor(null)}
+      onApply={(allocations) => applyBatchAllocation(allocationItem.row_id, allocations)}
+    />
+  ) : null;
+
   if (embedded) {
-    return formContent;
+    return <>{formContent}{allocationModal}</>;
   }
 
   return (
-    <Modal
-      title={isReadOnly ? "View Finished Goods Dispatch" : initialValue?.id ? "Edit Finished Goods Dispatch" : "Create Finished Goods Dispatch"}
-      description="Record outbound Packaging SKU dispatch from Factory warehouse."
-      size="xl"
-      onClose={saving ? undefined : onClose}
-      footer={(
-        <>
-          <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>{isReadOnly ? "Close" : "Cancel"}</button>
-          {!isReadOnly ? <button className="btn-primary" type="submit" form="factory-finished-good-dispatch-form" disabled={saving}>{saving ? "Saving..." : "Save Dispatch Draft"}</button> : null}
-        </>
-      )}
-    >
-      {formContent}
-    </Modal>
+    <>
+      <Modal
+        title={isReadOnly ? "View Finished Goods Dispatch" : initialValue?.id ? "Edit Finished Goods Dispatch" : "Create Finished Goods Dispatch"}
+        description="Record outbound Packaging SKU dispatch from Factory warehouse."
+        size="xl"
+        onClose={saving ? undefined : onClose}
+        footer={(
+          <>
+            <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>{isReadOnly ? "Close" : "Cancel"}</button>
+            {!isReadOnly ? <button className="btn-primary" type="submit" form="factory-finished-good-dispatch-form" disabled={saving}>{saving ? "Saving..." : "Save Dispatch Draft"}</button> : null}
+          </>
+        )}
+      >
+        {formContent}
+      </Modal>
+      {allocationModal}
+    </>
   );
 }
 
@@ -5950,6 +6325,7 @@ function buildStockCheckRows(stockType, stockItems, initialValue, categoryId = "
       physical_qty: item.variance_status === "Skipped" || item.count_status === "pending" ? "" : item.physical_qty,
       count_status: item.variance_status === "Skipped" ? "skip" : item.count_status === "pending" ? "pending" : "counted",
       variance_reason: item.variance_reason || "",
+      batch_allocations: item.batch_allocations || [],
       uom: item.uom || "",
     }));
   }
@@ -5962,6 +6338,7 @@ function buildStockCheckRows(stockType, stockItems, initialValue, categoryId = "
     physical_qty: "",
     count_status: "counted",
     variance_reason: "",
+    batch_allocations: [],
     uom: item.uom || "",
   }));
 }
@@ -5980,9 +6357,12 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [lastSubmitAction, setLastSubmitAction] = useState("");
   const [error, setError] = useState("");
+  const [batchEditor, setBatchEditor] = useState(null);
+  const [reconciliation, setReconciliation] = useState({ rows: [], loading: stockType === "product", error: "" });
   const itemIdKey = stockType === "raw" ? "raw_material_id" : "finished_good_id";
   const itemLabel = stockType === "raw" ? "Raw Material" : "Finished Good";
   const isRaw = stockType === "raw";
+  const reconciliationBySku = useMemo(() => new Map((reconciliation.rows || []).map((row) => [row.finished_good_id, row])), [reconciliation.rows]);
   const checkNoPreview = form.check_no || previewDailyDocumentNo({
     prefix: isRaw ? "RMSC" : "FGSC",
     prefixSeparator: "",
@@ -5994,11 +6374,37 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
     pad: 2,
   });
 
+  useEffect(() => {
+    if (isRaw) return undefined;
+    let active = true;
+    setReconciliation((current) => ({ ...current, loading: true, error: "" }));
+    factoryService.getFinishedGoodInventoryReconciliation()
+      .then((rows) => {
+        if (active) setReconciliation({ rows, loading: false, error: "" });
+      })
+      .catch((loadError) => {
+        if (active) setReconciliation((current) => ({ ...current, loading: false, error: loadError.message || "Unable to load Finished Goods reconciliation." }));
+      });
+    return () => { active = false; };
+  }, [isRaw]);
+
   function updateRow(rowId, patch) {
     setForm((current) => ({
       ...current,
       items: current.items.map((row) => (row.id === rowId ? { ...row, ...patch } : row)),
     }));
+  }
+
+  async function openStockCheckBatchAllocation(row) {
+    const requiredQty = Math.abs(Math.min(stockCheckVariance(row.system_qty, row.physical_qty).variance, 0));
+    if (!row.finished_good_id || !Number.isInteger(requiredQty) || requiredQty <= 0) return;
+    setBatchEditor({ rowId: row.id, loading: true, error: "", batches: [] });
+    try {
+      const batches = await factoryService.getFinishedGoodBatchAvailability({ finishedGoodId: row.finished_good_id });
+      setBatchEditor((current) => current?.rowId === row.id ? { ...current, loading: false, batches } : current);
+    } catch (loadError) {
+      setBatchEditor((current) => current?.rowId === row.id ? { ...current, loading: false, error: loadError.message || "Unable to load batch balances." } : current);
+    }
   }
 
   function selectCategory(categoryId) {
@@ -6015,6 +6421,11 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
     if (!form.items.length) return "Stock check requires at least one counted item.";
     const invalidRow = form.items.find((row) => !row[itemIdKey]);
     if (invalidRow) return "Every row needs an item.";
+    if (!isRaw) {
+      const invalidWholeQty = form.items.find((row) => row.count_status !== "skip" && row.physical_qty !== "" && row.physical_qty != null
+        && (!Number.isFinite(Number(row.physical_qty)) || !Number.isInteger(Number(row.physical_qty))));
+      if (invalidWholeQty) return "Physical Qty must be a whole number.";
+    }
     if (nextStatus === "submitted") {
       const missingCount = form.items.find((row) => row.count_status !== "skip" && (row.physical_qty === "" || row.physical_qty == null || Number(row.physical_qty) < 0));
       if (missingCount) return "Submit requires every row to be counted or skipped.";
@@ -6031,6 +6442,28 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
         return variance.status !== "Normal" && !String(row.variance_reason || "").trim();
       });
       if (missingReason) return "Variance reason is required for variance rows.";
+      if (!isRaw) {
+        if (reconciliation.loading) return "Finished Goods reconciliation is still loading.";
+        if (reconciliation.error) return "Finished Goods reconciliation could not be verified. Retry before submitting.";
+        const unsafeReconciliation = form.items.find((row) => reconciliationBySku.get(row.finished_good_id)?.reconciliation_status === "mismatch" || !reconciliationBySku.has(row.finished_good_id));
+        if (unsafeReconciliation) return "Reconcile Finished Goods batch inventory before submitting this Stock Check.";
+        const missingAdjustmentDestination = form.items.find((row) => {
+          if (row.count_status === "skip" || row.physical_qty === "" || row.physical_qty == null) return false;
+          if (stockCheckVariance(row.system_qty, row.physical_qty).variance <= 0) return false;
+          const sku = stockItems.find((item) => item.id === row.finished_good_id);
+          return !sku?.storage_location_id || String(sku.storage_location_ref?.status || sku.storage_location_status || "").toLowerCase() !== "active"
+            || String(sku.storage_location_ref?.location_type || sku.storage_location_type || "").toLowerCase() !== "finished goods area";
+        });
+        if (missingAdjustmentDestination) return "Positive variance requires an active Finished Goods default storage location.";
+        const invalidAllocationLocation = form.items.find((row) => (row.batch_allocations || []).some((allocation) => allocation.location_valid === false));
+        if (invalidAllocationLocation) return "Storage location unavailable. Replace invalid batch allocations before submitting.";
+        const missingBatchAllocation = form.items.find((row) => {
+          if (row.count_status === "skip" || row.physical_qty === "" || row.physical_qty == null) return false;
+          const varianceQty = stockCheckVariance(row.system_qty, row.physical_qty).variance;
+          return varianceQty < 0 && dispatchAllocationTotal(row.batch_allocations) !== Math.abs(varianceQty);
+        });
+        if (missingBatchAllocation) return "Allocate every negative Product Stock Check variance across finished-goods batches before submitting.";
+      }
     }
     return "";
   }
@@ -6068,7 +6501,17 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
     const variance = isSkipped || !hasCount ? { variance: 0, variancePercent: null, status: isSkipped ? "Skipped" : "Normal" } : stockCheckVariance(row.system_qty, row.physical_qty);
     const showReasonError = submitAttempted && lastSubmitAction === "submitted" && ((variance.status !== "Normal" && !isSkipped) || isSkipped) && !String(row.variance_reason || "").trim();
     const showCountError = submitAttempted && lastSubmitAction === "submitted" && !isSkipped && !hasCount;
-    return { isSkipped, hasCount, variance, showReasonError, showCountError };
+    const showWholeError = !isRaw && hasCount && (!Number.isFinite(Number(row.physical_qty)) || !Number.isInteger(Number(row.physical_qty)));
+    return { isSkipped, hasCount, variance, showReasonError, showCountError, showWholeError };
+  }
+
+  function reconciliationSummary(row) {
+    const snapshot = reconciliationBySku.get(row.finished_good_id);
+    if (!snapshot) return { label: reconciliation.loading ? "Checking" : "Unavailable", tone: "warning", snapshot: null };
+    if (snapshot.reconciliation_status === "reconciled") return { label: "Reconciled", tone: "success", snapshot };
+    if (snapshot.reconciliation_status === "legacy_unallocated") return { label: "Legacy / Unallocated", tone: "warning", snapshot };
+    if (snapshot.reconciliation_status === "review_required") return { label: "Review Required", tone: "warning", snapshot };
+    return { label: "Mismatch", tone: "danger", snapshot };
   }
 
   function countStatusControl(row, isSkipped) {
@@ -6081,6 +6524,7 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
   }
 
   return (
+    <>
     <Modal
       title={initialValue?.id ? `View ${title}` : `Create ${title}`}
       description="Draft and submitted stock checks do not adjust inventory. Approval creates the adjustment movement."
@@ -6096,6 +6540,20 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
     >
       <div className="space-y-5">
         {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
+        {!isRaw && reconciliation.error ? (
+          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">
+            <span>Finished Goods batch reconciliation could not be verified.</span>
+            <button className="underline" type="button" onClick={async () => {
+              setReconciliation((current) => ({ ...current, loading: true, error: "" }));
+              try {
+                const rows = await factoryService.getFinishedGoodInventoryReconciliation();
+                setReconciliation({ rows, loading: false, error: "" });
+              } catch (loadError) {
+                setReconciliation((current) => ({ ...current, loading: false, error: loadError.message || "Unable to load Finished Goods reconciliation." }));
+              }
+            }}>Retry</button>
+          </div>
+        ) : null}
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={ClipboardCheck} label="Counted Items" value={form.items.length} helper={itemLabel} />
           <MetricCard icon={Activity} label="Variance Items" value={varianceRows.length} helper="Physical count differs" tone={varianceRows.length ? "warning" : "success"} />
@@ -6142,7 +6600,11 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
           ) : null}
           <div className="space-y-3 md:hidden">
             {form.items.map((row) => {
-              const { isSkipped, variance, showReasonError, showCountError } = rowState(row);
+              const { isSkipped, variance, showReasonError, showCountError, showWholeError } = rowState(row);
+              const reconciliationState = reconciliationSummary(row);
+              const rowSku = stockItems.find((item) => item.id === row.finished_good_id);
+              const expiredAllocationCount = (row.batch_allocations || []).filter((allocation) => allocation.expiry_date && allocation.expiry_date < form.check_date).length;
+              const invalidLocationAllocation = (row.batch_allocations || []).find((allocation) => allocation.location_valid === false);
               return (
                 <div key={row.id} className={`space-y-3 rounded-2xl border border-border bg-white p-3 ${showReasonError ? "ring-1 ring-amber-200" : ""}`}>
                   <div className="flex items-start justify-between gap-3">
@@ -6163,20 +6625,31 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
                       {variance.variancePercent == null ? null : <div className="mt-0.5 text-xs font-semibold text-text-muted">{percent(variance.variancePercent)}</div>}
                     </div>
                   </div>
+                  {!isRaw && variance.variance !== 0 ? (
+                    <div className="rounded-xl border border-border bg-slate-50 px-3 py-2 text-xs text-text-secondary">
+                      <div className="flex flex-wrap items-center justify-between gap-2"><span className="font-bold text-text-primary">Batch Reconciliation</span><Badge tone={reconciliationState.tone}>{reconciliationState.label}</Badge></div>
+                      {reconciliationState.snapshot ? <div className="mt-1">Aggregate {quantity(reconciliationState.snapshot.aggregate_balance, row.uom)} · Batch {quantity(reconciliationState.snapshot.batch_balance, row.uom)}</div> : null}
+                      {reconciliationState.snapshot && (reconciliationState.snapshot.ambiguous_reference_count || reconciliationState.snapshot.unmatched_reference_count) ? <div className="mt-1 font-semibold text-amber-800">Historical references: {reconciliationState.snapshot.ambiguous_reference_count} ambiguous · {reconciliationState.snapshot.unmatched_reference_count} unmatched</div> : null}
+                      {variance.variance > 0 ? <div className="mt-1">Adjustment destination: <span className="font-semibold text-text-primary">{rowSku?.storage_location || "Missing"}</span> · +{quantity(variance.variance, row.uom)}</div> : null}
+                      {variance.variance < 0 ? <div className="mt-1">Batch allocation: <span className="font-semibold text-text-primary">{quantity(dispatchAllocationTotal(row.batch_allocations), row.uom)}</span>{expiredAllocationCount ? <span className="ml-2 font-bold text-rose-700">{expiredAllocationCount} expired</span> : null}</div> : null}
+                      {invalidLocationAllocation ? <div className="mt-1 font-bold text-rose-700">Storage location unavailable · {invalidLocationAllocation.location_issue}</div> : null}
+                    </div>
+                  ) : null}
                   <div className="space-y-2">
                     {countStatusControl(row, isSkipped)}
                     <Field label="Physical Count">
                       <input
-                        className={inputClass(showCountError || (submitAttempted && Number(row.physical_qty || 0) < 0))}
+                        className={inputClass(showCountError || showWholeError || (submitAttempted && Number(row.physical_qty || 0) < 0))}
                         type="number"
                         min="0"
-                        step="0.01"
+                        step={isRaw ? "0.01" : "1"}
                         disabled={isLocked || isSkipped}
                         placeholder={isSkipped ? "Skipped" : "Count qty"}
                         value={row.physical_qty}
                         onChange={(event) => updateRow(row.id, { physical_qty: event.target.value })}
                       />
                       {showCountError ? <div className="mt-1 text-xs font-semibold text-rose-600">Required before submit.</div> : null}
+                      {showWholeError ? <div className="mt-1 text-xs font-semibold text-rose-600">Physical Qty must be a whole number.</div> : null}
                     </Field>
                     <Field label="Reason">
                       <input
@@ -6188,6 +6661,7 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
                       />
                       {showReasonError ? <div className="mt-1 text-xs font-semibold text-amber-700">{isSkipped ? "Required when skipped." : "Required for variance rows."}</div> : null}
                     </Field>
+                    {!isRaw && variance.variance < 0 ? <button className="btn-secondary w-full" type="button" disabled={isLocked} onClick={() => openStockCheckBatchAllocation(row)}>{dispatchAllocationTotal(row.batch_allocations) === Math.abs(variance.variance) ? "Edit Batch Reduction" : "Allocate Batch Reduction"}</button> : null}
                   </div>
                 </div>
               );
@@ -6207,26 +6681,32 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
               </thead>
               <tbody>
                 {form.items.map((row) => {
-                  const { isSkipped, variance, showReasonError, showCountError } = rowState(row);
+                  const { isSkipped, variance, showReasonError, showCountError, showWholeError } = rowState(row);
+                  const reconciliationState = reconciliationSummary(row);
+                  const rowSku = stockItems.find((item) => item.id === row.finished_good_id);
+                  const expiredAllocationCount = (row.batch_allocations || []).filter((allocation) => allocation.expiry_date && allocation.expiry_date < form.check_date).length;
+                  const invalidLocationAllocation = (row.batch_allocations || []).find((allocation) => allocation.location_valid === false);
                   return (
                     <tr key={row.id} className={`border-b border-border last:border-0 ${showReasonError ? "bg-amber-50" : ""}`}>
                       <td className="px-4 py-3">
                         <div className="font-semibold text-text-primary">{row.item_name || "Item"}</div>
                         <div className="text-xs text-text-secondary">{row.uom || "uom"}</div>
+                        {!isRaw && variance.variance !== 0 ? <div className="mt-2 space-y-1 text-[11px] text-text-secondary"><Badge tone={reconciliationState.tone}>{reconciliationState.label}</Badge>{reconciliationState.snapshot ? <div>Aggregate {quantity(reconciliationState.snapshot.aggregate_balance, row.uom)} · Batch {quantity(reconciliationState.snapshot.batch_balance, row.uom)}</div> : null}{reconciliationState.snapshot && (reconciliationState.snapshot.ambiguous_reference_count || reconciliationState.snapshot.unmatched_reference_count) ? <div className="font-semibold text-amber-800">{reconciliationState.snapshot.ambiguous_reference_count} ambiguous · {reconciliationState.snapshot.unmatched_reference_count} unmatched</div> : null}</div> : null}
                       </td>
                       <td className="px-4 py-3 text-sm font-semibold text-text-secondary">{quantity(row.system_qty, row.uom)}</td>
                       <td className="px-4 py-3">
                         <input
-                          className={inputClass(showCountError || (submitAttempted && Number(row.physical_qty || 0) < 0))}
+                          className={inputClass(showCountError || showWholeError || (submitAttempted && Number(row.physical_qty || 0) < 0))}
                           type="number"
                           min="0"
-                          step="0.01"
+                          step={isRaw ? "0.01" : "1"}
                           disabled={isLocked || isSkipped}
                           placeholder={isSkipped ? "Skipped" : "Count qty"}
                           value={row.physical_qty}
                           onChange={(event) => updateRow(row.id, { physical_qty: event.target.value })}
                         />
                         {showCountError ? <div className="mt-1 text-xs font-semibold text-rose-600">Required before submit.</div> : null}
+                        {showWholeError ? <div className="mt-1 text-xs font-semibold text-rose-600">Physical Qty must be a whole number.</div> : null}
                       </td>
                       <td className={`px-4 py-3 text-sm font-semibold ${variance.variance > 0 ? "text-amber-600" : variance.variance < 0 ? "text-rose-600" : "text-text-secondary"}`}>
                         {signedQuantity(variance.variance, row.uom)}
@@ -6247,6 +6727,10 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
                           onChange={(event) => updateRow(row.id, { variance_reason: event.target.value })}
                         />
                         {showReasonError ? <div className="mt-1 text-xs font-semibold text-amber-700">{isSkipped ? "Required when skipped." : "Required for variance rows."}</div> : null}
+                        {!isRaw && variance.variance > 0 ? <div className="mt-2 text-xs text-text-secondary">Adjustment destination: <span className="font-bold text-text-primary">{rowSku?.storage_location || "Missing"}</span> · +{quantity(variance.variance, row.uom)}</div> : null}
+                        {!isRaw && variance.variance < 0 ? <div className="mt-2 text-xs text-text-secondary">Allocated: <span className="font-bold text-text-primary">{quantity(dispatchAllocationTotal(row.batch_allocations), row.uom)}</span>{expiredAllocationCount ? <span className="ml-2 font-bold text-rose-700">{expiredAllocationCount} expired</span> : null}</div> : null}
+                        {invalidLocationAllocation ? <div className="mt-1 text-xs font-bold text-rose-700">Storage location unavailable · {invalidLocationAllocation.location_issue}</div> : null}
+                        {!isRaw && variance.variance < 0 ? <button className="mt-2 text-xs font-bold text-primary hover:underline" type="button" disabled={isLocked} onClick={() => openStockCheckBatchAllocation(row)}>{dispatchAllocationTotal(row.batch_allocations) === Math.abs(variance.variance) ? "Edit Batch Reduction" : "Allocate Batch Reduction"}</button> : null}
                       </td>
                     </tr>
                   );
@@ -6261,6 +6745,28 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
         </Field>
       </div>
     </Modal>
+    {batchEditor && form.items.find((row) => row.id === batchEditor.rowId) ? (() => {
+      const batchItem = form.items.find((row) => row.id === batchEditor.rowId);
+      const batchVariance = stockCheckVariance(batchItem.system_qty, batchItem.physical_qty).variance;
+      const batchSku = stockItems.find((item) => item.id === batchItem.finished_good_id);
+      return <DispatchBatchAllocationModal
+        item={{ ...batchItem, quantity: Math.abs(batchVariance), allocations: batchItem.batch_allocations || [] }}
+        sku={batchSku}
+        batches={batchEditor.batches || []}
+        loading={batchEditor.loading}
+        error={batchEditor.error}
+        autoAllocateOnLoad={!batchItem.batch_allocations?.length}
+        allowExpired
+        referenceDate={form.check_date}
+        onRetry={() => openStockCheckBatchAllocation(batchItem)}
+        onClose={() => setBatchEditor(null)}
+        onApply={(allocations) => {
+          updateRow(batchItem.id, { batch_allocations: allocations });
+          setBatchEditor(null);
+        }}
+      />;
+    })() : null}
+    </>
   );
 }
 
@@ -6276,6 +6782,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const [finishedGoodActionMenu, setFinishedGoodActionMenu] = useState(null);
   const [productionPlanningFilters, setProductionPlanningFilters] = useState({ product: "", category: "", status: "" });
   const [warehouseFilters, setWarehouseFilters] = useState({ product: "", family: "", category: "", status: "", batch: "", movementType: "", dateFrom: "", dateTo: "" });
+  const [batchTraceabilityFilters, setBatchTraceabilityFilters] = useState({ dateFrom: "", dateTo: "", finishedGood: "", batchNo: "", batchType: "", expiryStatus: "", storageLocation: "", reconciliationStatus: "", search: "" });
   const [rawMaterialFilters, setRawMaterialFilters] = useState({ material: "", status: "", category: "" });
   const [rawMovementFilters, setRawMovementFilters] = useState({ material: "", movementType: "", storageLocation: "", dateFrom: "", dateTo: "", search: "" });
   const [auditLogFilters, setAuditLogFilters] = useState({ dateFrom: "", dateTo: "", module: "", action: "", user: "", search: "" });
@@ -6301,32 +6808,86 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const serverListingFilters = serverListing === "receiving-history" ? receivingHistoryFilters
     : serverListing === "raw-movements" ? rawMovementFilters
       : serverListing === "dispatch-history" ? dispatchHistoryFilters
+        : serverListing === "batch-traceability" ? batchTraceabilityFilters
         : serverListing === "audit-logs" ? auditLogFilters
           : {};
   const serverListingSignature = JSON.stringify({ listing: serverListing, filters: serverListingFilters, permissions: factoryPermissionSignature });
+  const canViewBatchTraceability = can("factory_batch_traceability.view");
+  const canViewDispatchHistory = can("factory_finished_goods_dispatch.view");
+  const canViewProductMovements = can("factory_product_movements.view");
   const [factoryListingPage, factoryListingActions] = useFactoryPagedQuery({
     storageKey: serverListing || "inactive",
     enabled: Boolean(serverListing)
       && !(serverListing === "receiving-history" && receivingTab !== "history")
-      && !(serverListing === "dispatch-history" && dispatchTab !== "history"),
+      && !(serverListing === "dispatch-history" && dispatchTab !== "history")
+      && !(serverListing === "batch-traceability" && !canViewBatchTraceability)
+      && !(serverListing === "dispatch-history" && !canViewDispatchHistory),
     querySignature: serverListingSignature,
     loadPage: ({ page, pageSize }) => factoryService.listFactoryListingPage({ listing: serverListing, page, pageSize, filters: serverListingFilters }),
     onError: (error) => {
       console.error(`[Factory] Unable to load ${serverListing}.`, error);
-      ui?.notify?.({ title: "Failed to load Factory listing", message: error.message, tone: "error" });
+      const permissionDenied = isFactoryPermissionError(error);
+      const message = serverListing === "batch-traceability"
+        ? permissionDenied
+          ? "Some batch traceability data is hidden by your current role."
+          : "Unable to load the latest batch traceability data."
+        : permissionDenied ? "Some Factory data is hidden by your current role." : "Unable to load the latest Factory listing.";
+      ui?.notify?.({ title: permissionDenied ? "Factory data hidden" : "Failed to load Factory listing", message, tone: "error" });
     },
+    shouldClearOnError: isFactoryPermissionError,
+    mapError: (error) => ({
+      kind: isFactoryPermissionError(error) ? "permission" : "load",
+      message: isFactoryPermissionError(error)
+        ? "Some data is hidden by your current role."
+        : "Unable to load the latest data.",
+    }),
   });
   const productMovementSignature = `${productMovementFilterSignature(20, warehouseFilters)}:${factoryPermissionSignature}`;
   const [productMovementLedger, productMovementActions] = useFactoryPagedQuery({
     storageKey: "product-movements",
-    enabled: initialTab === "product-movements" && can("factory_product_movements.view"),
+    enabled: initialTab === "product-movements" && canViewProductMovements,
     querySignature: productMovementSignature,
     loadPage: ({ page, pageSize }) => factoryService.listProductMovementsPage({ page, pageSize, filters: warehouseFilters }),
     onError: (error) => {
       console.error("[Factory] Unable to load Product Movements page.", error);
-      ui?.notify?.({ title: "Failed to load Product Movements", message: error.message, tone: "error" });
+      ui?.notify?.({
+        title: isFactoryPermissionError(error) ? "Product Movement data hidden" : "Failed to load Product Movements",
+        message: isFactoryPermissionError(error) ? "Some Product Movement data is hidden by your current role." : "Unable to load the latest Product Movement data.",
+        tone: "error",
+      });
     },
+    shouldClearOnError: isFactoryPermissionError,
+    mapError: (error) => ({
+      kind: isFactoryPermissionError(error) ? "permission" : "load",
+      message: isFactoryPermissionError(error) ? "Some Product Movement data is hidden by your current role." : "Unable to load the latest Product Movement data.",
+    }),
   });
+  useEffect(() => {
+    if (serverListing === "batch-traceability" && !canViewBatchTraceability) {
+      factoryListingActions.clearForPermission("Some batch traceability data is hidden by your current role.");
+      setModal((current) => current?.type === "batch-traceability-detail" ? null : current);
+    }
+    if (serverListing === "dispatch-history" && !canViewDispatchHistory) {
+      factoryListingActions.clearForPermission("Some Finished Goods Dispatch data is hidden by your current role.");
+      setModal((current) => current?.type === "finished-good-dispatch" ? null : current);
+    }
+    if (initialTab === "product-movements" && !canViewProductMovements) {
+      productMovementActions.clearForPermission("Some Product Movement data is hidden by your current role.");
+      setModal((current) => current?.type === "movement-batches" ? null : current);
+    }
+  }, [canViewBatchTraceability, canViewDispatchHistory, canViewProductMovements, factoryListingActions, initialTab, productMovementActions, serverListing]);
+  useEffect(() => {
+    if (factoryListingPage.errorKind === "permission") {
+      setModal((current) => {
+        if (serverListing === "batch-traceability" && current?.type === "batch-traceability-detail") return null;
+        if (serverListing === "dispatch-history" && current?.type === "finished-good-dispatch") return null;
+        return current;
+      });
+    }
+    if (productMovementLedger.errorKind === "permission") {
+      setModal((current) => current?.type === "movement-batches" ? null : current);
+    }
+  }, [factoryListingPage.errorKind, productMovementLedger.errorKind, serverListing]);
   const rawInventoryMasterRows = filteredRawMaterialRows();
   const finishedGoodsMasterGroups = finishedGoodProductGroups();
   const productionPlanningMasterRows = filteredProductionPlanningRows();
@@ -6349,7 +6910,13 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   function listingLoadState(listing, label) {
     if (serverListing !== listing) return null;
-    return <FactoryTableLoadState state={factoryListingPage} label={label} onRetry={factoryListingActions.retry} />;
+    return <FactoryTableLoadState
+      state={factoryListingPage}
+      label={label}
+      onRetry={factoryListingActions.retry}
+      permissionMessage={listing === "batch-traceability" ? "Some batch traceability data is hidden by your current role." : undefined}
+      staleMessage={listing === "batch-traceability" ? "Unable to load the latest batch traceability data. Showing the last successfully loaded results." : undefined}
+    />;
   }
 
   function listingPagination(listing) {
@@ -7579,7 +8146,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       <div className="flex justify-end gap-2">
         <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "stock-check", stockType, value: row })}>{row.status === "draft" ? "Edit" : "View"}</button>
         {row.status === "submitted" && can(stockType === "raw" ? "factory_raw_stock_check.approve" : "factory_product_stock_check.approve") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => approveStockCheck(stockType, row)}>Approve</button> : null}
-        {row.status === "draft" && can(stockType === "raw" ? "factory_raw_stock_check.delete" : "factory_product_stock_check.delete") ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => deleteStockCheck(stockType, row)}>Delete</button> : null}
+        {row.status === "draft" && can(stockType === "raw" ? "factory_raw_stock_check.delete" : "factory_product_stock_check.edit") ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => deleteStockCheck(stockType, row)}>Delete</button> : null}
       </div>
     );
     return [
@@ -9916,6 +10483,75 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     );
   }
 
+  function renderFinishedGoodBatchTraceability() {
+    const rows = factoryListingPage.hasLoaded ? factoryListingPage.rows : [];
+    const summary = factoryListingPage.summary || {};
+    const finishedGoodOptions = data.finishedGoods.map((sku) => ({
+      value: sku.id,
+      label: [sku.product_code, sku.product_family_name || sku.product_name, sku.variant_name || packSizeText(sku)].filter(Boolean).join(" · "),
+    }));
+    const storageOptions = data.storageLocations.filter((location) => String(location.location_type || "").toLowerCase() === "finished goods area").map((location) => ({ value: location.id, label: location.location_name }));
+    const setFilter = (key, value) => setBatchTraceabilityFilters((current) => ({ ...current, [key]: value }));
+    const clearFilters = () => setBatchTraceabilityFilters({ dateFrom: "", dateTo: "", finishedGood: "", batchNo: "", batchType: "", expiryStatus: "", storageLocation: "", reconciliationStatus: "", search: "" });
+
+    function rowStatus(row) {
+      if (["mismatch", "review_required"].includes(row.reconciliation_status)) return { label: "Reconciliation Warning", tone: "danger" };
+      if (row.batch_type === "legacy_unallocated") return { label: "Legacy / Unallocated", tone: "warning" };
+      if (row.expiry_date && row.expiry_date < todayInput()) return { label: "Expired", tone: "danger" };
+      if (row.current_balance <= 0) return { label: "Depleted", tone: "neutral" };
+      if (row.original_qty > 0 && row.current_balance / row.original_qty <= 0.2) return { label: "Low Balance", tone: "warning" };
+      return { label: "Available", tone: "success" };
+    }
+
+    const columns = [
+      { key: "batch_no", label: "Batch No.", render: (row) => <div><div className="font-black text-text-primary">{row.batch_no || "—"}</div><Badge tone={row.batch_type === "production" ? "info" : "neutral"}>{batchTypeLabel(row.batch_type)}</Badge></div> },
+      { key: "sku", label: "Packaging SKU", render: (row) => <div><div className="font-bold text-text-primary">{row.packaging_sku_code || "No SKU"}</div><div className="text-xs font-semibold text-text-secondary">{row.finished_good_name || row.packaging_sku_name || "—"}</div></div> },
+      { key: "original", label: "Produced / Adjusted", render: (row) => quantity(row.original_qty) },
+      { key: "dispatched", label: "Dispatched", render: (row) => quantity(row.completed_dispatch_qty) },
+      { key: "remaining", label: "Remaining", render: (row) => <span className="font-black text-text-primary">{quantity(row.current_balance)}</span> },
+      { key: "dates", label: "Manufacturing / Expiry", render: (row) => <div className="whitespace-nowrap"><div>{formatFactoryDate(row.manufacturing_date)}</div><div className="text-xs text-text-secondary">{row.expiry_date ? `Expiry ${formatFactoryDate(row.expiry_date)}` : "No Expiry Recorded"}</div></div> },
+      { key: "storage", label: "Storage", render: (row) => <div><div className="font-semibold text-text-primary">{row.storage_location_name || "—"}</div><div className="text-xs text-text-secondary">{row.storage_location_type || "—"}</div></div> },
+      { key: "status", label: "Status", render: (row) => { const status = rowStatus(row); return <div className="space-y-1"><Badge tone={status.tone}>{status.label}</Badge>{row.diagnostics.length ? <div className="text-[10.5px] font-bold text-amber-700">{row.diagnostics.length} historical diagnostic{row.diagnostics.length === 1 ? "" : "s"}</div> : null}</div>; } },
+      { key: "action", label: "Actions", align: "right", render: (row) => <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "batch-traceability-detail", value: row })}>View Details</button> },
+    ];
+
+    const hasTracePermission = canViewBatchTraceability;
+    return (
+      <div className="space-y-5">
+        <PageHeader section="Factory" title="Batch Traceability" description="Trace Finished Goods batches from Production or adjustment through Dispatch and Customer." actions={<button className="btn-secondary" type="button" onClick={factoryListingActions.retry}><RefreshCw size={15} /> Refresh</button>} />
+        {!hasTracePermission && factoryListingPage.errorKind !== "permission" ? <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">Some batch traceability data is hidden by your current role.</div> : null}
+        <div className="grid gap-3 md:grid-cols-4">
+          <MetricCard icon={Package} label="Batch Records" value={factoryListingPage.loadedTotal} helper="Filtered authoritative batches" />
+          <MetricCard icon={PackageCheck} label="Available" value={Number(summary.available || 0)} helper="Usable batch balances" tone="success" />
+          <MetricCard icon={Warehouse} label="Remaining Qty" value={quantity(summary.remaining_qty || 0)} helper="Across filtered batches" />
+          <MetricCard icon={AlertTriangle} label="Warnings" value={Number(summary.warnings || 0)} helper="Expiry or reconciliation review" tone={Number(summary.warnings || 0) ? "warning" : "success"} />
+        </div>
+        <div className="rounded-xl border border-border bg-white p-4">
+          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
+            <Field label="Date From"><FeedXDatePicker value={batchTraceabilityFilters.dateFrom} onChange={(value) => setFilter("dateFrom", value)} /></Field>
+            <Field label="Date To"><FeedXDatePicker value={batchTraceabilityFilters.dateTo} onChange={(value) => setFilter("dateTo", value)} /></Field>
+            <Field label="Packaging SKU"><SearchableSelect value={batchTraceabilityFilters.finishedGood} options={[{ value: "", label: "All Packaging SKUs" }, ...finishedGoodOptions]} placeholder="All Packaging SKUs" onChange={(value) => setFilter("finishedGood", value)} /></Field>
+            <Field label="Batch Type"><SearchableSelect value={batchTraceabilityFilters.batchType} options={[{ value: "", label: "All Batch Types" }, { value: "production", label: "Production" }, { value: "adjustment", label: "Adjustment" }, { value: "legacy_unallocated", label: "Legacy / Unallocated" }]} placeholder="All Batch Types" onChange={(value) => setFilter("batchType", value)} /></Field>
+            <Field label="Expiry Status"><SearchableSelect value={batchTraceabilityFilters.expiryStatus} options={[{ value: "", label: "All Expiry Statuses" }, { value: "expired", label: "Expired" }, { value: "expiring_30", label: "Expiring in 30 Days" }, { value: "valid", label: "Valid Beyond 30 Days" }, { value: "no_expiry", label: "No Expiry Recorded" }]} placeholder="All Expiry Statuses" onChange={(value) => setFilter("expiryStatus", value)} /></Field>
+            <Field label="Storage Location"><SearchableSelect value={batchTraceabilityFilters.storageLocation} options={[{ value: "", label: "All Locations" }, ...storageOptions]} placeholder="All Locations" onChange={(value) => setFilter("storageLocation", value)} /></Field>
+            <Field label="Reconciliation"><SearchableSelect value={batchTraceabilityFilters.reconciliationStatus} options={[{ value: "", label: "All Statuses" }, { value: "reconciled", label: "Reconciled" }, { value: "legacy_unallocated", label: "Legacy / Unallocated" }, { value: "review_required", label: "Review Required" }, { value: "mismatch", label: "Mismatch" }]} placeholder="All Statuses" onChange={(value) => setFilter("reconciliationStatus", value)} /></Field>
+            <Field label="Batch No."><input className="field-input" value={batchTraceabilityFilters.batchNo} onChange={(event) => setFilter("batchNo", event.target.value)} placeholder="Search batch" /></Field>
+            <Field label="Search"><input className="field-input" value={batchTraceabilityFilters.search} onChange={(event) => setFilter("search", event.target.value)} placeholder="SKU, source, location" /></Field>
+            <div className="flex items-end"><button className="btn-secondary w-full" type="button" onClick={clearFilters}>Clear Filters</button></div>
+          </div>
+        </div>
+        <Card title="Finished Goods Batch Records" description="One row per authoritative Production, Adjustment or Legacy / Unallocated balance.">
+          {listingLoadState("batch-traceability", "Batch Traceability")}
+          <div className="md:hidden">
+            {!rows.length ? <div className="p-4"><EmptyState title="No Batch Records Found" description="No authoritative batches match the selected filters." /></div> : <div className="divide-y divide-border">{rows.map((row) => { const status = rowStatus(row); return <div key={row.id} className="space-y-3 p-4"><div className="flex items-start justify-between gap-3"><div><div className="font-black text-text-primary">{row.batch_no || "—"}</div><div className="text-sm font-semibold text-text-secondary">{row.packaging_sku_code || "No SKU"} · {row.finished_good_name || row.packaging_sku_name || "—"}</div></div><Badge tone={status.tone}>{status.label}</Badge></div><div className="grid grid-cols-3 gap-2 text-sm"><div><div className="text-[10.5px] text-text-muted">Original</div><div className="font-bold">{quantity(row.original_qty)}</div></div><div><div className="text-[10.5px] text-text-muted">Dispatched</div><div className="font-bold">{quantity(row.completed_dispatch_qty)}</div></div><div><div className="text-[10.5px] text-text-muted">Remaining</div><div className="font-bold">{quantity(row.current_balance)}</div></div></div><button className="btn-secondary w-full" type="button" onClick={() => setModal({ type: "batch-traceability-detail", value: row })}>View Details</button></div>; })}</div>}
+          </div>
+          <div className="hidden md:block"><FactoryTable columns={columns} rows={rows} emptyTitle="No Batch Records Found" emptyDescription="No authoritative batches match the selected filters." /></div>
+          {listingPagination("batch-traceability")}
+        </Card>
+      </div>
+    );
+  }
+
   function renderFinishedGoods() {
     const allProductGroups = finishedGoodsMasterGroups;
     const productGroups = allProductGroups.slice(finishedGoodsPager.from, finishedGoodsPager.to);
@@ -10221,7 +10857,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       { key: "packaging_sku", label: "Packaging SKU", render: (row) => <div><div className="font-semibold text-text-primary">{row.product_code || "No SKU"}</div><div className="text-xs font-medium text-text-secondary">{row.variant_name || packSizeText(row) || "Packaging SKU"}</div></div> },
       { key: "quantity", label: "Qty", render: (row) => <div className={`font-bold ${Number(row.quantity || 0) >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{movementPackagingQtyLabel(row)}</div> },
       { key: "balance", label: "Balance", render: (row) => <div className="font-bold text-text-primary">{movementBalanceLabel(row)}</div> },
-      { key: "batch_no", label: "Batch", render: (row) => row.batch_no || "—" },
+      { key: "batch_no", label: "Batch", render: (row) => <div><div className="font-semibold text-text-primary">{row.batch_summary || row.batch_no || "—"}</div>{row.batch_allocations?.length ? <button className="mt-1 text-xs font-bold text-primary hover:underline" type="button" onClick={() => setModal({ type: "movement-batches", value: row })}>{row.batch_count > 1 ? "View Batches" : "View Batch"}</button> : null}</div> },
       { key: "source", label: "Source", render: (row) => <div><div className="font-semibold text-text-primary">{row.source_label}</div><div className="text-xs font-medium text-text-secondary">{movementSourceReference(row)}</div></div> },
     ];
     return (
@@ -10261,7 +10897,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                     <div className="grid grid-cols-2 gap-3 text-sm">
                       <div><div className="text-[10.5px] font-semibold text-text-muted">Qty</div><div className={`font-bold ${Number(row.quantity || 0) >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{movementPackagingQtyLabel(row)}</div></div>
                       <div><div className="text-[10.5px] font-semibold text-text-muted">Balance</div><div className="font-bold text-text-primary">{movementBalanceLabel(row)}</div></div>
-                      <div><div className="text-[10.5px] font-semibold text-text-muted">Batch</div><div className="font-semibold text-text-primary">{row.batch_no || "—"}</div></div>
+                      <div><div className="text-[10.5px] font-semibold text-text-muted">Batch</div><div className="font-semibold text-text-primary">{row.batch_summary || row.batch_no || "—"}</div>{row.batch_allocations?.length ? <button className="mt-1 text-xs font-bold text-primary" type="button" onClick={() => setModal({ type: "movement-batches", value: row })}>{row.batch_count > 1 ? "View Batches" : "View Batch"}</button> : null}</div>
                       <div><div className="text-[10.5px] font-semibold text-text-muted">Source</div><div className="font-semibold text-text-primary">{row.source_label}</div><div className="text-xs font-medium text-text-secondary">{movementSourceReference(row)}</div></div>
                     </div>
                   </div>
@@ -10385,7 +11021,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   return (
     <>
       <AccessIssueNotice issues={data.accessIssues} />
-      {initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-inventory" ? renderRawInventory() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-movements" ? renderRawMaterialMovements() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? renderBatchTraceability() : initialTab === "finished-goods" ? renderFinishedGoods() : initialTab === "production-planning" ? renderProductionPlanning() : initialTab === "finished-goods-dispatch" ? renderFinishedGoodsDispatch() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? renderProductRecipes() : initialTab === "production-sop" ? renderProductionSop() : initialTab === "audit-logs" ? renderFactoryAuditLogs() : initialTab === "storage-locations" ? renderStorageLocations() : initialTab === "suppliers" ? renderSuppliers() : initialTab === "customers" ? renderCustomers() : renderDashboard()}
+      {initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-inventory" ? renderRawInventory() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-movements" ? renderRawMaterialMovements() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? renderFinishedGoodBatchTraceability() : initialTab === "finished-goods" ? renderFinishedGoods() : initialTab === "production-planning" ? renderProductionPlanning() : initialTab === "finished-goods-dispatch" ? renderFinishedGoodsDispatch() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? renderProductRecipes() : initialTab === "production-sop" ? renderProductionSop() : initialTab === "audit-logs" ? renderFactoryAuditLogs() : initialTab === "storage-locations" ? renderStorageLocations() : initialTab === "suppliers" ? renderSuppliers() : initialTab === "customers" ? renderCustomers() : renderDashboard()}
       {modal?.type === "job" ? (
         <JobOrderModal
           initialValue={modal.value}
@@ -10416,6 +11052,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           mode={modal.mode}
         />
       ) : null}
+      {modal?.type === "batch-traceability-detail" ? <FinishedGoodBatchTraceabilityModal batch={modal.value} onClose={() => setModal(null)} /> : null}
+      {modal?.type === "movement-batches" ? <ReadOnlyBatchAllocationModal title="Movement Batch Details" subtitle={[modal.value.reference_no, modal.value.product_code, modal.value.product_name].filter(Boolean).join(" · ")} allocations={modal.value.batch_allocations || []} onClose={() => setModal(null)} /> : null}
       {modal?.type === "production-planning-par" ? (
         <ProductionPlanningParModal
           sku={modal.sku}
