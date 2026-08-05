@@ -1364,6 +1364,24 @@ function createFinishedGoodDispatchRequestId() {
   return crypto.randomUUID();
 }
 
+function createRawMaterialReceivingRequestId() {
+  return crypto.randomUUID();
+}
+
+function uniqueReceivingBatchPreview(candidate, items, rowId) {
+  const value = String(candidate || "");
+  const match = /^(.*-)(\d+)$/.exec(value);
+  if (!match) return value;
+  const used = new Set((items || []).filter((item) => item.row_id !== rowId).map((item) => item.internal_batch_no).filter(Boolean));
+  let sequence = Number(match[2]);
+  let next = value;
+  while (used.has(next)) {
+    sequence += 1;
+    next = `${match[1]}${String(sequence).padStart(match[2].length, "0")}`;
+  }
+  return next;
+}
+
 function groupedProductionSops(sops) {
   const groups = new Map();
   (sops || []).forEach((sop) => {
@@ -2014,6 +2032,8 @@ function RawMaterialMasterModal({ initialValue, categories, storageLocations = [
     min_stock_level: 0,
     manual_unit_cost: "",
     manual_cost_uom: "kg",
+    expiry_tracking_mode: "optional",
+    shelf_life_days: "",
     storage_location_id: "",
     storage_location: "",
     status: "active",
@@ -2041,6 +2061,7 @@ function RawMaterialMasterModal({ initialValue, categories, storageLocations = [
       name_en: !String(form.name_en || "").trim() ? "Raw Material Name (EN) is required." : "",
       uom: !String(form.uom || "").trim() ? "Default UOM is required." : "",
       status: !String(form.status || "").trim() ? "Status is required." : "",
+      shelf_life_days: form.shelf_life_days !== "" && (!Number.isInteger(Number(form.shelf_life_days)) || Number(form.shelf_life_days) <= 0) ? "Shelf Life must be a whole number greater than zero." : "",
     };
     const activeErrors = Object.fromEntries(Object.entries(nextErrors).filter(([, message]) => message));
     setFieldErrors(activeErrors);
@@ -2186,6 +2207,29 @@ function RawMaterialMasterModal({ initialValue, categories, storageLocations = [
             onChange={(locationId) => setForm((current) => ({ ...current, storage_location_id: locationId }))}
           />
         </Field>
+        <section className="space-y-3 rounded-xl border border-border bg-slate-50 p-3">
+          <div className="text-sm font-bold text-text-primary">Expiry Tracking</div>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Field label="Expiry Tracking Mode">
+              <SearchableSelect
+                value={form.expiry_tracking_mode || "optional"}
+                options={[
+                  { value: "required", label: "Required" },
+                  { value: "optional", label: "Optional" },
+                  { value: "not_applicable", label: "Not Applicable" },
+                ]}
+                placeholder="Select mode"
+                onChange={(expiryTrackingMode) => setForm((current) => ({ ...current, expiry_tracking_mode: expiryTrackingMode, shelf_life_days: expiryTrackingMode === "not_applicable" ? "" : current.shelf_life_days }))}
+              />
+            </Field>
+            <Field label="Shelf Life (Days)" error={fieldErrors.shelf_life_days}>
+              <input className={inputClass(fieldErrors.shelf_life_days)} type="number" min="1" step="1" disabled={form.expiry_tracking_mode === "not_applicable"} value={form.shelf_life_days ?? ""} onChange={(event) => {
+                setFieldErrors((current) => ({ ...current, shelf_life_days: "" }));
+                setForm((current) => ({ ...current, shelf_life_days: event.target.value }));
+              }} />
+            </Field>
+          </div>
+        </section>
         <Field label="Status *" error={fieldErrors.status}>
           <SearchableSelect
             value={form.status}
@@ -4185,59 +4229,52 @@ function FactoryCustomerModal({ initialValue, onClose, onSave }) {
   );
 }
 
-function RawReceivingEntryPanel({ rawMaterials, suppliers = [], storageLocations = [], receivingBatches = [], onSave }) {
+function RawReceivingEntryPanel({ initialBatch = null, rawMaterials, suppliers = [], storageLocations = [], receivingBatches = [], onSave, onComplete, onCancelEdit }) {
   const fieldRefs = useRef({});
-  const qtyRefs = useRef({});
-  const makeRow = () => ({ row_id: Math.random().toString(36).slice(2), raw_material_id: "", batch_no: "", received_qty: "", uom: "", storage_location_id: "", storage_location: "", expiry_date: "" });
+  const submissionRef = useRef(false);
+  const makeRow = (item = {}) => ({
+    id: item.id || null,
+    row_id: item.id || Math.random().toString(36).slice(2),
+    raw_material_id: item.raw_material_id || "",
+    supplier_lot_no: item.supplier_lot_no || "",
+    internal_batch_no: item.internal_batch_no || "",
+    received_qty: item.received_qty ?? "",
+    uom: item.uom || "",
+    unit_cost: item.unit_cost ?? "",
+    storage_location_id: item.storage_location_id || "",
+    storage_location: item.storage_location || "",
+    manufacturing_date: item.manufacturing_date || "",
+    expiry_date: item.expiry_date || "",
+    expiry_source: item.expiry_source || "",
+    expiry_confirmed: Boolean(item.expiry_confirmed),
+    expiry_tracking_mode: item.expiry_tracking_mode || "optional",
+    remarks: item.remarks || "",
+  });
   const [form, setForm] = useState(() => ({
-    supplier_id: "",
-    reference_no: "",
-    received_date: todayInput(),
-    remarks: "",
-    items: [makeRow()],
+    id: initialBatch?.id || null,
+    completion_request_id: initialBatch?.completion_request_id || createRawMaterialReceivingRequestId(),
+    supplier_id: initialBatch?.supplier_id || "",
+    reference_no: initialBatch?.reference_no || "",
+    received_date: initialBatch?.received_date || todayInput(),
+    remarks: initialBatch?.remarks || "",
+    items: initialBatch?.items?.length ? initialBatch.items.map(makeRow) : [makeRow()],
   }));
-  const [saving, setSaving] = useState(false);
+  const [savingAction, setSavingAction] = useState("");
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
   const [openMaterialRowId, setOpenMaterialRowId] = useState(null);
   const activeSuppliers = suppliers.filter((supplier) => supplier.status === "active" || supplier.id === form.supplier_id);
   const activeRawMaterials = rawMaterials.filter((material) => material.status === "active");
-  const supplierOptions = activeSuppliers.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name, helper: [supplier.supplier_code, supplier.phone].filter(Boolean).join(" · ") || supplier.status }));
   const activeStorageLocations = storageLocations.filter((location) => location.status === "active");
-  const storageLocationOptions = [
-    { value: "", label: "Select Storage Location", helper: "Optional" },
-    ...activeStorageLocations.map((location) => ({ value: location.id, label: location.location_name, helper: [location.location_code, location.location_type].filter(Boolean).join(" · ") || location.status })),
-  ];
-  const receivingNoPreview = previewDailyDocumentNo({ prefix: "R", date: form.received_date, records: receivingBatches, codeKey: "batch_no", dateKey: "received_date" });
+  const supplierOptions = activeSuppliers.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name, helper: supplier.supplier_code || supplier.status }));
+  const storageLocationOptions = activeStorageLocations.map((location) => ({ value: location.id, label: location.location_name, helper: [location.location_code, location.location_type].filter(Boolean).join(" · ") }));
+  const receivingNoPreview = initialBatch?.batch_no || previewDailyDocumentNo({ prefix: "R", date: form.received_date, records: receivingBatches, codeKey: "batch_no", dateKey: "received_date" });
 
-  function updateItem(rowId, patch) {
-    setForm((current) => ({
-      ...current,
-      items: current.items.map((item) => item.row_id === rowId ? { ...item, ...patch } : item),
-    }));
+  function updateItem(rowId, patchValue) {
+    setForm((current) => ({ ...current, items: current.items.map((item) => item.row_id === rowId ? { ...item, ...patchValue } : item) }));
   }
 
-  function addRow() {
-    setForm((current) => ({ ...current, items: [...current.items, makeRow()] }));
-  }
-
-  function removeRow(rowId) {
-    setForm((current) => ({ ...current, items: current.items.length > 1 ? current.items.filter((item) => item.row_id !== rowId) : current.items }));
-  }
-
-  function focusQtyByOffset(rowId, offset) {
-    const index = form.items.findIndex((item) => item.row_id === rowId);
-    const target = form.items[index + offset];
-    if (target) qtyRefs.current[target.row_id]?.focus?.();
-  }
-
-  function focusNextRowMaterial(rowId) {
-    const index = form.items.findIndex((item) => item.row_id === rowId);
-    const target = form.items[index + 1];
-    if (target) fieldRefs.current[`${target.row_id}.raw_material_id`]?.focus?.();
-  }
-
-  function selectRawMaterial(rowId, rawMaterialId) {
+  async function selectRawMaterial(rowId, rawMaterialId) {
     const material = activeRawMaterials.find((row) => row.id === rawMaterialId);
     setFieldErrors((current) => ({ ...current, [`${rowId}.raw_material_id`]: "", [`${rowId}.uom`]: "" }));
     updateItem(rowId, {
@@ -4245,20 +4282,37 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], storageLocations
       uom: material?.uom || "",
       storage_location_id: material?.storage_location_id || "",
       storage_location: material?.storage_location || "",
+      expiry_tracking_mode: material?.expiry_tracking_mode || "optional",
+      internal_batch_no: "",
+      expiry_date: "",
+      expiry_source: material?.expiry_tracking_mode === "not_applicable" ? "not_applicable" : "",
+      expiry_confirmed: material?.expiry_tracking_mode === "not_applicable",
     });
     setOpenMaterialRowId(null);
+    if (!rawMaterialId) return;
+    try {
+      const defaults = await factoryService.getRawMaterialReceivingDefaults(rawMaterialId, form.received_date);
+      setForm((current) => ({ ...current, items: current.items.map((item) => item.row_id === rowId && item.raw_material_id === rawMaterialId ? {
+        ...item,
+        uom: defaults.uom || item.uom,
+        unit_cost: defaults.unit_cost ?? item.unit_cost,
+        storage_location_id: defaults.storage_location_id || item.storage_location_id,
+        storage_location: defaults.storage_location || item.storage_location,
+        expiry_tracking_mode: defaults.expiry_tracking_mode || item.expiry_tracking_mode,
+        expiry_date: defaults.suggested_expiry_date || "",
+        expiry_source: defaults.expiry_tracking_mode === "not_applicable" ? "not_applicable" : defaults.suggested_expiry_date ? "calculated" : "",
+        expiry_confirmed: defaults.expiry_tracking_mode === "not_applicable",
+        internal_batch_no: uniqueReceivingBatchPreview(defaults.internal_batch_no, current.items, rowId),
+      } : item) }));
+    } catch (loadError) {
+      console.error("[Factory] Unable to load Raw Material Receiving defaults.", loadError);
+      setError("Some receiving defaults could not be loaded. Review this item before completing.");
+    }
   }
 
-  function selectStorageLocation(rowId, locationId) {
-    const location = activeStorageLocations.find((row) => row.id === locationId);
-    updateItem(rowId, {
-      storage_location_id: locationId || "",
-      storage_location: location?.location_name || "",
-    });
-  }
-
-  async function submit(event) {
-    event.preventDefault();
+  async function submit(action, event) {
+    event?.preventDefault?.();
+    if (submissionRef.current) return;
     setError("");
     const nextErrors = {
       supplier_id: !form.supplier_id ? "Supplier is required." : "",
@@ -4266,193 +4320,83 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], storageLocations
     };
     form.items.forEach((item) => {
       nextErrors[`${item.row_id}.raw_material_id`] = !item.raw_material_id ? "Raw Material is required." : "";
-      nextErrors[`${item.row_id}.received_qty`] = Number(item.received_qty || 0) <= 0 ? "Qty must be greater than 0." : "";
-      nextErrors[`${item.row_id}.uom`] = !String(item.uom || "").trim() ? "UOM is required." : "";
+      if (action === "complete") {
+        nextErrors[`${item.row_id}.received_qty`] = Number(item.received_qty || 0) <= 0 ? "Qty must be greater than 0." : "";
+        nextErrors[`${item.row_id}.uom`] = !item.uom ? "UOM is required." : "";
+        nextErrors[`${item.row_id}.unit_cost`] = !Number.isFinite(Number(item.unit_cost)) || Number(item.unit_cost) <= 0 ? "Enter a valid unit cost before completing Receiving." : "";
+        nextErrors[`${item.row_id}.storage_location_id`] = !item.storage_location_id ? "Active Storage Location is required." : "";
+        nextErrors[`${item.row_id}.expiry_date`] = item.expiry_tracking_mode === "required" && !item.expiry_date
+          ? "Expiry Date is required."
+          : item.expiry_date && !item.expiry_confirmed
+            ? "Confirm the Expiry Date before completing Receiving."
+            : "";
+      }
     });
     const activeErrors = Object.fromEntries(Object.entries(nextErrors).filter(([, message]) => message));
     setFieldErrors(activeErrors);
     const firstError = Object.keys(activeErrors)[0];
     if (firstError) {
-      setError("Please complete required fields.");
+      setError(action === "complete" ? "Complete all required receiving details." : "Complete the Draft header and material selections.");
       focusFirstInvalid(fieldRefs, firstError);
       return;
     }
-    setSaving(true);
+    submissionRef.current = true;
+    setSavingAction(action);
     try {
-      await onSave(form);
-      setForm({ supplier_id: "", reference_no: "", received_date: todayInput(), remarks: "", items: [makeRow()] });
-      setFieldErrors({});
-      setError("");
+      if (action === "complete") await onComplete(form);
+      else await onSave(form);
     } finally {
-      setSaving(false);
+      submissionRef.current = false;
+      setSavingAction("");
     }
   }
 
   return (
-    <Card title="Receive Raw Material" description="Record one supplier delivery with multiple raw material item rows.">
-      <form className="space-y-5 p-5" onSubmit={submit}>
+    <Card title={initialBatch?.id ? `Edit ${initialBatch.batch_no}` : "Receive Raw Material"} description="Save preparation as a Draft, then complete once quantities and batch details are confirmed.">
+      <form className="space-y-5 p-5" onSubmit={(event) => submit("draft", event)}>
         <div className="grid gap-3 lg:grid-cols-4">
           <Field label="Supplier *" error={fieldErrors.supplier_id}>
-            <SearchableSelect
-              value={form.supplier_id}
-              options={supplierOptions}
-              placeholder={activeSuppliers.length ? "Select Supplier" : "Create an active Factory Supplier first"}
-              searchPlaceholder="Search suppliers"
-              emptyText="No matching suppliers"
-              error={Boolean(fieldErrors.supplier_id)}
-              buttonRef={(node) => { fieldRefs.current.supplier_id = node; }}
-              onChange={(supplierId) => {
-                setFieldErrors((current) => ({ ...current, supplier_id: "" }));
-                setForm((current) => ({ ...current, supplier_id: supplierId }));
-              }}
-            />
+            <SearchableSelect value={form.supplier_id} options={supplierOptions} placeholder="Select Supplier" error={Boolean(fieldErrors.supplier_id)} buttonRef={(node) => { fieldRefs.current.supplier_id = node; }} onChange={(supplierId) => setForm((current) => ({ ...current, supplier_id: supplierId }))} />
           </Field>
-          <Field label="Reference No.">
-            <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
-              <div className="text-sm font-bold text-text-secondary">{receivingNoPreview}</div>
-              <div className="mt-0.5 text-[10.5px] font-semibold text-text-muted">Preview only</div>
-            </div>
-          </Field>
+          <Field label="Receiving No."><div className="rounded-xl border border-border bg-slate-50 px-3 py-2"><div className="text-sm font-bold text-text-secondary">{receivingNoPreview}</div><div className="mt-0.5 text-[10.5px] font-semibold text-text-muted">{initialBatch?.id ? "Assigned" : "Preview only"}</div></div></Field>
           <Field label="Received Date *" error={fieldErrors.received_date}>
-            <FeedXDatePicker
-              value={form.received_date}
-              required
-              error={Boolean(fieldErrors.received_date)}
-              buttonRef={(node) => { fieldRefs.current.received_date = node; }}
-              onChange={(nextDate) => {
-                setFieldErrors((current) => ({ ...current, received_date: "" }));
-                setForm((current) => ({ ...current, received_date: nextDate }));
-              }}
-            />
+            <FeedXDatePicker value={form.received_date} required error={Boolean(fieldErrors.received_date)} buttonRef={(node) => { fieldRefs.current.received_date = node; }} onChange={(receivedDate) => setForm((current) => ({ ...current, received_date: receivedDate }))} />
           </Field>
-          <Field label="Supplier DO / Invoice No.">
-            <input className={inputClass()} value={form.reference_no} onChange={(event) => setForm((current) => ({ ...current, reference_no: event.target.value }))} placeholder="Optional" />
-          </Field>
+          <Field label="Supplier DO / Invoice No."><input className={inputClass()} value={form.reference_no} onChange={(event) => setForm((current) => ({ ...current, reference_no: event.target.value }))} placeholder="Optional" /></Field>
         </div>
-        <Field label="Remarks">
-          <textarea className={inputClass()} rows={2} value={form.remarks} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
-        </Field>
+        <Field label="Remarks"><textarea className={inputClass()} rows={2} value={form.remarks} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} /></Field>
 
         <div className="rounded-xl border border-border bg-white p-4 pb-48">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-slate-50 px-4 py-3">
-            <div>
-              <div className="text-sm font-semibold text-text-primary">Receiving Items</div>
-              <div className="text-xs text-text-secondary">UOM and storage location default from the selected raw material.</div>
-            </div>
-            <button className="btn-secondary px-3 py-2 text-sm" type="button" onClick={addRow}><Package size={15} /> Add Item Row</button>
+            <div><div className="text-sm font-semibold text-text-primary">Receiving Items</div><div className="text-xs text-text-secondary">UOM, storage, cost, internal batch and expiry suggestions load from the Raw Material master.</div></div>
+            <button className="btn-secondary px-3 py-2 text-sm" type="button" onClick={() => setForm((current) => ({ ...current, items: [...current.items, makeRow()] }))}><Plus size={15} /> Add Item</button>
           </div>
-          <div className="mt-4 overflow-visible rounded-xl border border-border">
-          <table className="min-w-[1080px] w-full table-fixed text-left text-sm">
-            <colgroup>
-              <col className="w-[27%]" />
-              <col className="w-[15%]" />
-              <col className="w-[13%]" />
-              <col className="w-[22%]" />
-              <col className="w-[15%]" />
-              <col className="w-[8%]" />
-            </colgroup>
-            <thead className="border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">
-              <tr>
-                <th className="px-4 py-3">Raw Material *</th>
-                <th className="px-4 py-3">Batch / Lot No.</th>
-                <th className="px-4 py-3">Qty *</th>
-                <th className="px-4 py-3">Storage Location</th>
-                <th className="px-4 py-3">Expiry Date</th>
-                <th className="px-4 py-3 text-right">Action</th>
-              </tr>
-            </thead>
-            <tbody>
-              {form.items.map((item, index) => (
-                <tr key={item.row_id} className="border-b border-border last:border-0 align-top transition hover:bg-slate-50/70">
-                  <td className="px-4 py-3 overflow-visible">
-                    <RawMaterialCellPicker
-                      value={item.raw_material_id}
-                      materials={activeRawMaterials}
-                      placeholder="Select Raw Material"
-                      open={openMaterialRowId === item.row_id}
-                      openUpward={index >= Math.max(0, form.items.length - 2)}
-                      error={Boolean(fieldErrors[`${item.row_id}.raw_material_id`])}
-                      buttonRef={(node) => {
-                        fieldRefs.current[`${item.row_id}.raw_material_id`] = node;
-                        fieldRefs.current[`${item.row_id}.uom`] = node;
-                      }}
-                      onToggle={() => setOpenMaterialRowId((current) => current === item.row_id ? null : item.row_id)}
-                      onClose={() => setOpenMaterialRowId(null)}
-                      onSelect={(rawMaterialId) => selectRawMaterial(item.row_id, rawMaterialId)}
-                    />
-                    <div className="mt-1 flex flex-wrap gap-1.5">
-                      {item.storage_location ? <span className="rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-text-secondary">{item.storage_location}</span> : null}
-                    </div>
-                    {fieldErrors[`${item.row_id}.raw_material_id`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.raw_material_id`]}</div> : null}
-                    {fieldErrors[`${item.row_id}.uom`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.uom`]}</div> : null}
-                  </td>
-                  <td className="px-4 py-3"><input className={inputClass()} value={item.batch_no} onChange={(event) => updateItem(item.row_id, { batch_no: event.target.value })} /></td>
-                  <td className="px-4 py-3">
-                    <div className="relative">
-                      <input
-                        ref={(node) => {
-                          fieldRefs.current[`${item.row_id}.received_qty`] = node;
-                          qtyRefs.current[item.row_id] = node;
-                        }}
-                        className={`${inputClass(fieldErrors[`${item.row_id}.received_qty`])} ${item.uom ? "pr-16" : ""} [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none`}
-                        type="number"
-                        min="0"
-                        step="0.01"
-                        inputMode="decimal"
-                        value={item.received_qty}
-                        onFocus={(event) => event.target.select()}
-                        onKeyDown={(event) => {
-                          if (event.key === "ArrowDown") {
-                            event.preventDefault();
-                            focusQtyByOffset(item.row_id, 1);
-                          }
-                          if (event.key === "ArrowUp") {
-                            event.preventDefault();
-                            focusQtyByOffset(item.row_id, -1);
-                          }
-                          if (event.key === "Enter") {
-                            event.preventDefault();
-                            focusNextRowMaterial(item.row_id);
-                          }
-                        }}
-                        onChange={(event) => {
-                        setFieldErrors((current) => ({ ...current, [`${item.row_id}.received_qty`]: "" }));
-                        updateItem(item.row_id, { received_qty: event.target.value });
-                      }}
-                      />
-                      {item.uom ? <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-text-muted">{item.uom}</span> : null}
-                    </div>
-                    {fieldErrors[`${item.row_id}.received_qty`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.received_qty`]}</div> : null}
-                  </td>
-                  <td className="px-4 py-3">
-                    <SearchableSelect
-                      value={item.storage_location_id || ""}
-                      options={storageLocationOptions}
-                      placeholder="Select Storage Location"
-                      searchPlaceholder="Search locations"
-                      emptyText="No matching locations"
-                      onChange={(locationId) => selectStorageLocation(item.row_id, locationId)}
-                    />
-                  </td>
-                  <td className="px-4 py-3">
-                    <FeedXDatePicker
-                      value={item.expiry_date || ""}
-                      placeholder="Expiry date"
-                      onChange={(nextDate) => updateItem(item.row_id, { expiry_date: nextDate })}
-                    />
-                  </td>
-                  <td className="px-4 py-3 text-right">
-                    <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => removeRow(item.row_id)} disabled={form.items.length === 1}>Remove</button>
-                  </td>
+          <div className="mt-4 overflow-x-auto rounded-xl border border-border">
+            <table className="min-w-[1720px] w-full table-fixed text-left text-sm">
+              <thead className="border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted"><tr>
+                {['Raw Material *', 'Supplier Lot No.', 'Internal Batch No.', 'Qty *', 'Unit Cost *', 'Storage Location *', 'Manufacturing Date', 'Expiry Date', 'Action'].map((label) => <th key={label} className="px-4 py-3">{label}</th>)}
+              </tr></thead>
+              <tbody>{form.items.map((item, index) => (
+                <tr key={item.row_id} className="border-b border-border last:border-0 align-top">
+                  <td className="w-72 px-4 py-3"><RawMaterialCellPicker value={item.raw_material_id} materials={activeRawMaterials} placeholder="Select Raw Material" open={openMaterialRowId === item.row_id} openUpward={index >= Math.max(0, form.items.length - 2)} error={Boolean(fieldErrors[`${item.row_id}.raw_material_id`])} buttonRef={(node) => { fieldRefs.current[`${item.row_id}.raw_material_id`] = node; }} onToggle={() => setOpenMaterialRowId((current) => current === item.row_id ? null : item.row_id)} onClose={() => setOpenMaterialRowId(null)} onSelect={(rawMaterialId) => selectRawMaterial(item.row_id, rawMaterialId)} />{fieldErrors[`${item.row_id}.raw_material_id`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.raw_material_id`]}</div> : null}</td>
+                  <td className="px-4 py-3"><input className={inputClass()} value={item.supplier_lot_no} onChange={(event) => updateItem(item.row_id, { supplier_lot_no: event.target.value })} placeholder="Optional" /></td>
+                  <td className="px-4 py-3"><div className="rounded-lg border border-border bg-slate-50 px-3 py-2"><div className="font-mono text-xs font-bold text-text-secondary">{item.internal_batch_no || "Generated on completion"}</div>{item.internal_batch_no && !item.id ? <div className="mt-0.5 text-[10px] font-semibold text-text-muted">Preview only</div> : null}</div></td>
+                  <td className="px-4 py-3"><div className="relative"><input ref={(node) => { fieldRefs.current[`${item.row_id}.received_qty`] = node; }} className={`${inputClass(fieldErrors[`${item.row_id}.received_qty`])} pr-14`} type="number" min="0" step="0.01" value={item.received_qty} onChange={(event) => updateItem(item.row_id, { received_qty: event.target.value })} />{item.uom ? <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-text-muted">{item.uom}</span> : null}</div>{fieldErrors[`${item.row_id}.received_qty`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.received_qty`]}</div> : null}</td>
+                  <td className="px-4 py-3"><input ref={(node) => { fieldRefs.current[`${item.row_id}.unit_cost`] = node; }} className={inputClass(fieldErrors[`${item.row_id}.unit_cost`])} type="number" min="0" step="0.0001" value={item.unit_cost} onChange={(event) => updateItem(item.row_id, { unit_cost: event.target.value })} />{fieldErrors[`${item.row_id}.unit_cost`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.unit_cost`]}</div> : null}</td>
+                  <td className="px-4 py-3"><SearchableSelect value={item.storage_location_id} options={storageLocationOptions} placeholder="Select Location" onChange={(locationId) => { const location = activeStorageLocations.find((row) => row.id === locationId); updateItem(item.row_id, { storage_location_id: locationId, storage_location: location?.location_name || "" }); }} />{fieldErrors[`${item.row_id}.storage_location_id`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.storage_location_id`]}</div> : null}</td>
+                  <td className="px-4 py-3"><FeedXDatePicker value={item.manufacturing_date} placeholder="Manufacturing date" onChange={(manufacturingDate) => updateItem(item.row_id, { manufacturing_date: manufacturingDate })} /></td>
+                  <td className="px-4 py-3"><FeedXDatePicker value={item.expiry_date} placeholder="Expiry date" disabled={item.expiry_tracking_mode === "not_applicable"} onChange={(expiryDate) => updateItem(item.row_id, { expiry_date: expiryDate, expiry_source: expiryDate ? "supplier_label" : "", expiry_confirmed: Boolean(expiryDate) })} /><div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-text-muted"><span>{item.expiry_tracking_mode === "required" ? "Required" : item.expiry_tracking_mode === "not_applicable" ? "Not applicable" : "Optional"}</span>{item.expiry_source === "calculated" ? <span className="text-amber-700">Suggested from shelf life</span> : null}{item.expiry_date && !item.expiry_confirmed ? <button className="text-primary hover:underline" type="button" onClick={() => updateItem(item.row_id, { expiry_confirmed: true })}>Accept</button> : null}</div>{fieldErrors[`${item.row_id}.expiry_date`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.expiry_date`]}</div> : null}</td>
+                  <td className="px-4 py-3"><button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={form.items.length === 1} onClick={() => setForm((current) => ({ ...current, items: current.items.filter((row) => row.row_id !== item.row_id) }))}>Remove</button></td>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              ))}</tbody>
+            </table>
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-3 rounded-xl border border-border bg-slate-50 px-4 py-3">
-          {error ? <div className="text-sm font-semibold text-rose-600">{error}</div> : null}
-          <button className="btn-primary" type="submit" disabled={saving}>{saving ? "Saving..." : "Save Receiving"}</button>
+          {error ? <div className="mr-auto text-sm font-semibold text-rose-600">{error}</div> : null}
+          {initialBatch?.id ? <button className="btn-secondary" type="button" disabled={Boolean(savingAction)} onClick={onCancelEdit}>Cancel Edit</button> : null}
+          <button className="btn-secondary" type="submit" disabled={Boolean(savingAction)}>{savingAction === "draft" ? "Saving..." : "Save Draft"}</button>
+          <button className="btn-primary" type="button" disabled={Boolean(savingAction)} onClick={(event) => submit("complete", event)}><PackageCheck size={15} /> {savingAction === "complete" ? "Completing..." : "Complete Receiving"}</button>
         </div>
       </form>
     </Card>
@@ -4461,40 +4405,34 @@ function RawReceivingEntryPanel({ rawMaterials, suppliers = [], storageLocations
 
 function ReceivingBatchDetailModal({ batch, onClose }) {
   const itemRows = batch.items || [];
-  const totalQty = itemRows.reduce((sum, row) => sum + Number(row.received_qty || 0), 0);
-  const totalUoms = Array.from(new Set(itemRows.map((row) => row.uom).filter(Boolean)));
-  const totalQtyDisplay = totalUoms.length === 1 ? quantity(totalQty, totalUoms[0]) : quantity(batch.total_qty || totalQty, "");
-  const totalCost = itemRows.reduce((sum, row) => {
-    const rowTotal = row.total_cost ?? (Number(row.received_qty || 0) * Number(row.unit_cost || 0));
-    return sum + Number(rowTotal || 0);
-  }, 0);
+  const quantityTotals = itemRows.reduce((totals, row) => ({
+    ...totals,
+    [row.uom || "units"]: Number(totals[row.uom || "units"] || 0) + Number(row.received_qty || 0),
+  }), {});
+  const totalQtyDisplay = Object.entries(quantityTotals).map(([uom, value]) => quantity(value, uom)).join(" · ") || "—";
 
   return (
     <Modal title="Raw Material Receiving" description="Read-only receiving document" onClose={onClose} size="2xl">
-      <div className="rounded-2xl border border-border bg-white p-5 sm:p-6">
-        <div className="flex flex-wrap items-start justify-between gap-5 border-b border-border pb-5">
-          <div>
-            <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-text-muted">Receiving No.</div>
-            <div className="mt-1 font-mono text-3xl font-black text-text-primary">{batch.batch_no || "—"}</div>
-            <div className="mt-4">
-              <div className="text-lg font-black text-text-primary">{batch.supplier_name || "—"}</div>
-              <div className="text-sm font-semibold text-text-secondary">Raw Material Supplier</div>
-            </div>
-          </div>
-          <div className="text-right">
-            <div className="mb-1 text-[10.5px] font-semibold uppercase tracking-[0.08em] text-text-muted">Status</div>
-            <Badge tone={batch.status === "active" ? "success" : "neutral"}>{jobStatusLabel(batch.status)}</Badge>
-          </div>
+      <div className="space-y-6">
+        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          <MetricCard icon={FileText} label="Receiving No." value={batch.batch_no || "—"} />
+          <MetricCard icon={Package} label="Items Received" value={itemRows.length} />
+          <MetricCard icon={Warehouse} label="Quantity" value={totalQtyDisplay} />
+          <div className="rounded-lg border border-border bg-white p-4"><div className="text-xs font-semibold text-text-secondary">Status</div><div className="mt-2"><Badge tone={statusTone(batch.status)}>{jobStatusLabel(batch.status)}</Badge></div></div>
         </div>
 
-        <section className="mt-6">
+        <section className="rounded-lg border border-border bg-white p-5">
           <h3 className="text-sm font-black uppercase tracking-[0.08em] text-text-primary">Document Information</h3>
           <div className="mt-4 grid gap-x-12 gap-y-3 md:grid-cols-2">
             {[
-              ["Received Date", formatFactoryDate(batch.received_date)],
+              ...(batch.status === "completed"
+                ? [
+                    ["Completed At", formatFactoryDateTime(batch.completed_at)],
+                    ["Completed By", batch.completed_by_name || "—"],
+                  ]
+                : [["Receiving Date", formatFactoryDate(batch.received_date)]]),
+              ["Supplier", batch.supplier_name || "—"],
               ["Supplier DO / Invoice", batch.reference_no || "—"],
-              ["Created By", batch.created_by_name || batch.created_by || "—"],
-              ["Status", jobStatusLabel(batch.status)],
             ].map(([label, value]) => (
               <div key={label} className="grid gap-1 sm:grid-cols-[170px_minmax(0,1fr)] sm:items-baseline">
                 <div className="whitespace-nowrap text-sm font-semibold text-text-secondary">{label}</div>
@@ -4504,16 +4442,19 @@ function ReceivingBatchDetailModal({ batch, onClose }) {
           </div>
         </section>
 
-        <section className="mt-6">
+        <section className="rounded-lg border border-border bg-white p-5">
           <h3 className="mb-3 text-sm font-black uppercase tracking-[0.08em] text-text-primary">Received Items</h3>
           <FactoryTable
             columns={[
               { key: "raw_material_name", label: "Raw Material", render: (row) => <div className="font-semibold text-text-primary">{row.raw_material_name}</div> },
-              { key: "batch_no", label: "Batch / Lot No.", render: (row) => row.batch_no ? <span className="inline-flex rounded-full bg-emerald-50 px-2.5 py-1 text-xs font-bold text-emerald-700">Lot {row.batch_no}</span> : "—" },
+              { key: "supplier_lot_no", label: "Supplier Lot No.", render: (row) => row.supplier_lot_no || "—" },
+              { key: "internal_batch_no", label: "Internal Batch No.", render: (row) => row.internal_batch_no || "—" },
               { key: "qty", label: "Qty", render: (row) => quantity(row.received_qty, row.uom) },
-              { key: "unit_cost", label: "Unit Cost", render: (row) => money(row.unit_cost) },
+              { key: "unit_cost", label: "Unit Cost", render: (row) => row.unit_cost == null ? "—" : money(row.unit_cost) },
               { key: "storage_location", label: "Storage Location", render: (row) => row.storage_location ? <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-text-secondary">{row.storage_location}</span> : "—" },
+              { key: "manufacturing_date", label: "Manufacturing Date", render: (row) => formatFactoryDate(row.manufacturing_date) },
               { key: "expiry_date", label: "Expiry Date", render: (row) => formatFactoryDate(row.expiry_date) },
+              { key: "line_total", label: "Line Total", render: (row) => row.total_cost == null ? "—" : money(row.total_cost) },
             ]}
             rows={itemRows}
             emptyTitle="No receiving items"
@@ -4521,24 +4462,8 @@ function ReceivingBatchDetailModal({ batch, onClose }) {
           />
         </section>
 
-        <section className="mt-6 border-t border-border pt-4">
-          <h3 className="mb-3 text-sm font-black uppercase tracking-[0.08em] text-text-primary">Receiving Summary</h3>
-          <div className="grid gap-3 sm:grid-cols-3">
-            <div>
-              <div className="text-xs font-semibold text-text-secondary">Items Received</div>
-              <div className="mt-1 text-xl font-black text-text-primary">{Number(itemRows.length || 0).toLocaleString("en-MY")}</div>
-            </div>
-            <div>
-              <div className="text-xs font-semibold text-text-secondary">Total Quantity</div>
-              <div className="mt-1 text-xl font-black text-text-primary">{totalQtyDisplay}</div>
-            </div>
-            <div>
-              <div className="text-xs font-semibold text-text-secondary">Total Cost</div>
-              <div className="mt-1 text-xl font-black text-text-primary">{money(totalCost)}</div>
-            </div>
-          </div>
-        </section>
-        </div>
+        {batch.remarks ? <section className="rounded-lg border border-border bg-white p-5"><h3 className="text-sm font-black uppercase tracking-[0.08em] text-text-primary">Remarks</h3><p className="mt-2 text-sm text-text-secondary">{batch.remarks}</p></section> : null}
+      </div>
     </Modal>
   );
 }
@@ -7137,6 +7062,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const [loading, setLoading] = useState(true);
   const [modal, setModal] = useState(null);
   const [receivingTab, setReceivingTab] = useState("history");
+  const [editingReceiving, setEditingReceiving] = useState(null);
   const [dispatchTab, setDispatchTab] = useState("history");
   const [receivingHistoryFilters, setReceivingHistoryFilters] = useState({ dateFrom: "", dateTo: "", supplier: "" });
   const [dispatchHistoryFilters, setDispatchHistoryFilters] = useState({ dateFrom: "", dateTo: "", customer: "", status: "" });
@@ -7172,6 +7098,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const factoryDataRequestRef = useRef(0);
   const factoryDataAbortRef = useRef(null);
   const dispatchMutationRef = useRef(new Set());
+  const receivingMutationRef = useRef(new Set());
   const previousPermissionSignatureRef = useRef("");
   const can = (code) => Boolean(auth?.hasPermission?.(code));
   const factoryPermissionSignature = JSON.stringify([...(auth?.permissions || [])].sort());
@@ -7203,6 +7130,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const canViewBatchTraceability = can("factory_batch_traceability.view");
   const canViewDispatchHistory = can("factory_finished_goods_dispatch.view");
   const canViewProductMovements = can("factory_product_movements.view");
+  const canViewReceivingHistory = can("factory_raw_receiving.view");
   const stockCheckListingLabel = serverListing === "raw-stock-checks"
     ? "Raw Material Stock Checks"
     : serverListing === "product-stock-checks" ? "Product Stock Checks" : "";
@@ -7213,7 +7141,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       && !(serverListing === "receiving-history" && receivingTab !== "history")
       && !(serverListing === "dispatch-history" && dispatchTab !== "history")
       && !(serverListing === "batch-traceability" && !canViewBatchTraceability)
-      && !(serverListing === "dispatch-history" && !canViewDispatchHistory),
+      && !(serverListing === "dispatch-history" && !canViewDispatchHistory)
+      && !(serverListing === "receiving-history" && !canViewReceivingHistory),
     querySignature: serverListingSignature,
     loadPage: ({ page, pageSize }) => factoryService.listFactoryListingPage({ listing: serverListing, page, pageSize, filters: serverListingFilters }),
     onError: (error) => {
@@ -7268,20 +7197,27 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       setDispatchCustomersTodayUpdating(false);
       setModal((current) => current?.type === "finished-good-dispatch" ? null : current);
     }
+    if (serverListing === "receiving-history" && !canViewReceivingHistory) {
+      factoryListingActions.clearForPermission("Some Raw Material Receiving data is hidden by your current role.");
+      setEditingReceiving(null);
+      setModal((current) => current?.type === "receiving-batch-detail" ? null : current);
+    }
     if (initialTab === "product-movements" && !canViewProductMovements) {
       productMovementActions.clearForPermission("Some Product Movement data is hidden by your current role.");
       setModal((current) => current?.type === "movement-batches" ? null : current);
     }
-  }, [canViewBatchTraceability, canViewDispatchHistory, canViewProductMovements, factoryListingActions, initialTab, productMovementActions, serverListing]);
+  }, [canViewBatchTraceability, canViewDispatchHistory, canViewProductMovements, canViewReceivingHistory, factoryListingActions, initialTab, productMovementActions, serverListing]);
   useEffect(() => {
     if (factoryListingPage.errorKind === "permission") {
       if (serverListing === "dispatch-history") setDispatchCustomersTodayUpdating(false);
       setModal((current) => {
         if (serverListing === "batch-traceability" && current?.type === "batch-traceability-detail") return null;
         if (serverListing === "dispatch-history" && current?.type === "finished-good-dispatch") return null;
+        if (serverListing === "receiving-history" && current?.type === "receiving-batch-detail") return null;
         if (["raw-stock-checks", "product-stock-checks"].includes(serverListing) && current?.type === "stock-check") return null;
         return current;
       });
+      if (serverListing === "receiving-history") setEditingReceiving(null);
     }
     if (productMovementLedger.errorKind === "permission") {
       setModal((current) => current?.type === "movement-batches" ? null : current);
@@ -7320,10 +7256,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         : listing === "job-orders" ? "Some Job Order data is hidden by your current role."
           : listing === "raw-stock-checks" ? "Some Raw Material Stock Checks are hidden by your current role."
             : listing === "product-stock-checks" ? "Some Product Stock Checks are hidden by your current role."
-              : listing === "dispatch-history" ? "Some Finished Goods Dispatch data is hidden by your current role." : undefined}
+              : listing === "dispatch-history" ? "Some Finished Goods Dispatch data is hidden by your current role."
+                : listing === "receiving-history" ? "Some Raw Material Receiving data is hidden by your current role." : undefined}
       staleMessage={listing === "batch-traceability"
         ? "Unable to load the latest batch traceability data. Showing the last successfully loaded results."
-        : listing === "dispatch-history" ? "Dispatch was updated, but the latest list could not be refreshed." : undefined}
+        : listing === "dispatch-history" ? "Dispatch was updated, but the latest list could not be refreshed."
+          : listing === "receiving-history" ? "Unable to load the latest Receiving History. Showing the last successfully loaded results." : undefined}
     />;
   }
 
@@ -7802,15 +7740,115 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     }
   }
 
-  async function saveReceivingBatch(form) {
+  function receivingMatchesHistoryFilters(batch) {
+    if (!batch) return false;
+    if (receivingHistoryFilters.dateFrom && batch.received_date < receivingHistoryFilters.dateFrom) return false;
+    if (receivingHistoryFilters.dateTo && batch.received_date > receivingHistoryFilters.dateTo) return false;
+    if (receivingHistoryFilters.supplier && batch.supplier_id !== receivingHistoryFilters.supplier && batch.supplier_name !== receivingHistoryFilters.supplier) return false;
+    return true;
+  }
+
+  function compareReceivingBatchesDesc(left, right) {
+    return String(right.received_date || "").localeCompare(String(left.received_date || ""))
+      || String(right.created_at || "").localeCompare(String(left.created_at || ""))
+      || String(right.id || "").localeCompare(String(left.id || ""));
+  }
+
+  function applyReceivingMutation(previous, next) {
+    const previousMatches = receivingMatchesHistoryFilters(previous);
+    const nextMatches = receivingMatchesHistoryFilters(next);
+    let refreshPage = factoryListingPage.loadedPage;
+    factoryListingActions.updateLoadedSnapshot(({ rows, total, page, pageSize, summary }) => {
+      const existingIndex = rows.findIndex((row) => row.id === (next?.id || previous?.id));
+      let updatedRows = rows;
+      if (existingIndex >= 0) {
+        updatedRows = nextMatches ? rows.map((row, index) => index === existingIndex ? next : row) : rows.filter((_, index) => index !== existingIndex);
+      } else if (nextMatches && page === 1) {
+        updatedRows = [...rows, next];
+      }
+      updatedRows = updatedRows.sort(compareReceivingBatchesDesc).slice(0, pageSize);
+      if (existingIndex >= 0 && !nextMatches && rows.length === 1 && page > 1) refreshPage = page - 1;
+      const totalDelta = (nextMatches ? 1 : 0) - (previousMatches ? 1 : 0);
+      const previousItems = previousMatches ? Number(previous?.items_count || previous?.items?.length || 0) : 0;
+      const nextItems = nextMatches ? Number(next?.items_count || next?.items?.length || 0) : 0;
+      const previousQty = previousMatches ? Number(previous?.total_qty || 0) : 0;
+      const nextQty = nextMatches ? Number(next?.total_qty || 0) : 0;
+      return {
+        rows: updatedRows,
+        total: Math.max(0, Number(total || 0) + totalDelta),
+        summary: {
+          ...(summary || {}),
+          documents: Math.max(0, Number(summary?.documents || 0) + totalDelta),
+          items: Math.max(0, Number(summary?.items || 0) - previousItems + nextItems),
+          total_qty: Math.max(0, Number(summary?.total_qty || 0) - previousQty + nextQty),
+        },
+      };
+    });
+    return refreshPage;
+  }
+
+  async function refreshReceivingHistory(page, reason) {
     try {
-      await factoryService.saveRawMaterialReceivingBatch(form, auth?.profile?.id);
-      ui?.notify?.({ title: "Raw material receiving saved", message: "Supplier delivery items were recorded into raw material stock.", tone: "success" });
-      setReceivingTab("history");
-      await loadData();
+      await factoryListingActions.refreshNow({ page, pageSize: factoryListingPage.loadedPageSize, errorMessage: "Receiving was updated, but the latest list could not be refreshed." });
+    } catch (refreshError) {
+      console.error(`[Factory] Raw Material Receiving ${reason} succeeded but listing refresh failed.`, refreshError);
+      ui?.notify?.({ title: "Receiving list refresh needed", message: "Receiving was updated, but the latest list could not be refreshed.", tone: "warning" });
+    }
+  }
+
+  async function mutateReceiving(form, complete) {
+    const mutationKey = form.id || form.completion_request_id;
+    if (receivingMutationRef.current.has(mutationKey)) return null;
+    receivingMutationRef.current.add(mutationKey);
+    const previous = form.id ? factoryListingPage.rows.find((row) => row.id === form.id) || form : null;
+    let saved;
+    try {
+      saved = await factoryService.saveRawMaterialReceivingBatch(form, { complete });
     } catch (error) {
-      ui?.notify?.({ title: "Failed to save raw material receiving", message: error.message, tone: "error" });
+      console.error(`[Factory] Unable to ${complete ? "complete" : "save"} Raw Material Receiving.`, error);
+      ui?.notify?.({ title: complete ? "Failed to complete receiving" : "Failed to save receiving Draft", message: isFactoryPermissionError(error) ? "Your current role does not allow this Receiving action." : error.message, tone: "error" });
       throw error;
+    } finally {
+      receivingMutationRef.current.delete(mutationKey);
+    }
+    const refreshPage = applyReceivingMutation(previous, saved);
+    setEditingReceiving(null);
+    setReceivingTab("history");
+    ui?.notify?.({ title: complete ? "Receiving completed" : form.id ? "Receiving Draft updated" : "Receiving Draft saved", message: complete ? "Stock and Raw Material Movements were updated." : "No stock or movements were created.", tone: "success" });
+    void refreshReceivingHistory(refreshPage, complete ? "completion" : "save");
+    if (complete) void loadData({ silent: true });
+    return saved;
+  }
+
+  async function saveReceivingBatch(form) {
+    return mutateReceiving(form, false);
+  }
+
+  async function completeReceivingBatch(form) {
+    return mutateReceiving(form, true);
+  }
+
+  async function cancelReceivingBatch(batch) {
+    if (receivingMutationRef.current.has(batch.id)) return;
+    receivingMutationRef.current.add(batch.id);
+    try {
+      const confirmed = await ui?.confirm?.({ title: "Cancel Receiving Draft?", message: `${batch.batch_no} will remain in history and cannot be edited.`, confirmLabel: "Cancel Draft", tone: "warning" });
+      if (!confirmed || !receivingMutationRef.current.has(batch.id)) return;
+      let cancelled;
+      try {
+        cancelled = await factoryService.cancelRawMaterialReceivingBatch(batch);
+      } catch (error) {
+        console.error("[Factory] Unable to cancel Raw Material Receiving.", error);
+        ui?.notify?.({ title: "Failed to cancel receiving", message: isFactoryPermissionError(error) ? "Your current role does not allow this Receiving action." : error.message, tone: "error" });
+        return;
+      }
+      const refreshPage = applyReceivingMutation(batch, cancelled);
+      setEditingReceiving(null);
+      setModal(null);
+      ui?.notify?.({ title: "Receiving Draft cancelled", tone: "success" });
+      await refreshReceivingHistory(refreshPage, "cancellation");
+    } finally {
+      receivingMutationRef.current.delete(batch.id);
     }
   }
 
@@ -8649,11 +8687,18 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     { key: "batch_no", label: "Receiving No.", render: (row) => <div><div className="font-bold text-text-primary">{row.batch_no || "—"}</div>{row.reference_no ? <div className="text-xs text-text-secondary">DO: {row.reference_no}</div> : null}</div> },
     { key: "supplier_name", label: "Supplier", render: (row) => row.supplier_name || "—" },
     { key: "items_count", label: "Items", render: (row) => Number(row.items_count || 0).toLocaleString("en-MY") },
-    { key: "total_qty", label: "Total Qty", render: (row) => quantity(row.total_qty, "") },
-    { key: "created_by", label: "Created By", render: (row) => row.created_by_name || row.created_by || "—" },
+    { key: "total_qty", label: "Quantity", render: (row) => {
+      const totals = (row.items || []).reduce((values, item) => ({ ...values, [item.uom || "units"]: Number(values[item.uom || "units"] || 0) + Number(item.received_qty || 0) }), {});
+      return Object.entries(totals).map(([uom, value]) => quantity(value, uom)).join(" · ") || "—";
+    } },
+    { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{jobStatusLabel(row.status)}</Badge> },
+    { key: "created_by", label: "Created By", render: (row) => row.created_by_name || "—" },
     { key: "actions", label: "Actions", align: "right", render: (row) => (
-      <div className="flex justify-end gap-2">
-        <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "receiving-batch-detail", value: row })}>View Details</button>
+      <div className="flex flex-wrap justify-end gap-2">
+        <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "receiving-batch-detail", value: row })}>View</button>
+        {row.status === "draft" && can("factory_raw_receiving.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => { setEditingReceiving(row); setReceivingTab("receive"); }}>Edit</button> : null}
+        {row.status === "draft" && can("factory_raw_receiving.edit") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => completeReceivingBatch(row)}><PackageCheck size={13} /> Complete</button> : null}
+        {row.status === "draft" && can("factory_raw_receiving.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => cancelReceivingBatch(row)}>Cancel</button> : null}
       </div>
     ) },
   ];
@@ -9544,21 +9589,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     );
   }
 
-  function filteredReceivingBatches() {
-    return data.receivingBatches.filter((batch) => {
-      const receivedDate = batch.received_date || "";
-      const supplierMatch = !receivingHistoryFilters.supplier
-        || batch.supplier_id === receivingHistoryFilters.supplier
-        || batch.supplier_name === receivingHistoryFilters.supplier;
-      return (!receivingHistoryFilters.dateFrom || receivedDate >= receivingHistoryFilters.dateFrom)
-        && (!receivingHistoryFilters.dateTo || receivedDate <= receivingHistoryFilters.dateTo)
-        && supplierMatch;
-    });
-  }
-
   function receivingHistoryFilterControls() {
     const supplierOptions = data.factorySuppliers.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name, helper: supplier.supplier_code || supplier.status }));
-    const fallbackSupplierOptions = [...new Set(data.receivingBatches.map((batch) => batch.supplier_name).filter(Boolean))]
+    const fallbackSupplierOptions = [...new Set(factoryListingPage.rows.map((batch) => batch.supplier_name).filter(Boolean))]
       .filter((name) => !data.factorySuppliers.some((supplier) => supplier.supplier_name === name))
       .map((name) => ({ value: name, label: name, helper: "Legacy supplier" }));
     return (
@@ -10343,9 +10376,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   function renderRawReceiving() {
     const activeSuppliers = data.factorySuppliers.filter((supplier) => supplier.status === "active");
-    const totalItems = data.receivingBatches.reduce((sum, batch) => sum + Number(batch.items_count || 0), 0);
-    const totalQty = data.receivingBatches.reduce((sum, batch) => sum + Number(batch.total_qty || 0), 0);
-    const receivingRows = currentListingRows("receiving-history", filteredReceivingBatches());
+    const receivingRows = currentListingRows("receiving-history", []);
     const receivingSummary = factoryListingPage.summary || {};
     return (
       <div className="space-y-5">
@@ -10355,25 +10386,29 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           description="Record supplier delivery documents with multiple raw material item rows."
         />
         <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={Truck} label="Receiving Documents" value={factoryListingPage.hasLoaded ? Number(receivingSummary.documents || 0) : data.receivingBatches.length} helper="Supplier delivery batches" />
-          <MetricCard icon={PackageCheck} label="Items Received" value={factoryListingPage.hasLoaded ? Number(receivingSummary.items || 0) : totalItems} helper="Total item rows" />
-          <MetricCard icon={Warehouse} label="Total Qty" value={quantity(factoryListingPage.hasLoaded ? receivingSummary.total_qty : totalQty, "")} helper="Across received items" />
+          <MetricCard icon={Truck} label="Receiving Documents" value={factoryListingPage.hasLoaded ? Number(receivingSummary.documents || 0) : "—"} helper="Supplier delivery batches" />
+          <MetricCard icon={PackageCheck} label="Items Received" value={factoryListingPage.hasLoaded ? Number(receivingSummary.items || 0) : "—"} helper="Total item rows" />
+          <MetricCard icon={Warehouse} label="Total Qty" value={factoryListingPage.hasLoaded ? quantity(receivingSummary.total_qty, "") : "—"} helper="Across received items" />
           <MetricCard icon={Tag} label="Active Suppliers" value={activeSuppliers.length} helper="Available for receiving" />
         </div>
         {receivingTab === "history" ? receivingHistoryFilterControls() : null}
 
         <div className="inline-flex rounded-xl border border-border bg-white p-1">
-          <button className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${receivingTab === "history" ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-slate-50"}`} type="button" onClick={() => setReceivingTab("history")}>Receiving History</button>
-          <button className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${receivingTab === "receive" ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-slate-50"}`} type="button" onClick={() => setReceivingTab("receive")}>Receive Raw Material</button>
+          <button className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${receivingTab === "history" ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-slate-50"}`} type="button" onClick={() => { setEditingReceiving(null); setReceivingTab("history"); }}>Receiving History</button>
+          <button className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${receivingTab === "receive" ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-slate-50"}`} type="button" onClick={() => { setEditingReceiving(null); setReceivingTab("receive"); }}>Receive Raw Material</button>
         </div>
 
         {receivingTab === "receive" ? (
           <RawReceivingEntryPanel
+            key={editingReceiving?.id || "new-receiving"}
+            initialBatch={editingReceiving}
             rawMaterials={data.rawMaterials}
             suppliers={data.factorySuppliers}
             storageLocations={data.storageLocations}
-            receivingBatches={data.receivingBatches}
+            receivingBatches={factoryListingPage.rows}
             onSave={saveReceivingBatch}
+            onComplete={completeReceivingBatch}
+            onCancelEdit={() => { setEditingReceiving(null); setReceivingTab("history"); }}
           />
         ) : (
           <Card title="Receiving History" description={factoryListingPage.hasLoaded ? `${factoryListingPage.loadedTotal} receiving document(s).` : "Supplier receiving documents."}>
