@@ -635,17 +635,19 @@ function mapProductMovement(row) {
 }
 
 function mapFinishedGoodDispatchItem(row) {
-  const finishedGood = row.finished_good || {};
+  const finishedGood = row.finished_good || row || {};
   const allocations = (row.allocations || []).map((allocation) => {
     const batch = allocation.batch || {};
     const currentLocation = batch.storage_location_ref || null;
-    const locationIssue = !batch.storage_location_id || !currentLocation
+    const locationIssue = allocation.location_valid === true
+      ? ""
+      : allocation.location_issue || (!batch.storage_location_id || !currentLocation
       ? "Storage location missing"
       : String(currentLocation.status || "").toLowerCase() !== "active"
         ? "Storage location archived"
         : String(currentLocation.location_type || "").toLowerCase() !== "finished goods area"
           ? "Storage location is not a Finished Goods Area"
-          : "";
+          : "");
     return {
     id: allocation.id,
     batch_id: allocation.batch_balance_id || "",
@@ -657,8 +659,8 @@ function mapFinishedGoodDispatchItem(row) {
     storage_location_id: allocation.storage_location_id || "",
     storage_location: currentLocation?.location_name || batch.storage_location || allocation.storage_location || "",
     storage_location_type: currentLocation?.location_type || batch.storage_location_type || allocation.storage_location_type || "",
-    batch_type: batch.source_type || "production",
-    current_balance: normalizeNumber(batch.current_balance),
+    batch_type: batch.source_type || allocation.batch_type || "production",
+    current_balance: normalizeNumber(batch.current_balance ?? allocation.current_balance),
     location_valid: !locationIssue,
     location_issue: locationIssue,
   };
@@ -685,6 +687,7 @@ function mapFinishedGoodDispatchItem(row) {
 
 function mapFinishedGoodDispatch(row) {
   const items = (row.items ?? []).map(mapFinishedGoodDispatchItem);
+  const completedByName = row.completer?.nickname || row.completer?.full_name || row.completed_by_name || "";
   return {
     id: row.id,
     dispatch_no: row.dispatch_no || "",
@@ -692,12 +695,21 @@ function mapFinishedGoodDispatch(row) {
     customer_id: row.customer_id || "",
     customer_name: row.customer?.customer_name || row.customer_name || "",
     customer_code: row.customer?.customer_code || "",
-    customer_type: row.customer?.customer_type || "",
+    customer_type: row.customer?.customer_type || row.customer_type || "",
     reference_no: row.reference_no || "",
     status: row.status || "draft",
     remarks: row.remarks || "",
     created_by: row.created_by || "",
-    created_by_name: row.creator?.nickname || row.creator?.full_name || row.created_by || "",
+    created_by_name: row.creator?.nickname || row.creator?.full_name || "",
+    completed_by: row.completed_by || "",
+    completed_by_employee: row.completed_by && completedByName ? {
+      id: row.completed_by,
+      nickname: row.completer?.nickname || "",
+      full_name: row.completer?.full_name || "",
+      display_name: completedByName,
+    } : null,
+    completed_by_name: completedByName,
+    completion_request_id: row.completion_request_id || "",
     created_at: row.created_at,
     updated_at: row.updated_at,
     completed_at: row.completed_at || "",
@@ -1119,7 +1131,7 @@ const productStockCheckSelect = `id,check_no,check_date,status,notes,created_by,
 const jobOrderSelect = `id,job_order_no,finished_good_id,product_name,target_pack_qty,target_production_qty,target_quantity,produced_quantity,uom,planned_date,due_date,priority,status,assigned_team,remarks,created_by,released_at,released_by,started_at,started_by,production_operator_id,production_operator_name,production_date,start_time,production_sop_id,sop_version,qc_snapshot_created_at,completed_at,completed_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),step_executions:factory_production_step_executions(id,job_order_id,production_id,production_sop_id,sop_step_id,step_no,step_name,description,sub_steps,status,completed_by,completed_at,qc_results:factory_production_qc_results(id,job_order_id,production_id,production_step_execution_id,sop_qc_check_id,sequence_no,qc_type,qc_name,instructions,is_required,checklist_result,remarks,checked_by,checked_by_name,checked_at))`;
 const productionSelectBasic = `id,job_order_id,finished_good_id,production_no,product_name,batch_no,actual_pack_qty,actual_output_qty,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,manufacturing_date,end_date,expiry_date,storage_location_id,shelf_life_days_snapshot,expiry_override_reason,operator_id,operator_name,start_time,end_time,qc_status,production_sop_id,sop_version,status,notes,created_by,completed_at,created_at,updated_at,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),finished_good:factory_finished_goods(${finishedGoodSelect}),job_order:factory_job_orders(job_order_no,finished_good_id,product_name,target_pack_qty,target_production_qty,finished_good:factory_finished_goods(product_code,product_name,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,shelf_life_days))`;
 const productionSelectDetailed = `${productionSelectBasic},material_usage:factory_production_material_usage(id,production_id,raw_material_id,raw_material_receiving_id,raw_material_lot_no,quantity_used,standard_usage,actual_usage,variance_qty,variance_percent,variance_reason,uom,wastage_quantity,notes,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect}),raw_receiving:factory_raw_material_receivings(receipt_no,batch_no,supplier_name,received_date,unit_cost)),qc_checkpoints:factory_production_qc_checkpoints(id,production_id,production_sop_id,sop_step_id,step_no,process_name,control_point,qc_status,notes,created_at,updated_at),step_executions:factory_production_step_executions(id,job_order_id,production_id,production_sop_id,sop_step_id,step_no,step_name,description,sub_steps,status,completed_by,completed_at,qc_results:factory_production_qc_results(id,job_order_id,production_id,production_step_execution_id,sop_qc_check_id,sequence_no,qc_type,qc_name,instructions,is_required,checklist_result,remarks,checked_by,checked_by_name,checked_at))`;
-const finishedGoodDispatchSelect = `id,dispatch_no,dispatch_date,customer_id,customer_name,reference_no,status,remarks,created_by,created_at,updated_at,completed_at,cancelled_at,creator:employees(nickname,full_name),customer:factory_customers(${factoryCustomerSelect}),items:factory_finished_good_dispatch_items(id,dispatch_id,finished_good_id,quantity,batch_no,remarks,created_at,finished_good:factory_finished_goods(${finishedGoodFullSelect}),allocations:factory_finished_good_dispatch_batch_allocations(id,batch_balance_id,production_id,quantity,batch_no,manufacturing_date,expiry_date,storage_location_id,storage_location,storage_location_type,batch:factory_finished_good_batch_balances(id,source_type,current_balance,batch_no,manufacturing_date,expiry_date,storage_location_id,storage_location,storage_location_type,storage_location_ref:factory_storage_locations(location_name,location_type,status))))`;
+const finishedGoodDispatchSelect = `id,dispatch_no,dispatch_date,customer_id,customer_name,reference_no,status,remarks,created_by,completed_by,completion_request_id,created_at,updated_at,completed_at,cancelled_at,creator:employees!factory_finished_good_dispatches_created_by_fkey(nickname,full_name),completer:employees!factory_finished_good_dispatches_completed_by_fkey(id,nickname,full_name),customer:factory_customers(${factoryCustomerSelect}),items:factory_finished_good_dispatch_items(id,dispatch_id,finished_good_id,quantity,batch_no,remarks,created_at,finished_good:factory_finished_goods(${finishedGoodFullSelect}),allocations:factory_finished_good_dispatch_batch_allocations(id,batch_balance_id,production_id,quantity,batch_no,manufacturing_date,expiry_date,storage_location_id,storage_location,storage_location_type,batch:factory_finished_good_batch_balances(id,source_type,current_balance,batch_no,manufacturing_date,expiry_date,storage_location_id,storage_location,storage_location_type,storage_location_ref:factory_storage_locations(location_name,location_type,status))))`;
 
 const FACTORY_MASTER_ID_BATCH_SIZE = 300;
 
@@ -3084,7 +3096,7 @@ export const factoryService = {
     return data ? mapProduction(data) : null;
   },
 
-  async saveFinishedGoodDispatch(dispatch, employeeId) {
+  async saveFinishedGoodDispatch(dispatch) {
     const isUpdate = Boolean(dispatch.id);
     const items = (dispatch.items || []).map((item) => ({
       finished_good_id: item.finished_good_id,
@@ -3104,50 +3116,19 @@ export const factoryService = {
     if (invalidItem) throw new Error("Every dispatch item needs a Packaging SKU and quantity greater than 0.");
     const invalidAllocation = items.find((item) => (
       !Number.isInteger(item.quantity)
-      || !item.allocations.length
-      || item.allocations.some((allocation) => !(allocation.batch_balance_id) || !Number.isInteger(allocation.quantity) || allocation.quantity <= 0)
-      || item.allocations.reduce((sum, allocation) => sum + allocation.quantity, 0) !== item.quantity
+      || (item.allocations.length > 0 && (
+        item.allocations.some((allocation) => !(allocation.batch_balance_id) || !Number.isInteger(allocation.quantity) || allocation.quantity <= 0)
+        || item.allocations.reduce((sum, allocation) => sum + allocation.quantity, 0) !== item.quantity
+      ))
     ));
-    if (invalidAllocation) throw new Error("Confirm a complete batch allocation for every dispatch line.");
+    if (invalidAllocation) throw new Error("Clear or confirm a complete batch allocation for every dispatch line.");
 
     if (isUpdate && dispatch.status !== "draft") throw new Error("Only draft dispatches can be edited.");
 
-    const { data: customer, error: customerError } = await supabase
-      .from("factory_customers")
-      .select(factoryCustomerSelect)
-      .eq("id", dispatch.customer_id)
-      .single();
-    throwSupabaseError("factory.finished_good_dispatch.customer", customerError);
-    if (customer.status !== "active" && !isUpdate) throw new Error("Select an active Customer.");
-
-    if (!isUpdate) {
-      const { data: dispatchId, error } = await supabase.rpc("factory_create_finished_good_dispatch", {
-        p_customer_id: dispatch.customer_id,
-        p_reference_no: dispatch.reference_no || "",
-        p_dispatch_date: dispatch.dispatch_date,
-        p_remarks: dispatch.remarks || "",
-        p_created_by: employeeId || null,
-        p_items: items,
-      });
-      throwSupabaseError("factory.finished_good_dispatch.create", error);
-
-      const { data: refreshed, error: refreshError } = await supabase
-        .from("factory_finished_good_dispatches")
-        .select(finishedGoodDispatchSelect)
-        .eq("id", dispatchId)
-        .single();
-      throwSupabaseError("factory.finished_good_dispatch.fetch", refreshError);
-
-      await logFactoryAction({
-        action: "factory_finished_good_dispatch_created",
-        target: refreshed.dispatch_no,
-        description: "Factory finished goods dispatch draft created.",
-        after: refreshed,
-      });
-      return mapFinishedGoodDispatch(refreshed);
-    }
-    const { data: dispatchId, error } = await supabase.rpc("factory_update_finished_good_dispatch", {
-      p_dispatch_id: dispatch.id,
+    if (!dispatch.completion_request_id) throw new Error("Dispatch request ID is required.");
+    const { data: dispatchId, error } = await supabase.rpc("factory_save_finished_good_dispatch_draft", {
+      p_dispatch_id: dispatch.id || null,
+      p_request_id: dispatch.completion_request_id,
       p_customer_id: dispatch.customer_id,
       p_reference_no: dispatch.reference_no || "",
       p_dispatch_date: dispatch.dispatch_date,
@@ -3164,9 +3145,9 @@ export const factoryService = {
     throwSupabaseError("factory.finished_good_dispatch.fetch", refreshError);
 
     await logFactoryAction({
-      action: "factory_finished_good_dispatch_updated",
+      action: isUpdate ? "factory_finished_good_dispatch_updated" : "factory_finished_good_dispatch_created",
       target: refreshed.dispatch_no,
-      description: "Factory finished goods dispatch draft updated.",
+      description: isUpdate ? "Factory finished goods dispatch draft updated." : "Factory finished goods dispatch draft created.",
       after: refreshed,
     });
     return mapFinishedGoodDispatch(refreshed);
@@ -3309,6 +3290,52 @@ export const factoryService = {
       after: data,
     });
     return mapFinishedGoodDispatch(data);
+  },
+
+  async saveAndCompleteFinishedGoodDispatch(dispatch) {
+    const items = (dispatch.items || []).map((item) => ({
+      finished_good_id: item.finished_good_id,
+      quantity: normalizeNumber(item.quantity),
+      batch_no: item.batch_no || "",
+      remarks: item.remarks || "",
+      allocations: (item.allocations || []).map((allocation) => ({
+        batch_balance_id: allocation.batch_id || allocation.batch_balance_id,
+        quantity: normalizeNumber(allocation.quantity),
+      })),
+    })).filter((item) => item.finished_good_id || item.quantity || item.batch_no || item.remarks);
+
+    if (!dispatch.customer_id) throw new Error("Select a Customer.");
+    if (!dispatch.dispatch_date) throw new Error("Dispatch Date is required.");
+    if (!items.length) throw new Error("Add at least one dispatch item.");
+    const invalidItem = items.find((item) => !item.finished_good_id || !Number.isInteger(item.quantity) || item.quantity <= 0);
+    if (invalidItem) throw new Error("Every dispatch item needs a Packaging SKU and a whole-number quantity greater than 0.");
+    const invalidAllocation = items.find((item) => (
+      !item.allocations.length
+      || item.allocations.some((allocation) => !allocation.batch_balance_id || !Number.isInteger(allocation.quantity) || allocation.quantity <= 0)
+      || item.allocations.reduce((sum, allocation) => sum + allocation.quantity, 0) !== item.quantity
+    ));
+    if (invalidAllocation) throw new Error("Confirm a complete batch allocation for every dispatch line.");
+    if (dispatch.id && dispatch.status !== "draft") throw new Error("Only draft dispatches can be completed.");
+    if (!dispatch.completion_request_id) throw new Error("Dispatch request ID is required.");
+
+    const { data, error } = await supabase.rpc("factory_save_and_complete_finished_good_dispatch", {
+      p_dispatch_id: dispatch.id || null,
+      p_request_id: dispatch.completion_request_id,
+      p_customer_id: dispatch.customer_id,
+      p_reference_no: dispatch.reference_no || "",
+      p_dispatch_date: dispatch.dispatch_date,
+      p_remarks: dispatch.remarks || "",
+      p_items: items,
+    });
+    throwSupabaseError("factory.finished_good_dispatch.save_and_complete", error);
+
+    await logFactoryAction({
+      action: "factory_finished_good_dispatch_completed",
+      target: data.dispatch_no,
+      description: "Factory finished goods dispatch saved and completed with stock-out movement.",
+      after: data,
+    });
+    return mapFinishedGoodDispatch(data || {});
   },
 
   async cancelFinishedGoodDispatch(dispatch) {

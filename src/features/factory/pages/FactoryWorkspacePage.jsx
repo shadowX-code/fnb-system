@@ -1334,6 +1334,36 @@ function isFactoryPermissionError(error) {
     || message.includes("forbidden");
 }
 
+function finishedGoodDispatchOperatorError(error, fallback = "Unable to save the Dispatch. Please retry.") {
+  if (isFactoryPermissionError(error)) return "Your current role does not allow this Dispatch action.";
+  const message = String(error?.message || "").trim();
+  const safeMessages = [
+    "Select a Customer.",
+    "Dispatch Date is required.",
+    "Add at least one dispatch item.",
+    "Every dispatch item needs a Packaging SKU",
+    "Confirm a complete batch allocation",
+    "Clear or confirm a complete batch allocation",
+    "Allocated Qty must exactly equal Dispatch Qty.",
+    "Allocated quantity exceeds available batch balance.",
+    "Selected finished-goods batch is unavailable.",
+    "Expired finished-goods batches cannot be dispatched.",
+    "Selected batch is not in an active Finished Goods storage location.",
+    "Only draft dispatches can be",
+    "Insufficient finished goods balance",
+    "Dispatch request ID is required.",
+    "This Dispatch request was already completed with different details.",
+    "This Dispatch request is already linked to another Dispatch.",
+    "This Dispatch is linked to another request.",
+    "Packaging SKU is no longer active.",
+  ];
+  return safeMessages.some((value) => message.startsWith(value)) ? message : fallback;
+}
+
+function createFinishedGoodDispatchRequestId() {
+  return crypto.randomUUID();
+}
+
 function groupedProductionSops(sops) {
   const groups = new Map();
   (sops || []).forEach((sop) => {
@@ -2652,7 +2682,7 @@ function DispatchAllocationSummary({ item, sku, onEdit }) {
   return (
     <div className="min-w-0 space-y-1">
       <div className="text-xs font-bold text-text-primary">{allocations.length === 1 ? `${singleAllocationLabel} · ${quantity(total, pluralizePackagingType(packagingTypeLabel(sku), total))}` : `${allocations.length} Batches · ${quantity(total, pluralizePackagingType(packagingTypeLabel(sku), total))}`}</div>
-      {allocations.slice(0, 2).map((allocation) => <div key={allocation.batch_id || allocation.batch_balance_id} className="truncate text-[11px] text-text-secondary">{allocation.batch_no || "Batch"} · {quantity(allocation.quantity)}</div>)}
+      {!item.read_only ? allocations.slice(0, 2).map((allocation) => <div key={allocation.batch_id || allocation.batch_balance_id} className="truncate text-[11px] text-text-secondary">{allocation.batch_no || "Batch"} · {quantity(allocation.quantity)}</div>) : null}
       {allocations.length === 1 && allocations[0].expiry_date ? <div className="text-[11px] text-text-secondary">Expiry {formatFactoryDate(allocations[0].expiry_date)}</div> : null}
       {needsUpdate ? <div className="inline-flex items-center gap-1 rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-800"><AlertTriangle size={11} /> Allocation update required</div> : null}
       {onEdit ? <button className="block text-xs font-bold text-primary hover:underline" type="button" onClick={onEdit}>{item.read_only ? "View Batch Allocation" : "Edit Allocation"}</button> : null}
@@ -2974,7 +3004,7 @@ function DispatchBatchAllocationModal({ item, sku, batches, unavailableBatches =
   );
 }
 
-function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers = [], dispatches = [], onClose, onSave, embedded = false, mode = "edit" }) {
+function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers = [], dispatches = [], onClose, onSave, onComplete, embedded = false, mode = "edit" }) {
   const makeItem = () => ({ row_id: Math.random().toString(36).slice(2), finished_good_id: "", quantity: "", batch_no: "", remarks: "", allocations: [], allocation_prompted: false, allocation_required: false });
   const [form, setForm] = useState(() => ({
     dispatch_date: todayInput(),
@@ -2984,17 +3014,20 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
     status: "draft",
     remarks: "",
     ...initialValue,
+    completion_request_id: initialValue?.completion_request_id || createFinishedGoodDispatchRequestId(),
     items: initialValue?.items?.length ? initialValue.items.map((item) => ({ ...item, allocations: item.allocations || [], allocation_prompted: Boolean(item.allocations?.length), allocation_required: dispatchAllocationTotal(item.allocations) !== Number(item.quantity || 0), row_id: item.id || Math.random().toString(36).slice(2) })) : [makeItem()],
   }));
-  const [saving, setSaving] = useState(false);
+  const [submittingAction, setSubmittingAction] = useState("");
   const [error, setError] = useState("");
   const [allocationEditor, setAllocationEditor] = useState(null);
   const [viewAllocation, setViewAllocation] = useState(null);
   const [unavailableViewer, setUnavailableViewer] = useState(null);
   const [batchAvailabilityBySku, setBatchAvailabilityBySku] = useState({});
   const batchAvailabilityRequestRef = useRef({});
+  const submissionRef = useRef(false);
   const isViewMode = mode === "view" || (Boolean(initialValue?.id) && initialValue.status !== "draft");
   const isReadOnly = isViewMode;
+  const saving = Boolean(submittingAction);
   const dispatchNoPreview = form.dispatch_no || previewDailyDocumentNo({ prefix: "D", date: form.dispatch_date, records: dispatches, codeKey: "dispatch_no", dateKey: "dispatch_date" });
   const activeSkus = finishedGoods.filter((sku) => sku.status === "active" || form.items.some((item) => item.finished_good_id === sku.id));
   const activeCustomers = customers.filter((customer) => customer.status === "active" || customer.id === form.customer_id);
@@ -3088,42 +3121,50 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
   }, [selectedSkuSignature, form.dispatch_date, form.id]);
 
   if (isViewMode) {
+    const isCompleted = form.status === "completed";
     const statusToneValue = form.status === "completed" ? "success" : form.status === "cancelled" ? "neutral" : "warning";
+    const completionTiming = factoryActivityDateTime("", "", form.completed_at);
+    const completedAtLabel = form.completed_at ? `${completionTiming.dateLabel} · ${completionTiming.timeLabel}` : "Metadata unavailable";
     return (
       <>
       <Modal
         title="Finished Goods Dispatch"
-        description="Read-only finished goods dispatch document."
+        description={form.status === "completed" ? "Completed finished goods dispatch record." : "Read-only finished goods dispatch record."}
         size="xl"
         onClose={onClose}
         footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}
       >
         <div className="space-y-5">
-          <div className="flex flex-wrap items-start justify-between gap-3 rounded-2xl border border-border bg-slate-50 p-4">
-            <div>
+          <div className="grid gap-4 rounded-xl border border-border bg-slate-50 p-4 sm:grid-cols-2 lg:grid-cols-[minmax(220px,1.6fr)_minmax(110px,0.7fr)_minmax(150px,1fr)_auto] lg:items-center">
+            <div className="min-w-0">
               <div className="text-[10.5px] font-semibold text-text-muted">Dispatch No</div>
               <div className="mt-1 text-2xl font-black text-text-primary">{form.dispatch_no || "—"}</div>
             </div>
-            <Badge tone={statusToneValue}>{jobStatusLabel(form.status)}</Badge>
+            <div><div className="text-[10.5px] font-semibold text-text-muted">Total Items</div><div className="mt-1 text-lg font-black text-text-primary">{Number(form.items_count || form.items.length || 0).toLocaleString("en-MY")}</div></div>
+            <div><div className="text-[10.5px] font-semibold text-text-muted">Total Dispatch</div><div className="mt-1 text-lg font-black text-text-primary">{dispatchTotalLabel(form)}</div></div>
+            <div className="sm:justify-self-end"><Badge tone={statusToneValue}>{jobStatusLabel(form.status)}</Badge></div>
           </div>
 
           <div className="grid gap-3 md:grid-cols-4">
             <div className="rounded-xl border border-border bg-white px-3 py-2">
-              <div className="text-[10.5px] font-semibold text-text-muted">Dispatch Date</div>
-              <div className="mt-1 text-sm font-bold text-text-primary">{formatFactoryDate(form.dispatch_date)}</div>
+              <div className="text-[10.5px] font-semibold text-text-muted">{isCompleted ? "Completed At" : "Dispatch Date"}</div>
+              <div className="mt-1 text-sm font-bold text-text-primary">{isCompleted ? completedAtLabel : formatFactoryDate(form.dispatch_date)}</div>
+              {isCompleted && !form.completed_at ? <div className="mt-0.5 text-[10.5px] font-semibold text-amber-700">Completion time metadata unavailable</div> : null}
             </div>
             <div className="rounded-xl border border-border bg-white px-3 py-2">
               <div className="text-[10.5px] font-semibold text-text-muted">Customer</div>
-              <div className="mt-1 text-sm font-bold text-text-primary">{form.customer_name || "—"}</div>
+              <div className="mt-1 line-clamp-2 text-sm font-bold text-text-primary">{form.customer_name || "—"}</div>
             </div>
             <div className="rounded-xl border border-border bg-white px-3 py-2">
               <div className="text-[10.5px] font-semibold text-text-muted">Customer Type</div>
               <div className="mt-1 text-sm font-bold text-text-primary">{form.customer_type || "—"}</div>
             </div>
-            <div className="rounded-xl border border-border bg-white px-3 py-2">
-              <div className="text-[10.5px] font-semibold text-text-muted">{form.completed_at ? "Completed" : "Created"}</div>
-              <div className="mt-1 text-sm font-bold text-text-primary">{factoryTimeLabel(form.completed_at || form.created_at)}</div>
-            </div>
+            {isCompleted ? (
+              <div className="rounded-xl border border-border bg-white px-3 py-2">
+                <div className="text-[10.5px] font-semibold text-text-muted">Completed By</div>
+                <div className="mt-1 text-sm font-bold text-text-primary">{form.completed_by_name || "—"}</div>
+              </div>
+            ) : null}
             {form.reference_no ? (
               <div className="rounded-xl border border-border bg-white px-3 py-2 md:col-span-2">
                 <div className="text-[10.5px] font-semibold text-text-muted">Reference</div>
@@ -3139,14 +3180,14 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
             <div className="space-y-3 p-4 md:hidden">
               {form.items.length ? form.items.map((item) => (
                 <div key={item.row_id} className="rounded-xl border border-border bg-slate-50 p-3">
-                  <div className="font-bold text-text-primary">{item.product_code || "No SKU"}</div>
-                  <div className="text-sm text-text-secondary">{item.product_name || item.sku_product_name || "Finished Good"}</div>
+                  <div className="font-bold text-text-primary">{item.product_name || item.sku_product_name || "Finished Good"}</div>
+                  <div className="mt-0.5 text-sm font-semibold text-text-secondary">{item.product_code || "No SKU"} · {item.variant_name || packSizeText(item) || "Packaging SKU"}</div>
                   <div className="mt-3 grid grid-cols-2 gap-2 text-sm">
                     <div><div className="text-[10.5px] font-semibold text-text-muted">Dispatch Qty</div><div className="font-bold text-text-primary">{quantity(item.quantity, pluralizePackagingType(packagingTypeLabel(item), item.quantity))}</div></div>
                     <div><div className="text-[10.5px] font-semibold text-text-muted">Pack Size</div><div className="font-bold text-text-primary">{packSizeText(item) || "—"}</div></div>
                     <div className="col-span-2"><div className="text-[10.5px] font-semibold text-text-muted">Batch Allocation</div><DispatchAllocationSummary item={{ ...item, read_only: true }} sku={item} onEdit={() => setViewAllocation(item)} /></div>
                     <div><div className="text-[10.5px] font-semibold text-text-muted">Base Equivalent</div><div className="font-bold text-text-primary">{dispatchLineBaseEquivalentLabel(item)}</div></div>
-                    <div><div className="text-[10.5px] font-semibold text-text-muted">Remarks</div><div className="font-bold text-text-primary">{item.remarks || "—"}</div></div>
+                    {item.remarks ? <div><div className="text-[10.5px] font-semibold text-text-muted">Remarks</div><div className="font-bold text-text-primary">{item.remarks}</div></div> : null}
                   </div>
                 </div>
               )) : <EmptyState title="No dispatch lines" description="No Packaging SKU rows were saved for this dispatch." />}
@@ -3155,8 +3196,8 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
               <table className="w-full min-w-[900px] text-left">
                 <thead>
                   <tr className="border-b border-border bg-slate-50 text-[11px] font-semibold text-text-muted">
-                    <th className="px-4 py-2.5">Packaging SKU</th>
                     <th className="px-4 py-2.5">Finished Good</th>
+                    <th className="px-4 py-2.5">Packaging SKU</th>
                     <th className="px-4 py-2.5">Dispatch Qty</th>
                     <th className="px-4 py-2.5">Batch Allocation</th>
                     <th className="px-4 py-2.5">Pack Size</th>
@@ -3167,8 +3208,8 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
                 <tbody>
                   {form.items.length ? form.items.map((item) => (
                     <tr key={item.row_id} className="border-b border-border last:border-0">
+                      <td className="px-4 py-3 text-sm font-bold text-text-primary">{item.product_name || item.sku_product_name || "—"}</td>
                       <td className="px-4 py-3"><div className="font-bold text-text-primary">{item.product_code || "No SKU"}</div><div className="text-xs text-text-secondary">{item.variant_name || packSizeText(item) || "Packaging SKU"}</div></td>
-                      <td className="px-4 py-3 text-sm font-semibold text-text-secondary">{item.product_name || item.sku_product_name || "—"}</td>
                       <td className="px-4 py-3 text-sm font-bold text-text-primary">{quantity(item.quantity, pluralizePackagingType(packagingTypeLabel(item), item.quantity))}</td>
                       <td className="max-w-[220px] px-4 py-3"><DispatchAllocationSummary item={{ ...item, read_only: true }} sku={item} onEdit={() => setViewAllocation(item)} /></td>
                       <td className="px-4 py-3 text-sm font-semibold text-text-secondary">{packSizeText(item) || "—"}</td>
@@ -3180,21 +3221,6 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
                   )}
                 </tbody>
               </table>
-            </div>
-          </div>
-
-          <div className="grid gap-3 md:grid-cols-3">
-            <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
-              <div className="text-[10.5px] font-semibold text-text-muted">Total Items</div>
-              <div className="mt-1 text-lg font-black text-text-primary">{Number(form.items_count || form.items.length || 0).toLocaleString("en-MY")}</div>
-            </div>
-            <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
-              <div className="text-[10.5px] font-semibold text-text-muted">Total Dispatch</div>
-              <div className="mt-1 text-lg font-black text-text-primary">{dispatchTotalLabel(form)}</div>
-            </div>
-            <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
-              <div className="text-[10.5px] font-semibold text-text-muted">Status</div>
-              <div className="mt-1"><Badge tone={statusToneValue}>{jobStatusLabel(form.status)}</Badge></div>
             </div>
           </div>
 
@@ -3357,55 +3383,66 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
     return `Only ${quantity(available, unit)} are currently available for batch allocation. ${quantity(unavailable, unavailableUnit)} require reconciliation or storage setup.`;
   }
 
-  async function submit(event) {
-    event.preventDefault();
-    setError("");
-    if (isReadOnly) return;
-    if (!form.customer_id) {
-      setError("Select a Customer.");
-      return;
-    }
-    if (!form.dispatch_date) {
-      setError("Dispatch Date is required.");
-      return;
-    }
+  function dispatchValidationMessage({ requireAllocations = true } = {}) {
+    if (!form.customer_id) return "Select a customer.";
+    if (strictDateValue(form.dispatch_date) === null) return "Select a valid Dispatch Date.";
     const rows = form.items.filter((item) => item.finished_good_id || item.quantity || item.batch_no || item.remarks);
-    if (!rows.length) {
-      setError("Add at least one dispatch item.");
-      return;
-    }
-    const invalid = rows.find((item) => !item.finished_good_id || Number(item.quantity || 0) <= 0);
-    if (invalid) {
-      setError("Every dispatch item needs a Packaging SKU and quantity greater than 0.");
-      return;
-    }
-    const unverifiedAvailability = rows.find((item) => {
+    if (!rows.length) return "Add at least one Dispatch Line.";
+    if (rows.some((item) => !item.finished_good_id)) return "Select a Packaging SKU for every line.";
+    if (rows.some((item) => !validDispatchPackQty(item.quantity))) return "Enter a positive whole-number Dispatch Qty for every line.";
+    const rowsRequiringAvailability = requireAllocations ? rows : rows.filter((item) => item.allocations?.length);
+    const unavailableRow = rowsRequiringAvailability.find((item) => {
       const availability = batchAvailabilityBySku[item.finished_good_id];
       return !availability?.data || availability.loading || availability.errorKind || availability.isStale || availability.dispatchDate !== form.dispatch_date;
     });
-    if (unverifiedAvailability) {
-      setError("Batch stock availability could not be verified. Retry before saving this Dispatch.");
+    if (unavailableRow) return "Verify current batch availability for every line.";
+    if (requireAllocations) {
+      const overBatchAvailability = rows.find((item) => batchAvailabilityExceeded(item, rows));
+      if (overBatchAvailability) return batchAvailabilityMessage(overBatchAvailability, rows);
+      if (rows.some((item) => !item.allocations?.length)) return "Allocate batches for all lines.";
+    }
+
+    const allocatedByBatch = new Map();
+    for (const item of rows) {
+      if (!item.allocations?.length && !requireAllocations) continue;
+      const availability = batchAvailabilityBySku[item.finished_good_id]?.data;
+      const eligibleById = new Map((availability?.batches || []).map((batch) => [batch.batch_id, batch]));
+      if (dispatchAllocationTotal(item.allocations) !== Number(item.quantity)) return "Batch allocation must exactly match every Dispatch Qty.";
+      for (const allocation of item.allocations) {
+        const batchId = allocation.batch_id || allocation.batch_balance_id;
+        const allocationQty = Number(allocation.quantity);
+        const eligibleBatch = eligibleById.get(batchId);
+        if (!eligibleBatch || allocation.location_valid === false || (allocation.expiry_date && allocation.expiry_date < form.dispatch_date)) {
+          return "One or more selected batches are no longer available.";
+        }
+        if (!Number.isInteger(allocationQty) || allocationQty <= 0) return "Batch allocations must use positive whole-pack quantities.";
+        const nextTotal = Number(allocatedByBatch.get(batchId) || 0) + allocationQty;
+        allocatedByBatch.set(batchId, nextTotal);
+        if (nextTotal > Number(eligibleBatch.available_qty || 0)) return "One or more selected batches have insufficient available stock.";
+      }
+    }
+    return "";
+  }
+
+  const saveDraftBlockReason = isReadOnly ? "" : dispatchValidationMessage({ requireAllocations: false });
+  const completeBlockReason = isReadOnly ? "" : dispatchValidationMessage();
+
+  async function submit(event, action = "draft") {
+    event?.preventDefault();
+    if (submissionRef.current) return;
+    setError("");
+    if (isReadOnly) return;
+    const rows = form.items.filter((item) => item.finished_good_id || item.quantity || item.batch_no || item.remarks);
+    const validationMessage = action === "complete" ? completeBlockReason : saveDraftBlockReason;
+    if (validationMessage) {
+      setError(validationMessage);
       return;
     }
-    const overBatchAvailability = rows.find((item) => batchAvailabilityExceeded(item, rows));
-    if (overBatchAvailability) {
-      setError(batchAvailabilityMessage(overBatchAvailability, rows));
-      return;
-    }
-    const invalidAllocation = rows.find((item) => (
-      !Number.isInteger(Number(item.quantity))
-      || !item.allocations?.length
-      || item.allocations.some((allocation) => !Number.isInteger(Number(allocation.quantity)) || Number(allocation.quantity) <= 0 || (allocation.available_qty != null && Number(allocation.quantity) > Number(allocation.available_qty)))
-      || dispatchAllocationTotal(item.allocations) !== Number(item.quantity)
-      || item.allocations.some((allocation) => allocation.expiry_date && allocation.expiry_date < form.dispatch_date)
-    ));
-    if (invalidAllocation) {
-      setError("Confirm a valid batch allocation that exactly matches every Dispatch Qty.");
-      return;
-    }
-    setSaving(true);
+    submissionRef.current = true;
+    setSubmittingAction(action);
     try {
-      await onSave({ ...form, items: rows });
+      if (action === "complete") await onComplete?.({ ...form, items: rows });
+      else await onSave({ ...form, items: rows });
       if (embedded) {
         setForm({
           dispatch_date: todayInput(),
@@ -3414,16 +3451,21 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
           reference_no: "",
           status: "draft",
           remarks: "",
+          completion_request_id: createFinishedGoodDispatchRequestId(),
           items: [makeItem()],
         });
+        setBatchAvailabilityBySku({});
       }
+    } catch (submitError) {
+      setError(finishedGoodDispatchOperatorError(submitError, action === "complete" ? "Unable to complete the Dispatch. Please retry." : "Unable to save the Dispatch Draft. Please retry."));
     } finally {
-      setSaving(false);
+      submissionRef.current = false;
+      setSubmittingAction("");
     }
   }
 
   const formContent = (
-    <form id={embedded ? undefined : "factory-finished-good-dispatch-form"} className="space-y-4" onSubmit={submit}>
+    <form id={embedded ? undefined : "factory-finished-good-dispatch-form"} className="space-y-4" onSubmit={(event) => submit(event, "draft")}>
       {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
       <div className={`grid gap-3 ${showReferenceField ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
         <Field label="Customer *">
@@ -3453,7 +3495,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
           />
         </Field>
         <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
-          <div className="text-[10.5px] font-semibold text-text-muted">Dispatch No.</div>
+          <div className="flex items-center justify-between gap-2"><div className="text-[10.5px] font-semibold text-text-muted">Dispatch No.</div>{form.id && form.status === "draft" ? <Badge tone="warning">Draft</Badge> : null}</div>
           <div className={`mt-1 text-sm font-bold ${form.dispatch_no ? "text-text-primary" : "text-text-secondary"}`}>{dispatchNoPreview}</div>
           {!form.dispatch_no ? <div className="mt-0.5 text-[10.5px] font-semibold text-text-muted">Preview only</div> : null}
         </div>
@@ -3574,8 +3616,12 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
         <textarea className={inputClass()} rows={3} value={form.remarks || ""} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
       </Field>
       {embedded && !isReadOnly ? (
-        <div className="flex justify-end">
-          <button className="btn-primary" type="submit" disabled={saving}>{saving ? "Saving..." : "Save Dispatch Draft"}</button>
+        <div className="space-y-2 border-t border-border pt-4">
+          {completeBlockReason ? <div className="text-right text-xs font-semibold text-amber-800">{completeBlockReason}</div> : null}
+          <div className="flex flex-wrap justify-end gap-2">
+            <button className="btn-secondary" type="submit" disabled={saving || Boolean(saveDraftBlockReason)}>{submittingAction === "draft" ? "Saving..." : "Save Draft"}</button>
+            {onComplete ? <button className="btn-primary bg-emerald-600 hover:bg-emerald-700" type="button" disabled={saving || Boolean(completeBlockReason)} onClick={() => submit(null, "complete")}>{submittingAction === "complete" ? "Completing..." : "Complete Dispatch"}</button> : null}
+          </div>
         </div>
       ) : null}
     </form>
@@ -3618,10 +3664,12 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
         size="xl"
         onClose={saving ? undefined : onClose}
         footer={(
-          <>
+          <div className="flex w-full flex-wrap items-center justify-end gap-2">
             <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>{isReadOnly ? "Close" : "Cancel"}</button>
-            {!isReadOnly ? <button className="btn-primary" type="submit" form="factory-finished-good-dispatch-form" disabled={saving}>{saving ? "Saving..." : "Save Dispatch Draft"}</button> : null}
-          </>
+            {!isReadOnly ? <button className="btn-secondary" type="submit" form="factory-finished-good-dispatch-form" disabled={saving || Boolean(saveDraftBlockReason)}>{submittingAction === "draft" ? "Saving..." : "Save Draft"}</button> : null}
+            {!isReadOnly && onComplete ? <button className="btn-primary bg-emerald-600 hover:bg-emerald-700" type="button" disabled={saving || Boolean(completeBlockReason)} onClick={() => submit(null, "complete")}>{submittingAction === "complete" ? "Completing..." : "Complete Dispatch"}</button> : null}
+            {!isReadOnly && completeBlockReason ? <div className="basis-full text-right text-xs font-semibold text-amber-800">{completeBlockReason}</div> : null}
+          </div>
         )}
       >
         {formContent}
@@ -8267,14 +8315,41 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   async function saveFinishedGoodDispatch(form) {
     try {
-      await factoryService.saveFinishedGoodDispatch(form, auth?.profile?.id);
+      await factoryService.saveFinishedGoodDispatch(form);
       ui?.notify?.({ title: form.id ? "Dispatch updated" : "Dispatch draft created", tone: "success" });
       setModal(null);
       if (!form.id) setDispatchTab("history");
       await loadData();
     } catch (error) {
-      ui?.notify?.({ title: "Failed to save dispatch", message: error.message, tone: "error" });
-      throw error;
+      const message = finishedGoodDispatchOperatorError(error, "Unable to save the Dispatch Draft. Please retry.");
+      console.error("[Factory] Unable to save Finished Goods Dispatch.", error);
+      if (isFactoryPermissionError(error)) {
+        setModal(null);
+        setDispatchTab("history");
+      }
+      ui?.notify?.({ title: "Failed to save dispatch", message, tone: "error" });
+      throw new Error(message);
+    }
+  }
+
+  async function saveAndCompleteFinishedGoodDispatch(form) {
+    try {
+      const completed = await factoryService.saveAndCompleteFinishedGoodDispatch(form);
+      ui?.notify?.({ title: "Dispatch completed successfully.", tone: "success" });
+      await loadData();
+      if (serverListing === "dispatch-history") factoryListingActions.retry();
+      setDispatchTab("history");
+      setModal({ type: "finished-good-dispatch", value: completed, mode: "view" });
+      return completed;
+    } catch (error) {
+      const message = finishedGoodDispatchOperatorError(error, "Unable to complete the Dispatch. Please retry.");
+      console.error("[Factory] Unable to save and complete Finished Goods Dispatch.", error);
+      if (isFactoryPermissionError(error)) {
+        setModal(null);
+        setDispatchTab("history");
+      }
+      ui?.notify?.({ title: "Failed to complete dispatch", message, tone: "error" });
+      throw new Error(message);
     }
   }
 
@@ -11457,6 +11532,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                   dispatches={data.finishedGoodDispatches}
                   onClose={() => setDispatchTab("history")}
                   onSave={saveFinishedGoodDispatch}
+                  onComplete={can("factory_finished_goods_dispatch.complete") ? saveAndCompleteFinishedGoodDispatch : undefined}
                   embedded
                 />
               ) : (
@@ -11724,6 +11800,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           dispatches={data.finishedGoodDispatches}
           onClose={() => setModal(null)}
           onSave={saveFinishedGoodDispatch}
+          onComplete={can("factory_finished_goods_dispatch.complete") ? saveAndCompleteFinishedGoodDispatch : undefined}
           mode={modal.mode}
         />
       ) : null}
