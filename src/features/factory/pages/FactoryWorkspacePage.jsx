@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Activity, AlertTriangle, ArrowDown, ArrowUp, BookOpen, CheckCircle2, ChevronLeft, ChevronRight, ClipboardCheck, ClipboardList, Clock3, Copy, DollarSign, Factory, FileText, Package, PackageCheck, Play, Plus, RefreshCw, RotateCcw, Tag, Trash2, Truck, Warehouse } from "lucide-react";
+import { Activity, AlertTriangle, ArrowDown, ArrowUp, BookOpen, CheckCircle2, ChevronLeft, ChevronRight, CircleOff, ClipboardCheck, ClipboardList, Clock3, Copy, DollarSign, Factory, FileText, Package, PackageCheck, Play, Plus, RefreshCw, RotateCcw, Tag, Trash2, Truck, Warehouse } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
@@ -407,40 +407,30 @@ function SearchableSelect({ value, options, placeholder, onChange, error, search
   );
 }
 
-function RawMaterialCellPicker({ value, materials, placeholder, open, openUpward, onToggle, onClose, onSelect, error, buttonRef }) {
+function RawMaterialCellPicker({ value, materials, placeholder, open, onToggle, onClose, onSelect, error, buttonRef }) {
   const [query, setQuery] = useState("");
-  const wrapperNode = useRef(null);
-  const searchNode = useRef(null);
+  const anchorRef = useRef(null);
   const selected = materials.find((material) => material.id === value);
   const visibleMaterials = materials.filter((material) => `${rawMaterialLabel(material)} ${rawMaterialSummary(material)} ${material.storage_location || ""}`.toLowerCase().includes(query.toLowerCase()));
 
   useEffect(() => {
-    if (!open) {
-      setQuery("");
-      return undefined;
-    }
-    const onPointerDown = (event) => {
-      if (wrapperNode.current?.contains(event.target)) return;
-      onClose();
-    };
-    const onKeyDown = (event) => {
-      if (event.key === "Escape") onClose();
-    };
-    setTimeout(() => searchNode.current?.focus?.(), 0);
-    document.addEventListener("pointerdown", onPointerDown);
-    document.addEventListener("keydown", onKeyDown);
-    return () => {
-      document.removeEventListener("pointerdown", onPointerDown);
-      document.removeEventListener("keydown", onKeyDown);
-    };
-  }, [open, onClose]);
+    if (!open) setQuery("");
+  }, [open]);
+
+  function setButtonNode(node) {
+    anchorRef.current = node;
+    if (typeof buttonRef === "function") buttonRef(node);
+    else if (buttonRef) buttonRef.current = node;
+  }
 
   return (
-    <div ref={wrapperNode} className="relative">
+    <div>
       <button
-        ref={buttonRef}
+        ref={setButtonNode}
         className={`min-h-[54px] w-full rounded-xl border bg-surface px-3 py-2 text-left outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15 ${error ? "border-rose-300" : "border-border"}`}
         type="button"
+        aria-expanded={open}
+        aria-haspopup="listbox"
         onClick={onToggle}
       >
         {selected ? (
@@ -452,22 +442,32 @@ function RawMaterialCellPicker({ value, materials, placeholder, open, openUpward
           <span className="block text-sm font-semibold text-text-muted">{placeholder}</span>
         )}
       </button>
-      {open ? (
-        <div className={`absolute left-0 z-[90] w-full rounded-2xl border border-border bg-white p-2 shadow-2xl ${openUpward ? "bottom-[calc(100%+8px)]" : "top-[calc(100%+8px)]"}`}>
+      <FloatingLayer
+        open={open}
+        onOpenChange={(nextOpen) => { if (!nextOpen) onClose(); }}
+        anchorRef={anchorRef}
+        align="start"
+        minWidth={280}
+        estimatedHeight={360}
+        maxHeight={420}
+        placement="auto"
+        focusOnOpen
+      >
           <input
-            ref={searchNode}
             className="mb-2 w-full rounded-xl border border-border bg-surface px-3 py-2 text-sm font-semibold text-text-primary outline-none transition placeholder:text-text-muted focus:border-primary focus:ring-2 focus:ring-primary/15"
             value={query}
             onChange={(event) => setQuery(event.target.value)}
             placeholder="Search raw material"
           />
-          <div className="max-h-[280px] overflow-y-auto pr-1">
+          <div className="max-h-[280px] overflow-y-auto pr-1" role="listbox" aria-label="Raw Materials">
             {visibleMaterials.length ? visibleMaterials.map((material) => (
               <button
                 key={material.id}
                 className={`mb-1.5 block w-full rounded-xl border px-3 py-2.5 text-left transition last:mb-0 hover:border-primary hover:bg-primary/5 ${material.id === value ? "border-primary bg-primary/10" : "border-transparent bg-white"}`}
                 type="button"
                 onClick={() => onSelect(material.id)}
+                role="option"
+                aria-selected={material.id === value}
               >
                 <span className="block truncate text-sm font-bold text-text-primary">{rawMaterialLabel(material)}</span>
                 <span className="mt-0.5 block truncate text-xs font-semibold text-text-secondary">{rawMaterialSummary(material)}</span>
@@ -475,8 +475,7 @@ function RawMaterialCellPicker({ value, materials, placeholder, open, openUpward
               </button>
             )) : <div className="px-3 py-5 text-center text-sm font-semibold text-text-secondary">No matching raw materials</div>}
           </div>
-        </div>
-      ) : null}
+      </FloatingLayer>
     </div>
   );
 }
@@ -728,6 +727,16 @@ function stockCheckVariance(systemQty, physicalQty) {
         ? "Critical"
         : "Variance";
   return { variance, variancePercent, status };
+}
+
+function stockCheckDifferenceLabel(variance, { skipped = false, hasCount = true, uom = "Packs" } = {}) {
+  if (skipped) return "Skipped";
+  if (!hasCount) return "Not counted";
+  const amount = Math.abs(Number(variance || 0));
+  const unit = uom || "Packs";
+  if (variance < 0) return `Missing ${quantity(amount, unit)}`;
+  if (variance > 0) return `Extra ${quantity(amount, unit)}`;
+  return "Matched";
 }
 
 function stockVarianceTone(status) {
@@ -2847,8 +2856,9 @@ function FinishedGoodBatchTraceabilityModal({ batch, onClose }) {
   );
 }
 
-function DispatchBatchAllocationModal({ item, sku, batches, batchAvailable = null, availableToThisLine = null, otherLinesAllocated = 0, loading, error, errorKind = "", isStale = false, autoAllocateOnLoad, allowExpired = false, referenceDate = "", onRetry, onClose, onApply }) {
+function DispatchBatchAllocationModal({ item, sku, batches, unavailableBatches = [], batchAvailable = null, availableToThisLine = null, otherLinesAllocated = 0, loading, error, errorKind = "", isStale = false, autoAllocateOnLoad, allowExpired = false, referenceDate = "", purpose = "dispatch", onRetry, onClose, onApply }) {
   const [quantities, setQuantities] = useState(() => Object.fromEntries((item.allocations || []).map((allocation) => [allocation.batch_id || allocation.batch_balance_id, String(allocation.quantity)])));
+  const [manualEditing, setManualEditing] = useState(false);
   const autoAllocatedRef = useRef(false);
   const requiredQty = Number(item.quantity || 0);
   const eligibleBatchIds = new Set(batches.map((batch) => batch.batch_id));
@@ -2882,6 +2892,7 @@ function DispatchBatchAllocationModal({ item, sku, batches, batchAvailable = nul
     && !exceedsAvailability
     && !invalidLocationAllocations.length;
   const isExpired = (batch) => Boolean(referenceDate && batch.expiry_date && batch.expiry_date < referenceDate);
+  const isStockCheck = purpose === "stock-check";
 
   function autoAllocate() {
     let remaining = requiredQty;
@@ -2910,7 +2921,7 @@ function DispatchBatchAllocationModal({ item, sku, batches, batchAvailable = nul
 
   return (
     <Modal
-      title="Batch Allocation"
+      title={isStockCheck ? "Suggested Batch Resolution (FEFO)" : "Batch Allocation"}
       description={[sku?.product_family_name || sku?.product_name_en || sku?.product_name, sku?.product_code, sku?.variant_name || packSizeText(sku)].filter(Boolean).join(" · ")}
       size="xl"
       onClose={onClose}
@@ -2919,15 +2930,15 @@ function DispatchBatchAllocationModal({ item, sku, batches, batchAvailable = nul
       footer={(
         <>
           <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="button" disabled={!canApply} onClick={applyAllocation}>Apply Allocation</button>
+          <button className="btn-primary" type="button" disabled={!canApply} onClick={applyAllocation}>{isStockCheck ? "Accept Suggested Resolution" : "Apply Allocation"}</button>
         </>
       )}
     >
       <div className="space-y-4">
         <div className="grid grid-cols-3 gap-2">
           {[
-            ["Required Qty", requiredQty],
-            ["Allocated Qty", allocatedQty],
+            [isStockCheck ? "Missing Qty" : "Required Qty", requiredQty],
+            [isStockCheck ? "Resolved Qty" : "Allocated Qty", allocatedQty],
             ["Stock Available", resolvedAvailableToThisLine],
           ].map(([label, value]) => (
             <div key={label} className="rounded-lg border border-border bg-slate-50 px-3 py-2">
@@ -2940,8 +2951,14 @@ function DispatchBatchAllocationModal({ item, sku, batches, batchAvailable = nul
 
         <div className="flex flex-wrap gap-2">
           <button className="btn-secondary" type="button" disabled={loading || !batches.length} onClick={autoAllocate}><RefreshCw size={14} /> Auto Allocate FEFO</button>
+          {isStockCheck ? <button className="btn-secondary" type="button" disabled={loading} onClick={() => {
+            if (manualEditing) autoAllocate();
+            setManualEditing((current) => !current);
+          }}>{manualEditing ? "Use Suggested Values" : "Edit Manually"}</button> : null}
           <button className="btn-secondary" type="button" disabled={loading} onClick={() => setQuantities({})}>Clear Allocation</button>
         </div>
+
+        {isStockCheck && unavailableBatches.length ? <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold text-amber-900">{unavailableBatches.length} batch balance{unavailableBatches.length === 1 ? " is" : "s are"} excluded: {[...new Set(unavailableBatches.map((batch) => batch.exclusion_reason).filter(Boolean))].join(" · ") || "Storage or reconciliation metadata unavailable"}.</div> : null}
 
         {loading ? <div className="rounded-xl border border-border bg-slate-50 px-4 py-8 text-center text-sm font-semibold text-text-secondary">Loading available batches...</div> : null}
         {error ? (
@@ -2972,7 +2989,7 @@ function DispatchBatchAllocationModal({ item, sku, batches, batchAvailable = nul
                   <div><div className="font-semibold text-text-muted">Manufactured</div>{formatFactoryDate(batch.manufacturing_date)}</div>
                   <div><div className="font-semibold text-text-muted">Expiry</div>{batch.expiry_date ? formatFactoryDate(batch.expiry_date) : <span className="font-semibold text-amber-700">No Expiry Recorded</span>}</div>
                 </div>
-                <div className="mt-3"><Field label="Allocate Qty"><input className={inputClass()} type="number" min="0" step="1" value={quantities[batch.batch_id] || ""} onChange={(event) => setQuantities((current) => ({ ...current, [batch.batch_id]: event.target.value }))} /></Field></div>
+                {isStockCheck && !manualEditing ? <div className="mt-3 grid grid-cols-2 gap-2 text-sm"><div><div className="text-xs font-semibold text-text-muted">Suggested Reduction</div><div className="font-bold text-rose-700">-{Number(quantities[batch.batch_id] || 0)}</div></div><div><div className="text-xs font-semibold text-text-muted">Remaining Qty</div><div className="font-bold text-text-primary">{Number(batch.available_qty || 0) - Number(quantities[batch.batch_id] || 0)}</div></div></div> : <div className="mt-3"><Field label={isStockCheck ? "Reduction Qty" : "Allocate Qty"}><input className={inputClass()} type="number" min="0" step="1" value={quantities[batch.batch_id] || ""} onChange={(event) => setQuantities((current) => ({ ...current, [batch.batch_id]: event.target.value }))} /></Field></div>}
               </div>
             ))}
           </div>
@@ -2981,23 +2998,19 @@ function DispatchBatchAllocationModal({ item, sku, batches, batchAvailable = nul
           <div className="hidden overflow-x-auto rounded-xl border border-border md:block">
             <table className="w-full min-w-[760px] text-left">
               <thead><tr className="border-b border-border bg-slate-50 text-[11px] font-semibold text-text-muted">
-                <th className="px-3 py-2.5">Batch No.</th><th className="px-3 py-2.5">Manufacturing Date</th><th className="px-3 py-2.5">Expiry Date</th><th className="px-3 py-2.5">Storage Location</th><th className="px-3 py-2.5">Available Qty</th><th className="px-3 py-2.5">Allocate Qty</th>
+                <th className="px-3 py-2.5">Batch No.</th>{isStockCheck ? <><th className="px-3 py-2.5">Current Qty</th><th className="px-3 py-2.5">Suggested Reduction</th><th className="px-3 py-2.5">Remaining Qty</th></> : <><th className="px-3 py-2.5">Manufacturing Date</th><th className="px-3 py-2.5">Expiry Date</th><th className="px-3 py-2.5">Storage Location</th><th className="px-3 py-2.5">Available Qty</th><th className="px-3 py-2.5">Allocate Qty</th></>}
               </tr></thead>
               <tbody>{batches.map((batch) => (
                 <tr key={batch.batch_id} className="border-b border-border last:border-0">
                   <td className="px-3 py-3 text-sm font-bold text-text-primary"><div className="flex flex-wrap items-center gap-2"><span>{batch.batch_no || "—"}</span><Badge tone={batch.batch_type === "legacy_unallocated" ? "warning" : "neutral"}>{batchTypeLabel(batch.batch_type)}</Badge>{isExpired(batch) ? <Badge tone="danger">Expired</Badge> : null}</div></td>
-                  <td className="whitespace-nowrap px-3 py-3 text-sm text-text-secondary">{formatFactoryDate(batch.manufacturing_date)}</td>
-                  <td className="whitespace-nowrap px-3 py-3 text-sm text-text-secondary">{batch.expiry_date ? formatFactoryDate(batch.expiry_date) : <span className="font-semibold text-amber-700">No Expiry Recorded</span>}</td>
-                  <td className="px-3 py-3 text-sm text-text-secondary"><div className="font-semibold text-text-primary">{batch.storage_location || "—"}</div><div className="text-xs">{batch.storage_location_type || "—"}</div></td>
-                  <td className="px-3 py-3 text-sm font-bold text-text-primary">{quantity(batch.available_qty, pluralizePackagingType(packagingTypeLabel(sku), batch.available_qty))}</td>
-                  <td className="w-40 px-3 py-3"><input className={inputClass()} type="number" min="0" step="1" value={quantities[batch.batch_id] || ""} onChange={(event) => setQuantities((current) => ({ ...current, [batch.batch_id]: event.target.value }))} /></td>
+                  {isStockCheck ? <><td className="px-3 py-3 text-sm font-bold text-text-primary">{quantity(batch.available_qty, "Packs")}</td><td className="w-44 px-3 py-3">{manualEditing ? <input className={inputClass()} type="number" min="0" step="1" value={quantities[batch.batch_id] || ""} onChange={(event) => setQuantities((current) => ({ ...current, [batch.batch_id]: event.target.value }))} /> : <span className="font-bold text-rose-700">-{Number(quantities[batch.batch_id] || 0)} Packs</span>}</td><td className="px-3 py-3 text-sm font-bold text-text-primary">{quantity(Number(batch.available_qty || 0) - Number(quantities[batch.batch_id] || 0), "Packs")}</td></> : <><td className="whitespace-nowrap px-3 py-3 text-sm text-text-secondary">{formatFactoryDate(batch.manufacturing_date)}</td><td className="whitespace-nowrap px-3 py-3 text-sm text-text-secondary">{batch.expiry_date ? formatFactoryDate(batch.expiry_date) : <span className="font-semibold text-amber-700">No Expiry Recorded</span>}</td><td className="px-3 py-3 text-sm text-text-secondary"><div className="font-semibold text-text-primary">{batch.storage_location || "—"}</div><div className="text-xs">{batch.storage_location_type || "—"}</div></td><td className="px-3 py-3 text-sm font-bold text-text-primary">{quantity(batch.available_qty, pluralizePackagingType(packagingTypeLabel(sku), batch.available_qty))}</td><td className="w-40 px-3 py-3"><input className={inputClass()} type="number" min="0" step="1" value={quantities[batch.batch_id] || ""} onChange={(event) => setQuantities((current) => ({ ...current, [batch.batch_id]: event.target.value }))} /></td></>}
                 </tr>
               ))}</tbody>
             </table>
           </div>
         ) : null}
 
-        {!loading && !error && shortage > 0 ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">Only {quantity(resolvedAvailableToThisLine, pluralizePackagingType(packagingTypeLabel(sku), resolvedAvailableToThisLine).toLowerCase())} {resolvedAvailableToThisLine === 1 ? "is" : "are"} available. Reduce the Dispatch quantity.</div> : null}
+        {!loading && !error && shortage > 0 ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">Only {quantity(resolvedAvailableToThisLine, pluralizePackagingType(packagingTypeLabel(sku), resolvedAvailableToThisLine).toLowerCase())} {resolvedAvailableToThisLine === 1 ? "is" : "are"} available. {isStockCheck ? "Review batch reconciliation before submitting." : "Reduce the Dispatch quantity."}</div> : null}
         {!loading && !error && shortage === 0 && allocatedQty !== requiredQty ? <div className="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">Allocate exactly {quantity(requiredQty, pluralizePackagingType(packagingTypeLabel(sku), requiredQty))} before applying.</div> : null}
         {shortage === 0 && exceedsAvailability ? <div className="rounded-lg border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">One or more selected batches exceed the available quantity. Please reallocate.</div> : null}
       </div>
@@ -4240,10 +4253,8 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials, suppliers =
     internal_batch_no: item.internal_batch_no || "",
     received_qty: item.received_qty ?? "",
     uom: item.uom || "",
-    unit_cost: item.unit_cost ?? "",
     storage_location_id: item.storage_location_id || "",
     storage_location: item.storage_location || "",
-    manufacturing_date: item.manufacturing_date || "",
     expiry_date: item.expiry_date || "",
     expiry_source: item.expiry_source || "",
     expiry_confirmed: Boolean(item.expiry_confirmed),
@@ -4295,7 +4306,6 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials, suppliers =
       setForm((current) => ({ ...current, items: current.items.map((item) => item.row_id === rowId && item.raw_material_id === rawMaterialId ? {
         ...item,
         uom: defaults.uom || item.uom,
-        unit_cost: defaults.unit_cost ?? item.unit_cost,
         storage_location_id: defaults.storage_location_id || item.storage_location_id,
         storage_location: defaults.storage_location || item.storage_location,
         expiry_tracking_mode: defaults.expiry_tracking_mode || item.expiry_tracking_mode,
@@ -4323,7 +4333,6 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials, suppliers =
       if (action === "complete") {
         nextErrors[`${item.row_id}.received_qty`] = Number(item.received_qty || 0) <= 0 ? "Qty must be greater than 0." : "";
         nextErrors[`${item.row_id}.uom`] = !item.uom ? "UOM is required." : "";
-        nextErrors[`${item.row_id}.unit_cost`] = !Number.isFinite(Number(item.unit_cost)) || Number(item.unit_cost) <= 0 ? "Enter a valid unit cost before completing Receiving." : "";
         nextErrors[`${item.row_id}.storage_location_id`] = !item.storage_location_id ? "Active Storage Location is required." : "";
         nextErrors[`${item.row_id}.expiry_date`] = item.expiry_tracking_mode === "required" && !item.expiry_date
           ? "Expiry Date is required."
@@ -4351,6 +4360,26 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials, suppliers =
     }
   }
 
+  function renderMaterialPicker(item) {
+    return <><RawMaterialCellPicker value={item.raw_material_id} materials={activeRawMaterials} placeholder="Select Raw Material" open={openMaterialRowId === item.row_id} error={Boolean(fieldErrors[`${item.row_id}.raw_material_id`])} buttonRef={(node) => { fieldRefs.current[`${item.row_id}.raw_material_id`] = node; }} onToggle={() => setOpenMaterialRowId((current) => current === item.row_id ? null : item.row_id)} onClose={() => setOpenMaterialRowId(null)} onSelect={(rawMaterialId) => selectRawMaterial(item.row_id, rawMaterialId)} />{fieldErrors[`${item.row_id}.raw_material_id`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.raw_material_id`]}</div> : null}</>;
+  }
+
+  function renderInternalBatch(item) {
+    return <div className="min-h-[54px] rounded-lg border border-border bg-slate-50 px-3 py-2"><div className="font-mono text-xs font-bold text-text-secondary">{item.internal_batch_no || "Generated on completion"}</div>{item.internal_batch_no && !item.id ? <div className="mt-0.5 text-[10px] font-semibold text-text-muted">Preview only</div> : null}</div>;
+  }
+
+  function renderQuantityInput(item) {
+    return <><div className="relative"><input ref={(node) => { fieldRefs.current[`${item.row_id}.received_qty`] = node; }} className={`${inputClass(fieldErrors[`${item.row_id}.received_qty`])} pr-14`} type="number" min="0" step="0.01" value={item.received_qty} onChange={(event) => updateItem(item.row_id, { received_qty: event.target.value })} />{item.uom ? <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-text-muted">{item.uom}</span> : null}</div>{fieldErrors[`${item.row_id}.received_qty`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.received_qty`]}</div> : null}</>;
+  }
+
+  function renderStoragePicker(item) {
+    return <><SearchableSelect value={item.storage_location_id} options={storageLocationOptions} placeholder="Select Location" onChange={(locationId) => { const location = activeStorageLocations.find((row) => row.id === locationId); updateItem(item.row_id, { storage_location_id: locationId, storage_location: location?.location_name || "" }); }} />{fieldErrors[`${item.row_id}.storage_location_id`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.storage_location_id`]}</div> : null}</>;
+  }
+
+  function renderExpiryPicker(item) {
+    return <><FeedXDatePicker value={item.expiry_date} placeholder="Expiry date" disabled={item.expiry_tracking_mode === "not_applicable"} onChange={(expiryDate) => updateItem(item.row_id, { expiry_date: expiryDate, expiry_source: expiryDate ? "supplier_label" : "", expiry_confirmed: Boolean(expiryDate) })} /><div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-text-muted"><span>{item.expiry_tracking_mode === "required" ? "Required" : item.expiry_tracking_mode === "not_applicable" ? "Not applicable" : "Optional"}</span>{item.expiry_source === "calculated" ? <span className="text-amber-700">Suggested from shelf life</span> : null}{item.expiry_date && !item.expiry_confirmed ? <button className="text-primary hover:underline" type="button" onClick={() => updateItem(item.row_id, { expiry_confirmed: true })}>Accept</button> : null}</div>{fieldErrors[`${item.row_id}.expiry_date`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.expiry_date`]}</div> : null}</>;
+  }
+
   return (
     <Card title={initialBatch?.id ? `Edit ${initialBatch.batch_no}` : "Receive Raw Material"} description="Save preparation as a Draft, then complete once quantities and batch details are confirmed.">
       <form className="space-y-5 p-5" onSubmit={(event) => submit("draft", event)}>
@@ -4366,30 +4395,28 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials, suppliers =
         </div>
         <Field label="Remarks"><textarea className={inputClass()} rows={2} value={form.remarks} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} /></Field>
 
-        <div className="rounded-xl border border-border bg-white p-4 pb-48">
+        <div className="rounded-xl border border-border bg-white p-4">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-slate-50 px-4 py-3">
-            <div><div className="text-sm font-semibold text-text-primary">Receiving Items</div><div className="text-xs text-text-secondary">UOM, storage, cost, internal batch and expiry suggestions load from the Raw Material master.</div></div>
+            <div><div className="text-sm font-semibold text-text-primary">Receiving Items</div><div className="text-xs text-text-secondary">UOM, storage, internal batch and expiry policy load from the Raw Material master.</div></div>
             <button className="btn-secondary px-3 py-2 text-sm" type="button" onClick={() => setForm((current) => ({ ...current, items: [...current.items, makeRow()] }))}><Plus size={15} /> Add Item</button>
           </div>
-          <div className="mt-4 overflow-x-auto rounded-xl border border-border">
-            <table className="min-w-[1720px] w-full table-fixed text-left text-sm">
-              <thead className="border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted"><tr>
-                {['Raw Material *', 'Supplier Lot No.', 'Internal Batch No.', 'Qty *', 'Unit Cost *', 'Storage Location *', 'Manufacturing Date', 'Expiry Date', 'Action'].map((label) => <th key={label} className="px-4 py-3">{label}</th>)}
-              </tr></thead>
-              <tbody>{form.items.map((item, index) => (
-                <tr key={item.row_id} className="border-b border-border last:border-0 align-top">
-                  <td className="w-72 px-4 py-3"><RawMaterialCellPicker value={item.raw_material_id} materials={activeRawMaterials} placeholder="Select Raw Material" open={openMaterialRowId === item.row_id} openUpward={index >= Math.max(0, form.items.length - 2)} error={Boolean(fieldErrors[`${item.row_id}.raw_material_id`])} buttonRef={(node) => { fieldRefs.current[`${item.row_id}.raw_material_id`] = node; }} onToggle={() => setOpenMaterialRowId((current) => current === item.row_id ? null : item.row_id)} onClose={() => setOpenMaterialRowId(null)} onSelect={(rawMaterialId) => selectRawMaterial(item.row_id, rawMaterialId)} />{fieldErrors[`${item.row_id}.raw_material_id`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.raw_material_id`]}</div> : null}</td>
-                  <td className="px-4 py-3"><input className={inputClass()} value={item.supplier_lot_no} onChange={(event) => updateItem(item.row_id, { supplier_lot_no: event.target.value })} placeholder="Optional" /></td>
-                  <td className="px-4 py-3"><div className="rounded-lg border border-border bg-slate-50 px-3 py-2"><div className="font-mono text-xs font-bold text-text-secondary">{item.internal_batch_no || "Generated on completion"}</div>{item.internal_batch_no && !item.id ? <div className="mt-0.5 text-[10px] font-semibold text-text-muted">Preview only</div> : null}</div></td>
-                  <td className="px-4 py-3"><div className="relative"><input ref={(node) => { fieldRefs.current[`${item.row_id}.received_qty`] = node; }} className={`${inputClass(fieldErrors[`${item.row_id}.received_qty`])} pr-14`} type="number" min="0" step="0.01" value={item.received_qty} onChange={(event) => updateItem(item.row_id, { received_qty: event.target.value })} />{item.uom ? <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-text-muted">{item.uom}</span> : null}</div>{fieldErrors[`${item.row_id}.received_qty`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.received_qty`]}</div> : null}</td>
-                  <td className="px-4 py-3"><input ref={(node) => { fieldRefs.current[`${item.row_id}.unit_cost`] = node; }} className={inputClass(fieldErrors[`${item.row_id}.unit_cost`])} type="number" min="0" step="0.0001" value={item.unit_cost} onChange={(event) => updateItem(item.row_id, { unit_cost: event.target.value })} />{fieldErrors[`${item.row_id}.unit_cost`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.unit_cost`]}</div> : null}</td>
-                  <td className="px-4 py-3"><SearchableSelect value={item.storage_location_id} options={storageLocationOptions} placeholder="Select Location" onChange={(locationId) => { const location = activeStorageLocations.find((row) => row.id === locationId); updateItem(item.row_id, { storage_location_id: locationId, storage_location: location?.location_name || "" }); }} />{fieldErrors[`${item.row_id}.storage_location_id`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.storage_location_id`]}</div> : null}</td>
-                  <td className="px-4 py-3"><FeedXDatePicker value={item.manufacturing_date} placeholder="Manufacturing date" onChange={(manufacturingDate) => updateItem(item.row_id, { manufacturing_date: manufacturingDate })} /></td>
-                  <td className="px-4 py-3"><FeedXDatePicker value={item.expiry_date} placeholder="Expiry date" disabled={item.expiry_tracking_mode === "not_applicable"} onChange={(expiryDate) => updateItem(item.row_id, { expiry_date: expiryDate, expiry_source: expiryDate ? "supplier_label" : "", expiry_confirmed: Boolean(expiryDate) })} /><div className="mt-1 flex flex-wrap items-center gap-2 text-[11px] font-semibold text-text-muted"><span>{item.expiry_tracking_mode === "required" ? "Required" : item.expiry_tracking_mode === "not_applicable" ? "Not applicable" : "Optional"}</span>{item.expiry_source === "calculated" ? <span className="text-amber-700">Suggested from shelf life</span> : null}{item.expiry_date && !item.expiry_confirmed ? <button className="text-primary hover:underline" type="button" onClick={() => updateItem(item.row_id, { expiry_confirmed: true })}>Accept</button> : null}</div>{fieldErrors[`${item.row_id}.expiry_date`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.expiry_date`]}</div> : null}</td>
-                  <td className="px-4 py-3"><button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={form.items.length === 1} onClick={() => setForm((current) => ({ ...current, items: current.items.filter((row) => row.row_id !== item.row_id) }))}>Remove</button></td>
-                </tr>
-              ))}</tbody>
-            </table>
+          <div className="mt-4 overflow-hidden rounded-lg border border-border">
+            <div className="hidden grid-cols-[minmax(0,1.5fr)_minmax(0,.85fr)_minmax(0,1fr)_minmax(0,.75fr)_minmax(0,1.25fr)_minmax(0,1fr)_56px] border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted xl:grid">
+              {['Raw Material *', 'Supplier Lot No.', 'Internal Batch No.', 'Qty *', 'Storage Location *', 'Expiry Date', ''].map((label, index) => <div key={`${label}-${index}`} className="px-3 py-3">{label}</div>)}
+            </div>
+            <div className="divide-y divide-border">
+              {form.items.map((item, index) => (
+                <div key={item.row_id} className="grid gap-4 bg-white p-4 sm:grid-cols-2 xl:grid-cols-[minmax(0,1.5fr)_minmax(0,.85fr)_minmax(0,1fr)_minmax(0,.75fr)_minmax(0,1.25fr)_minmax(0,1fr)_56px] xl:gap-0 xl:p-0">
+                  <div className="min-w-0 xl:px-3 xl:py-3"><div className="mb-1 text-xs font-semibold text-text-secondary xl:hidden">Raw Material *</div>{renderMaterialPicker(item)}</div>
+                  <div className="min-w-0 xl:px-3 xl:py-3"><div className="mb-1 text-xs font-semibold text-text-secondary xl:hidden">Supplier Lot No.</div><input className={inputClass()} value={item.supplier_lot_no} onChange={(event) => updateItem(item.row_id, { supplier_lot_no: event.target.value })} placeholder="Optional" /></div>
+                  <div className="min-w-0 xl:px-3 xl:py-3"><div className="mb-1 text-xs font-semibold text-text-secondary xl:hidden">Internal Batch No.</div>{renderInternalBatch(item)}</div>
+                  <div className="min-w-0 xl:px-3 xl:py-3"><div className="mb-1 text-xs font-semibold text-text-secondary xl:hidden">Qty *</div>{renderQuantityInput(item)}</div>
+                  <div className="min-w-0 xl:px-3 xl:py-3"><div className="mb-1 text-xs font-semibold text-text-secondary xl:hidden">Storage Location *</div>{renderStoragePicker(item)}</div>
+                  <div className="min-w-0 xl:px-3 xl:py-3"><div className="mb-1 text-xs font-semibold text-text-secondary xl:hidden">Expiry Date</div>{renderExpiryPicker(item)}</div>
+                  <div className="flex items-end justify-end sm:col-span-2 xl:col-span-1 xl:items-start xl:px-2 xl:py-3"><button className="rounded-lg p-2 text-text-muted transition hover:bg-rose-50 hover:text-rose-700 disabled:cursor-not-allowed disabled:opacity-40" type="button" title="Remove item" aria-label={`Remove item ${index + 1}`} disabled={form.items.length === 1} onClick={() => setForm((current) => ({ ...current, items: current.items.filter((row) => row.row_id !== item.row_id) }))}><Trash2 size={16} /></button></div>
+                </div>
+              ))}
+            </div>
           </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-3 rounded-xl border border-border bg-slate-50 px-4 py-3">
@@ -4450,11 +4477,8 @@ function ReceivingBatchDetailModal({ batch, onClose }) {
               { key: "supplier_lot_no", label: "Supplier Lot No.", render: (row) => row.supplier_lot_no || "—" },
               { key: "internal_batch_no", label: "Internal Batch No.", render: (row) => row.internal_batch_no || "—" },
               { key: "qty", label: "Qty", render: (row) => quantity(row.received_qty, row.uom) },
-              { key: "unit_cost", label: "Unit Cost", render: (row) => row.unit_cost == null ? "—" : money(row.unit_cost) },
               { key: "storage_location", label: "Storage Location", render: (row) => row.storage_location ? <span className="inline-flex rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-text-secondary">{row.storage_location}</span> : "—" },
-              { key: "manufacturing_date", label: "Manufacturing Date", render: (row) => formatFactoryDate(row.manufacturing_date) },
               { key: "expiry_date", label: "Expiry Date", render: (row) => formatFactoryDate(row.expiry_date) },
-              { key: "line_total", label: "Line Total", render: (row) => row.total_cost == null ? "—" : money(row.total_cost) },
             ]}
             rows={itemRows}
             emptyTitle="No receiving items"
@@ -6552,7 +6576,9 @@ function FactoryAuditLogDetailModal({ event, onClose }) {
 
 function buildStockCheckRows(stockType, stockItems, initialValue, categoryId = "") {
   if (initialValue?.items?.length) {
-    return initialValue.items.map((item) => ({
+    return initialValue.items.map((item) => {
+      const stockItem = stockItems.find((candidate) => candidate.id === item.raw_material_id || candidate.id === item.finished_good_id) || {};
+      return ({
       id: item.id,
       raw_material_id: item.raw_material_id || "",
       finished_good_id: item.finished_good_id || "",
@@ -6561,11 +6587,19 @@ function buildStockCheckRows(stockType, stockItems, initialValue, categoryId = "
         ? Number(stockItems.find((stockItem) => stockItem.id === item.raw_material_id || stockItem.id === item.finished_good_id)?.current_balance ?? item.system_qty ?? 0)
         : item.system_qty,
       physical_qty: item.variance_status === "Skipped" || item.count_status === "pending" ? "" : item.physical_qty,
-      count_status: item.variance_status === "Skipped" ? "skip" : item.count_status === "pending" ? "pending" : "counted",
+      count_status: item.variance_status === "Skipped" || item.count_status === "skip" ? "skip" : item.variance_status === "Pending" || item.count_status === "pending" ? "pending" : "counted",
       variance_reason: item.variance_reason || "",
       batch_allocations: item.batch_allocations || [],
-      uom: item.uom || "",
-    }));
+      positive_adjustment_confirmed: Boolean(item.positive_adjustment_confirmed),
+      product_code: item.product_code || stockItem.product_code || "",
+      packaging_type: item.packaging_type || stockItem.packaging_type || "",
+      pack_size_qty: item.pack_size_qty ?? stockItem.pack_size_qty ?? null,
+      pack_size_uom: item.pack_size_uom || stockItem.pack_size_uom || "",
+      base_qty: item.base_qty ?? stockItem.base_qty ?? null,
+      base_uom: item.base_uom || stockItem.base_uom || "",
+      uom: stockType === "product" ? "Packs" : item.uom || "",
+    });
+    });
   }
   return stockItems.filter((item) => item.status === "active" && (stockType === "raw" ? item.category_id === categoryId : !categoryId || item.category_id === categoryId)).map((item) => ({
     id: `${stockType}-${item.id}`,
@@ -6574,14 +6608,21 @@ function buildStockCheckRows(stockType, stockItems, initialValue, categoryId = "
     item_name: stockType === "raw" ? rawMaterialLabel(item) : item.product_name,
     system_qty: Number(item.current_balance || 0),
     physical_qty: "",
-    count_status: "counted",
+    count_status: stockType === "product" ? "skip" : "counted",
     variance_reason: "",
     batch_allocations: [],
-    uom: item.uom || "",
+    positive_adjustment_confirmed: false,
+    product_code: item.product_code || "",
+    packaging_type: item.packaging_type || "",
+    pack_size_qty: item.pack_size_qty ?? null,
+    pack_size_uom: item.pack_size_uom || "",
+    base_qty: item.base_qty ?? null,
+    base_uom: item.base_uom || "",
+    uom: stockType === "product" ? "Packs" : item.uom || "",
   }));
 }
 
-function StockCheckModal({ stockType, title, initialValue, stockItems, rawMaterialCategories = [], finishedGoodCategories = [], existingChecks = [], onClose, onSave }) {
+function StockCheckModal({ stockType, title, initialValue, stockItems, rawMaterialCategories = [], finishedGoodCategories = [], existingChecks = [], readOnly = false, onConfirmSubmit, onClose, onSave }) {
   const inferredCategoryId = initialValue?.category_id || stockItems.find((item) => item.id === initialValue?.items?.[0]?.raw_material_id || item.id === initialValue?.items?.[0]?.finished_good_id)?.category_id || "";
   const [form, setForm] = useState(() => ({
     check_date: todayInput(),
@@ -6711,7 +6752,7 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
     if (nextStatus === "submitted") {
       const missingCount = form.items.find((row) => row.count_status !== "skip" && (row.physical_qty === "" || row.physical_qty == null || Number(row.physical_qty) < 0));
       if (missingCount) return "Submit requires every row to be counted or skipped.";
-      const missingSkipReason = form.items.find((row) => row.count_status === "skip" && !String(row.variance_reason || "").trim());
+      const missingSkipReason = isRaw && form.items.find((row) => row.count_status === "skip" && !String(row.variance_reason || "").trim());
       if (missingSkipReason) return "Skip reason is required for skipped rows.";
     } else {
       const invalidCount = form.items.find((row) => row.count_status !== "skip" && row.physical_qty !== "" && row.physical_qty != null && Number(row.physical_qty) < 0);
@@ -6727,16 +6768,19 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
       if (!isRaw) {
         if (reconciliation.loading) return "Finished Goods reconciliation is still loading.";
         if (reconciliation.error) return "Finished Goods reconciliation could not be verified. Retry before submitting.";
-        const unsafeReconciliation = form.items.find((row) => reconciliationBySku.get(row.finished_good_id)?.reconciliation_status === "mismatch" || !reconciliationBySku.has(row.finished_good_id));
+        const unsafeReconciliation = form.items.find((row) => row.count_status !== "skip"
+          && row.physical_qty !== "" && row.physical_qty != null
+          && stockCheckVariance(row.system_qty, row.physical_qty).variance !== 0
+          && (reconciliationBySku.get(row.finished_good_id)?.reconciliation_status === "mismatch" || !reconciliationBySku.has(row.finished_good_id)));
         if (unsafeReconciliation) return "Reconcile Finished Goods batch inventory before submitting this Stock Check.";
         const missingAdjustmentDestination = form.items.find((row) => {
           if (row.count_status === "skip" || row.physical_qty === "" || row.physical_qty == null) return false;
           if (stockCheckVariance(row.system_qty, row.physical_qty).variance <= 0) return false;
           const sku = stockItems.find((item) => item.id === row.finished_good_id);
-          return !sku?.storage_location_id || String(sku.storage_location_ref?.status || sku.storage_location_status || "").toLowerCase() !== "active"
+          return !row.positive_adjustment_confirmed || !sku?.storage_location_id || String(sku.storage_location_ref?.status || sku.storage_location_status || "").toLowerCase() !== "active"
             || String(sku.storage_location_ref?.location_type || sku.storage_location_type || "").toLowerCase() !== "finished goods area";
         });
-        if (missingAdjustmentDestination) return "Positive variance requires an active Finished Goods default storage location.";
+        if (missingAdjustmentDestination) return "Assign an Adjustment Batch before submitting the extra packs.";
         const invalidAllocationLocation = form.items.find((row) => (row.batch_allocations || []).some((allocation) => allocation.location_valid === false));
         if (invalidAllocationLocation) return "Storage location unavailable. Replace invalid batch allocations before submitting.";
         const missingBatchAllocation = form.items.find((row) => {
@@ -6744,7 +6788,10 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
           const varianceQty = stockCheckVariance(row.system_qty, row.physical_qty).variance;
           return varianceQty < 0 && dispatchAllocationTotal(row.batch_allocations) !== Math.abs(varianceQty);
         });
-        if (missingBatchAllocation) return "Allocate every negative Product Stock Check variance across finished-goods batches before submitting.";
+        if (missingBatchAllocation) {
+          const difference = Math.abs(stockCheckVariance(missingBatchAllocation.system_qty, missingBatchAllocation.physical_qty).variance);
+          return `Resolve the ${difference}-pack difference before submitting.`;
+        }
       }
     }
     return "";
@@ -6756,18 +6803,29 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
     const validationError = validate(nextStatus);
     setError(validationError);
     if (validationError) return;
+    if (nextStatus === "submitted" && onConfirmSubmit) {
+      const counted = form.items.filter((row) => row.count_status !== "skip" && row.physical_qty !== "" && row.physical_qty != null).length;
+      const skipped = form.items.filter((row) => row.count_status === "skip").length;
+      const variance = form.items.filter((row) => row.count_status !== "skip" && row.physical_qty !== "" && stockCheckVariance(row.system_qty, row.physical_qty).variance !== 0).length;
+      const confirmed = await onConfirmSubmit({ counted, skipped, variance });
+      if (!confirmed) return;
+    }
     setSavingAction(nextStatus);
     try {
       await onSave({ ...form, status: nextStatus });
+    } catch (saveError) {
+      console.error("[Factory] Stock Check mutation failed.", saveError);
+      setError("Unable to save Stock Check.");
     } finally {
       setSavingAction("");
     }
   }
 
-  const varianceRows = form.items.filter((row) => row.count_status !== "skip" && row.physical_qty !== "" && stockCheckVariance(row.system_qty, row.physical_qty).status !== "Normal");
+  const countedRows = form.items.filter((row) => row.count_status !== "skip" && row.physical_qty !== "" && row.physical_qty != null);
+  const varianceRows = countedRows.filter((row) => stockCheckVariance(row.system_qty, row.physical_qty).status !== "Normal");
   const criticalRows = form.items.filter((row) => row.count_status !== "skip" && row.physical_qty !== "" && stockCheckVariance(row.system_qty, row.physical_qty).status === "Critical");
   const skippedRows = form.items.filter((row) => row.count_status === "skip");
-  const isLocked = ["submitted", "approved"].includes(form.status);
+  const isLocked = readOnly || form.status !== "draft";
   const categorySource = isRaw ? rawMaterialCategories : finishedGoodCategories;
   const categoryOptions = [
     ...(isRaw ? [] : [{ value: "", label: "All", helper: "Show all Packaging SKUs" }]),
@@ -6781,7 +6839,7 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
     const isSkipped = row.count_status === "skip";
     const hasCount = row.physical_qty !== "" && row.physical_qty != null;
     const variance = isSkipped || !hasCount ? { variance: 0, variancePercent: null, status: isSkipped ? "Skipped" : "Normal" } : stockCheckVariance(row.system_qty, row.physical_qty);
-    const showReasonError = submitAttempted && lastSubmitAction === "submitted" && ((variance.status !== "Normal" && !isSkipped) || isSkipped) && !String(row.variance_reason || "").trim();
+    const showReasonError = submitAttempted && lastSubmitAction === "submitted" && ((variance.status !== "Normal" && !isSkipped) || (isRaw && isSkipped)) && !String(row.variance_reason || "").trim();
     const showCountError = submitAttempted && lastSubmitAction === "submitted" && !isSkipped && !hasCount;
     const showWholeError = !isRaw && hasCount && (!Number.isFinite(Number(row.physical_qty)) || !Number.isInteger(Number(row.physical_qty)));
     return { isSkipped, hasCount, variance, showReasonError, showCountError, showWholeError };
@@ -6800,15 +6858,25 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
     return (
       <div className="inline-flex rounded-lg border border-border bg-white p-1">
         <button className={`rounded-md px-2 py-1 text-xs font-semibold ${!isSkipped ? "bg-primary text-white" : "text-text-secondary hover:bg-slate-50"}`} type="button" disabled={isLocked} onClick={() => updateRow(row.id, { count_status: "counted" })}>Counted</button>
-        <button className={`rounded-md px-2 py-1 text-xs font-semibold ${isSkipped ? "bg-amber-500 text-white" : "text-text-secondary hover:bg-slate-50"}`} type="button" disabled={isLocked} onClick={() => updateRow(row.id, { count_status: "skip", physical_qty: "" })}>Skip</button>
+        <button className={`rounded-md px-2 py-1 text-xs font-semibold ${isSkipped ? "bg-amber-500 text-white" : "text-text-secondary hover:bg-slate-50"}`} type="button" disabled={isLocked} onClick={() => updateRow(row.id, { count_status: "skip", physical_qty: "", batch_allocations: [], positive_adjustment_confirmed: false })}>Skip</button>
       </div>
     );
+  }
+
+  function updatePhysicalCount(row, value) {
+    const nextVariance = value === "" ? 0 : stockCheckVariance(row.system_qty, value).variance;
+    const existingTotal = dispatchAllocationTotal(row.batch_allocations);
+    updateRow(row.id, {
+      physical_qty: value,
+      batch_allocations: nextVariance < 0 && existingTotal === Math.abs(nextVariance) ? row.batch_allocations : [],
+      positive_adjustment_confirmed: nextVariance > 0 && row.positive_adjustment_confirmed,
+    });
   }
 
   return (
     <>
     <Modal
-      title={initialValue?.id ? `View ${title}` : `Create ${title}`}
+      title={initialValue?.id ? `${readOnly ? "View" : "Edit"} ${title}` : `Create ${title}`}
       description="Draft and submitted stock checks do not adjust inventory. Approval creates the adjustment movement."
       size="xl"
       onClose={savingAction ? undefined : onClose}
@@ -6836,8 +6904,9 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
             }}>Retry</button>
           </div>
         ) : null}
-        <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={ClipboardCheck} label="Counted Items" value={form.items.length} helper={itemLabel} />
+        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+          <MetricCard icon={ClipboardCheck} label="Counted Items" value={countedRows.length} helper={itemLabel} />
+          <MetricCard icon={CircleOff} label="Skipped" value={skippedRows.length} helper="Not included in adjustments" tone="neutral" />
           <MetricCard icon={Activity} label="Variance Items" value={varianceRows.length} helper="Physical count differs" tone={varianceRows.length ? "warning" : "success"} />
           <MetricCard icon={AlertTriangle} label="Requires Review" value={criticalRows.length} helper="Critical variance items" tone={criticalRows.length ? "danger" : "success"} />
           <MetricCard icon={CheckCircle2} label="Status" value={jobStatusLabel(form.status)} helper="Stock check status" />
@@ -6871,6 +6940,13 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
             </div>
           </Field>
         </div>
+        {initialValue?.id ? (
+          <div className="grid gap-3 rounded-xl border border-border bg-slate-50 p-3 text-sm sm:grid-cols-3">
+            <div><div className="text-[10.5px] font-semibold text-text-muted">Created By</div><div className="font-bold text-text-primary">{form.created_by_name || "—"}</div></div>
+            <div><div className="text-[10.5px] font-semibold text-text-muted">Submitted By</div><div className="font-bold text-text-primary">{form.submitted_by_name || "—"}</div></div>
+            <div><div className="text-[10.5px] font-semibold text-text-muted">Approved By</div><div className="font-bold text-text-primary">{form.approved_by_name || "—"}</div></div>
+          </div>
+        ) : null}
         <Card title={`${itemLabel} Count`} description={isLocked ? "Submitted and approved checks are locked snapshots." : "Draft system quantity refreshes from current stock before submission. Submit locks the snapshot for approval."}>
           {isRaw && !form.category_id ? <EmptyState title="Select a category to start stock check." description="Choose a raw material category before loading items to count." /> : null}
           {!isRaw && form.category_id ? (
@@ -6891,20 +6967,20 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
                 <div key={row.id} className={`space-y-3 rounded-2xl border border-border bg-white p-3 ${showReasonError ? "ring-1 ring-amber-200" : ""}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div>
-                      <div className="font-semibold text-text-primary">{row.item_name || "Item"}</div>
-                      <div className="text-xs text-text-secondary">{row.uom || "uom"}</div>
+                      <div className="font-bold text-text-primary">{row.item_name || "Item"}</div>
+                      <div className="text-xs text-text-secondary">{isRaw ? row.uom || "uom" : [row.product_code, packSizeText(row)].filter(Boolean).join(" · ") || "Packaging SKU"}</div>
                     </div>
                     <Badge tone={variance.status === "Skipped" ? "neutral" : stockVarianceTone(variance.status)}>{variance.status}</Badge>
                   </div>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
-                      <div className="text-[10.5px] font-semibold text-text-muted">Current Balance</div>
-                      <div className="mt-1 text-sm font-bold text-text-primary">{quantity(row.system_qty, row.uom)}</div>
+                      <div className="text-[10.5px] font-semibold text-text-muted">Current Stock</div>
+                      <div className="mt-1 text-sm font-bold text-text-primary">{quantity(row.system_qty, isRaw ? row.uom : "Packs")}</div>
                     </div>
                     <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
-                      <div className="text-[10.5px] font-semibold text-text-muted">Variance Qty</div>
-                      <div className={`mt-1 text-sm font-bold ${variance.variance > 0 ? "text-amber-600" : variance.variance < 0 ? "text-rose-600" : "text-text-primary"}`}>{signedQuantity(variance.variance, row.uom)}</div>
-                      {variance.variancePercent == null ? null : <div className="mt-0.5 text-xs font-semibold text-text-muted">{percent(variance.variancePercent)}</div>}
+                      <div className="text-[10.5px] font-semibold text-text-muted">Difference</div>
+                      <div className={`mt-1 text-sm font-bold ${variance.variance > 0 ? "text-amber-600" : variance.variance < 0 ? "text-rose-600" : "text-text-primary"}`}>{isRaw ? signedQuantity(variance.variance, row.uom) : stockCheckDifferenceLabel(variance.variance, { skipped: isSkipped, hasCount: row.physical_qty !== "", uom: "Packs" })}</div>
+                      {isRaw && variance.variancePercent != null ? <div className="mt-0.5 text-xs font-semibold text-text-muted">{percent(variance.variancePercent)}</div> : null}
                     </div>
                   </div>
                   {!isRaw && variance.variance !== 0 ? (
@@ -6928,7 +7004,7 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
                         disabled={isLocked || isSkipped}
                         placeholder={isSkipped ? "Skipped" : "Count qty"}
                         value={row.physical_qty}
-                        onChange={(event) => updateRow(row.id, { physical_qty: event.target.value })}
+                        onChange={(event) => updatePhysicalCount(row, event.target.value)}
                       />
                       {showCountError ? <div className="mt-1 text-xs font-semibold text-rose-600">Required before submit.</div> : null}
                       {showWholeError ? <div className="mt-1 text-xs font-semibold text-rose-600">Physical Qty must be a whole number.</div> : null}
@@ -6937,13 +7013,14 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
                       <input
                         className={inputClass(showReasonError)}
                         disabled={isLocked}
-                        placeholder={isSkipped ? "Skip reason required" : variance.status === "Normal" ? "Optional" : "Reason required"}
+                        placeholder={isSkipped ? "Optional reason" : variance.status === "Normal" ? "Optional" : "Reason required"}
                         value={row.variance_reason || ""}
                         onChange={(event) => updateRow(row.id, { variance_reason: event.target.value })}
                       />
                       {showReasonError ? <div className="mt-1 text-xs font-semibold text-amber-700">{isSkipped ? "Required when skipped." : "Required for variance rows."}</div> : null}
                     </Field>
-                    {!isRaw && variance.variance < 0 ? <button className="btn-secondary w-full" type="button" disabled={isLocked} onClick={() => openStockCheckBatchAllocation(row)}>{dispatchAllocationTotal(row.batch_allocations) === Math.abs(variance.variance) ? "Edit Batch Reduction" : "Allocate Batch Reduction"}</button> : null}
+                    {!isRaw && variance.variance < 0 ? <button className="btn-secondary w-full" type="button" disabled={isLocked} onClick={() => openStockCheckBatchAllocation(row)}>{dispatchAllocationTotal(row.batch_allocations) === Math.abs(variance.variance) ? "Review Batch Resolution" : "Resolve Batch Difference"}</button> : null}
+                    {!isRaw && variance.variance > 0 ? <button className="btn-secondary w-full" type="button" disabled={isLocked || !rowSku?.storage_location_id} onClick={() => updateRow(row.id, { positive_adjustment_confirmed: true })}>{row.positive_adjustment_confirmed ? "Adjustment Batch Assigned" : "Assign Adjustment Batch"}</button> : null}
                   </div>
                 </div>
               );
@@ -6954,9 +7031,9 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
               <thead>
                 <tr className="border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">
                   <th className="px-4 py-2.5">{itemLabel}</th>
-                  <th className="px-4 py-2.5">Current Balance</th>
+                  <th className="px-4 py-2.5">Current Stock</th>
                   <th className="px-4 py-2.5">Physical Count</th>
-                  <th className="px-4 py-2.5">Variance Qty</th>
+                  <th className="px-4 py-2.5">Difference</th>
                   <th className="px-4 py-2.5">Status</th>
                   <th className="px-4 py-2.5">Reason</th>
                 </tr>
@@ -6971,11 +7048,11 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
                   return (
                     <tr key={row.id} className={`border-b border-border last:border-0 ${showReasonError ? "bg-amber-50" : ""}`}>
                       <td className="px-4 py-3">
-                        <div className="font-semibold text-text-primary">{row.item_name || "Item"}</div>
-                        <div className="text-xs text-text-secondary">{row.uom || "uom"}</div>
+                        <div className="font-bold text-text-primary">{row.item_name || "Item"}</div>
+                        <div className="text-xs text-text-secondary">{isRaw ? row.uom || "uom" : [row.product_code, packSizeText(row)].filter(Boolean).join(" · ") || "Packaging SKU"}</div>
                         {!isRaw && variance.variance !== 0 ? <div className="mt-2 space-y-1 text-[11px] text-text-secondary"><Badge tone={reconciliationState.tone}>{reconciliationState.label}</Badge>{reconciliationState.snapshot ? <div>Aggregate {quantity(reconciliationState.snapshot.aggregate_balance, row.uom)} · Batch {quantity(reconciliationState.snapshot.batch_balance, row.uom)}</div> : null}{reconciliationState.snapshot && (reconciliationState.snapshot.ambiguous_reference_count || reconciliationState.snapshot.unmatched_reference_count) ? <div className="font-semibold text-amber-800">{reconciliationState.snapshot.ambiguous_reference_count} ambiguous · {reconciliationState.snapshot.unmatched_reference_count} unmatched</div> : null}</div> : null}
                       </td>
-                      <td className="px-4 py-3 text-sm font-semibold text-text-secondary">{quantity(row.system_qty, row.uom)}</td>
+                      <td className="px-4 py-3 text-sm font-semibold text-text-secondary">{quantity(row.system_qty, isRaw ? row.uom : "Packs")}</td>
                       <td className="px-4 py-3">
                         <input
                           className={inputClass(showCountError || showWholeError || (submitAttempted && Number(row.physical_qty || 0) < 0))}
@@ -6985,14 +7062,14 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
                           disabled={isLocked || isSkipped}
                           placeholder={isSkipped ? "Skipped" : "Count qty"}
                           value={row.physical_qty}
-                          onChange={(event) => updateRow(row.id, { physical_qty: event.target.value })}
+                          onChange={(event) => updatePhysicalCount(row, event.target.value)}
                         />
                         {showCountError ? <div className="mt-1 text-xs font-semibold text-rose-600">Required before submit.</div> : null}
                         {showWholeError ? <div className="mt-1 text-xs font-semibold text-rose-600">Physical Qty must be a whole number.</div> : null}
                       </td>
                       <td className={`px-4 py-3 text-sm font-semibold ${variance.variance > 0 ? "text-amber-600" : variance.variance < 0 ? "text-rose-600" : "text-text-secondary"}`}>
-                        {signedQuantity(variance.variance, row.uom)}
-                        {variance.variancePercent == null ? null : <div className="mt-0.5 text-xs font-semibold text-text-muted">{percent(variance.variancePercent)}</div>}
+                        {isRaw ? signedQuantity(variance.variance, row.uom) : stockCheckDifferenceLabel(variance.variance, { skipped: isSkipped, hasCount: row.physical_qty !== "", uom: "Packs" })}
+                        {isRaw && variance.variancePercent != null ? <div className="mt-0.5 text-xs font-semibold text-text-muted">{percent(variance.variancePercent)}</div> : null}
                       </td>
                       <td className="px-4 py-3">
                         <div className="space-y-2">
@@ -7004,15 +7081,16 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
                         <input
                           className={inputClass(showReasonError)}
                           disabled={isLocked}
-                          placeholder={isSkipped ? "Skip reason required" : variance.status === "Normal" ? "Optional" : "Reason required"}
+                          placeholder={isSkipped ? "Optional reason" : variance.status === "Normal" ? "Optional" : "Reason required"}
                           value={row.variance_reason || ""}
                           onChange={(event) => updateRow(row.id, { variance_reason: event.target.value })}
                         />
                         {showReasonError ? <div className="mt-1 text-xs font-semibold text-amber-700">{isSkipped ? "Required when skipped." : "Required for variance rows."}</div> : null}
-                        {!isRaw && variance.variance > 0 ? <div className="mt-2 text-xs text-text-secondary">Adjustment destination: <span className="font-bold text-text-primary">{rowSku?.storage_location || "Missing"}</span> · +{quantity(variance.variance, row.uom)}</div> : null}
-                        {!isRaw && variance.variance < 0 ? <div className="mt-2 text-xs text-text-secondary">Allocated: <span className="font-bold text-text-primary">{quantity(dispatchAllocationTotal(row.batch_allocations), row.uom)}</span>{expiredAllocationCount ? <span className="ml-2 font-bold text-rose-700">{expiredAllocationCount} expired</span> : null}</div> : null}
+                        {!isRaw && variance.variance > 0 ? <div className="mt-2 text-xs text-text-secondary">Adjustment destination: <span className="font-bold text-text-primary">{rowSku?.storage_location || "Missing"}</span> · +{quantity(variance.variance, "Packs")}</div> : null}
+                        {!isRaw && variance.variance < 0 ? <div className="mt-2 text-xs text-text-secondary">Resolved: <span className="font-bold text-text-primary">{quantity(dispatchAllocationTotal(row.batch_allocations), "Packs")}</span>{expiredAllocationCount ? <span className="ml-2 font-bold text-rose-700">{expiredAllocationCount} expired</span> : null}</div> : null}
                         {invalidLocationAllocation ? <div className="mt-1 text-xs font-bold text-rose-700">Storage location unavailable · {invalidLocationAllocation.location_issue}</div> : null}
-                        {!isRaw && variance.variance < 0 ? <button className="mt-2 text-xs font-bold text-primary hover:underline" type="button" disabled={isLocked} onClick={() => openStockCheckBatchAllocation(row)}>{dispatchAllocationTotal(row.batch_allocations) === Math.abs(variance.variance) ? "Edit Batch Reduction" : "Allocate Batch Reduction"}</button> : null}
+                        {!isRaw && variance.variance < 0 ? <button className="mt-2 text-xs font-bold text-primary hover:underline" type="button" disabled={isLocked} onClick={() => openStockCheckBatchAllocation(row)}>{dispatchAllocationTotal(row.batch_allocations) === Math.abs(variance.variance) ? "Review Batch Resolution" : "Resolve Batch Difference"}</button> : null}
+                        {!isRaw && variance.variance > 0 ? <button className="mt-2 text-xs font-bold text-primary hover:underline disabled:text-text-muted" type="button" disabled={isLocked || !rowSku?.storage_location_id} onClick={() => updateRow(row.id, { positive_adjustment_confirmed: true })}>{row.positive_adjustment_confirmed ? "Adjustment Batch Assigned" : "Assign Adjustment Batch"}</button> : null}
                       </td>
                     </tr>
                   );
@@ -7035,6 +7113,7 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
         item={{ ...batchItem, quantity: Math.abs(batchVariance), allocations: batchItem.batch_allocations || [] }}
         sku={batchSku}
         batches={batchEditor.batches || []}
+        unavailableBatches={batchEditor.unavailableBatches || []}
         batchAvailable={batchEditor.batchAvailable}
         availableToThisLine={batchEditor.availableToThisLine}
         otherLinesAllocated={0}
@@ -7045,6 +7124,7 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
         autoAllocateOnLoad={!batchItem.batch_allocations?.length}
         allowExpired
         referenceDate={form.check_date}
+        purpose="stock-check"
         onRetry={() => openStockCheckBatchAllocation(batchItem)}
         onClose={() => setBatchEditor(null)}
         onApply={(allocations) => {
@@ -8053,15 +8133,46 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   async function saveStockCheck(stockType, form) {
+    let saved;
     try {
-      await factoryService.saveStockCheck(stockType, form, auth?.profile?.id);
-      ui?.notify?.({ title: form.status === "submitted" ? "Stock check submitted" : "Stock check draft saved", tone: "success" });
-      setModal(null);
-      await loadData();
-      factoryListingActions.retry();
+      saved = await factoryService.saveStockCheck(stockType, form, auth?.profile?.id);
     } catch (error) {
-      ui?.notify?.({ title: "Failed to save stock check", message: error.message, tone: "error" });
+      console.error(`[Factory] Unable to save ${stockType} Stock Check.`, error);
+      ui?.notify?.({ title: "Unable to save Stock Check.", tone: "error" });
       throw error;
+    }
+    ui?.notify?.({ title: form.status === "submitted" ? "Stock Check submitted." : "Stock Check draft saved.", tone: "success" });
+    setModal(null);
+    const listing = stockType === "raw" ? "raw-stock-checks" : "product-stock-checks";
+    if (serverListing === listing) {
+      factoryListingActions.updateLoadedSnapshot(({ rows, total, page, pageSize, summary }) => {
+        const existingIndex = rows.findIndex((row) => row.id === saved.id);
+        const nextRows = existingIndex >= 0
+          ? rows.map((row, index) => index === existingIndex ? saved : row)
+          : page === 1 ? [saved, ...rows].slice(0, pageSize) : rows;
+        const previous = existingIndex >= 0 ? rows[existingIndex] : null;
+        const varianceCount = (check) => (check?.items || []).filter((item) => item.count_status !== "skip" && item.variance_status !== "Skipped" && Number(item.variance_qty || 0) !== 0).length;
+        return {
+          rows: nextRows,
+          total: Math.max(0, Number(total || 0) + (existingIndex < 0 ? 1 : 0)),
+          summary: {
+            ...(summary || {}),
+            checks: Math.max(0, Number(summary?.checks || 0) + (existingIndex < 0 ? 1 : 0)),
+            submitted: Math.max(0, Number(summary?.submitted || 0) - (previous?.status === "submitted" ? 1 : 0) + (saved.status === "submitted" ? 1 : 0)),
+            variance_rows: Math.max(0, Number(summary?.variance_rows || 0) - varianceCount(previous) + varianceCount(saved)),
+          },
+        };
+      });
+      try {
+        await factoryListingActions.refreshNow({
+          page: factoryListingPage.loadedPage,
+          pageSize: factoryListingPage.loadedPageSize,
+          errorMessage: "Stock Check was updated, but the latest list could not be refreshed.",
+        });
+      } catch (refreshError) {
+        console.error(`[Factory] ${stockType} Stock Check saved but listing refresh failed.`, refreshError);
+        ui?.notify?.({ title: "Stock Check list refresh needed", message: "Stock Check was updated, but the latest list could not be refreshed.", tone: "warning" });
+      }
     }
   }
 
@@ -8620,7 +8731,13 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       await loadData();
       factoryListingActions.retry();
     } catch (error) {
-      ui?.notify?.({ title: "Failed to approve stock check", message: error.message, tone: "error" });
+      console.error("[Factory] Unable to approve Stock Check.", error);
+      const staleBatch = String(error?.message || "").includes("Batch stock has changed");
+      ui?.notify?.({
+        title: "Unable to approve Stock Check.",
+        message: staleBatch ? "Batch stock has changed. Review the suggested resolution again." : "Review the Stock Check and try again.",
+        tone: "error",
+      });
     }
   }
 
@@ -8863,8 +8980,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   function stockCheckColumns(stockType) {
     const renderActions = (row) => (
-      <div className="flex justify-end gap-2">
-        <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "stock-check", stockType, value: row })}>{row.status === "draft" ? "Edit" : "View"}</button>
+      <div className="flex flex-wrap justify-end gap-2">
+        <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "stock-check", stockType, value: row, readOnly: true })}>View</button>
+        {row.status === "draft" && can(stockType === "raw" ? "factory_raw_stock_check.edit" : "factory_product_stock_check.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "stock-check", stockType, value: row })}>Edit</button> : null}
+        {row.status === "draft" && can(stockType === "raw" ? "factory_raw_stock_check.submit" : "factory_product_stock_check.submit") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "stock-check", stockType, value: row })}>Submit</button> : null}
         {row.status === "submitted" && can(stockType === "raw" ? "factory_raw_stock_check.approve" : "factory_product_stock_check.approve") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => approveStockCheck(stockType, row)}>Approve</button> : null}
         {row.status === "draft" && can(stockType === "raw" ? "factory_raw_stock_check.delete" : "factory_product_stock_check.edit") ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" onClick={() => deleteStockCheck(stockType, row)}>Delete</button> : null}
       </div>
@@ -8873,12 +8992,15 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       { key: "check_date", label: "Date", render: (row) => formatFactoryDate(row.check_date) },
       { key: "created_by", label: "Created By", render: (row) => row.created_by_name || "—" },
       { key: "check_no", label: "Check No.", render: (row) => <div className="font-bold text-text-primary">{row.check_no}</div> },
-      { key: "items", label: "Items", render: (row) => row.items?.length || 0 },
+      { key: "counted", label: "Counted", render: (row) => (row.items || []).filter((item) => item.count_status !== "skip" && item.variance_status !== "Skipped" && item.count_status !== "pending").length },
+      { key: "skipped", label: "Skipped", render: (row) => (row.items || []).filter((item) => item.count_status === "skip" || item.variance_status === "Skipped").length },
       { key: "variance", label: "Variance", render: (row) => {
         const summary = stockCheckVarianceSummary(row.items || []);
         return <Badge tone={summary.tone}>{summary.label}</Badge>;
       } },
       { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{jobStatusLabel(row.status)}</Badge> },
+      { key: "submitted_by", label: "Submitted By", render: (row) => row.submitted_by_name || "—" },
+      { key: "approved_by", label: "Approved By", render: (row) => row.approved_by_name || "—" },
       { key: "notes", label: "Notes", render: (row) => row.notes || "—" },
       { key: "actions", label: "Actions", align: "right", render: renderActions },
     ];
@@ -8905,9 +9027,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                       <Badge tone={statusTone(row.status)}>{jobStatusLabel(row.status)}</Badge>
                     </div>
                     <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div><div className="text-[10.5px] font-semibold text-text-muted">Items</div><div className="font-bold text-text-primary">{row.items?.length || 0}</div></div>
+                      <div><div className="text-[10.5px] font-semibold text-text-muted">Counted Items</div><div className="font-bold text-text-primary">{(row.items || []).filter((item) => item.count_status !== "skip" && item.variance_status !== "Skipped" && item.count_status !== "pending").length}</div></div>
+                      <div><div className="text-[10.5px] font-semibold text-text-muted">Skipped Items</div><div className="font-bold text-text-primary">{(row.items || []).filter((item) => item.count_status === "skip" || item.variance_status === "Skipped").length}</div></div>
                       <div><div className="text-[10.5px] font-semibold text-text-muted">Variance</div><Badge tone={summary.tone}>{summary.label}</Badge></div>
                       <div><div className="text-[10.5px] font-semibold text-text-muted">Created By</div><div className="font-bold text-text-primary">{row.created_by_name || "—"}</div></div>
+                      <div><div className="text-[10.5px] font-semibold text-text-muted">Submitted By</div><div className="font-bold text-text-primary">{row.submitted_by_name || "—"}</div></div>
+                      <div><div className="text-[10.5px] font-semibold text-text-muted">Approved By</div><div className="font-bold text-text-primary">{row.approved_by_name || "—"}</div></div>
                       <div><div className="text-[10.5px] font-semibold text-text-muted">Notes</div><div className="font-semibold text-text-primary">{row.notes || "—"}</div></div>
                     </div>
                     <div className="flex justify-end">{actionsColumn?.render(row)}</div>
@@ -11805,7 +11930,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={PackageCheck} label="Finished Goods" value={data.finishedGoods.length} helper="Available for count" />
           <MetricCard icon={ClipboardCheck} label="Checks" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.checks || 0) : data.productStockChecks.length} helper="Finished goods checks" />
           <MetricCard icon={Clock3} label="Submitted" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.submitted || 0) : data.productStockChecks.filter((row) => row.status === "submitted").length} helper="Awaiting approval" tone={Number(factoryListingPage.summary.submitted || data.productStockChecks.some((row) => row.status === "submitted")) ? "warning" : "success"} />
-          <MetricCard icon={AlertTriangle} label="Variance Rows" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.variance_rows || 0) : data.productStockChecks.flatMap((row) => row.items || []).filter((item) => item.variance_status !== "Normal").length} helper="Above 2%" tone="warning" />
+          <MetricCard icon={AlertTriangle} label="Variance Rows" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.variance_rows || 0) : data.productStockChecks.flatMap((row) => row.items || []).filter((item) => item.count_status !== "skip" && item.variance_status !== "Skipped" && Number(item.variance_qty || 0) !== 0).length} helper="Counted rows with a difference" tone="warning" />
         </div>
         <Card title="Finished Goods Stock Checks" description="Draft and submitted checks do not adjust stock. Approval applies the variance adjustment.">
           {listingLoadState("product-stock-checks", "Product Stock Checks")}
@@ -12125,6 +12250,13 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           existingChecks={modal.stockType === "raw"
             ? currentListingRows("raw-stock-checks", [])
             : currentListingRows("product-stock-checks", [])}
+          readOnly={Boolean(modal.readOnly)}
+          onConfirmSubmit={({ counted, skipped, variance }) => ui?.confirm?.({
+            title: "Submit Stock Check?",
+            message: `${counted} Counted · ${skipped} Skipped · ${variance} Variance`,
+            confirmLabel: "Submit Check",
+            tone: variance ? "warning" : "info",
+          })}
           onClose={() => setModal(null)}
           onSave={(form) => saveStockCheck(modal.stockType, form)}
         />

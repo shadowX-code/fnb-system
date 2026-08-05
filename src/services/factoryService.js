@@ -344,7 +344,6 @@ function mapReceivingBatch(row) {
     items,
     items_count: items.length,
     total_qty: items.reduce((sum, item) => sum + normalizeNumber(item.received_qty), 0),
-    total_cost: items.reduce((sum, item) => sum + normalizeNumber(item.total_cost), 0),
   };
 }
 
@@ -788,7 +787,7 @@ function mapFinishedGoodBatchTraceability(row) {
 }
 
 function normalizeStockCheckItem(row, stockType) {
-  const itemName = stockType === "raw" ? row.raw_material?.name : row.finished_good?.product_name;
+  const itemName = stockType === "raw" ? row.raw_material?.name || row.item_name : row.finished_good?.product_name || row.item_name;
   const systemQty = normalizeNumber(row.system_qty);
   const physicalQty = normalizeNumber(row.physical_qty);
   const varianceQty = normalizeNumber(row.variance_qty, physicalQty - systemQty);
@@ -803,14 +802,19 @@ function normalizeStockCheckItem(row, stockType) {
     physical_qty: physicalQty,
     variance_qty: varianceQty,
     variance_percent: variancePercent,
-    count_status: row.count_status || (row.variance_status === "Skipped" ? "skip" : "counted"),
+    count_status: row.count_status || (row.variance_status === "Skipped" ? "skip" : row.variance_status === "Pending" ? "pending" : "counted"),
     variance_status: row.variance_status || "Normal",
     variance_reason: row.variance_reason || "",
     adjustment_storage_location_id: row.adjustment_storage_location_id || "",
+    positive_adjustment_confirmed: Boolean(row.positive_adjustment_confirmed),
     batch_allocations: (row.batch_allocations || []).map((allocation) => {
-      const batch = allocation.batch || {};
+      const batch = allocation.batch || allocation;
       const currentLocation = batch.storage_location_ref || null;
-      const locationIssue = !batch.storage_location_id || !currentLocation
+      const locationIssue = allocation.location_valid === false
+        ? allocation.location_issue || "Storage location unavailable"
+        : allocation.location_valid === true
+          ? ""
+          : !batch.storage_location_id || !currentLocation
         ? "Storage location missing"
         : String(currentLocation.status || "").toLowerCase() !== "active"
           ? "Storage location archived"
@@ -819,7 +823,7 @@ function normalizeStockCheckItem(row, stockType) {
             : "";
       return {
         id: allocation.id,
-        batch_id: allocation.batch_balance_id,
+        batch_id: allocation.batch_balance_id || allocation.batch_id,
         quantity: normalizeNumber(allocation.quantity),
         batch_no: batch.batch_no || "",
         manufacturing_date: batch.manufacturing_date || "",
@@ -832,7 +836,13 @@ function normalizeStockCheckItem(row, stockType) {
         location_issue: locationIssue,
       };
     }),
-    uom: row.uom || row.raw_material?.uom || row.finished_good?.uom || "",
+    product_code: row.finished_good?.product_code || row.product_code || "",
+    packaging_type: row.finished_good?.packaging_type || row.packaging_type || "",
+    pack_size_qty: optionalNumber(row.finished_good?.pack_size_qty ?? row.pack_size_qty),
+    pack_size_uom: row.finished_good?.pack_size_uom || row.pack_size_uom || "",
+    base_qty: optionalNumber(row.finished_good?.base_qty ?? row.base_qty),
+    base_uom: row.finished_good?.base_uom || row.base_uom || "",
+    uom: stockType === "product" ? "Packs" : row.uom || row.raw_material?.uom || "",
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -867,14 +877,14 @@ function mapStockCheck(row, stockType) {
     notes: row.notes || "",
     created_by: row.created_by || "",
     created_by_employee: createdByEmployee,
-    created_by_name: stockCheckEmployeeName(createdByEmployee),
+    created_by_name: stockCheckEmployeeName(createdByEmployee) || row.created_by_name || "",
     submitted_by: row.submitted_by || "",
     submitted_by_employee: submittedByEmployee,
-    submitted_by_name: stockCheckEmployeeName(submittedByEmployee),
+    submitted_by_name: stockCheckEmployeeName(submittedByEmployee) || row.submitted_by_name || "",
     submitted_at: row.submitted_at || "",
     approved_by: row.approved_by || "",
     approved_by_employee: approvedByEmployee,
-    approved_by_name: stockCheckEmployeeName(approvedByEmployee),
+    approved_by_name: stockCheckEmployeeName(approvedByEmployee) || row.approved_by_name || "",
     approved_at: row.approved_at || "",
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -1054,14 +1064,14 @@ function stockCheckVariance(systemQty, physicalQty) {
   return { varianceQty, variancePercent, varianceStatus };
 }
 
-function validateStockCheckItems(items, status) {
+function validateStockCheckItems(items, status, { skippedReasonRequired = true } = {}) {
   if (!items.length) throw new Error("Stock check requires at least one counted item.");
   const invalid = items.find((item) => !item.itemId);
   if (invalid) throw new Error("Every stock check row needs an item.");
   if (status === "submitted") {
     const missingCount = items.find((item) => !item.is_skipped && item.physical_qty_input === "");
     if (missingCount) throw new Error("Submit requires every stock check row to be counted or skipped.");
-    const missingSkipReason = items.find((item) => item.is_skipped && !String(item.variance_reason || "").trim());
+    const missingSkipReason = skippedReasonRequired && items.find((item) => item.is_skipped && !String(item.variance_reason || "").trim());
     if (missingSkipReason) throw new Error("Skip reason is required for skipped rows.");
   }
   const invalidCount = items.find((item) => !item.is_skipped && item.physical_qty_input !== "" && normalizeNumber(item.physical_qty, -1) < 0);
@@ -1145,7 +1155,7 @@ const sopStepSelect = "id,sop_id,step_no,instruction,process_name,description,co
 const sopSubStepSelect = "id,sop_step_id,sequence_no,instruction,estimated_minutes,remarks,created_at,updated_at";
 const sopQcCheckSelect = "id,sop_step_id,sequence_no,qc_type,checklist_template_id,qc_name,instructions,is_required,created_at,updated_at,checklist_template:factory_qc_checklist_templates(name,result_mode)";
 const rawMaterialStockCheckSelect = `id,check_no,check_date,category_id,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at,created_by_employee:employees!factory_raw_material_stock_checks_created_by_fkey(id,nickname,full_name,email),submitted_by_employee:employees!factory_raw_material_stock_checks_submitted_by_fkey(id,nickname,full_name,email),approved_by_employee:employees!factory_raw_material_stock_checks_approved_by_fkey(id,nickname,full_name,email),category:factory_raw_material_categories(name),items:factory_raw_material_stock_check_items(id,stock_check_id,raw_material_id,system_qty,physical_qty,variance_qty,variance_percent,count_status,variance_status,variance_reason,uom,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`;
-const productStockCheckSelect = `id,check_no,check_date,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at,created_by_employee:employees!factory_product_stock_checks_created_by_fkey(id,nickname,full_name,email),submitted_by_employee:employees!factory_product_stock_checks_submitted_by_fkey(id,nickname,full_name,email),approved_by_employee:employees!factory_product_stock_checks_approved_by_fkey(id,nickname,full_name,email),items:factory_product_stock_check_items(id,stock_check_id,finished_good_id,system_qty,physical_qty,variance_qty,variance_percent,variance_status,variance_reason,uom,adjustment_storage_location_id,created_at,updated_at,finished_good:factory_finished_goods(product_name,uom),batch_allocations:factory_product_stock_check_batch_adjustments(id,batch_balance_id,quantity,batch:factory_finished_good_batch_balances(batch_no,manufacturing_date,expiry_date,storage_location_id,storage_location,storage_location_type,storage_location_ref:factory_storage_locations(location_name,location_type,status))))`;
+const productStockCheckSelect = `id,check_no,check_date,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at,created_by_employee:employees!factory_product_stock_checks_created_by_fkey(id,nickname,full_name,email),submitted_by_employee:employees!factory_product_stock_checks_submitted_by_fkey(id,nickname,full_name,email),approved_by_employee:employees!factory_product_stock_checks_approved_by_fkey(id,nickname,full_name,email),items:factory_product_stock_check_items(id,stock_check_id,finished_good_id,system_qty,physical_qty,variance_qty,variance_percent,count_status,variance_status,variance_reason,uom,adjustment_storage_location_id,positive_adjustment_confirmed,created_at,updated_at,finished_good:factory_finished_goods(product_code,product_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,uom),batch_allocations:factory_product_stock_check_batch_adjustments(id,batch_balance_id,quantity,batch:factory_finished_good_batch_balances(batch_no,manufacturing_date,expiry_date,storage_location_id,storage_location,storage_location_type,storage_location_ref:factory_storage_locations(location_name,location_type,status))))`;
 const jobOrderSelect = `id,job_order_no,finished_good_id,product_name,target_pack_qty,target_production_qty,target_quantity,produced_quantity,uom,planned_date,due_date,priority,status,assigned_team,remarks,created_by,released_at,released_by,started_at,started_by,production_operator_id,production_operator_name,production_date,start_time,production_sop_id,sop_version,qc_snapshot_created_at,completed_at,completed_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),step_executions:factory_production_step_executions(id,job_order_id,production_id,production_sop_id,sop_step_id,step_no,step_name,description,sub_steps,status,completed_by,completed_at,qc_results:factory_production_qc_results(id,job_order_id,production_id,production_step_execution_id,sop_qc_check_id,sequence_no,qc_type,qc_name,instructions,is_required,checklist_result,remarks,checked_by,checked_by_name,checked_at))`;
 const productionSelectBasic = `id,job_order_id,finished_good_id,production_no,product_name,batch_no,actual_pack_qty,actual_output_qty,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,manufacturing_date,end_date,expiry_date,storage_location_id,shelf_life_days_snapshot,expiry_override_reason,operator_id,operator_name,start_time,end_time,qc_status,production_sop_id,sop_version,status,notes,created_by,completed_at,created_at,updated_at,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),finished_good:factory_finished_goods(${finishedGoodSelect}),job_order:factory_job_orders(job_order_no,finished_good_id,product_name,target_pack_qty,target_production_qty,finished_good:factory_finished_goods(product_code,product_name,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,shelf_life_days))`;
 const productionSelectDetailed = `${productionSelectBasic},material_usage:factory_production_material_usage(id,production_id,raw_material_id,raw_material_receiving_id,raw_material_lot_no,quantity_used,standard_usage,actual_usage,variance_qty,variance_percent,variance_reason,uom,wastage_quantity,notes,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect}),raw_receiving:factory_raw_material_receivings(receipt_no,batch_no,supplier_name,received_date,unit_cost)),qc_checkpoints:factory_production_qc_checkpoints(id,production_id,production_sop_id,sop_step_id,step_no,process_name,control_point,qc_status,notes,created_at,updated_at),step_executions:factory_production_step_executions(id,job_order_id,production_id,production_sop_id,sop_step_id,step_no,step_name,description,sub_steps,status,completed_by,completed_at,qc_results:factory_production_qc_results(id,job_order_id,production_id,production_step_execution_id,sop_qc_check_id,sequence_no,qc_type,qc_name,instructions,is_required,checklist_result,remarks,checked_by,checked_by_name,checked_at))`;
@@ -1901,9 +1911,12 @@ export const factoryService = {
     }
 
     const summaryParams = { p_listing: listing, p_filters: filters || {} };
+    const summaryQuery = listing === "product-stock-checks"
+      ? supabase.rpc("factory_product_stock_check_summary")
+      : supabase.rpc("factory_listing_summary", summaryParams);
     const [pageResult, summaryResult] = await Promise.all([
       query.range(from, to),
-      supabase.rpc("factory_listing_summary", summaryParams),
+      summaryQuery,
     ]);
     throwSupabaseError(`factory.${listing}.page`, pageResult.error);
     const summaryError = summaryResult.error || null;
@@ -2441,10 +2454,6 @@ export const factoryService = {
     if (!items.length) throw new Error("Add at least one received item.");
 
     const rpcItems = items.map((item) => {
-      const unitCost = item.unit_cost === "" || item.unit_cost == null ? null : Number(item.unit_cost);
-      if (complete && (!Number.isFinite(unitCost) || unitCost <= 0)) {
-        throw new Error("Enter a valid unit cost before completing Receiving.");
-      }
       if (complete && item.expiry_tracking_mode === "required" && (!item.expiry_date || !item.expiry_confirmed)) {
         throw new Error("Confirm the Expiry Date before completing Receiving.");
       }
@@ -2457,10 +2466,8 @@ export const factoryService = {
         supplier_lot_no: item.supplier_lot_no || "",
         received_qty: normalizeNumber(item.received_qty),
         uom: item.uom || "",
-        unit_cost: unitCost,
         storage_location_id: item.storage_location_id || null,
         storage_location: item.storage_location || "",
-        manufacturing_date: item.manufacturing_date || null,
         expiry_date: item.expiry_date || null,
         expiry_source: item.expiry_source || null,
         expiry_confirmed: Boolean(item.expiry_confirmed),
@@ -3666,10 +3673,11 @@ export const factoryService = {
           location_valid: allocation.location_valid,
           location_issue: allocation.location_issue || "",
         })),
-        uom: item.uom || "",
+        positive_adjustment_confirmed: Boolean(item.positive_adjustment_confirmed),
+        uom: isRaw ? item.uom || "" : "Packs",
       };
     });
-    validateStockCheckItems(items, status);
+    validateStockCheckItems(items, status, { skippedReasonRequired: isRaw });
 
     if (!isRaw) {
       const invalidWholeQty = items.find((item) => (
@@ -3697,8 +3705,11 @@ export const factoryService = {
         p_created_by: employeeId || null,
         p_rows: items.map((item) => ({
           finished_good_id: item.finished_good_id,
+          is_skipped: item.is_skipped,
+          count_status: item.count_status,
           physical_qty: item.physical_qty_input === "" ? null : item.physical_qty,
           variance_reason: item.variance_reason,
+          positive_adjustment_confirmed: item.positive_adjustment_confirmed,
           allocations: item.batch_allocations,
         })),
       });
