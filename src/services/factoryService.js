@@ -700,7 +700,7 @@ function mapFinishedGoodDispatch(row) {
     status: row.status || "draft",
     remarks: row.remarks || "",
     created_by: row.created_by || "",
-    created_by_name: row.creator?.nickname || row.creator?.full_name || "",
+    created_by_name: row.creator?.nickname || row.creator?.full_name || row.created_by_name || "",
     completed_by: row.completed_by || "",
     completed_by_employee: row.completed_by && completedByName ? {
       id: row.completed_by,
@@ -3130,21 +3130,15 @@ export const factoryService = {
       p_items: items,
     });
     throwSupabaseError("factory.finished_good_dispatch.save", error);
-
-    const { data: refreshed, error: refreshError } = await supabase
-      .from("factory_finished_good_dispatches")
-      .select(finishedGoodDispatchSelect)
-      .eq("id", dispatchId)
-      .single();
-    throwSupabaseError("factory.finished_good_dispatch.fetch", refreshError);
+    const saved = mapFinishedGoodDispatch({ ...dispatch, id: dispatchId, status: "draft" });
 
     await logFactoryAction({
       action: isUpdate ? "factory_finished_good_dispatch_updated" : "factory_finished_good_dispatch_created",
-      target: refreshed.dispatch_no,
+      target: saved.dispatch_no || dispatchId,
       description: isUpdate ? "Factory finished goods dispatch draft updated." : "Factory finished goods dispatch draft created.",
-      after: refreshed,
+      after: saved,
     });
-    return mapFinishedGoodDispatch(refreshed);
+    return saved;
   },
 
   async getFinishedGoodBatchAvailability({ finishedGoodId, dispatchId = null, dispatchDate = null }) {
@@ -3269,21 +3263,15 @@ export const factoryService = {
       p_dispatch_id: dispatch.id,
     });
     throwSupabaseError("factory.finished_good_dispatch.complete", error);
-
-    const { data, error: fetchError } = await supabase
-      .from("factory_finished_good_dispatches")
-      .select(finishedGoodDispatchSelect)
-      .eq("id", dispatchId || dispatch.id)
-      .single();
-    throwSupabaseError("factory.finished_good_dispatch.fetch_completed", fetchError);
+    const completed = mapFinishedGoodDispatch({ ...dispatch, id: dispatchId || dispatch.id, status: "completed" });
 
     await logFactoryAction({
       action: "factory_finished_good_dispatch_completed",
-      target: data.dispatch_no,
+      target: completed.dispatch_no || completed.id,
       description: "Factory finished goods dispatch completed with stock-out movement.",
-      after: data,
+      after: completed,
     });
-    return mapFinishedGoodDispatch(data);
+    return completed;
   },
 
   async saveAndCompleteFinishedGoodDispatch(dispatch) {
@@ -3322,14 +3310,15 @@ export const factoryService = {
       p_items: items,
     });
     throwSupabaseError("factory.finished_good_dispatch.save_and_complete", error);
+    const completed = mapFinishedGoodDispatch(data || {});
 
     await logFactoryAction({
       action: "factory_finished_good_dispatch_completed",
-      target: data.dispatch_no,
+      target: completed.dispatch_no || completed.id,
       description: "Factory finished goods dispatch saved and completed with stock-out movement.",
-      after: data,
+      after: completed,
     });
-    return mapFinishedGoodDispatch(data || {});
+    return completed;
   },
 
   async cancelFinishedGoodDispatch(dispatch) {
@@ -3338,20 +3327,15 @@ export const factoryService = {
       p_dispatch_id: dispatch.id,
     });
     throwSupabaseError("factory.finished_good_dispatch.cancel", error);
-    const { data, error: fetchError } = await supabase
-      .from("factory_finished_good_dispatches")
-      .select(finishedGoodDispatchSelect)
-      .eq("id", cancelledId || dispatch.id)
-      .single();
-    throwSupabaseError("factory.finished_good_dispatch.fetch_cancelled", fetchError);
+    const cancelled = mapFinishedGoodDispatch({ ...dispatch, id: cancelledId || dispatch.id, status: "cancelled" });
 
     await logFactoryAction({
       action: "factory_finished_good_dispatch_cancelled",
-      target: data.dispatch_no,
+      target: cancelled.dispatch_no || cancelled.id,
       description: "Factory finished goods dispatch cancelled.",
-      after: data,
+      after: cancelled,
     });
-    return mapFinishedGoodDispatch(data);
+    return cancelled;
   },
 
   async createQcChecklistTemplate(template, employeeId) {
