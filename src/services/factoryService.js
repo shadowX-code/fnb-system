@@ -1416,7 +1416,6 @@ function factoryDataPlan(scope, hasPermission) {
     finishedGoodCategories: (isFinishedGoods && can("factory_finished_goods.view")) || (isProductionPlanning && can("factory_production_planning.view")) || (isProductStockCheck && can("factory_product_stock_check.view")),
     productFamilies: (isFinishedGoods && can("factory_finished_goods.view")) || (isProductRecipes && (can("factory_product_recipes.view") || can("factory_product_recipes.create") || can("factory_product_recipes.edit") || can("factory_product_recipes.manage"))) || (isProductionSop && (can("factory_production_sop.view") || can("factory_production_sop.create") || can("factory_production_sop.edit") || can("factory_production_sop.manage"))) || (isJobOrders && (can("factory_job_orders.view") || can("factory_job_orders.create") || can("factory_job_orders.edit"))) || (isProduction && (can("factory_product_recipes.view") || can("factory_production.complete"))),
     productMovements: ((isProduction || isProductMovements) && can("factory_product_movements.view")) || (isFinishedGoods && can("factory_finished_goods.view")) || (isFinishedGoodsDispatch && can("factory_finished_goods_dispatch.view")) || (isReports && can("factory_product_movements.view")),
-    finishedGoodDispatches: isFinishedGoodsDispatch && can("factory_finished_goods_dispatch.view"),
     recipes: (isRawInventory && can("factory_raw_inventory.view")) || (isProductRecipes && can("factory_product_recipes.view")) || (isProductionSop && (can("factory_production_sop.view") || can("factory_production_sop.create") || can("factory_production_sop.edit") || can("factory_production_sop.manage"))) || (isJobOrders && can("factory_product_recipes.view")) || (isProductionPlanning && can("factory_product_recipes.view")) || (isProduction && (can("factory_product_recipes.view") || can("factory_production.complete"))) || (isReports && can("factory_production_reports.view")),
     recipeSummaries: isFinishedGoods && can("factory_product_recipes.view"),
     sops: (isProduction || isProductionSop || isJobOrders)
@@ -1537,11 +1536,6 @@ export const factoryService = {
       .order("created_at", { ascending: false })
       .order("id", { ascending: false })
       .limit(150), (rows) => rows.map(mapProductMovement));
-    addTask(plan.finishedGoodDispatches, "finishedGoodDispatches", "Finished Goods Dispatch", () => supabase
-      .from("factory_finished_good_dispatches")
-      .select(finishedGoodDispatchSelect)
-      .order("dispatch_date", { ascending: false })
-      .limit(150), (rows) => rows.map(mapFinishedGoodDispatch));
     addCompleteLoaderTask(plan.recipes, "recipes", "Product Recipes", () => loadRecipeRows({ signal }), (rows) => rows.map(mapRecipe));
     addCompleteLoaderTask(!plan.recipes && plan.recipeSummaries, "recipes", "Active Production Standard Summary", () => loadRecipeRows({ summaryOnly: true, signal }), (rows) => rows.map(mapRecipe));
     addCompleteLoaderTask(plan.sops, "sops", "Production SOP", () => loadProductionSopRows({ signal }), (rows) => rows.map(mapProductionSop));

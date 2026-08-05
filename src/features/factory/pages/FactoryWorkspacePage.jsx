@@ -3004,7 +3004,7 @@ function DispatchBatchAllocationModal({ item, sku, batches, unavailableBatches =
   );
 }
 
-function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers = [], dispatches = [], onClose, onSave, onComplete, embedded = false, mode = "edit" }) {
+function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers = [], onClose, onSave, onComplete, embedded = false, mode = "edit" }) {
   const makeItem = () => ({ row_id: Math.random().toString(36).slice(2), finished_good_id: "", quantity: "", batch_no: "", remarks: "", allocations: [], allocation_prompted: false, allocation_required: false });
   const [form, setForm] = useState(() => ({
     dispatch_date: todayInput(),
@@ -3028,7 +3028,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
   const isViewMode = mode === "view" || (Boolean(initialValue?.id) && initialValue.status !== "draft");
   const isReadOnly = isViewMode;
   const saving = Boolean(submittingAction);
-  const dispatchNoPreview = form.dispatch_no || previewDailyDocumentNo({ prefix: "D", date: form.dispatch_date, records: dispatches, codeKey: "dispatch_no", dateKey: "dispatch_date" });
+  const dispatchNoPreview = form.dispatch_no || "Assigned on save";
   const activeSkus = finishedGoods.filter((sku) => sku.status === "active" || form.items.some((item) => item.finished_good_id === sku.id));
   const activeCustomers = customers.filter((customer) => customer.status === "active" || customer.id === form.customer_id);
   const customerOptions = activeCustomers.map((customer) => ({
@@ -7194,6 +7194,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const [dispatchTab, setDispatchTab] = useState("history");
   const [receivingHistoryFilters, setReceivingHistoryFilters] = useState({ dateFrom: "", dateTo: "", supplier: "" });
   const [dispatchHistoryFilters, setDispatchHistoryFilters] = useState({ dateFrom: "", dateTo: "", customer: "", status: "" });
+  const [dispatchCustomersTodayUpdating, setDispatchCustomersTodayUpdating] = useState(false);
   const [jobOrderFilters, setJobOrderFilters] = useState({ search: "", status: "", scheduledDateFrom: "", scheduledDateTo: "", manufacturingDateFrom: "", manufacturingDateTo: "", finishedGood: "" });
   const [expandedProductGroups, setExpandedProductGroups] = useState({});
   const [finishedGoodActionMenu, setFinishedGoodActionMenu] = useState(null);
@@ -7317,6 +7318,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     }
     if (serverListing === "dispatch-history" && !canViewDispatchHistory) {
       factoryListingActions.clearForPermission("Some Finished Goods Dispatch data is hidden by your current role.");
+      setDispatchCustomersTodayUpdating(false);
       setModal((current) => current?.type === "finished-good-dispatch" ? null : current);
     }
     if (initialTab === "product-movements" && !canViewProductMovements) {
@@ -7326,6 +7328,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }, [canViewBatchTraceability, canViewDispatchHistory, canViewProductMovements, factoryListingActions, initialTab, productMovementActions, serverListing]);
   useEffect(() => {
     if (factoryListingPage.errorKind === "permission") {
+      if (serverListing === "dispatch-history") setDispatchCustomersTodayUpdating(false);
       setModal((current) => {
         if (serverListing === "batch-traceability" && current?.type === "batch-traceability-detail") return null;
         if (serverListing === "dispatch-history" && current?.type === "finished-good-dispatch") return null;
@@ -7362,13 +7365,18 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     return <FactoryTableLoadState
       state={factoryListingPage}
       label={label}
-      onRetry={factoryListingActions.retry}
+      onRetry={listing === "dispatch-history"
+        ? () => refreshFinishedGoodsDispatches({ page: factoryListingPage.requestedPage, reason: "retry" })
+        : factoryListingActions.retry}
       permissionMessage={listing === "batch-traceability"
         ? "Some batch traceability data is hidden by your current role."
         : listing === "job-orders" ? "Some Job Order data is hidden by your current role."
           : listing === "raw-stock-checks" ? "Some Raw Material Stock Checks are hidden by your current role."
-            : listing === "product-stock-checks" ? "Some Product Stock Checks are hidden by your current role." : undefined}
-      staleMessage={listing === "batch-traceability" ? "Unable to load the latest batch traceability data. Showing the last successfully loaded results." : undefined}
+            : listing === "product-stock-checks" ? "Some Product Stock Checks are hidden by your current role."
+              : listing === "dispatch-history" ? "Some Finished Goods Dispatch data is hidden by your current role." : undefined}
+      staleMessage={listing === "batch-traceability"
+        ? "Unable to load the latest batch traceability data. Showing the last successfully loaded results."
+        : listing === "dispatch-history" ? "Dispatch was updated, but the latest list could not be refreshed." : undefined}
     />;
   }
 
@@ -8313,13 +8321,109 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     }
   }
 
-  async function saveFinishedGoodDispatch(form) {
+  function dispatchMatchesHistoryFilters(dispatch) {
+    if (!dispatch) return false;
+    if (dispatchHistoryFilters.dateFrom && dispatch.dispatch_date < dispatchHistoryFilters.dateFrom) return false;
+    if (dispatchHistoryFilters.dateTo && dispatch.dispatch_date > dispatchHistoryFilters.dateTo) return false;
+    if (dispatchHistoryFilters.status && dispatch.status !== dispatchHistoryFilters.status) return false;
+    if (dispatchHistoryFilters.customer) {
+      const customerMatches = dispatch.customer_id === dispatchHistoryFilters.customer
+        || dispatch.customer_name === dispatchHistoryFilters.customer;
+      if (!customerMatches) return false;
+    }
+    return true;
+  }
+
+  function dispatchSummaryAfterMutation(summary, previous, next) {
+    const updated = { ...(summary || {}) };
+    const today = todayInput();
+    const completedToday = (dispatch) => dispatch?.status === "completed"
+      && String(dispatch.completed_at || dispatch.dispatch_date || "").slice(0, 10) === today;
+    updated.draft = Math.max(0, Number(updated.draft || 0)
+      - (previous?.status === "draft" ? 1 : 0)
+      + (next?.status === "draft" ? 1 : 0));
+    updated.completed_today = Math.max(0, Number(updated.completed_today || 0)
+      - (completedToday(previous) ? 1 : 0)
+      + (completedToday(next) ? 1 : 0));
+    return updated;
+  }
+
+  function compareFinishedGoodsDispatchesDesc(left, right) {
+    return String(right.dispatch_date || "").localeCompare(String(left.dispatch_date || ""))
+      || String(right.created_at || "").localeCompare(String(left.created_at || ""))
+      || String(right.id || "").localeCompare(String(left.id || ""));
+  }
+
+  function applyFinishedGoodsDispatchMutation({ previous = null, next = null }) {
+    const currentRows = factoryListingPage.hasLoaded ? factoryListingPage.rows : [];
+    const previousMatches = dispatchMatchesHistoryFilters(previous);
+    const nextMatches = dispatchMatchesHistoryFilters(next);
+    const existingIndex = currentRows.findIndex((row) => row.id === (next?.id || previous?.id));
+    const removesVisibleRow = existingIndex >= 0 && !nextMatches;
+    const refreshPage = removesVisibleRow && currentRows.length === 1 && factoryListingPage.loadedPage > 1
+      ? factoryListingPage.loadedPage - 1
+      : factoryListingPage.loadedPage;
+    const today = todayInput();
+    const affectsCustomersToday = [previous, next].some((dispatch) => dispatch?.status === "completed"
+      && String(dispatch.completed_at || dispatch.dispatch_date || "").slice(0, 10) === today);
+    if (affectsCustomersToday) setDispatchCustomersTodayUpdating(true);
+
+    factoryListingActions.updateLoadedSnapshot(({ rows, summary, total, page, pageSize }) => {
+      let updatedRows = rows;
+      const rowIndex = rows.findIndex((row) => row.id === (next?.id || previous?.id));
+      if (rowIndex >= 0) {
+        updatedRows = nextMatches
+          ? rows.map((row, index) => index === rowIndex ? next : row).sort(compareFinishedGoodsDispatchesDesc)
+          : rows.filter((_, index) => index !== rowIndex);
+      } else if (nextMatches && page === 1) {
+        updatedRows = [...rows, next]
+          .sort(compareFinishedGoodsDispatchesDesc)
+          .slice(0, pageSize);
+      }
+      const totalDelta = (nextMatches ? 1 : 0) - (previousMatches ? 1 : 0);
+      return {
+        rows: updatedRows,
+        summary: dispatchSummaryAfterMutation(summary, previous, next),
+        total: Math.max(0, Number(total || 0) + totalDelta),
+      };
+    });
+    return refreshPage;
+  }
+
+  async function refreshFinishedGoodsDispatches({ page, reason }) {
     try {
-      await factoryService.saveFinishedGoodDispatch(form);
-      ui?.notify?.({ title: form.id ? "Dispatch updated" : "Dispatch draft created", tone: "success" });
+      const refreshed = await factoryListingActions.refreshNow({
+        page,
+        pageSize: factoryListingPage.loadedPageSize,
+        errorMessage: "Dispatch was updated, but the latest list could not be refreshed.",
+      });
+      if (refreshed) setDispatchCustomersTodayUpdating(false);
+    } catch (refreshError) {
+      console.error(`[Factory] Finished Goods Dispatch ${reason} succeeded but listing refresh failed.`, refreshError);
+      if (isFactoryPermissionError(refreshError)) {
+        setDispatchCustomersTodayUpdating(false);
+        setModal((current) => current?.type === "finished-good-dispatch" ? null : current);
+        ui?.notify?.({ title: "Dispatch data hidden", message: "Some Finished Goods Dispatch data is hidden by your current role.", tone: "error" });
+        return;
+      }
+      ui?.notify?.({
+        title: "Dispatch list refresh needed",
+        message: "Dispatch was updated, but the latest list could not be refreshed.",
+        tone: "warning",
+      });
+    }
+  }
+
+  async function saveFinishedGoodDispatch(form) {
+    const previous = form.id ? factoryListingPage.rows.find((row) => row.id === form.id) || form : null;
+    try {
+      const saved = await factoryService.saveFinishedGoodDispatch(form);
+      const refreshPage = applyFinishedGoodsDispatchMutation({ previous, next: saved });
       setModal(null);
       if (!form.id) setDispatchTab("history");
-      await loadData();
+      ui?.notify?.({ title: form.id ? "Dispatch updated" : "Dispatch draft created", tone: "success" });
+      void refreshFinishedGoodsDispatches({ page: refreshPage, reason: form.id ? "save" : "create" });
+      return saved;
     } catch (error) {
       const message = finishedGoodDispatchOperatorError(error, "Unable to save the Dispatch Draft. Please retry.");
       console.error("[Factory] Unable to save Finished Goods Dispatch.", error);
@@ -8335,11 +8439,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   async function saveAndCompleteFinishedGoodDispatch(form) {
     try {
       const completed = await factoryService.saveAndCompleteFinishedGoodDispatch(form);
-      ui?.notify?.({ title: "Dispatch completed successfully.", tone: "success" });
-      await loadData();
-      if (serverListing === "dispatch-history") factoryListingActions.retry();
+      const refreshPage = applyFinishedGoodsDispatchMutation({ previous: form.id ? form : null, next: completed });
       setDispatchTab("history");
       setModal({ type: "finished-good-dispatch", value: completed, mode: "view" });
+      ui?.notify?.({ title: "Dispatch completed successfully.", tone: "success" });
+      void refreshFinishedGoodsDispatches({ page: refreshPage, reason: "direct completion" });
+      void loadData();
       return completed;
     } catch (error) {
       const message = finishedGoodDispatchOperatorError(error, "Unable to complete the Dispatch. Please retry.");
@@ -8362,9 +8467,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     });
     if (!confirmed) return;
     try {
-      await factoryService.completeFinishedGoodDispatch(dispatch);
+      const completed = await factoryService.completeFinishedGoodDispatch(dispatch);
+      const refreshPage = applyFinishedGoodsDispatchMutation({ previous: dispatch, next: completed });
+      setModal((current) => current?.type === "finished-good-dispatch" && current.value?.id === dispatch.id ? null : current);
       ui?.notify?.({ title: "Dispatch completed", message: "Finished goods stock-out movement created.", tone: "success" });
-      await loadData();
+      void refreshFinishedGoodsDispatches({ page: refreshPage, reason: "completion" });
+      void loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to complete dispatch", message: error.message, tone: "error" });
     }
@@ -8379,9 +8487,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     });
     if (!confirmed) return;
     try {
-      await factoryService.cancelFinishedGoodDispatch(dispatch);
+      const cancelled = await factoryService.cancelFinishedGoodDispatch(dispatch);
+      const refreshPage = applyFinishedGoodsDispatchMutation({ previous: dispatch, next: cancelled });
+      setModal((current) => current?.type === "finished-good-dispatch" && current.value?.id === dispatch.id ? null : current);
       ui?.notify?.({ title: "Dispatch cancelled", tone: "success" });
-      await loadData();
+      void refreshFinishedGoodsDispatches({ page: refreshPage, reason: "cancellation" });
     } catch (error) {
       ui?.notify?.({ title: "Failed to cancel dispatch", message: error.message, tone: "error" });
     }
@@ -9496,24 +9606,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     );
   }
 
-  function filteredFinishedGoodDispatches() {
-    return data.finishedGoodDispatches.filter((dispatch) => {
-      const dispatchDate = dispatch.dispatch_date || "";
-      const customerMatch = !dispatchHistoryFilters.customer
-        || dispatch.customer_id === dispatchHistoryFilters.customer
-        || dispatch.customer_name === dispatchHistoryFilters.customer;
-      return (!dispatchHistoryFilters.dateFrom || dispatchDate >= dispatchHistoryFilters.dateFrom)
-        && (!dispatchHistoryFilters.dateTo || dispatchDate <= dispatchHistoryFilters.dateTo)
-        && customerMatch
-        && (!dispatchHistoryFilters.status || dispatch.status === dispatchHistoryFilters.status);
-    });
-  }
-
   function dispatchHistoryFilterControls() {
     const customerOptions = data.factoryCustomers.map((customer) => ({ value: customer.id, label: customer.customer_name, helper: customer.customer_code || customer.customer_type || customer.status }));
-    const fallbackCustomerOptions = [...new Set(data.finishedGoodDispatches.map((dispatch) => dispatch.customer_name).filter(Boolean))]
-      .filter((name) => !data.factoryCustomers.some((customer) => customer.customer_name === name))
-      .map((name) => ({ value: name, label: name, helper: "Legacy customer" }));
     return (
       <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 lg:grid-cols-5">
         <Field label="Date From">
@@ -9533,7 +9627,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Field label="Customer">
           <SearchableSelect
             value={dispatchHistoryFilters.customer}
-            options={[{ value: "", label: "All" }, ...customerOptions, ...fallbackCustomerOptions]}
+            options={[{ value: "", label: "All" }, ...customerOptions]}
             placeholder="All"
             searchPlaceholder="Search customers"
             emptyText="No matching customers"
@@ -11480,11 +11574,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   function renderFinishedGoodsDispatch() {
-    const today = todayInput();
-    const draftRows = data.finishedGoodDispatches.filter((row) => row.status === "draft");
-    const completedToday = data.finishedGoodDispatches.filter((row) => row.status === "completed" && String(row.completed_at || row.dispatch_date || "").slice(0, 10) === today);
-    const customersToday = new Set(completedToday.map((row) => row.customer_id || row.customer_name).filter(Boolean)).size;
-    const dispatchRows = currentListingRows("dispatch-history", filteredFinishedGoodDispatches());
+    const dispatchSnapshotReady = factoryListingPage.hasLoaded;
+    const dispatchRows = dispatchSnapshotReady ? factoryListingPage.rows : [];
+    const customersTodayUpdating = dispatchCustomersTodayUpdating;
     const renderDispatchActions = (row) => (
       <div className="flex flex-wrap justify-end gap-2">
         <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-dispatch", value: row, mode: "view" })}>View</button>
@@ -11512,10 +11604,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           description="Record outbound Packaging SKU dispatches to customers or outlets. Completion creates finished goods stock-out movements."
         />
         <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={ClipboardCheck} label="Draft" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.draft || 0) : draftRows.length} helper="Awaiting completion" tone={Number(factoryListingPage.summary.draft || draftRows.length) ? "warning" : "success"} />
-          <MetricCard icon={CheckCircle2} label="Completed Today" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.completed_today || 0) : completedToday.length} helper="Finished dispatches" tone="success" />
-          <MetricCard icon={PackageCheck} label="Dispatched Today" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.completed_today || 0) : completedToday.length} helper="Completed dispatch records" />
-          <MetricCard icon={Truck} label="Customers Today" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.customers_today || 0) : customersToday} helper="Unique dispatch customers" />
+          <MetricCard icon={ClipboardCheck} label="Draft" value={dispatchSnapshotReady ? Number(factoryListingPage.summary.draft || 0) : "—"} helper="Awaiting completion" tone={dispatchSnapshotReady && Number(factoryListingPage.summary.draft || 0) ? "warning" : "success"} />
+          <MetricCard icon={CheckCircle2} label="Completed Today" value={dispatchSnapshotReady ? Number(factoryListingPage.summary.completed_today || 0) : "—"} helper="Finished dispatches" tone="success" />
+          <MetricCard icon={PackageCheck} label="Dispatched Today" value={dispatchSnapshotReady ? Number(factoryListingPage.summary.completed_today || 0) : "—"} helper="Completed dispatch records" />
+          <MetricCard icon={Truck} label="Customers Today" value={dispatchSnapshotReady && !customersTodayUpdating ? Number(factoryListingPage.summary.customers_today || 0) : "—"} helper={customersTodayUpdating ? "Updating…" : "Unique dispatch customers"} />
         </div>
         {dispatchTab === "history" ? dispatchHistoryFilterControls() : null}
         <Card title="Finished Goods Dispatch" description="Create drafts first, then complete them to deduct Packaging SKU stock and create Product Movement rows.">
@@ -11529,7 +11621,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                 <FinishedGoodDispatchModal
                   finishedGoods={data.finishedGoods}
                   customers={data.factoryCustomers}
-                  dispatches={data.finishedGoodDispatches}
                   onClose={() => setDispatchTab("history")}
                   onSave={saveFinishedGoodDispatch}
                   onComplete={can("factory_finished_goods_dispatch.complete") ? saveAndCompleteFinishedGoodDispatch : undefined}
@@ -11542,7 +11633,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
               <>
                 {listingLoadState("dispatch-history", "Dispatch History")}
                 <div className="md:hidden">
-                  {!dispatchRows.length ? (
+                  {!dispatchSnapshotReady ? (
+                    <div className="p-4"><EmptyState title={factoryListingPage.errorKind === "permission" ? "Dispatch History hidden" : "Loading Dispatch History"} description={factoryListingPage.errorKind === "permission" ? "Your current role cannot view these records." : "Loading the latest Dispatch records."} /></div>
+                  ) : !dispatchRows.length ? (
                     <div className="p-4"><EmptyState title="No finished goods dispatches" description="Create a dispatch draft to record outbound Packaging SKU delivery." /></div>
                   ) : (
                     <div className="divide-y divide-border">
@@ -11568,12 +11661,16 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                   )}
                 </div>
                 <div className="hidden md:block">
-                  <FactoryTable
-                    columns={dispatchColumns}
-                    rows={dispatchRows}
-                    emptyTitle="No finished goods dispatches"
-                    emptyDescription="Create a dispatch draft to record outbound Packaging SKU delivery."
-                  />
+                  {!dispatchSnapshotReady ? (
+                    <div className="p-6"><EmptyState title={factoryListingPage.errorKind === "permission" ? "Dispatch History hidden" : "Loading Dispatch History"} description={factoryListingPage.errorKind === "permission" ? "Your current role cannot view these records." : "Loading the latest Dispatch records."} /></div>
+                  ) : (
+                    <FactoryTable
+                      columns={dispatchColumns}
+                      rows={dispatchRows}
+                      emptyTitle="No finished goods dispatches"
+                      emptyDescription="Create a dispatch draft to record outbound Packaging SKU delivery."
+                    />
+                  )}
                 </div>
                 {listingPagination("dispatch-history")}
               </>
@@ -11797,7 +11894,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           initialValue={modal.value}
           finishedGoods={data.finishedGoods}
           customers={data.factoryCustomers}
-          dispatches={data.finishedGoodDispatches}
           onClose={() => setModal(null)}
           onSave={saveFinishedGoodDispatch}
           onComplete={can("factory_finished_goods_dispatch.complete") ? saveAndCompleteFinishedGoodDispatch : undefined}
