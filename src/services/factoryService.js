@@ -153,8 +153,24 @@ function packagingPackEstimate(productionQty, productionUom, sku, recipeUom = ""
 }
 
 function mapJobOrder(row) {
-  const finishedGood = row.finished_good || {};
-  const status = row.status === "planned" ? "released" : row.status || "draft";
+  const finishedGood = row.finished_good || {
+    product_code: row.product_code,
+    product_name: row.product_name_en || row.product_name,
+    product_name_en: row.product_name_en,
+    product_name_cn: row.product_name_cn,
+    product_name_bm: row.product_name_bm,
+    status: row.finished_good_status,
+    product_family_id: row.product_family_id,
+    product_family: { name_en: row.product_family_name },
+    variant_name: row.variant_name,
+    packaging_type: row.packaging_type,
+    pack_size_qty: row.pack_size_qty,
+    pack_size_uom: row.pack_size_uom,
+    base_qty: row.base_qty,
+    base_uom: row.base_uom,
+    uom: row.finished_good_uom,
+  };
+  const status = row.status || "draft";
   return {
     id: row.id,
     job_order_no: row.job_order_no,
@@ -196,6 +212,12 @@ function mapJobOrder(row) {
     step_executions: (row.step_executions || []).map(mapProductionStepExecution).sort((a, b) => a.step_no - b.step_no),
     completed_at: row.completed_at || "",
     completed_by: row.completed_by || "",
+    manufacturing_date: row.manufacturing_date || "",
+    completed_production_id: row.completed_production_id || "",
+    production_status: row.completed_production_status || "",
+    production_qc_status: row.production_qc_status || "",
+    batch_no: row.batch_no || "",
+    created_by_name: row.created_by_name || row.creator?.nickname || row.creator?.full_name || row.created_by || "",
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -1301,7 +1323,7 @@ async function loadProductionSopRows({ signal }) {
 function factoryDataPlan(scope, hasPermission) {
   const can = (code) => !hasPermission || hasPermission(code);
   const isDashboard = scope === "dashboard";
-  const isJobOrders = scope === "job-orders";
+  const isJobOrders = scope === "job-orders" || scope === "production-overview";
   const isRawInventory = scope === "raw-inventory";
   const isRawReceiving = scope === "raw-receiving";
   const isRawMovements = scope === "raw-movements";
@@ -1707,9 +1729,31 @@ export const factoryService = {
       query = query.order("check_date", { ascending: false }).order("created_at", { ascending: false }).order("id", { ascending: false });
       mapper = (rows) => rows.map((row) => mapStockCheck(row, raw ? "raw" : "product"));
     } else if (listing === "job-orders") {
-      query = supabase.from("factory_job_orders").select(jobOrderSelect, { count: "exact" })
-        .order("planned_date", { ascending: false }).order("created_at", { ascending: false }).order("id", { ascending: false });
-      mapper = (rows) => rows.map(mapJobOrder);
+      const finishedGoodFilter = String(filters.finishedGood || "").trim();
+      const finishedGoodId = finishedGoodFilter.startsWith("sku:") ? finishedGoodFilter.slice(4) : finishedGoodFilter;
+      const productFamilyId = finishedGoodFilter.startsWith("family:") ? finishedGoodFilter.slice(7) : "";
+      const pageResult = await supabase.rpc("factory_list_job_order_records", {
+        p_search: String(filters.search || "").trim() || null,
+        p_status: String(filters.status || "").trim() || null,
+        p_scheduled_date_from: filters.scheduledDateFrom || null,
+        p_scheduled_date_to: filters.scheduledDateTo || null,
+        p_manufacturing_date_from: filters.manufacturingDateFrom || null,
+        p_manufacturing_date_to: filters.manufacturingDateTo || null,
+        p_finished_good_id: productFamilyId ? null : databaseUuid(finishedGoodId),
+        p_product_family_id: databaseUuid(productFamilyId),
+      }, { count: "exact" })
+        .order("planned_date", { ascending: false, nullsFirst: false })
+        .order("created_at", { ascending: false })
+        .order("id", { ascending: false })
+        .range(from, to);
+      throwSupabaseError("factory.job-orders.page", pageResult.error);
+      return {
+        rows: (pageResult.data || []).map(mapJobOrder),
+        totalCount: normalizeNumber(pageResult.count),
+        summary: {},
+        page: normalizedPage,
+        pageSize: normalizedPageSize,
+      };
     } else if (listing === "production-history") {
       query = supabase.from("factory_productions").select(productionSelectDetailed, { count: "exact" })
         .order("production_date", { ascending: false }).order("created_at", { ascending: false }).order("id", { ascending: false });
@@ -1843,8 +1887,7 @@ export const factoryService = {
         .eq("id", order.id)
         .single();
       throwSupabaseError("factory.job_order.current", currentError);
-      const normalizedStatus = current?.status === "planned" ? "released" : current?.status;
-      if (normalizedStatus !== "draft") throw new Error("Only Draft Job Orders can be edited. Use lifecycle actions for released, in-progress, completed or cancelled Job Orders.");
+      if (current?.status !== "draft") throw new Error("Only Draft Job Orders can be edited. Use lifecycle actions for released, in-progress, completed or cancelled Job Orders.");
     }
 
     const payload = {
@@ -1858,7 +1901,7 @@ export const factoryService = {
       planned_date: order.planned_date || null,
       due_date: order.due_date || null,
       priority: order.priority || "Normal",
-      status: order.status === "planned" ? "released" : order.status || "draft",
+      status: order.status || "draft",
       assigned_team: order.assigned_team || "",
       remarks: order.remarks || "",
       updated_at: new Date().toISOString(),

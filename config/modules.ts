@@ -420,7 +420,7 @@ export const moduleRegistry: AppModule[] = [
   {
     id: "factory_dashboard",
     section: "Factory",
-    label: "Factory Dashboard",
+    label: "Dashboard",
     route: "/factory/dashboard",
     icon: "factory-dashboard",
     sidebar: true,
@@ -430,12 +430,22 @@ export const moduleRegistry: AppModule[] = [
   {
     id: "factory_job_orders",
     section: "Factory",
-    label: "Job Orders",
-    route: "/factory/job-orders",
-    icon: "factory-job-orders",
+    label: "Production Overview",
+    route: "/factory/production-overview",
+    icon: "factory-production-overview",
     sidebar: true,
     workspace: "factory",
     permissions: { view: true, create: true, edit: true, delete: true, cancel: true, complete: true, export: true },
+  },
+  {
+    id: "factory_job_order_records",
+    section: "Factory",
+    label: "Job Order",
+    route: "/factory/job-orders",
+    icon: "factory-job-order-records",
+    sidebar: true,
+    workspace: "factory",
+    permissions: {},
   },
   {
     id: "factory_production",
@@ -660,7 +670,7 @@ export function getPermissionDefinitions() {
 }
 
 export function getPermissionGroups() {
-  const groups = moduleRegistry.reduce((groups, module) => {
+  const groups = moduleRegistry.filter((module) => enabledActions(module).length).reduce((groups, module) => {
     const actions = Object.fromEntries(
       enabledActions(module).map((action) => [
         action,

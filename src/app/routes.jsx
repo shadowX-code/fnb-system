@@ -220,7 +220,13 @@ const routeDetails = {
     props: { initialTab: "dashboard" },
   },
   factory_job_orders: {
-    description: "Create and manage factory production job orders.",
+    description: "Monitor released, in-progress and completed Factory production work.",
+    component: FactoryWorkspacePage,
+    permission: "factory_job_orders.view",
+    props: { initialTab: "production-overview" },
+  },
+  factory_job_order_records: {
+    description: "Create, manage and review Factory production job orders.",
     component: FactoryWorkspacePage,
     permission: "factory_job_orders.view",
     props: { initialTab: "job-orders" },

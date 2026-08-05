@@ -203,7 +203,11 @@ export function useFactoryPagedQuery({ storageKey, enabled = true, querySignatur
   }, [querySignature]);
 
   useEffect(() => {
-    if (!enabled) return undefined;
+    if (!enabled) {
+      requestRef.current += 1;
+      setState((current) => current.loading ? { ...current, loading: false } : current);
+      return undefined;
+    }
     const requestId = requestRef.current + 1;
     requestRef.current = requestId;
     let active = true;
