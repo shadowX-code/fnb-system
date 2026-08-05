@@ -7207,6 +7207,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const canViewBatchTraceability = can("factory_batch_traceability.view");
   const canViewDispatchHistory = can("factory_finished_goods_dispatch.view");
   const canViewProductMovements = can("factory_product_movements.view");
+  const stockCheckListingLabel = serverListing === "raw-stock-checks"
+    ? "Raw Material Stock Checks"
+    : serverListing === "product-stock-checks" ? "Product Stock Checks" : "";
   const [factoryListingPage, factoryListingActions] = useFactoryPagedQuery({
     storageKey: serverListing || "inactive",
     enabled: Boolean(serverListing)
@@ -7224,15 +7227,19 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         ? permissionDenied
           ? "Some batch traceability data is hidden by your current role."
           : "Unable to load the latest batch traceability data."
+        : stockCheckListingLabel
+          ? permissionDenied
+            ? `Some ${stockCheckListingLabel} are hidden by your current role.`
+            : `Unable to load ${stockCheckListingLabel}.`
         : permissionDenied ? "Some Factory data is hidden by your current role." : "Unable to load the latest Factory listing.";
-      ui?.notify?.({ title: permissionDenied ? "Factory data hidden" : "Failed to load Factory listing", message, tone: "error" });
+      ui?.notify?.({ title: permissionDenied ? "Factory data hidden" : stockCheckListingLabel ? `Unable to load ${stockCheckListingLabel}` : "Failed to load Factory listing", message, tone: "error" });
     },
     shouldClearOnError: isFactoryPermissionError,
     mapError: (error) => ({
       kind: isFactoryPermissionError(error) ? "permission" : "load",
       message: isFactoryPermissionError(error)
-        ? "Some data is hidden by your current role."
-        : "Unable to load the latest data.",
+        ? stockCheckListingLabel ? `Some ${stockCheckListingLabel} are hidden by your current role.` : "Some data is hidden by your current role."
+        : stockCheckListingLabel ? `Unable to load ${stockCheckListingLabel}.` : "Unable to load the latest data.",
     }),
   });
   const productMovementSignature = `${productMovementFilterSignature(20, warehouseFilters)}:${factoryPermissionSignature}`;
@@ -7274,6 +7281,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       setModal((current) => {
         if (serverListing === "batch-traceability" && current?.type === "batch-traceability-detail") return null;
         if (serverListing === "dispatch-history" && current?.type === "finished-good-dispatch") return null;
+        if (["raw-stock-checks", "product-stock-checks"].includes(serverListing) && current?.type === "stock-check") return null;
         return current;
       });
     }
@@ -7309,7 +7317,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       onRetry={factoryListingActions.retry}
       permissionMessage={listing === "batch-traceability"
         ? "Some batch traceability data is hidden by your current role."
-        : listing === "job-orders" ? "Some Job Order data is hidden by your current role." : undefined}
+        : listing === "job-orders" ? "Some Job Order data is hidden by your current role."
+          : listing === "raw-stock-checks" ? "Some Raw Material Stock Checks are hidden by your current role."
+            : listing === "product-stock-checks" ? "Some Product Stock Checks are hidden by your current role." : undefined}
       staleMessage={listing === "batch-traceability" ? "Unable to load the latest batch traceability data. Showing the last successfully loaded results." : undefined}
     />;
   }
@@ -8006,6 +8016,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       ui?.notify?.({ title: form.status === "submitted" ? "Stock check submitted" : "Stock check draft saved", tone: "success" });
       setModal(null);
       await loadData();
+      factoryListingActions.retry();
     } catch (error) {
       ui?.notify?.({ title: "Failed to save stock check", message: error.message, tone: "error" });
       throw error;
@@ -8396,6 +8407,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       await factoryService.approveStockCheck(stockType, check, auth?.profile?.id);
       ui?.notify?.({ title: "Stock check approved", message: "Inventory adjustment movement created.", tone: "success" });
       await loadData();
+      factoryListingActions.retry();
     } catch (error) {
       ui?.notify?.({ title: "Failed to approve stock check", message: error.message, tone: "error" });
     }
@@ -8413,6 +8425,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       await factoryService.deleteStockCheck(stockType, check);
       ui?.notify?.({ title: "Draft stock check deleted", tone: "success" });
       await loadData();
+      factoryListingActions.retry();
     } catch (error) {
       ui?.notify?.({ title: "Failed to delete stock check", message: error.message, tone: "error" });
     }
@@ -8640,7 +8653,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     );
     return [
       { key: "check_date", label: "Date", render: (row) => formatFactoryDate(row.check_date) },
-      { key: "created_by", label: "Created By", render: (row) => row.created_by_name || row.created_by || "—" },
+      { key: "created_by", label: "Created By", render: (row) => row.created_by_name || "—" },
       { key: "check_no", label: "Check No.", render: (row) => <div className="font-bold text-text-primary">{row.check_no}</div> },
       { key: "items", label: "Items", render: (row) => row.items?.length || 0 },
       { key: "variance", label: "Variance", render: (row) => {
@@ -8676,7 +8689,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                     <div className="grid grid-cols-2 gap-3 text-sm">
                       <div><div className="text-[10.5px] font-semibold text-text-muted">Items</div><div className="font-bold text-text-primary">{row.items?.length || 0}</div></div>
                       <div><div className="text-[10.5px] font-semibold text-text-muted">Variance</div><Badge tone={summary.tone}>{summary.label}</Badge></div>
-                      <div><div className="text-[10.5px] font-semibold text-text-muted">Created By</div><div className="font-bold text-text-primary">{row.created_by_name || row.created_by || "—"}</div></div>
+                      <div><div className="text-[10.5px] font-semibold text-text-muted">Created By</div><div className="font-bold text-text-primary">{row.created_by_name || "—"}</div></div>
                       <div><div className="text-[10.5px] font-semibold text-text-muted">Notes</div><div className="font-semibold text-text-primary">{row.notes || "—"}</div></div>
                     </div>
                     <div className="flex justify-end">{actionsColumn?.render(row)}</div>
@@ -9689,6 +9702,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       month: new Intl.DateTimeFormat("en-MY", { month: "short", year: "2-digit", timeZone: "UTC" }).format(new Date(`${month}T00:00:00Z`)),
       quantity: (trend.dispatch || []).filter((row) => row.month_start === month).reduce((sum, row) => sum + Number(row.quantity || 0), 0),
     }));
+    const hasProductionTrendActivity = productionTrend.some((row) => Number(row.quantity || 0) > 0);
+    const hasDispatchTrendActivity = dispatchTrend.some((row) => Number(row.quantity || 0) > 0);
     const qc = snapshot.qc_performance || {};
     const qcPassedCount = Number(snapshot.kpis.qc_pass_rate.passed || 0);
     const qcFailedCount = Number(snapshot.kpis.qc_pass_rate.failed || 0);
@@ -9778,7 +9793,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
             <div className="grid gap-4 xl:grid-cols-3">
               {permissions.production ? <Card className="xl:col-span-2" title="Production Summary" description="Completed Production output by Packaging SKU for the selected month." action={<div className="flex flex-wrap gap-2"><SearchableSelect value={selectedProductionUom} options={productionUoms.map((uom) => ({ value: uom, label: uom }))} placeholder="UOM" onChange={setDashboardProductionUom} disabled={productionUoms.length <= 1} /><div className="flex rounded-lg border border-border p-0.5"><button className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${dashboardProductionMeasure === "output" ? "bg-primary text-white" : "text-text-secondary"}`} type="button" onClick={() => setDashboardProductionMeasure("output")}>Output Qty</button><button className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${dashboardProductionMeasure === "batches" ? "bg-primary text-white" : "text-text-secondary"}`} type="button" onClick={() => setDashboardProductionMeasure("batches")}>Batch Count</button></div></div>}>
-                {productionChartRows.length ? <div className="p-4"><div className="h-[300px]" role="img" aria-label={`Production Summary horizontal bar chart in ${selectedProductionUom || "selected units"}`}><ResponsiveContainer width="100%" height="100%"><BarChart data={productionChartRows} layout="vertical" margin={{ left: 12, right: 24 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" /><XAxis type="number" tick={{ fontSize: 11 }} /><YAxis type="category" dataKey="packaging_sku" width={110} tick={{ fontSize: 11 }} /><Tooltip contentStyle={chartTooltipStyle} formatter={(value) => dashboardProductionMeasure === "batches" ? [`${value} batches`, "Batch Count"] : [quantity(value, selectedProductionUom), "Output Qty"]} /><Bar dataKey={dashboardProductionMeasure === "batches" ? "batch_count" : "output_qty"} fill="#167d5a" radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer></div></div> : <EmptyState title="No completed Production" description="No completed Production output matches this month and filter." />}
+                {productionChartRows.length ? <div className="p-4"><div className="h-[300px]" role="img" aria-label={`Production Summary horizontal bar chart in ${selectedProductionUom || "selected units"}`}><ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1} initialDimension={{ width: 1, height: 1 }}><BarChart data={productionChartRows} layout="vertical" margin={{ left: 12, right: 24 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" /><XAxis type="number" tick={{ fontSize: 11 }} /><YAxis type="category" dataKey="packaging_sku" width={110} tick={{ fontSize: 11 }} /><Tooltip contentStyle={chartTooltipStyle} formatter={(value) => dashboardProductionMeasure === "batches" ? [`${value} batches`, "Batch Count"] : [quantity(value, selectedProductionUom), "Output Qty"]} /><Bar dataKey={dashboardProductionMeasure === "batches" ? "batch_count" : "output_qty"} fill="#167d5a" radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer></div></div> : <EmptyState title="No completed Production" description="No completed Production output matches this month and filter." />}
                 <FactoryTable columns={[{ key: "product", label: "Product", render: (row) => <div><div className="font-bold text-text-primary">{row.product}</div><div className="text-xs text-text-secondary">{row.packaging_sku}</div></div> }, { key: "output", label: "Output Qty", render: (row) => quantity(row.output_qty, row.uom) }, { key: "batches", label: "Batches", render: (row) => Number(row.batch_count || 0).toLocaleString("en-MY") }, { key: "average", label: "Average Batch", render: (row) => quantity(row.average_batch_qty, row.uom) }, { key: "completion", label: "Completion Rate", render: (row) => percent(row.completion_rate) }]} rows={productionRows} emptyTitle="No Production summary" emptyDescription="Completed Production will appear here." />
               </Card> : null}
 
@@ -9797,12 +9812,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
             <div className="grid gap-4 xl:grid-cols-2">
               {permissions.dispatch ? <Card title="Top 10 Dispatched Products" description="Completed Dispatch quantity in pack units." >
-                {dispatchRows.length ? <div className="p-4"><div className="h-[300px]" role="img" aria-label="Top 10 dispatched products horizontal ranking chart"><ResponsiveContainer width="100%" height="100%"><BarChart data={dispatchRows} layout="vertical" margin={{ left: 12, right: 24 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" /><XAxis type="number" tick={{ fontSize: 11 }} /><YAxis type="category" dataKey="packaging_sku" width={110} tick={{ fontSize: 11 }} /><Tooltip contentStyle={chartTooltipStyle} formatter={(value) => [quantity(value, "packs"), "Dispatch Qty"]} /><Bar dataKey="dispatch_qty" fill="#2563eb" radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer></div></div> : <EmptyState title="No completed Dispatches" description="Completed Dispatch activity will appear here." />}
+                {dispatchRows.length ? <div className="p-4"><div className="h-[300px]" role="img" aria-label="Top 10 dispatched products horizontal ranking chart"><ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1} initialDimension={{ width: 1, height: 1 }}><BarChart data={dispatchRows} layout="vertical" margin={{ left: 12, right: 24 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" /><XAxis type="number" tick={{ fontSize: 11 }} /><YAxis type="category" dataKey="packaging_sku" width={110} tick={{ fontSize: 11 }} /><Tooltip contentStyle={chartTooltipStyle} formatter={(value) => [quantity(value, "packs"), "Dispatch Qty"]} /><Bar dataKey="dispatch_qty" fill="#2563eb" radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer></div></div> : <EmptyState title="No completed Dispatches" description="Completed Dispatch activity will appear here." />}
                 <FactoryTable columns={[{ key: "rank", label: "Rank", render: (row) => `#${row.rank}` }, { key: "product", label: "Product", render: (row) => <div><div className="font-bold text-text-primary">{row.product}</div><div className="text-xs text-text-secondary">{row.packaging_sku}</div></div> }, { key: "qty", label: "Dispatch Qty", render: (row) => quantity(row.dispatch_qty, "packs") }, { key: "dispatches", label: "Dispatches", render: (row) => row.dispatch_count }, { key: "customers", label: "Customers", render: (row) => row.customer_count }, { key: "share", label: "Share", render: (row) => percent(row.share_percent) }]} rows={dispatchRows} emptyTitle="No Dispatch ranking" emptyDescription="No completed Dispatches match this month." />
               </Card> : null}
 
               {permissions.receiving ? <Card title="Top Purchased Raw Materials" description="Received quantities are ranked within one UOM only." action={<div className="flex flex-wrap gap-2"><SearchableSelect value={selectedRawUom} options={rawUoms.map((uom) => ({ value: uom, label: uom }))} placeholder="UOM" onChange={setDashboardRawUom} disabled={rawUoms.length <= 1} /><div className="flex rounded-lg border border-border p-0.5"><button className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${selectedRawMeasure === "quantity" ? "bg-primary text-white" : "text-text-secondary"}`} type="button" onClick={() => setDashboardRawMeasure("quantity")}>Quantity</button><button className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${selectedRawMeasure === "value" ? "bg-primary text-white" : "text-text-secondary"}`} type="button" disabled={!rawValueAvailable} onClick={() => setDashboardRawMeasure("value")}>Purchase Value</button></div></div>}>
-                {rawChartRows.length ? <div className="p-4"><div className="h-[300px]" role="img" aria-label={`Top purchased raw materials horizontal ranking chart by ${selectedRawMeasure}`}><ResponsiveContainer width="100%" height="100%"><BarChart data={rawChartRows} layout="vertical" margin={{ left: 12, right: 24 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" /><XAxis type="number" tick={{ fontSize: 11 }} /><YAxis type="category" dataKey="raw_material" width={120} tick={{ fontSize: 11 }} /><Tooltip contentStyle={chartTooltipStyle} formatter={(value) => selectedRawMeasure === "value" ? [money(value), "Purchase Value"] : [quantity(value, selectedRawUom), "Received Qty"]} /><Bar dataKey={selectedRawMeasure === "value" ? "total_cost" : "received_qty"} fill="#7c3aed" radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer></div></div> : <EmptyState title="No receiving data" description={selectedRawMeasure === "value" ? "Authoritative cost data is unavailable for this UOM." : "No receiving records match this month and UOM."} />}
+                {rawChartRows.length ? <div className="p-4"><div className="h-[300px]" role="img" aria-label={`Top purchased raw materials horizontal ranking chart by ${selectedRawMeasure}`}><ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1} initialDimension={{ width: 1, height: 1 }}><BarChart data={rawChartRows} layout="vertical" margin={{ left: 12, right: 24 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" /><XAxis type="number" tick={{ fontSize: 11 }} /><YAxis type="category" dataKey="raw_material" width={120} tick={{ fontSize: 11 }} /><Tooltip contentStyle={chartTooltipStyle} formatter={(value) => selectedRawMeasure === "value" ? [money(value), "Purchase Value"] : [quantity(value, selectedRawUom), "Received Qty"]} /><Bar dataKey={selectedRawMeasure === "value" ? "total_cost" : "received_qty"} fill="#7c3aed" radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer></div></div> : <EmptyState title="No receiving data" description={selectedRawMeasure === "value" ? "Authoritative cost data is unavailable for this UOM." : "No receiving records match this month and UOM."} />}
                 <FactoryTable columns={[{ key: "rank", label: "Rank", render: (row) => `#${row.rank}` }, { key: "material", label: "Raw Material", render: (row) => row.raw_material }, { key: "qty", label: "Received Qty", render: (row) => quantity(row.received_qty, row.uom) }, { key: "records", label: "Receipts", render: (row) => row.receiving_count }, { key: "suppliers", label: "Suppliers", render: (row) => row.supplier_count }, { key: "cost", label: "Cost", render: (row) => row.cost_complete ? `${money(row.average_unit_cost)} avg · ${money(row.total_cost)}` : "Incomplete" }]} rows={rawChartRows} emptyTitle="No purchased materials" emptyDescription="No receiving records match the selected month." />
               </Card> : null}
             </div>
@@ -9810,13 +9825,13 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             <div className="grid gap-4 xl:grid-cols-3">
               {(permissions.production || permissions.dispatch) ? <Card className="xl:col-span-2" title="Production vs Dispatch Trend" description="Separate UOM-safe series for the six months ending in the selected month.">
                 <div className="grid gap-4 p-4 lg:grid-cols-2">
-                  {permissions.production ? <div><div className="mb-2 text-xs font-bold text-text-secondary">Production Output · {selectedProductionUom || "UOM"}</div><div className="h-[230px]" role="img" aria-label={`Six month Production output trend in ${selectedProductionUom}`}><ResponsiveContainer width="100%" height="100%"><LineChart data={productionTrend}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip contentStyle={chartTooltipStyle} formatter={(value) => [quantity(value, selectedProductionUom), "Production"]} /><Line type="monotone" dataKey="quantity" stroke="#167d5a" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} /></LineChart></ResponsiveContainer></div></div> : null}
-                  {permissions.dispatch ? <div><div className="mb-2 text-xs font-bold text-text-secondary">Completed Dispatch · packs</div><div className="h-[230px]" role="img" aria-label="Six month completed Dispatch trend in packs"><ResponsiveContainer width="100%" height="100%"><LineChart data={dispatchTrend}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip contentStyle={chartTooltipStyle} formatter={(value) => [quantity(value, "packs"), "Dispatch"]} /><Line type="monotone" dataKey="quantity" stroke="#2563eb" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} /></LineChart></ResponsiveContainer></div></div> : null}
+                  {permissions.production ? <div><div className="mb-2 text-xs font-bold text-text-secondary">Production Output · {selectedProductionUom || "UOM"}</div>{hasProductionTrendActivity ? <div className="h-[230px]" role="img" aria-label={`Six month Production output trend in ${selectedProductionUom}`}><ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1} initialDimension={{ width: 1, height: 1 }}><LineChart data={productionTrend}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip contentStyle={chartTooltipStyle} formatter={(value) => [quantity(value, selectedProductionUom), "Production"]} /><Line type="monotone" dataKey="quantity" stroke="#167d5a" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} /></LineChart></ResponsiveContainer></div> : <EmptyState title="No production activity for this period." description="Completed Production output will appear when activity is recorded." />}</div> : null}
+                  {permissions.dispatch ? <div><div className="mb-2 text-xs font-bold text-text-secondary">Completed Dispatch · packs</div>{hasDispatchTrendActivity ? <div className="h-[230px]" role="img" aria-label="Six month completed Dispatch trend in packs"><ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1} initialDimension={{ width: 1, height: 1 }}><LineChart data={dispatchTrend}><CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" /><XAxis dataKey="month" tick={{ fontSize: 11 }} /><YAxis tick={{ fontSize: 11 }} /><Tooltip contentStyle={chartTooltipStyle} formatter={(value) => [quantity(value, "packs"), "Dispatch"]} /><Line type="monotone" dataKey="quantity" stroke="#2563eb" strokeWidth={2} dot={{ r: 3 }} activeDot={{ r: 5 }} /></LineChart></ResponsiveContainer></div> : <EmptyState title="No dispatch activity for this period." description="Completed Dispatch activity will appear when records are available." />}</div> : null}
                 </div>
               </Card> : null}
 
               {permissions.qc ? <Card title="QC Performance" description="Required-check outcomes; no raw QC responses are exposed.">
-                {qcChartRows.some((row) => row.value > 0) ? <div className="p-4"><div className="h-[230px]" role="img" aria-label="Required QC check outcome distribution"><ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={qcChartRows} dataKey="value" nameKey="name" innerRadius={52} outerRadius={78} paddingAngle={2}>{qcChartRows.map((row) => <Cell key={row.name} fill={row.color} />)}</Pie><Tooltip contentStyle={chartTooltipStyle} /><Legend wrapperStyle={{ fontSize: 11 }} /></PieChart></ResponsiveContainer></div><div className="grid grid-cols-2 gap-2 border-t border-border pt-3 text-xs"><div><div className="font-bold text-text-primary">No QC Required</div><div className="text-text-secondary">{Number(qc.no_qc_required || 0)} Job Orders</div></div><div><div className="font-bold text-text-primary">Metadata unavailable</div><div className="text-text-secondary">{Number(qc.metadata_unavailable_jobs || 0)} Job Orders</div></div></div><div className="mt-3 space-y-2">{(qc.top_failures || []).slice(0, 4).map((row) => <div key={`${row.qc_name}-${row.product}`} className="flex items-start justify-between gap-3 border-t border-border pt-2 text-xs"><div><div className="font-bold text-text-primary">{row.qc_name}</div><div className="text-text-secondary">{row.product}</div></div><Badge tone="danger">{row.count}</Badge></div>)}</div></div> : <EmptyState title="No required QC check activity" description={`No QC Required: ${Number(qc.no_qc_required || 0)} Job Orders · Metadata unavailable: ${Number(qc.metadata_unavailable_jobs || 0)} Job Orders`} />}
+                {qcChartRows.some((row) => row.value > 0) ? <div className="p-4"><div className="h-[230px]" role="img" aria-label="Required QC check outcome distribution"><ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1} initialDimension={{ width: 1, height: 1 }}><PieChart><Pie data={qcChartRows} dataKey="value" nameKey="name" innerRadius={52} outerRadius={78} paddingAngle={2}>{qcChartRows.map((row) => <Cell key={row.name} fill={row.color} />)}</Pie><Tooltip contentStyle={chartTooltipStyle} /><Legend wrapperStyle={{ fontSize: 11 }} /></PieChart></ResponsiveContainer></div><div className="grid grid-cols-2 gap-2 border-t border-border pt-3 text-xs"><div><div className="font-bold text-text-primary">No QC Required</div><div className="text-text-secondary">{Number(qc.no_qc_required || 0)} Job Orders</div></div><div><div className="font-bold text-text-primary">Metadata unavailable</div><div className="text-text-secondary">{Number(qc.metadata_unavailable_jobs || 0)} Job Orders</div></div></div><div className="mt-3 space-y-2">{(qc.top_failures || []).slice(0, 4).map((row) => <div key={`${row.qc_name}-${row.product}`} className="flex items-start justify-between gap-3 border-t border-border pt-2 text-xs"><div><div className="font-bold text-text-primary">{row.qc_name}</div><div className="text-text-secondary">{row.product}</div></div><Badge tone="danger">{row.count}</Badge></div>)}</div></div> : <EmptyState title="No required QC check activity" description={`No QC Required: ${Number(qc.no_qc_required || 0)} Job Orders · Metadata unavailable: ${Number(qc.metadata_unavailable_jobs || 0)} Job Orders`} />}
               </Card> : null}
             </div>
 
@@ -11910,7 +11925,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           stockItems={modal.stockType === "raw" ? data.rawMaterials : data.finishedGoods}
           rawMaterialCategories={data.rawMaterialCategories}
           finishedGoodCategories={data.finishedGoodCategories}
-          existingChecks={modal.stockType === "raw" ? data.rawStockChecks : data.productStockChecks}
+          existingChecks={modal.stockType === "raw"
+            ? currentListingRows("raw-stock-checks", [])
+            : currentListingRows("product-stock-checks", [])}
           onClose={() => setModal(null)}
           onSave={(form) => saveStockCheck(modal.stockType, form)}
         />

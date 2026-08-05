@@ -808,7 +808,25 @@ function normalizeStockCheckItem(row, stockType) {
   };
 }
 
+function mapStockCheckEmployee(employee) {
+  const value = Array.isArray(employee) ? employee[0] : employee;
+  if (!value?.id) return null;
+  return {
+    id: value.id,
+    nickname: value.nickname || "",
+    full_name: value.full_name || "",
+    email: value.email || "",
+  };
+}
+
+function stockCheckEmployeeName(employee) {
+  return employee?.nickname || employee?.full_name || employee?.email || "";
+}
+
 function mapStockCheck(row, stockType) {
+  const createdByEmployee = mapStockCheckEmployee(row.created_by_employee);
+  const submittedByEmployee = mapStockCheckEmployee(row.submitted_by_employee);
+  const approvedByEmployee = mapStockCheckEmployee(row.approved_by_employee);
   return {
     id: row.id,
     check_no: row.check_no || "",
@@ -818,10 +836,15 @@ function mapStockCheck(row, stockType) {
     status: row.status || "draft",
     notes: row.notes || "",
     created_by: row.created_by || "",
-    created_by_name: row.creator?.nickname || row.creator?.full_name || row.created_by || "",
+    created_by_employee: createdByEmployee,
+    created_by_name: stockCheckEmployeeName(createdByEmployee),
     submitted_by: row.submitted_by || "",
+    submitted_by_employee: submittedByEmployee,
+    submitted_by_name: stockCheckEmployeeName(submittedByEmployee),
     submitted_at: row.submitted_at || "",
     approved_by: row.approved_by || "",
+    approved_by_employee: approvedByEmployee,
+    approved_by_name: stockCheckEmployeeName(approvedByEmployee),
     approved_at: row.approved_at || "",
     created_at: row.created_at,
     updated_at: row.updated_at,
@@ -1091,6 +1114,8 @@ const sopSelect = `id,sop_code,title,product_name,finished_good_id,recipe_id,rec
 const sopStepSelect = "id,sop_id,step_no,instruction,process_name,description,control_point,qc_label,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,qc_measurement_type,qc_target_value,qc_minimum,qc_maximum,qc_uom,qc_required_before_completion,safety_note,remarks,created_at,updated_at";
 const sopSubStepSelect = "id,sop_step_id,sequence_no,instruction,estimated_minutes,remarks,created_at,updated_at";
 const sopQcCheckSelect = "id,sop_step_id,sequence_no,qc_type,checklist_template_id,qc_name,instructions,is_required,created_at,updated_at,checklist_template:factory_qc_checklist_templates(name,result_mode)";
+const rawMaterialStockCheckSelect = `id,check_no,check_date,category_id,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at,created_by_employee:employees!factory_raw_material_stock_checks_created_by_fkey(id,nickname,full_name,email),submitted_by_employee:employees!factory_raw_material_stock_checks_submitted_by_fkey(id,nickname,full_name,email),approved_by_employee:employees!factory_raw_material_stock_checks_approved_by_fkey(id,nickname,full_name,email),category:factory_raw_material_categories(name),items:factory_raw_material_stock_check_items(id,stock_check_id,raw_material_id,system_qty,physical_qty,variance_qty,variance_percent,count_status,variance_status,variance_reason,uom,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`;
+const productStockCheckSelect = `id,check_no,check_date,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at,created_by_employee:employees!factory_product_stock_checks_created_by_fkey(id,nickname,full_name,email),submitted_by_employee:employees!factory_product_stock_checks_submitted_by_fkey(id,nickname,full_name,email),approved_by_employee:employees!factory_product_stock_checks_approved_by_fkey(id,nickname,full_name,email),items:factory_product_stock_check_items(id,stock_check_id,finished_good_id,system_qty,physical_qty,variance_qty,variance_percent,variance_status,variance_reason,uom,adjustment_storage_location_id,created_at,updated_at,finished_good:factory_finished_goods(product_name,uom),batch_allocations:factory_product_stock_check_batch_adjustments(id,batch_balance_id,quantity,batch:factory_finished_good_batch_balances(batch_no,manufacturing_date,expiry_date,storage_location_id,storage_location,storage_location_type,storage_location_ref:factory_storage_locations(location_name,location_type,status))))`;
 const jobOrderSelect = `id,job_order_no,finished_good_id,product_name,target_pack_qty,target_production_qty,target_quantity,produced_quantity,uom,planned_date,due_date,priority,status,assigned_team,remarks,created_by,released_at,released_by,started_at,started_by,production_operator_id,production_operator_name,production_date,start_time,production_sop_id,sop_version,qc_snapshot_created_at,completed_at,completed_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),step_executions:factory_production_step_executions(id,job_order_id,production_id,production_sop_id,sop_step_id,step_no,step_name,description,sub_steps,status,completed_by,completed_at,qc_results:factory_production_qc_results(id,job_order_id,production_id,production_step_execution_id,sop_qc_check_id,sequence_no,qc_type,qc_name,instructions,is_required,checklist_result,remarks,checked_by,checked_by_name,checked_at))`;
 const productionSelectBasic = `id,job_order_id,finished_good_id,production_no,product_name,batch_no,actual_pack_qty,actual_output_qty,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,manufacturing_date,end_date,expiry_date,storage_location_id,shelf_life_days_snapshot,expiry_override_reason,operator_id,operator_name,start_time,end_time,qc_status,production_sop_id,sop_version,status,notes,created_by,completed_at,created_at,updated_at,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),finished_good:factory_finished_goods(${finishedGoodSelect}),job_order:factory_job_orders(job_order_no,finished_good_id,product_name,target_pack_qty,target_production_qty,finished_good:factory_finished_goods(product_code,product_name,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,shelf_life_days))`;
 const productionSelectDetailed = `${productionSelectBasic},material_usage:factory_production_material_usage(id,production_id,raw_material_id,raw_material_receiving_id,raw_material_lot_no,quantity_used,standard_usage,actual_usage,variance_qty,variance_percent,variance_reason,uom,wastage_quantity,notes,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect}),raw_receiving:factory_raw_material_receivings(receipt_no,batch_no,supplier_name,received_date,unit_cost)),qc_checkpoints:factory_production_qc_checkpoints(id,production_id,production_sop_id,sop_step_id,step_no,process_name,control_point,qc_status,notes,created_at,updated_at),step_executions:factory_production_step_executions(id,job_order_id,production_id,production_sop_id,sop_step_id,step_no,step_name,description,sub_steps,status,completed_by,completed_at,qc_results:factory_production_qc_results(id,job_order_id,production_id,production_step_execution_id,sop_qc_check_id,sequence_no,qc_type,qc_name,instructions,is_required,checklist_result,remarks,checked_by,checked_by_name,checked_at))`;
@@ -1380,8 +1405,6 @@ function factoryDataPlan(scope, hasPermission) {
     productFamilies: (isFinishedGoods && can("factory_finished_goods.view")) || (isProductRecipes && (can("factory_product_recipes.view") || can("factory_product_recipes.create") || can("factory_product_recipes.edit") || can("factory_product_recipes.manage"))) || (isProductionSop && (can("factory_production_sop.view") || can("factory_production_sop.create") || can("factory_production_sop.edit") || can("factory_production_sop.manage"))) || (isJobOrders && (can("factory_job_orders.view") || can("factory_job_orders.create") || can("factory_job_orders.edit"))) || (isProduction && (can("factory_product_recipes.view") || can("factory_production.complete"))),
     productMovements: ((isProduction || isProductMovements) && can("factory_product_movements.view")) || (isFinishedGoods && can("factory_finished_goods.view")) || (isFinishedGoodsDispatch && can("factory_finished_goods_dispatch.view")) || (isReports && can("factory_product_movements.view")),
     finishedGoodDispatches: isFinishedGoodsDispatch && can("factory_finished_goods_dispatch.view"),
-    rawStockChecks: (isRawInventory && can("factory_raw_inventory.view")) || (isRawStockCheck && can("factory_raw_stock_check.view")),
-    productStockChecks: isProductStockCheck && can("factory_product_stock_check.view"),
     recipes: (isRawInventory && can("factory_raw_inventory.view")) || (isProductRecipes && can("factory_product_recipes.view")) || (isProductionSop && (can("factory_production_sop.view") || can("factory_production_sop.create") || can("factory_production_sop.edit") || can("factory_production_sop.manage"))) || (isJobOrders && can("factory_product_recipes.view")) || (isProductionPlanning && can("factory_product_recipes.view")) || (isProduction && (can("factory_product_recipes.view") || can("factory_production.complete"))) || (isReports && can("factory_production_reports.view")),
     recipeSummaries: isFinishedGoods && can("factory_product_recipes.view"),
     sops: (isProduction || isProductionSop || isJobOrders)
@@ -1507,16 +1530,6 @@ export const factoryService = {
       .select(finishedGoodDispatchSelect)
       .order("dispatch_date", { ascending: false })
       .limit(150), (rows) => rows.map(mapFinishedGoodDispatch));
-    addTask(plan.rawStockChecks, "rawStockChecks", "Raw Material Stock Check", () => supabase
-      .from("factory_raw_material_stock_checks")
-      .select(`id,check_no,check_date,category_id,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at,creator:employees(nickname,full_name),category:factory_raw_material_categories(name),items:factory_raw_material_stock_check_items(id,stock_check_id,raw_material_id,system_qty,physical_qty,variance_qty,variance_percent,count_status,variance_status,variance_reason,uom,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
-      .order("check_date", { ascending: false })
-      .limit(100), (rows) => rows.map((row) => mapStockCheck(row, "raw")));
-    addTask(plan.productStockChecks, "productStockChecks", "Product Stock Check", () => supabase
-      .from("factory_product_stock_checks")
-      .select("id,check_no,check_date,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at,creator:employees(nickname,full_name),items:factory_product_stock_check_items(id,stock_check_id,finished_good_id,system_qty,physical_qty,variance_qty,variance_percent,variance_status,variance_reason,uom,adjustment_storage_location_id,created_at,updated_at,finished_good:factory_finished_goods(product_name,uom),batch_allocations:factory_product_stock_check_batch_adjustments(id,batch_balance_id,quantity,batch:factory_finished_good_batch_balances(batch_no,manufacturing_date,expiry_date,storage_location_id,storage_location,storage_location_type,storage_location_ref:factory_storage_locations(location_name,location_type,status))))")
-      .order("check_date", { ascending: false })
-      .limit(100), (rows) => rows.map((row) => mapStockCheck(row, "product")));
     addCompleteLoaderTask(plan.recipes, "recipes", "Product Recipes", () => loadRecipeRows({ signal }), (rows) => rows.map(mapRecipe));
     addCompleteLoaderTask(!plan.recipes && plan.recipeSummaries, "recipes", "Active Production Standard Summary", () => loadRecipeRows({ summaryOnly: true, signal }), (rows) => rows.map(mapRecipe));
     addCompleteLoaderTask(plan.sops, "sops", "Production SOP", () => loadProductionSopRows({ signal }), (rows) => rows.map(mapProductionSop));
@@ -1795,8 +1808,8 @@ export const factoryService = {
     } else if (listing === "raw-stock-checks" || listing === "product-stock-checks") {
       const raw = listing === "raw-stock-checks";
       query = raw
-        ? supabase.from("factory_raw_material_stock_checks").select(`id,check_no,check_date,category_id,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at,creator:employees(nickname,full_name),category:factory_raw_material_categories(name),items:factory_raw_material_stock_check_items(id,stock_check_id,raw_material_id,system_qty,physical_qty,variance_qty,variance_percent,count_status,variance_status,variance_reason,uom,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`, { count: "exact" })
-        : supabase.from("factory_product_stock_checks").select("id,check_no,check_date,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at,creator:employees(nickname,full_name),items:factory_product_stock_check_items(id,stock_check_id,finished_good_id,system_qty,physical_qty,variance_qty,variance_percent,variance_status,variance_reason,uom,adjustment_storage_location_id,created_at,updated_at,finished_good:factory_finished_goods(product_name,uom),batch_allocations:factory_product_stock_check_batch_adjustments(id,batch_balance_id,quantity,batch:factory_finished_good_batch_balances(batch_no,manufacturing_date,expiry_date,storage_location_id,storage_location,storage_location_type,storage_location_ref:factory_storage_locations(location_name,location_type,status))))", { count: "exact" });
+        ? supabase.from("factory_raw_material_stock_checks").select(rawMaterialStockCheckSelect, { count: "exact" })
+        : supabase.from("factory_product_stock_checks").select(productStockCheckSelect, { count: "exact" });
       query = query.order("check_date", { ascending: false }).order("created_at", { ascending: false }).order("id", { ascending: false });
       mapper = (rows) => rows.map((row) => mapStockCheck(row, raw ? "raw" : "product"));
     } else if (listing === "job-orders") {
