@@ -156,6 +156,7 @@ export function useFactoryPagedQuery({ storageKey, enabled = true, querySignatur
     return {
       rows: [],
       summary: {},
+      summaryError: "",
       requestedPage: 1,
       requestedPageSize: pageSize,
       loadedPage: 1,
@@ -171,6 +172,9 @@ export function useFactoryPagedQuery({ storageKey, enabled = true, querySignatur
     };
   });
   const requestRef = useRef(0);
+  const stateRef = useRef(state);
+  const querySignatureRef = useRef(querySignature);
+  const skipNextLoadKeyRef = useRef("");
   const loadPageRef = useRef(loadPage);
   const onErrorRef = useRef(onError);
   const shouldClearOnErrorRef = useRef(shouldClearOnError);
@@ -179,6 +183,8 @@ export function useFactoryPagedQuery({ storageKey, enabled = true, querySignatur
   onErrorRef.current = onError;
   shouldClearOnErrorRef.current = shouldClearOnError;
   mapErrorRef.current = mapError;
+  stateRef.current = state;
+  querySignatureRef.current = querySignature;
 
   useEffect(() => {
     const pageSize = storedPageSize(storageKey, defaultPageSize);
@@ -186,6 +192,7 @@ export function useFactoryPagedQuery({ storageKey, enabled = true, querySignatur
       ...current,
       rows: [],
       summary: {},
+      summaryError: "",
       requestedPage: 1,
       requestedPageSize: pageSize,
       loadedPage: 1,
@@ -205,6 +212,11 @@ export function useFactoryPagedQuery({ storageKey, enabled = true, querySignatur
   }, [querySignature]);
 
   useEffect(() => {
+    const loadKey = JSON.stringify([querySignature, state.requestedPage, state.requestedPageSize]);
+    if (skipNextLoadKeyRef.current === loadKey) {
+      skipNextLoadKeyRef.current = "";
+      return undefined;
+    }
     if (!enabled) {
       requestRef.current += 1;
       setState((current) => current.loading ? { ...current, loading: false } : current);
@@ -232,6 +244,7 @@ export function useFactoryPagedQuery({ storageKey, enabled = true, querySignatur
           ...current,
           rows: Array.isArray(payload.rows) ? payload.rows : [],
           summary: payload.summary && typeof payload.summary === "object" ? payload.summary : {},
+          summaryError: payload.summaryError ? "Unable to load summary." : "",
           requestedPage: page,
           requestedPageSize: pageSize,
           loadedPage: page,
@@ -255,6 +268,7 @@ export function useFactoryPagedQuery({ storageKey, enabled = true, querySignatur
               ...current,
               rows: [],
               summary: {},
+              summaryError: "",
               loadedTotal: 0,
               loadedQuerySignature: "",
               loadedStorageKey: "",
@@ -287,12 +301,104 @@ export function useFactoryPagedQuery({ storageKey, enabled = true, querySignatur
     retry() {
       setState((current) => ({ ...current, retryToken: current.retryToken + 1 }));
     },
+    updateLoadedSnapshot(updater) {
+      requestRef.current += 1;
+      setState((current) => {
+        if (!current.hasLoaded || typeof updater !== "function") return current;
+        const update = updater({
+          rows: current.rows,
+          summary: current.summary,
+          total: current.loadedTotal,
+          page: current.loadedPage,
+          pageSize: current.loadedPageSize,
+        }) || {};
+        return {
+          ...current,
+          rows: Array.isArray(update.rows) ? update.rows : current.rows,
+          summary: update.summary && typeof update.summary === "object" ? update.summary : current.summary,
+          loadedTotal: update.total == null ? current.loadedTotal : nonNegativeTotal(update.total),
+          loading: false,
+          error: "",
+          errorKind: "",
+        };
+      });
+    },
+    async refreshNow({ page, pageSize, errorMessage = "Unable to load the latest records." } = {}) {
+      const snapshot = stateRef.current;
+      const refreshSignature = querySignatureRef.current;
+      const pageLoader = loadPageRef.current;
+      let targetPage = positivePage(page ?? snapshot.loadedPage ?? snapshot.requestedPage);
+      const targetPageSize = validPageSize(pageSize ?? snapshot.loadedPageSize ?? snapshot.requestedPageSize, defaultPageSize);
+      const requestId = requestRef.current + 1;
+      requestRef.current = requestId;
+      setState((current) => ({ ...current, loading: true }));
+      try {
+        let result = await pageLoader({ page: targetPage, pageSize: targetPageSize });
+        if (requestRef.current !== requestId || querySignatureRef.current !== refreshSignature) return null;
+        let payload = result && typeof result === "object" ? result : {};
+        let totalCount = nonNegativeTotal(payload.totalCount);
+        const normalizedPageSize = validPageSize(payload.pageSize, targetPageSize);
+        const lastPage = Math.max(1, Math.ceil(totalCount / normalizedPageSize));
+        if (targetPage > lastPage) {
+          targetPage = lastPage;
+          result = await pageLoader({ page: targetPage, pageSize: normalizedPageSize });
+          if (requestRef.current !== requestId || querySignatureRef.current !== refreshSignature) return null;
+          payload = result && typeof result === "object" ? result : {};
+          totalCount = nonNegativeTotal(payload.totalCount);
+        }
+        const loadedPage = positivePage(payload.page || targetPage);
+        const loadedPageSize = validPageSize(payload.pageSize, normalizedPageSize);
+        if (snapshot.requestedPage !== loadedPage || snapshot.requestedPageSize !== loadedPageSize) {
+          skipNextLoadKeyRef.current = JSON.stringify([refreshSignature, loadedPage, loadedPageSize]);
+        }
+        setState((current) => ({
+          ...current,
+          rows: Array.isArray(payload.rows) ? payload.rows : [],
+          summary: payload.summary && typeof payload.summary === "object" ? payload.summary : {},
+          summaryError: payload.summaryError ? "Unable to load summary." : "",
+          requestedPage: loadedPage,
+          requestedPageSize: loadedPageSize,
+          loadedPage,
+          loadedPageSize,
+          loadedTotal: totalCount,
+          loadedQuerySignature: refreshSignature,
+          loadedStorageKey: storageKey,
+          hasLoaded: true,
+          loading: false,
+          error: "",
+          errorKind: "",
+        }));
+        return payload;
+      } catch (error) {
+        if (requestRef.current !== requestId || querySignatureRef.current !== refreshSignature) return null;
+        const mappedError = mapErrorRef.current?.(error) || {};
+        const permissionDenied = shouldClearOnErrorRef.current?.(error);
+        const errorKind = mappedError.kind === "permission" ? "permission" : "load";
+        setState((current) => permissionDenied
+          ? {
+              ...current,
+              rows: [],
+              summary: {},
+              summaryError: "",
+              loadedTotal: 0,
+              loadedQuerySignature: "",
+              loadedStorageKey: "",
+              hasLoaded: false,
+              loading: false,
+              error: mappedError.message || "Some data is hidden by your current role.",
+              errorKind,
+            }
+          : { ...current, loading: false, error: errorMessage, errorKind });
+        throw error;
+      }
+    },
     clearForPermission(message = "Some data is hidden by your current role.") {
       requestRef.current += 1;
       setState((current) => ({
         ...current,
         rows: [],
         summary: {},
+        summaryError: "",
         loadedTotal: 0,
         loadedQuerySignature: "",
         loadedStorageKey: "",
@@ -309,6 +415,7 @@ export function useFactoryPagedQuery({ storageKey, enabled = true, querySignatur
         ...state,
         rows: [],
         summary: {},
+        summaryError: "",
         loadedTotal: 0,
         loadedQuerySignature: "",
         loadedStorageKey: "",

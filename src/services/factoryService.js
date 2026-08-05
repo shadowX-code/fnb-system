@@ -1888,7 +1888,13 @@ export const factoryService = {
       supabase.rpc("factory_listing_summary", summaryParams),
     ]);
     throwSupabaseError(`factory.${listing}.page`, pageResult.error);
-    throwSupabaseError(`factory.${listing}.summary`, summaryResult.error);
+    const summaryError = summaryResult.error || null;
+    if (summaryError && listing !== "dispatch-history") {
+      throwSupabaseError(`factory.${listing}.summary`, summaryError);
+    }
+    if (summaryError) {
+      console.error("[Factory] Unable to load Finished Goods Dispatch summary.", summaryError);
+    }
     let rows = mapper(pageResult.data || []);
     if (listing === "dispatch-history" && rows.length) {
       const { data: allocationData, error: allocationError } = await supabase.rpc("factory_get_finished_good_dispatch_allocation_details", {
@@ -1925,7 +1931,8 @@ export const factoryService = {
     return {
       rows,
       totalCount: normalizeNumber(pageResult.count),
-      summary: summaryResult.data || {},
+      summary: summaryError ? {} : summaryResult.data || {},
+      summaryError,
       page: normalizedPage,
       pageSize: normalizedPageSize,
     };

@@ -8345,7 +8345,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         pageSize: factoryListingPage.loadedPageSize,
         errorMessage: "Dispatch was updated, but the latest list could not be refreshed.",
       });
-      if (refreshed) setDispatchCustomersTodayUpdating(false);
+      if (refreshed) setDispatchCustomersTodayUpdating(Boolean(refreshed.summaryError));
     } catch (refreshError) {
       console.error(`[Factory] Finished Goods Dispatch ${reason} succeeded but listing refresh failed.`, refreshError);
       if (isFactoryPermissionError(refreshError)) {
@@ -11563,6 +11563,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   function renderFinishedGoodsDispatch() {
     const dispatchSnapshotReady = factoryListingPage.hasLoaded;
+    const dispatchSummaryReady = dispatchSnapshotReady && !factoryListingPage.summaryError;
     const dispatchRows = dispatchSnapshotReady ? factoryListingPage.rows : [];
     const customersTodayUpdating = dispatchCustomersTodayUpdating;
     const renderDispatchActions = (row) => (
@@ -11592,10 +11593,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           description="Record outbound Packaging SKU dispatches to customers or outlets. Completion creates finished goods stock-out movements."
         />
         <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={ClipboardCheck} label="Draft" value={dispatchSnapshotReady ? Number(factoryListingPage.summary.draft || 0) : "—"} helper="Awaiting completion" tone={dispatchSnapshotReady && Number(factoryListingPage.summary.draft || 0) ? "warning" : "success"} />
-          <MetricCard icon={CheckCircle2} label="Completed Today" value={dispatchSnapshotReady ? Number(factoryListingPage.summary.completed_today || 0) : "—"} helper="Finished dispatches" tone="success" />
-          <MetricCard icon={PackageCheck} label="Dispatched Today" value={dispatchSnapshotReady ? Number(factoryListingPage.summary.completed_today || 0) : "—"} helper="Completed dispatch records" />
-          <MetricCard icon={Truck} label="Customers Today" value={dispatchSnapshotReady && !customersTodayUpdating ? Number(factoryListingPage.summary.customers_today || 0) : "—"} helper={customersTodayUpdating ? "Updating…" : "Unique dispatch customers"} />
+          <MetricCard icon={ClipboardCheck} label="Draft" value={dispatchSummaryReady ? Number(factoryListingPage.summary.draft || 0) : "—"} helper={dispatchSummaryReady ? "Awaiting completion" : "Updating…"} tone={dispatchSummaryReady && Number(factoryListingPage.summary.draft || 0) ? "warning" : "success"} />
+          <MetricCard icon={CheckCircle2} label="Completed Today" value={dispatchSummaryReady ? Number(factoryListingPage.summary.completed_today || 0) : "—"} helper={dispatchSummaryReady ? "Finished dispatches" : "Updating…"} tone="success" />
+          <MetricCard icon={PackageCheck} label="Dispatched Today" value={dispatchSummaryReady ? Number(factoryListingPage.summary.completed_today || 0) : "—"} helper={dispatchSummaryReady ? "Completed dispatch records" : "Updating…"} />
+          <MetricCard icon={Truck} label="Customers Today" value={dispatchSummaryReady && !customersTodayUpdating ? Number(factoryListingPage.summary.customers_today || 0) : "—"} helper={!dispatchSummaryReady || customersTodayUpdating ? "Updating…" : "Unique dispatch customers"} />
         </div>
         {dispatchTab === "history" ? dispatchHistoryFilterControls() : null}
         <Card title="Finished Goods Dispatch" description="Create drafts first, then complete them to deduct Packaging SKU stock and create Product Movement rows.">
