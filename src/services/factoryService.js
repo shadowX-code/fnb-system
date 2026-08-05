@@ -1867,7 +1867,7 @@ export const factoryService = {
     };
   },
 
-  async saveJobOrder(order, employeeId) {
+  async saveJobOrder(order) {
     const isUpdate = Boolean(order.id);
     let finishedGood = null;
     if (order.finished_good_id) {
@@ -1913,85 +1913,55 @@ export const factoryService = {
         .eq("id", order.id)
         .single();
       throwSupabaseError("factory.job_order.current", currentError);
-      if (current?.status !== "draft") throw new Error("Only Draft Job Orders can be edited. Use lifecycle actions for released, in-progress, completed or cancelled Job Orders.");
+      if (!["draft", "planned"].includes(current?.status)) throw new Error("Only Draft or Planned Job Orders can be edited. Use lifecycle actions for released, in-progress, completed or cancelled Job Orders.");
     }
 
     const payload = {
       finished_good_id: finishedGood.id,
-      product_name: finishedGood.product_name,
       target_pack_qty: productionPlan.target_pack_qty,
       target_production_qty: productionPlan.target_production_qty,
       target_quantity: productionPlan.target_production_qty,
-      produced_quantity: normalizeNumber(order.produced_quantity),
       uom: productionPlan.production_uom,
       planned_date: order.planned_date || null,
       due_date: order.due_date || null,
       priority: order.priority || "Normal",
-      status: order.status || "draft",
       assigned_team: order.assigned_team || "",
       remarks: order.remarks || "",
-      updated_at: new Date().toISOString(),
     };
     if (payload.target_production_qty <= 0) throw new Error("Target Production Qty must be greater than 0.");
     if (payload.target_pack_qty <= 0) throw new Error("Estimated Pack Qty must be greater than 0.");
-    if (!isUpdate) {
-      const { data: createdRows, error: createError } = await supabase.rpc("factory_create_job_order", {
-        p_finished_good_id: finishedGood.id,
-        p_target_quantity: payload.target_quantity,
-        p_target_pack_qty: payload.target_pack_qty,
-        p_target_production_qty: payload.target_production_qty,
-        p_uom: payload.uom,
-        p_planned_date: payload.planned_date,
-        p_due_date: payload.due_date,
-        p_priority: payload.priority,
-        p_assigned_team: payload.assigned_team,
-        p_remarks: payload.remarks,
-        p_created_by: employeeId || null,
-      });
-      throwSupabaseError("factory.job_order.create_rpc", createError);
-      const created = Array.isArray(createdRows) ? createdRows[0] : createdRows;
-      if (!created?.id) throw new Error("Job Order reference was not returned.");
-      const { data, error } = await supabase
-        .from("factory_job_orders")
-        .select(jobOrderSelect)
-        .eq("id", created.id)
-        .single();
-      throwSupabaseError("factory.job_order.fetch_created", error);
-      await logFactoryAction({
-        action: "factory_job_order_created",
-        target: data.job_order_no,
-        description: "Factory job order draft created.",
-        after: data,
-      });
-      return mapJobOrder(data);
-    }
+    const { data: savedRows, error: saveError } = await supabase.rpc("factory_save_job_order_structure", {
+      p_job_order_id: order.id || null,
+      p_finished_good_id: payload.finished_good_id,
+      p_target_quantity: payload.target_quantity,
+      p_target_pack_qty: payload.target_pack_qty,
+      p_target_production_qty: payload.target_production_qty,
+      p_uom: payload.uom,
+      p_planned_date: payload.planned_date,
+      p_due_date: payload.due_date,
+      p_priority: payload.priority,
+      p_assigned_team: payload.assigned_team,
+      p_remarks: payload.remarks,
+    });
+    throwSupabaseError("factory.job_order.save_structure", saveError);
+    const saved = Array.isArray(savedRows) ? savedRows[0] : savedRows;
+    if (!saved?.job_order_id) throw new Error("Job Order reference was not returned.");
 
     const { data, error } = await supabase
       .from("factory_job_orders")
-      .update(payload)
-      .eq("id", order.id)
       .select(jobOrderSelect)
+      .eq("id", saved.job_order_id)
       .single();
-    throwSupabaseError("factory.job_order.save", error);
-    await logFactoryAction({
-      action: isUpdate ? "factory_job_order_updated" : "factory_job_order_created",
-      target: data.job_order_no,
-      description: isUpdate ? "Factory job order updated." : "Factory job order created.",
-      after: data,
-    });
+    throwSupabaseError("factory.job_order.fetch_saved", error);
     return mapJobOrder(data);
   },
 
   async deleteJobOrder(order) {
     if (order.status !== "draft") throw new Error("Only Draft Job Orders can be deleted.");
-    const { error } = await supabase.from("factory_job_orders").delete().eq("id", order.id).eq("status", "draft");
-    throwSupabaseError("factory.job_order.delete", error);
-    await logFactoryAction({
-      action: "factory_job_order_deleted",
-      target: order.job_order_no || order.product_name,
-      description: "Factory job order deleted.",
-      before: order,
+    const { error } = await supabase.rpc("factory_delete_job_order_draft", {
+      p_job_order_id: order.id,
     });
+    throwSupabaseError("factory.job_order.delete", error);
   },
 
   async releaseJobOrder(order) {

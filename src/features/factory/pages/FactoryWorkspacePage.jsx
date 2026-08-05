@@ -3586,7 +3586,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
   );
 }
 
-function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes = [], jobOrders = [], onClose, onSave }) {
+function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes = [], jobOrders = [], readOnly = false, onClose, onSave }) {
   const initialSku = finishedGoods.find((product) => product.id === initialValue?.finished_good_id);
   const initialParentKey = initialSku ? finishedGoodParentKey(initialSku) : "";
   const [form, setForm] = useState(() => ({
@@ -3608,9 +3608,9 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
   }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
-  const normalizedStatus = form.status;
-  const isDraft = normalizedStatus === "draft";
-  const isReadOnly = Boolean(initialValue?.id) && !isDraft;
+  const normalizedStatus = String(form.status || "draft").toLowerCase();
+  const isPlanningStatus = ["draft", "planned"].includes(normalizedStatus);
+  const isReadOnly = readOnly || (Boolean(initialValue?.id) && !isPlanningStatus);
   const activeFinishedGoods = finishedGoods.filter((product) => product.status === "active" || product.id === form.finished_good_id);
   const finishedGoodParents = Array.from(activeFinishedGoods.reduce((map, product) => {
     const key = finishedGoodParentKey(product);
@@ -3726,7 +3726,7 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
       footer={(
         <>
           <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>{isReadOnly ? "Close" : "Cancel"}</button>
-          {!isReadOnly ? <button className="btn-primary" type="submit" form="factory-job-order-form" disabled={saving}>{saving ? "Saving..." : "Save Draft"}</button> : null}
+          {!isReadOnly ? <button className="btn-primary" type="submit" form="factory-job-order-form" disabled={saving}>{saving ? "Saving..." : initialValue?.id ? "Save Changes" : form.planned_date ? "Schedule Job Order" : "Save Draft"}</button> : null}
         </>
       )}
     >
@@ -6802,7 +6802,7 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
   const isLocked = ["submitted", "approved"].includes(form.status);
   const categorySource = isRaw ? rawMaterialCategories : finishedGoodCategories;
   const categoryOptions = [
-    ...(isRaw ? [] : [{ value: "", label: "All Categories", helper: "Show all Packaging SKUs" }]),
+    ...(isRaw ? [] : [{ value: "", label: "All", helper: "Show all Packaging SKUs" }]),
     ...categorySource
     .filter((category) => category.status === "active" || category.id === form.category_id)
       .map((category) => ({ value: category.id, label: category.name, helper: category.status })),
@@ -6880,7 +6880,7 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
               <SearchableSelect
                 value={form.category_id || ""}
                 options={categoryOptions}
-                placeholder={isRaw ? "Select category" : "All Categories"}
+                placeholder={isRaw ? "Select category" : "All"}
                 searchPlaceholder="Search categories"
                 emptyText={isRaw ? "No raw material categories" : "No finished good categories"}
                 error={submitAttempted && !form.category_id}
@@ -7565,7 +7565,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   async function saveJobOrder(form) {
     try {
-      await factoryService.saveJobOrder(form, auth?.profile?.id);
+      await factoryService.saveJobOrder(form);
       ui?.notify?.({ title: form.id ? "Job order updated" : "Job order created", tone: "success" });
       setModal(null);
       await loadData();
@@ -8322,7 +8322,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         {row.status === "released" && can("factory_production.complete") ? (
           <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "start-production", job: row })}><Play size={13} /> Start Production</button>
         ) : null}
-        {row.status === "planned" ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "job", value: row })}>View</button> : null}
+        {["planned", "released"].includes(row.status) ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "job", value: row, readOnly: true })}>View</button> : null}
+        {row.status === "planned" && can("factory_job_orders.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "job", value: row, readOnly: false })}>Edit</button> : null}
         {["planned", "released"].includes(row.status) && can("factory_job_orders.cancel") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => cancelJobOrder(row)}>Cancel</button> : null}
         {row.status === "in_progress" && (can("factory_production.view") || can("factory_production.complete")) ? (
           <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production-process", job: row, readOnly: !can("factory_production.complete") })}>View Process</button>
@@ -8330,9 +8331,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         {row.status === "in_progress" && can("factory_production.complete") ? (
           <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production", job: row })}>Complete</button>
         ) : null}
-        {row.status === "draft" && can("factory_job_orders.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "job", value: row })}>Edit</button> : null}
+        {row.status === "draft" && can("factory_job_orders.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "job", value: row, readOnly: false })}>Edit</button> : null}
         {row.status === "completed" ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => viewCompletedJobOrder(row)}>View</button> : null}
-        {row.status === "cancelled" ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "job", value: row })}>View</button> : null}
+        {row.status === "cancelled" ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "job", value: row, readOnly: true })}>View</button> : null}
         {row.status === "draft" && can("factory_job_orders.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => deleteJobOrder(row)}>Delete</button> : null}
       </div>
     ) },
@@ -8651,7 +8652,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   function finishedGoodFilterControls() {
     const categoryOptions = data.finishedGoodCategories.map((category) => ({ value: category.id, label: category.name, helper: "Category" }));
     const statusOptions = [
-      { value: "", label: "All Status" },
+      { value: "", label: "All" },
       { value: "active", label: "Active" },
       { value: "archived", label: "Archived" },
       { value: "out_of_stock", label: "Out of Stock" },
@@ -8664,8 +8665,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Field label="Category">
           <SearchableSelect
             value={warehouseFilters.category}
-            options={[{ value: "", label: "All Categories", helper: "No category filter" }, ...categoryOptions]}
-            placeholder="All Categories"
+            options={[{ value: "", label: "All", helper: "No category filter" }, ...categoryOptions]}
+            placeholder="All"
             searchPlaceholder="Search categories"
             emptyText="No matching categories"
             onChange={(category) => setWarehouseFilters((current) => ({ ...current, category }))}
@@ -8675,7 +8676,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <SearchableSelect
             value={warehouseFilters.status}
             options={statusOptions}
-            placeholder="All Status"
+            placeholder="All"
             searchPlaceholder="Search status"
             emptyText="No matching status"
             onChange={(status) => setWarehouseFilters((current) => ({ ...current, status }))}
@@ -8745,7 +8746,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     });
     const categoryOptions = [...categoryMap.entries()].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
     const statusOptions = [
-      { value: "", label: "All Status" },
+      { value: "", label: "All" },
       { value: "Healthy", label: "Healthy" },
       { value: "Low Stock", label: "Low Stock" },
       { value: "Out of Stock", label: "Out of Stock" },
@@ -8759,8 +8760,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Field label="Category">
           <SearchableSelect
             value={productionPlanningFilters.category}
-            options={[{ value: "", label: "All Categories" }, ...categoryOptions]}
-            placeholder="All Categories"
+            options={[{ value: "", label: "All" }, ...categoryOptions]}
+            placeholder="All"
             searchPlaceholder="Search categories"
             emptyText="No matching categories"
             onChange={(category) => setProductionPlanningFilters((current) => ({ ...current, category }))}
@@ -8770,7 +8771,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <SearchableSelect
             value={productionPlanningFilters.status}
             options={statusOptions}
-            placeholder="All Status"
+            placeholder="All"
             searchPlaceholder="Search status"
             emptyText="No matching status"
             onChange={(status) => setProductionPlanningFilters((current) => ({ ...current, status }))}
@@ -9016,8 +9017,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Field label="Category">
           <SearchableSelect
             value={warehouseFilters.category}
-            options={[{ value: "", label: "All Categories" }, ...categories.map((category) => ({ value: category.id, label: category.name }))]}
-            placeholder="All Categories"
+            options={[{ value: "", label: "All" }, ...categories.map((category) => ({ value: category.id, label: category.name }))]}
+            placeholder="All"
             searchPlaceholder="Search categories"
             onChange={(category) => updateProductMovementFilters({ category })}
           />
@@ -9025,8 +9026,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Field label="Movement Type">
           <SearchableSelect
             value={warehouseFilters.movementType}
-            options={[{ value: "", label: "All Movements" }, ...movementTypes.map((type) => ({ value: type, label: type }))]}
-            placeholder="All Movements"
+            options={[{ value: "", label: "All" }, ...movementTypes.map((type) => ({ value: type, label: type }))]}
+            placeholder="All"
             searchPlaceholder="Search movements"
             onChange={(movementType) => updateProductMovementFilters({ movementType })}
           />
@@ -9052,8 +9053,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Field label="Finished Good">
           <SearchableSelect
             value={warehouseFilters.family}
-            options={[{ value: "", label: "All Finished Goods" }, ...data.productFamilies.map((family) => ({ value: family.id, label: family.name_en }))]}
-            placeholder="All Finished Goods"
+            options={[{ value: "", label: "All" }, ...data.productFamilies.map((family) => ({ value: family.id, label: family.name_en }))]}
+            placeholder="All"
             searchPlaceholder="Search finished goods"
             onChange={(family) => setWarehouseFilters((current) => ({ ...current, family }))}
           />
@@ -9061,8 +9062,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Field label="Category">
           <SearchableSelect
             value={warehouseFilters.category}
-            options={[{ value: "", label: "All Categories" }, ...data.finishedGoodCategories.map((category) => ({ value: category.id, label: category.name }))]}
-            placeholder="All Categories"
+            options={[{ value: "", label: "All" }, ...data.finishedGoodCategories.map((category) => ({ value: category.id, label: category.name }))]}
+            placeholder="All"
             searchPlaceholder="Search categories"
             onChange={(category) => setWarehouseFilters((current) => ({ ...current, category }))}
           />
@@ -9071,8 +9072,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <Field label="Status">
             <SearchableSelect
               value={warehouseFilters.status}
-              options={[{ value: "", label: "All Status" }, ...statuses.map((status) => ({ value: status, label: jobStatusLabel(status) }))]}
-              placeholder="All Status"
+              options={[{ value: "", label: "All" }, ...statuses.map((status) => ({ value: status, label: jobStatusLabel(status) }))]}
+              placeholder="All"
               searchPlaceholder="Search status"
               onChange={(status) => setWarehouseFilters((current) => ({ ...current, status }))}
             />
@@ -9084,8 +9085,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Field label="Movement Type">
           <SearchableSelect
             value={warehouseFilters.movementType}
-            options={[{ value: "", label: "All Movements" }, ...movementTypes.map((type) => ({ value: type, label: type }))]}
-            placeholder="All Movements"
+            options={[{ value: "", label: "All" }, ...movementTypes.map((type) => ({ value: type, label: type }))]}
+            placeholder="All"
             searchPlaceholder="Search movements"
             onChange={(movementType) => setWarehouseFilters((current) => ({ ...current, movementType }))}
           />
@@ -9204,8 +9205,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Field label="Raw Material">
           <SearchableSelect
             value={rawMovementFilters.material}
-            options={[{ value: "", label: "All Raw Materials" }, ...materialOptions]}
-            placeholder="All Raw Materials"
+            options={[{ value: "", label: "All" }, ...materialOptions]}
+            placeholder="All"
             searchPlaceholder="Search material"
             emptyText="No matching materials"
             onChange={(material) => setRawMovementFilters((current) => ({ ...current, material }))}
@@ -9214,8 +9215,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Field label="Movement Type">
           <SearchableSelect
             value={rawMovementFilters.movementType}
-            options={[{ value: "", label: "All Movements" }, ...movementTypeOptions]}
-            placeholder="All Movements"
+            options={[{ value: "", label: "All" }, ...movementTypeOptions]}
+            placeholder="All"
             searchPlaceholder="Search movements"
             emptyText="No matching movements"
             onChange={(movementType) => setRawMovementFilters((current) => ({ ...current, movementType }))}
@@ -9224,8 +9225,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Field label="Storage Location">
           <SearchableSelect
             value={rawMovementFilters.storageLocation}
-            options={[{ value: "", label: "All Locations" }, ...storageLocationOptions]}
-            placeholder="All Locations"
+            options={[{ value: "", label: "All" }, ...storageLocationOptions]}
+            placeholder="All"
             searchPlaceholder="Search locations"
             emptyText="No matching locations"
             onChange={(storageLocation) => setRawMovementFilters((current) => ({ ...current, storageLocation }))}
@@ -9274,8 +9275,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Field label="Supplier">
           <SearchableSelect
             value={receivingHistoryFilters.supplier}
-            options={[{ value: "", label: "All Suppliers" }, ...supplierOptions, ...fallbackSupplierOptions]}
-            placeholder="All Suppliers"
+            options={[{ value: "", label: "All" }, ...supplierOptions, ...fallbackSupplierOptions]}
+            placeholder="All"
             searchPlaceholder="Search suppliers"
             emptyText="No matching suppliers"
             onChange={(supplier) => setReceivingHistoryFilters((current) => ({ ...current, supplier }))}
@@ -9325,8 +9326,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Field label="Customer">
           <SearchableSelect
             value={dispatchHistoryFilters.customer}
-            options={[{ value: "", label: "All Customers" }, ...customerOptions, ...fallbackCustomerOptions]}
-            placeholder="All Customers"
+            options={[{ value: "", label: "All" }, ...customerOptions, ...fallbackCustomerOptions]}
+            placeholder="All"
             searchPlaceholder="Search customers"
             emptyText="No matching customers"
             onChange={(customer) => setDispatchHistoryFilters((current) => ({ ...current, customer }))}
@@ -9336,12 +9337,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <SearchableSelect
             value={dispatchHistoryFilters.status}
             options={[
-              { value: "", label: "All Status" },
+              { value: "", label: "All" },
               { value: "draft", label: "Draft" },
               { value: "completed", label: "Completed" },
               { value: "cancelled", label: "Cancelled" },
             ]}
-            placeholder="All Status"
+            placeholder="All"
             searchPlaceholder="Search status"
             emptyText="No matching status"
             onChange={(status) => setDispatchHistoryFilters((current) => ({ ...current, status }))}
@@ -9359,7 +9360,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       ? data.rawMaterialCategories
       : [...new Set(data.rawMaterials.map((row) => row.category).filter(Boolean))].map((name) => ({ id: name, name }));
     const statusOptions = [
-      { value: "", label: "All Status" },
+      { value: "", label: "All" },
       { value: "In Stock", label: "In Stock" },
       { value: "Low Stock", label: "Low Stock" },
       { value: "Out of Stock", label: "Out of Stock" },
@@ -9375,7 +9376,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <SearchableSelect
             value={rawMaterialFilters.status}
             options={statusOptions}
-            placeholder="All Status"
+            placeholder="All"
             searchPlaceholder="Search status"
             emptyText="No matching status"
             onChange={(status) => setRawMaterialFilters((current) => ({ ...current, status }))}
@@ -9384,8 +9385,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Field label="Category">
           <SearchableSelect
             value={rawMaterialFilters.category}
-            options={[{ value: "", label: "All Categories" }, ...categoryOptions]}
-            placeholder="All Categories"
+            options={[{ value: "", label: "All" }, ...categoryOptions]}
+            placeholder="All"
             searchPlaceholder="Search categories"
             emptyText="No matching categories"
             onChange={(category) => setRawMaterialFilters((current) => ({ ...current, category }))}
@@ -9442,8 +9443,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Field label="Module">
           <SearchableSelect
             value={auditLogFilters.module}
-            options={[{ value: "", label: "All Modules" }, ...moduleOptions]}
-            placeholder="All Modules"
+            options={[{ value: "", label: "All" }, ...moduleOptions]}
+            placeholder="All"
             searchPlaceholder="Search modules"
             emptyText="No matching modules"
             onChange={(module) => setAuditLogFilters((current) => ({ ...current, module }))}
@@ -9452,8 +9453,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Field label="Action">
           <SearchableSelect
             value={auditLogFilters.action}
-            options={[{ value: "", label: "All Actions" }, ...actionOptions]}
-            placeholder="All Actions"
+            options={[{ value: "", label: "All" }, ...actionOptions]}
+            placeholder="All"
             searchPlaceholder="Search actions"
             emptyText="No matching actions"
             onChange={(action) => setAuditLogFilters((current) => ({ ...current, action }))}
@@ -9462,8 +9463,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Field label="User">
           <SearchableSelect
             value={auditLogFilters.user}
-            options={[{ value: "", label: "All Users" }, ...userOptions]}
-            placeholder="All Users"
+            options={[{ value: "", label: "All" }, ...userOptions]}
+            placeholder="All"
             searchPlaceholder="Search users"
             emptyText="No matching users"
             onChange={(user) => setAuditLogFilters((current) => ({ ...current, user }))}
@@ -9678,6 +9679,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       reference: job.job_order_no || "—",
       operator: job.production_operator_name || "—",
       detail: "Production start recorded.",
+      statusLabel: "Started",
       tone: "warning",
     }));
     const completedActivities = completedTodayProductions.map((production) => {
@@ -9690,6 +9692,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         reference: production.batch_no || job?.job_order_no || production.production_no || "—",
         operator: production.operator_name || job?.production_operator_name || "—",
         detail: `Actual output: ${productionOutputLabel(production)}`,
+        statusLabel: "Completed",
         tone: "success",
       };
     });
@@ -9713,6 +9716,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         reference: job?.job_order_no || event.entity_reference || "—",
         operator: event.actor_name || job?.production_operator_name || "—",
         detail: hasQcCount ? `${statusLabel} · ${completedCount}/${totalCount} checks` : statusLabel,
+        statusLabel: event.action === "factory_production_qc_passed" ? "Passed" : event.action === "factory_production_qc_failed" ? "Failed" : "Updated",
         tone: eventStyle.tone,
       };
     });
@@ -9720,6 +9724,15 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       .filter((activity) => activity.sortValue > 0)
       .sort((a, b) => b.sortValue - a.sortValue || b.id.localeCompare(a.id))
       .slice(0, 8);
+    const productionActivityColumns = [
+      { key: "date_time", label: "Date & Time", render: (row) => <div className="whitespace-nowrap"><div className="font-semibold text-text-primary">{row.dateLabel}</div><div className="text-xs text-text-muted">{row.timeLabel}</div></div> },
+      { key: "activity", label: "Activity", render: (row) => <div className="font-semibold text-text-primary">{row.label}</div> },
+      { key: "product", label: "Product", render: (row) => <div className="min-w-[150px] font-bold text-text-primary">{row.product}</div> },
+      { key: "reference", label: "JO / Batch Reference", render: (row) => <div className="whitespace-nowrap font-mono text-xs font-bold text-text-secondary">{row.reference}</div> },
+      { key: "operator", label: "Operator", render: (row) => row.operator },
+      { key: "details", label: "Details", render: (row) => <div className="min-w-[180px] text-text-secondary">{row.detail}</div> },
+      { key: "status", label: "Status", render: (row) => <Badge tone={row.tone}>{row.statusLabel}</Badge> },
+    ];
     const overviewCards = [
       { label: "Scheduled", value: operationalJobs.hasLoaded ? Number(operationalJobs.summary.scheduled || 0) : "—", helper: "Scheduled for future production", tone: "border-slate-200 bg-white text-text-primary" },
       { label: "Released", value: operationalJobs.hasLoaded ? Number(operationalJobs.summary.released || 0) : "—", helper: "Ready to start", tone: "border-blue-200 bg-blue-50 text-blue-800" },
@@ -9738,14 +9751,15 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       if (job.status === "planned") {
         return <div className="grid grid-cols-2 gap-2">
           {can("factory_job_orders.edit") ? <button className="btn-primary justify-center px-3 py-2 text-xs" type="button" onClick={() => releaseJobOrder(job)}>Release</button> : null}
-          <button className="btn-secondary justify-center px-3 py-2 text-xs" type="button" onClick={() => setModal({ type: "job", value: job })}>View</button>
-          {can("factory_job_orders.cancel") ? <button className="col-span-2 rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => cancelJobOrder(job)}>Cancel</button> : null}
+          {can("factory_job_orders.edit") ? <button className="btn-secondary justify-center px-3 py-2 text-xs" type="button" onClick={() => setModal({ type: "job", value: job, readOnly: false })}>Edit</button> : null}
+          <button className="btn-secondary justify-center px-3 py-2 text-xs" type="button" onClick={() => setModal({ type: "job", value: job, readOnly: true })}>View</button>
+          {can("factory_job_orders.cancel") ? <button className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => cancelJobOrder(job)}>Cancel</button> : null}
         </div>;
       }
       if (job.status === "released") {
         return <div className="grid grid-cols-2 gap-2">
           {can("factory_production.complete") ? <button className="btn-primary justify-center px-3 py-2 text-xs" type="button" onClick={() => setModal({ type: "start-production", job })}><Play size={13} /> Start</button> : null}
-          <button className="btn-secondary justify-center px-3 py-2 text-xs" type="button" onClick={() => setModal({ type: "job", value: job })}>View</button>
+          <button className="btn-secondary justify-center px-3 py-2 text-xs" type="button" onClick={() => setModal({ type: "job", value: job, readOnly: true })}>View</button>
           {can("factory_job_orders.cancel") ? <button className="col-span-2 rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => cancelJobOrder(job)}>Cancel</button> : null}
         </div>;
       }
@@ -9766,18 +9780,15 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       return (
         <div key={job.id} className="rounded-2xl border border-border bg-white p-4 shadow-sm">
           <div className="flex items-start justify-between gap-3">
-            <div>
-              <div className="font-mono text-xs font-black text-text-primary">{job.job_order_no}</div>
-              <div className="mt-1 text-sm font-bold text-text-primary">{jobFinishedGoodName(job)}</div>
+            <div className="min-w-0 flex-1">
+              <div className="line-clamp-2 text-base font-black leading-5 text-text-primary">{jobFinishedGoodName(job)}</div>
+              <div className="mt-1 line-clamp-2 text-xs font-semibold leading-4 text-text-secondary">{jobPackagingSkuLabel(job)}</div>
+              <div className="mt-2 font-mono text-[11px] font-bold text-text-muted">{job.job_order_no}</div>
             </div>
-            <div className="flex flex-col items-end gap-1.5">
-              <Badge tone={statusTone(job.status)}>{job.status === "planned" ? "Scheduled" : jobStatusLabel(job.status)}</Badge>
+            <div className="flex shrink-0 flex-col items-end gap-1.5">
+              <Badge tone={statusTone(job.status)}>{jobStatusLabel(job.status)}</Badge>
               <Badge tone={jobPriorityTone(job.priority)}>{job.priority || "Normal"}</Badge>
             </div>
-          </div>
-          <div className="mt-3 rounded-xl bg-slate-50 px-3 py-2">
-            <div className="text-[10.5px] font-semibold text-text-muted">Packaging SKU</div>
-            <div className="mt-0.5 text-sm font-bold text-text-primary">{jobPackagingSkuLabel(job)}</div>
           </div>
           {columnKey === "in_progress" ? <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-border px-3 py-2"><span className="text-xs font-semibold text-text-muted">Production QC</span><Badge tone={productionQcTone(jobProductionQcState(job).status)}>{productionQcDisplayLabel(jobProductionQcState(job).status)}</Badge></div> : null}
           <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-semibold">
@@ -9875,24 +9886,16 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             </div></div>}
         </Card>
         <Card title="Recent Production Activity" description="Latest production starts, meaningful QC updates and completed output.">
-            <div className="grid gap-3 p-4 md:grid-cols-2 xl:grid-cols-3">
-              {!operationalJobs.hasLoaded ? (
-                <EmptyState title={operationalJobs.error ? "Production activity unavailable" : "Loading production activity"} description="Operational activity appears after the complete pipeline loads." />
-              ) : productionActivity.length ? productionActivity.map((activity) => (
-                <div key={activity.id} className="rounded-2xl border border-border bg-white px-3 py-3">
-                  <div className="flex flex-wrap items-start justify-between gap-2">
-                    <Badge tone={activity.tone}>{activity.label}</Badge>
-                    <div className="shrink-0 text-right text-[10.5px] font-semibold text-text-muted"><div>{activity.dateLabel}</div><div>{activity.timeLabel}</div></div>
-                  </div>
-                  <div className="mt-2 text-sm font-bold text-text-primary">{activity.product}</div>
-                  <div className="mt-0.5 font-mono text-[11px] font-bold text-text-secondary">{activity.reference}</div>
-                  <div className="mt-1 text-xs font-semibold text-text-muted">Operator: {activity.operator}</div>
-                  <div className="mt-1 text-xs font-semibold text-text-secondary">{activity.detail}</div>
-                </div>
-              )) : (
-                <EmptyState title="No production activity" description="Production starts, QC updates and completed output will appear here." />
-              )}
-            </div>
+          {!operationalJobs.hasLoaded ? (
+            <div className="p-4"><EmptyState title={operationalJobs.error ? "Production activity unavailable" : "Loading production activity"} description="Operational activity appears after the complete pipeline loads." /></div>
+          ) : (
+            <FactoryTable
+              columns={productionActivityColumns}
+              rows={productionActivity}
+              emptyTitle="No production activity"
+              emptyDescription="Production starts, QC updates and completed output will appear here."
+            />
+          )}
         </Card>
       </div>
     );
@@ -9933,21 +9936,27 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             />
           </Field>
           <Field label="Status">
-            <select className={inputClass()} value={jobOrderFilters.status} onChange={(event) => setJobOrderFilters((current) => ({ ...current, status: event.target.value }))}>
-              <option value="">All Statuses</option>
-              <option value="draft">Draft</option>
-              <option value="planned">Planned</option>
-              <option value="released">Released</option>
-              <option value="in_progress">In Progress</option>
-              <option value="completed">Completed</option>
-              <option value="cancelled">Cancelled</option>
-            </select>
+            <SearchableSelect
+              value={jobOrderFilters.status}
+              options={[
+                { value: "", label: "All" },
+                { value: "draft", label: "Draft" },
+                { value: "planned", label: "Planned" },
+                { value: "released", label: "Released" },
+                { value: "in_progress", label: "In Progress" },
+                { value: "completed", label: "Completed" },
+                { value: "cancelled", label: "Cancelled" },
+              ]}
+              placeholder="All"
+              searchPlaceholder="Search status"
+              onChange={(value) => setJobOrderFilters((current) => ({ ...current, status: value }))}
+            />
           </Field>
           <Field label="Finished Good / Packaging SKU">
             <SearchableSelect
               value={jobOrderFilters.finishedGood}
               options={finishedGoodOptions}
-              placeholder="All Finished Goods"
+              placeholder="All"
               searchPlaceholder="Search Finished Good or SKU"
               onChange={(value) => setJobOrderFilters((current) => ({ ...current, finishedGood: value }))}
             />
@@ -9956,16 +9965,16 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             {hasFilters ? <button className="btn-secondary w-full justify-center" type="button" onClick={() => setJobOrderFilters({ search: "", status: "", scheduledDateFrom: "", scheduledDateTo: "", manufacturingDateFrom: "", manufacturingDateTo: "", finishedGood: "" })}><RotateCcw size={14} /> Reset Filters</button> : null}
           </div>
           <Field label="Scheduled From">
-            <input className={inputClass()} type="date" value={jobOrderFilters.scheduledDateFrom} onChange={(event) => setJobOrderFilters((current) => ({ ...current, scheduledDateFrom: event.target.value }))} />
+            <FeedXDatePicker value={jobOrderFilters.scheduledDateFrom} onChange={(value) => setJobOrderFilters((current) => ({ ...current, scheduledDateFrom: value }))} />
           </Field>
           <Field label="Scheduled To" error={scheduledDateRangeError}>
-            <input className={inputClass(scheduledDateRangeError)} type="date" value={jobOrderFilters.scheduledDateTo} onChange={(event) => setJobOrderFilters((current) => ({ ...current, scheduledDateTo: event.target.value }))} />
+            <FeedXDatePicker value={jobOrderFilters.scheduledDateTo} error={scheduledDateRangeError} onChange={(value) => setJobOrderFilters((current) => ({ ...current, scheduledDateTo: value }))} />
           </Field>
           <Field label="Manufacturing From">
-            <input className={inputClass()} type="date" value={jobOrderFilters.manufacturingDateFrom} onChange={(event) => setJobOrderFilters((current) => ({ ...current, manufacturingDateFrom: event.target.value }))} />
+            <FeedXDatePicker value={jobOrderFilters.manufacturingDateFrom} onChange={(value) => setJobOrderFilters((current) => ({ ...current, manufacturingDateFrom: value }))} />
           </Field>
           <Field label="Manufacturing To" error={manufacturingDateRangeError}>
-            <input className={inputClass(manufacturingDateRangeError)} type="date" value={jobOrderFilters.manufacturingDateTo} onChange={(event) => setJobOrderFilters((current) => ({ ...current, manufacturingDateTo: event.target.value }))} />
+            <FeedXDatePicker value={jobOrderFilters.manufacturingDateTo} error={manufacturingDateRangeError} onChange={(value) => setJobOrderFilters((current) => ({ ...current, manufacturingDateTo: value }))} />
           </Field>
         </div>
         <Card title="Job Order Records" description={jobOrderDateRangeInvalid ? "Correct the invalid date range to update these records." : factoryListingPage.hasLoaded ? `${factoryListingPage.loadedTotal} job order record(s).` : "Historical and current Job Orders."}>
@@ -11003,11 +11012,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <Field label="Date From"><FeedXDatePicker value={batchTraceabilityFilters.dateFrom} onChange={(value) => setFilter("dateFrom", value)} /></Field>
             <Field label="Date To"><FeedXDatePicker value={batchTraceabilityFilters.dateTo} onChange={(value) => setFilter("dateTo", value)} /></Field>
-            <Field label="Packaging SKU"><SearchableSelect value={batchTraceabilityFilters.finishedGood} options={[{ value: "", label: "All Packaging SKUs" }, ...finishedGoodOptions]} placeholder="All Packaging SKUs" onChange={(value) => setFilter("finishedGood", value)} /></Field>
-            <Field label="Batch Type"><SearchableSelect value={batchTraceabilityFilters.batchType} options={[{ value: "", label: "All Batch Types" }, { value: "production", label: "Production" }, { value: "adjustment", label: "Adjustment" }, { value: "legacy_unallocated", label: "Legacy / Unallocated" }]} placeholder="All Batch Types" onChange={(value) => setFilter("batchType", value)} /></Field>
-            <Field label="Expiry Status"><SearchableSelect value={batchTraceabilityFilters.expiryStatus} options={[{ value: "", label: "All Expiry Statuses" }, { value: "expired", label: "Expired" }, { value: "expiring_30", label: "Expiring in 30 Days" }, { value: "valid", label: "Valid Beyond 30 Days" }, { value: "no_expiry", label: "No Expiry Recorded" }]} placeholder="All Expiry Statuses" onChange={(value) => setFilter("expiryStatus", value)} /></Field>
-            <Field label="Storage Location"><SearchableSelect value={batchTraceabilityFilters.storageLocation} options={[{ value: "", label: "All Locations" }, ...storageOptions]} placeholder="All Locations" onChange={(value) => setFilter("storageLocation", value)} /></Field>
-            <Field label="Reconciliation"><SearchableSelect value={batchTraceabilityFilters.reconciliationStatus} options={[{ value: "", label: "All Statuses" }, { value: "reconciled", label: "Reconciled" }, { value: "legacy_unallocated", label: "Legacy / Unallocated" }, { value: "review_required", label: "Review Required" }, { value: "mismatch", label: "Mismatch" }]} placeholder="All Statuses" onChange={(value) => setFilter("reconciliationStatus", value)} /></Field>
+            <Field label="Packaging SKU"><SearchableSelect value={batchTraceabilityFilters.finishedGood} options={[{ value: "", label: "All" }, ...finishedGoodOptions]} placeholder="All" onChange={(value) => setFilter("finishedGood", value)} /></Field>
+            <Field label="Batch Type"><SearchableSelect value={batchTraceabilityFilters.batchType} options={[{ value: "", label: "All" }, { value: "production", label: "Production" }, { value: "adjustment", label: "Adjustment" }, { value: "legacy_unallocated", label: "Legacy / Unallocated" }]} placeholder="All" onChange={(value) => setFilter("batchType", value)} /></Field>
+            <Field label="Expiry Status"><SearchableSelect value={batchTraceabilityFilters.expiryStatus} options={[{ value: "", label: "All" }, { value: "expired", label: "Expired" }, { value: "expiring_30", label: "Expiring in 30 Days" }, { value: "valid", label: "Valid Beyond 30 Days" }, { value: "no_expiry", label: "No Expiry Recorded" }]} placeholder="All" onChange={(value) => setFilter("expiryStatus", value)} /></Field>
+            <Field label="Storage Location"><SearchableSelect value={batchTraceabilityFilters.storageLocation} options={[{ value: "", label: "All" }, ...storageOptions]} placeholder="All" onChange={(value) => setFilter("storageLocation", value)} /></Field>
+            <Field label="Reconciliation"><SearchableSelect value={batchTraceabilityFilters.reconciliationStatus} options={[{ value: "", label: "All" }, { value: "reconciled", label: "Reconciled" }, { value: "legacy_unallocated", label: "Legacy / Unallocated" }, { value: "review_required", label: "Review Required" }, { value: "mismatch", label: "Mismatch" }]} placeholder="All" onChange={(value) => setFilter("reconciliationStatus", value)} /></Field>
             <Field label="Batch No."><input className="field-input" value={batchTraceabilityFilters.batchNo} onChange={(event) => setFilter("batchNo", event.target.value)} placeholder="Search batch" /></Field>
             <Field label="Search"><input className="field-input" value={batchTraceabilityFilters.search} onChange={(event) => setFilter("search", event.target.value)} placeholder="SKU, source, location" /></Field>
             <div className="flex items-end"><button className="btn-secondary w-full" type="button" onClick={clearFilters}>Clear Filters</button></div>
@@ -11502,6 +11511,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           rawMaterials={data.rawMaterials}
           recipes={data.recipes}
           jobOrders={data.jobOrders}
+          readOnly={Boolean(modal.value?.id) && modal.readOnly !== false}
           onClose={() => setModal(null)}
           onSave={saveJobOrder}
         />
