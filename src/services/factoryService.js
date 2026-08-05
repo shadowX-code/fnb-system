@@ -701,6 +701,10 @@ function mapFinishedGoodDispatch(row) {
 }
 
 function mapFinishedGoodBatchTraceability(row) {
+  const dispatchAllocations = Array.isArray(row.dispatch_allocations) ? row.dispatch_allocations : [];
+  const reconciliationDiagnostics = Array.isArray(row.reconciliation_diagnostics)
+    ? row.reconciliation_diagnostics
+    : Array.isArray(row.diagnostics) ? row.diagnostics : [];
   return {
     id: row.batch_balance_id || row.id,
     batch_balance_id: row.batch_balance_id || row.id,
@@ -734,8 +738,13 @@ function mapFinishedGoodBatchTraceability(row) {
     qc_status: row.qc_status || "",
     operator_name: row.operator_name || "",
     reconciliation_status: row.reconciliation_status || "mismatch",
-    dispatch_allocations: Array.isArray(row.dispatch_allocations) ? row.dispatch_allocations : [],
-    diagnostics: Array.isArray(row.diagnostics) ? row.diagnostics : [],
+    dispatch_allocations: dispatchAllocations,
+    reconciliation_diagnostics: reconciliationDiagnostics,
+    diagnostics: reconciliationDiagnostics,
+    qc_checks: Array.isArray(row.qc_checks) ? row.qc_checks : [],
+    related_movements: Array.isArray(row.related_movements) ? row.related_movements : [],
+    details: Array.isArray(row.details) ? row.details : [],
+    timeline: Array.isArray(row.timeline) ? row.timeline : [],
     created_at: row.created_at,
   };
 }

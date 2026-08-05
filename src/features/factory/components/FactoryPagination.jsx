@@ -162,6 +162,7 @@ export function useFactoryPagedQuery({ storageKey, enabled = true, querySignatur
       loadedPageSize: pageSize,
       loadedTotal: 0,
       loadedQuerySignature: "",
+      loadedStorageKey: "",
       hasLoaded: false,
       loading: false,
       error: "",
@@ -191,6 +192,7 @@ export function useFactoryPagedQuery({ storageKey, enabled = true, querySignatur
       loadedPageSize: pageSize,
       loadedTotal: 0,
       loadedQuerySignature: "",
+      loadedStorageKey: "",
       hasLoaded: false,
       loading: false,
       error: "",
@@ -236,6 +238,7 @@ export function useFactoryPagedQuery({ storageKey, enabled = true, querySignatur
           loadedPageSize: pageSize,
           loadedTotal: totalCount,
           loadedQuerySignature: querySignature,
+          loadedStorageKey: storageKey,
           hasLoaded: true,
           loading: false,
           error: "",
@@ -254,6 +257,7 @@ export function useFactoryPagedQuery({ storageKey, enabled = true, querySignatur
               summary: {},
               loadedTotal: 0,
               loadedQuerySignature: "",
+              loadedStorageKey: "",
               hasLoaded: false,
               loading: false,
               error: errorMessage,
@@ -291,6 +295,7 @@ export function useFactoryPagedQuery({ storageKey, enabled = true, querySignatur
         summary: {},
         loadedTotal: 0,
         loadedQuerySignature: "",
+        loadedStorageKey: "",
         hasLoaded: false,
         loading: false,
         error: message,
@@ -299,7 +304,19 @@ export function useFactoryPagedQuery({ storageKey, enabled = true, querySignatur
     },
   }), [defaultPageSize, storageKey]);
 
-  return [state, actions];
+  const stateForCurrentListing = state.loadedStorageKey && state.loadedStorageKey !== storageKey
+    ? {
+        ...state,
+        rows: [],
+        summary: {},
+        loadedTotal: 0,
+        loadedQuerySignature: "",
+        loadedStorageKey: "",
+        hasLoaded: false,
+      }
+    : state;
+
+  return [stateForCurrentListing, actions];
 }
 
 export function useFactoryClientPagination(storageKey, totalRows = 0, defaultPageSize = 20, resetKey = "") {

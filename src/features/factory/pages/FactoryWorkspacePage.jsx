@@ -2681,8 +2681,8 @@ function ReadOnlyBatchAllocationModal({ title = "Batch Allocation", subtitle = "
 }
 
 function FinishedGoodBatchTraceabilityModal({ batch, onClose }) {
-  const dispatches = batch.dispatch_allocations || [];
-  const diagnostics = batch.diagnostics || [];
+  const dispatches = Array.isArray(batch.dispatch_allocations) ? batch.dispatch_allocations : [];
+  const diagnostics = Array.isArray(batch.diagnostics) ? batch.diagnostics : [];
   return (
     <Modal title="Batch Traceability" description={[batch.batch_no, batch.packaging_sku_code, batch.packaging_sku_name].filter(Boolean).join(" · ")} size="xl" onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}>
       <div className="space-y-5">
@@ -10910,7 +10910,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       { key: "remaining", label: "Remaining", render: (row) => <span className="font-black text-text-primary">{quantity(row.current_balance)}</span> },
       { key: "dates", label: "Manufacturing / Expiry", render: (row) => <div className="whitespace-nowrap"><div>{formatFactoryDate(row.manufacturing_date)}</div><div className="text-xs text-text-secondary">{row.expiry_date ? `Expiry ${formatFactoryDate(row.expiry_date)}` : "No Expiry Recorded"}</div></div> },
       { key: "storage", label: "Storage", render: (row) => <div><div className="font-semibold text-text-primary">{row.storage_location_name || "—"}</div><div className="text-xs text-text-secondary">{row.storage_location_type || "—"}</div></div> },
-      { key: "status", label: "Status", render: (row) => { const status = rowStatus(row); return <div className="space-y-1"><Badge tone={status.tone}>{status.label}</Badge>{row.diagnostics.length ? <div className="text-[10.5px] font-bold text-amber-700">{row.diagnostics.length} historical diagnostic{row.diagnostics.length === 1 ? "" : "s"}</div> : null}</div>; } },
+      { key: "status", label: "Status", render: (row) => { const status = rowStatus(row); const diagnostics = Array.isArray(row.diagnostics) ? row.diagnostics : []; return <div className="space-y-1"><Badge tone={status.tone}>{status.label}</Badge>{diagnostics.length ? <div className="text-[10.5px] font-bold text-amber-700">{diagnostics.length} historical diagnostic{diagnostics.length === 1 ? "" : "s"}</div> : null}</div>; } },
       { key: "action", label: "Actions", align: "right", render: (row) => <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "batch-traceability-detail", value: row })}>View Details</button> },
     ];
 
