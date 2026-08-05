@@ -12,6 +12,14 @@ function optionalNumber(value) {
   return value === null || value === undefined || value === "" ? "" : normalizeNumber(value);
 }
 
+function normalizeJobPriority(value) {
+  const priority = String(value || "").trim().toLowerCase();
+  if (priority === "urgent") return "Urgent";
+  if (priority === "high") return "High";
+  if (priority === "low") return "Low";
+  return "Normal";
+}
+
 function normalizeSopMinutes(value, label, blankValue = 0) {
   if (value === null || value === undefined || value === "") return blankValue;
   const numeric = Number(value);
@@ -193,7 +201,7 @@ function mapJobOrder(row) {
     uom: row.uom || finishedGood.uom || "",
     planned_date: row.planned_date || "",
     due_date: row.due_date || "",
-    priority: row.priority || "Normal",
+    priority: normalizeJobPriority(row.priority),
     status,
     assigned_team: row.assigned_team || "",
     remarks: row.remarks || "",
@@ -1620,23 +1628,32 @@ export const factoryService = {
 
   async listOperationalJobOrders({ date, includeProductions = true } = {}) {
     if (strictDateValue(date) === null) throw new Error("Enter a valid operational date.");
-    const { data, error } = await supabase.rpc("factory_get_production_control_snapshot", {
+    const dueReleaseResult = await supabase.rpc("factory_release_due_job_orders");
+    throwSupabaseError("factory.operational_job_orders.release_due", dueReleaseResult.error);
+
+    const { data, error } = await supabase.rpc("factory_get_production_pipeline_snapshot", {
       p_operational_date: String(date),
       p_include_productions: Boolean(includeProductions),
     });
     throwSupabaseError("factory.operational_job_orders.snapshot", error);
 
     const snapshot = data && typeof data === "object" ? data : {};
-    const planned = Array.isArray(snapshot.planned) ? snapshot.planned.map(mapJobOrder) : [];
+    const scheduled = Array.isArray(snapshot.scheduled) ? snapshot.scheduled.map(mapJobOrder) : [];
+    const released = Array.isArray(snapshot.released) ? snapshot.released.map(mapJobOrder) : [];
     const inProgress = Array.isArray(snapshot.in_progress) ? snapshot.in_progress.map(mapJobOrder) : [];
     const completedToday = Array.isArray(snapshot.completed_today) ? snapshot.completed_today.map(mapJobOrder) : [];
     const summary = snapshot.summary && typeof snapshot.summary === "object" ? snapshot.summary : {};
 
     return {
-      jobs: [...planned, ...inProgress, ...completedToday],
+      scheduled,
+      released,
+      inProgress,
+      completedToday,
+      jobs: [...scheduled, ...released, ...inProgress, ...completedToday],
       productions: Array.isArray(snapshot.productions) ? snapshot.productions.map(mapProduction) : [],
       summary: {
-        released: normalizeNumber(summary.planned_released),
+        scheduled: normalizeNumber(summary.scheduled),
+        released: normalizeNumber(summary.released),
         inProgress: normalizeNumber(summary.in_progress),
         completedToday: normalizeNumber(summary.completed_today),
         plannedToday: normalizeNumber(summary.planned_today),
@@ -1977,18 +1994,18 @@ export const factoryService = {
     });
   },
 
-  async releaseJobOrder(order, employeeId) {
+  async releaseJobOrder(order) {
     const { error } = await supabase.rpc("factory_release_job_order", {
       p_job_order_id: order.id,
-      p_released_by: employeeId || null,
     });
     throwSupabaseError("factory.job_order.release", error);
-    await logFactoryAction({
-      action: "factory_job_order_released",
-      target: order.job_order_no,
-      description: "Factory Job Order released for production.",
-      after: order,
+  },
+
+  async cancelJobOrder(order) {
+    const { error } = await supabase.rpc("factory_cancel_job_order", {
+      p_job_order_id: order.id,
     });
+    throwSupabaseError("factory.job_order.cancel", error);
   },
 
   async startJobOrder(order, startInfo, employee) {
