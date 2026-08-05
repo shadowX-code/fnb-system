@@ -396,14 +396,21 @@ function mapRawMaterialMovement(row) {
     uom: row.uom || rawMaterial.uom || "",
     storage_location: row.storage_location || rawMaterial.storage_location_ref?.location_name || rawMaterial.storage_location || "",
     batch_no: row.batch_no || "",
+    internal_batch_no: row.batch_no || "",
+    batch_id: rawMaterial.batch_id || "",
+    production_material_usage_id: rawMaterial.production_material_usage_id || "",
+    supplier_lot_no: rawMaterial.supplier_lot_no || "",
     balance_after: row.balance_after == null ? null : normalizeNumber(row.balance_after),
     reference_type: row.reference_type || "",
     reference_id: row.reference_id || "",
     reference_no: row.reference_no || "",
+    document_type: rawMaterial.document_type || "",
+    document_id: rawMaterial.document_id || "",
     movement_date: row.movement_date || "",
     notes: row.notes || "",
+    remarks: row.notes || "",
     created_by: row.created_by || "",
-    created_by_name: row.creator?.nickname || row.creator?.full_name || row.created_by_name || row.created_by || "",
+    created_by_name: row.creator?.nickname || row.creator?.full_name || row.created_by_name || "",
     created_at: row.created_at,
   };
 }
@@ -1436,8 +1443,8 @@ function factoryDataPlan(scope, hasPermission) {
     factoryCustomers: (isCustomers && can("factory_customers.view")) || (isFinishedGoodsDispatch && (can("factory_customers.view") || can("factory_finished_goods_dispatch.view") || can("factory_finished_goods_dispatch.create") || can("factory_finished_goods_dispatch.edit"))),
     receivingBatches: false,
     storageLocations: (isStorageLocations && can("factory_storage_locations.view")) || (isBatchTraceability && canTraceBatches) || ((isRawInventory || isRawReceiving || isRawMovements || isFinishedGoods || isJobOrders || isProduction) && (can("factory_storage_locations.view") || can("factory_raw_inventory.view") || can("factory_raw_receiving.view") || can("factory_raw_movements.view") || can("factory_finished_goods.view") || can("factory_job_orders.view") || can("factory_production.view") || can("factory_production.complete"))),
-    rawMaterialMovements: (isRawInventory && can("factory_raw_inventory.view")) || (isRawMovements && can("factory_raw_movements.view")),
-    receivings: (isRawInventory && can("factory_raw_inventory.view")) || (isRawMovements && can("factory_raw_movements.view")) || (isReports && can("factory_production_reports.view")) || (isProduction && can("factory_raw_receiving.view")),
+    rawMaterialMovements: isRawInventory && can("factory_raw_inventory.view"),
+    receivings: (isRawInventory && can("factory_raw_inventory.view")) || (isReports && can("factory_production_reports.view")) || (isProduction && can("factory_raw_receiving.view")),
     productions: needsProductionSummary && (can("factory_dashboard.view") || can("factory_production.view") || canReadProductionReports || can("factory_finished_goods.view") || can("factory_product_movements.view")),
     productionDetails: needsProductionDetails,
     finishedGoods: (isDashboard && can("factory_dashboard.view")) || (isJobOrders && (can("factory_job_orders.view") || can("factory_job_orders.create") || can("factory_job_orders.edit"))) || (isProductRecipes && can("factory_product_recipes.view")) || (isProductionPlanning && can("factory_production_planning.view")) || ((isProduction || isFinishedGoods || isFinishedGoodsDispatch || isProductMovements) && can("factory_finished_goods.view")) || (isFinishedGoodsDispatch && (can("factory_finished_goods_dispatch.view") || can("factory_finished_goods_dispatch.create") || can("factory_finished_goods_dispatch.edit") || can("factory_finished_goods_dispatch.complete"))) || (isProduction && can("factory_production.complete")) || (isProductStockCheck && can("factory_product_stock_check.view")) || (isBatchTraceability && canTraceBatches),
@@ -1830,6 +1837,7 @@ export const factoryService = {
     } else if (listing === "raw-movements") {
       query = supabase
         .rpc("factory_list_raw_material_movements", {
+          p_batch_id: databaseUuid(filters.batchId),
           p_date_from: filters.dateFrom || null,
           p_date_to: filters.dateTo || null,
           p_raw_material_id: databaseUuid(filters.material),
@@ -1913,7 +1921,17 @@ export const factoryService = {
     const summaryParams = { p_listing: listing, p_filters: filters || {} };
     const summaryQuery = listing === "product-stock-checks"
       ? supabase.rpc("factory_product_stock_check_summary")
-      : supabase.rpc("factory_listing_summary", summaryParams);
+      : listing === "raw-movements"
+        ? supabase.rpc("factory_raw_material_movement_summary", {
+          p_batch_id: databaseUuid(filters.batchId),
+          p_date_from: filters.dateFrom || null,
+          p_date_to: filters.dateTo || null,
+          p_raw_material_id: databaseUuid(filters.material),
+          p_movement_type: String(filters.movementType || "").trim() || null,
+          p_storage_location: String(filters.storageLocation || "").trim() || null,
+          p_search: String(filters.search || "").trim() || null,
+        })
+        : supabase.rpc("factory_listing_summary", summaryParams);
     const [pageResult, summaryResult] = await Promise.all([
       query.range(from, to),
       summaryQuery,
@@ -1967,6 +1985,83 @@ export const factoryService = {
       page: normalizedPage,
       pageSize: normalizedPageSize,
     };
+  },
+
+  async getRawMaterialMovementReference(movement) {
+    const documentId = databaseUuid(movement?.document_id);
+    if (!documentId || !movement?.document_type) throw new Error("Linked document is unavailable for this historical movement.");
+
+    if (movement.document_type === "receiving") {
+      const { data, error } = await supabase
+        .from("factory_raw_material_receiving_batches")
+        .select(`id,batch_no,reference_no,supplier_id,supplier_name,received_date,remarks,status,completion_request_id,completion_payload_fingerprint,created_by,completed_by,completed_at,cancelled_by,cancelled_at,created_at,updated_at,supplier:factory_suppliers(supplier_name),creator:employees!factory_raw_material_receiving_batches_created_by_fkey(nickname,full_name),completer:employees!factory_raw_material_receiving_batches_completed_by_fkey(nickname,full_name),canceller:employees!factory_raw_material_receiving_batches_cancelled_by_fkey(nickname,full_name),items:factory_raw_material_receivings(id,batch_id,receipt_no,raw_material_id,supplier_id,supplier_name,batch_no,supplier_lot_no,internal_batch_no,received_qty,uom,unit_cost,total_cost,invoice_no,received_date,manufacturing_date,expiry_date,expiry_source,expiry_confirmed,storage_location_id,storage_location,remarks,received_by,created_at,updated_at,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`)
+        .eq("id", documentId)
+        .maybeSingle();
+      throwSupabaseError("factory.raw_movement.receiving_reference", error);
+      if (data) return { type: "receiving", value: mapReceivingBatch(data) };
+
+      const { data: legacyItem, error: legacyError } = await supabase
+        .from("factory_raw_material_receivings")
+        .select(`id,batch_id,receipt_no,raw_material_id,supplier_id,supplier_name,batch_no,supplier_lot_no,internal_batch_no,received_qty,uom,unit_cost,total_cost,invoice_no,received_date,manufacturing_date,expiry_date,expiry_source,expiry_confirmed,storage_location_id,storage_location,remarks,received_by,created_at,updated_at,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),raw_material:factory_raw_materials(${rawMaterialRelationSelect})`)
+        .eq("id", documentId)
+        .single();
+      throwSupabaseError("factory.raw_movement.legacy_receiving_reference", legacyError);
+      const item = mapReceiving(legacyItem);
+      return {
+        type: "receiving",
+        value: mapReceivingBatch({
+          id: item.id,
+          batch_no: item.receipt_no,
+          reference_no: item.reference_no,
+          supplier_id: item.supplier_id,
+          supplier_name: item.supplier_name,
+          received_date: item.received_date,
+          remarks: item.remarks,
+          status: "completed",
+          created_at: item.created_at,
+          updated_at: item.updated_at,
+          items: [legacyItem],
+        }),
+      };
+    }
+
+    if (movement.document_type === "production") {
+      const { data: productionRow, error: productionError } = await supabase
+        .from("factory_productions")
+        .select(`${productionSelectDetailed},production_sop:factory_production_sops(sop_code,title,version)`)
+        .eq("id", documentId)
+        .single();
+      throwSupabaseError("factory.raw_movement.production_reference", productionError);
+      const production = mapProduction(productionRow);
+      const { data: jobRow, error: jobError } = production.job_order_id
+        ? await supabase.from("factory_job_orders").select(jobOrderSelect).eq("id", production.job_order_id).single()
+        : { data: null, error: null };
+      throwSupabaseError("factory.raw_movement.production_job_reference", jobError);
+      return { type: "production", production, job: jobRow ? mapJobOrder(jobRow) : null };
+    }
+
+    if (movement.document_type === "raw_stock_check" || movement.document_type === "product_stock_check") {
+      const raw = movement.document_type === "raw_stock_check";
+      const { data, error } = await supabase
+        .from(raw ? "factory_raw_material_stock_checks" : "factory_product_stock_checks")
+        .select(raw ? rawMaterialStockCheckSelect : productStockCheckSelect)
+        .eq("id", documentId)
+        .single();
+      throwSupabaseError("factory.raw_movement.stock_check_reference", error);
+      return { type: "stock_check", stockType: raw ? "raw" : "product", value: mapStockCheck(data, raw ? "raw" : "product") };
+    }
+
+    if (movement.document_type === "dispatch") {
+      const { data, error } = await supabase
+        .from("factory_finished_good_dispatches")
+        .select(finishedGoodDispatchSelect)
+        .eq("id", documentId)
+        .single();
+      throwSupabaseError("factory.raw_movement.dispatch_reference", error);
+      return { type: "dispatch", value: mapFinishedGoodDispatch(data) };
+    }
+
+    throw new Error("Linked document is unavailable for this historical movement.");
   },
 
   async saveJobOrder(order) {

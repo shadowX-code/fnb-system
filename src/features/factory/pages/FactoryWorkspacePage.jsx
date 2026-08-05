@@ -135,6 +135,28 @@ function signedQuantity(value, uom) {
   return `${sign}${numeric.toLocaleString("en-MY", { maximumFractionDigits: 2 })}${uom ? ` ${uom}` : ""}`;
 }
 
+function ledgerQuantity(value, uom, { signed = false } = {}) {
+  const numeric = Number(value || 0);
+  const formatted = Math.abs(numeric).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const sign = signed ? numeric > 0 ? "+" : numeric < 0 ? "-" : "" : numeric < 0 ? "-" : "";
+  return `${sign}${formatted}${uom ? ` ${uom}` : ""}`;
+}
+
+function ledgerQuantityList(rows) {
+  const values = Array.isArray(rows) ? rows : [];
+  return values.length ? values.map((row) => ledgerQuantity(row.quantity, row.uom)).join(" · ") : "—";
+}
+
+function rawMovementTypeMeta(value) {
+  const normalized = String(value || "").trim().toLowerCase();
+  if (normalized === "receiving") return { label: "Receiving", tone: "success" };
+  if (normalized === "production usage") return { label: "Production Usage", tone: "warning" };
+  if (normalized === "stock check adjustment") return { label: "Stock Check Adjustment", tone: "info" };
+  if (normalized === "transfer") return { label: "Transfer", tone: "info" };
+  if (normalized === "opening balance") return { label: "Opening Balance", tone: "neutral" };
+  return { label: value || "Movement", tone: "neutral" };
+}
+
 function percent(value) {
   return `${Number(value || 0).toLocaleString("en-MY", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
 }
@@ -1030,14 +1052,6 @@ function productMovementQuerySignature(page, pageSize, filters) {
 
 function productMovementFilterSignature(pageSize, filters) {
   return productMovementQuerySignature(1, pageSize, filters);
-}
-
-function compareRawMaterialMovementsDesc(a, b) {
-  const dateCompare = String(b?.movement_date || "").localeCompare(String(a?.movement_date || ""));
-  if (dateCompare) return dateCompare;
-  const createdCompare = String(b?.created_at || "").localeCompare(String(a?.created_at || ""));
-  if (createdCompare) return createdCompare;
-  return String(b?.id || "").localeCompare(String(a?.id || ""));
 }
 
 function normalizePackSizeToBase(qty, uom) {
@@ -4492,6 +4506,40 @@ function ReceivingBatchDetailModal({ batch, onClose }) {
   );
 }
 
+function RawMaterialMovementDetailModal({ movement, onOpenReference, openingReference = false, onClose }) {
+  const movementMeta = rawMovementTypeMeta(movement.movement_type);
+  const details = [
+    ["Movement Type", <Badge tone={movementMeta.tone}>{movementMeta.label}</Badge>],
+    ["Reference", movement.reference_no ? (
+      <button className="font-bold text-primary underline decoration-dotted underline-offset-4 hover:text-emerald-800 disabled:cursor-wait disabled:opacity-60" type="button" disabled={openingReference} onClick={() => onOpenReference?.(movement)}>
+        {openingReference ? "Opening..." : movement.reference_no}
+      </button>
+    ) : "—"],
+    ["Raw Material", [movement.raw_material_code, movement.raw_material_name].filter(Boolean).join(" · ") || "—"],
+    ["Internal Batch", movement.internal_batch_no || "—"],
+    ["Supplier Lot", movement.supplier_lot_no || "—"],
+    ["Qty", ledgerQuantity(movement.quantity, movement.uom, { signed: true })],
+    ["Balance After", movement.balance_after == null ? "—" : ledgerQuantity(movement.balance_after, movement.uom)],
+    ["Storage", movement.storage_location || "—"],
+    ["Operator", movement.created_by_name || "—"],
+    ["Created At", formatFactoryDateTime(movement.created_at)],
+    ["Remarks", movement.remarks || movement.notes || "—"],
+  ];
+
+  return (
+    <Modal title="Movement Detail" description="Read-only Raw Material Movement audit record" onClose={onClose} size="lg">
+      <div className="divide-y divide-border rounded-lg border border-border bg-white px-5">
+        {details.map(([label, value]) => (
+          <div key={label} className="grid gap-1 py-3 sm:grid-cols-[150px_minmax(0,1fr)] sm:items-start">
+            <div className="text-sm font-semibold text-text-secondary">{label}</div>
+            <div className="min-w-0 break-words text-sm font-bold text-text-primary">{value}</div>
+          </div>
+        ))}
+      </div>
+    </Modal>
+  );
+}
+
 function buildInitialUsageRows(job, rawMaterials, recipes) {
   const matchingRecipe = activeRecipeForSku(recipes, job.finished_good || job, job.product_name);
   if (matchingRecipe?.items?.length) {
@@ -7154,7 +7202,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const [warehouseFilters, setWarehouseFilters] = useState({ product: "", family: "", category: "", status: "", batch: "", movementType: "", dateFrom: "", dateTo: "" });
   const [batchTraceabilityFilters, setBatchTraceabilityFilters] = useState({ dateFrom: "", dateTo: "", finishedGood: "", batchNo: "", batchType: "", expiryStatus: "", storageLocation: "", reconciliationStatus: "", search: "" });
   const [rawMaterialFilters, setRawMaterialFilters] = useState({ material: "", status: "", category: "" });
-  const [rawMovementFilters, setRawMovementFilters] = useState({ material: "", movementType: "", storageLocation: "", dateFrom: "", dateTo: "", search: "" });
+  const [rawMovementFilters, setRawMovementFilters] = useState({ material: "", movementType: "", storageLocation: "", dateFrom: "", dateTo: "", search: "", batchId: "", batchLabel: "" });
+  const [rawMovementReferenceLoading, setRawMovementReferenceLoading] = useState("");
   const [auditLogFilters, setAuditLogFilters] = useState({ dateFrom: "", dateTo: "", module: "", action: "", user: "", search: "" });
   const [operationalJobs, setOperationalJobs] = useState({ jobs: [], productions: [], summary: {}, hasLoaded: false, loading: false, error: "", errorKind: "" });
   const [productionPlanningOpenJobs, setProductionPlanningOpenJobs] = useState({ aggregates: [], diagnostics: {}, hasLoaded: false, loading: false, error: "", errorKind: "" });
@@ -7232,6 +7281,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         ? permissionDenied
           ? "Some batch traceability data is hidden by your current role."
           : "Unable to load the latest batch traceability data."
+        : serverListing === "raw-movements"
+          ? permissionDenied
+            ? "Raw Material Movement data is hidden by your current role."
+            : "Unable to load the latest Raw Material Movement data."
         : stockCheckListingLabel
           ? permissionDenied
             ? `Some ${stockCheckListingLabel} are hidden by your current role.`
@@ -7243,8 +7296,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     mapError: (error) => ({
       kind: isFactoryPermissionError(error) ? "permission" : "load",
       message: isFactoryPermissionError(error)
-        ? stockCheckListingLabel ? `Some ${stockCheckListingLabel} are hidden by your current role.` : "Some data is hidden by your current role."
-        : stockCheckListingLabel ? `Unable to load ${stockCheckListingLabel}.` : "Unable to load the latest data.",
+        ? serverListing === "raw-movements" ? "Raw Material Movement data is hidden by your current role." : stockCheckListingLabel ? `Some ${stockCheckListingLabel} are hidden by your current role.` : "Some data is hidden by your current role."
+        : serverListing === "raw-movements" ? "Unable to load the latest Raw Material Movement data." : stockCheckListingLabel ? `Unable to load ${stockCheckListingLabel}.` : "Unable to load the latest data.",
     }),
   });
   const productMovementSignature = `${productMovementFilterSignature(20, warehouseFilters)}:${factoryPermissionSignature}`;
@@ -7294,10 +7347,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         if (serverListing === "batch-traceability" && current?.type === "batch-traceability-detail") return null;
         if (serverListing === "dispatch-history" && current?.type === "finished-good-dispatch") return null;
         if (serverListing === "receiving-history" && current?.type === "receiving-batch-detail") return null;
+        if (serverListing === "raw-movements" && current?.type === "raw-material-movement-detail") return null;
         if (["raw-stock-checks", "product-stock-checks"].includes(serverListing) && current?.type === "stock-check") return null;
         return current;
       });
       if (serverListing === "receiving-history") setEditingReceiving(null);
+      if (serverListing === "raw-movements") setRawMovementReferenceLoading("");
     }
     if (productMovementLedger.errorKind === "permission") {
       setModal((current) => current?.type === "movement-batches" ? null : current);
@@ -7337,7 +7392,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           : listing === "raw-stock-checks" ? "Some Raw Material Stock Checks are hidden by your current role."
             : listing === "product-stock-checks" ? "Some Product Stock Checks are hidden by your current role."
               : listing === "dispatch-history" ? "Some Finished Goods Dispatch data is hidden by your current role."
-                : listing === "receiving-history" ? "Some Raw Material Receiving data is hidden by your current role." : undefined}
+                : listing === "receiving-history" ? "Some Raw Material Receiving data is hidden by your current role."
+                  : listing === "raw-movements" ? "Raw Material Movement data is hidden by your current role." : undefined}
       staleMessage={listing === "batch-traceability"
         ? "Unable to load the latest batch traceability data. Showing the last successfully loaded results."
         : listing === "dispatch-history" ? "Dispatch was updated, but the latest list could not be refreshed."
@@ -9606,58 +9662,13 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       && (!rawMaterialFilters.category || row.category_id === rawMaterialFilters.category || row.category === rawMaterialFilters.category));
   }
 
-  function rawMaterialMovementRows() {
-    const balanceByMovementId = new Map();
-    const movementsByMaterial = data.rawMaterialMovements.reduce((groups, movement) => {
-      const key = movement.raw_material_id || movement.raw_material_code || movement.raw_material_name || "unknown";
-      groups.set(key, [...(groups.get(key) || []), movement]);
-      return groups;
-    }, new Map());
-    movementsByMaterial.forEach((materialMovements, key) => {
-      const material = data.rawMaterials.find((row) => row.id === key);
-      let runningBalance = material?.current_balance;
-      if (runningBalance == null) return;
-      [...materialMovements].sort(compareRawMaterialMovementsDesc).forEach((movement) => {
-        balanceByMovementId.set(movement.id, runningBalance);
-        runningBalance -= Number(movement.quantity || 0);
-      });
-    });
-    return data.rawMaterialMovements.map((movement) => {
-      const material = data.rawMaterials.find((row) => row.id === movement.raw_material_id);
-      const receiving = data.receivings.find((row) => row.id === movement.reference_id || row.receipt_no === movement.reference_no);
-      return {
-        ...movement,
-        raw_material_code: material?.material_code || movement.raw_material_code || "",
-        raw_material_name: movement.raw_material_name || rawMaterialLabel(material) || "",
-        storage_location: receiving?.storage_location || movement.storage_location || material?.storage_location || "",
-        batch_no: receiving?.batch_no || movement.batch_no || "",
-        balance_after: balanceByMovementId.get(movement.id),
-        remarks: movement.remarks || movement.notes || "",
-        created_by_name: movement.created_by_name || movement.created_by || "",
-      };
-    });
-  }
-
-  function filteredRawMaterialMovements() {
-    return rawMaterialMovementRows().filter((row) => {
-      const movementDate = row.movement_date || "";
-      const searchText = `${row.reference_no} ${row.reference_type} ${row.batch_no} ${row.remarks} ${row.notes}`;
-      return (!rawMovementFilters.material || row.raw_material_id === rawMovementFilters.material)
-        && (!rawMovementFilters.movementType || row.movement_type === rawMovementFilters.movementType)
-        && (!rawMovementFilters.storageLocation || row.storage_location === rawMovementFilters.storageLocation)
-        && (!rawMovementFilters.dateFrom || movementDate >= rawMovementFilters.dateFrom)
-        && (!rawMovementFilters.dateTo || movementDate <= rawMovementFilters.dateTo)
-        && (!rawMovementFilters.search || includesText(searchText, rawMovementFilters.search));
-    });
-  }
-
   function rawMovementFilterControls() {
     const movementTypes = Array.isArray(factoryListingPage.summary.movement_types)
       ? factoryListingPage.summary.movement_types
-      : [...new Set(data.rawMaterialMovements.map((row) => row.movement_type).filter(Boolean))];
+      : [];
     const storageLocations = Array.isArray(factoryListingPage.summary.location_values)
       ? factoryListingPage.summary.location_values
-      : [...new Set(rawMaterialMovementRows().map((row) => row.storage_location).filter(Boolean))];
+      : [];
     const materialOptions = data.rawMaterials.map((material) => ({ value: material.id, label: rawMaterialLabel(material) }));
     const movementTypeOptions = movementTypes.map((type) => ({ value: type, label: type }));
     const storageLocationOptions = storageLocations.map((location) => ({ value: location, label: location }));
@@ -9708,10 +9719,32 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           />
         </Field>
         <Field label="Search">
-          <input className={inputClass()} value={rawMovementFilters.search} onChange={(event) => setRawMovementFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Reference, batch, remarks" />
+          <input className={inputClass()} value={rawMovementFilters.search} onChange={(event) => setRawMovementFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Reference, batch, lot, material, remarks" />
+          {rawMovementFilters.batchId ? (
+            <button className="mt-2 inline-flex items-center gap-2 text-xs font-bold text-primary hover:text-emerald-800" type="button" onClick={() => setRawMovementFilters((current) => ({ ...current, batchId: "", batchLabel: "" }))}>
+              Exact batch: {rawMovementFilters.batchLabel || "Selected batch"} <X size={13} />
+            </button>
+          ) : null}
         </Field>
       </div>
     );
+  }
+
+  async function openRawMaterialMovementReference(movement) {
+    if (!movement.document_id || !movement.document_type || rawMovementReferenceLoading) return;
+    setRawMovementReferenceLoading(movement.id);
+    try {
+      const reference = await factoryService.getRawMaterialMovementReference(movement);
+      if (reference.type === "receiving") setModal({ type: "receiving-batch-detail", value: reference.value });
+      else if (reference.type === "production") setModal({ type: "completed-job-result", job: reference.job, production: reference.production });
+      else if (reference.type === "stock_check") setModal({ type: "stock-check", stockType: reference.stockType, value: reference.value, readOnly: true });
+      else if (reference.type === "dispatch") setModal({ type: "finished-good-dispatch", value: reference.value, mode: "view" });
+    } catch (referenceError) {
+      console.error("[Factory] Unable to open Raw Material Movement reference.", referenceError);
+      ui?.notify?.({ title: "Unable to open linked document", message: "The referenced Factory document is unavailable or hidden by your current role.", tone: "error" });
+    } finally {
+      setRawMovementReferenceLoading("");
+    }
   }
 
   function receivingHistoryFilterControls() {
@@ -10649,20 +10682,19 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   function renderRawMaterialMovements() {
-    const rows = currentListingRows("raw-movements", filteredRawMaterialMovements().sort(compareRawMaterialMovementsDesc));
-    const stockInRows = rows.filter((row) => Number(row.quantity || 0) > 0);
-    const stockOutRows = rows.filter((row) => Number(row.quantity || 0) < 0);
+    const rows = currentListingRows("raw-movements", []);
     const movementSummary = factoryListingPage.summary || {};
     const movementColumns = [
       { key: "movement_date", label: "Date", render: (row) => <span className="whitespace-nowrap font-semibold text-text-primary">{formatFactoryDate(row.movement_date)}</span> },
-      { key: "movement_type", label: "Movement Type", render: (row) => <Badge tone={Number(row.quantity || 0) >= 0 ? "success" : "warning"}>{row.movement_type || "Movement"}</Badge> },
+      { key: "movement_type", label: "Movement Type", render: (row) => { const meta = rawMovementTypeMeta(row.movement_type); return <Badge tone={meta.tone}>{meta.label}</Badge>; } },
       { key: "raw_material", label: "Raw Material", render: (row) => <div><div className="font-bold text-text-primary">{row.raw_material_name || "Raw Material"}</div><div className="text-xs text-text-secondary">{row.raw_material_code || "No SKU"}</div></div> },
-      { key: "quantity", label: "Qty", render: (row) => <span className={`font-bold ${Number(row.quantity || 0) >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{signedQuantity(row.quantity, row.uom)}</span> },
-      { key: "balance", label: "Balance", render: (row) => <span className="font-bold text-text-primary">{row.balance_after == null ? "—" : quantity(row.balance_after, row.uom)}</span> },
+      { key: "quantity", label: "Qty", render: (row) => <span className={`whitespace-nowrap font-bold ${Number(row.quantity || 0) >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{ledgerQuantity(row.quantity, row.uom, { signed: true })}</span> },
+      { key: "balance", label: "Balance", render: (row) => <span className="whitespace-nowrap font-bold text-text-primary">{row.balance_after == null ? "—" : ledgerQuantity(row.balance_after, row.uom)}</span> },
       { key: "storage_location", label: "Storage Location", render: (row) => row.storage_location || "—" },
-      { key: "batch_no", label: "Batch / Lot No.", render: (row) => row.batch_no || "—" },
-      { key: "reference", label: "Reference", render: (row) => row.reference_no || "—" },
-      { key: "created_by", label: "Created By", render: (row) => row.created_by_name || "—" },
+      { key: "batch_no", label: "Internal Batch", render: (row) => row.internal_batch_no && row.batch_id ? <button className="font-bold text-text-primary underline decoration-dotted underline-offset-4 hover:text-primary" type="button" title="Filter by this exact Internal Batch" onClick={() => setRawMovementFilters((current) => ({ ...current, batchId: row.batch_id, batchLabel: row.internal_batch_no }))}>{row.internal_batch_no}</button> : row.internal_batch_no || "—" },
+      { key: "reference", label: "Reference", render: (row) => row.reference_no && row.document_id ? <button className="font-bold text-primary underline decoration-dotted underline-offset-4 hover:text-emerald-800 disabled:cursor-wait disabled:opacity-60" type="button" disabled={rawMovementReferenceLoading === row.id} onClick={() => openRawMaterialMovementReference(row)}>{rawMovementReferenceLoading === row.id ? "Opening..." : row.reference_no}</button> : "—" },
+      { key: "created_by", label: "Operator", render: (row) => row.created_by_name || "—" },
+      { key: "actions", label: "Action", align: "right", render: (row) => <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "raw-material-movement-detail", value: row })}>View</button> },
     ];
     return (
       <div className="space-y-5">
@@ -10672,10 +10704,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           description="View raw material stock-in, stock-out and approved adjustment movement logs."
         />
         <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={RefreshCw} label="Movements" value={factoryListingPage.hasLoaded ? Number(movementSummary.movements || 0) : rows.length} helper="Filtered movement rows" />
-          <MetricCard icon={PackageCheck} label="Stock In" value={quantity(factoryListingPage.hasLoaded ? movementSummary.stock_in_qty : stockInRows.reduce((sum, row) => sum + Number(row.quantity || 0), 0), "")} helper="Positive movement qty" tone="success" />
-          <MetricCard icon={Factory} label="Stock Out" value={quantity(factoryListingPage.hasLoaded ? movementSummary.stock_out_qty : Math.abs(stockOutRows.reduce((sum, row) => sum + Number(row.quantity || 0), 0)), "")} helper="Negative movement qty" tone={Number(movementSummary.stock_out_qty || stockOutRows.length) ? "warning" : "success"} />
-          <MetricCard icon={Warehouse} label="Locations" value={factoryListingPage.hasLoaded ? Number(movementSummary.locations || 0) : new Set(rows.map((row) => row.storage_location).filter(Boolean)).size} helper="Locations in filtered rows" />
+          <MetricCard icon={RefreshCw} label="Movements" value={factoryListingPage.hasLoaded ? Number(movementSummary.movements || 0) : "—"} helper="Filtered movement rows" />
+          <MetricCard icon={PackageCheck} label="Stock In" value={factoryListingPage.hasLoaded ? ledgerQuantityList(movementSummary.stock_in_by_uom) : "—"} helper="Positive movement quantity by UOM" tone="success" />
+          <MetricCard icon={Factory} label="Stock Out" value={factoryListingPage.hasLoaded ? ledgerQuantityList(movementSummary.stock_out_by_uom) : "—"} helper="Negative movement quantity by UOM" tone={(movementSummary.stock_out_by_uom || []).length ? "warning" : "success"} />
+          <MetricCard icon={Warehouse} label="Locations" value={factoryListingPage.hasLoaded ? Number(movementSummary.locations || 0) : "—"} helper="Locations in filtered rows" />
         </div>
         {rawMovementFilterControls()}
         <Card title="Raw Material Movement History" description="Read-only movement log from receiving, production usage and approved stock checks.">
@@ -12061,6 +12093,14 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       {modal?.type === "receiving-batch-detail" ? (
         <ReceivingBatchDetailModal
           batch={modal.value}
+          onClose={() => setModal(null)}
+        />
+      ) : null}
+      {modal?.type === "raw-material-movement-detail" ? (
+        <RawMaterialMovementDetailModal
+          movement={modal.value}
+          openingReference={rawMovementReferenceLoading === modal.value.id}
+          onOpenReference={openRawMaterialMovementReference}
           onClose={() => setModal(null)}
         />
       ) : null}
