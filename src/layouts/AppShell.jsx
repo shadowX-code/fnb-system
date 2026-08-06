@@ -946,6 +946,8 @@ export default function AppShell({ activeRoute, activeRouteId, sections, workspa
   const notificationButtonRef = useRef(null);
   const profileButtonRef = useRef(null);
   const sidebarProfileButtonRef = useRef(null);
+  const mobileMenuButtonRef = useRef(null);
+  const mobileSidebarRef = useRef(null);
   const activeSectionLabel = useMemo(
     () => sections.find((section) => section.items.some((item) => item.id === activeRouteId))?.label,
     [activeRouteId, sections],
@@ -1122,9 +1124,16 @@ export default function AppShell({ activeRoute, activeRouteId, sections, workspa
     }
   }
 
+  function closeMobileSidebar() {
+    if (mobileSidebarRef.current?.contains(document.activeElement)) {
+      mobileMenuButtonRef.current?.focus({ preventScroll: true });
+    }
+    setMobileSidebarOpen(false);
+  }
+
   function handleNavigate(itemId) {
     onNavigate(itemId);
-    setMobileSidebarOpen(false);
+    closeMobileSidebar();
     setSidebarProfileOpen(false);
   }
 
@@ -1156,7 +1165,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, workspa
     document.body.style.overflow = "hidden";
 
     function handleKeyDown(event) {
-      if (event.key === "Escape") setMobileSidebarOpen(false);
+      if (event.key === "Escape") closeMobileSidebar();
     }
 
     document.addEventListener("keydown", handleKeyDown);
@@ -1167,7 +1176,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, workspa
   }, [mobileSidebarOpen]);
 
   useEffect(() => {
-    setMobileSidebarOpen(false);
+    closeMobileSidebar();
   }, [activeRouteId]);
 
   async function handleChangePassword({ currentPassword, newPassword }) {
@@ -1180,7 +1189,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, workspa
     setProfileMenuOpen(false);
     setSidebarProfileOpen(false);
     setNotificationsOpen(false);
-    setMobileSidebarOpen(false);
+    closeMobileSidebar();
   }
 
   function handleViewMyProfileClick(event) {
@@ -1222,7 +1231,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, workspa
       setProfileMenuOpen(false);
       setSidebarProfileOpen(false);
       setNotificationsOpen(false);
-      setMobileSidebarOpen(false);
+      closeMobileSidebar();
       window.location.href = "/login";
     } catch (error) {
       console.error("[FeedX] Sign out failed", error);
@@ -1250,7 +1259,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, workspa
             className="icon-btn ml-auto"
             type="button"
             aria-label="Close navigation"
-            onClick={() => setMobileSidebarOpen(false)}
+            onClick={closeMobileSidebar}
           >
             <X size={17} />
           </button>
@@ -1403,14 +1412,16 @@ export default function AppShell({ activeRoute, activeRouteId, sections, workspa
           mobileSidebarOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
         }`}
         aria-hidden="true"
-        onClick={() => setMobileSidebarOpen(false)}
+        onClick={closeMobileSidebar}
       />
       <aside
+        ref={mobileSidebarRef}
         className={`fixed inset-y-0 left-0 z-50 flex w-[292px] max-w-[86vw] flex-col border-r border-border bg-sidebar shadow-2xl transition-transform duration-200 ease-out lg:hidden ${
           mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
         aria-label="Mobile navigation"
         aria-hidden={!mobileSidebarOpen}
+        inert={!mobileSidebarOpen}
       >
         {sidebarContent(true)}
       </aside>
@@ -1422,6 +1433,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, workspa
         <header className="sticky top-0 z-20 border-b border-border bg-app-bg/95 backdrop-blur">
           <div className="flex h-11 items-center justify-between gap-4 px-4 sm:px-5 lg:px-6">
             <button
+              ref={mobileMenuButtonRef}
               className="icon-btn lg:hidden"
               type="button"
               aria-label="Open navigation"
