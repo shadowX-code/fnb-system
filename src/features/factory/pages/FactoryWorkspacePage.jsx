@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Activity, AlertTriangle, ArrowDown, ArrowUp, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleOff, ClipboardCheck, ClipboardList, Clock3, Copy, DollarSign, Factory, FileText, Package, PackageCheck, Play, Plus, RefreshCw, RotateCcw, Tag, Trash2, Truck, Warehouse, X } from "lucide-react";
+import { createPortal } from "react-dom";
+import { Activity, AlertTriangle, ArrowDown, ArrowUp, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleOff, ClipboardCheck, ClipboardList, Clock3, Copy, DollarSign, Factory, FileText, ImageOff, Package, PackageCheck, Play, Plus, RefreshCw, RotateCcw, Tag, Trash2, Truck, Warehouse, X } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
@@ -447,11 +448,120 @@ function SearchableSelect({ value, options, placeholder, onChange, error, search
   );
 }
 
-function FactoryBulkSelectionModal({ title, description, items = [], existingIds = [], onClose, onAdd }) {
+const failedFactoryImageUrls = new Set();
+
+function FactoryBulkThumbnail({ item, onPreview }) {
+  const imageUrl = String(item.imageUrl || "").trim();
+  const [loading, setLoading] = useState(Boolean(imageUrl) && !failedFactoryImageUrls.has(imageUrl));
+  const [failed, setFailed] = useState(() => failedFactoryImageUrls.has(imageUrl));
+
+  useEffect(() => {
+    const knownFailure = failedFactoryImageUrls.has(imageUrl);
+    setLoading(Boolean(imageUrl) && !knownFailure);
+    setFailed(knownFailure);
+  }, [imageUrl]);
+
+  if (!imageUrl || failed) {
+    return (
+      <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg border border-border bg-slate-100 text-text-muted" aria-hidden="true">
+        <ImageOff size={20} />
+      </div>
+    );
+  }
+
+  return (
+    <button
+      className="relative h-[52px] w-[52px] shrink-0 overflow-hidden rounded-lg border border-border bg-slate-100 outline-none transition hover:border-primary/50 focus:ring-2 focus:ring-primary/30"
+      type="button"
+      aria-label={`Preview image for ${item.primary || "item"}`}
+      onClick={(event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        onPreview(item, event.currentTarget);
+      }}
+    >
+      {loading ? <span className="absolute inset-0 animate-pulse bg-slate-200" aria-hidden="true" /> : null}
+      <img
+        className={`h-full w-full object-cover transition-opacity ${loading ? "opacity-0" : "opacity-100"}`}
+        src={imageUrl}
+        alt=""
+        onLoad={() => setLoading(false)}
+        onError={() => { failedFactoryImageUrls.add(imageUrl); setLoading(false); setFailed(true); }}
+      />
+    </button>
+  );
+}
+
+function FactoryImagePreview({ item, onClose }) {
+  const imageUrl = String(item.imageUrl || "").trim();
+  const [loading, setLoading] = useState(() => !failedFactoryImageUrls.has(imageUrl));
+  const [failed, setFailed] = useState(() => failedFactoryImageUrls.has(imageUrl));
+
+  useEffect(() => {
+    function closeOnEscape(event) {
+      if (event.key !== "Escape") return;
+      event.preventDefault();
+      event.stopPropagation();
+      onClose();
+    }
+    document.addEventListener("keydown", closeOnEscape, true);
+    return () => document.removeEventListener("keydown", closeOnEscape, true);
+  }, [onClose]);
+
+  if (typeof document === "undefined") return null;
+
+  return createPortal(
+    <div
+      className="fixed inset-0 z-lightbox-layer flex items-center justify-center bg-slate-950/70 p-3 backdrop-blur-sm sm:p-6"
+      role="presentation"
+      onClick={(event) => {
+        if (event.target === event.currentTarget) onClose();
+      }}
+    >
+      <div
+        className="flex max-h-[92vh] max-w-[92vw] flex-col overflow-hidden rounded-xl border border-white/20 bg-white shadow-2xl"
+        role="dialog"
+        aria-modal="true"
+        aria-label={`Image preview for ${item.primary || "item"}`}
+        onKeyDown={(event) => {
+          if (event.key !== "Tab") return;
+          event.preventDefault();
+          event.currentTarget.querySelector("button")?.focus?.();
+        }}
+      >
+        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-border px-4 py-3">
+          <div className="min-w-0">
+            <div className="truncate font-bold text-text-primary">{item.primary || "Item image"}</div>
+            {item.code ? <div className="truncate text-xs font-semibold text-text-secondary">{item.code}</div> : null}
+          </div>
+          <button className="icon-btn shrink-0" type="button" aria-label="Close image preview" autoFocus onClick={onClose}><X size={18} /></button>
+        </div>
+        <div className="relative flex min-h-[180px] min-w-[min(80vw,320px)] items-center justify-center bg-slate-950 p-3 sm:p-5">
+          {loading && !failed ? <div className="absolute inset-5 animate-pulse rounded-lg bg-slate-800" aria-hidden="true" /> : null}
+          {failed ? (
+            <div className="flex flex-col items-center gap-2 px-8 py-12 text-center text-slate-300"><ImageOff size={28} /><span className="text-sm font-semibold">Image unavailable</span></div>
+          ) : (
+            <img
+              className={`max-h-[80vh] max-w-[80vw] object-contain transition-opacity ${loading ? "opacity-0" : "opacity-100"}`}
+              src={imageUrl}
+              alt={item.primary || "Item image"}
+              onLoad={() => setLoading(false)}
+              onError={() => { failedFactoryImageUrls.add(imageUrl); setLoading(false); setFailed(true); }}
+            />
+          )}
+        </div>
+      </div>
+    </div>,
+    document.body,
+  );
+}
+
+function FactoryBulkSelectionModal({ title, description, items = [], existingIds = [], showImages = false, onClose, onAdd }) {
   const [query, setQuery] = useState("");
   const [debouncedQuery, setDebouncedQuery] = useState("");
   const [category, setCategory] = useState("all");
   const [selectedOrder, setSelectedOrder] = useState([]);
+  const [imagePreview, setImagePreview] = useState(null);
   const existingIdSet = useMemo(() => new Set(existingIds.filter(Boolean)), [existingIds]);
   const itemById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
   const categories = useMemo(() => [...new Set(items.map((item) => item.category).filter(Boolean))].sort((left, right) => left.localeCompare(right)), [items]);
@@ -463,11 +573,11 @@ function FactoryBulkSelectionModal({ title, description, items = [], existingIds
 
   useEffect(() => {
     function closeOnEscape(event) {
-      if (event.key === "Escape") onClose();
+      if (event.key === "Escape" && !imagePreview) onClose();
     }
     document.addEventListener("keydown", closeOnEscape);
     return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [onClose]);
+  }, [imagePreview, onClose]);
 
   const visibleItems = items.filter((item) => {
     if (category !== "all" && item.category !== category) return false;
@@ -488,6 +598,12 @@ function FactoryBulkSelectionModal({ title, description, items = [], existingIds
       if (allVisibleSelected) return current.filter((id) => !selectableVisibleIds.includes(id));
       return [...current, ...selectableVisibleIds.filter((id) => !current.includes(id))];
     });
+  }
+
+  function closeImagePreview() {
+    const returnFocus = imagePreview?.trigger;
+    setImagePreview(null);
+    window.requestAnimationFrame(() => returnFocus?.focus?.());
   }
 
   return (
@@ -529,20 +645,23 @@ function FactoryBulkSelectionModal({ title, description, items = [], existingIds
             const alreadyAdded = existingIdSet.has(item.id);
             const disabled = alreadyAdded || item.disabled;
             const checked = alreadyAdded || selectedOrder.includes(item.id);
+            const checkboxId = `factory-bulk-item-${item.id}`;
             return (
-              <label key={item.id} className={`flex min-h-14 items-start gap-3 border-b border-border px-3 py-3 last:border-0 ${disabled ? "cursor-not-allowed bg-slate-50 opacity-70" : "cursor-pointer bg-white hover:bg-primary/5"}`}>
-                <input className="mt-1 h-4 w-4 shrink-0 accent-primary" type="checkbox" checked={checked} disabled={disabled} onChange={() => toggleItem(item.id)} />
-                <span className="min-w-0 flex-1">
+              <div key={item.id} className={`flex min-h-14 items-center gap-3 border-b border-border px-3 py-3 last:border-0 ${disabled ? "bg-slate-50 opacity-70" : "bg-white hover:bg-primary/5"}`}>
+                <input id={checkboxId} className="h-4 w-4 shrink-0 accent-primary" type="checkbox" checked={checked} disabled={disabled} onChange={() => toggleItem(item.id)} />
+                {showImages ? <FactoryBulkThumbnail item={item} onPreview={(previewItem, trigger) => setImagePreview({ item: previewItem, trigger })} /> : null}
+                <label htmlFor={checkboxId} className={`min-w-0 flex-1 ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}>
                   <span className="block font-bold text-text-primary">{item.primary || "Unnamed item"}</span>
                   {item.secondary ? <span className="block text-sm font-semibold text-text-secondary">{item.secondary}</span> : null}
                   <span className="mt-1 block text-xs font-semibold text-text-muted">{[item.code, item.meta].filter(Boolean).join(" · ") || "—"}</span>
-                </span>
+                </label>
                 <Badge tone={alreadyAdded ? "info" : item.disabled ? "neutral" : "success"}>{alreadyAdded ? "Already added" : item.statusLabel || "Active"}</Badge>
-              </label>
+              </div>
             );
           }) : <EmptyState title="No matching items" description="Try another name, code or category." />}
         </div>
       </div>
+      {imagePreview ? <FactoryImagePreview item={imagePreview.item} onClose={closeImagePreview} /> : null}
     </Modal>
   );
 }
@@ -4619,6 +4738,7 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials = [], suppli
     id: material.id,
     primary: rawMaterialLabel(material) || "Raw Material",
     secondary: material.name_cn || "",
+    imageUrl: material.image_url || "",
     code: material.material_code || "No material code",
     meta: [material.uom || "No UOM", material.storage_location || "No default storage"].join(" · "),
     category: material.category || "",
@@ -4812,6 +4932,7 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials = [], suppli
         description="Choose multiple active Raw Materials to add as blank Receiving rows."
         items={receivingBulkItems}
         existingIds={form.items.map((item) => item.raw_material_id)}
+        showImages
         onClose={() => setReceivingBulkSelectOpen(false)}
         onAdd={addSelectedRawMaterials}
       />
