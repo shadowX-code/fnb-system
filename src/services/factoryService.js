@@ -1688,32 +1688,39 @@ export const factoryService = {
     const { data, error } = await supabase.rpc("factory_get_dashboard_monthly_analytics", {
       p_month: `${monthValue}-01`,
       p_finished_good_id: databaseUuid(finishedGoodId),
+      p_include_operational_comparisons: true,
     });
     throwFactorySupabaseError("factory.dashboard.monthly_analytics", error);
     const snapshot = data && typeof data === "object" && !Array.isArray(data) ? data : {};
     const filters = snapshot.filters && typeof snapshot.filters === "object" ? snapshot.filters : {};
     const kpis = snapshot.kpis && typeof snapshot.kpis === "object" ? snapshot.kpis : {};
     const normalizeRows = (rows) => Array.isArray(rows) ? rows : [];
+    const normalizeUomRows = (rows) => normalizeRows(rows).map((row) => {
+      const uom = String(row?.uom_key || row?.uom || "unit").trim().toLowerCase() || "unit";
+      return { ...row, uom, uom_key: uom };
+    });
     return {
       filters: {
         ...filters,
         permissions: filters.permissions && typeof filters.permissions === "object" ? filters.permissions : {},
       },
       kpis: {
-        production_output: { ...(kpis.production_output || {}), by_uom: normalizeRows(kpis.production_output?.by_uom) },
+        production_output: { ...(kpis.production_output || {}), by_uom: normalizeUomRows(kpis.production_output?.by_uom) },
         dispatch_volume: kpis.dispatch_volume || {},
         completion_rate: kpis.completion_rate || {},
         qc_pass_rate: kpis.qc_pass_rate || {},
-        raw_receiving: { ...(kpis.raw_receiving || {}), by_uom: normalizeRows(kpis.raw_receiving?.by_uom) },
+        raw_receiving: { ...(kpis.raw_receiving || {}), by_uom: normalizeUomRows(kpis.raw_receiving?.by_uom) },
         inventory_alerts: kpis.inventory_alerts || {},
       },
-      production_summary: normalizeRows(snapshot.production_summary),
+      production_summary: normalizeUomRows(snapshot.production_summary),
       top_dispatch_products: normalizeRows(snapshot.top_dispatch_products),
-      top_raw_materials: normalizeRows(snapshot.top_raw_materials),
+      top_raw_materials: normalizeUomRows(snapshot.top_raw_materials),
+      planned_vs_actual: normalizeUomRows(snapshot.planned_vs_actual),
+      raw_material_flow: normalizeUomRows(snapshot.raw_material_flow),
       production_dispatch_trend: {
         ...(snapshot.production_dispatch_trend || {}),
         months: normalizeRows(snapshot.production_dispatch_trend?.months),
-        production: normalizeRows(snapshot.production_dispatch_trend?.production),
+        production: normalizeUomRows(snapshot.production_dispatch_trend?.production),
         dispatch: normalizeRows(snapshot.production_dispatch_trend?.dispatch),
       },
       qc_performance: {
