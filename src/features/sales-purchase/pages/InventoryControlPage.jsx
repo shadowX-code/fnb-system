@@ -232,6 +232,11 @@ function toCurrency(value) {
   return `RM${Number(value || 0).toLocaleString("en-MY", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
 }
 
+function formatRestaurantRecipeCurrency(value) {
+  const amount = Number(value);
+  return `RM${(Number.isFinite(amount) ? amount : 0).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+}
+
 function formatInventoryCost(value, unit = "") {
   if (value === "" || value === null || value === undefined) return "—";
   const amount = Number(value);
@@ -4801,7 +4806,7 @@ function RecipeIngredientPreviewPill({ recipe, itemById }) {
     const displayQty = Number.isFinite(quantity) ? String(quantity).replace(/\.0+$/, "") : "-";
     const unit = line.unit || item?.unit || "";
     const cost = recipeIngredientCost(line, item);
-    return `${item?.name || "Inventory item"} · ${displayQty} ${unit}`.trim() + ` · ${toCurrency(cost.totalCost)}`;
+    return `${item?.name || "Inventory item"} · ${displayQty} ${unit}`.trim() + ` · ${formatRestaurantRecipeCurrency(cost.totalCost)}`;
   });
   const remaining = Math.max(0, ingredients.length - 5);
 
@@ -4991,7 +4996,7 @@ function RecipeInsightsPanel({ rows = [], grossProfitRows = [], ingredientDriver
           <div className="rounded-2xl border border-emerald-200 bg-emerald-50 p-3 dark:border-emerald-400/30 dark:bg-emerald-950/30">
             <div className="font-black text-emerald-900 dark:text-emerald-100">Top gross profit recipe</div>
             <p className="mt-1 type-body-sm text-emerald-800 dark:text-emerald-100">
-              {recipeNameEn(grossProfitRows[0].recipe) || grossProfitRows[0].label} contributes {toCurrency(grossProfitRows[0].grossProfit)} gross profit.
+              {recipeNameEn(grossProfitRows[0].recipe) || grossProfitRows[0].label} contributes {formatRestaurantRecipeCurrency(grossProfitRows[0].grossProfit)} gross profit.
             </p>
             <div className="mt-2 type-caption font-bold text-emerald-800 dark:text-emerald-100">Action: protect availability and ingredient supply.</div>
           </div>
@@ -5000,7 +5005,7 @@ function RecipeInsightsPanel({ rows = [], grossProfitRows = [], ingredientDriver
           <div className="rounded-2xl border border-orange-200 bg-orange-50 p-3 dark:border-orange-400/30 dark:bg-orange-950/30">
             <div className="font-black text-orange-900 dark:text-orange-100">Ingredient cost driver</div>
             <p className="mt-1 type-body-sm text-orange-800 dark:text-orange-100">
-              {ingredientDrivers[0].ingredient} is the largest forecast purchase driver at {toCurrency(ingredientDrivers[0].forecastCost)}.
+              {ingredientDrivers[0].ingredient} is the largest forecast purchase driver at {formatRestaurantRecipeCurrency(ingredientDrivers[0].forecastCost)}.
             </p>
             <div className="mt-2 type-caption font-bold text-orange-800 dark:text-orange-100">Action: check supplier pricing and par level planning.</div>
           </div>
@@ -5010,7 +5015,7 @@ function RecipeInsightsPanel({ rows = [], grossProfitRows = [], ingredientDriver
             <div className="flex flex-wrap items-start justify-between gap-2">
               <div>
                 <div className="font-black text-text-primary">{recipeNameEn(row.recipe) || row.label}</div>
-                <div className="type-caption text-text-muted">{row.salesVolume.toLocaleString()} sold · {toCurrency(row.revenue)} revenue</div>
+                <div className="type-caption text-text-muted">{row.salesVolume.toLocaleString()} sold · {formatRestaurantRecipeCurrency(row.revenue)} revenue</div>
               </div>
               <RecipeInsightBadge classification={row.classification} />
             </div>
@@ -5151,16 +5156,16 @@ function RecipeMenuEngineeringMatrix({ rows = [] }) {
             key={row.id}
             className="group absolute -translate-x-1/2 -translate-y-1/2"
             style={{ left: `${x}%`, top: `${y}%`, height: size, width: size }}
-            title={`${row.label}: ${row.salesVolume} sold, ${toCurrency(row.revenue)} revenue, ${formatRecipeMargin(row.margin)} margin`}
+            title={`${row.label}: ${row.salesVolume} sold, ${formatRestaurantRecipeCurrency(row.revenue)} revenue, ${formatRecipeMargin(row.margin)} margin`}
           >
             <div className="h-full w-full rounded-full border-2 border-white/80 bg-primary shadow-[0_0_22px_rgba(34,197,94,0.55)] ring-4 ring-primary/25" />
             <div className="pointer-events-none absolute left-full top-1/2 ml-2 hidden w-48 -translate-y-1/2 rounded-2xl border border-white/15 bg-slate-900/95 p-3 text-left text-xs text-white shadow-2xl group-hover:block">
               <div className="font-black">{recipeNameEn(row.recipe) || row.label}</div>
               <div className="mt-1 text-slate-300">Qty Sold: {Number(row.salesVolume || 0).toLocaleString()}</div>
-              <div className="text-slate-300">Revenue: {toCurrency(row.revenue)}</div>
-              <div className="text-slate-300">Cost: {toCurrency(cost)}</div>
-              <div className="text-slate-300">Price: {toCurrency(price)}</div>
-              <div className="text-slate-300">Profit: {toCurrency(row.profitPerServing)}</div>
+              <div className="text-slate-300">Revenue: {formatRestaurantRecipeCurrency(row.revenue)}</div>
+              <div className="text-slate-300">Cost: {formatRestaurantRecipeCurrency(cost)}</div>
+              <div className="text-slate-300">Price: {formatRestaurantRecipeCurrency(price)}</div>
+              <div className="text-slate-300">Profit: {formatRestaurantRecipeCurrency(row.profitPerServing)}</div>
               <div className="text-slate-300">Margin: {formatRecipeMargin(row.margin)}</div>
             </div>
             <div className="absolute left-full top-1/2 ml-2 max-w-[110px] -translate-y-1/2 truncate rounded-full bg-white/90 px-2 py-0.5 type-caption font-black text-slate-900 shadow-sm">
@@ -5472,8 +5477,8 @@ function IngredientConsumptionModal({ rows = [], categories = [], filters, onFil
           { key: "category", label: "Category", render: (row) => <Badge tone="info">{row.category}</Badge> },
           { key: "usage", label: "Estimated Usage", render: (row) => <span className="font-black text-text-primary">{Number(row.estimatedUsage || 0).toLocaleString("en-MY", { maximumFractionDigits: 2 })}</span> },
           { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
-          { key: "unitCost", label: "Unit Cost", render: (row) => toCurrency(row.unitCost) },
-          { key: "totalCost", label: "Total Cost", render: (row) => <span className="font-black text-text-primary">{toCurrency(row.totalCost)}</span> },
+          { key: "unitCost", label: "Unit Cost", render: (row) => formatRestaurantRecipeCurrency(row.unitCost) },
+          { key: "totalCost", label: "Total Cost", render: (row) => <span className="font-black text-text-primary">{formatRestaurantRecipeCurrency(row.totalCost)}</span> },
           { key: "contribution", label: "Cost Contribution %", render: (row) => <Badge tone="info">{formatRecipeMargin(row.costContribution)}</Badge> },
         ]}
         emptyTitle="No ingredient consumption rows"
@@ -5742,8 +5747,8 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existing
             />
             <Field label="Serving Size / Yield" value={form.servingSize} onChange={(value) => update("servingSize", value)} placeholder="1" />
             <div className="grid gap-2 sm:grid-cols-3">
-              <MetricCard label="Recipe Cost" value={toCurrency(summary.totalCost)} helper="Ingredient + wastage" tone="success" size="compact" />
-              <MetricCard label="Profit" value={form.sellingPrice !== "" ? toCurrency(profit) : "—"} helper="Price - cost" tone={profit >= 0 ? "success" : "danger"} size="compact" />
+              <MetricCard label="Recipe Cost" value={formatRestaurantRecipeCurrency(summary.totalCost)} helper="Ingredient + wastage" tone="success" size="compact" />
+              <MetricCard label="Profit" value={form.sellingPrice !== "" ? formatRestaurantRecipeCurrency(profit) : "—"} helper="Price - cost" tone={profit >= 0 ? "success" : "danger"} size="compact" />
               <MetricCard label="Margin %" value={formatRecipeMargin(margin)} helper="Price vs cost" tone={recipeMarginTone(margin)} size="compact" />
             </div>
           </div>
@@ -5776,7 +5781,7 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existing
               <div className="type-caption text-text-secondary">Quantity used is per serving/yield above.</div>
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
-              <Badge tone="success">Running total {toCurrency(summary.totalCost)}</Badge>
+              <Badge tone="success">Running total {formatRestaurantRecipeCurrency(summary.totalCost)}</Badge>
               <button className="btn-secondary h-8 px-3 text-xs" type="button" onClick={addIngredient} disabled={!availableItems.length}>
                 <Plus size={14} /> Add Ingredient
               </button>
@@ -5810,12 +5815,12 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existing
                     </label>
                     <label>
                       <div className="mb-1 type-caption font-semibold text-text-secondary">Unit Cost</div>
-                      <div className="control flex h-9 items-center text-[13px] font-semibold text-text-secondary">{toCurrency(cost.unitCost)}</div>
+                      <div className="control flex h-9 items-center text-[13px] font-semibold text-text-secondary">{formatRestaurantRecipeCurrency(cost.unitCost)}</div>
                     </label>
                     <Field label="Wastage %" type="number" value={line.wastagePercent} onChange={(value) => updateIngredient(line.id, { wastagePercent: parseNonNegativeNumber(value) })} />
                     <label>
                       <div className="mb-1 type-caption font-semibold text-text-secondary">Total Cost</div>
-                      <div className="control flex h-9 items-center text-[13px] font-semibold text-text-primary">{toCurrency(cost.totalCost + cost.wastageCost)}</div>
+                      <div className="control flex h-9 items-center text-[13px] font-semibold text-text-primary">{formatRestaurantRecipeCurrency(cost.totalCost + cost.wastageCost)}</div>
                     </label>
                     <Field label="Remark" value={line.remark} onChange={(value) => updateIngredient(line.id, { remark: value })} placeholder="Optional" />
                     <button className="btn-secondary h-9 px-3 text-xs text-rose-700" type="button" onClick={() => removeIngredient(line.id)}>Remove</button>
@@ -5827,11 +5832,11 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existing
           <div className="mt-4 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-border bg-slate-50 p-3">
             <div>
               <div className="type-caption font-black uppercase tracking-wide text-text-muted">Total Recipe Cost</div>
-              <div className="type-title font-black text-text-primary">{toCurrency(summary.totalCost)}</div>
+              <div className="type-title font-black text-text-primary">{formatRestaurantRecipeCurrency(summary.totalCost)}</div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <Badge tone="neutral">Ingredient {toCurrency(summary.ingredientCost)}</Badge>
-              <Badge tone={summary.wastageCost ? "warning" : "neutral"}>Wastage {toCurrency(summary.wastageCost)}</Badge>
+              <Badge tone="neutral">Ingredient {formatRestaurantRecipeCurrency(summary.ingredientCost)}</Badge>
+              <Badge tone={summary.wastageCost ? "warning" : "neutral"}>Wastage {formatRestaurantRecipeCurrency(summary.wastageCost)}</Badge>
             </div>
           </div>
         </section>
@@ -5884,11 +5889,11 @@ function RecipeDetailModal({ recipe, outlet, items, categories, onClose, onEdit 
               </div>
             </div>
             <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-              <MetricCard label="Estimated Cost" value={toCurrency(summary.totalCost)} helper="Ingredient + wastage" tone="success" size="compact" />
-              <MetricCard label="Selling Price" value={recipe?.sellingPrice !== "" && recipe?.sellingPrice !== null && recipe?.sellingPrice !== undefined ? toCurrency(recipe.sellingPrice) : "—"} helper="Menu price" size="compact" />
+              <MetricCard label="Estimated Cost" value={formatRestaurantRecipeCurrency(summary.totalCost)} helper="Ingredient + wastage" tone="success" size="compact" />
+              <MetricCard label="Selling Price" value={recipe?.sellingPrice !== "" && recipe?.sellingPrice !== null && recipe?.sellingPrice !== undefined ? formatRestaurantRecipeCurrency(recipe.sellingPrice) : "—"} helper="Menu price" size="compact" />
               <MetricCard label="Margin %" value={formatRecipeMargin(margin)} helper="Price vs cost" tone={recipeMarginTone(margin)} size="compact" />
               <MetricCard label="Ingredients" value={ingredients.length} helper="BOM rows" size="compact" />
-              <MetricCard label="Ingredient Cost" value={toCurrency(summary.ingredientCost)} helper="Before wastage" size="compact" />
+              <MetricCard label="Ingredient Cost" value={formatRestaurantRecipeCurrency(summary.ingredientCost)} helper="Before wastage" size="compact" />
               <MetricCard label="Status" value={toTitle(recipe?.status || "active")} helper="Recipe lifecycle" tone={statusTone(recipe?.status || "active")} size="compact" />
             </div>
           </div>
@@ -5918,8 +5923,8 @@ function RecipeDetailModal({ recipe, outlet, items, categories, onClose, onEdit 
                     <td>{category?.name || "Uncategorized"}</td>
                     <td>{line.quantityUsed}</td>
                     <td>{line.unit || item?.unit || "-"}</td>
-                    <td>{toCurrency(cost.unitCost)}</td>
-                    <td>{toCurrency(cost.totalCost)}</td>
+                    <td>{formatRestaurantRecipeCurrency(cost.unitCost)}</td>
+                    <td>{formatRestaurantRecipeCurrency(cost.totalCost)}</td>
                     <td>{line.wastagePercent || 0}%</td>
                     <td>{line.remark || "-"}</td>
                   </tr>
@@ -10488,7 +10493,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         return {
           month,
           value: Number(bucket.grossProfit || 0),
-          tooltip: `Qty ${Number(bucket.quantity || 0).toLocaleString()} · Revenue ${toCurrency(bucket.revenue || 0)} · Recipe Cost ${toCurrency(bucket.recipeCost || 0)} · Margin ${formatRecipeMargin(bucket.margin)}`,
+          tooltip: `Qty ${Number(bucket.quantity || 0).toLocaleString()} · Revenue ${formatRestaurantRecipeCurrency(bucket.revenue || 0)} · Recipe Cost ${formatRestaurantRecipeCurrency(bucket.recipeCost || 0)} · Margin ${formatRecipeMargin(bucket.margin)}`,
         };
       }),
     }];
@@ -10573,7 +10578,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               { label: "Ingredient", value: row?.ingredient || "Ingredient" },
               { label: "Estimated Usage", value: Number(bucket.usage || 0).toLocaleString("en-MY", { maximumFractionDigits: 2 }) },
               { label: "UOM", value: row?.uom || "—" },
-              { label: "Estimated Cost", value: toCurrency(bucket.cost || 0) },
+              { label: "Estimated Cost", value: formatRestaurantRecipeCurrency(bucket.cost || 0) },
             ],
           };
         }),
@@ -10619,13 +10624,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             </div>
             <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
               <MetricCard icon={FileText} label="Total Recipes" value={filteredRecipes.length} helper="Current filters" size="compact" />
-              <MetricCard icon={ShoppingCart} label="Average Recipe Cost" value={toCurrency(averageRecipeCost)} helper="Ingredient + wastage" size="compact" />
+              <MetricCard icon={ShoppingCart} label="Average Recipe Cost" value={formatRestaurantRecipeCurrency(averageRecipeCost)} helper="Ingredient + wastage" size="compact" />
               <MetricCard icon={Sparkles} label="Average Margin" value={formatRecipeMargin(averageMargin)} helper="Priced recipes only" tone={recipeMarginTone(averageMargin)} size="compact" />
               <MetricCard
                 icon={AlertTriangle}
                 label="Highest Cost Recipe"
                 value={highestCostRecipe ? recipeNameEn(highestCostRecipe.recipe) || recipeCode(highestCostRecipe.recipe) || "Recipe" : "—"}
-                helper={highestCostRecipe ? `${recipeNameCn(highestCostRecipe.recipe) ? `${recipeNameCn(highestCostRecipe.recipe)} · ` : ""}${toCurrency(highestCostRecipe.summary.totalCost)}` : "No recipes"}
+                helper={highestCostRecipe ? `${recipeNameCn(highestCostRecipe.recipe) ? `${recipeNameCn(highestCostRecipe.recipe)} · ` : ""}${formatRestaurantRecipeCurrency(highestCostRecipe.summary.totalCost)}` : "No recipes"}
                 tone={highestCostRecipe?.summary?.totalCost ? "warning" : "neutral"}
                 size="compact"
               />
@@ -10682,8 +10687,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                       <td>
                         <RecipeIngredientPreviewPill recipe={recipe} itemById={itemById} />
                       </td>
-                      <td className="font-black text-text-primary">{toCurrency(summary.totalCost)}</td>
-                      <td className="font-bold text-text-secondary">{recipe.sellingPrice !== "" && recipe.sellingPrice !== null && recipe.sellingPrice !== undefined ? toCurrency(recipe.sellingPrice) : "—"}</td>
+                      <td className="font-black text-text-primary">{formatRestaurantRecipeCurrency(summary.totalCost)}</td>
+                      <td className="font-bold text-text-secondary">{recipe.sellingPrice !== "" && recipe.sellingPrice !== null && recipe.sellingPrice !== undefined ? formatRestaurantRecipeCurrency(recipe.sellingPrice) : "—"}</td>
                       <td><Badge tone={recipeMarginTone(margin)}>{formatRecipeMargin(margin)}</Badge></td>
                       <td><Badge tone={statusTone(recipe.status)}>{toTitle(recipe.status || "active")}</Badge></td>
                       <td className="pr-8">
@@ -10783,7 +10788,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                         <td>
                           <div className="font-bold text-text-primary">{row.latestMonth}</div>
                           <div className="type-caption font-semibold text-text-secondary">{Number(row.quantity || 0).toLocaleString()} sold</div>
-                          <div className="type-caption font-black text-text-primary">{toCurrency(row.revenue)}</div>
+                          <div className="type-caption font-black text-text-primary">{formatRestaurantRecipeCurrency(row.revenue)}</div>
                         </td>
                         <td>
                           {displayRecipe ? (
@@ -10887,20 +10892,20 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               action={<RecipeYearSelector year={recipeTrendYear} years={availableTrendYears} onChange={setRecipeTrendYear} />}
             >
               <div className="mb-4 grid gap-3 sm:grid-cols-3">
-                <MetricCard label={`${recipeTrendYear} Gross Profit`} value={toCurrency(currentYearGrossProfit)} helper="Mapped recipe sales only" tone={currentYearGrossProfit ? "success" : "neutral"} size="compact" />
-                <MetricCard label="Best Month" value={bestGrossProfitMonth ? formatMonthShort(bestGrossProfitMonth.month) : "—"} helper={bestGrossProfitMonth ? toCurrency(bestGrossProfitMonth.grossProfit) : "No mapped sales"} tone={bestGrossProfitMonth?.grossProfit ? "success" : "neutral"} size="compact" />
-                <MetricCard label="Average Monthly GP" value={toCurrency(averageMonthlyGrossProfit)} helper="12-month average" size="compact" />
+                <MetricCard label={`${recipeTrendYear} Gross Profit`} value={formatRestaurantRecipeCurrency(currentYearGrossProfit)} helper="Mapped recipe sales only" tone={currentYearGrossProfit ? "success" : "neutral"} size="compact" />
+                <MetricCard label="Best Month" value={bestGrossProfitMonth ? formatMonthShort(bestGrossProfitMonth.month) : "—"} helper={bestGrossProfitMonth ? formatRestaurantRecipeCurrency(bestGrossProfitMonth.grossProfit) : "No mapped sales"} tone={bestGrossProfitMonth?.grossProfit ? "success" : "neutral"} size="compact" />
+                <MetricCard label="Average Monthly GP" value={formatRestaurantRecipeCurrency(averageMonthlyGrossProfit)} helper="12-month average" size="compact" />
               </div>
               <RecipeTrendChart
                 series={grossProfitTrendSeries}
                 months={trendMonths}
-                valueFormatter={toCurrency}
+                valueFormatter={formatRestaurantRecipeCurrency}
                 emptyTitle="Map products to recipes to unlock gross profit trend."
                 emptyDescription="Gross profit uses Product Analytics qty sold and Recipe BOM costing. No fake trend is shown."
               />
               {bestGrossProfitMonth?.grossProfit ? (
                 <div className="mt-3 rounded-2xl border border-emerald-200 bg-emerald-50 p-3 type-body-sm text-emerald-900 dark:border-emerald-400/30 dark:bg-emerald-950/30 dark:text-emerald-100">
-                  Gross profit peaked in {formatMonthShort(bestGrossProfitMonth.month)} at {toCurrency(bestGrossProfitMonth.grossProfit)}.
+                  Gross profit peaked in {formatMonthShort(bestGrossProfitMonth.month)} at {formatRestaurantRecipeCurrency(bestGrossProfitMonth.grossProfit)}.
                 </div>
               ) : null}
             </RecipeIntelligenceCard>
@@ -10914,8 +10919,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                   columns={[
                     { key: "recipe", label: "Recipe", render: (row) => <div><div className="font-bold text-text-primary">{recipeNameEn(row.recipe) || row.label}</div><div className="type-caption text-text-muted">{recipeNameCn(row.recipe) || recipeCode(row.recipe)}</div></div> },
                     { key: "qty", label: "Qty Sold", render: (row) => <span className="font-black text-text-primary">{Number(row.salesVolume || 0).toLocaleString()}</span> },
-                    { key: "revenue", label: "Revenue", render: (row) => toCurrency(row.revenue) },
-                    { key: "grossProfit", label: "Gross Profit", render: (row) => <span className="font-black text-text-primary">{toCurrency(row.grossProfit)}</span> },
+                    { key: "revenue", label: "Revenue", render: (row) => formatRestaurantRecipeCurrency(row.revenue) },
+                    { key: "grossProfit", label: "Gross Profit", render: (row) => <span className="font-black text-text-primary">{formatRestaurantRecipeCurrency(row.grossProfit)}</span> },
                     { key: "margin", label: "Margin %", render: (row) => <Badge tone={recipeMarginTone(row.margin)}>{formatRecipeMargin(row.margin)}</Badge> },
                   ]}
                   emptyTitle="No mapped gross profit yet"
@@ -10932,7 +10937,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                     { key: "ingredient", label: "Ingredient", render: (row) => <div><div className="font-bold text-text-primary">{row.ingredient}</div><div className="type-caption text-text-muted">{row.category}</div></div> },
                     { key: "usage", label: "Forecast Usage", render: (row) => <span className="font-black text-text-primary">{Number(row.forecastUsage || 0).toLocaleString("en-MY", { maximumFractionDigits: 2 })}</span> },
                     { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
-                    { key: "cost", label: "Forecast Cost", render: (row) => <span className="font-black text-text-primary">{toCurrency(row.forecastCost)}</span> },
+                    { key: "cost", label: "Forecast Cost", render: (row) => <span className="font-black text-text-primary">{formatRestaurantRecipeCurrency(row.forecastCost)}</span> },
                     { key: "change", label: "Change", render: (row) => <Badge tone={Number(row.change || 0) > 0 ? "warning" : Number(row.change || 0) < 0 ? "success" : "neutral"}>{formatPercentChange(row.change)}</Badge> },
                   ]}
                   emptyTitle="Map products to recipes to estimate demand."
@@ -10961,8 +10966,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                     { key: "ingredient", label: "Ingredient", render: (row) => <div><div className="font-bold text-text-primary">{row.ingredient}</div><div className="type-caption text-text-muted">{row.category}</div></div> },
                     { key: "usage", label: "Estimated Usage", render: (row) => <span className="font-black text-text-primary">{Number(row.estimatedUsage || 0).toLocaleString("en-MY", { maximumFractionDigits: 2 })}</span> },
                     { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
-                    { key: "unitCost", label: "Unit Cost", render: (row) => toCurrency(row.unitCost) },
-                    { key: "totalCost", label: "Total Cost", render: (row) => <span className="font-black text-text-primary">{toCurrency(row.totalCost)}</span> },
+                    { key: "unitCost", label: "Unit Cost", render: (row) => formatRestaurantRecipeCurrency(row.unitCost) },
+                    { key: "totalCost", label: "Total Cost", render: (row) => <span className="font-black text-text-primary">{formatRestaurantRecipeCurrency(row.totalCost)}</span> },
                     { key: "contribution", label: "Cost Contribution %", render: (row) => <Badge tone="info">{formatRecipeMargin(row.costContribution)}</Badge> },
                   ]}
                   emptyTitle="Map products to recipes to estimate ingredient consumption."
@@ -10987,7 +10992,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                   <RecipeTrendChart
                     series={ingredientTrendSeries}
                     months={trendMonths}
-                    valueFormatter={toCurrency}
+                    valueFormatter={formatRestaurantRecipeCurrency}
                     emptyTitle="Map products to recipes to unlock ingredient cost trends."
                     emptyDescription="The trend uses estimated monthly procurement cost, not quantity."
                     showLegend={false}
@@ -10999,7 +11004,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                       <div className="mt-2 grid gap-3 sm:grid-cols-3">
                         <MetricCard label="Ingredient" value={highestIngredientCostPoint.ingredient} helper={highestIngredientCostPoint.category || "Ingredient"} tone="warning" size="compact" />
                         <MetricCard label="Month" value={formatMonthShort(highestIngredientCostPoint.peak.month)} helper={String(recipeTrendYear)} tone="warning" size="compact" />
-                        <MetricCard label="Cost" value={toCurrency(highestIngredientCostPoint.peak.cost)} helper="Estimated cost" tone="warning" size="compact" />
+                        <MetricCard label="Cost" value={formatRestaurantRecipeCurrency(highestIngredientCostPoint.peak.cost)} helper="Estimated cost" tone="warning" size="compact" />
                       </div>
                     </div>
                   ) : (
