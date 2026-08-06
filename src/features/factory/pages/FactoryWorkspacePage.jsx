@@ -3437,7 +3437,7 @@ function DispatchBatchAllocationModal({ item, sku, batches, unavailableBatches =
 function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers = [], onClose, onSave, onComplete, embedded = false, mode = "edit" }) {
   const makeItem = (overrides = {}) => ({ row_id: Math.random().toString(36).slice(2), finished_good_id: "", quantity: "", batch_no: "", remarks: "", allocations: [], allocation_prompted: false, allocation_required: false, ...overrides });
   const [form, setForm] = useState(() => ({
-    dispatch_date: todayInput(),
+    dispatch_date: malaysiaBusinessDateInput(),
     customer_id: "",
     customer_name: "",
     reference_no: "",
@@ -3452,13 +3452,16 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
   const [allocationEditor, setAllocationEditor] = useState(null);
   const [viewAllocation, setViewAllocation] = useState(null);
   const [dispatchBulkSelectOpen, setDispatchBulkSelectOpen] = useState(false);
+  const [dispatchNoPreviewState, setDispatchNoPreviewState] = useState(() => ({ value: initialValue?.dispatch_no || "", loading: !initialValue?.dispatch_no, error: "" }));
+  const [dispatchNoPreviewRetry, setDispatchNoPreviewRetry] = useState(0);
   const [batchAvailabilityBySku, setBatchAvailabilityBySku] = useState({});
   const batchAvailabilityRequestRef = useRef({});
+  const dispatchNoPreviewRequestRef = useRef(0);
   const submissionRef = useRef(false);
   const isViewMode = mode === "view" || (Boolean(initialValue?.id) && initialValue.status !== "draft");
   const isReadOnly = isViewMode;
   const saving = Boolean(submittingAction);
-  const dispatchNoPreview = form.dispatch_no || "Assigned on save";
+  const dispatchNoDisplay = form.dispatch_no || dispatchNoPreviewState.value || (dispatchNoPreviewState.loading ? "Loading preview..." : isReadOnly ? "—" : "Preview unavailable");
   const activeSkus = finishedGoods.filter((sku) => sku.status === "active" || form.items.some((item) => item.finished_good_id === sku.id));
   const activeCustomers = customers.filter((customer) => customer.status === "active" || customer.id === form.customer_id);
   const customerOptions = activeCustomers.map((customer) => ({
@@ -3489,6 +3492,39 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
   useEffect(() => {
     if (dispatchBulkSelectOpen && !finishedGoods.length) setDispatchBulkSelectOpen(false);
   }, [dispatchBulkSelectOpen, finishedGoods.length]);
+
+  useEffect(() => {
+    const requestId = dispatchNoPreviewRequestRef.current + 1;
+    dispatchNoPreviewRequestRef.current = requestId;
+    if (form.dispatch_no) {
+      setDispatchNoPreviewState({ value: form.dispatch_no, loading: false, error: "" });
+      return undefined;
+    }
+    if (isReadOnly || !form.dispatch_date) {
+      setDispatchNoPreviewState({ value: "", loading: false, error: "" });
+      return undefined;
+    }
+
+    setDispatchNoPreviewState({ value: "", loading: true, error: "" });
+    factoryService.getFinishedGoodDispatchNoPreview(form.dispatch_date)
+      .then((value) => {
+        if (dispatchNoPreviewRequestRef.current !== requestId) return;
+        setDispatchNoPreviewState({ value, loading: false, error: value ? "" : "Unable to load preview." });
+      })
+      .catch((previewError) => {
+        if (dispatchNoPreviewRequestRef.current !== requestId) return;
+        console.error("[Factory] Unable to load Dispatch number preview.", previewError);
+        setDispatchNoPreviewState({
+          value: "",
+          loading: false,
+          error: isFactoryPermissionError(previewError) ? "Preview hidden by your current role." : "Unable to load preview.",
+        });
+      });
+
+    return () => {
+      if (dispatchNoPreviewRequestRef.current === requestId) dispatchNoPreviewRequestRef.current += 1;
+    };
+  }, [dispatchNoPreviewRetry, form.dispatch_date, form.dispatch_no, isReadOnly]);
 
   async function loadBatchAvailability(finishedGoodId) {
     if (!finishedGoodId) return null;
@@ -3619,7 +3655,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
 
           <div className="rounded-2xl border border-border bg-white">
             <div className="border-b border-border px-4 py-3">
-              <div className="font-bold text-text-primary">Dispatch Lines</div>
+              <div className="font-bold text-text-primary">Dispatch Items</div>
             </div>
             <div className="space-y-3 p-4 md:hidden">
               {form.items.length ? form.items.map((item) => (
@@ -3634,7 +3670,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
                     {item.remarks ? <div><div className="text-[10.5px] font-semibold text-text-muted">Remarks</div><div className="font-bold text-text-primary">{item.remarks}</div></div> : null}
                   </div>
                 </div>
-              )) : <EmptyState title="No dispatch lines" description="No Packaging SKU rows were saved for this dispatch." />}
+              )) : <EmptyState title="No Dispatch Items" description="No Packaging SKU items were saved for this Dispatch." />}
             </div>
             <div className="hidden overflow-x-auto md:block">
               <table className="w-full min-w-[900px] text-left">
@@ -3661,7 +3697,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
                       <td className="px-4 py-3 text-sm text-text-secondary">{item.remarks || "—"}</td>
                     </tr>
                   )) : (
-                    <tr><td className="px-4 py-6 text-center text-sm font-semibold text-text-secondary" colSpan={7}>No dispatch lines were saved for this dispatch.</td></tr>
+                    <tr><td className="px-4 py-6 text-center text-sm font-semibold text-text-secondary" colSpan={7}>No Dispatch Items were saved for this Dispatch.</td></tr>
                   )}
                 </tbody>
               </table>
@@ -3898,7 +3934,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
       else await onSave({ ...form, items: rows });
       if (embedded) {
         setForm({
-          dispatch_date: todayInput(),
+          dispatch_date: malaysiaBusinessDateInput(),
           customer_id: "",
           customer_name: "",
           reference_no: "",
@@ -3920,7 +3956,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
   const formContent = (
     <form id={embedded ? undefined : "factory-finished-good-dispatch-form"} className="space-y-4" onSubmit={(event) => submit(event, "draft")}>
       {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
-      <div className={`grid gap-3 ${showReferenceField ? "md:grid-cols-4" : "md:grid-cols-3"}`}>
+      <div className="grid gap-3 md:grid-cols-3">
         <Field label="Customer *">
           {isReadOnly && !form.customer_id ? (
             <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-semibold text-text-primary">{form.customer_name || "—"}</div>
@@ -3949,18 +3985,24 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
         </Field>
         <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
           <div className="flex items-center justify-between gap-2"><div className="text-[10.5px] font-semibold text-text-muted">Dispatch No.</div>{form.id && form.status === "draft" ? <Badge tone="warning">Draft</Badge> : null}</div>
-          <div className={`mt-1 text-sm font-bold ${form.dispatch_no ? "text-text-primary" : "text-text-secondary"}`}>{dispatchNoPreview}</div>
-          {!form.dispatch_no ? <div className="mt-0.5 text-[10.5px] font-semibold text-text-muted">Preview only</div> : null}
+          <div className={`mt-1 text-sm font-bold ${form.dispatch_no || dispatchNoPreviewState.value ? "text-text-primary" : "text-text-secondary"}`}>{dispatchNoDisplay}</div>
+          {!form.dispatch_no && dispatchNoPreviewState.value ? <div className="mt-0.5 text-[10.5px] font-semibold text-text-muted">Preview only</div> : null}
+          {!form.dispatch_no && dispatchNoPreviewState.error ? <button className="mt-1 inline-flex items-center gap-1 text-[10.5px] font-semibold text-primary hover:underline" type="button" onClick={() => setDispatchNoPreviewRetry((current) => current + 1)}><RefreshCw size={11} /> Retry</button> : null}
         </div>
-        {showReferenceField ? <Field label="Reference / DO No.">
-          <input className={inputClass()} value={form.reference_no || ""} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, reference_no: event.target.value }))} />
-        </Field> : null}
       </div>
+
+      {showReferenceField ? <Field label="Reference / DO No.">
+        <input className={inputClass()} value={form.reference_no || ""} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, reference_no: event.target.value }))} />
+      </Field> : null}
+
+      <Field label="Remarks">
+        <textarea className={inputClass()} rows={3} value={form.remarks || ""} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
+      </Field>
 
       <div className="rounded-2xl border border-border bg-white">
         <div className="border-b border-border px-4 py-3">
-          <div className="font-bold text-text-primary">Dispatch Lines</div>
-          <div className="text-sm text-text-secondary">Quantities are Packaging SKU counts. Completion deducts finished goods balance.</div>
+          <div className="font-bold text-text-primary">Dispatch Items</div>
+          <div className="text-sm text-text-secondary">Packaging SKU quantities and Batch allocations for this Dispatch.</div>
         </div>
         <div className="space-y-3 p-4">
           <div className="space-y-3 md:hidden">
@@ -4004,7 +4046,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
                   <Field label="Remarks">
                     <input className={inputClass()} value={item.remarks || ""} disabled={isReadOnly} onChange={(event) => updateItem(item.row_id, { remarks: event.target.value })} />
                   </Field>
-                  {!isReadOnly ? <button className="btn-secondary w-full justify-center px-3 py-1.5 text-xs" type="button" onClick={() => removeItem(item.row_id)}>Remove Line</button> : null}
+                  {!isReadOnly ? <button className="btn-secondary w-full justify-center px-3 py-1.5 text-xs" type="button" onClick={() => removeItem(item.row_id)}>Remove Item</button> : null}
                 </div>
               );
             })}
@@ -4065,9 +4107,6 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
         </div>
       </div>
 
-      <Field label="Remarks">
-        <textarea className={inputClass()} rows={3} value={form.remarks || ""} disabled={isReadOnly} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
-      </Field>
       {embedded && !isReadOnly ? (
         <div className="space-y-2 border-t border-border pt-4">
           {completeBlockReason ? <div className="text-right text-xs font-semibold text-amber-800">{completeBlockReason}</div> : null}

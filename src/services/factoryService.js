@@ -3214,6 +3214,14 @@ export const factoryService = {
     return data ? mapProduction(data) : null;
   },
 
+  async getFinishedGoodDispatchNoPreview(dispatchDate) {
+    const { data, error } = await supabase.rpc("factory_preview_finished_good_dispatch_no", {
+      p_dispatch_date: dispatchDate || null,
+    });
+    throwSupabaseError("factory.finished_good_dispatch.preview_no", error);
+    return String(data || "").trim();
+  },
+
   async saveFinishedGoodDispatch(dispatch) {
     const isUpdate = Boolean(dispatch.id);
     const items = (dispatch.items || []).map((item) => ({
@@ -3229,9 +3237,9 @@ export const factoryService = {
 
     if (!dispatch.customer_id) throw new Error("Select a Customer.");
     if (!dispatch.dispatch_date) throw new Error("Dispatch Date is required.");
-    if (!items.length) throw new Error("Add at least one dispatch item.");
+    if (!items.length) throw new Error("Add at least one Dispatch Item.");
     const invalidItem = items.find((item) => !item.finished_good_id || item.quantity <= 0);
-    if (invalidItem) throw new Error("Every dispatch item needs a Packaging SKU and quantity greater than 0.");
+    if (invalidItem) throw new Error("Every Dispatch Item needs a Packaging SKU and quantity greater than 0.");
     const invalidAllocation = items.find((item) => (
       !Number.isInteger(item.quantity)
       || (item.allocations.length > 0 && (
@@ -3239,12 +3247,12 @@ export const factoryService = {
         || item.allocations.reduce((sum, allocation) => sum + allocation.quantity, 0) !== item.quantity
       ))
     ));
-    if (invalidAllocation) throw new Error("Clear or confirm a complete batch allocation for every dispatch line.");
+    if (invalidAllocation) throw new Error("Clear or confirm a complete Batch allocation for every Dispatch Item.");
 
     if (isUpdate && dispatch.status !== "draft") throw new Error("Only draft dispatches can be edited.");
 
     if (!dispatch.completion_request_id) throw new Error("Dispatch request ID is required.");
-    const { data: dispatchId, error } = await supabase.rpc("factory_save_finished_good_dispatch_draft", {
+    const { data, error } = await supabase.rpc("factory_save_finished_good_dispatch_draft_result", {
       p_dispatch_id: dispatch.id || null,
       p_request_id: dispatch.completion_request_id,
       p_customer_id: dispatch.customer_id,
@@ -3254,11 +3262,11 @@ export const factoryService = {
       p_items: items,
     });
     throwSupabaseError("factory.finished_good_dispatch.save", error);
-    const saved = mapFinishedGoodDispatch({ ...dispatch, id: dispatchId, status: "draft" });
+    const saved = mapFinishedGoodDispatch(data || {});
 
     await logFactoryAction({
       action: isUpdate ? "factory_finished_good_dispatch_updated" : "factory_finished_good_dispatch_created",
-      target: saved.dispatch_no || dispatchId,
+      target: saved.dispatch_no || saved.id,
       description: isUpdate ? "Factory finished goods dispatch draft updated." : "Factory finished goods dispatch draft created.",
       after: saved,
     });
@@ -3435,15 +3443,15 @@ export const factoryService = {
 
     if (!dispatch.customer_id) throw new Error("Select a Customer.");
     if (!dispatch.dispatch_date) throw new Error("Dispatch Date is required.");
-    if (!items.length) throw new Error("Add at least one dispatch item.");
+    if (!items.length) throw new Error("Add at least one Dispatch Item.");
     const invalidItem = items.find((item) => !item.finished_good_id || !Number.isInteger(item.quantity) || item.quantity <= 0);
-    if (invalidItem) throw new Error("Every dispatch item needs a Packaging SKU and a whole-number quantity greater than 0.");
+    if (invalidItem) throw new Error("Every Dispatch Item needs a Packaging SKU and a whole-number quantity greater than 0.");
     const invalidAllocation = items.find((item) => (
       !item.allocations.length
       || item.allocations.some((allocation) => !allocation.batch_balance_id || !Number.isInteger(allocation.quantity) || allocation.quantity <= 0)
       || item.allocations.reduce((sum, allocation) => sum + allocation.quantity, 0) !== item.quantity
     ));
-    if (invalidAllocation) throw new Error("Confirm a complete batch allocation for every dispatch line.");
+    if (invalidAllocation) throw new Error("Confirm a complete Batch allocation for every Dispatch Item.");
     if (dispatch.id && dispatch.status !== "draft") throw new Error("Only draft dispatches can be completed.");
     if (!dispatch.completion_request_id) throw new Error("Dispatch request ID is required.");
 
