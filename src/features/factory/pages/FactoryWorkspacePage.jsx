@@ -221,6 +221,18 @@ function formatFactoryDate(value) {
   return String(value).slice(0, 10) || "—";
 }
 
+function formatFactoryReadableDate(value) {
+  if (!value) return "—";
+  const [year, month, day] = String(value).slice(0, 10).split("-").map(Number);
+  if (!year || !month || !day) return "—";
+  return new Intl.DateTimeFormat("en-GB", {
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    timeZone: "UTC",
+  }).format(new Date(Date.UTC(year, month - 1, day)));
+}
+
 function formatFactoryDateTime(value) {
   if (!value) return "—";
   const date = new Date(value);
@@ -1081,6 +1093,14 @@ function pluralizePackagingType(type, value) {
   if (Number(value || 0) === 1) return label;
   if (/ch$/i.test(label)) return `${label}es`;
   return `${label}s`;
+}
+
+function packQuantity(value) {
+  return quantity(value, Number(value || 0) === 1 ? "Pack" : "Packs");
+}
+
+function signedPackQuantity(value) {
+  return signedQuantity(value, Number(Math.abs(value || 0)) === 1 ? "Pack" : "Packs");
 }
 
 function skuBalanceLabel(sku) {
@@ -2922,57 +2942,89 @@ function ReadOnlyBatchAllocationModal({ title = "Batch Allocation", subtitle = "
   );
 }
 
-function FinishedGoodBatchTraceabilityModal({ batch, onClose }) {
+function FinishedGoodBatchTraceabilityModal({ batch, loading = false, error = "", openingDispatchId = "", onOpenDispatch, onRetry, onClose }) {
   const dispatches = Array.isArray(batch.dispatch_allocations) ? batch.dispatch_allocations : [];
   const diagnostics = Array.isArray(batch.diagnostics) ? batch.diagnostics : [];
+  const positiveAdjustmentEvents = Array.isArray(batch.positive_adjustment_events) ? batch.positive_adjustment_events : [];
+  const stockCheckAdjustments = Array.isArray(batch.stock_check_adjustments) ? batch.stock_check_adjustments : [];
+  const sourceType = String(batch.batch_type || "").toLowerCase();
+  const isProduction = sourceType === "production";
+  const isAdjustment = sourceType === "adjustment";
+  const locationState = String(batch.storage_location_status || "").toLowerCase();
+  const locationStatus = !batch.storage_location_id && !batch.storage_location_name
+    ? { label: "Unavailable", tone: "warning" }
+    : locationState === "active" ? { label: "Active", tone: "success" }
+      : ["archived", "inactive"].includes(locationState) ? { label: "Archived", tone: "neutral" }
+        : { label: "Unavailable", tone: "warning" };
+  const packagingSku = [batch.packaging_sku_code, packSizeText(batch)].filter(Boolean).join(" · ") || "—";
+  const diagnosticNote = diagnostics.map((diagnostic) => diagnostic.message).filter(Boolean).join(" ") || batch.source_reason || "Metadata unavailable";
+  const timeline = [
+    ...(isProduction ? [{ id: `opening-${batch.id}`, date: batch.source_event_at || batch.manufacturing_date || batch.created_at, dateOnly: !batch.source_event_at, type: "Production Opening", reference: batch.job_order_no || "—", quantity: Number(batch.original_qty || 0), balance: Number(batch.original_qty || 0), order: 0 }] : []),
+    ...positiveAdjustmentEvents.map((adjustment) => ({ id: `positive-adjustment-${adjustment.event_id}`, date: adjustment.adjustment_date, dateOnly: false, type: "Stock Check Increase", reference: adjustment.stock_check_reference || "—", quantity: Number(adjustment.quantity || 0), balance: null, order: 0 })),
+    ...(isAdjustment && Number(batch.adjustment_carried_forward_qty || 0) > 0 ? [{ id: `adjustment-carried-${batch.id}`, date: "", type: "Adjustment balance carried forward", reference: "—", quantity: Number(batch.adjustment_carried_forward_qty), balance: null, order: 0 }] : []),
+    ...(!isProduction && !isAdjustment ? [{ id: `legacy-carried-${batch.id}`, date: "", type: "Legacy balance carried forward", reference: batch.source_reference || "—", quantity: Number(batch.original_qty || 0), balance: null, order: 0 }] : []),
+    ...dispatches.map((dispatch) => ({ id: `dispatch-${dispatch.allocation_id}`, date: dispatch.dispatch_date, dateOnly: true, type: "Completed Dispatch", reference: dispatch.dispatch_no || "—", quantity: -Number(dispatch.quantity || 0), balance: null, order: 1 })),
+    ...stockCheckAdjustments.map((adjustment) => ({ id: `stock-check-${adjustment.adjustment_id}`, date: adjustment.adjustment_date, dateOnly: false, type: "Stock Check Adjustment", reference: adjustment.stock_check_reference || "—", quantity: -Number(adjustment.quantity || 0), balance: null, order: 2 })),
+  ].sort((left, right) => {
+    const dateOrder = new Date(left.date || 0).getTime() - new Date(right.date || 0).getTime();
+    return dateOrder || left.order - right.order || String(left.id).localeCompare(String(right.id));
+  });
+  timeline.push({ id: `current-${batch.id}`, date: "", type: "Current Remaining Balance", reference: batch.batch_no || "—", quantity: null, balance: Number(batch.current_balance || 0) });
+  const sourceDetails = isProduction ? [
+    ["Job Order", batch.job_order_no || "—"],
+    ["Operator", batch.operator_name || "—"],
+    ["Production SOP", [batch.sop_name, batch.sop_version].filter(Boolean).join(" · ") || "—"],
+    ["Recipe Version", batch.recipe_version || "—"],
+    ["QC Status", batch.qc_status ? productionQcDisplayLabel(batch.qc_status) : "—"],
+  ] : isAdjustment ? (positiveAdjustmentEvents.length === 1 && Number(batch.adjustment_carried_forward_qty || 0) === 0 ? [
+    ["Stock Check Reference", batch.stock_check_reference || "—"],
+    ["Adjustment Reason", batch.adjustment_reason || "—"],
+    ["Approved By", batch.adjustment_approved_by || "—"],
+    ["Adjustment Date", formatFactoryDateTime(batch.adjustment_date)],
+  ] : [
+    ["Adjustment Events", positiveAdjustmentEvents.length.toLocaleString("en-MY")],
+    ["Source Detail", Number(batch.adjustment_carried_forward_qty || 0) > 0 ? "Historical metadata unavailable" : "See Batch Timeline"],
+  ]) : [
+    ["Reconciliation Status", <Badge tone={batch.reconciliation_status === "reconciled" ? "success" : "warning"}>{humanizeFactoryToken(batch.reconciliation_status || "unavailable")}</Badge>],
+    ["Diagnostic Note", diagnosticNote],
+  ];
+
   return (
-    <Modal title="Batch Traceability" description={[batch.batch_no, batch.packaging_sku_code, batch.packaging_sku_name].filter(Boolean).join(" · ")} size="xl" onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}>
+    <Modal title="Batch Traceability" description={[batch.batch_no, batchTypeLabel(batch.batch_type), batch.packaging_sku_code].filter(Boolean).join(" · ")} size="xl" onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}>
       <div className="space-y-5">
+        {loading ? <div className="rounded-lg border border-border bg-slate-50 px-4 py-3 text-sm font-semibold text-text-secondary">Loading the latest batch details...</div> : null}
+        {error ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900"><span>{error}</span><button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={onRetry}>Retry</button></div> : null}
         <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {[
-            ["Batch Type", batchTypeLabel(batch.batch_type)],
-            ["Original Qty", quantity(batch.original_qty)],
-            ["Dispatched Qty", quantity(batch.completed_dispatch_qty)],
-            ["Remaining Qty", quantity(batch.current_balance)],
-          ].map(([label, value]) => <div key={label} className="rounded-xl border border-border bg-slate-50 p-3"><div className="text-[10.5px] font-semibold text-text-muted">{label}</div><div className="mt-1 font-black text-text-primary">{value}</div></div>)}
+          {[["Batch Type", batchTypeLabel(batch.batch_type)], ["Original Qty", packQuantity(batch.original_qty)], ["Dispatched Qty", packQuantity(batch.completed_dispatch_qty)], ["Remaining Qty", packQuantity(batch.current_balance)]].map(([label, value]) => <div key={label} className="rounded-xl border border-border bg-slate-50 p-3"><div className="text-[10.5px] font-semibold text-text-muted">{label}</div><div className="mt-1 font-black text-text-primary">{value}</div></div>)}
         </div>
         <div className="grid gap-4 lg:grid-cols-2">
           <Card title="Batch Information">
             <div className="grid gap-3 p-4 text-sm sm:grid-cols-2">
-              <div><div className="text-xs font-semibold text-text-muted">Finished Good</div><div className="font-bold text-text-primary">{batch.finished_good_name || "—"}</div></div>
-              <div><div className="text-xs font-semibold text-text-muted">Packaging SKU</div><div className="font-bold text-text-primary">{[batch.packaging_sku_code, batch.packaging_sku_name].filter(Boolean).join(" · ") || "—"}</div></div>
+              <div><div className="text-xs font-semibold text-text-muted">Finished Good</div><div className="font-bold text-text-primary">{batch.finished_good_name || "—"}</div>{batch.finished_good_name_cn ? <div className="mt-0.5 text-xs font-semibold text-text-secondary">{batch.finished_good_name_cn}</div> : null}</div>
+              <div><div className="text-xs font-semibold text-text-muted">Packaging SKU</div><div className="font-bold text-text-primary">{packagingSku}</div></div>
               <div><div className="text-xs font-semibold text-text-muted">Manufacturing Date</div><div className="font-bold text-text-primary">{formatFactoryDate(batch.manufacturing_date)}</div></div>
               <div><div className="text-xs font-semibold text-text-muted">Expiry Date</div><div className="font-bold text-text-primary">{batch.expiry_date ? formatFactoryDate(batch.expiry_date) : "—"}</div></div>
+              <div><div className="text-xs font-semibold text-text-muted">Storage Location</div><div className="font-bold text-text-primary">{batch.storage_location_name || "—"}</div>{batch.storage_location_type ? <div className="mt-0.5 text-xs font-semibold text-text-secondary">{batch.storage_location_type}</div> : null}</div>
+              <div><div className="text-xs font-semibold text-text-muted">Location Status</div><div className="mt-1"><Badge tone={locationStatus.tone}>{locationStatus.label}</Badge></div></div>
             </div>
           </Card>
-          <Card title="Production / Adjustment Source">
+          <Card title={isProduction ? "Production Source" : isAdjustment ? "Stock Check Adjustment Source" : "Legacy Reconciliation Source"}>
             <div className="grid gap-3 p-4 text-sm sm:grid-cols-2">
-              <div><div className="text-xs font-semibold text-text-muted">Source Reference</div><div className="font-bold text-text-primary">{batch.production_reference || batch.source_reference || "—"}</div></div>
-              <div><div className="text-xs font-semibold text-text-muted">Operator</div><div className="font-bold text-text-primary">{batch.operator_name || "—"}</div></div>
-              <div><div className="text-xs font-semibold text-text-muted">Recipe Version</div><div className="font-bold text-text-primary">{batch.recipe_version || "—"}</div></div>
-              <div><div className="text-xs font-semibold text-text-muted">SOP</div><div className="font-bold text-text-primary">{[batch.sop_name, batch.sop_version].filter(Boolean).join(" · ") || "—"}</div></div>
-              <div><div className="text-xs font-semibold text-text-muted">QC Status</div><div className="font-bold text-text-primary">{batch.qc_status ? productionQcDisplayLabel(batch.qc_status) : "—"}</div></div>
-              <div><div className="text-xs font-semibold text-text-muted">Reason / Remarks</div><div className="font-bold text-text-primary">{batch.source_reason || "Metadata unavailable"}</div></div>
+              {sourceDetails.map(([label, value]) => <div key={label} className={label === "Diagnostic Note" ? "sm:col-span-2" : ""}><div className="text-xs font-semibold text-text-muted">{label}</div><div className="font-bold text-text-primary">{value}</div></div>)}
             </div>
           </Card>
         </div>
-        <Card title="Quantity Reconciliation">
-          <div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">
-            <div><div className="text-xs font-semibold text-text-muted">Opening</div><div className="font-black text-text-primary">{quantity(batch.original_qty)}</div></div>
-            <div><div className="text-xs font-semibold text-text-muted">Completed Dispatch</div><div className="font-black text-text-primary">{quantity(batch.completed_dispatch_qty)}</div></div>
-            <div><div className="text-xs font-semibold text-text-muted">Stock Check Reduction</div><div className="font-black text-text-primary">{quantity(batch.completed_negative_adjustment_qty)}</div></div>
-            <div><div className="text-xs font-semibold text-text-muted">Current Balance</div><div className="font-black text-text-primary">{quantity(batch.current_balance)}</div></div>
-          </div>
-        </Card>
+        <Card title="Quantity Reconciliation"><div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">{[["Opening", batch.original_qty], ["Completed Dispatch", batch.completed_dispatch_qty], ["Stock Check Reduction", batch.completed_negative_adjustment_qty], ["Current Balance", batch.current_balance]].map(([label, value]) => <div key={label}><div className="text-xs font-semibold text-text-muted">{label}</div><div className="font-black text-text-primary">{packQuantity(value)}</div></div>)}</div></Card>
         <Card title="Dispatch History">
-          <div className="p-4">
-            {dispatches.length ? <div className="space-y-2">{dispatches.map((dispatch) => <div key={dispatch.allocation_id} className="grid gap-2 rounded-xl border border-border px-3 py-2 text-sm sm:grid-cols-5"><div className="font-bold text-text-primary">{dispatch.dispatch_no || "—"}</div><div>{dispatch.customer || "—"}</div><div>{formatFactoryDate(dispatch.dispatch_date)}</div><div className="font-bold">{quantity(dispatch.quantity)}</div><Badge tone="success">Completed</Badge></div>)}</div> : <EmptyState title="No Completed Dispatches" description="This batch has not been allocated to a completed Dispatch." />}
-          </div>
+          <div className="p-4">{dispatches.length ? <FactoryTable columns={[
+            { key: "dispatch_no", label: "Dispatch No.", render: (row) => row.dispatch_id && onOpenDispatch ? <button className="font-bold text-primary underline decoration-dotted underline-offset-4 hover:text-emerald-800 disabled:cursor-wait disabled:opacity-60" type="button" disabled={openingDispatchId === row.dispatch_id} onClick={() => onOpenDispatch(row)}>{openingDispatchId === row.dispatch_id ? "Opening..." : row.dispatch_no || "—"}</button> : row.dispatch_no || "—" },
+            { key: "customer", label: "Customer", render: (row) => row.customer || "—" },
+            { key: "date", label: "Date", render: (row) => formatFactoryDate(row.dispatch_date) },
+            { key: "quantity", label: "Qty", render: (row) => <span className="font-bold text-text-primary">{packQuantity(row.quantity)}</span> },
+            { key: "status", label: "Status", render: () => <Badge tone="success">Completed</Badge> },
+          ]} rows={dispatches} /> : <EmptyState title="No Completed Dispatches" description="This batch has not been allocated to a completed Dispatch." />}</div>
         </Card>
-        <Card title="Storage and Expiry">
-          <div className="grid gap-3 p-4 text-sm sm:grid-cols-3"><div><div className="text-xs font-semibold text-text-muted">Location</div><div className="font-bold text-text-primary">{batch.storage_location_name || "—"}</div></div><div><div className="text-xs font-semibold text-text-muted">Location Type</div><div className="font-bold text-text-primary">{batch.storage_location_type || "—"}</div></div><div><div className="text-xs font-semibold text-text-muted">Current Status</div><div className="font-bold text-text-primary">{batch.storage_location_status || "—"}</div></div></div>
-        </Card>
-        {diagnostics.length ? <Card title="Historical Diagnostics"><div className="space-y-2 p-4">{diagnostics.map((diagnostic) => <div key={diagnostic.diagnostic_id} className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900"><div className="flex flex-wrap justify-between gap-2"><div className="font-bold">{diagnostic.dispatch_no || "Historical Dispatch"} · {diagnostic.legacy_batch_reference || "No batch reference"}</div><Badge tone="warning">{humanizeFactoryToken(diagnostic.status)}</Badge></div><div className="mt-1 text-xs font-semibold">{diagnostic.message} Affected Qty: {quantity(diagnostic.affected_quantity)} · Matches: {diagnostic.matching_batch_count}</div></div>)}</div></Card> : null}
+        <Card title="Batch Timeline"><div className="divide-y divide-border p-4">{timeline.map((event) => <div key={event.id} className="grid gap-2 py-3 text-sm sm:grid-cols-[150px_minmax(150px,1fr)_minmax(120px,1fr)_110px_130px] sm:items-center"><div className="text-xs font-semibold text-text-secondary">{event.date ? (event.dateOnly ? formatFactoryDate(event.date) : formatFactoryDateTime(event.date)) : event.type === "Current Remaining Balance" ? "Now" : "Date unavailable"}</div><div className="font-bold text-text-primary">{event.type}</div><div className="font-semibold text-text-secondary">{event.reference}</div><div className="font-bold text-text-primary">{event.quantity == null ? "—" : signedPackQuantity(event.quantity)}</div><div className="text-xs font-semibold text-text-secondary">{event.balance == null ? null : `Balance ${packQuantity(event.balance)}`}</div></div>)}</div></Card>
       </div>
     </Modal>
   );
@@ -7312,6 +7364,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const [rawMaterialFilters, setRawMaterialFilters] = useState({ material: "", status: "", category: "" });
   const [rawMovementFilters, setRawMovementFilters] = useState({ material: "", movementType: "", storageLocation: "", dateFrom: "", dateTo: "", search: "", batchId: "", batchLabel: "" });
   const [rawMovementReferenceLoading, setRawMovementReferenceLoading] = useState("");
+  const [batchTraceabilityDispatchLoading, setBatchTraceabilityDispatchLoading] = useState("");
   const [auditLogFilters, setAuditLogFilters] = useState({ dateFrom: "", dateTo: "", module: "", action: "", user: "", search: "" });
   const [operationalJobs, setOperationalJobs] = useState({ jobs: [], productions: [], summary: {}, hasLoaded: false, loading: false, error: "", errorKind: "" });
   const [productionPlanningOpenJobs, setProductionPlanningOpenJobs] = useState({ aggregates: [], diagnostics: {}, hasLoaded: false, loading: false, error: "", errorKind: "" });
@@ -7446,7 +7499,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     }
     if (initialTab === "product-movements" && !canViewProductMovements) {
       productMovementActions.clearForPermission("Some Product Movement data is hidden by your current role.");
-      setModal((current) => current?.type === "movement-batches" ? null : current);
     }
   }, [canViewBatchTraceability, canViewDispatchHistory, canViewProductMovements, canViewReceivingHistory, factoryListingActions, initialTab, productMovementActions, serverListing]);
   useEffect(() => {
@@ -7463,10 +7515,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       if (serverListing === "receiving-history") setEditingReceiving(null);
       if (serverListing === "raw-movements") setRawMovementReferenceLoading("");
     }
-    if (productMovementLedger.errorKind === "permission") {
-      setModal((current) => current?.type === "movement-batches" ? null : current);
-    }
-  }, [factoryListingPage.errorKind, productMovementLedger.errorKind, serverListing]);
+  }, [factoryListingPage.errorKind, serverListing]);
   const rawInventoryMasterRows = filteredRawMaterialRows();
   const finishedGoodsMasterGroups = finishedGoodProductGroups();
   const productionPlanningMasterRows = filteredProductionPlanningRows();
@@ -9867,6 +9916,44 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     }
   }
 
+  async function loadBatchTraceabilityDetail(batch) {
+    if (!batch?.batch_balance_id && !batch?.id) return;
+    const batchId = batch.batch_balance_id || batch.id;
+    setModal({ type: "batch-traceability-detail", value: batch, loading: true, error: "" });
+    try {
+      const detail = await factoryService.getFinishedGoodBatchTraceabilityDetail(batch);
+      setModal((current) => current?.type === "batch-traceability-detail" && (current.value?.batch_balance_id || current.value?.id) === batchId
+        ? { type: "batch-traceability-detail", value: detail, loading: false, error: "" }
+        : current);
+    } catch (detailError) {
+      console.error("[Factory] Unable to load Batch Traceability detail.", detailError);
+      if (isFactoryPermissionError(detailError)) {
+        setBatchTraceabilityDispatchLoading("");
+        setModal((current) => current?.type === "batch-traceability-detail" ? null : current);
+        factoryListingActions.clearForPermission("Some batch traceability data is hidden by your current role.");
+        ui?.notify?.({ title: "Batch traceability hidden", message: "Batch traceability is hidden by your current role.", tone: "error" });
+        return;
+      }
+      setModal((current) => current?.type === "batch-traceability-detail" && (current.value?.batch_balance_id || current.value?.id) === batchId
+        ? { ...current, loading: false, error: "Unable to load the latest batch details." }
+        : current);
+    }
+  }
+
+  async function openBatchTraceabilityDispatch(dispatch) {
+    if (!dispatch?.dispatch_id || batchTraceabilityDispatchLoading) return;
+    setBatchTraceabilityDispatchLoading(dispatch.dispatch_id);
+    try {
+      const detail = await factoryService.getFinishedGoodDispatchById(dispatch.dispatch_id);
+      setModal({ type: "finished-good-dispatch", value: detail, mode: "view" });
+    } catch (dispatchError) {
+      console.error("[Factory] Unable to open Batch Traceability Dispatch.", dispatchError);
+      ui?.notify?.({ title: "Unable to open Dispatch", message: "The Dispatch is unavailable or hidden by your current role.", tone: "error" });
+    } finally {
+      setBatchTraceabilityDispatchLoading("");
+    }
+  }
+
   function receivingHistoryFilterControls() {
     const supplierOptions = data.factorySuppliers.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name, helper: supplier.supplier_code || supplier.status }));
     const fallbackSupplierOptions = [...new Set(factoryListingPage.rows.map((batch) => batch.supplier_name).filter(Boolean))]
@@ -11696,13 +11783,13 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const columns = [
       { key: "batch_no", label: "Batch No.", render: (row) => <div><div className="font-black text-text-primary">{row.batch_no || "—"}</div><Badge tone={row.batch_type === "production" ? "info" : "neutral"}>{batchTypeLabel(row.batch_type)}</Badge></div> },
       { key: "sku", label: "Packaging SKU", render: (row) => <div><div className="font-bold text-text-primary">{row.packaging_sku_code || "No SKU"}</div><div className="text-xs font-semibold text-text-secondary">{row.finished_good_name || row.packaging_sku_name || "—"}</div></div> },
-      { key: "original", label: "Produced / Adjusted", render: (row) => quantity(row.original_qty) },
-      { key: "dispatched", label: "Dispatched", render: (row) => quantity(row.completed_dispatch_qty) },
-      { key: "remaining", label: "Remaining", render: (row) => <span className="font-black text-text-primary">{quantity(row.current_balance)}</span> },
+      { key: "original", label: "Produced / Adjusted", render: (row) => packQuantity(row.original_qty) },
+      { key: "dispatched", label: "Dispatched", render: (row) => packQuantity(row.completed_dispatch_qty) },
+      { key: "remaining", label: "Remaining", render: (row) => <span className="font-black text-text-primary">{packQuantity(row.current_balance)}</span> },
       { key: "dates", label: "Manufacturing / Expiry", render: (row) => <div className="whitespace-nowrap"><div>{formatFactoryDate(row.manufacturing_date)}</div><div className="text-xs text-text-secondary">{row.expiry_date ? `Expiry ${formatFactoryDate(row.expiry_date)}` : "No Expiry Recorded"}</div></div> },
       { key: "storage", label: "Storage", render: (row) => <div><div className="font-semibold text-text-primary">{row.storage_location_name || "—"}</div><div className="text-xs text-text-secondary">{row.storage_location_type || "—"}</div></div> },
       { key: "status", label: "Status", render: (row) => { const status = rowStatus(row); const diagnostics = Array.isArray(row.diagnostics) ? row.diagnostics : []; return <div className="space-y-1"><Badge tone={status.tone}>{status.label}</Badge>{diagnostics.length ? <div className="text-[10.5px] font-bold text-amber-700">{diagnostics.length} historical diagnostic{diagnostics.length === 1 ? "" : "s"}</div> : null}</div>; } },
-      { key: "action", label: "Actions", align: "right", render: (row) => <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "batch-traceability-detail", value: row })}>View Details</button> },
+      { key: "action", label: "Actions", align: "right", render: (row) => <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => loadBatchTraceabilityDetail(row)}>View Details</button> },
     ];
 
     const hasTracePermission = canViewBatchTraceability;
@@ -11713,7 +11800,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={Package} label="Batch Records" value={factoryListingPage.loadedTotal} helper="Filtered authoritative batches" />
           <MetricCard icon={PackageCheck} label="Available" value={Number(summary.available || 0)} helper="Usable batch balances" tone="success" />
-          <MetricCard icon={Warehouse} label="Remaining Qty" value={quantity(summary.remaining_qty || 0)} helper="Across filtered batches" />
+          <MetricCard icon={Warehouse} label="Remaining Qty" value={packQuantity(summary.remaining_qty || 0)} helper="Across filtered batches" />
           <MetricCard icon={AlertTriangle} label="Warnings" value={Number(summary.warnings || 0)} helper="Expiry or reconciliation review" tone={Number(summary.warnings || 0) ? "warning" : "success"} />
         </div>
         <div className="rounded-xl border border-border bg-white p-4">
@@ -11733,7 +11820,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Card title="Finished Goods Batch Records" description="One row per authoritative Production, Adjustment or Legacy / Unallocated balance.">
           {listingLoadState("batch-traceability", "Batch Traceability")}
           <div className="md:hidden">
-            {!rows.length ? <div className="p-4"><EmptyState title="No Batch Records Found" description="No authoritative batches match the selected filters." /></div> : <div className="divide-y divide-border">{rows.map((row) => { const status = rowStatus(row); return <div key={row.id} className="space-y-3 p-4"><div className="flex items-start justify-between gap-3"><div><div className="font-black text-text-primary">{row.batch_no || "—"}</div><div className="text-sm font-semibold text-text-secondary">{row.packaging_sku_code || "No SKU"} · {row.finished_good_name || row.packaging_sku_name || "—"}</div></div><Badge tone={status.tone}>{status.label}</Badge></div><div className="grid grid-cols-3 gap-2 text-sm"><div><div className="text-[10.5px] text-text-muted">Original</div><div className="font-bold">{quantity(row.original_qty)}</div></div><div><div className="text-[10.5px] text-text-muted">Dispatched</div><div className="font-bold">{quantity(row.completed_dispatch_qty)}</div></div><div><div className="text-[10.5px] text-text-muted">Remaining</div><div className="font-bold">{quantity(row.current_balance)}</div></div></div><button className="btn-secondary w-full" type="button" onClick={() => setModal({ type: "batch-traceability-detail", value: row })}>View Details</button></div>; })}</div>}
+            {!rows.length ? <div className="p-4"><EmptyState title="No Batch Records Found" description="No authoritative batches match the selected filters." /></div> : <div className="divide-y divide-border">{rows.map((row) => { const status = rowStatus(row); return <div key={row.id} className="space-y-3 p-4"><div className="flex items-start justify-between gap-3"><div><div className="font-black text-text-primary">{row.batch_no || "—"}</div><div className="text-sm font-semibold text-text-secondary">{row.packaging_sku_code || "No SKU"} · {row.finished_good_name || row.packaging_sku_name || "—"}</div></div><Badge tone={status.tone}>{status.label}</Badge></div><div className="grid grid-cols-3 gap-2 text-sm"><div><div className="text-[10.5px] text-text-muted">Original</div><div className="font-bold">{packQuantity(row.original_qty)}</div></div><div><div className="text-[10.5px] text-text-muted">Dispatched</div><div className="font-bold">{packQuantity(row.completed_dispatch_qty)}</div></div><div><div className="text-[10.5px] text-text-muted">Remaining</div><div className="font-bold">{packQuantity(row.current_balance)}</div></div></div><button className="btn-secondary w-full" type="button" onClick={() => loadBatchTraceabilityDetail(row)}>View Details</button></div>; })}</div>}
           </div>
           <div className="hidden md:block"><FactoryTable columns={columns} rows={rows} emptyTitle="No Batch Records Found" emptyDescription="No authoritative batches match the selected filters." /></div>
           {listingPagination("batch-traceability")}
@@ -12045,15 +12132,28 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const currentSkuBalanceValue = currentSkuBalanceTypes.length === 1
       ? quantity(currentSkuBalanceByType[currentSkuBalanceTypes[0]], currentSkuBalanceTypes[0])
       : currentSkuBalanceTypes.length > 1 ? "Mixed" : "—";
+    const storageSummary = (row) => Number(row.missing_storage_location_count || 0) > 0
+      ? "—"
+      : Number(row.storage_location_count || 0) > 1
+        ? `${Number(row.storage_location_count)} Locations`
+        : row.storage_location_name || "—";
+    const batchSummary = (row) => Number(row.batch_count || 0) > 1
+      ? `${Number(row.batch_count)} Batches`
+      : row.batch_summary || row.batch_no || "—";
+    const expirySummary = (row) => Number(row.batch_count || 0) > 1
+      ? row.earliest_expiry_date ? `Earliest: ${formatFactoryReadableDate(row.earliest_expiry_date)}` : "—"
+      : formatFactoryReadableDate(row.expiry_date || row.earliest_expiry_date);
     const movementColumns = [
       { key: "movement_date", label: "Date", render: (row) => <span className="whitespace-nowrap font-semibold text-text-primary">{formatFactoryDate(row.movement_date)}</span> },
       { key: "movement_type", label: "Type", render: (row) => <Badge tone={row.quantity >= 0 ? "success" : "warning"}>{row.movement_type_label}</Badge> },
-      { key: "product_name", label: "Finished Good", render: (row) => <div className="font-semibold text-text-primary">{row.product_family_name || row.product_name || "Finished Good"}</div> },
+      { key: "product_name", label: "Finished Good", render: (row) => <div className="min-w-[190px]"><div className="font-semibold text-text-primary">{row.product_name || "Finished Good"}</div>{row.product_name_cn ? <div className="mt-0.5 text-xs font-medium text-text-secondary">{row.product_name_cn}</div> : null}</div> },
       { key: "packaging_sku", label: "Packaging SKU", render: (row) => <div><div className="font-semibold text-text-primary">{row.product_code || "No SKU"}</div><div className="text-xs font-medium text-text-secondary">{row.variant_name || packSizeText(row) || "Packaging SKU"}</div></div> },
       { key: "quantity", label: "Qty", render: (row) => <div className={`font-bold ${Number(row.quantity || 0) >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{movementPackagingQtyLabel(row)}</div> },
       { key: "balance", label: "Balance", render: (row) => <div className="font-bold text-text-primary">{movementBalanceLabel(row)}</div> },
-      { key: "batch_no", label: "Batch", render: (row) => <div><div className="font-semibold text-text-primary">{row.batch_summary || row.batch_no || "—"}</div>{row.batch_allocations?.length ? <button className="mt-1 text-xs font-bold text-primary hover:underline" type="button" onClick={() => setModal({ type: "movement-batches", value: row })}>{row.batch_count > 1 ? "View Batches" : "View Batch"}</button> : null}</div> },
-      { key: "source", label: "Source", render: (row) => <div><div className="font-semibold text-text-primary">{row.source_label}</div><div className="text-xs font-medium text-text-secondary">{movementSourceReference(row)}</div></div> },
+      { key: "storage", label: "Storage", render: (row) => <div className="min-w-[135px] max-w-[190px]"><div className="font-semibold leading-5 text-text-primary">{storageSummary(row)}</div>{Number(row.storage_location_count || 0) === 1 && row.storage_location_type ? <div className="text-xs font-medium text-text-secondary">{row.storage_location_type}</div> : null}</div> },
+      { key: "batch_no", label: "Batch", render: (row) => <div className="max-w-[150px] font-semibold text-text-primary">{batchSummary(row)}</div> },
+      { key: "expiry", label: "Expiry", render: (row) => <div className="whitespace-nowrap font-medium text-text-primary">{expirySummary(row)}</div> },
+      { key: "source", label: "Source", render: (row) => <div className="min-w-[125px] max-w-[190px]"><div className="font-semibold leading-5 text-text-primary">{row.source_label}</div><div className="break-words text-xs font-medium text-text-secondary">{movementSourceReference(row)}</div></div> },
     ];
     return (
       <div className="space-y-5">
@@ -12084,7 +12184,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                     <div className="flex items-start justify-between gap-3">
                       <div>
                         <div className="text-xs font-semibold text-text-muted">{formatFactoryDate(row.movement_date)}</div>
-                        <div className="mt-1 font-bold text-text-primary">{row.product_family_name || row.product_name || "Finished Good"}</div>
+                        <div className="mt-1 font-bold text-text-primary">{row.product_name || "Finished Good"}</div>
+                        {row.product_name_cn ? <div className="text-sm font-medium text-text-secondary">{row.product_name_cn}</div> : null}
                         <div className="text-sm font-semibold text-text-secondary">{row.product_code || "No SKU"} · {row.variant_name || packSizeText(row) || "Packaging SKU"}</div>
                       </div>
                       <Badge tone={row.quantity >= 0 ? "success" : "warning"}>{row.movement_type_label}</Badge>
@@ -12092,7 +12193,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                     <div className="grid grid-cols-2 gap-3 text-sm">
                       <div><div className="text-[10.5px] font-semibold text-text-muted">Qty</div><div className={`font-bold ${Number(row.quantity || 0) >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{movementPackagingQtyLabel(row)}</div></div>
                       <div><div className="text-[10.5px] font-semibold text-text-muted">Balance</div><div className="font-bold text-text-primary">{movementBalanceLabel(row)}</div></div>
-                      <div><div className="text-[10.5px] font-semibold text-text-muted">Batch</div><div className="font-semibold text-text-primary">{row.batch_summary || row.batch_no || "—"}</div>{row.batch_allocations?.length ? <button className="mt-1 text-xs font-bold text-primary" type="button" onClick={() => setModal({ type: "movement-batches", value: row })}>{row.batch_count > 1 ? "View Batches" : "View Batch"}</button> : null}</div>
+                      <div><div className="text-[10.5px] font-semibold text-text-muted">Storage</div><div className="font-semibold text-text-primary">{storageSummary(row)}</div>{Number(row.storage_location_count || 0) === 1 && row.storage_location_type ? <div className="text-xs text-text-secondary">{row.storage_location_type}</div> : null}</div>
+                      <div><div className="text-[10.5px] font-semibold text-text-muted">Batch</div><div className="font-semibold text-text-primary">{batchSummary(row)}</div></div>
+                      <div><div className="text-[10.5px] font-semibold text-text-muted">Expiry</div><div className="font-semibold text-text-primary">{expirySummary(row)}</div></div>
                       <div><div className="text-[10.5px] font-semibold text-text-muted">Source</div><div className="font-semibold text-text-primary">{row.source_label}</div><div className="text-xs font-medium text-text-secondary">{movementSourceReference(row)}</div></div>
                     </div>
                   </div>
@@ -12248,8 +12351,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           mode={modal.mode}
         />
       ) : null}
-      {modal?.type === "batch-traceability-detail" ? <FinishedGoodBatchTraceabilityModal batch={modal.value} onClose={() => setModal(null)} /> : null}
-      {modal?.type === "movement-batches" ? <ReadOnlyBatchAllocationModal title="Movement Batch Details" subtitle={[modal.value.reference_no, modal.value.product_code, modal.value.product_name].filter(Boolean).join(" · ")} allocations={modal.value.batch_allocations || []} onClose={() => setModal(null)} /> : null}
+      {modal?.type === "batch-traceability-detail" ? <FinishedGoodBatchTraceabilityModal batch={modal.value} loading={modal.loading} error={modal.error} openingDispatchId={batchTraceabilityDispatchLoading} onOpenDispatch={canViewDispatchHistory ? openBatchTraceabilityDispatch : undefined} onRetry={() => loadBatchTraceabilityDetail(modal.value)} onClose={() => setModal(null)} /> : null}
       {modal?.type === "production-planning-par" ? (
         <ProductionPlanningParModal
           sku={modal.sku}

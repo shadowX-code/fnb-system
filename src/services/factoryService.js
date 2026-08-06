@@ -617,14 +617,17 @@ function mapProductMovement(row) {
     batch_type: allocation.batch_type || "production",
     quantity: normalizeNumber(allocation.quantity),
     expiry_date: allocation.expiry_date || "",
+    storage_location_id: allocation.storage_location_id || "",
     storage_location: allocation.storage_location || "",
     storage_location_type: allocation.storage_location_type || "",
   })) : [];
+  const hasExactBatchMetadata = batchAllocations.length > 0;
   return {
     id: row.id,
     finished_good_id: row.finished_good_id || "",
     product_code: finishedGood.product_code || "",
-    product_name: finishedGood.product_family?.name_en || finishedGood.product_name_en || finishedGood.product_name || row.product_name || "",
+    product_name: row.finished_good_name || finishedGood.product_family?.name_en || finishedGood.product_name_en || finishedGood.product_name || row.product_name || "",
+    product_name_cn: row.finished_good_name_cn || finishedGood.product_family?.name_cn || finishedGood.product_name_cn || "",
     sku_product_name: finishedGood.product_name_en || finishedGood.product_name || row.product_name || "",
     product_family_id: finishedGood.product_family_id || "",
     product_family_name: finishedGood.product_family?.name_en || "",
@@ -649,11 +652,18 @@ function mapProductMovement(row) {
     created_by: row.created_by || "",
     created_at: row.created_at,
     balance_after: row.balance_after == null ? null : normalizeNumber(row.balance_after),
-    batch_no: row.batch_no || "",
-    batch_count: normalizeNumber(row.batch_count, batchAllocations.length),
+    batch_no: hasExactBatchMetadata ? row.batch_no || "" : "",
+    batch_count: hasExactBatchMetadata ? normalizeNumber(row.batch_count, batchAllocations.length) : 0,
     total_allocated_qty: normalizeNumber(row.total_allocated_qty),
-    batch_summary: row.batch_summary || row.batch_no || "",
+    batch_summary: hasExactBatchMetadata ? row.batch_summary || row.batch_no || "" : "",
     batch_allocations: batchAllocations,
+    storage_location_name: hasExactBatchMetadata ? row.storage_location_name || "" : "",
+    storage_location_type: hasExactBatchMetadata ? row.storage_location_type || "" : "",
+    storage_location_count: hasExactBatchMetadata ? normalizeNumber(row.storage_location_count) : 0,
+    missing_storage_location_count: hasExactBatchMetadata ? normalizeNumber(row.missing_storage_location_count) : 0,
+    expiry_date: hasExactBatchMetadata ? row.expiry_date || "" : "",
+    earliest_expiry_date: hasExactBatchMetadata ? row.earliest_expiry_date || "" : "",
+    batch_metadata_diagnostic: row.batch_metadata_diagnostic || "",
     source_reference: row.source_reference || "",
   };
 }
@@ -746,6 +756,8 @@ function mapFinishedGoodDispatch(row) {
 
 function mapFinishedGoodBatchTraceability(row) {
   const dispatchAllocations = Array.isArray(row.dispatch_allocations) ? row.dispatch_allocations : [];
+  const positiveAdjustmentEvents = Array.isArray(row.positive_adjustment_events) ? row.positive_adjustment_events : [];
+  const stockCheckAdjustments = Array.isArray(row.stock_check_adjustments) ? row.stock_check_adjustments : [];
   const reconciliationDiagnostics = Array.isArray(row.reconciliation_diagnostics)
     ? row.reconciliation_diagnostics
     : Array.isArray(row.diagnostics) ? row.diagnostics : [];
@@ -757,6 +769,10 @@ function mapFinishedGoodBatchTraceability(row) {
     packaging_sku_code: row.packaging_sku_code || "",
     packaging_sku_name: row.packaging_sku_name || "",
     finished_good_name: row.finished_good_name || "",
+    finished_good_name_cn: row.finished_good_name_cn || "",
+    pack_size_qty: optionalNumber(row.pack_size_qty),
+    pack_size_uom: row.pack_size_uom || "",
+    packaging_type: row.packaging_type || "",
     batch_no: row.batch_no || "",
     original_qty: normalizeNumber(row.original_qty),
     completed_dispatch_qty: normalizeNumber(row.completed_dispatch_qty),
@@ -772,6 +788,8 @@ function mapFinishedGoodBatchTraceability(row) {
     storage_location_type: row.storage_location_type || "",
     storage_location_status: row.storage_location_status || "",
     production_id: row.production_id || "",
+    job_order_id: row.job_order_id || "",
+    job_order_no: row.job_order_no || "",
     source_reference_id: row.source_reference_id || "",
     source_reference: row.source_reference || "",
     source_reason: row.source_reason || "",
@@ -781,8 +799,17 @@ function mapFinishedGoodBatchTraceability(row) {
     sop_version: row.sop_version || "",
     qc_status: row.qc_status || "",
     operator_name: row.operator_name || "",
+    source_event_at: row.source_event_at || "",
+    stock_check_id: row.stock_check_id || "",
+    stock_check_reference: row.stock_check_reference || "",
+    adjustment_reason: row.adjustment_reason || "",
+    adjustment_approved_by: row.adjustment_approved_by || "",
+    adjustment_date: row.adjustment_date || "",
+    positive_adjustment_events: positiveAdjustmentEvents,
+    adjustment_carried_forward_qty: normalizeNumber(row.adjustment_carried_forward_qty),
     reconciliation_status: row.reconciliation_status || "mismatch",
     dispatch_allocations: dispatchAllocations,
+    stock_check_adjustments: stockCheckAdjustments,
     reconciliation_diagnostics: reconciliationDiagnostics,
     diagnostics: reconciliationDiagnostics,
     qc_checks: Array.isArray(row.qc_checks) ? row.qc_checks : [],
@@ -3321,6 +3348,29 @@ export const factoryService = {
       after: saved,
     });
     return saved;
+  },
+
+  async getFinishedGoodDispatchById(dispatchId) {
+    const id = databaseUuid(dispatchId);
+    if (!id) throw new Error("Dispatch is unavailable.");
+    const { data, error } = await supabase
+      .from("factory_finished_good_dispatches")
+      .select(finishedGoodDispatchSelect)
+      .eq("id", id)
+      .single();
+    throwSupabaseError("factory.finished_good_dispatch.fetch_detail", error);
+    return mapFinishedGoodDispatch(data);
+  },
+
+  async getFinishedGoodBatchTraceabilityDetail(batch) {
+    const batchBalanceId = databaseUuid(batch?.batch_balance_id || batch?.id);
+    if (!batchBalanceId) throw new Error("Batch is unavailable.");
+    const { data, error } = await supabase.rpc("factory_get_finished_good_batch_traceability_detail", {
+      p_batch_balance_id: batchBalanceId,
+    });
+    throwSupabaseError("factory.batch-traceability.detail", error);
+    if (!data) throw new Error("Batch traceability details are unavailable.");
+    return mapFinishedGoodBatchTraceability({ ...batch, ...data });
   },
 
   async getFinishedGoodBatchAvailability({ finishedGoodId, dispatchId = null, dispatchDate = null }) {
