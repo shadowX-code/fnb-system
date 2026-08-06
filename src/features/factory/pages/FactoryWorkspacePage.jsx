@@ -1639,6 +1639,7 @@ function FinishedGoodDetailModal({ product, productions, movements, productionCo
 
 function ProductGroupModal({ initialValue, categories = [], onClose, onSave, onArchive }) {
   const [form, setForm] = useState(() => ({
+    completion_request_id: crypto.randomUUID(),
     name_en: "",
     name_cn: "",
     name_bm: "",
@@ -1649,6 +1650,10 @@ function ProductGroupModal({ initialValue, categories = [], onClose, onSave, onA
   }));
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [batchAvailability, setBatchAvailability] = useState({ rows: [], loading: true, stale: false, error: "", errorKind: "", hasLoaded: false });
+  const [batchEditorRowId, setBatchEditorRowId] = useState("");
+  const [batchRetryKey, setBatchRetryKey] = useState(0);
+  const batchRequestRef = useRef(0);
   const activeCategories = categories.filter((category) => category.status === "active" || category.id === form.category_id);
   const categoryOptions = activeCategories.map((category) => ({ value: category.id, label: category.name, helper: category.description || category.status }));
 
@@ -2805,6 +2810,7 @@ function CompletedJobOrderResultModal({ job, production, recipes = [], onClose }
                         <th className="px-4 py-2.5">Raw Material</th>
                         <th className="px-4 py-2.5">Standard Qty</th>
                         <th className="px-4 py-2.5">Actual Used</th>
+                        <th className="px-4 py-2.5">Batch Allocation</th>
                         <th className="px-4 py-2.5">Difference</th>
                         <th className="px-4 py-2.5">Reason</th>
                       </tr>
@@ -2817,6 +2823,7 @@ function CompletedJobOrderResultModal({ job, production, recipes = [], onClose }
                             <td className="px-4 py-3"><div className="font-semibold text-text-primary">{row.raw_material_name || "Raw Material"}</div></td>
                             <td className="px-4 py-3 text-sm font-semibold text-text-secondary">{quantity(row.standard_usage, row.uom)}</td>
                             <td className="px-4 py-3 text-sm font-semibold text-text-primary">{quantity(row.actual_usage, row.uom)}</td>
+                            <td className="px-4 py-3 text-sm text-text-secondary">{row.allocations?.length ? <div className="space-y-1">{row.allocations.map((allocation) => <div key={allocation.id || allocation.batch_balance_id}><span className="font-bold text-text-primary">{allocation.internal_batch_no || "—"}</span> · {quantity(allocation.allocated_qty, row.uom)}{allocation.supplier_lot_no ? <div className="text-xs text-text-muted">Supplier Lot {allocation.supplier_lot_no}</div> : null}</div>)}</div> : "—"}</td>
                             <td className={`px-4 py-3 text-sm font-bold ${Math.abs(diff) > 0.000001 ? "text-amber-700" : "text-emerald-700"}`}>{diff > 0 ? "+" : ""}{quantity(diff, row.uom)}</td>
                             <td className="px-4 py-3 text-sm text-text-secondary">{row.variance_reason || "—"}</td>
                           </tr>
@@ -4728,6 +4735,7 @@ function buildInitialUsageRows(job, rawMaterials, recipes) {
         uom: item.uom || rawMaterials.find((material) => material.id === item.raw_material_id)?.uom || "",
         variance_reason: "",
         notes: item.notes || "",
+        allocations: [],
       };
     });
   }
@@ -5270,6 +5278,64 @@ function StartProductionModal({ job, sops = [], auth, onClose, onSave }) {
   );
 }
 
+function allocateRawMaterialFefo(requiredQty, batches, reservedByBatch = {}) {
+  let remaining = Number(requiredQty || 0);
+  const allocations = [];
+  (Array.isArray(batches) ? batches : []).forEach((batch) => {
+    const available = Math.max(Number(batch.available_qty || 0) - Number(reservedByBatch[batch.batch_balance_id] || 0), 0);
+    const allocatedQty = Math.min(remaining, available);
+    if (allocatedQty > 0) {
+      allocations.push({ ...batch, allocated_qty: allocatedQty });
+      reservedByBatch[batch.batch_balance_id] = Number(reservedByBatch[batch.batch_balance_id] || 0) + allocatedQty;
+      remaining -= allocatedQty;
+    }
+  });
+  return { allocations, remaining };
+}
+
+function RawMaterialBatchAllocationModal({ row, material, batches, otherAllocations = [], loading, stale, error, onRetry, onClose, onApply }) {
+  const reserved = otherAllocations.reduce((summary, allocation) => ({
+    ...summary,
+    [allocation.batch_balance_id]: Number(summary[allocation.batch_balance_id] || 0) + Number(allocation.allocated_qty || 0),
+  }), {});
+  const [quantities, setQuantities] = useState(() => Object.fromEntries((row.allocations || []).map((allocation) => [allocation.batch_balance_id, String(allocation.allocated_qty)])));
+  const requiredQty = Number(row.actual_usage || 0);
+  const availableQty = batches.reduce((sum, batch) => sum + Math.max(Number(batch.available_qty || 0) - Number(reserved[batch.batch_balance_id] || 0), 0), 0);
+  const allocatedQty = Object.values(quantities).reduce((sum, value) => sum + Number(value || 0), 0);
+  const invalid = batches.some((batch) => Number(quantities[batch.batch_balance_id] || 0) < 0
+    || Number(quantities[batch.batch_balance_id] || 0) > Math.max(Number(batch.available_qty || 0) - Number(reserved[batch.batch_balance_id] || 0), 0));
+  const canApply = !loading && !stale && !error && requiredQty > 0 && Math.abs(allocatedQty - requiredQty) <= varianceReasonTolerance && !invalid;
+
+  function autoAllocate() {
+    const result = allocateRawMaterialFefo(requiredQty, batches, { ...reserved });
+    setQuantities(Object.fromEntries(result.allocations.map((allocation) => [allocation.batch_balance_id, String(allocation.allocated_qty)])));
+  }
+
+  return (
+    <Modal
+      title="Raw Material Batch Allocation"
+      description={rawMaterialLabel(material)}
+      size="xl"
+      onClose={onClose}
+      footer={<><button className="btn-secondary" type="button" onClick={onClose}>Cancel</button><button className="btn-primary" type="button" disabled={!canApply} onClick={() => onApply(batches.flatMap((batch) => Number(quantities[batch.batch_balance_id] || 0) > 0 ? [{ ...batch, allocated_qty: Number(quantities[batch.batch_balance_id]) }] : []))}>Apply Allocation</button></>}
+    >
+      <div className="space-y-4">
+        <div className="grid grid-cols-3 gap-2">
+          {[["Required Qty", requiredQty], ["Allocated Qty", allocatedQty], ["Available Qty", availableQty]].map(([label, value]) => <div key={label} className="rounded-lg border border-border bg-slate-50 px-3 py-2"><div className="text-[10.5px] font-semibold text-text-muted">{label}</div><div className="mt-1 text-sm font-black text-text-primary">{quantity(value, row.uom || material?.uom)}</div></div>)}
+        </div>
+        <div className="flex flex-wrap gap-2"><button className="btn-secondary" type="button" disabled={loading || !batches.length} onClick={autoAllocate}><RefreshCw size={14} /> Auto Allocate FEFO</button><button className="btn-secondary" type="button" disabled={loading} onClick={() => setQuantities({})}>Clear Allocation</button></div>
+        {stale ? <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm font-semibold text-amber-900">Unable to load the latest Raw Material batch availability. Complete remains disabled. <button className="underline" type="button" onClick={onRetry}>Retry</button></div> : null}
+        {error ? <div className="rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm font-semibold text-rose-800">{error} {onRetry ? <button className="underline" type="button" onClick={onRetry}>Retry</button> : null}</div> : null}
+        {!loading && !error && !batches.length ? <EmptyState title="No eligible batches" description="Complete a Raw Material Receiving or reconcile batch storage before completing Production." /> : null}
+        {batches.length ? <div className="overflow-x-auto"><table className="w-full min-w-[760px] text-left text-sm"><thead><tr className="border-b border-border bg-slate-50 text-[11px] font-semibold uppercase text-text-muted"><th className="px-3 py-2">Internal Batch No.</th><th className="px-3 py-2">Supplier Lot No.</th><th className="px-3 py-2">Received Date</th><th className="px-3 py-2">Expiry Date</th><th className="px-3 py-2">Storage Location</th><th className="px-3 py-2">Available Qty</th><th className="px-3 py-2">Allocate Qty</th></tr></thead><tbody>{batches.map((batch) => {
+          const lineAvailable = Math.max(Number(batch.available_qty || 0) - Number(reserved[batch.batch_balance_id] || 0), 0);
+          return <tr key={batch.batch_balance_id} className="border-b border-border last:border-0"><td className="px-3 py-3 font-bold">{batch.internal_batch_no || "—"}</td><td className="px-3 py-3">{batch.supplier_lot_no || "—"}</td><td className="px-3 py-3">{formatFactoryDate(batch.received_date)}</td><td className="px-3 py-3">{batch.expiry_date ? formatFactoryDate(batch.expiry_date) : "No expiry"}</td><td className="px-3 py-3"><div className="font-semibold">{batch.storage_location_name || "—"}</div>{batch.storage_location_type ? <div className="text-xs text-text-muted">{batch.storage_location_type}</div> : null}</td><td className="px-3 py-3 font-semibold">{quantity(lineAvailable, batch.uom)}</td><td className="px-3 py-3"><input className={inputClass()} type="number" min="0" step="0.0001" value={quantities[batch.batch_balance_id] || ""} onChange={(event) => setQuantities((current) => ({ ...current, [batch.batch_balance_id]: event.target.value }))} /></td></tr>;
+        })}</tbody></table></div> : null}
+      </div>
+    </Modal>
+  );
+}
+
 function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops, finishedGoods = [], storageLocations = [], productions = [], auth, readOnly = false, processOnly = false, notify, onViewProcess, onClose, onSave }) {
   const activeFinishedGoods = finishedGoods.filter((product) => product.status === "active");
   const matchingFinishedGood = activeFinishedGoods.find((product) => product.id === job.finished_good_id) || activeFinishedGoods.find((product) => product.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
@@ -5358,6 +5424,60 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
 
   useEffect(() => () => clearTimeout(qcSaveResetTimerRef.current), []);
 
+  const rawMaterialBatchIds = useMemo(() => [...new Set(form.material_usage.map((row) => row.raw_material_id).filter(Boolean))], [form.material_usage]);
+  const rawMaterialBatchKey = rawMaterialBatchIds.slice().sort().join(",");
+
+  useEffect(() => {
+    const requestId = ++batchRequestRef.current;
+    if (!rawMaterialBatchIds.length) {
+      setBatchAvailability({ rows: [], loading: false, stale: false, error: "", errorKind: "", hasLoaded: true });
+      return undefined;
+    }
+    setBatchAvailability((current) => ({ ...current, loading: true, error: "", errorKind: "" }));
+    factoryService.getRawMaterialBatchAvailability(rawMaterialBatchIds, job.id)
+      .then((rows) => {
+        if (batchRequestRef.current !== requestId) return;
+        setBatchAvailability({ rows, loading: false, stale: false, error: "", errorKind: "", hasLoaded: true });
+        setForm((current) => {
+          const reserved = {};
+          return {
+            ...current,
+            material_usage: current.material_usage.map((usage) => {
+              const eligible = rows.filter((batch) => batch.batch_balance_id && batch.raw_material_id === usage.raw_material_id
+                && String(batch.uom || "").trim().toLowerCase() === String(usage.uom || rawMaterials.find((material) => material.id === usage.raw_material_id)?.uom || "").trim().toLowerCase());
+              const eligibleById = new Map(eligible.map((batch) => [batch.batch_balance_id, batch]));
+              const existingTotal = (usage.allocations || []).reduce((sum, allocation) => sum + Number(allocation.allocated_qty || 0), 0);
+              const existingValid = Math.abs(existingTotal - Number(usage.actual_usage || 0)) <= varianceReasonTolerance
+                && (usage.allocations || []).every((allocation) => {
+                  const batch = eligibleById.get(allocation.batch_balance_id);
+                  return batch && Number(allocation.allocated_qty || 0) <= Math.max(Number(batch.available_qty || 0) - Number(reserved[allocation.batch_balance_id] || 0), 0);
+                });
+              if (existingValid) {
+                (usage.allocations || []).forEach((allocation) => { reserved[allocation.batch_balance_id] = Number(reserved[allocation.batch_balance_id] || 0) + Number(allocation.allocated_qty || 0); });
+                return { ...usage, allocation_shortage: 0 };
+              }
+              const allocation = allocateRawMaterialFefo(Number(usage.actual_usage || 0), eligible, reserved);
+              return { ...usage, allocations: allocation.allocations, allocation_shortage: allocation.remaining };
+            }),
+          };
+        });
+      })
+      .catch((loadError) => {
+        if (batchRequestRef.current !== requestId) return;
+        console.error("factory.production.raw_material_batch_availability", loadError);
+        if (isFactoryPermissionError(loadError)) {
+          setBatchEditorRowId("");
+          setForm((current) => ({ ...current, material_usage: current.material_usage.map((usage) => ({ ...usage, allocations: [] })) }));
+          setBatchAvailability({ rows: [], loading: false, stale: false, error: "Raw Material batch availability is hidden by your current role.", errorKind: "permission", hasLoaded: false });
+        } else {
+          setBatchAvailability((current) => current.hasLoaded
+            ? { ...current, loading: false, stale: true, error: "", errorKind: "load" }
+            : { rows: [], loading: false, stale: true, error: "Unable to load Raw Material batch availability.", errorKind: "load", hasLoaded: false });
+        }
+      });
+    return () => { if (batchRequestRef.current === requestId) batchRequestRef.current += 1; };
+  }, [authoritativeProductionDate, batchRetryKey, rawMaterialBatchKey]);
+
   function updateExecutionQc(stepId, qcId, patch) {
     clearTimeout(qcSaveResetTimerRef.current);
     setQcSaveFeedback("idle");
@@ -5415,16 +5535,32 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
           uom: "",
           variance_reason: "",
           notes: "",
+          allocations: [],
         },
       ],
     }));
   }
 
   function updateUsageRow(rowId, patch) {
-    setForm((current) => ({
-      ...current,
-      material_usage: current.material_usage.map((row) => (row.id === rowId ? { ...row, ...patch } : row)),
-    }));
+    setForm((current) => {
+      const nextRows = current.material_usage.map((row) => row.id === rowId ? { ...row, ...patch } : row);
+      if (!Object.prototype.hasOwnProperty.call(patch, "actual_usage") && !Object.prototype.hasOwnProperty.call(patch, "raw_material_id")) return { ...current, material_usage: nextRows };
+      const reserved = {};
+      nextRows.filter((row) => row.id !== rowId).flatMap((row) => row.allocations || []).forEach((allocation) => { reserved[allocation.batch_balance_id] = Number(reserved[allocation.batch_balance_id] || 0) + Number(allocation.allocated_qty || 0); });
+      return {
+        ...current,
+        material_usage: nextRows.map((row) => {
+          if (row.id !== rowId) return row;
+          const material = rawMaterials.find((item) => item.id === row.raw_material_id);
+          const eligible = batchAvailability.rows.filter((batch) => batch.batch_balance_id && batch.raw_material_id === row.raw_material_id
+            && String(batch.uom || "").trim().toLowerCase() === String(row.uom || material?.uom || "").trim().toLowerCase());
+          const allocation = batchAvailability.hasLoaded && !batchAvailability.stale && !batchAvailability.error
+            ? allocateRawMaterialFefo(Number(row.actual_usage || 0), eligible, reserved)
+            : { allocations: [], remaining: Number(row.actual_usage || 0) };
+          return { ...row, allocations: allocation.allocations, allocation_shortage: allocation.remaining };
+        }),
+      };
+    });
   }
 
   function removeUsageRow(rowId) {
@@ -5458,6 +5594,21 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
       return Math.abs(variance) > varianceReasonTolerance && !String(row.variance_reason || "").trim();
     });
     if (missingReason) return "Reason is required when actual usage differs from standard usage.";
+    if (batchAvailability.loading) return "Wait for Raw Material batch availability to finish loading.";
+    if (!batchAvailability.hasLoaded || batchAvailability.stale || batchAvailability.error) return "Refresh Raw Material batch availability before completing Production.";
+    const allocatedByBatch = {};
+    for (const row of form.material_usage) {
+      const actual = Number(row.actual_usage || 0);
+      const allocated = (row.allocations || []).reduce((sum, allocation) => sum + Number(allocation.allocated_qty || 0), 0);
+      if (Math.abs(allocated - actual) > varianceReasonTolerance) {
+        const material = rawMaterials.find((item) => item.id === row.raw_material_id);
+        const available = batchAvailability.rows.filter((batch) => batch.batch_balance_id && batch.raw_material_id === row.raw_material_id).reduce((sum, batch) => sum + Number(batch.available_qty || 0), 0);
+        return `Insufficient Raw Material batch stock for ${material?.name_en || material?.name || "Material"}. Required ${actual}, available ${available}.`;
+      }
+      for (const allocation of row.allocations || []) allocatedByBatch[allocation.batch_balance_id] = Number(allocatedByBatch[allocation.batch_balance_id] || 0) + Number(allocation.allocated_qty || 0);
+    }
+    const overAllocated = Object.entries(allocatedByBatch).find(([batchId, allocated]) => allocated > Number(batchAvailability.rows.find((batch) => batch.batch_balance_id === batchId)?.available_qty || 0) + varianceReasonTolerance);
+    if (overAllocated) return "Raw Material batch allocation exceeds the latest available balance.";
     if (execution.snapshotCreatedAt) {
       const qcResults = execution.steps.flatMap((step) => step.qc_results || []);
       if (qcResults.some((qc) => qc.qc_type === "checklist" && qc.checklist_result === "na" && !String(qc.remarks || "").trim())) return "Add a reason when selecting N/A.";
@@ -5531,7 +5682,9 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
   const requiredQcIncomplete = executionQcState.requiredCompleted < executionQcState.requiredTotal;
   const requiredQcFailed = executionQcResults.some((qc) => qc.is_required && qc.qc_type === "checklist" && qc.checklist_result === "fail");
   const qcCompletionBlocked = Boolean(execution.snapshotCreatedAt) && (requiredQcIncomplete || requiredQcFailed);
-  const completionDisabled = saving || savingQc || executionLoading || !authoritativeStartValid || requiredDetailsRemaining > 0 || qcCompletionBlocked;
+  const batchCompletionBlocked = batchAvailability.loading || batchAvailability.stale || !batchAvailability.hasLoaded || Boolean(batchAvailability.error)
+    || form.material_usage.some((row) => Math.abs((row.allocations || []).reduce((sum, allocation) => sum + Number(allocation.allocated_qty || 0), 0) - Number(row.actual_usage || 0)) > varianceReasonTolerance);
+  const completionDisabled = saving || savingQc || executionLoading || !authoritativeStartValid || requiredDetailsRemaining > 0 || qcCompletionBlocked || batchCompletionBlocked;
   const completionDisabledReason = executionLoading
     ? "Loading Production QC."
     : !authoritativeStartValid
@@ -5542,6 +5695,12 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
       ? "Resolve failed required QC checks."
       : requiredQcIncomplete
         ? "Complete required QC checks."
+        : batchAvailability.loading
+          ? "Loading Raw Material batch availability."
+          : batchAvailability.stale || batchAvailability.error || !batchAvailability.hasLoaded
+            ? "Refresh Raw Material batch availability before completing Production."
+            : batchCompletionBlocked
+              ? "Complete every Raw Material batch allocation."
         : "";
   const durationLabel = productionDurationLabel(authoritativeProductionDate, authoritativeStartTime, form.end_date, form.end_time);
   const formatSignedQuantity = (value, unit) => {
@@ -5549,34 +5708,11 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
     const prefix = numericValue > 0 ? "+" : "";
     return `${prefix}${quantity(numericValue, unit)}`;
   };
-  const receivingLotOptionsByMaterial = useMemo(() => {
-    return receivings.reduce((groups, receiving) => {
-      if (!receiving.raw_material_id || (!receiving.batch_no && !receiving.receipt_no) || Number(receiving.received_qty || 0) <= 0) return groups;
-      const lotLabel = receiving.batch_no || receiving.receipt_no;
-      const helper = [
-        receiving.received_date ? formatFactoryDate(receiving.received_date) : "",
-        receiving.supplier_name || "",
-        `Received ${quantity(receiving.received_qty, receiving.uom)}`,
-      ].filter(Boolean).join(" · ");
-      if (!groups[receiving.raw_material_id]) groups[receiving.raw_material_id] = [];
-      groups[receiving.raw_material_id].push({
-        value: receiving.id,
-        label: lotLabel,
-        helper,
-        batch_no: receiving.batch_no || "",
-        receipt_no: receiving.receipt_no || "",
-      });
-      return groups;
-    }, {});
-  }, [receivings]);
-
-  function selectUsageLot(rowId, receivingId) {
-    const selectedLot = receivings.find((receiving) => receiving.id === receivingId);
-    updateUsageRow(rowId, {
-      raw_material_receiving_id: receivingId || "",
-      raw_material_lot_no: selectedLot ? selectedLot.batch_no || selectedLot.receipt_no || "" : "",
-    });
-  }
+  const batchEditorRow = form.material_usage.find((row) => row.id === batchEditorRowId);
+  const batchEditorMaterial = rawMaterials.find((material) => material.id === batchEditorRow?.raw_material_id);
+  const batchEditorRows = batchAvailability.rows.filter((batch) => batch.batch_balance_id && batch.raw_material_id === batchEditorRow?.raw_material_id
+    && String(batch.uom || "").trim().toLowerCase() === String(batchEditorRow?.uom || batchEditorMaterial?.uom || "").trim().toLowerCase());
+  const batchEditorOtherAllocations = form.material_usage.filter((row) => row.id !== batchEditorRowId).flatMap((row) => row.allocations || []);
 
   function updateActualPackQty(nextPackQty) {
     const nextPlan = packagingProductionPlan(nextPackQty, matchingFinishedGood, matchingRecipe?.uom || form.uom);
@@ -5655,6 +5791,7 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
   }
 
   return (
+    <>
     <Modal
       title="Complete Production"
       description={`${job.job_order_no} · ${job.product_name}`}
@@ -5672,6 +5809,8 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
     >
       <form id="factory-production-form" className="space-y-5" onSubmit={submit}>
         {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
+        {batchAvailability.stale ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-900"><span>Unable to load the latest Raw Material batch availability. Existing allocations are read-only until refreshed.</span><button className="underline" type="button" onClick={() => setBatchRetryKey((current) => current + 1)}>Retry</button></div> : null}
+        {batchAvailability.error ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-800"><span>{batchAvailability.error}</span>{batchAvailability.errorKind === "load" ? <button className="underline" type="button" onClick={() => setBatchRetryKey((current) => current + 1)}>Retry</button> : null}</div> : null}
         <section className="rounded-2xl border-2 border-amber-300 bg-amber-50/70 p-4 sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
             <div><div className="text-sm font-black text-text-primary">Required Completion Details</div><div className="mt-1 text-xs font-semibold text-text-secondary">Complete these fields before confirming production.</div></div>
@@ -5821,7 +5960,7 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
                   <th className="px-4 py-2.5">Raw Material</th>
                   <th className="px-4 py-2.5">Standard</th>
                   <th className="px-4 py-2.5">Actual Used</th>
-                  <th className="px-4 py-2.5">Lot</th>
+                  <th className="px-4 py-2.5">Batch Allocation</th>
                   <th className="px-4 py-2.5">Difference</th>
                   <th className="px-4 py-2.5">Reason</th>
                   {!hasRecipeBom ? <th className="px-4 py-2.5 text-right">Action</th> : null}
@@ -5834,7 +5973,8 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
                   const needsReason = Math.abs(variance) > varianceReasonTolerance;
                   const showReasonError = submitAttempted && needsReason && !String(row.variance_reason || "").trim();
                   const rowUom = row.uom || material?.uom || "";
-                  const lotOptions = receivingLotOptionsByMaterial[row.raw_material_id] || [];
+                  const allocatedQty = (row.allocations || []).reduce((sum, allocation) => sum + Number(allocation.allocated_qty || 0), 0);
+                  const allocationComplete = Math.abs(allocatedQty - Number(row.actual_usage || 0)) <= varianceReasonTolerance;
                   return (
                     <tr key={row.id} className={`border-b border-border last:border-0 ${showReasonError ? "bg-amber-50" : ""}`}>
                       <td className="px-4 py-3">
@@ -5867,22 +6007,11 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
                           {rowUom ? <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-bold text-text-secondary">{rowUom}</span> : null}
                         </div>
                       </td>
-                      <td className="px-4 py-3 min-w-[220px]">
-                        {row.raw_material_id && lotOptions.length ? (
-                          <SearchableSelect
-                            value={row.raw_material_receiving_id || ""}
-                            options={[{ value: "", label: "No receiving lot linked", helper: "Manual lot linking only" }, ...lotOptions]}
-                            placeholder="Select Lot"
-                            searchPlaceholder="Search lots"
-                            emptyText="No matching lots"
-                            onChange={(receivingId) => selectUsageLot(row.id, receivingId)}
-                          />
-                        ) : (
-                          <div className="rounded-xl border border-dashed border-border bg-slate-50 px-3 py-2 text-xs font-semibold text-text-secondary">
-                            No receiving lot linked
-                          </div>
-                        )}
-                        <div className="mt-1 text-[10.5px] font-semibold text-text-muted">Manual link only. No FIFO or lot-balance enforcement.</div>
+                      <td className="min-w-[220px] px-4 py-3">
+                        <div className={`rounded-lg border px-3 py-2 ${allocationComplete ? "border-emerald-200 bg-emerald-50" : "border-amber-200 bg-amber-50"}`}>
+                          <div className={`text-xs font-bold ${allocationComplete ? "text-emerald-800" : "text-amber-900"}`}>Allocated {quantity(allocatedQty, rowUom)} of {quantity(row.actual_usage, rowUom)}</div>
+                          <button className="mt-1 text-xs font-bold text-primary underline decoration-dotted underline-offset-4 disabled:cursor-not-allowed disabled:text-text-muted" type="button" disabled={!row.raw_material_id || batchAvailability.loading || batchAvailability.errorKind === "permission"} onClick={() => setBatchEditorRowId(row.id)}>{row.allocations?.length ? "Edit Allocation" : "Auto Allocate FEFO"}</button>
+                        </div>
                       </td>
                       <td className={`px-4 py-3 text-sm font-semibold ${variance > 0 ? "text-amber-600" : variance < 0 ? "text-emerald-600" : "text-text-secondary"}`}>
                         {formatSignedQuantity(variance, rowUom)}
@@ -5930,6 +6059,22 @@ function ProductionExecutionModal({ job, rawMaterials, receivings, recipes, sops
         </Card>
       </form>
     </Modal>
+    {batchEditorRow && batchEditorMaterial ? <RawMaterialBatchAllocationModal
+      row={batchEditorRow}
+      material={batchEditorMaterial}
+      batches={batchEditorRows}
+      otherAllocations={batchEditorOtherAllocations}
+      loading={batchAvailability.loading}
+      stale={batchAvailability.stale}
+      error={batchAvailability.error}
+      onRetry={() => setBatchRetryKey((current) => current + 1)}
+      onClose={() => setBatchEditorRowId("")}
+      onApply={(allocations) => {
+        setForm((current) => ({ ...current, material_usage: current.material_usage.map((usage) => usage.id === batchEditorRow.id ? { ...usage, allocations, allocation_shortage: 0 } : usage) }));
+        setBatchEditorRowId("");
+      }}
+    /> : null}
+    </>
   );
 }
 
@@ -8322,13 +8467,18 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   async function completeProduction(form) {
     try {
       await factoryService.completeProduction(form, auth?.profile?.id);
-      ui?.notify?.({ title: "Production completed", message: "Raw materials deducted and finished goods stocked in.", tone: "success" });
-      setModal(null);
-      await loadData();
-      if (serverListing === "job-orders") factoryListingActions.retry();
     } catch (error) {
       ui?.notify?.({ title: "Failed to complete production", message: error.message, tone: "error" });
       throw error;
+    }
+    ui?.notify?.({ title: "Production completed", message: "Exact Raw Material batches were deducted and finished goods were stocked in.", tone: "success" });
+    setModal(null);
+    try {
+      await loadData();
+      if (serverListing === "job-orders") factoryListingActions.retry();
+    } catch (refreshError) {
+      console.error("factory.production.refresh_after_completion", refreshError);
+      ui?.notify?.({ title: "Production completed, but the latest Factory data could not be refreshed.", tone: "warning" });
     }
   }
 

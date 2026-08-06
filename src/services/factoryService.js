@@ -434,6 +434,15 @@ function mapProductionUsage(row) {
     uom: row.uom || row.raw_material?.uom || "",
     wastage_quantity: normalizeNumber(row.wastage_quantity),
     notes: row.notes || "",
+    allocations: (Array.isArray(row.allocations) ? row.allocations : []).map((allocation) => ({
+      id: allocation.id,
+      batch_balance_id: allocation.raw_material_batch_balance_id || allocation.batch_balance_id || "",
+      allocated_qty: normalizeNumber(allocation.allocated_qty),
+      internal_batch_no: allocation.batch?.internal_batch_no || "",
+      supplier_lot_no: allocation.batch?.supplier_lot_no || "",
+      storage_location: allocation.batch?.storage_location?.location_name || "",
+      expiry_date: allocation.batch?.expiry_date || "",
+    })),
     created_at: row.created_at,
     updated_at: row.updated_at,
   };
@@ -852,14 +861,14 @@ function normalizeStockCheckItem(row, stockType) {
         ? "Storage location missing"
         : String(currentLocation.status || "").toLowerCase() !== "active"
           ? "Storage location archived"
-          : String(currentLocation.location_type || "").toLowerCase() !== "finished goods area"
+          : stockType !== "raw" && String(currentLocation.location_type || "").toLowerCase() !== "finished goods area"
             ? "Storage location is not a Finished Goods Area"
             : "";
       return {
         id: allocation.id,
         batch_id: allocation.batch_balance_id || allocation.batch_id,
-        quantity: normalizeNumber(allocation.quantity),
-        batch_no: batch.batch_no || "",
+        quantity: normalizeNumber(allocation.quantity ?? allocation.allocated_qty),
+        batch_no: batch.batch_no || batch.internal_batch_no || "",
         manufacturing_date: batch.manufacturing_date || "",
         expiry_date: batch.expiry_date || "",
         storage_location_id: batch.storage_location_id || "",
@@ -1131,19 +1140,6 @@ async function logFactoryAction({ action, target, description, after, before }) 
   }).catch(() => {});
 }
 
-async function ensureRawMaterial(receiving) {
-  if (!receiving.raw_material_id) throw new Error("Select an active raw material.");
-  const { data, error } = await supabase
-    .from("factory_raw_materials")
-    .select("id,name,name_en,name_cn,name_bm,uom,status")
-    .eq("id", receiving.raw_material_id)
-    .single();
-  throwSupabaseError("factory.raw_material.lookup", error);
-  if (!data?.id) throw new Error("Select an active raw material.");
-  if (String(data.status || "").toLowerCase() !== "active") throw new Error("Archived Raw Materials cannot be selected.");
-  return data.id;
-}
-
 function emptyFactoryData() {
   return {
     jobOrders: [],
@@ -1188,11 +1184,11 @@ const sopSelect = `id,sop_code,title,product_name,finished_good_id,recipe_id,rec
 const sopStepSelect = "id,sop_id,step_no,instruction,process_name,description,control_point,qc_label,materials,equipment,expected_duration_minutes,estimated_time_minutes,is_qc_checkpoint,qc_measurement_type,qc_target_value,qc_minimum,qc_maximum,qc_uom,qc_required_before_completion,safety_note,remarks,created_at,updated_at";
 const sopSubStepSelect = "id,sop_step_id,sequence_no,instruction,estimated_minutes,remarks,created_at,updated_at";
 const sopQcCheckSelect = "id,sop_step_id,sequence_no,qc_type,checklist_template_id,qc_name,instructions,is_required,created_at,updated_at,checklist_template:factory_qc_checklist_templates(name,result_mode)";
-const rawMaterialStockCheckSelect = `id,check_no,check_date,category_id,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at,created_by_employee:employees!factory_raw_material_stock_checks_created_by_fkey(id,nickname,full_name,email),submitted_by_employee:employees!factory_raw_material_stock_checks_submitted_by_fkey(id,nickname,full_name,email),approved_by_employee:employees!factory_raw_material_stock_checks_approved_by_fkey(id,nickname,full_name,email),category:factory_raw_material_categories(name),items:factory_raw_material_stock_check_items(id,stock_check_id,raw_material_id,system_qty,physical_qty,variance_qty,variance_percent,count_status,variance_status,variance_reason,uom,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect}))`;
+const rawMaterialStockCheckSelect = `id,check_no,check_date,category_id,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at,created_by_employee:employees!factory_raw_material_stock_checks_created_by_fkey(id,nickname,full_name,email),submitted_by_employee:employees!factory_raw_material_stock_checks_submitted_by_fkey(id,nickname,full_name,email),approved_by_employee:employees!factory_raw_material_stock_checks_approved_by_fkey(id,nickname,full_name,email),category:factory_raw_material_categories(name),items:factory_raw_material_stock_check_items(id,stock_check_id,raw_material_id,system_qty,physical_qty,variance_qty,variance_percent,count_status,variance_status,variance_reason,uom,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect}),batch_allocations:factory_raw_material_stock_check_batch_allocations(id,raw_material_batch_balance_id,allocated_qty,batch:factory_raw_material_batch_balances(internal_batch_no,supplier_lot_no,expiry_date,storage_location_id,storage_location_ref:factory_storage_locations(location_name,location_type,status))))`;
 const productStockCheckSelect = `id,check_no,check_date,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at,created_by_employee:employees!factory_product_stock_checks_created_by_fkey(id,nickname,full_name,email),submitted_by_employee:employees!factory_product_stock_checks_submitted_by_fkey(id,nickname,full_name,email),approved_by_employee:employees!factory_product_stock_checks_approved_by_fkey(id,nickname,full_name,email),items:factory_product_stock_check_items(id,stock_check_id,finished_good_id,system_qty,physical_qty,variance_qty,variance_percent,count_status,variance_status,variance_reason,uom,adjustment_storage_location_id,positive_adjustment_confirmed,created_at,updated_at,finished_good:factory_finished_goods(product_code,product_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,uom),batch_allocations:factory_product_stock_check_batch_adjustments(id,batch_balance_id,quantity,batch:factory_finished_good_batch_balances(batch_no,manufacturing_date,expiry_date,storage_location_id,storage_location,storage_location_type,storage_location_ref:factory_storage_locations(location_name,location_type,status))))`;
 const jobOrderSelect = `id,job_order_no,finished_good_id,product_name,target_pack_qty,target_production_qty,target_quantity,produced_quantity,uom,planned_date,due_date,priority,status,assigned_team,remarks,created_by,released_at,released_by,started_at,started_by,production_operator_id,production_operator_name,production_date,start_time,production_sop_id,sop_version,qc_snapshot_created_at,completed_at,completed_by,created_at,updated_at,finished_good:factory_finished_goods(${finishedGoodSelect}),step_executions:factory_production_step_executions(id,job_order_id,production_id,production_sop_id,sop_step_id,step_no,step_name,description,sub_steps,status,completed_by,completed_at,qc_results:factory_production_qc_results(id,job_order_id,production_id,production_step_execution_id,sop_qc_check_id,sequence_no,qc_type,qc_name,instructions,is_required,checklist_result,remarks,checked_by,checked_by_name,checked_at))`;
 const productionSelectBasic = `id,job_order_id,finished_good_id,production_no,product_name,batch_no,actual_pack_qty,actual_output_qty,produced_quantity,actual_produced_qty,good_output_qty,wastage_qty,uom,production_date,manufacturing_date,end_date,expiry_date,storage_location_id,shelf_life_days_snapshot,expiry_override_reason,operator_id,operator_name,start_time,end_time,qc_status,production_sop_id,sop_version,status,notes,created_by,completed_at,created_at,updated_at,storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),finished_good:factory_finished_goods(${finishedGoodSelect}),job_order:factory_job_orders(job_order_no,finished_good_id,product_name,target_pack_qty,target_production_qty,finished_good:factory_finished_goods(product_code,product_name,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,shelf_life_days))`;
-const productionSelectDetailed = `${productionSelectBasic},material_usage:factory_production_material_usage(id,production_id,raw_material_id,raw_material_receiving_id,raw_material_lot_no,quantity_used,standard_usage,actual_usage,variance_qty,variance_percent,variance_reason,uom,wastage_quantity,notes,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect}),raw_receiving:factory_raw_material_receivings(receipt_no,batch_no,supplier_name,received_date,unit_cost)),qc_checkpoints:factory_production_qc_checkpoints(id,production_id,production_sop_id,sop_step_id,step_no,process_name,control_point,qc_status,notes,created_at,updated_at),step_executions:factory_production_step_executions(id,job_order_id,production_id,production_sop_id,sop_step_id,step_no,step_name,description,sub_steps,status,completed_by,completed_at,qc_results:factory_production_qc_results(id,job_order_id,production_id,production_step_execution_id,sop_qc_check_id,sequence_no,qc_type,qc_name,instructions,is_required,checklist_result,remarks,checked_by,checked_by_name,checked_at))`;
+const productionSelectDetailed = `${productionSelectBasic},material_usage:factory_production_material_usage(id,production_id,raw_material_id,raw_material_receiving_id,raw_material_lot_no,quantity_used,standard_usage,actual_usage,variance_qty,variance_percent,variance_reason,uom,wastage_quantity,notes,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect}),raw_receiving:factory_raw_material_receivings(receipt_no,batch_no,supplier_name,received_date,unit_cost),allocations:factory_production_material_usage_batch_allocations(id,raw_material_batch_balance_id,allocated_qty,batch:factory_raw_material_batch_balances(internal_batch_no,supplier_lot_no,expiry_date,storage_location:factory_storage_locations(location_name)))),qc_checkpoints:factory_production_qc_checkpoints(id,production_id,production_sop_id,sop_step_id,step_no,process_name,control_point,qc_status,notes,created_at,updated_at),step_executions:factory_production_step_executions(id,job_order_id,production_id,production_sop_id,sop_step_id,step_no,step_name,description,sub_steps,status,completed_by,completed_at,qc_results:factory_production_qc_results(id,job_order_id,production_id,production_step_execution_id,sop_qc_check_id,sequence_no,qc_type,qc_name,instructions,is_required,checklist_result,remarks,checked_by,checked_by_name,checked_at))`;
 const finishedGoodDispatchSelect = `id,dispatch_no,dispatch_date,customer_id,customer_name,reference_no,status,remarks,created_by,completed_by,completion_request_id,created_at,updated_at,completed_at,cancelled_at,creator:employees!factory_finished_good_dispatches_created_by_fkey(nickname,full_name),completer:employees!factory_finished_good_dispatches_completed_by_fkey(id,nickname,full_name),customer:factory_customers(${factoryCustomerSelect}),items:factory_finished_good_dispatch_items(id,dispatch_id,finished_good_id,quantity,batch_no,remarks,created_at,finished_good:factory_finished_goods(${finishedGoodFullSelect}),allocations:factory_finished_good_dispatch_batch_allocations(id,batch_balance_id,production_id,quantity,batch_no,manufacturing_date,expiry_date,storage_location_id,storage_location,storage_location_type,batch:factory_finished_good_batch_balances(id,source_type,current_balance,batch_no,manufacturing_date,expiry_date,storage_location_id,storage_location,storage_location_type,storage_location_ref:factory_storage_locations(location_name,location_type,status))))`;
 
 const FACTORY_MASTER_ID_BATCH_SIZE = 300;
@@ -2233,100 +2229,6 @@ export const factoryService = {
     });
   },
 
-  async saveRawMaterialReceiving(receiving, employeeId) {
-    const isUpdate = Boolean(receiving.id);
-    const rawMaterialId = await ensureRawMaterial(receiving);
-    const { data: selectedMaterial, error: selectedMaterialError } = await supabase
-      .from("factory_raw_materials")
-      .select("id,name,name_en,uom,storage_location,status")
-      .eq("id", rawMaterialId)
-      .single();
-    throwSupabaseError("factory.receiving.raw_material", selectedMaterialError);
-    let previous = null;
-    if (isUpdate) {
-      const { data, error } = await supabase
-        .from("factory_raw_material_receivings")
-        .select("id,raw_material_id,received_qty")
-        .eq("id", receiving.id)
-        .single();
-      throwSupabaseError("factory.receiving.previous", error);
-      previous = data;
-    }
-
-    const qty = normalizeNumber(receiving.received_qty);
-    const unitCost = normalizeNumber(receiving.unit_cost);
-    if (qty <= 0) throw new Error("Received quantity must be greater than 0.");
-    const payload = {
-      receipt_no: receiving.receipt_no || makeFactoryRef("RMRCV"),
-      batch_id: receiving.batch_id || null,
-      raw_material_id: rawMaterialId,
-      supplier_id: receiving.supplier_id || null,
-      supplier_name: String(receiving.supplier_name || "").trim(),
-      batch_no: receiving.batch_no || "",
-      received_qty: qty,
-      uom: receiving.uom || selectedMaterial?.uom || "",
-      unit_cost: unitCost,
-      total_cost: qty * unitCost,
-      invoice_no: receiving.invoice_no || "",
-      received_date: receiving.received_date || new Date().toISOString().slice(0, 10),
-      expiry_date: receiving.expiry_date || null,
-      storage_location: receiving.storage_location || selectedMaterial?.storage_location || "",
-      remarks: receiving.remarks || "",
-      received_by: employeeId || null,
-      updated_at: new Date().toISOString(),
-    };
-
-    const query = isUpdate
-      ? supabase.from("factory_raw_material_receivings").update(payload).eq("id", receiving.id)
-      : supabase.from("factory_raw_material_receivings").insert(payload);
-
-    const { data, error } = await query
-      .select(`id,receipt_no,raw_material_id,supplier_name,batch_no,received_qty,uom,unit_cost,total_cost,invoice_no,received_date,expiry_date,storage_location,remarks,received_by,created_at,updated_at,raw_material:factory_raw_materials(${rawMaterialRelationSelect})`)
-      .single();
-    throwSupabaseError("factory.receiving.save", error);
-
-    if (previous?.raw_material_id && previous.raw_material_id !== rawMaterialId) {
-      const previousBalanceResult = await supabase.rpc("factory_adjust_raw_material_balance", {
-        material_id: previous.raw_material_id,
-        quantity_delta: -normalizeNumber(previous.received_qty),
-      });
-      throwSupabaseError("factory.receiving.balance_previous", previousBalanceResult.error);
-      const nextBalanceResult = await supabase.rpc("factory_adjust_raw_material_balance", {
-        material_id: rawMaterialId,
-        quantity_delta: qty,
-      });
-      throwSupabaseError("factory.receiving.balance_next", nextBalanceResult.error);
-    } else {
-      const balanceResult = await supabase.rpc("factory_adjust_raw_material_balance", {
-        material_id: rawMaterialId,
-        quantity_delta: qty - normalizeNumber(previous?.received_qty),
-      });
-      throwSupabaseError("factory.receiving.balance", balanceResult.error);
-    }
-
-    const movementResult = await supabase.from("factory_raw_material_movements").insert({
-      raw_material_id: rawMaterialId,
-      movement_type: "Receiving",
-      quantity: qty,
-      uom: payload.uom,
-      reference_type: "raw_material_receiving",
-      reference_id: data.id,
-      reference_no: data.receipt_no,
-      movement_date: payload.received_date,
-      notes: isUpdate ? "Raw material receiving updated." : "Raw material receiving recorded.",
-      created_by: employeeId || null,
-    });
-    throwSupabaseError("factory.receiving.movement", movementResult.error);
-
-    await logFactoryAction({
-      action: isUpdate ? "factory_raw_receiving_updated" : "factory_raw_receiving_created",
-      target: data.receipt_no,
-      description: isUpdate ? "Factory raw material receiving updated." : "Factory raw material receiving recorded.",
-      after: data,
-    });
-    return mapReceiving(data);
-  },
-
   async saveRawMaterial(material, employeeId) {
     const isUpdate = Boolean(material.id);
     const materialNameEn = String(material.name_en || material.name || "").trim();
@@ -2636,22 +2538,6 @@ export const factoryService = {
       after: cancelled,
     });
     return cancelled;
-  },
-
-  async deleteRawMaterialReceiving(receiving) {
-    const { error: balanceError } = await supabase.rpc("factory_adjust_raw_material_balance", {
-      material_id: receiving.raw_material_id,
-      quantity_delta: -normalizeNumber(receiving.received_qty),
-    });
-    throwSupabaseError("factory.receiving.balance_delete", balanceError);
-    const { error } = await supabase.from("factory_raw_material_receivings").delete().eq("id", receiving.id);
-    throwSupabaseError("factory.receiving.delete", error);
-    await logFactoryAction({
-      action: "factory_raw_receiving_deleted",
-      target: receiving.receipt_no,
-      description: "Factory raw material receiving deleted.",
-      before: receiving,
-    });
   },
 
   async saveFinishedGood(product, employeeId) {
@@ -3229,43 +3115,39 @@ export const factoryService = {
     const productionUom = productionPlan?.production_uom || production.uom || "";
     const usageItems = (production.material_usage ?? []).map((item) => ({
       raw_material_id: item.raw_material_id,
-      raw_material_receiving_id: item.raw_material_receiving_id || "",
-      raw_material_lot_no: item.raw_material_lot_no || "",
       standard_usage: normalizeNumber(item.standard_usage),
       actual_usage: normalizeNumber(item.actual_usage),
       variance_reason: item.variance_reason || "",
       uom: item.uom || "",
       wastage_quantity: normalizeNumber(item.wastage_quantity),
       notes: item.notes || "",
+      allocations: (Array.isArray(item.allocations) ? item.allocations : []).map((allocation) => ({
+        batch_balance_id: allocation.batch_balance_id,
+        allocated_qty: normalizeNumber(allocation.allocated_qty),
+      })),
     }));
     const productionNo = production.production_no || makeFactoryRef("PRD");
-    const { data: productionId, error } = await supabase.rpc("factory_complete_production_with_batch", {
-      p_job_order_id: production.job_order_id || null,
-      p_finished_good_id: production.finished_good_id || null,
-      p_production_no: productionNo,
-      p_product_name: String(production.product_name || "").trim(),
-      p_batch_no: production.batch_no || "",
-      p_production_date: authoritativeJob.production_date,
-      p_operator_id: production.operator_id || employeeId || null,
-      p_operator_name: production.operator_name || "",
-      p_start_time: authoritativeJob.start_time || null,
-      p_end_date: production.end_date || null,
-      p_end_time: production.end_time || null,
-      p_expiry_date: production.expiry_date || null,
-      p_storage_location_id: production.storage_location_id || null,
-      p_expiry_override_reason: String(production.expiry_override_reason || "").trim() || null,
-      p_actual_pack_qty: actualPackQty,
-      p_actual_output_qty: actualOutputQty,
-      p_actual_produced_qty: actualOutputQty,
-      p_good_output_qty: actualOutputQty,
-      p_wastage_qty: 0,
-      p_uom: productionUom,
-      p_qc_status: "Pending",
-      p_production_sop_id: null,
-      p_sop_version: "",
-      p_notes: production.notes || "",
-      p_created_by: employeeId || null,
-      p_usage_items: usageItems,
+    const completionRequestId = production.completion_request_id || crypto.randomUUID();
+    const { data: productionId, error } = await supabase.rpc("factory_complete_production_with_raw_batch_allocations", {
+      p_request_id: completionRequestId,
+      p_payload: {
+        job_order_id: production.job_order_id || null,
+        finished_good_id: production.finished_good_id || null,
+        production_no: productionNo,
+        batch_no: production.batch_no || "",
+        operator_id: production.operator_id || employeeId || null,
+        operator_name: production.operator_name || "",
+        end_date: production.end_date || null,
+        end_time: production.end_time || null,
+        expiry_date: production.expiry_date || null,
+        storage_location_id: production.storage_location_id || null,
+        expiry_override_reason: String(production.expiry_override_reason || "").trim() || null,
+        actual_pack_qty: actualPackQty,
+        actual_output_qty: actualOutputQty,
+        uom: productionUom,
+        notes: production.notes || "",
+        usage_items: usageItems,
+      },
     });
     throwSupabaseError("factory.production.complete", error);
 
@@ -3274,15 +3156,48 @@ export const factoryService = {
       .select(`${productionSelectDetailed},production_sop:factory_production_sops(sop_code,title,version)`)
       .eq("id", productionId)
       .single();
-    throwSupabaseError("factory.production.fetch_completed", fetchError);
+    if (fetchError) {
+      console.error("factory.production.fetch_completed", fetchError);
+      return { id: productionId, completion_request_id: completionRequestId, status: "completed" };
+    }
 
     await logFactoryAction({
       action: "factory_production_completed",
       target: data.production_no,
       description: "Factory production completed with actual material usage and finished goods stock-in.",
       after: data,
-    });
+    }).catch((auditError) => console.error("factory.production.audit", auditError));
     return mapProduction(data);
+  },
+
+  async getRawMaterialBatchAvailability(rawMaterialIds, jobOrderId) {
+    const ids = [...new Set((Array.isArray(rawMaterialIds) ? rawMaterialIds : []).filter(Boolean))];
+    if (!ids.length) return [];
+    const { data, error } = await supabase.rpc("factory_get_raw_material_batch_availability", {
+      p_raw_material_ids: ids,
+      p_job_order_id: jobOrderId || null,
+    });
+    throwFactorySupabaseError("factory.production.raw_material_batch_availability", error);
+    return (Array.isArray(data) ? data : []).map((row) => ({
+      raw_material_id: row.raw_material_id,
+      batch_balance_id: row.batch_balance_id,
+      internal_batch_no: row.internal_batch_no || "",
+      supplier_lot_no: row.supplier_lot_no || "",
+      received_date: row.received_date || "",
+      manufacturing_date: row.manufacturing_date || "",
+      expiry_date: row.expiry_date || "",
+      storage_location_id: row.storage_location_id || "",
+      storage_location_name: row.storage_location_name || "",
+      storage_location_type: row.storage_location_type || "",
+      uom: row.uom || "",
+      available_qty: normalizeNumber(row.available_qty),
+      aggregate_balance: normalizeNumber(row.aggregate_balance),
+      reconciled_batch_balance: normalizeNumber(row.reconciled_batch_balance),
+      allocatable_batch_balance: normalizeNumber(row.allocatable_batch_balance),
+      unavailable_qty: normalizeNumber(row.unavailable_qty),
+      reconciliation_variance: normalizeNumber(row.reconciliation_variance),
+      reconciliation_status: row.reconciliation_status || "reconciliation_required",
+    }));
   },
 
   async getProductionByJobOrder(jobOrderId) {
