@@ -4095,7 +4095,7 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
             <MetricCard icon={PackageCheck} label="Finished Good" value={selectedProduct.product_family_name || selectedProduct.product_name_en || selectedProduct.product_name} helper={selectedProduct.product_code || "Packaging SKU"} />
             <MetricCard icon={Package} label="Pack Size" value={packSizeText(selectedProduct) || "Missing"} helper={selectedProduct.variant_name || "Packaging variant"} tone={packSizeMissing ? "warning" : "neutral"} />
             <MetricCard icon={Factory} label="Estimated Pack Qty" value={estimatedPackQty == null ? "—" : quantity(estimatedPackQty, "packs")} helper={quantity(normalizedPreviewProductionQty, normalizedPreviewProductionUom)} tone={recipeUomMismatch ? "warning" : "neutral"} />
-            <MetricCard icon={BookOpen} label="Active Recipe" value={matchingRecipe ? matchingRecipe.version || "Active" : "—"} helper={matchingRecipe ? productionTimeLabel(matchingRecipe.estimated_production_time_minutes) : "No active recipe"} tone={matchingRecipe ? "success" : "warning"} />
+            <MetricCard icon={BookOpen} label="Active Recipe" value={matchingRecipe ? matchingRecipe.version || "Active" : "—"} helper={matchingRecipe ? matchingRecipe.product_name || selectedProduct.product_family_name || "Finished Good recipe" : "No active recipe"} tone={matchingRecipe ? "success" : "warning"} />
           </div>
         ) : null}
         <Card title="BOM / Recipe Requirement Preview" description="This preview uses the current active recipe. Actual production usage remains captured during completion.">
@@ -4731,11 +4731,9 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
     recipe_code: "",
     finished_good_id: "",
     product_family_id: initialProductFamilyId,
-    recipe_name: "",
     version: "v1",
     yield_quantity: "",
     uom: inheritedRecipeUom(initialProductFamilyId, finishedGoods, initialValue?.uom || "kg"),
-    estimated_production_time_minutes: "",
     status: "draft",
     remarks: "",
     ...initialValue,
@@ -4806,10 +4804,6 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
       setError("Finished Good is required.");
       return;
     }
-    if (!String(form.recipe_name || "").trim()) {
-      setError("Recipe name is required.");
-      return;
-    }
     if (Number(form.yield_quantity || 0) <= 0) {
       setError("Standard Output must be greater than 0.");
       return;
@@ -4827,6 +4821,7 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
         finished_good_id: form.finished_good_id || null,
         product_family_id: productFamily?.id || form.product_family_id,
         product_name: productFamily?.name_en || form.product_name,
+        recipe_name: productFamily?.name_en || form.product_name || "Product Recipe",
         uom: inheritedUom || form.uom || "",
       });
     } finally {
@@ -4853,7 +4848,7 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
         <section className="space-y-3">
           <div>
             <div className="text-sm font-bold text-text-primary">Recipe Header</div>
-            <div className="text-xs font-semibold text-text-secondary">Finished Good, standard output and recipe timing.</div>
+            <div className="text-xs font-semibold text-text-secondary">Finished Good, standard output and version details.</div>
           </div>
           <div className="grid gap-3 md:grid-cols-3">
             <Field label="Finished Good">
@@ -4877,9 +4872,6 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
                 }}
               />
             </Field>
-            <Field label="Recipe Name">
-              <input className={inputClass()} value={form.recipe_name || ""} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, recipe_name: event.target.value }))} />
-            </Field>
             <Field label="Version">
               <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-bold text-text-primary">{form.version || "v1"}</div>
             </Field>
@@ -4894,9 +4886,6 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
             <Field label="UOM">
               <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-bold text-text-primary">{inheritedUom || "—"}</div>
               <div className="mt-1 text-xs font-semibold text-text-secondary">Inherited from Finished Good packaging/base UOM.</div>
-            </Field>
-            <Field label="Estimated Production Time">
-              <input className={inputClass()} type="number" min="0" step="1" placeholder="Minutes" value={form.estimated_production_time_minutes || ""} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, estimated_production_time_minutes: event.target.value }))} />
             </Field>
             <div className="md:col-span-3">
               <Field label="Remarks">
@@ -5058,8 +5047,8 @@ function ProductRecipeDetailModal({ recipe, receivings = [], onClose }) {
   const recipeCost = recipeCostInfo(recipe, receivings);
   return (
     <Modal
-      title={recipe.recipe_name || "Product Recipe / BOM"}
-      description={`${finishedGoodName} · ${recipe.version || "v1"}`}
+      title={finishedGoodName}
+      description={`Product Recipe / BOM · ${recipe.version || "v1"}`}
       size="2xl"
       onClose={onClose}
       footer={(
@@ -5085,10 +5074,6 @@ function ProductRecipeDetailModal({ recipe, receivings = [], onClose }) {
             <div>
               <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Standard Output</div>
               <div className="mt-1 text-sm font-bold text-text-primary">{quantity(recipe.yield_quantity, recipe.uom)}</div>
-            </div>
-            <div>
-              <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Estimated Production Time</div>
-              <div className="mt-1 text-sm font-bold text-text-primary">{productionTimeLabel(recipe.estimated_production_time_minutes)}</div>
             </div>
             <div>
               <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Updated</div>
@@ -8534,7 +8519,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   async function activateProductRecipe(recipe) {
     const confirmed = await ui?.confirm?.({
       title: "Activate Product Recipe?",
-      message: `${recipe.recipe_name || recipe.recipe_code} will become the active recipe for ${recipe.product_name}.`,
+      message: `${recipe.product_name || recipe.recipe_code || "This Finished Good"} ${recipe.version || "v1"} will become the active recipe.`,
       confirmLabel: "Activate",
       tone: "warning",
     });
@@ -8551,7 +8536,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   async function archiveProductRecipe(recipe) {
     const confirmed = await ui?.confirm?.({
       title: "Archive Product Recipe?",
-      message: `${recipe.recipe_name || recipe.recipe_code} will remain readable for history but will not be used as an active recipe.`,
+      message: `${recipe.product_name || recipe.recipe_code || "This Finished Good"} ${recipe.version || "v1"} will remain readable for history but will not be used as an active recipe.`,
       confirmLabel: "Archive",
       tone: "warning",
     });
@@ -8568,7 +8553,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   async function deleteProductRecipe(recipe) {
     const confirmed = await ui?.confirm?.({
       title: "Delete Draft Standard?",
-      message: `${recipe.recipe_name || recipe.recipe_code} is still a draft and will be removed with its BOM rows.`,
+      message: `${recipe.product_name || recipe.recipe_code || "This Finished Good"} ${recipe.version || "v1"} is still a draft and will be removed with its BOM rows.`,
       confirmLabel: "Delete",
       tone: "danger",
     });
@@ -8585,7 +8570,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   async function restoreProductRecipe(recipe) {
     const confirmed = await ui?.confirm?.({
       title: "Restore Product Recipe?",
-      message: `${recipe.recipe_name || recipe.recipe_code} will be restored as a draft for review before activation.`,
+      message: `${recipe.product_name || recipe.recipe_code || "This Finished Good"} ${recipe.version || "v1"} will be restored as a draft for review before activation.`,
       confirmLabel: "Restore",
       tone: "warning",
     });
