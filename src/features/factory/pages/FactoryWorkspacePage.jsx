@@ -447,6 +447,106 @@ function SearchableSelect({ value, options, placeholder, onChange, error, search
   );
 }
 
+function FactoryBulkSelectionModal({ title, description, items = [], existingIds = [], onClose, onAdd }) {
+  const [query, setQuery] = useState("");
+  const [debouncedQuery, setDebouncedQuery] = useState("");
+  const [category, setCategory] = useState("all");
+  const [selectedOrder, setSelectedOrder] = useState([]);
+  const existingIdSet = useMemo(() => new Set(existingIds.filter(Boolean)), [existingIds]);
+  const itemById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
+  const categories = useMemo(() => [...new Set(items.map((item) => item.category).filter(Boolean))].sort((left, right) => left.localeCompare(right)), [items]);
+
+  useEffect(() => {
+    const timeout = setTimeout(() => setDebouncedQuery(query.trim().toLowerCase()), 180);
+    return () => clearTimeout(timeout);
+  }, [query]);
+
+  useEffect(() => {
+    function closeOnEscape(event) {
+      if (event.key === "Escape") onClose();
+    }
+    document.addEventListener("keydown", closeOnEscape);
+    return () => document.removeEventListener("keydown", closeOnEscape);
+  }, [onClose]);
+
+  const visibleItems = items.filter((item) => {
+    if (category !== "all" && item.category !== category) return false;
+    if (!debouncedQuery) return true;
+    return `${item.primary || ""} ${item.secondary || ""} ${item.code || ""} ${item.meta || ""} ${item.category || ""}`.toLowerCase().includes(debouncedQuery);
+  });
+  const selectableVisibleIds = visibleItems.filter((item) => !item.disabled && !existingIdSet.has(item.id)).map((item) => item.id);
+  const allVisibleSelected = selectableVisibleIds.length > 0 && selectableVisibleIds.every((id) => selectedOrder.includes(id));
+  const selectedItems = selectedOrder.map((id) => itemById.get(id)).filter(Boolean);
+
+  function toggleItem(id) {
+    if (existingIdSet.has(id) || itemById.get(id)?.disabled) return;
+    setSelectedOrder((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
+  }
+
+  function toggleVisible() {
+    setSelectedOrder((current) => {
+      if (allVisibleSelected) return current.filter((id) => !selectableVisibleIds.includes(id));
+      return [...current, ...selectableVisibleIds.filter((id) => !current.includes(id))];
+    });
+  }
+
+  return (
+    <Modal
+      title={title}
+      description={description}
+      size="xl"
+      onClose={onClose}
+      panelClassName="max-md:h-[calc(100dvh-1rem)] max-md:max-h-none"
+      bodyClassName="flex min-h-0 flex-col"
+      footerClassName="items-center justify-between"
+      footer={(
+        <>
+          <div className="mr-auto text-sm font-bold text-text-secondary">{selectedOrder.length} selected</div>
+          <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" type="button" disabled={!selectedItems.length} onClick={() => onAdd(selectedItems)}>Add Selected</button>
+        </>
+      )}
+    >
+      <div className="flex min-h-0 flex-1 flex-col gap-3">
+        <div className={`grid gap-3 ${categories.length > 1 ? "sm:grid-cols-[minmax(0,1fr)_220px]" : ""}`}>
+          <label>
+            <div className="mb-1 text-xs font-semibold text-text-secondary">Search</div>
+            <input className={inputClass()} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search names or codes" autoFocus />
+          </label>
+          {categories.length > 1 ? (
+            <Field label="Category">
+              <CompactSelect ariaLabel="Filter selection by category" value={category} options={[{ value: "all", label: "All" }, ...categories.map((value) => ({ value, label: value }))]} onChange={setCategory} />
+            </Field>
+          ) : null}
+        </div>
+        <label className="flex min-h-11 items-center gap-3 rounded-lg border border-border bg-slate-50 px-3 py-2 text-sm font-bold text-text-primary">
+          <input className="h-4 w-4 accent-primary" type="checkbox" checked={allVisibleSelected} disabled={!selectableVisibleIds.length} onChange={toggleVisible} />
+          <span>Select All Visible</span>
+          <span className="ml-auto text-xs font-semibold text-text-muted">{visibleItems.length} shown</span>
+        </label>
+        <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-border">
+          {visibleItems.length ? visibleItems.map((item) => {
+            const alreadyAdded = existingIdSet.has(item.id);
+            const disabled = alreadyAdded || item.disabled;
+            const checked = alreadyAdded || selectedOrder.includes(item.id);
+            return (
+              <label key={item.id} className={`flex min-h-14 items-start gap-3 border-b border-border px-3 py-3 last:border-0 ${disabled ? "cursor-not-allowed bg-slate-50 opacity-70" : "cursor-pointer bg-white hover:bg-primary/5"}`}>
+                <input className="mt-1 h-4 w-4 shrink-0 accent-primary" type="checkbox" checked={checked} disabled={disabled} onChange={() => toggleItem(item.id)} />
+                <span className="min-w-0 flex-1">
+                  <span className="block font-bold text-text-primary">{item.primary || "Unnamed item"}</span>
+                  {item.secondary ? <span className="block text-sm font-semibold text-text-secondary">{item.secondary}</span> : null}
+                  <span className="mt-1 block text-xs font-semibold text-text-muted">{[item.code, item.meta].filter(Boolean).join(" · ") || "—"}</span>
+                </span>
+                <Badge tone={alreadyAdded ? "info" : item.disabled ? "neutral" : "success"}>{alreadyAdded ? "Already added" : item.statusLabel || "Active"}</Badge>
+              </label>
+            );
+          }) : <EmptyState title="No matching items" description="Try another name, code or category." />}
+        </div>
+      </div>
+    </Modal>
+  );
+}
+
 function CompactSelect({ value, options, onChange, ariaLabel = "Select option", disabled = false }) {
   const [open, setOpen] = useState(false);
   const anchorRef = useRef(null);
@@ -799,6 +899,16 @@ function FeedXDatePicker({ value, onChange, placeholder = "Select date", error, 
 function focusFirstInvalid(refs, firstKey) {
   setTimeout(() => {
     const node = refs.current?.[firstKey];
+    node?.scrollIntoView?.({ behavior: "smooth", block: "center" });
+    node?.focus?.({ preventScroll: true });
+  }, 0);
+}
+
+function focusVisibleFactoryRowField(field, rowId) {
+  setTimeout(() => {
+    const nodes = [...document.querySelectorAll(`[data-factory-row-field="${field}"]`)];
+    const node = nodes.find((candidate) => candidate.dataset.rowId === rowId && candidate.offsetParent !== null)
+      || nodes.find((candidate) => candidate.dataset.rowId === rowId);
     node?.scrollIntoView?.({ behavior: "smooth", block: "center" });
     node?.focus?.({ preventScroll: true });
   }, 0);
@@ -3206,7 +3316,7 @@ function DispatchBatchAllocationModal({ item, sku, batches, unavailableBatches =
 }
 
 function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers = [], onClose, onSave, onComplete, embedded = false, mode = "edit" }) {
-  const makeItem = () => ({ row_id: Math.random().toString(36).slice(2), finished_good_id: "", quantity: "", batch_no: "", remarks: "", allocations: [], allocation_prompted: false, allocation_required: false });
+  const makeItem = (overrides = {}) => ({ row_id: Math.random().toString(36).slice(2), finished_good_id: "", quantity: "", batch_no: "", remarks: "", allocations: [], allocation_prompted: false, allocation_required: false, ...overrides });
   const [form, setForm] = useState(() => ({
     dispatch_date: todayInput(),
     customer_id: "",
@@ -3222,6 +3332,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
   const [error, setError] = useState("");
   const [allocationEditor, setAllocationEditor] = useState(null);
   const [viewAllocation, setViewAllocation] = useState(null);
+  const [dispatchBulkSelectOpen, setDispatchBulkSelectOpen] = useState(false);
   const [batchAvailabilityBySku, setBatchAvailabilityBySku] = useState({});
   const batchAvailabilityRequestRef = useRef({});
   const submissionRef = useRef(false);
@@ -3241,9 +3352,24 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
     label: [sku.product_code || "No SKU", sku.product_family_name || sku.product_name_en || sku.product_name, sku.variant_name || packSizeText(sku)].filter(Boolean).join(" · "),
     helper: `Total stock ${skuBalanceLabel(sku)} · ${packSizeText(sku) || "No pack size"}`,
   }));
+  const dispatchBulkItems = finishedGoods.map((sku) => ({
+    id: sku.id,
+    primary: finishedGoodLabel(sku) || "Finished Good",
+    secondary: sku.product_family_name_cn || sku.product_name_cn || "",
+    code: [sku.product_code || "No SKU", packSizeText(sku) || packagingTypeLabel(sku)].filter(Boolean).join(" · "),
+    meta: `Current stock ${skuBalanceLabel(sku)}`,
+    category: sku.category || "",
+    disabled: sku.status !== "active",
+    statusLabel: sku.status === "active" ? "Active" : jobStatusLabel(sku.status),
+    source: sku,
+  }));
   const showReferenceField = Boolean(initialValue?.reference_no);
 
   const selectedSkuSignature = Array.from(new Set(form.items.map((item) => item.finished_good_id).filter(Boolean))).sort().join("|");
+
+  useEffect(() => {
+    if (dispatchBulkSelectOpen && !finishedGoods.length) setDispatchBulkSelectOpen(false);
+  }, [dispatchBulkSelectOpen, finishedGoods.length]);
 
   async function loadBatchAvailability(finishedGoodId) {
     if (!finishedGoodId) return null;
@@ -3556,6 +3682,17 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
     setForm((current) => ({ ...current, items: [...current.items, makeItem()] }));
   }
 
+  function addSelectedDispatchSkus(selectedItems) {
+    const newRows = selectedItems.map((item) => makeItem({ finished_good_id: item.id }));
+    if (!newRows.length) return;
+    setForm((current) => {
+      const hasOnlyBlankRow = current.items.length === 1 && !current.items[0].finished_good_id && !current.items[0].quantity && !current.items[0].remarks;
+      return { ...current, items: [...(hasOnlyBlankRow ? [] : current.items), ...newRows] };
+    });
+    setDispatchBulkSelectOpen(false);
+    focusVisibleFactoryRowField("dispatch-qty", newRows[0].row_id);
+  }
+
   function removeItem(rowId) {
     setForm((current) => ({ ...current, items: current.items.length > 1 ? current.items.filter((item) => item.row_id !== rowId) : current.items }));
   }
@@ -3736,7 +3873,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
                   </div>
                   <Field label="Dispatch Qty">
                     <div className="flex items-center gap-2">
-                      <input className={inputClass()} type="number" min="1" step="1" value={item.quantity || ""} disabled={isReadOnly} onChange={(event) => updateItemQuantity(item.row_id, event.target.value)} onBlur={() => promptAllocationOnce(item.row_id)} />
+                      <input data-factory-row-field="dispatch-qty" data-row-id={item.row_id} className={inputClass()} type="number" min="1" step="1" value={item.quantity || ""} disabled={isReadOnly} onChange={(event) => updateItemQuantity(item.row_id, event.target.value)} onBlur={() => promptAllocationOnce(item.row_id)} />
                       <span className="shrink-0 text-xs font-bold text-text-muted">{pluralizePackagingType(packagingTypeLabel(sku), item.quantity || 0)}</span>
                     </div>
                     {item.quantity !== "" && !validDispatchPackQty(item.quantity) ? <div className="mt-1 text-xs font-semibold text-rose-700">Enter a whole number greater than zero.</div> : null}
@@ -3787,7 +3924,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
                       <td className="px-3 py-3"><DispatchStockAvailability sku={sku} availability={availability} onRetry={() => loadBatchAvailability(item.finished_good_id).catch(() => {})} /></td>
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-2">
-                          <input className={inputClass()} type="number" min="1" step="1" value={item.quantity || ""} disabled={isReadOnly} onChange={(event) => updateItemQuantity(item.row_id, event.target.value)} onBlur={() => promptAllocationOnce(item.row_id)} />
+                          <input data-factory-row-field="dispatch-qty" data-row-id={item.row_id} className={inputClass()} type="number" min="1" step="1" value={item.quantity || ""} disabled={isReadOnly} onChange={(event) => updateItemQuantity(item.row_id, event.target.value)} onBlur={() => promptAllocationOnce(item.row_id)} />
                           <span className="text-xs font-bold text-text-muted">{pluralizePackagingType(packagingTypeLabel(sku), item.quantity || 0)}</span>
                         </div>
                         {item.quantity !== "" && !validDispatchPackQty(item.quantity) ? <div className="mt-1 text-xs font-semibold text-rose-700">Whole packs only.</div> : null}
@@ -3805,7 +3942,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
               </tbody>
             </table>
           </div>
-          {!isReadOnly ? <button className="btn-secondary" type="button" onClick={addItem}><PackageCheck size={15} /> Add Line</button> : null}
+          {!isReadOnly ? <div className="flex flex-wrap items-center gap-2"><button className="btn-secondary h-9 px-3 text-sm" type="button" onClick={addItem}><Plus size={15} /> Add Row</button><button className="btn-secondary h-9 px-3 text-sm" type="button" onClick={() => setDispatchBulkSelectOpen(true)}><ClipboardList size={15} /> Select Multiple</button></div> : null}
         </div>
       </div>
 
@@ -3845,9 +3982,19 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
       onApply={(allocations) => applyBatchAllocation(allocationItem.row_id, allocations)}
     />
   ) : null;
+  const bulkSelectionModal = dispatchBulkSelectOpen ? (
+    <FactoryBulkSelectionModal
+      title="Select Packaging SKUs"
+      description="Choose multiple active Packaging SKUs to add as blank Dispatch rows."
+      items={dispatchBulkItems}
+      existingIds={form.items.map((item) => item.finished_good_id)}
+      onClose={() => setDispatchBulkSelectOpen(false)}
+      onAdd={addSelectedDispatchSkus}
+    />
+  ) : null;
 
   if (embedded) {
-    return <>{formContent}{allocationModal}</>;
+    return <>{formContent}{allocationModal}{bulkSelectionModal}</>;
   }
 
   return (
@@ -3869,6 +4016,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
         {formContent}
       </Modal>
       {allocationModal}
+      {bulkSelectionModal}
     </>
   );
 }
@@ -4429,7 +4577,7 @@ function FactoryCustomerModal({ initialValue, onClose, onSave }) {
   );
 }
 
-function RawReceivingEntryPanel({ initialBatch = null, rawMaterials, suppliers = [], storageLocations = [], receivingBatches = [], onSave, onComplete, onCancelEdit }) {
+function RawReceivingEntryPanel({ initialBatch = null, rawMaterials = [], suppliers = [], storageLocations = [], receivingBatches = [], onSave, onComplete, onCancelEdit }) {
   const fieldRefs = useRef({});
   const submissionRef = useRef(false);
   const makeRow = (item = {}) => ({
@@ -4461,15 +4609,55 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials, suppliers =
   const [error, setError] = useState("");
   const [fieldErrors, setFieldErrors] = useState({});
   const [openMaterialRowId, setOpenMaterialRowId] = useState(null);
+  const [receivingBulkSelectOpen, setReceivingBulkSelectOpen] = useState(false);
   const activeSuppliers = suppliers.filter((supplier) => supplier.status === "active" || supplier.id === form.supplier_id);
   const activeRawMaterials = rawMaterials.filter((material) => material.status === "active");
   const activeStorageLocations = storageLocations.filter((location) => location.status === "active");
   const supplierOptions = activeSuppliers.map((supplier) => ({ value: supplier.id, label: supplier.supplier_name, helper: supplier.supplier_code || supplier.status }));
   const storageLocationOptions = activeStorageLocations.map((location) => ({ value: location.id, label: location.location_name, helper: [location.location_code, location.location_type].filter(Boolean).join(" · ") }));
+  const receivingBulkItems = rawMaterials.map((material) => ({
+    id: material.id,
+    primary: rawMaterialLabel(material) || "Raw Material",
+    secondary: material.name_cn || "",
+    code: material.material_code || "No material code",
+    meta: [material.uom || "No UOM", material.storage_location || "No default storage"].join(" · "),
+    category: material.category || "",
+    disabled: material.status !== "active",
+    statusLabel: material.status === "active" ? "Active" : jobStatusLabel(material.status),
+    source: material,
+  }));
   const receivingNoPreview = initialBatch?.batch_no || previewDailyDocumentNo({ prefix: "R", date: form.received_date, records: receivingBatches, codeKey: "batch_no", dateKey: "received_date" });
+
+  useEffect(() => {
+    if (receivingBulkSelectOpen && !rawMaterials.length) setReceivingBulkSelectOpen(false);
+  }, [rawMaterials.length, receivingBulkSelectOpen]);
 
   function updateItem(rowId, patchValue) {
     setForm((current) => ({ ...current, items: current.items.map((item) => item.row_id === rowId ? { ...item, ...patchValue } : item) }));
+  }
+
+  function addReceivingRow() {
+    setForm((current) => ({ ...current, items: [...current.items, makeRow()] }));
+  }
+
+  function addSelectedRawMaterials(selectedItems) {
+    const newRows = selectedItems.map(({ source: material }) => makeRow({
+      raw_material_id: material.id,
+      uom: material.uom || "",
+      storage_location_id: material.storage_location_id || "",
+      storage_location: material.storage_location || "",
+      expiry_tracking_mode: material.expiry_tracking_mode || "optional",
+      expiry_source: material.expiry_tracking_mode === "not_applicable" ? "not_applicable" : "",
+      expiry_confirmed: material.expiry_tracking_mode === "not_applicable",
+    }));
+    if (!newRows.length) return;
+    setForm((current) => {
+      const first = current.items[0];
+      const hasOnlyBlankRow = current.items.length === 1 && !first.raw_material_id && !first.received_qty && !first.supplier_lot_no && !first.expiry_date;
+      return { ...current, items: [...(hasOnlyBlankRow ? [] : current.items), ...newRows] };
+    });
+    setReceivingBulkSelectOpen(false);
+    focusVisibleFactoryRowField("receiving-qty", newRows[0].row_id);
   }
 
   async function selectRawMaterial(rowId, rawMaterialId) {
@@ -4556,7 +4744,7 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials, suppliers =
   }
 
   function renderQuantityInput(item) {
-    return <><div className="relative"><input ref={(node) => { fieldRefs.current[`${item.row_id}.received_qty`] = node; }} className={`${inputClass(fieldErrors[`${item.row_id}.received_qty`])} pr-14`} type="number" min="0" step="0.01" value={item.received_qty} onChange={(event) => updateItem(item.row_id, { received_qty: event.target.value })} />{item.uom ? <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-text-muted">{item.uom}</span> : null}</div>{fieldErrors[`${item.row_id}.received_qty`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.received_qty`]}</div> : null}</>;
+    return <><div className="relative"><input data-factory-row-field="receiving-qty" data-row-id={item.row_id} ref={(node) => { fieldRefs.current[`${item.row_id}.received_qty`] = node; }} className={`${inputClass(fieldErrors[`${item.row_id}.received_qty`])} pr-14`} type="number" min="0" step="0.01" value={item.received_qty} onChange={(event) => updateItem(item.row_id, { received_qty: event.target.value })} />{item.uom ? <span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-xs font-semibold text-text-muted">{item.uom}</span> : null}</div>{fieldErrors[`${item.row_id}.received_qty`] ? <div className="mt-1 text-xs font-semibold text-rose-600">{fieldErrors[`${item.row_id}.received_qty`]}</div> : null}</>;
   }
 
   function renderStoragePicker(item) {
@@ -4568,6 +4756,7 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials, suppliers =
   }
 
   return (
+    <>
     <Card title={initialBatch?.id ? `Edit ${initialBatch.batch_no}` : "Receive Raw Material"} description="Save preparation as a Draft, then complete once quantities and batch details are confirmed.">
       <form className="space-y-5 p-5" onSubmit={(event) => submit("draft", event)}>
         <div className="grid gap-3 lg:grid-cols-4">
@@ -4583,9 +4772,8 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials, suppliers =
         <Field label="Remarks"><textarea className={inputClass()} rows={2} value={form.remarks} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} /></Field>
 
         <div className="rounded-xl border border-border bg-white p-4">
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-slate-50 px-4 py-3">
+          <div className="rounded-xl border border-border bg-slate-50 px-4 py-3">
             <div><div className="text-sm font-semibold text-text-primary">Receiving Items</div><div className="text-xs text-text-secondary">UOM, storage, internal batch and expiry policy load from the Raw Material master.</div></div>
-            <button className="btn-secondary px-3 py-2 text-sm" type="button" onClick={() => setForm((current) => ({ ...current, items: [...current.items, makeRow()] }))}><Plus size={15} /> Add Item</button>
           </div>
           <div className="mt-4 overflow-hidden rounded-lg border border-border">
             <div className="hidden grid-cols-[minmax(0,1.5fr)_minmax(0,.85fr)_minmax(0,1fr)_minmax(0,.75fr)_minmax(0,1.25fr)_minmax(0,1fr)_56px] border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted xl:grid">
@@ -4605,6 +4793,10 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials, suppliers =
               ))}
             </div>
           </div>
+          <div className="mt-3 flex flex-wrap items-center gap-2">
+            <button className="btn-secondary h-9 px-3 text-sm" type="button" onClick={addReceivingRow}><Plus size={15} /> Add Row</button>
+            <button className="btn-secondary h-9 px-3 text-sm" type="button" onClick={() => setReceivingBulkSelectOpen(true)}><ClipboardList size={15} /> Select Multiple</button>
+          </div>
         </div>
         <div className="flex flex-wrap items-center justify-end gap-3 rounded-xl border border-border bg-slate-50 px-4 py-3">
           {error ? <div className="mr-auto text-sm font-semibold text-rose-600">{error}</div> : null}
@@ -4614,6 +4806,17 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials, suppliers =
         </div>
       </form>
     </Card>
+    {receivingBulkSelectOpen ? (
+      <FactoryBulkSelectionModal
+        title="Select Raw Materials"
+        description="Choose multiple active Raw Materials to add as blank Receiving rows."
+        items={receivingBulkItems}
+        existingIds={form.items.map((item) => item.raw_material_id)}
+        onClose={() => setReceivingBulkSelectOpen(false)}
+        onAdd={addSelectedRawMaterials}
+      />
+    ) : null}
+    </>
   );
 }
 
