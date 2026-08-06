@@ -1544,7 +1544,12 @@ function groupedProductionSops(sops) {
       : legacyIdentity
         ? `legacy-product:${legacyIdentity}`
         : `legacy-sop:${sop.id}`;
-    if (!groups.has(key)) groups.set(key, { id: key, productName, sops: [] });
+    if (!groups.has(key)) groups.set(key, {
+      id: key,
+      productName,
+      productNameCn: sop.product_name_cn || "",
+      sops: [],
+    });
     groups.get(key).sops.push(sop);
   });
 
@@ -1561,6 +1566,11 @@ function groupedProductionSops(sops) {
       left.productName.localeCompare(right.productName, "en-MY", { numeric: true, sensitivity: "base" })
       || left.id.localeCompare(right.id)
     ));
+}
+
+function productionSopDisplayName(sop) {
+  const productName = sop?.product_name_en || sop?.product_name || "Finished Good";
+  return `${productName} Production SOP · ${sop?.version || "v1"}`;
 }
 
 function FinishedGoodDetailModal({ product, productions, movements, productionCosts, onClose }) {
@@ -5219,7 +5229,7 @@ function StartProductionModal({ job, sops = [], auth, onClose, onSave }) {
 
         <section className="rounded-xl border border-border bg-white p-4 sm:p-5">
           <div className="flex flex-wrap items-start justify-between gap-3">
-            <div><div className="flex items-center gap-2 text-sm font-black text-text-primary"><BookOpen size={16} /> Production SOP</div>{activeSop ? <div className="mt-1 text-lg font-black text-text-primary">{activeSop.title || activeSop.sop_name || "Production SOP"} · {activeSop.version || "v1"}</div> : null}</div>
+            <div><div className="flex items-center gap-2 text-sm font-black text-text-primary"><BookOpen size={16} /> Production SOP</div>{activeSop ? <div className="mt-1 text-lg font-black text-text-primary">{productionSopDisplayName(activeSop)}</div> : null}</div>
             {activeSop ? <div className="flex flex-wrap gap-2"><Badge tone="info">{activeSop.estimated_minutes || 0} mins</Badge><Badge tone={sopQcCount ? "warning" : "neutral"}>{sopQcCount ? `${sopQcCount} QC checks` : "No QC Required"}</Badge></div> : null}
           </div>
           {activeSop ? (
@@ -6158,12 +6168,7 @@ function ProductionSopBuilderModal({ initialValue, productFamilies = [], recipes
   function selectFinishedGood(finishedGoodId) {
     const product = productFamilies.find((family) => family.id === finishedGoodId);
     const nextRecipe = recipes.find((recipe) => recipe.product_family_id === finishedGoodId && recipe.status === "active") || null;
-    setForm((current) => {
-      const currentName = String(current.sop_name || current.title || "");
-      const shouldSuggestName = !currentName.trim() || currentName.endsWith(" Production SOP");
-      const suggestedName = shouldSuggestName && product?.name_en ? `${product.name_en} Production SOP` : currentName;
-      return { ...current, finished_good_id: finishedGoodId, product_name: product?.name_en || "", sop_name: suggestedName, title: suggestedName, version: isEdit ? current.version : nextVersionForFinishedGood(finishedGoodId), recipe_id: nextRecipe?.id || "", recipe_version: nextRecipe?.version || "", steps: current.steps.map((step) => ({ ...step, ingredient_material_ids: [] })) };
-    });
+    setForm((current) => ({ ...current, finished_good_id: finishedGoodId, product_name: product?.name_en || "", version: isEdit ? current.version : nextVersionForFinishedGood(finishedGoodId), recipe_id: nextRecipe?.id || "", recipe_version: nextRecipe?.version || "", steps: current.steps.map((step) => ({ ...step, ingredient_material_ids: [] })) }));
   }
 
   function linkActiveRecipe() {
@@ -6176,7 +6181,6 @@ function ProductionSopBuilderModal({ initialValue, productFamilies = [], recipes
     setError("");
     if (isLocked) return setError("Only draft SOPs can be edited.");
     if (!form.finished_good_id) return setError("Finished Good is required.");
-    if (!String(form.sop_name || form.title || "").trim()) return setError("SOP name is required.");
     if (!form.steps.length) return setError("At least one SOP step is required.");
     for (let index = 0; index < form.steps.length; index += 1) {
       const step = form.steps[index];
@@ -6191,9 +6195,11 @@ function ProductionSopBuilderModal({ initialValue, productFamilies = [], recipes
       if ((step.ingredient_material_ids || []).some((materialId) => !recipeIngredientIds.has(materialId))) return setError(`Step ${index + 1} contains an ingredient outside the linked Product Recipe.`);
     }
     const product = productFamilies.find((family) => family.id === form.finished_good_id);
+    const productName = product?.name_en || form.product_name || "Finished Good";
+    const sopName = `${productName} Production SOP · ${form.version || "v1"}`;
     setSaving(true);
     try {
-      await onSave({ ...form, title: form.sop_name || form.title, product_name: product?.name_en || form.product_name, estimated_minutes: calculatedMinutes });
+      await onSave({ ...form, title: sopName, sop_name: sopName, product_name: productName, estimated_minutes: calculatedMinutes });
     } finally {
       setSaving(false);
     }
@@ -6207,7 +6213,6 @@ function ProductionSopBuilderModal({ initialValue, productFamilies = [], recipes
           <div className="mb-3 text-sm font-black text-text-primary">SOP Header</div>
           <div className="grid gap-3 md:grid-cols-3">
             <Field label="Finished Good *"><SearchableSelect value={form.finished_good_id || ""} options={productOptions} placeholder="Select Finished Good" searchPlaceholder="Search finished goods" emptyText="No finished goods" disabled={isLocked} onChange={selectFinishedGood} /></Field>
-            <Field label="SOP Name *"><input className={inputClass()} value={form.sop_name || form.title || ""} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, sop_name: event.target.value, title: event.target.value }))} /></Field>
             <Field label="Version"><div className="rounded-xl border border-border bg-slate-50 px-3 py-2 text-sm font-bold text-text-primary">{form.version || "v1"}</div></Field>
             <Field label="Estimated Time"><div className="rounded-xl border border-border bg-slate-50 px-3 py-2"><div className="text-sm font-bold text-text-primary">{sopMinutesLabel(calculatedMinutes)}</div><div className="text-[10.5px] font-semibold text-text-muted">Calculated from process steps</div></div></Field>
             <Field label="Effective Date"><FeedXDatePicker value={form.effective_date || ""} disabled={isLocked} onChange={(nextDate) => setForm((current) => ({ ...current, effective_date: nextDate }))} /></Field>
@@ -6332,21 +6337,20 @@ function ProductionSopModal({ initialValue, productFamilies = [], onClose, onSav
       setError("Finished Good is required.");
       return;
     }
-    if (!String(form.sop_name || form.title || "").trim()) {
-      setError("SOP name is required.");
-      return;
-    }
     if (!form.steps.some((step) => String(step.step_name || step.process_name || step.description || "").trim())) {
       setError("At least one SOP step is required.");
       return;
     }
     const product = productFamilies.find((family) => family.id === form.finished_good_id);
+    const productName = product?.name_en || form.product_name || "Finished Good";
+    const sopName = `${productName} Production SOP · ${form.version || "v1"}`;
     setSaving(true);
     try {
       await onSave({
         ...form,
-        title: form.sop_name || form.title,
-        product_name: product?.name_en || form.product_name,
+        title: sopName,
+        sop_name: sopName,
+        product_name: productName,
         steps: form.steps.map((step) => ({
           ...step,
           process_name: step.step_name || step.process_name,
@@ -6390,9 +6394,6 @@ function ProductionSopModal({ initialValue, productFamilies = [], onClose, onSav
                 setForm((current) => ({ ...current, finished_good_id: finishedGoodId, product_name: product?.name_en || "" }));
               }}
             />
-          </Field>
-          <Field label="SOP Name">
-            <input className={inputClass()} value={form.sop_name || form.title || ""} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, sop_name: event.target.value, title: event.target.value }))} />
           </Field>
           <Field label="Version">
             <div className="rounded-xl border border-border bg-slate-50 px-3 py-2 text-sm font-bold text-text-primary">{form.version || "v1"}</div>
@@ -6488,7 +6489,7 @@ function ProductionSopDetailModal({ sop, onClose }) {
   const qcCount = steps.filter((step) => step.qc_required || step.is_qc_checkpoint).length;
   return (
     <Modal
-      title={sop.sop_name || sop.title || "Production SOP"}
+      title={productionSopDisplayName(sop)}
       description="Read-only standard process reference"
       size="2xl"
       onClose={onClose}
@@ -6499,7 +6500,7 @@ function ProductionSopDetailModal({ sop, onClose }) {
           <div className="flex flex-wrap items-start justify-between gap-4">
             <div>
               <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-text-muted">Production SOP</div>
-              <div className="mt-1 text-2xl font-black text-text-primary">{sop.sop_name || sop.title || "—"}</div>
+              <div className="mt-1 text-2xl font-black text-text-primary">{productionSopDisplayName(sop)}</div>
               <div className="mt-1 text-sm font-semibold text-text-secondary">{sop.product_name || "No Finished Good"} {sop.product_name_cn ? `· ${sop.product_name_cn}` : ""}</div>
             </div>
             <Badge tone={sop.status === "active" ? "success" : sop.status === "draft" ? "info" : "neutral"}>{jobStatusLabel(sop.status)}</Badge>
@@ -6558,10 +6559,10 @@ function ProductionSopDocumentModal({ sop, onClose }) {
   const referencedIngredientCount = new Set(steps.flatMap((step) => step.ingredient_material_ids || [])).size;
   const totalEstimatedMinutes = sopTotalEstimatedMinutes({ ...sop, steps });
   return (
-    <Modal title={sop.sop_name || sop.title || "Production SOP"} description="Read-only standard process reference" size="2xl" onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}>
+    <Modal title={productionSopDisplayName(sop)} description="Read-only standard process reference" size="2xl" onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}>
       <div className="space-y-6">
         <section className="border-b border-border pb-5">
-          <div className="flex flex-wrap items-start justify-between gap-4"><div><div className="text-xl font-black text-text-primary">{sop.sop_name || sop.title || "—"}</div><div className="mt-1 text-sm font-semibold text-text-secondary">{sop.product_name || "No Finished Good"}{sop.product_name_cn ? ` · ${sop.product_name_cn}` : ""}</div></div><Badge tone={sop.status === "active" ? "success" : sop.status === "draft" ? "info" : "neutral"}>{jobStatusLabel(sop.status)}</Badge></div>
+          <div className="flex flex-wrap items-start justify-between gap-4"><div><div className="text-xl font-black text-text-primary">{productionSopDisplayName(sop)}</div>{sop.product_name_cn ? <div className="mt-1 text-sm font-semibold text-text-secondary">{sop.product_name_cn}</div> : null}</div><Badge tone={sop.status === "active" ? "success" : sop.status === "draft" ? "info" : "neutral"}>{jobStatusLabel(sop.status)}</Badge></div>
           <div className="mt-5 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">{[["Version", sop.version || "v1"], ["Estimated Time", sopMinutesLabel(totalEstimatedMinutes)], ["Effective Date", formatFactoryDate(sop.effective_date)], ["Steps", steps.length], ["QC Points", qcCount], ["Updated", formatFactoryDate(sop.updated_at)]].map(([label, value]) => <div key={label}><div className="text-[10.5px] font-semibold text-text-muted">{label}</div><div className="mt-1 text-sm font-bold text-text-primary">{value}</div></div>)}</div>
           {sop.remarks || sop.notes ? <div className="mt-4 max-w-[70ch] text-sm font-semibold text-text-secondary">{sop.remarks || sop.notes}</div> : null}
         </section>
@@ -9124,16 +9125,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge> },
   ];
 
-  const sopColumns = [
-    { key: "finished_good", label: "Finished Good", render: (row) => <div><div className="font-bold text-text-primary">{row.product_name || "Finished Good"}</div>{row.product_name_cn ? <div className="text-xs text-text-secondary">{row.product_name_cn}</div> : null}</div> },
-    { key: "version", label: "Version", render: (row) => <Badge tone="info">{row.version || "v1"}</Badge> },
-    { key: "steps", label: "Steps", render: (row) => row.steps?.length || 0 },
-    { key: "qc", label: "QC Points", render: (row) => { const count = (row.steps || []).reduce((sum, step) => sum + (step.qc_checks?.length || ((step.qc_required || step.is_qc_checkpoint) ? 1 : 0)), 0); return <Badge tone={count ? "warning" : "neutral"}>{count}</Badge>; } },
-    { key: "estimated_time", label: "Estimated Time", render: (row) => sopMinutesLabel(sopTotalEstimatedMinutes(row)) },
-    { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : row.status === "draft" ? "info" : "neutral"}>{jobStatusLabel(row.status)}</Badge> },
-    { key: "updated", label: "Updated", render: (row) => formatFactoryDate(row.updated_at) },
-    { key: "actions", label: "Actions", align: "right", render: (row) => (
-      <div className="flex flex-wrap justify-end gap-2">
+  function renderSopActions(row) {
+    return (
+      <div className="flex flex-wrap justify-end gap-2" onClick={(event) => event.stopPropagation()}>
         <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "sop-detail", value: row })}>View</button>
         {row.status === "draft" && can("factory_production_sop.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "sop", value: row })}>Edit</button> : null}
         {row.status === "draft" && (can("factory_production_sop.edit") || can("factory_production_sop.manage")) ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => activateProductionSop(row)}>Activate</button> : null}
@@ -9142,7 +9136,17 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         {row.status === "active" && can("factory_production_sop.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => archiveProductionSop(row)}>Archive</button> : null}
         {row.status === "archived" && can("factory_production_sop.edit") ? <button className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50" type="button" onClick={() => restoreProductionSop(row)}>Restore</button> : null}
       </div>
-    ) },
+    );
+  }
+
+  const sopColumns = [
+    { key: "version", label: "Version", render: (row) => <Badge tone="info">{row.version || "v1"}</Badge> },
+    { key: "steps", label: "Steps", render: (row) => row.steps?.length || 0 },
+    { key: "qc", label: "QC Points", render: (row) => { const count = (row.steps || []).reduce((sum, step) => sum + (step.qc_checks?.length || ((step.qc_required || step.is_qc_checkpoint) ? 1 : 0)), 0); return <Badge tone={count ? "warning" : "neutral"}>{count}</Badge>; } },
+    { key: "estimated_time", label: "Estimated Time", render: (row) => sopMinutesLabel(sopTotalEstimatedMinutes(row)) },
+    { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : row.status === "draft" ? "info" : "neutral"}>{jobStatusLabel(row.status)}</Badge> },
+    { key: "updated", label: "Updated", render: (row) => formatFactoryDate(row.updated_at) },
+    { key: "actions", label: "Actions", align: "right", render: renderSopActions },
   ];
 
   function renderRecipeActions(row) {
@@ -9172,7 +9176,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       const cost = recipeCostInfo(row, data.receivings);
       return <div className="font-bold text-text-primary">{costDisplay(cost.standardCost, cost.missingCostRows, cost.unsupportedCostRows)}</div>;
     } },
-    { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : row.status === "draft" ? "info" : "neutral"}>{row.status}</Badge> },
+    { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : row.status === "draft" ? "info" : "neutral"}>{jobStatusLabel(row.status)}</Badge> },
     { key: "updated_at", label: "Updated", render: (row) => formatFactoryDate(row.updated_at) },
     { key: "actions", label: "Actions", align: "right", render: renderRecipeActions },
   ];
@@ -11042,9 +11046,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   function renderProductionSop() {
     const qcCheckpointCount = data.sops.flatMap((sop) => sop.steps || []).reduce((sum, step) => sum + (step.qc_checks?.length || ((step.qc_required || step.is_qc_checkpoint) ? 1 : 0)), 0);
     const coveredProducts = new Set(data.sops.map((sop) => sop.finished_good_id || sop.product_name).filter(Boolean)).size;
-    const visibleSopRows = sopProductGroups
-      .slice(sopsPager.from, sopsPager.to)
-      .flatMap((group) => group.sops);
+    const visibleSopGroups = sopProductGroups.slice(sopsPager.from, sopsPager.to);
     return (
       <div className="space-y-5">
         <PageHeader
@@ -11060,7 +11062,39 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={CheckCircle2} label="Active SOPs" value={data.sops.filter((sop) => sop.status === "active").length} helper="Available for production" />
         </div>
         <Card title="Production SOP Records" description="SOPs are standard process references and do not represent actual production results.">
-          <FactoryTable columns={sopColumns} rows={visibleSopRows} emptyTitle="No Production SOPs" emptyDescription="Create SOP steps before attaching a standard process to production batches." />
+          {visibleSopGroups.length ? <div className="space-y-4">
+            {visibleSopGroups.map((group) => (
+              <div key={group.id} className="overflow-hidden rounded-xl border border-border bg-white">
+                <div className="flex flex-col gap-1 border-b border-border bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <div className="font-bold text-text-primary">{group.productName}</div>
+                    {group.productNameCn ? <div className="text-sm font-semibold text-text-secondary">{group.productNameCn}</div> : null}
+                  </div>
+                  <Badge tone="neutral">{group.sops.length} {group.sops.length === 1 ? "Version" : "Versions"}</Badge>
+                </div>
+                <div className="hidden md:block">
+                  <FactoryTable columns={sopColumns} rows={group.sops} />
+                </div>
+                <div className="divide-y divide-border md:hidden">
+                  {group.sops.map((sop) => {
+                    const qcPoints = (sop.steps || []).reduce((sum, step) => sum + (step.qc_checks?.length || ((step.qc_required || step.is_qc_checkpoint) ? 1 : 0)), 0);
+                    return <div key={sop.id} className="space-y-3 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div><Badge tone="info">{sop.version || "v1"}</Badge><div className="mt-2 text-xs font-semibold text-text-secondary">Updated {formatFactoryDate(sop.updated_at)}</div></div>
+                        <Badge tone={sop.status === "active" ? "success" : sop.status === "draft" ? "info" : "neutral"}>{jobStatusLabel(sop.status)}</Badge>
+                      </div>
+                      <div className="grid grid-cols-3 gap-3 text-sm">
+                        <div><div className="text-[10.5px] font-semibold text-text-muted">Steps</div><div className="font-bold text-text-primary">{sop.steps?.length || 0}</div></div>
+                        <div><div className="text-[10.5px] font-semibold text-text-muted">QC Points</div><div className="font-bold text-text-primary">{qcPoints}</div></div>
+                        <div><div className="text-[10.5px] font-semibold text-text-muted">Estimated Time</div><div className="font-bold text-text-primary">{sopMinutesLabel(sopTotalEstimatedMinutes(sop))}</div></div>
+                      </div>
+                      {renderSopActions(sop)}
+                    </div>;
+                  })}
+                </div>
+              </div>
+            ))}
+          </div> : <EmptyState title="No Production SOPs" description="Create SOP steps before attaching a standard process to production batches." />}
           <FactoryPagination page={sopsPager.page} pageSize={sopsPager.pageSize} total={sopProductGroups.length} onPageChange={sopsPager.setPage} onPageSizeChange={sopsPager.setPageSize} />
         </Card>
       </div>
@@ -11148,7 +11182,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                               <td className="px-4 py-3 font-semibold text-text-primary">{quantity(recipe.yield_quantity, recipe.uom)}</td>
                               <td className="px-4 py-3">{recipe.items?.length || 0}</td>
                               <td className="px-4 py-3 font-bold text-text-primary">{costDisplay(cost.standardCost, cost.missingCostRows, cost.unsupportedCostRows)}</td>
-                              <td className="px-4 py-3"><Badge tone={recipe.status === "active" ? "success" : recipe.status === "draft" ? "info" : "neutral"}>{recipe.status}</Badge></td>
+                              <td className="px-4 py-3"><Badge tone={recipe.status === "active" ? "success" : recipe.status === "draft" ? "info" : "neutral"}>{jobStatusLabel(recipe.status)}</Badge></td>
                               <td className="px-4 py-3">{formatFactoryDate(recipe.updated_at)}</td>
                               <td className="px-4 py-3 text-right">{renderRecipeActions(recipe)}</td>
                             </tr>
@@ -11169,7 +11203,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                         }}>
                           <div className="flex items-start justify-between gap-3">
                             <div>
-                              <Badge tone={recipe.status === "active" ? "success" : recipe.status === "draft" ? "info" : "neutral"}>{recipe.version || "v1"} {recipe.status}</Badge>
+                              <Badge tone={recipe.status === "active" ? "success" : recipe.status === "draft" ? "info" : "neutral"}>{recipe.version || "v1"} · {jobStatusLabel(recipe.status)}</Badge>
                               <div className="mt-2 text-sm font-bold text-text-primary">{quantity(recipe.yield_quantity, recipe.uom)}</div>
                               <div className="text-xs font-semibold text-text-secondary">{recipe.items?.length || 0} materials · {formatFactoryDate(recipe.updated_at)}</div>
                             </div>
@@ -11375,7 +11409,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           key: "sop",
           title: "SOP Used",
           status: row.sop ? "complete" : "pending",
-          main: row.sop ? `${row.sop.sop_name || row.sop.title || "Production SOP"} ${row.sop.version || ""}`.trim() : "No SOP Linked",
+          main: row.sop ? productionSopDisplayName(row.sop) : "No SOP Linked",
           detail: row.sop ? `Effective Date: ${formatFactoryDate(row.sop.effective_date)}` : "Production SOP is not required in Phase 1 production completion.",
         },
         {
