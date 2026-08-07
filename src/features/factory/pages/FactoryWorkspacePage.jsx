@@ -1787,6 +1787,30 @@ function factoryActivityDateTime(dateValue, timeValue, timestampValue = "") {
   };
 }
 
+function productionActivityReference(job, production) {
+  const batchNo = String(production?.batch_no || "").trim();
+  if (/^PB/i.test(batchNo)) return batchNo;
+  const jobOrderNo = String(job?.job_order_no || production?.job_order_no || "").trim();
+  return /^JO/i.test(jobOrderNo) ? jobOrderNo : "—";
+}
+
+function productionActivityOperator(value) {
+  const name = String(value || "").trim();
+  if (!name || name.includes("@") || /^[0-9a-f]{8}-[0-9a-f-]{27}$/i.test(name)) return { name: "—", helper: "" };
+  if (name.toLowerCase() === "system") return { name: "System", helper: "Automated" };
+  return { name, helper: "" };
+}
+
+function productionActivityFinishedGood(job, production) {
+  return job?.product_family_name
+    || job?.product_name_en
+    || job?.product_name
+    || production?.product_family_name
+    || production?.product_name_en
+    || production?.product_name
+    || "—";
+}
+
 function productionOutputLabel(production) {
   return quantity(production?.good_output_qty || production?.actual_output_qty || production?.actual_produced_qty || production?.produced_quantity, production?.uom);
 }
@@ -11185,68 +11209,61 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const completedBoardJobs = operationalJobRows.filter((job) => job.status === "completed");
     const completionRate = Number(operationalJobs.summary.completionRate || 0);
     const jobById = new Map(operationalJobRows.map((job) => [job.id, job]));
-    const jobByReference = new Map(operationalJobRows.map((job) => [job.job_order_no, job]));
-    const startedActivities = operationalJobRows.filter((job) => job.production_date && job.start_time).map((job) => ({
-      id: `start-${job.id}`,
-      ...factoryActivityDateTime(job.production_date, job.start_time, job.started_at),
-      label: "Production Started",
-      product: jobFinishedGoodName(job),
-      reference: job.job_order_no || "—",
-      operator: job.production_operator_name || "—",
-      detail: "Production start recorded.",
-      statusLabel: "Started",
-      tone: "warning",
-    }));
+    const startedActivities = operationalJobRows.filter((job) => job.production_date && job.start_time).map((job) => {
+      const production = productionByJobId.get(job.id);
+      return {
+        id: `start-${job.id}`,
+        ...factoryActivityDateTime(job.production_date, job.start_time, job.started_at),
+        label: "Production Started",
+        product: productionActivityFinishedGood(job, production),
+        reference: productionActivityReference(job, production),
+        operator: productionActivityOperator(job.production_operator_name),
+        result: "Started",
+        tone: "warning",
+      };
+    });
     const completedActivities = completedTodayProductions.map((production) => {
       const job = jobById.get(production.job_order_id);
       return {
         id: `complete-${production.id}`,
         ...factoryActivityDateTime(production.end_date, production.end_time, production.completed_at || production.created_at),
         label: "Production Completed",
-        product: production.product_name || jobFinishedGoodName(job),
-        reference: production.batch_no || job?.job_order_no || "—",
-        operator: production.operator_name || job?.production_operator_name || "—",
-        detail: `Actual output: ${productionOutputLabel(production)}`,
-        statusLabel: "Completed",
+        product: productionActivityFinishedGood(job, production),
+        reference: productionActivityReference(job, production),
+        operator: productionActivityOperator(production.operator_name || job?.production_operator_name),
+        result: "Completed",
         tone: "success",
       };
     });
-    const qcActionDetails = {
-      factory_production_qc_updated: { label: "QC Updated", tone: "info" },
-      factory_production_qc_passed: { label: "QC Passed", tone: "success" },
-      factory_production_qc_failed: { label: "QC Failed", tone: "danger" },
-    };
-    const qcActivities = data.auditLogs.filter((event) => qcActionDetails[event.action]).map((event) => {
-      const job = jobById.get(event.entity_reference) || jobByReference.get(event.entity_reference) || jobById.get(event.after?.job_order_id);
-      const eventStyle = qcActionDetails[event.action];
-      const completedCount = Number(event.after?.completed);
-      const totalCount = Number(event.after?.total);
-      const hasQcCount = Number.isFinite(completedCount) && Number.isFinite(totalCount);
-      const statusLabel = event.after?.current_status ? productionQcDisplayLabel(event.after.current_status) : eventStyle.label;
-      return {
-        id: `qc-${event.id}`,
-        ...factoryActivityDateTime("", "", event.created_at),
-        label: eventStyle.label,
-        product: job ? jobFinishedGoodName(job) : "Production QC",
-        reference: job?.job_order_no || event.entity_reference || "—",
-        operator: event.actor_name || job?.production_operator_name || "—",
-        detail: hasQcCount ? `${statusLabel} · ${completedCount}/${totalCount} checks` : statusLabel,
-        statusLabel: event.action === "factory_production_qc_passed" ? "Passed" : event.action === "factory_production_qc_failed" ? "Failed" : "Updated",
-        tone: eventStyle.tone,
-      };
+    const qcActivities = operationalJobRows.flatMap((job) => {
+      const checks = (job.step_executions || []).flatMap((step) => step.qc_results || []);
+      const recordedChecks = checks.filter((check) => check.checked_at);
+      if (!recordedChecks.length) return [];
+      const latestCheck = recordedChecks.reduce((latest, check) => new Date(check.checked_at).getTime() > new Date(latest.checked_at).getTime() ? check : latest);
+      const qcState = productionQcStatus(checks);
+      const production = productionByJobId.get(job.id);
+      return [{
+        id: `qc-${job.id}-${latestCheck.id}`,
+        ...factoryActivityDateTime("", "", latestCheck.checked_at),
+        label: qcState.status === "Failed" ? "QC Failed" : "QC Check",
+        product: productionActivityFinishedGood(job, production),
+        reference: productionActivityReference(job, production),
+        operator: productionActivityOperator(latestCheck.checked_by_name || job.production_operator_name),
+        result: qcState.status === "Failed" ? "Failed" : qcState.requiredTotal ? `${qcState.requiredCompleted}/${qcState.requiredTotal} Passed` : "Passed",
+        tone: qcState.status === "Failed" ? "danger" : qcState.status === "Passed" ? "success" : "warning",
+      }];
     });
     const productionActivity = [...startedActivities, ...completedActivities, ...qcActivities]
       .filter((activity) => activity.sortValue > 0)
       .sort((a, b) => b.sortValue - a.sortValue || b.id.localeCompare(a.id))
       .slice(0, 8);
     const productionActivityColumns = [
-      { key: "date_time", label: "Date & Time", render: (row) => <div className="whitespace-nowrap"><div className="font-semibold text-text-primary">{row.dateLabel}</div><div className="text-xs text-text-muted">{row.timeLabel}</div></div> },
-      { key: "activity", label: "Activity", render: (row) => <div className="font-semibold text-text-primary">{row.label}</div> },
-      { key: "product", label: "Product", render: (row) => <div className="min-w-[150px] font-bold text-text-primary">{row.product}</div> },
-      { key: "reference", label: "JO / Batch Reference", render: (row) => <div className="whitespace-nowrap font-mono text-xs font-bold text-text-secondary">{row.reference}</div> },
-      { key: "operator", label: "Operator", render: (row) => row.operator },
-      { key: "details", label: "Details", render: (row) => <div className="min-w-[180px] text-text-secondary">{row.detail}</div> },
-      { key: "status", label: "Status", render: (row) => <Badge tone={row.tone}>{row.statusLabel}</Badge> },
+      { key: "date_time", label: "Date / Time", render: (row) => <div className="whitespace-nowrap"><div className="font-semibold text-text-primary">{row.dateLabel}</div><div className="text-xs text-text-muted">{row.timeLabel}</div></div> },
+      { key: "event", label: "Event", render: (row) => <div className="font-semibold text-text-primary">{row.label}</div> },
+      { key: "finished_good", label: "Finished Good", render: (row) => <div className="min-w-[180px] font-bold text-text-primary">{row.product}</div> },
+      { key: "reference", label: "Reference", render: (row) => <div className="whitespace-nowrap font-mono text-xs font-bold text-text-secondary">{row.reference}</div> },
+      { key: "operator", label: "Operator", render: (row) => <div><div className="font-semibold text-text-primary">{row.operator.name}</div>{row.operator.helper ? <div className="text-xs text-text-muted">{row.operator.helper}</div> : null}</div> },
+      { key: "result", label: "Result", render: (row) => <Badge tone={row.tone}>{row.result}</Badge> },
     ];
     const overviewCards = [
       { label: "Scheduled", value: operationalJobs.hasLoaded ? Number(operationalJobs.summary.scheduled || 0) : "—", helper: "Scheduled for future production", tone: "border-slate-200 bg-white text-text-primary" },
@@ -11356,8 +11373,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <PageHeader
           section="Factory"
           title="Production Overview"
-          description="Plan, release, start and complete factory production job orders from one operational board."
-          actions={can("factory_job_orders.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "job" })}><ClipboardList size={15} /> Create Job Order</button> : null}
+          description="Monitor, release, start and complete factory production from one operational board."
         />
         {operationalJobs.error ? (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
