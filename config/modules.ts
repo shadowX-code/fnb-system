@@ -590,7 +590,7 @@ export const moduleRegistry: AppModule[] = [
   {
     id: "factory_audit_logs",
     section: "System",
-    label: "Factory Audit Logs",
+    label: "Audit Trail",
     route: "/factory/audit-logs",
     icon: "factory-audit-logs",
     sidebar: true,

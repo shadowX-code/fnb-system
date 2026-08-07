@@ -1085,16 +1085,24 @@ function mapFactoryAuditLog(row) {
   return {
     id: row.id,
     action: row.action || "",
-    module: metadata.module || row.module || "factory",
+    module: row.module || metadata.module || "factory",
+    event_label: row.event_label || "Updated",
+    module_label: row.module_label || "Production",
     description: row.description || metadata.message || "",
-    target: metadata.target || row.description || "—",
-    entity_reference: metadata.target || "",
+    target: row.business_reference || "—",
+    entity_reference: row.business_reference || "—",
+    reference_type: row.reference_type || "",
+    reference_id: row.reference_id || "",
     actor_id: row.user_id || "",
-    actor_name: row.user_name || "System",
-    status: metadata.status || row.status || "success",
+    actor_name: row.actor_name || "—",
+    actor_email: row.actor_email || "",
+    actor_kind: row.actor_kind || (row.user_id ? "user" : "system"),
+    result: row.result || "Success",
+    status: String(row.result || "Success").toLowerCase(),
+    attention_required: Boolean(row.attention_required),
     metadata,
-    before: metadata.before ?? null,
-    after: metadata.after ?? null,
+    before: row.before_values ?? metadata.before ?? null,
+    after: row.after_values ?? metadata.after ?? null,
     created_at: row.created_at,
   };
 }
@@ -1475,7 +1483,6 @@ function factoryDataPlan(scope, hasPermission) {
   const isProductMovements = scope === "product-movements";
   const isProductStockCheck = scope === "product-stock-check";
   const isProductionSop = scope === "production-sop";
-  const isAuditLogs = scope === "audit-logs";
   const needsProductionSummary = isProduction || isReports || isFinishedGoods || isFinishedGoodsDispatch || isProductMovements;
   const canTraceBatches = can("factory_batch_traceability.view");
   const canReadProductionReports = can("factory_production_reports.view") || canTraceBatches;
@@ -1501,7 +1508,7 @@ function factoryDataPlan(scope, hasPermission) {
     sops: (isProduction || isProductionSop || isJobOrders)
       && (can("factory_production_sop.view") || can("factory_production.view") || can("factory_production.complete")),
     qcChecklistTemplates: isProductionSop && (can("factory_production_sop.view") || can("factory_production_sop.create") || can("factory_production_sop.edit") || can("factory_production_sop.manage")),
-    auditLogs: (isAuditLogs || isJobOrders) && can("factory_audit_logs.view"),
+    auditLogs: isJobOrders && can("factory_audit_logs.view"),
   };
 }
 
@@ -1945,22 +1952,11 @@ export const factoryService = {
       query = query.order("dispatch_date", { ascending: false }).order("created_at", { ascending: false }).order("id", { ascending: false });
       mapper = (rows) => rows.map(mapFinishedGoodDispatch);
     } else if (listing === "audit-logs") {
-      const moduleToken = {
-        "Raw Material Receiving": "raw_material_receiving",
-        "Raw Material": "raw_material",
-        "Finished Goods Dispatch": "finished_goods_dispatch",
-        "Product Recipe": "product_recipe",
-        "Job Order": "job_order",
-        "Production SOP": "production_sop",
-        "Production QC": "production_qc",
-        "Production": "production",
-        "Stock Check": "stock_check",
-      }[filters.module] || null;
-      query = supabase.rpc("factory_list_audit_logs", {
+      query = supabase.rpc("factory_list_audit_trail", {
         p_date_from: filters.dateFrom || null,
         p_date_to: filters.dateTo || null,
-        p_module_token: moduleToken,
-        p_action_token: filters.action ? String(filters.action).replace(/[^a-z0-9 ]/gi, "").replace(/ /g, "_").toLowerCase() : null,
+        p_module_label: filters.module || null,
+        p_event_label: filters.action || null,
         p_user_name: filters.user || null,
         p_search: String(filters.search || "").trim() || null,
       }, { count: "exact" });
@@ -1971,7 +1967,9 @@ export const factoryService = {
     }
 
     const summaryParams = { p_listing: listing, p_filters: filters || {} };
-    const summaryQuery = listing === "product-stock-checks"
+    const summaryQuery = listing === "audit-logs"
+      ? supabase.rpc("factory_audit_trail_summary", { p_filters: filters || {} })
+      : listing === "product-stock-checks"
       ? supabase.rpc("factory_product_stock_check_summary")
       : listing === "raw-movements"
         ? supabase.rpc("factory_raw_material_movement_summary", {
@@ -2114,6 +2112,44 @@ export const factoryService = {
     }
 
     throw new Error("Linked document is unavailable for this historical movement.");
+  },
+
+  async getFactoryAuditReference(event) {
+    const documentId = databaseUuid(event?.reference_id);
+    const documentType = String(event?.reference_type || "").trim();
+    if (!documentId || !documentType) throw new Error("Linked Factory document is unavailable.");
+
+    if (documentType === "job_order") {
+      const { data, error } = await supabase
+        .from("factory_job_orders")
+        .select(jobOrderSelect)
+        .eq("id", documentId)
+        .single();
+      throwSupabaseError("factory.audit_trail.job_order_reference", error);
+      return { type: "job_order", value: mapJobOrder(data) };
+    }
+
+    if (documentType === "production") {
+      const { data: batch, error: batchError } = await supabase
+        .from("factory_finished_good_batch_balances")
+        .select("id,production_id")
+        .eq("production_id", documentId)
+        .maybeSingle();
+      throwSupabaseError("factory.audit_trail.production_batch_reference", batchError);
+      if (batch?.id) {
+        const value = await factoryService.getFinishedGoodBatchTraceabilityDetail({
+          id: batch.id,
+          batch_balance_id: batch.id,
+          production_id: documentId,
+        });
+        return { type: "batch_traceability", value };
+      }
+    }
+
+    return factoryService.getRawMaterialMovementReference({
+      document_id: documentId,
+      document_type: documentType,
+    });
   },
 
   async saveJobOrder(order) {

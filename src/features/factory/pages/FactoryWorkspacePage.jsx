@@ -252,6 +252,21 @@ function formatFactoryDateTime(value) {
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 }
 
+function formatFactoryAuditDateTime(value) {
+  if (!value) return "—";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "—";
+  return new Intl.DateTimeFormat("en-MY", {
+    timeZone: "Asia/Kuala_Lumpur",
+    day: "2-digit",
+    month: "short",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+  }).format(date);
+}
+
 function humanizeFactoryToken(value) {
   return String(value || "")
     .replace(/^factory_/, "")
@@ -286,35 +301,166 @@ function factoryAuditModuleLabel(row) {
   const module = String(row?.module || "").toLowerCase();
   const source = `${module} ${action}`;
   const moduleMap = [
-    ["raw_material_receiving", "Raw Material Receiving"],
-    ["raw_material", "Raw Material"],
-    ["raw_stock_check", "Raw Material Stock Check"],
-    ["finished_good_dispatch", "Finished Goods Dispatch"],
-    ["finished_goods_dispatch", "Finished Goods Dispatch"],
-    ["finished_good", "Finished Goods"],
-    ["product_movements", "Product Movements"],
-    ["product_recipe", "Product Recipes / BOM"],
-    ["production_sop", "Production SOP"],
-    ["job_order", "Job Orders"],
+    ["raw_material_receiving", "Receiving"],
+    ["raw_stock_check", "Stock Check"],
+    ["product_stock_check", "Stock Check"],
+    ["finished_good_dispatch", "Dispatch"],
+    ["finished_goods_dispatch", "Dispatch"],
+    ["production_qc", "QC"],
+    ["qc_template", "QC"],
+    ["job_order", "Job Order"],
+    ["production_sop", "Production"],
     ["production", "Production"],
-    ["supplier", "Suppliers"],
-    ["customer", "Customers"],
-    ["storage_location", "Storage Locations"],
+    ["product_recipe", "Finished Goods"],
+    ["finished_good", "Finished Goods"],
+    ["raw_material", "Raw Material"],
+    ["supplier", "Raw Material"],
+    ["storage_location", "Raw Material"],
+    ["customer", "Dispatch"],
   ];
-  return moduleMap.find(([token]) => source.includes(token))?.[1] || "Factory";
+  return moduleMap.find(([token]) => source.includes(token))?.[1] || "Production";
 }
 
-function factoryAuditStatusTone(status) {
-  const value = String(status || "success").toLowerCase();
-  if (["failed", "failure", "error"].includes(value)) return "danger";
-  if (["warning", "partial"].includes(value)) return "warning";
+function factoryAuditEventLabel(event) {
+  return event?.event_label || factoryAuditActionLabel(event?.action);
+}
+
+function factoryAuditResultTone(result) {
+  const value = String(result || "Success").toLowerCase();
+  if (value === "failed") return "danger";
+  if (value === "attention") return "warning";
   return "success";
 }
 
-function compactJsonValue(value) {
-  if (value === null || value === undefined || value === "") return "";
-  if (typeof value === "object") return JSON.stringify(value, null, 2);
+function FactoryAuditModuleIcon({ module, size = 14 }) {
+  const Icon = {
+    "Job Order": ClipboardList,
+    Production: Factory,
+    Receiving: PackageCheck,
+    Dispatch: Truck,
+    "Finished Goods": Package,
+    "Raw Material": Warehouse,
+    "Stock Check": ClipboardCheck,
+    QC: CheckCircle2,
+  }[module] || Factory;
+  return <Icon aria-hidden="true" size={size} />;
+}
+
+function FactoryAuditEventIcon({ event, size = 14 }) {
+  const Icon = {
+    Created: Plus,
+    Released: Play,
+    Started: Play,
+    Completed: CheckCircle2,
+    "QC Passed": Check,
+    "QC Failed": AlertTriangle,
+    Submitted: ArrowUp,
+    Approved: ClipboardCheck,
+    Archived: CircleOff,
+    Deleted: Trash2,
+    Cancelled: CircleOff,
+    Restored: RotateCcw,
+    Activated: CheckCircle2,
+    Updated: RefreshCw,
+    Saved: Check,
+  }[event] || Activity;
+  return <Icon aria-hidden="true" size={size} />;
+}
+
+const factoryAuditFieldLabels = {
+  status: "Status",
+  product_name: "Finished Good",
+  raw_material_name: "Raw Material",
+  target_quantity: "Target Production",
+  target_production_qty: "Target Production",
+  target_pack_qty: "Target Pack Quantity",
+  produced_quantity: "Produced Quantity",
+  actual_output_qty: "Actual Output",
+  actual_pack_qty: "Actual Pack Quantity",
+  planned_date: "Scheduled Date",
+  scheduled_date: "Scheduled Date",
+  due_date: "Due Date",
+  production_date: "Production Date",
+  dispatch_date: "Dispatch Date",
+  received_date: "Receiving Date",
+  check_date: "Stock Check Date",
+  priority: "Priority",
+  assigned_team: "Assigned Team",
+  remarks: "Remarks",
+  notes: "Notes",
+  customer_name: "Customer",
+  supplier_name: "Supplier",
+  reference_no: "Reference / DO No.",
+  batch_no: "Batch No.",
+  job_order_no: "Job Order No.",
+  dispatch_no: "Dispatch No.",
+  check_no: "Stock Check No.",
+  uom: "UOM",
+  version: "Version",
+};
+
+function isFactoryAuditTechnicalField(key) {
+  const value = String(key || "").toLowerCase();
+  return value === "id"
+    || ["production_no", "recipe_code", "sop_code"].includes(value)
+    || value.endsWith("_id")
+    || value.endsWith("_fingerprint")
+    || value.includes("request_id")
+    || value.includes("payload")
+    || ["created_at", "updated_at", "created_by", "completed_by", "submitted_by", "approved_by", "released_by", "started_by"].includes(value);
+}
+
+function factoryAuditDisplayValue(key, value, record = {}) {
+  if (value === null || value === undefined || value === "") return "—";
+  if (typeof value === "boolean") return value ? "Yes" : "No";
+  if (typeof value === "object") return "";
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value))) return "—";
+  const token = String(key || "").toLowerCase();
+  if (token.endsWith("_at")) return formatFactoryAuditDateTime(value);
+  if (token.includes("date")) return formatFactoryReadableDate(value);
+  if (token.includes("status") || token === "priority") return humanizeFactoryToken(value);
+  if ((token.includes("qty") || token.includes("quantity")) && Number.isFinite(Number(value))) {
+    const uom = token.includes("pack") ? (Number(value) === 1 ? "Pack" : "Packs") : record.uom || "";
+    return quantity(Number(value), uom);
+  }
   return String(value);
+}
+
+function factoryAuditChangeRows(event) {
+  const before = event?.before && typeof event.before === "object" && !Array.isArray(event.before) ? event.before : null;
+  const after = event?.after && typeof event.after === "object" && !Array.isArray(event.after) ? event.after : null;
+  const source = after || before || {};
+  const importantKeys = [
+    "status", "product_name", "raw_material_name", "target_production_qty", "target_quantity", "target_pack_qty",
+    "planned_date", "due_date", "priority", "customer_name", "supplier_name", "dispatch_date", "received_date",
+    "check_date", "batch_no", "job_order_no", "dispatch_no", "check_no", "uom", "version", "remarks", "notes",
+  ];
+  const availableKeys = [...new Set([...importantKeys, ...Object.keys(before || {}), ...Object.keys(after || {})])]
+    .filter((key) => !isFactoryAuditTechnicalField(key))
+    .filter((key) => {
+      const beforeValue = before?.[key];
+      const afterValue = after?.[key];
+      return typeof beforeValue !== "object" && typeof afterValue !== "object";
+    });
+
+  return availableKeys.flatMap((key) => {
+    const beforeValue = before?.[key];
+    const afterValue = after?.[key];
+    if (before && after && JSON.stringify(beforeValue ?? null) === JSON.stringify(afterValue ?? null)) return [];
+    const mode = before && after ? "change" : after ? "created" : before ? "prior" : "none";
+    const formattedBefore = factoryAuditDisplayValue(key, beforeValue, before || source);
+    const formattedAfter = factoryAuditDisplayValue(key, afterValue, after || source);
+    if (mode === "created" && formattedAfter === "—") return [];
+    if (mode === "prior" && formattedBefore === "—") return [];
+    if (!formattedBefore && !formattedAfter) return [];
+    return [{
+      key,
+      label: factoryAuditFieldLabels[key] || humanizeFactoryToken(key),
+      before: formattedBefore || "—",
+      after: formattedAfter || "—",
+      mode,
+    }];
+  }).slice(0, 16);
 }
 
 function monthStart(value) {
@@ -7273,60 +7419,71 @@ function QcChecklistPresetManagerModal({ templates = [], sops = [], onClose, onC
   );
 }
 
-function FactoryAuditLogDetailModal({ event, onClose }) {
-  const metadataEntries = Object.entries(event.metadata || {})
-    .filter(([key, value]) => !["target", "outlet", "outlet_id", "status"].includes(key) && compactJsonValue(value))
-    .slice(0, 12);
+function FactoryAuditLogDetailModal({ event, openingReference = false, onOpenReference, onClose }) {
+  const changes = factoryAuditChangeRows(event);
+  const result = event.result || "Success";
+  const canOpenReference = Boolean(event.reference_id && event.reference_type && onOpenReference);
   return (
     <Modal
       title="Audit Event"
-      description={`${factoryAuditActionLabel(event.action)} ${factoryAuditModuleLabel(event)}`}
+      description={factoryAuditEventLabel(event)}
       size="xl"
       onClose={onClose}
       footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}
     >
       <div className="space-y-5">
-        <div className="rounded-2xl border border-border bg-white p-5">
+        <div className="rounded-xl border border-border bg-white p-5">
           <div className="flex flex-wrap items-start justify-between gap-4">
-            <div>
-              <div className="text-[10.5px] font-semibold uppercase tracking-[0.08em] text-text-muted">Factory Audit Logs</div>
-              <div className="mt-1 text-2xl font-black text-text-primary">{factoryAuditActionLabel(event.action)} {factoryAuditModuleLabel(event)}</div>
-              <div className="mt-1 text-sm font-semibold text-text-secondary">{event.target || "No reference"}</div>
+            <div className="min-w-0">
+              <div className="flex items-center gap-2 text-xl font-black text-text-primary"><FactoryAuditEventIcon event={factoryAuditEventLabel(event)} size={18} />{factoryAuditEventLabel(event)}</div>
+              <div className="mt-2 text-xs font-semibold text-text-muted">Business Reference</div>
+              {canOpenReference ? (
+                <button className="mt-1 font-bold text-primary hover:text-emerald-800 hover:underline disabled:cursor-wait disabled:opacity-60" type="button" disabled={openingReference} onClick={() => onOpenReference(event)}>
+                  {event.entity_reference || "—"}
+                </button>
+              ) : <div className="mt-1 font-bold text-text-primary">{event.entity_reference || "—"}</div>}
             </div>
-            <Badge tone={factoryAuditStatusTone(event.status)}>{jobStatusLabel(event.status || "success")}</Badge>
+            <Badge tone={factoryAuditResultTone(result)}>{result}</Badge>
           </div>
-          <div className="mt-5 grid gap-4 md:grid-cols-3">
+          <div className="mt-5 grid gap-4 sm:grid-cols-3">
             {[
-              ["Date / Time", formatFactoryDateTime(event.created_at)],
-              ["Module", factoryAuditModuleLabel(event)],
-              ["Action", factoryAuditActionLabel(event.action)],
-              ["Reference", event.target || "—"],
-              ["User", event.actor_name || "System"],
-              ["Status", jobStatusLabel(event.status || "success")],
+              ["Date / Time", formatFactoryAuditDateTime(event.created_at)],
+              ["Module", event.module_label || factoryAuditModuleLabel(event)],
+              ["Performed By", event.actor_kind === "system" ? "System\nAutomated" : `${event.actor_name || "—"}${event.actor_email ? `\n${event.actor_email}` : ""}`],
             ].map(([label, value]) => (
               <div key={label}>
                 <div className="text-[10.5px] font-semibold text-text-muted">{label}</div>
-                <div className="mt-1 text-sm font-bold text-text-primary">{value}</div>
+                <div className="mt-1 whitespace-pre-line text-sm font-bold text-text-primary">{value}</div>
               </div>
             ))}
           </div>
-          {event.description ? <div className="mt-4 rounded-xl bg-slate-50 px-3 py-2 text-sm font-semibold text-text-secondary">{event.description}</div> : null}
+          {event.description ? <div className="mt-5 rounded-lg bg-slate-50 px-3 py-2.5 text-sm font-semibold text-text-secondary">{event.description}</div> : null}
         </div>
-        <div className="rounded-2xl border border-border bg-white p-5">
-          <div className="text-sm font-black uppercase tracking-[0.08em] text-text-primary">Metadata</div>
-          {metadataEntries.length ? (
-            <div className="mt-4 divide-y divide-border">
-              {metadataEntries.map(([key, value]) => (
-                <div key={key} className="grid gap-2 py-3 md:grid-cols-[180px_1fr]">
-                  <div className="text-xs font-bold uppercase tracking-[0.08em] text-text-muted">{humanizeFactoryToken(key)}</div>
-                  <pre className="whitespace-pre-wrap break-words rounded-xl bg-slate-50 px-3 py-2 text-xs font-semibold text-text-secondary">{compactJsonValue(value)}</pre>
+        <section className="rounded-xl border border-border bg-white p-5">
+          <div className="text-sm font-black text-text-primary">Changes</div>
+          {changes.length ? (
+            <div className="mt-3 divide-y divide-border">
+              {changes.map((change) => (
+                <div key={change.key} className="grid gap-1.5 py-3 sm:grid-cols-[minmax(140px,0.75fr)_minmax(0,1.5fr)] sm:gap-4">
+                  <div className="text-xs font-bold text-text-secondary">{change.label}</div>
+                  <div className="text-sm font-semibold text-text-primary">
+                    {change.mode === "change" ? <><span className="text-text-secondary">{change.before}</span><span className="mx-2 text-text-muted">→</span><span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-emerald-800">{change.after}</span></> : change.mode === "prior" ? change.before : change.after}
+                  </div>
                 </div>
               ))}
             </div>
           ) : (
-            <div className="mt-4 rounded-xl border border-dashed border-border bg-slate-50 p-4 text-sm font-semibold text-text-secondary">No additional metadata captured.</div>
+            <div className="mt-3 rounded-lg border border-dashed border-border bg-slate-50 p-4 text-sm font-semibold text-text-secondary">No material field changes were captured for this event.</div>
           )}
-        </div>
+        </section>
+        <details className="rounded-xl border border-border bg-white p-5">
+          <summary className="cursor-pointer text-sm font-black text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">Technical Details · Show raw metadata</summary>
+          <div className="mt-4 space-y-4">
+            <div><div className="mb-2 text-xs font-bold text-text-secondary">Before JSON</div><pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-slate-950 p-3 text-xs text-slate-100">{JSON.stringify(event.before ?? null, null, 2)}</pre></div>
+            <div><div className="mb-2 text-xs font-bold text-text-secondary">After JSON</div><pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-slate-950 p-3 text-xs text-slate-100">{JSON.stringify(event.after ?? null, null, 2)}</pre></div>
+            <div><div className="mb-2 text-xs font-bold text-text-secondary">Raw Metadata</div><pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-slate-950 p-3 text-xs text-slate-100">{JSON.stringify(event.metadata || {}, null, 2)}</pre></div>
+          </div>
+        </details>
       </div>
     </Modal>
   );
@@ -7914,6 +8071,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const [rawMovementReferenceLoading, setRawMovementReferenceLoading] = useState("");
   const [batchTraceabilityDispatchLoading, setBatchTraceabilityDispatchLoading] = useState("");
   const [auditLogFilters, setAuditLogFilters] = useState({ dateFrom: "", dateTo: "", module: "", action: "", user: "", search: "" });
+  const [auditReferenceLoading, setAuditReferenceLoading] = useState("");
   const [operationalJobs, setOperationalJobs] = useState({ jobs: [], productions: [], summary: {}, hasLoaded: false, loading: false, error: "", errorKind: "" });
   const [productionPlanningOpenJobs, setProductionPlanningOpenJobs] = useState({ aggregates: [], diagnostics: {}, hasLoaded: false, loading: false, error: "", errorKind: "" });
   const [dashboardMonth, setDashboardMonth] = useState(() => malaysiaBusinessMonthInput());
@@ -7995,6 +8153,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           ? permissionDenied
             ? "Raw Material Movement data is hidden by your current role."
             : "Unable to load the latest Raw Material Movement data."
+        : serverListing === "audit-logs"
+          ? permissionDenied
+            ? "The Factory Audit Trail is hidden by your current role."
+            : "Unable to load the latest Factory Audit Trail."
         : stockCheckListingLabel
           ? permissionDenied
             ? `Some ${stockCheckListingLabel} are hidden by your current role.`
@@ -8006,8 +8168,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     mapError: (error) => ({
       kind: isFactoryPermissionError(error) ? "permission" : "load",
       message: isFactoryPermissionError(error)
-        ? serverListing === "raw-movements" ? "Raw Material Movement data is hidden by your current role." : stockCheckListingLabel ? `Some ${stockCheckListingLabel} are hidden by your current role.` : "Some data is hidden by your current role."
-        : serverListing === "raw-movements" ? "Unable to load the latest Raw Material Movement data." : stockCheckListingLabel ? `Unable to load ${stockCheckListingLabel}.` : "Unable to load the latest data.",
+        ? serverListing === "raw-movements" ? "Raw Material Movement data is hidden by your current role." : serverListing === "audit-logs" ? "The Factory Audit Trail is hidden by your current role." : stockCheckListingLabel ? `Some ${stockCheckListingLabel} are hidden by your current role.` : "Some data is hidden by your current role."
+        : serverListing === "raw-movements" ? "Unable to load the latest Raw Material Movement data." : serverListing === "audit-logs" ? "Unable to load the latest Factory Audit Trail." : stockCheckListingLabel ? `Unable to load ${stockCheckListingLabel}.` : "Unable to load the latest data.",
     }),
   });
   const productMovementSignature = `${productMovementFilterSignature(20, warehouseFilters)}:${factoryPermissionSignature}`;
@@ -8058,10 +8220,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         if (serverListing === "receiving-history" && current?.type === "receiving-batch-detail") return null;
         if (serverListing === "raw-movements" && current?.type === "raw-material-movement-detail") return null;
         if (["raw-stock-checks", "product-stock-checks"].includes(serverListing) && current?.type === "stock-check") return null;
+        if (serverListing === "audit-logs" && current?.type === "factory-audit-log") return null;
         return current;
       });
       if (serverListing === "receiving-history") setEditingReceiving(null);
       if (serverListing === "raw-movements") setRawMovementReferenceLoading("");
+      if (serverListing === "audit-logs") setAuditReferenceLoading("");
     }
   }, [factoryListingPage.errorKind, serverListing]);
   const rawInventoryMasterRows = filteredRawMaterialRows();
@@ -10471,6 +10635,29 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     }
   }
 
+  async function openFactoryAuditReference(event) {
+    if (!event?.reference_id || !event?.reference_type || auditReferenceLoading) return;
+    setAuditReferenceLoading(event.id);
+    try {
+      const reference = await factoryService.getFactoryAuditReference(event);
+      if (reference.type === "job_order") setModal({ type: "job", value: reference.value, readOnly: true });
+      else if (reference.type === "batch_traceability") setModal({ type: "batch-traceability-detail", value: reference.value, loading: false, error: "" });
+      else if (reference.type === "receiving") setModal({ type: "receiving-batch-detail", value: reference.value });
+      else if (reference.type === "production") setModal({ type: "completed-job-result", job: reference.job, production: reference.production });
+      else if (reference.type === "stock_check") setModal({ type: "stock-check", stockType: reference.stockType, value: reference.value, readOnly: true });
+      else if (reference.type === "dispatch") setModal({ type: "finished-good-dispatch", value: reference.value, mode: "view" });
+    } catch (referenceError) {
+      console.error("[Factory] Unable to open Audit Trail reference.", referenceError);
+      ui?.notify?.({
+        title: "Unable to open linked document",
+        message: "The referenced Factory document is unavailable or hidden by your current role.",
+        tone: "error",
+      });
+    } finally {
+      setAuditReferenceLoading("");
+    }
+  }
+
   async function loadBatchTraceabilityDetail(batch) {
     if (!batch?.batch_balance_id && !batch?.id) return;
     const batchId = batch.batch_balance_id || batch.id;
@@ -10638,34 +10825,13 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     );
   }
 
-  function filteredFactoryAuditLogs() {
-    return data.auditLogs.filter((event) => {
-      const eventDate = String(event.created_at || "").slice(0, 10);
-      const moduleLabel = factoryAuditModuleLabel(event);
-      const actionLabel = factoryAuditActionLabel(event.action);
-      const searchText = `${event.action} ${event.description} ${event.target} ${event.actor_name} ${moduleLabel} ${actionLabel} ${JSON.stringify(event.metadata || {})}`;
-      return (!auditLogFilters.dateFrom || eventDate >= auditLogFilters.dateFrom)
-        && (!auditLogFilters.dateTo || eventDate <= auditLogFilters.dateTo)
-        && (!auditLogFilters.module || moduleLabel === auditLogFilters.module)
-        && (!auditLogFilters.action || actionLabel === auditLogFilters.action)
-        && (!auditLogFilters.user || event.actor_name === auditLogFilters.user)
-        && (!auditLogFilters.search || includesText(searchText, auditLogFilters.search));
-    });
-  }
-
   function factoryAuditFilterControls() {
-    const summaryActions = Array.isArray(factoryListingPage.summary.action_values) ? factoryListingPage.summary.action_values : [];
+    const summaryModules = Array.isArray(factoryListingPage.summary.module_values) ? factoryListingPage.summary.module_values : [];
+    const summaryActions = Array.isArray(factoryListingPage.summary.event_values) ? factoryListingPage.summary.event_values : [];
     const summaryUsers = Array.isArray(factoryListingPage.summary.user_values) ? factoryListingPage.summary.user_values : [];
-    const rows = summaryActions.length ? summaryActions.map((action) => ({ action, actor_name: "" })) : data.auditLogs;
-    const moduleOptions = [...new Set(rows.map((event) => factoryAuditModuleLabel(event)).filter(Boolean))]
-      .sort((a, b) => a.localeCompare(b))
-      .map((label) => ({ value: label, label }));
-    const actionOptions = [...new Set(rows.map((event) => factoryAuditActionLabel(event.action)).filter(Boolean))]
-      .sort((a, b) => a.localeCompare(b))
-      .map((label) => ({ value: label, label }));
-    const userOptions = [...new Set((summaryUsers.length ? summaryUsers : rows.map((event) => event.actor_name || "System")).filter(Boolean))]
-      .sort((a, b) => a.localeCompare(b))
-      .map((label) => ({ value: label, label }));
+    const moduleOptions = summaryModules.map((label) => ({ value: label, label }));
+    const actionOptions = summaryActions.map((label) => ({ value: label, label }));
+    const userOptions = summaryUsers.map((label) => ({ value: label, label }));
     return (
       <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 lg:grid-cols-6">
         <Field label="Date From">
@@ -10692,13 +10858,13 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             onChange={(module) => setAuditLogFilters((current) => ({ ...current, module }))}
           />
         </Field>
-        <Field label="Action">
+        <Field label="Event">
           <SearchableSelect
             value={auditLogFilters.action}
             options={[{ value: "", label: "All" }, ...actionOptions]}
             placeholder="All"
-            searchPlaceholder="Search actions"
-            emptyText="No matching actions"
+            searchPlaceholder="Search events"
+            emptyText="No matching events"
             onChange={(action) => setAuditLogFilters((current) => ({ ...current, action }))}
           />
         </Field>
@@ -10713,7 +10879,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           />
         </Field>
         <Field label="Search">
-          <input className={inputClass()} value={auditLogFilters.search} onChange={(event) => setAuditLogFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Reference, action, metadata" />
+          <input className={inputClass()} value={auditLogFilters.search} onChange={(event) => setAuditLogFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Reference, event, person, message" />
         </Field>
       </div>
     );
@@ -12824,56 +12990,64 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   function renderFactoryAuditLogs() {
-    const rows = currentListingRows("audit-logs", filteredFactoryAuditLogs());
-    const today = todayInput();
-    const users = new Set(data.auditLogs.map((event) => event.actor_name || "System").filter(Boolean));
-    const failedRows = data.auditLogs.filter((event) => factoryAuditStatusTone(event.status) === "danger");
+    const rows = currentListingRows("audit-logs", []);
+    const summary = factoryListingPage.hasLoaded ? factoryListingPage.summary : {};
+    const referenceCell = (row) => row.reference_id && row.reference_type ? (
+      <button
+        className="max-w-[190px] truncate text-left font-bold text-primary hover:text-emerald-800 hover:underline disabled:cursor-wait disabled:opacity-60"
+        type="button"
+        disabled={auditReferenceLoading === row.id}
+        onClick={() => openFactoryAuditReference(row)}
+      >
+        {row.entity_reference || "—"}
+      </button>
+    ) : <span className="font-semibold text-text-primary">{row.entity_reference || "—"}</span>;
     const auditColumns = [
-      { key: "created_at", label: "Date / Time", render: (row) => <span className="whitespace-nowrap font-semibold text-text-primary">{formatFactoryDateTime(row.created_at)}</span> },
-      { key: "module", label: "Module", render: (row) => <div className="font-semibold text-text-primary">{factoryAuditModuleLabel(row)}</div> },
-      { key: "action", label: "Action", render: (row) => <Badge tone="info">{factoryAuditActionLabel(row.action)}</Badge> },
-      { key: "reference", label: "Reference", render: (row) => <div className="font-semibold text-text-primary">{row.target || "—"}</div> },
-      { key: "user", label: "User", render: (row) => <div className="font-semibold text-text-secondary">{row.actor_name || "System"}</div> },
-      { key: "status", label: "Status", render: (row) => <Badge tone={factoryAuditStatusTone(row.status)}>{jobStatusLabel(row.status || "success")}</Badge> },
+      { key: "created_at", label: "Date / Time", render: (row) => <span className="whitespace-nowrap font-semibold text-text-primary">{formatFactoryAuditDateTime(row.created_at)}</span> },
+      { key: "module", label: "Module", render: (row) => <div className="flex items-center gap-2 font-semibold text-text-secondary"><FactoryAuditModuleIcon module={row.module_label || "Production"} />{row.module_label || "Production"}</div> },
+      { key: "event", label: "Event", render: (row) => <div className="flex min-w-[140px] items-center gap-2 font-bold text-text-primary"><FactoryAuditEventIcon event={factoryAuditEventLabel(row)} />{factoryAuditEventLabel(row)}</div> },
+      { key: "reference", label: "Reference", render: referenceCell },
+      { key: "user", label: "Performed By", render: (row) => <div><div className="font-semibold text-text-primary">{row.actor_name || "—"}</div><div className="mt-0.5 text-xs text-text-muted">{row.actor_kind === "system" ? "Automated" : row.actor_email || ""}</div></div> },
+      { key: "result", label: "Result", render: (row) => <Badge tone={factoryAuditResultTone(row.result)}>{row.result || "Success"}</Badge> },
       { key: "details", label: "Details", align: "right", render: (row) => <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "factory-audit-log", value: row })}>View</button> },
     ];
     return (
       <div className="space-y-5">
         <PageHeader
           section="System"
-          title="Factory Audit Logs"
-          description="Track important Factory actions, document changes and system events."
+          title="Factory Audit Trail"
+          description="Review operational events, affected documents and material changes."
         />
         <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={ClipboardList} label="Audit Events" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.events || 0) : data.auditLogs.length} helper="Factory event records" />
-          <MetricCard icon={Clock3} label="Today" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.today || 0) : data.auditLogs.filter((event) => String(event.created_at || "").slice(0, 10) === today).length} helper={today} />
-          <MetricCard icon={Factory} label="Users" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.users || 0) : users.size} helper="Actors in current log" />
-          <MetricCard icon={AlertTriangle} label="Failed Events" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.failed || 0) : failedRows.length} helper="Events marked failed" tone={Number(factoryListingPage.summary.failed || failedRows.length) ? "danger" : "success"} />
+          <MetricCard icon={ClipboardList} label="Audit Events" value={factoryListingPage.hasLoaded ? Number(summary.events || 0) : "—"} helper="Events matching current filters" />
+          <MetricCard icon={Clock3} label="Today" value={factoryListingPage.hasLoaded ? Number(summary.today || 0) : "—"} helper="Malaysia business day" />
+          <MetricCard icon={Factory} label="Users" value={factoryListingPage.hasLoaded ? Number(summary.users || 0) : "—"} helper="People matching current filters" />
+          <MetricCard icon={AlertTriangle} label="Attention Required" value={factoryListingPage.hasLoaded ? Number(summary.attention_required || 0) : "—"} helper="Explicit abnormal outcomes" tone={Number(summary.attention_required || 0) ? "warning" : "success"} />
         </div>
         {factoryAuditFilterControls()}
         <Card title="Audit Ledger">
-          {listingLoadState("audit-logs", "Factory Audit Logs")}
+          {listingLoadState("audit-logs", "Factory Audit Trail")}
           <div className="md:hidden">
             {!rows.length ? (
-              <div className="p-4"><EmptyState title="No Audit Logs Yet" description="Factory actions will appear here once audit logging is enabled." /></div>
+              <div className="p-4"><EmptyState title="No Audit Events Yet" description="Factory actions will appear here as the Audit Trail grows." /></div>
             ) : (
               <div className="divide-y divide-border">
                 {rows.map((row) => (
-                  <div key={row.id} className="space-y-3 p-4">
+                  <article key={row.id} className="space-y-3 p-4">
                     <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-xs font-semibold text-text-muted">{formatFactoryDateTime(row.created_at)}</div>
-                        <div className="mt-1 font-bold text-text-primary">{factoryAuditModuleLabel(row)}</div>
-                        <div className="text-sm font-semibold text-text-secondary">{row.target || "No reference"}</div>
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-2 font-bold text-text-primary"><FactoryAuditEventIcon event={factoryAuditEventLabel(row)} />{factoryAuditEventLabel(row)}</div>
+                        <div className="mt-1">{referenceCell(row)}</div>
+                        <div className="mt-1 text-xs font-semibold text-text-muted">{formatFactoryAuditDateTime(row.created_at)}</div>
                       </div>
-                      <Badge tone={factoryAuditStatusTone(row.status)}>{jobStatusLabel(row.status || "success")}</Badge>
+                      <Badge tone={factoryAuditResultTone(row.result)}>{row.result || "Success"}</Badge>
                     </div>
                     <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div><div className="text-[10.5px] font-semibold text-text-muted">Action</div><div className="font-bold text-text-primary">{factoryAuditActionLabel(row.action)}</div></div>
-                      <div><div className="text-[10.5px] font-semibold text-text-muted">User</div><div className="font-semibold text-text-primary">{row.actor_name || "System"}</div></div>
+                      <div><div className="text-[10.5px] font-semibold text-text-muted">Module</div><div className="mt-1 flex items-center gap-2 font-semibold text-text-primary"><FactoryAuditModuleIcon module={row.module_label || "Production"} />{row.module_label || "Production"}</div></div>
+                      <div><div className="text-[10.5px] font-semibold text-text-muted">Performed By</div><div className="font-semibold text-text-primary">{row.actor_name || "—"}</div><div className="text-xs text-text-muted">{row.actor_kind === "system" ? "Automated" : row.actor_email || ""}</div></div>
                     </div>
                     <button className="btn-secondary w-full px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "factory-audit-log", value: row })}>View Details</button>
-                  </div>
+                  </article>
                 ))}
               </div>
             )}
@@ -12882,8 +13056,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             <FactoryTable
               columns={auditColumns}
               rows={rows}
-              emptyTitle="No Audit Logs Yet"
-              emptyDescription="Factory actions will appear here once audit logging is enabled."
+              emptyTitle="No Audit Events Yet"
+              emptyDescription="Factory actions will appear here as the Audit Trail grows."
             />
           </div>
           {listingPagination("audit-logs")}
@@ -13086,6 +13260,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       {modal?.type === "factory-audit-log" ? (
         <FactoryAuditLogDetailModal
           event={modal.value}
+          openingReference={auditReferenceLoading === modal.value.id}
+          onOpenReference={openFactoryAuditReference}
           onClose={() => setModal(null)}
         />
       ) : null}
