@@ -8147,6 +8147,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const factoryDataAbortRef = useRef(null);
   const dispatchMutationRef = useRef(new Set());
   const receivingMutationRef = useRef(new Set());
+  const stockCheckMutationRef = useRef(new Set());
   const previousPermissionSignatureRef = useRef("");
   const can = (code) => Boolean(auth?.hasPermission?.(code));
   const factoryPermissionSignature = JSON.stringify([...(auth?.permissions || [])].sort());
@@ -9118,46 +9119,55 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   async function saveStockCheck(stockType, form) {
+    const mutationKey = `${stockType}:${form.id || "new"}:${form.status === "submitted" ? "submit" : "save"}`;
+    if (stockCheckMutationRef.current.has(mutationKey)) return null;
+    stockCheckMutationRef.current.add(mutationKey);
     let saved;
     try {
       saved = await factoryService.saveStockCheck(stockType, form, auth?.profile?.id);
     } catch (error) {
       console.error(`[Factory] Unable to save ${stockType} Stock Check.`, error);
       ui?.notify?.({ title: "Unable to save Stock Check.", tone: "error" });
+      stockCheckMutationRef.current.delete(mutationKey);
       throw error;
     }
-    ui?.notify?.({ title: form.status === "submitted" ? "Stock Check submitted." : "Stock Check draft saved.", tone: "success" });
-    setModal(null);
-    const listing = stockType === "raw" ? "raw-stock-checks" : "product-stock-checks";
-    if (serverListing === listing) {
-      factoryListingActions.updateLoadedSnapshot(({ rows, total, page, pageSize, summary }) => {
-        const existingIndex = rows.findIndex((row) => row.id === saved.id);
-        const nextRows = existingIndex >= 0
-          ? rows.map((row, index) => index === existingIndex ? saved : row)
-          : page === 1 ? [saved, ...rows].slice(0, pageSize) : rows;
-        const previous = existingIndex >= 0 ? rows[existingIndex] : null;
-        const varianceCount = (check) => (check?.items || []).filter((item) => item.count_status !== "skip" && item.variance_status !== "Skipped" && Number(item.variance_qty || 0) !== 0).length;
-        return {
-          rows: nextRows,
-          total: Math.max(0, Number(total || 0) + (existingIndex < 0 ? 1 : 0)),
-          summary: {
-            ...(summary || {}),
-            checks: Math.max(0, Number(summary?.checks || 0) + (existingIndex < 0 ? 1 : 0)),
-            submitted: Math.max(0, Number(summary?.submitted || 0) - (previous?.status === "submitted" ? 1 : 0) + (saved.status === "submitted" ? 1 : 0)),
-            variance_rows: Math.max(0, Number(summary?.variance_rows || 0) - varianceCount(previous) + varianceCount(saved)),
-          },
-        };
-      });
-      try {
-        await factoryListingActions.refreshNow({
-          page: factoryListingPage.loadedPage,
-          pageSize: factoryListingPage.loadedPageSize,
-          errorMessage: "Stock Check was updated, but the latest list could not be refreshed.",
+    try {
+      ui?.notify?.({ title: form.status === "submitted" ? "Stock Check submitted." : "Stock Check draft saved.", tone: "success" });
+      setModal(null);
+      const listing = stockType === "raw" ? "raw-stock-checks" : "product-stock-checks";
+      if (serverListing === listing) {
+        factoryListingActions.updateLoadedSnapshot(({ rows, total, page, pageSize, summary }) => {
+          const existingIndex = rows.findIndex((row) => row.id === saved.id);
+          const nextRows = existingIndex >= 0
+            ? rows.map((row, index) => index === existingIndex ? saved : row)
+            : page === 1 ? [saved, ...rows].slice(0, pageSize) : rows;
+          const previous = existingIndex >= 0 ? rows[existingIndex] : null;
+          const varianceCount = (check) => (check?.items || []).filter((item) => item.count_status !== "skip" && item.variance_status !== "Skipped" && Number(item.variance_qty || 0) !== 0).length;
+          return {
+            rows: nextRows,
+            total: Math.max(0, Number(total || 0) + (existingIndex < 0 ? 1 : 0)),
+            summary: {
+              ...(summary || {}),
+              checks: Math.max(0, Number(summary?.checks || 0) + (existingIndex < 0 ? 1 : 0)),
+              submitted: Math.max(0, Number(summary?.submitted || 0) - (previous?.status === "submitted" ? 1 : 0) + (saved.status === "submitted" ? 1 : 0)),
+              variance_rows: Math.max(0, Number(summary?.variance_rows || 0) - varianceCount(previous) + varianceCount(saved)),
+            },
+          };
         });
-      } catch (refreshError) {
-        console.error(`[Factory] ${stockType} Stock Check saved but listing refresh failed.`, refreshError);
-        ui?.notify?.({ title: "Stock Check list refresh needed", message: "Stock Check was updated, but the latest list could not be refreshed.", tone: "warning" });
+        try {
+          await factoryListingActions.refreshNow({
+            page: factoryListingPage.loadedPage,
+            pageSize: factoryListingPage.loadedPageSize,
+            errorMessage: "Stock Check was updated, but the latest list could not be refreshed.",
+          });
+        } catch (refreshError) {
+          console.error(`[Factory] ${stockType} Stock Check saved but listing refresh failed.`, refreshError);
+          ui?.notify?.({ title: "Stock Check list refresh needed", message: "Stock Check was updated, but the latest list could not be refreshed.", tone: "warning" });
+        }
       }
+      return saved;
+    } finally {
+      stockCheckMutationRef.current.delete(mutationKey);
     }
   }
 
@@ -9702,45 +9712,108 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   async function approveStockCheck(stockType, check) {
+    const mutationKey = `${stockType}:approve:${check.id}`;
+    if (stockCheckMutationRef.current.has(mutationKey)) return;
+    stockCheckMutationRef.current.add(mutationKey);
     const label = stockType === "raw" ? "Raw Material Stock Check" : "Finished Goods Stock Check";
-    const confirmed = await ui?.confirm?.({
-      title: `Approve ${label}?`,
-      message: `${check.check_no} will adjust inventory balances and create movement logs. Draft and submitted checks do not adjust stock until this approval.`,
-      confirmLabel: "Approve",
-      tone: "warning",
-    });
-    if (!confirmed) return;
     try {
-      await factoryService.approveStockCheck(stockType, check, auth?.profile?.id);
-      ui?.notify?.({ title: "Stock check approved", message: "Inventory adjustment movement created.", tone: "success" });
-      await loadData();
-      factoryListingActions.retry();
-    } catch (error) {
-      console.error("[Factory] Unable to approve Stock Check.", error);
-      const staleBatch = String(error?.message || "").includes("Batch stock has changed");
-      ui?.notify?.({
-        title: "Unable to approve Stock Check.",
-        message: staleBatch ? "Batch stock has changed. Review the suggested resolution again." : "Review the Stock Check and try again.",
-        tone: "error",
+      const confirmed = await ui?.confirm?.({
+        title: `Approve ${label}?`,
+        message: `${check.check_no} will adjust inventory balances and create movement logs. Draft and submitted checks do not adjust stock until this approval.`,
+        confirmLabel: "Approve",
+        tone: "warning",
       });
+      if (!confirmed) return;
+      try {
+        await factoryService.approveStockCheck(stockType, check, auth?.profile?.id);
+      } catch (error) {
+        console.error("[Factory] Unable to approve Stock Check.", error);
+        const staleBatch = String(error?.message || "").includes("Batch stock has changed");
+        ui?.notify?.({
+          title: "Unable to approve Stock Check.",
+          message: staleBatch ? "Batch stock has changed. Review the suggested resolution again." : "Review the Stock Check and try again.",
+          tone: "error",
+        });
+        return;
+      }
+
+      const approved = {
+        ...check,
+        status: "approved",
+        approved_by: auth?.profile?.id || "",
+        approved_by_name: auth?.profile?.nickname || auth?.profile?.full_name || "",
+        approved_at: new Date().toISOString(),
+      };
+      factoryListingActions.updateLoadedSnapshot(({ rows, summary }) => ({
+        rows: rows.map((row) => row.id === check.id ? approved : row),
+        summary: {
+          ...(summary || {}),
+          submitted: Math.max(0, Number(summary?.submitted || 0) - 1),
+        },
+      }));
+      setModal((current) => current?.type === "stock-check" && current?.value?.id === check.id ? null : current);
+      ui?.notify?.({ title: "Stock check approved", message: "Inventory adjustment movement created.", tone: "success" });
+
+      loadData().catch((refreshError) => console.error("[Factory] Stock Check approved but Factory balance refresh failed.", refreshError));
+      try {
+        await factoryListingActions.refreshNow({
+          page: factoryListingPage.loadedPage,
+          pageSize: factoryListingPage.loadedPageSize,
+          errorMessage: "Stock Check was updated, but the latest list could not be refreshed.",
+        });
+      } catch (refreshError) {
+        console.error("[Factory] Stock Check approved but listing refresh failed.", refreshError);
+        ui?.notify?.({ title: "Stock Check list refresh needed", message: "Stock Check was updated, but the latest list could not be refreshed.", tone: "warning" });
+      }
+    } finally {
+      stockCheckMutationRef.current.delete(mutationKey);
     }
   }
 
   async function deleteStockCheck(stockType, check) {
-    const confirmed = await ui?.confirm?.({
-      title: "Delete Draft Stock Check?",
-      message: `${check.check_no || "Draft stock check"} will be removed. Submitted and approved stock checks cannot be deleted.`,
-      confirmLabel: "Delete Draft",
-      tone: "danger",
-    });
-    if (!confirmed) return;
+    const mutationKey = `${stockType}:delete:${check.id}`;
+    if (stockCheckMutationRef.current.has(mutationKey)) return;
+    stockCheckMutationRef.current.add(mutationKey);
     try {
-      await factoryService.deleteStockCheck(stockType, check);
+      const confirmed = await ui?.confirm?.({
+        title: "Delete Draft Stock Check?",
+        message: `${check.check_no || "Draft stock check"} will be removed. Submitted and approved stock checks cannot be deleted.`,
+        confirmLabel: "Delete Draft",
+        tone: "danger",
+      });
+      if (!confirmed) return;
+      try {
+        await factoryService.deleteStockCheck(stockType, check);
+      } catch (error) {
+        console.error("[Factory] Unable to delete Stock Check.", error);
+        ui?.notify?.({ title: "Failed to delete stock check", message: "Review the Stock Check and try again.", tone: "error" });
+        return;
+      }
+
+      factoryListingActions.updateLoadedSnapshot(({ rows, total, summary }) => ({
+        rows: rows.filter((row) => row.id !== check.id),
+        total: Math.max(0, Number(total || 0) - 1),
+        summary: {
+          ...(summary || {}),
+          checks: Math.max(0, Number(summary?.checks || 0) - 1),
+        },
+      }));
+      setModal((current) => current?.type === "stock-check" && current?.value?.id === check.id ? null : current);
       ui?.notify?.({ title: "Draft stock check deleted", tone: "success" });
-      await loadData();
-      factoryListingActions.retry();
-    } catch (error) {
-      ui?.notify?.({ title: "Failed to delete stock check", message: error.message, tone: "error" });
+
+      loadData().catch((refreshError) => console.error("[Factory] Stock Check deleted but Factory data refresh failed.", refreshError));
+      try {
+        await factoryListingActions.refreshNow({
+          page: factoryListingPage.loadedPage,
+          pageSize: factoryListingPage.loadedPageSize,
+          errorMessage: "Stock Check was updated, but the latest list could not be refreshed.",
+        });
+      } catch (refreshError) {
+        console.error("[Factory] Stock Check deleted but listing refresh failed.", refreshError);
+        ui?.notify?.({ title: "Stock Check list refresh needed", message: "Stock Check was updated, but the latest list could not be refreshed.", tone: "warning" });
+      }
+    } finally {
+      stockCheckMutationRef.current.delete(mutationKey);
     }
   }
 

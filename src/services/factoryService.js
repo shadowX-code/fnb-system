@@ -3207,7 +3207,7 @@ export const factoryService = {
         usage_items: usageItems,
       },
     });
-    throwSupabaseError("factory.production.complete", error);
+    throwFactorySupabaseError("factory.production.complete", error);
 
     const { data, error: fetchError } = await supabase
       .from("factory_productions")
