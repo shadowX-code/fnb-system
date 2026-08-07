@@ -98,34 +98,45 @@ function emptyFactoryDashboardAnalytics() {
   };
 }
 
-function yymmddFromDate(value) {
-  const source = value || todayInput();
-  const [year, month, day] = String(source).slice(0, 10).split("-");
-  if (!year || !month || !day) return "";
-  return `${String(year).slice(-2)}${month}${day}`;
-}
+function useFactoryNumberPreview({ assignedValue = "", previewKey = "", loadPreview, enabled = true, scope }) {
+  const [state, setState] = useState(() => ({ value: assignedValue, loading: enabled && !assignedValue, error: false }));
+  const [retryVersion, setRetryVersion] = useState(0);
+  const requestRef = useRef(0);
+  const loadPreviewRef = useRef(loadPreview);
+  loadPreviewRef.current = loadPreview;
 
-function escapeRegExp(value) {
-  return String(value).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-}
+  useEffect(() => {
+    if (assignedValue) {
+      setState({ value: assignedValue, loading: false, error: false });
+      return undefined;
+    }
+    if (!enabled || !previewKey) {
+      setState({ value: "", loading: false, error: false });
+      return undefined;
+    }
 
-function previewDailyDocumentNo({ prefix, date, records = [], codeKey, dateKey, pad = 2, prefixSeparator = "", legacyPrefixSeparators = [] }) {
-  const yymmdd = yymmddFromDate(date);
-  if (!yymmdd) return `${prefix}${prefixSeparator}YYMMDD-${"_".repeat(pad)}`;
-  const escapedPrefix = escapeRegExp(prefix);
-  const separators = [prefixSeparator, ...legacyPrefixSeparators];
-  const patterns = separators.map((separator) => {
-    const escapedSeparator = escapeRegExp(separator);
-    return new RegExp(`^${escapedPrefix}${escapedSeparator}${yymmdd}-(\\d+)$`);
-  });
-  const maxSequence = records.reduce((max, row) => {
-    const rowDate = String(row?.[dateKey] || row?.created_at || "").slice(0, 10);
-    if (dateKey && rowDate && yymmddFromDate(rowDate) !== yymmdd) return max;
-    const value = String(row?.[codeKey] || "");
-    const match = patterns.map((pattern) => value.match(pattern)).find(Boolean);
-    return match ? Math.max(max, Number(match[1] || 0)) : max;
-  }, 0);
-  return `${prefix}${prefixSeparator}${yymmdd}-${String(maxSequence + 1).padStart(pad, "0")}`;
+    const requestId = requestRef.current + 1;
+    requestRef.current = requestId;
+    let active = true;
+    setState((current) => ({ ...current, loading: true, error: false }));
+    Promise.resolve(loadPreviewRef.current())
+      .then((value) => {
+        if (!active || requestRef.current !== requestId) return;
+        setState({ value: String(value || "").trim(), loading: false, error: false });
+      })
+      .catch((error) => {
+        if (!active || requestRef.current !== requestId) return;
+        console.error(`factory.${scope || "number"}.preview`, error);
+        setState({ value: "", loading: false, error: true });
+      });
+
+    return () => {
+      active = false;
+      if (requestRef.current === requestId) requestRef.current += 1;
+    };
+  }, [assignedValue, enabled, previewKey, retryVersion, scope]);
+
+  return { ...state, retry: () => setRetryVersion((current) => current + 1) };
 }
 
 function money(value) {
@@ -1161,7 +1172,7 @@ function latestReceivingCostInfo(receivings, rawMaterialId, rawMaterial = {}) {
   return {
     unitCost: Number(row?.unit_cost || 0),
     uom: row?.uom || "",
-    receiptNo: row?.receipt_no || "",
+    receiptNo: row?.receiving_no || "",
     supplierName: row?.supplier_name || "",
     receivedDate: row?.received_date || "",
     missingCost: !row,
@@ -1385,6 +1396,30 @@ function movementSourceLabel(movement) {
 
 function movementSourceReference(movement) {
   return movement?.source_reference || movement?.reference_no || movement?.batch_no || "—";
+}
+
+function productionJobOrderReference(production) {
+  return production?.job_order_no
+    || production?.job?.job_order_no
+    || production?.job_order?.job_order_no
+    || "—";
+}
+
+function productionBatchReference(production) {
+  return production?.batch_no || productionJobOrderReference(production);
+}
+
+function operatorFinishedGoodBatchNo(batch) {
+  const sourceType = String(batch?.batch_type || batch?.source_type || "").toLowerCase();
+  return sourceType && sourceType !== "production" ? "—" : batch?.batch_no || "—";
+}
+
+function recipeOperatorIdentity(recipe) {
+  const productName = recipe?.product_name
+    || recipe?.finished_good?.product_name
+    || recipe?.finished_good?.name_en
+    || "Finished Good";
+  return [productName, recipe?.version || "v1"].filter(Boolean).join(" · ");
 }
 
 function movementTypeLabel(movement) {
@@ -1825,7 +1860,7 @@ function FinishedGoodDetailModal({ product, productions, movements, productionCo
         <Card title="Production History" description="Completed production records for this finished good.">
           <FactoryTable
             columns={[
-              { key: "production", label: "Production", render: (row) => <div><div className="font-bold text-text-primary">{row.production_no}</div><div className="text-xs text-text-secondary">{row.batch_no || "No batch"}</div></div> },
+              { key: "production", label: "Production", render: (row) => <div><div className="font-bold text-text-primary">{productionBatchReference(row)}</div><div className="text-xs text-text-secondary">{productionJobOrderReference(row)}</div></div> },
               { key: "production_date", label: "Date", render: (row) => formatFactoryDate(row.production_date) },
               { key: "output", label: "Good Output", render: (row) => quantity(row.good_output_qty || row.produced_quantity, row.uom) },
               { key: "qc_status", label: "QC", render: (row) => <Badge tone={row.qc_status === "Pass" ? "success" : row.qc_status === "Failed" ? "danger" : row.qc_status === "Hold" ? "warning" : "neutral"}>{row.qc_status}</Badge> },
@@ -1852,7 +1887,7 @@ function FinishedGoodDetailModal({ product, productions, movements, productionCo
           <FactoryTable
             columns={[
               { key: "batch_no", label: "Batch", render: (row) => row.batch_no || "—" },
-              { key: "production_no", label: "Production", render: (row) => row.production_no },
+              { key: "job_order", label: "Job Order", render: (row) => productionJobOrderReference(row) },
               { key: "production_date", label: "Date", render: (row) => formatFactoryDate(row.production_date) },
               { key: "operator_name", label: "Operator", render: (row) => row.operator_name || "—" },
             ]}
@@ -2364,7 +2399,7 @@ function RawMaterialDetailModal({ material, receivings, movements, stockChecks, 
           <FactoryTable
             columns={[
               { key: "received_date", label: "Date", render: (row) => formatFactoryDate(row.received_date) },
-              { key: "receipt", label: "Receipt", render: (row) => <span className="font-bold text-text-primary">{row.receipt_no || row.batch_no || "—"}</span> },
+              { key: "receipt", label: "Receiving", render: (row) => <span className="font-bold text-text-primary">{row.receiving_no || "—"}</span> },
               { key: "supplier_name", label: "Supplier", render: (row) => row.supplier_name || "—" },
               { key: "batch_no", label: "Lot", render: (row) => row.batch_no ? <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-text-secondary">Lot {row.batch_no}</span> : "—" },
               { key: "qty", label: "Qty", render: (row) => quantity(row.received_qty, row.uom) },
@@ -3211,7 +3246,7 @@ function FinishedGoodBatchTraceabilityModal({ batch, loading = false, error = ""
     const dateOrder = new Date(left.date || 0).getTime() - new Date(right.date || 0).getTime();
     return dateOrder || left.order - right.order || String(left.id).localeCompare(String(right.id));
   });
-  timeline.push({ id: `current-${batch.id}`, date: "", type: "Current Remaining Balance", reference: batch.batch_no || "—", quantity: null, balance: Number(batch.current_balance || 0) });
+  timeline.push({ id: `current-${batch.id}`, date: "", type: "Current Remaining Balance", reference: operatorFinishedGoodBatchNo(batch), quantity: null, balance: Number(batch.current_balance || 0) });
   const sourceDetails = isProduction ? [
     ["Job Order", batch.job_order_no || "—"],
     ["Operator", batch.operator_name || "—"],
@@ -3232,7 +3267,7 @@ function FinishedGoodBatchTraceabilityModal({ batch, loading = false, error = ""
   ];
 
   return (
-    <Modal title="Batch Traceability" description={[batch.batch_no, batchTypeLabel(batch.batch_type), batch.packaging_sku_code].filter(Boolean).join(" · ")} size="xl" onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}>
+    <Modal title="Batch Traceability" description={[operatorFinishedGoodBatchNo(batch), batchTypeLabel(batch.batch_type), batch.packaging_sku_code].filter(Boolean).join(" · ")} size="xl" onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}>
       <div className="space-y-5">
         {loading ? <div className="rounded-lg border border-border bg-slate-50 px-4 py-3 text-sm font-semibold text-text-secondary">Loading the latest batch details...</div> : null}
         {error ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900"><span>{error}</span><button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={onRetry}>Retry</button></div> : null}
@@ -3398,7 +3433,7 @@ function DispatchBatchAllocationModal({ item, sku, batches, unavailableBatches =
             {batches.map((batch) => (
               <div key={batch.batch_id} className="rounded-xl border border-border bg-white p-3">
                 <div className="flex items-start justify-between gap-3">
-                  <div><div className="flex flex-wrap items-center gap-2"><span className="font-bold text-text-primary">{batch.batch_no || "—"}</span><Badge tone={batch.batch_type === "legacy_unallocated" ? "warning" : "neutral"}>{batchTypeLabel(batch.batch_type)}</Badge>{isExpired(batch) ? <Badge tone="danger">Expired</Badge> : null}</div><div className="text-xs text-text-secondary">{batch.storage_location || "—"}</div></div>
+                  <div><div className="flex flex-wrap items-center gap-2"><span className="font-bold text-text-primary">{operatorFinishedGoodBatchNo(batch)}</span><Badge tone={batch.batch_type === "legacy_unallocated" ? "warning" : "neutral"}>{batchTypeLabel(batch.batch_type)}</Badge>{isExpired(batch) ? <Badge tone="danger">Expired</Badge> : null}</div><div className="text-xs text-text-secondary">{batch.storage_location || "—"}</div></div>
                   <div className="text-right text-xs"><div className="font-bold text-text-primary">{quantity(batch.available_qty, pluralizePackagingType(packagingTypeLabel(sku), batch.available_qty))}</div><div className="text-text-muted">Available</div></div>
                 </div>
                 <div className="mt-3 grid grid-cols-2 gap-2 text-xs text-text-secondary">
@@ -3418,7 +3453,7 @@ function DispatchBatchAllocationModal({ item, sku, batches, unavailableBatches =
               </tr></thead>
               <tbody>{batches.map((batch) => (
                 <tr key={batch.batch_id} className="border-b border-border last:border-0">
-                  <td className="px-3 py-3 text-sm font-bold text-text-primary"><div className="flex flex-wrap items-center gap-2"><span>{batch.batch_no || "—"}</span><Badge tone={batch.batch_type === "legacy_unallocated" ? "warning" : "neutral"}>{batchTypeLabel(batch.batch_type)}</Badge>{isExpired(batch) ? <Badge tone="danger">Expired</Badge> : null}</div></td>
+                  <td className="px-3 py-3 text-sm font-bold text-text-primary"><div className="flex flex-wrap items-center gap-2"><span>{operatorFinishedGoodBatchNo(batch)}</span><Badge tone={batch.batch_type === "legacy_unallocated" ? "warning" : "neutral"}>{batchTypeLabel(batch.batch_type)}</Badge>{isExpired(batch) ? <Badge tone="danger">Expired</Badge> : null}</div></td>
                   {isStockCheck ? <><td className="px-3 py-3 text-sm font-bold text-text-primary">{quantity(batch.available_qty, "Packs")}</td><td className="w-44 px-3 py-3">{manualEditing ? <input className={inputClass()} type="number" min="0" step="1" value={quantities[batch.batch_id] || ""} onChange={(event) => setQuantities((current) => ({ ...current, [batch.batch_id]: event.target.value }))} /> : <span className="font-bold text-rose-700">-{Number(quantities[batch.batch_id] || 0)} Packs</span>}</td><td className="px-3 py-3 text-sm font-bold text-text-primary">{quantity(Number(batch.available_qty || 0) - Number(quantities[batch.batch_id] || 0), "Packs")}</td></> : <><td className="whitespace-nowrap px-3 py-3 text-sm text-text-secondary">{formatFactoryDate(batch.manufacturing_date)}</td><td className="whitespace-nowrap px-3 py-3 text-sm text-text-secondary">{batch.expiry_date ? formatFactoryDate(batch.expiry_date) : <span className="font-semibold text-amber-700">No Expiry Recorded</span>}</td><td className="px-3 py-3 text-sm text-text-secondary"><div className="font-semibold text-text-primary">{batch.storage_location || "—"}</div><div className="text-xs">{batch.storage_location_type || "—"}</div></td><td className="px-3 py-3 text-sm font-bold text-text-primary">{quantity(batch.available_qty, pluralizePackagingType(packagingTypeLabel(sku), batch.available_qty))}</td><td className="w-40 px-3 py-3"><input className={inputClass()} type="number" min="0" step="1" value={quantities[batch.batch_id] || ""} onChange={(event) => setQuantities((current) => ({ ...current, [batch.batch_id]: event.target.value }))} /></td></>}
                 </tr>
               ))}</tbody>
@@ -4179,7 +4214,7 @@ function FinishedGoodDispatchModal({ initialValue, finishedGoods = [], customers
   );
 }
 
-function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes = [], jobOrders = [], readOnly = false, onClose, onSave }) {
+function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes = [], readOnly = false, onClose, onSave }) {
   const initialSku = finishedGoods.find((product) => product.id === initialValue?.finished_good_id);
   const initialParentKey = initialSku ? finishedGoodParentKey(initialSku) : "";
   const [form, setForm] = useState(() => ({
@@ -4244,10 +4279,14 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
   const packSizeMissing = selectedProduct && productionPlan?.error === "Packaging SKU needs Pack Size before creating Job Order.";
   const recipeUomMismatch = selectedProduct && (productionPlan?.error === "Production UOM must match the active recipe UOM." || productionPlan?.error === "Production UOM cannot convert to the selected Packaging SKU Pack Size.");
   const activeRecipeVersion = matchingRecipe?.version || "v1";
-  const activeRecipeName = matchingRecipe?.recipe_name || matchingRecipe?.recipe_code || "";
-  const activeRecipeLabel = activeRecipeName && activeRecipeName !== activeRecipeVersion ? `${activeRecipeName} ${activeRecipeVersion}` : activeRecipeVersion;
-  // TODO: align backend generators with these preview formats; saved values remain backend-authoritative.
-  const jobOrderNoPreview = form.job_order_no || previewDailyDocumentNo({ prefix: "JO", date: todayInput(), records: jobOrders, codeKey: "job_order_no", dateKey: "created_at", pad: 2 });
+  const activeRecipeLabel = [selectedParent?.name || selectedProduct?.product_name, activeRecipeVersion].filter(Boolean).join(" · ") || activeRecipeVersion;
+  const jobOrderNoPreview = useFactoryNumberPreview({
+    assignedValue: form.job_order_no || "",
+    previewKey: form.job_order_no || "new-job-order",
+    loadPreview: () => factoryService.getJobOrderNoPreview(),
+    enabled: !form.job_order_no && !isReadOnly,
+    scope: "job_order_no",
+  });
   const bomRows = matchingRecipe?.items?.length ? matchingRecipe.items.map((item) => {
     const material = rawMaterials.find((row) => row.id === item.raw_material_id);
     const recipeYield = Number(matchingRecipe.yield_quantity || 1) || 1;
@@ -4329,8 +4368,9 @@ function JobOrderModal({ initialValue, finishedGoods, rawMaterials = [], recipes
         <div className="grid gap-3 md:grid-cols-3">
           <Field label="Job Order No.">
             <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
-              <div className={`font-mono text-sm font-black ${form.job_order_no ? "text-text-primary" : "text-text-secondary"}`}>{jobOrderNoPreview}</div>
-              {!form.job_order_no ? <div className="mt-0.5 text-[10.5px] font-semibold text-text-muted">Preview only</div> : null}
+              <div className={`font-mono text-sm font-black ${form.job_order_no || jobOrderNoPreview.value ? "text-text-primary" : "text-text-secondary"}`}>{form.job_order_no || jobOrderNoPreview.value || (jobOrderNoPreview.loading ? "Loading preview..." : "—")}</div>
+              {!form.job_order_no && jobOrderNoPreview.value ? <div className="mt-0.5 text-[10.5px] font-semibold text-text-muted">Preview only</div> : null}
+              {!form.job_order_no && jobOrderNoPreview.error ? <button className="mt-1 inline-flex items-center gap-1 text-[10.5px] font-semibold text-primary hover:underline" type="button" onClick={jobOrderNoPreview.retry}><RefreshCw size={11} /> Retry</button> : null}
             </div>
           </Field>
         </div>
@@ -4735,7 +4775,7 @@ function FactoryCustomerModal({ initialValue, onClose, onSave }) {
   );
 }
 
-function RawReceivingEntryPanel({ initialBatch = null, rawMaterials = [], suppliers = [], storageLocations = [], receivingBatches = [], onSave, onComplete, onCancelEdit }) {
+function RawReceivingEntryPanel({ initialBatch = null, rawMaterials = [], suppliers = [], storageLocations = [], onSave, onComplete, onCancelEdit }) {
   const fieldRefs = useRef({});
   const submissionRef = useRef(false);
   const makeRow = (item = {}) => ({
@@ -4759,7 +4799,7 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials = [], suppli
     completion_request_id: initialBatch?.completion_request_id || createRawMaterialReceivingRequestId(),
     supplier_id: initialBatch?.supplier_id || "",
     reference_no: initialBatch?.reference_no || "",
-    received_date: initialBatch?.received_date || todayInput(),
+    received_date: initialBatch?.received_date || malaysiaBusinessDateInput(),
     remarks: initialBatch?.remarks || "",
     items: initialBatch?.items?.length ? initialBatch.items.map(makeRow) : [makeRow()],
   }));
@@ -4785,7 +4825,13 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials = [], suppli
     statusLabel: material.status === "active" ? "Active" : jobStatusLabel(material.status),
     source: material,
   }));
-  const receivingNoPreview = initialBatch?.batch_no || previewDailyDocumentNo({ prefix: "R", date: form.received_date, records: receivingBatches, codeKey: "batch_no", dateKey: "received_date" });
+  const receivingNoPreview = useFactoryNumberPreview({
+    assignedValue: initialBatch?.batch_no || "",
+    previewKey: initialBatch?.batch_no || form.received_date,
+    loadPreview: () => factoryService.getRawMaterialReceivingNoPreview(form.received_date),
+    enabled: !initialBatch?.batch_no,
+    scope: "raw_receiving_no",
+  });
 
   useEffect(() => {
     if (receivingBulkSelectOpen && !rawMaterials.length) setReceivingBulkSelectOpen(false);
@@ -4922,7 +4968,7 @@ function RawReceivingEntryPanel({ initialBatch = null, rawMaterials = [], suppli
           <Field label="Supplier *" error={fieldErrors.supplier_id}>
             <SearchableSelect value={form.supplier_id} options={supplierOptions} placeholder="Select Supplier" error={Boolean(fieldErrors.supplier_id)} buttonRef={(node) => { fieldRefs.current.supplier_id = node; }} onChange={(supplierId) => setForm((current) => ({ ...current, supplier_id: supplierId }))} />
           </Field>
-          <Field label="Receiving No."><div className="rounded-xl border border-border bg-slate-50 px-3 py-2"><div className="text-sm font-bold text-text-secondary">{receivingNoPreview}</div><div className="mt-0.5 text-[10.5px] font-semibold text-text-muted">{initialBatch?.id ? "Assigned" : "Preview only"}</div></div></Field>
+          <Field label="Receiving No."><div className="rounded-xl border border-border bg-slate-50 px-3 py-2"><div className={`text-sm font-bold ${initialBatch?.batch_no || receivingNoPreview.value ? "text-text-primary" : "text-text-secondary"}`}>{initialBatch?.batch_no || receivingNoPreview.value || (receivingNoPreview.loading ? "Loading preview..." : "—")}</div>{initialBatch?.id ? <div className="mt-0.5 text-[10.5px] font-semibold text-text-muted">Assigned</div> : receivingNoPreview.value ? <div className="mt-0.5 text-[10.5px] font-semibold text-text-muted">Preview only</div> : null}{!initialBatch?.batch_no && receivingNoPreview.error ? <button className="mt-1 inline-flex items-center gap-1 text-[10.5px] font-semibold text-primary hover:underline" type="button" onClick={receivingNoPreview.retry}><RefreshCw size={11} /> Retry</button> : null}</div></Field>
           <Field label="Received Date *" error={fieldErrors.received_date}>
             <FeedXDatePicker value={form.received_date} required error={Boolean(fieldErrors.received_date)} buttonRef={(node) => { fieldRefs.current.received_date = node; }} onChange={(receivedDate) => setForm((current) => ({ ...current, received_date: receivedDate }))} />
           </Field>
@@ -5695,7 +5741,7 @@ function RawMaterialBatchAllocationModal({ row, material, batches = [], otherAll
   );
 }
 
-function ProductionExecutionModal({ job, rawMaterials = [], receivings = [], recipes = [], sops = [], finishedGoods = [], storageLocations = [], productions = [], auth, readOnly = false, processOnly = false, notify, onViewProcess, onClose, onSave }) {
+function ProductionExecutionModal({ job, rawMaterials = [], receivings = [], recipes = [], sops = [], finishedGoods = [], storageLocations = [], auth, readOnly = false, processOnly = false, notify, onViewProcess, onClose, onSave }) {
   const activeFinishedGoods = finishedGoods.filter((product) => product.status === "active");
   const matchingFinishedGood = activeFinishedGoods.find((product) => product.id === job.finished_good_id) || activeFinishedGoods.find((product) => product.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
   const matchingRecipe = activeRecipeForSku(recipes, matchingFinishedGood || job, job.product_name);
@@ -5757,7 +5803,13 @@ function ProductionExecutionModal({ job, rawMaterials = [], receivings = [], rec
   const productionBatchRequestRef = useRef(0);
   const manufacturingDate = strictDateValue(form.end_date) !== null ? form.end_date : "";
   const calculatedExpiryDate = shelfLifeConfigured ? addDaysToFactoryDate(manufacturingDate, Number(matchingFinishedGood.shelf_life_days)) : "";
-  const batchNoPreview = previewDailyDocumentNo({ prefix: "PB", date: authoritativeProductionDate, records: productions, codeKey: "batch_no", dateKey: "production_date" });
+  const batchNoPreview = useFactoryNumberPreview({
+    assignedValue: form.batch_no || "",
+    previewKey: form.batch_no || authoritativeProductionDate,
+    loadPreview: () => factoryService.getProductionBatchNoPreview(authoritativeProductionDate),
+    enabled: !form.batch_no && !readOnly,
+    scope: "production_batch_no",
+  });
   const currentQcSignature = useMemo(() => productionQcEditableSignature(execution), [execution]);
   const qcDirty = !executionLoading && Boolean(execution.snapshotCreatedAt) && currentQcSignature !== savedQcSignature;
 
@@ -6258,8 +6310,9 @@ function ProductionExecutionModal({ job, rawMaterials = [], receivings = [], rec
           <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <Field label="Batch No.">
               <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
-                <div className="font-mono text-sm font-black text-text-primary">{batchNoPreview}</div>
-                <div className="mt-0.5 text-[10.5px] font-semibold text-text-secondary">Preview only</div>
+                <div className={`font-mono text-sm font-black ${form.batch_no || batchNoPreview.value ? "text-text-primary" : "text-text-secondary"}`}>{form.batch_no || batchNoPreview.value || (batchNoPreview.loading ? "Loading preview..." : "—")}</div>
+                {!form.batch_no && batchNoPreview.value ? <div className="mt-0.5 text-[10.5px] font-semibold text-text-secondary">Preview only</div> : null}
+                {!form.batch_no && batchNoPreview.error ? <button className="mt-1 inline-flex items-center gap-1 text-[10.5px] font-semibold text-primary hover:underline" type="button" onClick={batchNoPreview.retry}><RefreshCw size={11} /> Retry</button> : null}
               </div>
             </Field>
             <Field label="Production Start">
@@ -7327,10 +7380,10 @@ function buildStockCheckRows(stockType, stockItems, initialValue, categoryId = "
   }));
 }
 
-function StockCheckModal({ stockType, title, initialValue, stockItems, rawMaterialCategories = [], finishedGoodCategories = [], existingChecks = [], readOnly = false, onConfirmSubmit, onClose, onSave }) {
+function StockCheckModal({ stockType, title, initialValue, stockItems, rawMaterialCategories = [], finishedGoodCategories = [], readOnly = false, onConfirmSubmit, onClose, onSave }) {
   const inferredCategoryId = initialValue?.category_id || stockItems.find((item) => item.id === initialValue?.items?.[0]?.raw_material_id || item.id === initialValue?.items?.[0]?.finished_good_id)?.category_id || "";
   const [form, setForm] = useState(() => ({
-    check_date: todayInput(),
+    check_date: malaysiaBusinessDateInput(),
     status: "draft",
     notes: "",
     ...initialValue,
@@ -7347,15 +7400,12 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
   const itemLabel = stockType === "raw" ? "Raw Material" : "Finished Good";
   const isRaw = stockType === "raw";
   const reconciliationBySku = useMemo(() => new Map((reconciliation.rows || []).map((row) => [row.finished_good_id, row])), [reconciliation.rows]);
-  const checkNoPreview = form.check_no || previewDailyDocumentNo({
-    prefix: isRaw ? "RMSC" : "FGSC",
-    prefixSeparator: "",
-    legacyPrefixSeparators: ["-"],
-    date: form.check_date,
-    records: existingChecks,
-    codeKey: "check_no",
-    dateKey: "check_date",
-    pad: 2,
+  const checkNoPreview = useFactoryNumberPreview({
+    assignedValue: form.check_no || "",
+    previewKey: form.check_no || `${stockType}:${form.check_date}`,
+    loadPreview: () => factoryService.getStockCheckNoPreview(stockType, form.check_date),
+    enabled: !form.check_no && !readOnly,
+    scope: `${stockType}_stock_check_no`,
   });
 
   useEffect(() => {
@@ -7640,8 +7690,9 @@ function StockCheckModal({ stockType, title, initialValue, stockItems, rawMateri
           </Field>
           <Field label="Reference">
             <div className="rounded-xl border border-border bg-slate-50 px-3 py-2">
-              <div className={`text-sm font-bold ${form.check_no ? "text-text-primary" : "text-text-secondary"}`}>{checkNoPreview}</div>
-              {!form.check_no ? <div className="mt-0.5 text-[10.5px] font-semibold text-text-muted">Preview only</div> : null}
+              <div className={`text-sm font-bold ${form.check_no || checkNoPreview.value ? "text-text-primary" : "text-text-secondary"}`}>{form.check_no || checkNoPreview.value || (checkNoPreview.loading ? "Loading preview..." : "—")}</div>
+              {!form.check_no && checkNoPreview.value ? <div className="mt-0.5 text-[10.5px] font-semibold text-text-muted">Preview only</div> : null}
+              {!form.check_no && checkNoPreview.error ? <button className="mt-1 inline-flex items-center gap-1 text-[10.5px] font-semibold text-primary hover:underline" type="button" onClick={checkNoPreview.retry}><RefreshCw size={11} /> Retry</button> : null}
             </div>
           </Field>
         </div>
@@ -8343,7 +8394,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       const variance = costVarianceInfo(standardCost, actualCost.cost);
       return {
         ...production,
-        recipe_code: recipe?.recipe_code || "",
         standard_cost: standardCost,
         actual_cost: actualCost.cost,
         variance_rm: variance.variance,
@@ -9036,7 +9086,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   async function activateProductRecipe(recipe) {
     const confirmed = await ui?.confirm?.({
       title: "Activate Product Recipe?",
-      message: `${recipe.product_name || recipe.recipe_code || "This Finished Good"} ${recipe.version || "v1"} will become the active recipe.`,
+      message: `${recipeOperatorIdentity(recipe)} will become the active recipe.`,
       confirmLabel: "Activate",
       tone: "warning",
     });
@@ -9053,7 +9103,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   async function archiveProductRecipe(recipe) {
     const confirmed = await ui?.confirm?.({
       title: "Archive Product Recipe?",
-      message: `${recipe.product_name || recipe.recipe_code || "This Finished Good"} ${recipe.version || "v1"} will remain readable for history but will not be used as an active recipe.`,
+      message: `${recipeOperatorIdentity(recipe)} will remain readable for history but will not be used as an active recipe.`,
       confirmLabel: "Archive",
       tone: "warning",
     });
@@ -9070,7 +9120,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   async function deleteProductRecipe(recipe) {
     const confirmed = await ui?.confirm?.({
       title: "Delete Draft Standard?",
-      message: `${recipe.product_name || recipe.recipe_code || "This Finished Good"} ${recipe.version || "v1"} is still a draft and will be removed with its BOM rows.`,
+      message: `${recipeOperatorIdentity(recipe)} is still a draft and will be removed with its BOM rows.`,
       confirmLabel: "Delete",
       tone: "danger",
     });
@@ -9087,7 +9137,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   async function restoreProductRecipe(recipe) {
     const confirmed = await ui?.confirm?.({
       title: "Restore Product Recipe?",
-      message: `${recipe.product_name || recipe.recipe_code || "This Finished Good"} ${recipe.version || "v1"} will be restored as a draft for review before activation.`,
+      message: `${recipeOperatorIdentity(recipe)} will be restored as a draft for review before activation.`,
       confirmLabel: "Restore",
       tone: "warning",
     });
@@ -9624,7 +9674,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   ];
 
   const productionColumns = [
-    { key: "production", label: "Production", render: (row) => <div><div className="font-bold text-text-primary">{row.production_no}</div><div className="text-xs text-text-secondary">{row.product_name} · {row.batch_no || "No batch"}</div></div> },
+    { key: "production", label: "Production Batch", render: (row) => <div><div className="font-bold text-text-primary">{productionBatchReference(row)}</div><div className="text-xs text-text-secondary">{row.product_name} · {productionJobOrderReference(row)}</div></div> },
     { key: "production_date", label: "Date", render: (row) => formatFactoryDate(row.production_date) },
     { key: "operator", label: "Operator", render: (row) => row.operator_name || "—" },
     { key: "output", label: "Output", render: (row) => <div><div className="font-semibold text-text-primary">{quantity(row.good_output_qty, row.uom)}</div><div className="text-xs text-text-secondary">Waste {quantity(row.wastage_qty, row.uom)}</div></div> },
@@ -10673,15 +10723,15 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const productionRows = data.productions.map((row) => ({
       id: `production-${row.id}`,
       title: "Production Completed",
-      description: `${row.production_no || "Production"} · ${row.product_name}`,
+      description: `${productionBatchReference(row)} · ${row.product_name}`,
       timestamp: row.completed_at || row.created_at,
       tone: "success",
     }));
-    const receivingRows = data.receivings.map((row) => ({
+    const receivingRows = data.receivingBatches.map((row) => ({
       id: `receiving-${row.id}`,
       title: "Raw Material Received",
-      description: `${row.receipt_no} · ${row.raw_material_name}`,
-      timestamp: row.created_at,
+      description: `${row.batch_no || "Receiving"} · ${row.supplier_name || `${row.items_count || 0} item(s)`}`,
+      timestamp: row.completed_at || row.created_at,
       tone: "info",
     }));
     const jobRows = data.jobOrders.map((row) => ({
@@ -10988,7 +11038,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         ...factoryActivityDateTime(production.end_date, production.end_time, production.completed_at || production.created_at),
         label: "Production Completed",
         product: production.product_name || jobFinishedGoodName(job),
-        reference: production.batch_no || job?.job_order_no || production.production_no || "—",
+        reference: production.batch_no || job?.job_order_no || "—",
         operator: production.operator_name || job?.production_operator_name || "—",
         detail: `Actual output: ${productionOutputLabel(production)}`,
         statusLabel: "Completed",
@@ -11322,7 +11372,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             rawMaterials={data.rawMaterials}
             suppliers={data.factorySuppliers}
             storageLocations={data.storageLocations}
-            receivingBatches={factoryListingPage.rows}
             onSave={saveReceivingBatch}
             onComplete={completeReceivingBatch}
             onCancelEdit={() => { setEditingReceiving(null); setReceivingTab("history"); }}
@@ -11770,7 +11819,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       { key: "planned_date", label: "Scheduled Date", render: (row) => formatFactoryDate(row.planned_date) },
       { key: "recipe", label: "Recipe", render: (row) => {
         const recipe = recipeForJob(row);
-        return <Badge tone={recipe ? "success" : "warning"}>{recipe ? recipe.recipe_code || "Available" : "Missing"}</Badge>;
+        return <Badge tone={recipe ? "success" : "warning"}>{recipe ? recipeOperatorIdentity(recipe) : "Missing"}</Badge>;
       } },
       { key: "sop", label: "SOP", render: (row) => {
         const sop = sopForJob(row);
@@ -11899,9 +11948,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
     function recipeLabel(recipe) {
       if (!recipe) return "Not linked";
-      const version = recipe.version || "v1";
-      const name = recipe.recipe_name || recipe.recipe_code || "";
-      return name && name !== version ? `${name} ${version}` : version;
+      return recipeOperatorIdentity(recipe);
     }
 
     function traceabilitySteps(row) {
@@ -11938,9 +11985,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         {
           key: "production",
           title: "Production Record",
-          status: row.production_no || row.job?.job_order_no ? "complete" : "missing",
+          status: row.id || row.job?.job_order_no ? "complete" : "missing",
           main: `Job Order: ${row.job?.job_order_no || "—"}`,
-          detail: `Production Record: ${row.production_no || "—"} · Production Date: ${formatFactoryDate(row.production_date)}`,
+          detail: `Production Batch: ${productionBatchReference(row)} · Production Date: ${formatFactoryDate(row.production_date)}`,
         },
         {
           key: "stock-in",
@@ -12109,7 +12156,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       const unitCost = usageUnitCostInfo(usage, data.receivings);
       return {
         id: `${production.id}-${usage.id}`,
-        production_no: production.production_no,
         batch_no: production.batch_no,
         production_date: production.production_date,
         product_name: production.product_name,
@@ -12126,7 +12172,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     }));
     const yieldRows = productionRows.map((row) => ({
       id: `yield-${row.id}`,
-      production_no: row.production_no,
       batch_no: row.batch_no,
       product_name: row.product_name,
       actual_produced_qty: row.actual_produced_qty,
@@ -12174,7 +12219,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <Card title="Recipe Costing Report" description="Standard recipe cost is a read-only reference based on recipe quantities and latest receiving cost.">
             <FactoryTable
               columns={[
-                { key: "recipe", label: "Recipe", render: (row) => <div><div className="font-bold text-text-primary">{row.recipe_code}</div><div className="text-xs text-text-secondary">{row.product_name}</div></div> },
+                { key: "recipe", label: "Recipe", render: (row) => <div className="font-bold text-text-primary">{recipeOperatorIdentity(row)}</div> },
                 { key: "yield", label: "Standard Output", render: (row) => quantity(row.yield_quantity, row.uom) },
                 { key: "items", label: "Items", render: (row) => row.items?.length || 0 },
                 { key: "standardCost", label: "Standard Cost", align: "right", render: (row) => costDisplay(row.standardCost, row.missingCostRows, row.unsupportedCostRows) },
@@ -12188,7 +12233,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <Card title="Actual vs Standard Cost Variance" description="Actual production cost remains based on actual material usage; standard cost is recipe reference scaled to output.">
             <FactoryTable
               columns={[
-                { key: "production", label: "Production", render: (row) => <div><div className="font-bold text-text-primary">{row.production_no}</div><div className="text-xs text-text-secondary">{row.batch_no || "No batch"}</div></div> },
+                { key: "production", label: "Production", render: (row) => <div><div className="font-bold text-text-primary">{productionBatchReference(row)}</div><div className="text-xs text-text-secondary">{productionJobOrderReference(row)}</div></div> },
                 { key: "product_name", label: "Product", render: (row) => row.product_name },
                 { key: "standard_cost", label: "Standard", align: "right", render: (row) => costDisplay(row.standard_cost, row.missing_cost_rows, row.unsupported_cost_rows) },
                 { key: "actual_cost", label: "Actual", align: "right", render: (row) => costDisplay(row.actual_cost, row.missing_cost_rows) },
@@ -12220,7 +12265,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Card title="Production Summary Report" description="Completed production totals with actual usage costing. Missing receiving cost is shown instead of RM0 where the cost source is unavailable.">
           <FactoryTable
             columns={[
-              { key: "production", label: "Production", render: (row) => <div><div className="font-bold text-text-primary">{row.production_no}</div><div className="text-xs text-text-secondary">{row.batch_no || "No batch"} · {formatFactoryDate(row.production_date)}</div></div> },
+              { key: "production", label: "Production", render: (row) => <div><div className="font-bold text-text-primary">{productionBatchReference(row)}</div><div className="text-xs text-text-secondary">{productionJobOrderReference(row)} · {formatFactoryDate(row.production_date)}</div></div> },
               { key: "product_name", label: "Product", render: (row) => row.product_name },
               { key: "output", label: "Good Output", render: (row) => quantity(row.good_output_qty, row.uom) },
               { key: "yield_percent", label: "Yield", render: (row) => percent(row.yield_percent) },
@@ -12235,7 +12280,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Card title="Raw Material Usage Report" description="Actual material usage cost uses recorded receiving unit cost when available, otherwise latest receiving cost by raw material. Missing cost is shown when no cost source exists.">
           <FactoryTable
             columns={[
-              { key: "production_no", label: "Production", render: (row) => <div><div className="font-bold text-text-primary">{row.production_no}</div><div className="text-xs text-text-secondary">{row.batch_no || "No batch"}</div></div> },
+              { key: "production", label: "Production", render: (row) => <div><div className="font-bold text-text-primary">{productionBatchReference(row)}</div><div className="text-xs text-text-secondary">{productionJobOrderReference(row)}</div></div> },
               { key: "raw_material_name", label: "Raw Material", render: (row) => row.raw_material_name },
               { key: "actual_usage", label: "Actual Usage", render: (row) => quantity(row.actual_usage, row.uom) },
               { key: "unit_cost", label: "Unit Cost", align: "right", render: (row) => row.missing_cost ? "Missing Cost" : money(row.unit_cost) },
@@ -12249,7 +12294,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Card title="Recipe Standard vs Actual Usage Report" description="Recipe remains the standard reference; compare variance by material/UOM to avoid mixed-unit interpretation.">
           <FactoryTable
             columns={[
-              { key: "production_no", label: "Production", render: (row) => row.production_no },
+              { key: "production", label: "Production", render: (row) => productionBatchReference(row) },
               { key: "raw_material_name", label: "Raw Material", render: (row) => row.raw_material_name },
               { key: "standard_usage", label: "Standard", render: (row) => quantity(row.standard_usage, row.uom) },
               { key: "actual_usage", label: "Actual", render: (row) => quantity(row.actual_usage, row.uom) },
@@ -12265,7 +12310,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <Card title="Production Yield Report" description="Yield is good output divided by actual produced quantity.">
             <FactoryTable
               columns={[
-                { key: "production_no", label: "Production", render: (row) => row.production_no },
+                { key: "production", label: "Production", render: (row) => productionBatchReference(row) },
                 { key: "product_name", label: "Product", render: (row) => row.product_name },
                 { key: "actual_produced_qty", label: "Actual Produced", render: (row) => quantity(row.actual_produced_qty, row.uom) },
                 { key: "good_output_qty", label: "Good Output", render: (row) => quantity(row.good_output_qty, row.uom) },
@@ -12316,7 +12361,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     }
 
     const columns = [
-      { key: "batch_no", label: "Batch No.", render: (row) => <div><div className="font-black text-text-primary">{row.batch_no || "—"}</div><Badge tone={row.batch_type === "production" ? "info" : "neutral"}>{batchTypeLabel(row.batch_type)}</Badge></div> },
+      { key: "batch_no", label: "Batch No.", render: (row) => <div><div className="font-black text-text-primary">{operatorFinishedGoodBatchNo(row)}</div><Badge tone={row.batch_type === "production" ? "info" : "neutral"}>{batchTypeLabel(row.batch_type)}</Badge></div> },
       { key: "sku", label: "Packaging SKU", render: (row) => <div><div className="font-bold text-text-primary">{row.packaging_sku_code || "No SKU"}</div><div className="text-xs font-semibold text-text-secondary">{row.finished_good_name || row.packaging_sku_name || "—"}</div></div> },
       { key: "original", label: "Produced / Adjusted", render: (row) => packQuantity(row.original_qty) },
       { key: "dispatched", label: "Dispatched", render: (row) => packQuantity(row.completed_dispatch_qty) },
@@ -12355,7 +12400,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <Card title="Finished Goods Batch Records" description="One row per authoritative Production, Adjustment or Legacy / Unallocated balance.">
           {listingLoadState("batch-traceability", "Batch Traceability")}
           <div className="md:hidden">
-            {!rows.length ? <div className="p-4"><EmptyState title="No Batch Records Found" description="No authoritative batches match the selected filters." /></div> : <div className="divide-y divide-border">{rows.map((row) => { const status = rowStatus(row); return <div key={row.id} className="space-y-3 p-4"><div className="flex items-start justify-between gap-3"><div><div className="font-black text-text-primary">{row.batch_no || "—"}</div><div className="text-sm font-semibold text-text-secondary">{row.packaging_sku_code || "No SKU"} · {row.finished_good_name || row.packaging_sku_name || "—"}</div></div><Badge tone={status.tone}>{status.label}</Badge></div><div className="grid grid-cols-3 gap-2 text-sm"><div><div className="text-[10.5px] text-text-muted">Original</div><div className="font-bold">{packQuantity(row.original_qty)}</div></div><div><div className="text-[10.5px] text-text-muted">Dispatched</div><div className="font-bold">{packQuantity(row.completed_dispatch_qty)}</div></div><div><div className="text-[10.5px] text-text-muted">Remaining</div><div className="font-bold">{packQuantity(row.current_balance)}</div></div></div><button className="btn-secondary w-full" type="button" onClick={() => loadBatchTraceabilityDetail(row)}>View Details</button></div>; })}</div>}
+            {!rows.length ? <div className="p-4"><EmptyState title="No Batch Records Found" description="No authoritative batches match the selected filters." /></div> : <div className="divide-y divide-border">{rows.map((row) => { const status = rowStatus(row); return <div key={row.id} className="space-y-3 p-4"><div className="flex items-start justify-between gap-3"><div><div className="font-black text-text-primary">{operatorFinishedGoodBatchNo(row)}</div><div className="text-sm font-semibold text-text-secondary">{row.packaging_sku_code || "No SKU"} · {row.finished_good_name || row.packaging_sku_name || "—"}</div></div><Badge tone={status.tone}>{status.label}</Badge></div><div className="grid grid-cols-3 gap-2 text-sm"><div><div className="text-[10.5px] text-text-muted">Original</div><div className="font-bold">{packQuantity(row.original_qty)}</div></div><div><div className="text-[10.5px] text-text-muted">Dispatched</div><div className="font-bold">{packQuantity(row.completed_dispatch_qty)}</div></div><div><div className="text-[10.5px] text-text-muted">Remaining</div><div className="font-bold">{packQuantity(row.current_balance)}</div></div></div><button className="btn-secondary w-full" type="button" onClick={() => loadBatchTraceabilityDetail(row)}>View Details</button></div>; })}</div>}
           </div>
           <div className="hidden md:block"><FactoryTable columns={columns} rows={rows} emptyTitle="No Batch Records Found" emptyDescription="No authoritative batches match the selected filters." /></div>
           {listingPagination("batch-traceability")}
@@ -12861,7 +12906,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           finishedGoods={data.finishedGoods}
           rawMaterials={data.rawMaterials}
           recipes={data.recipes}
-          jobOrders={data.jobOrders}
           readOnly={Boolean(modal.value?.id) && modal.readOnly !== false}
           onClose={() => setModal(null)}
           onSave={saveJobOrder}
@@ -12977,7 +13021,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           sops={data.sops}
           finishedGoods={data.finishedGoods}
           storageLocations={data.storageLocations}
-          productions={data.productions}
           auth={auth}
           notify={ui?.notify}
           onClose={() => setModal(null)}
@@ -12994,7 +13037,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           sops={data.sops}
           finishedGoods={data.finishedGoods}
           storageLocations={data.storageLocations}
-          productions={data.productions}
           auth={auth}
           notify={ui?.notify}
           processOnly
@@ -13091,9 +13133,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           stockItems={modal.stockType === "raw" ? data.rawMaterials : data.finishedGoods}
           rawMaterialCategories={data.rawMaterialCategories}
           finishedGoodCategories={data.finishedGoodCategories}
-          existingChecks={modal.stockType === "raw"
-            ? currentListingRows("raw-stock-checks", [])
-            : currentListingRows("product-stock-checks", [])}
           readOnly={Boolean(modal.readOnly)}
           onConfirmSubmit={({ counted, skipped, variance }) => ui?.confirm?.({
             title: "Submit Stock Check?",
