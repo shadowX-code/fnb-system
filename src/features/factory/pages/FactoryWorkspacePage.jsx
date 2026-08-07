@@ -1945,6 +1945,33 @@ function finishedGoodDispatchOperatorError(error, fallback = "Unable to save the
   return safeMessages.some((value) => message.startsWith(value)) ? message : fallback;
 }
 
+function productionCompletionOperatorError(error) {
+  if (isFactoryPermissionError(error)) return "Your current role does not allow Production completion.";
+  const message = String(error?.message || "").trim();
+  const safeMessages = [
+    "Production completion request ID is required.",
+    "This Production request was already completed with different details.",
+    "Job Order was not found.",
+    "Only In Progress Job Orders can be completed.",
+    "This Job Order already has a completed Production record.",
+    "Production Packaging SKU must be active and match the Job Order.",
+    "Actual Pack Qty must be a whole number greater than 0.",
+    "Actual Output Qty does not match Packaging SKU Pack Size.",
+    "At least one material usage row is required.",
+    "Job Order Production Date and Start Time are required.",
+    "Production End Date and Time cannot be earlier than Start Date and Time.",
+    "Every Production usage row requires an active Raw Material.",
+    "Actual usage cannot be negative.",
+    "Variance reason is required when actual usage differs from standard usage.",
+    "Raw Material batch allocation must equal Actual Used.",
+    "Insufficient Raw Material batch stock for",
+    "Unable to complete Job Order because it is no longer In Progress.",
+  ];
+  return safeMessages.some((value) => message.startsWith(value))
+    ? message
+    : "Unable to complete Production. Please retry.";
+}
+
 function createFinishedGoodDispatchRequestId() {
   return crypto.randomUUID();
 }
@@ -9072,8 +9099,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     try {
       await factoryService.completeProduction(form, auth?.profile?.id);
     } catch (error) {
-      ui?.notify?.({ title: "Failed to complete production", message: error.message, tone: "error" });
-      throw error;
+      console.error("factory.production.complete", error);
+      const operatorMessage = productionCompletionOperatorError(error);
+      ui?.notify?.({ title: "Failed to complete production", message: operatorMessage, tone: "error" });
+      const safeError = new Error(operatorMessage);
+      safeError.code = error?.code;
+      throw safeError;
     }
     ui?.notify?.({ title: "Production completed", message: "Exact Raw Material batches were deducted and finished goods were stocked in.", tone: "success" });
     setModal(null);
