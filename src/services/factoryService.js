@@ -2280,7 +2280,7 @@ export const factoryService = {
       p_production_date: startInfo.production_date || malaysiaBusinessDate(),
       p_start_time: startInfo.start_time || null,
       p_remarks: startInfo.remarks || "",
-      p_started_by: operatorId,
+      p_started_by: null,
     });
     throwSupabaseError("factory.job_order.start", error);
     await logFactoryAction({
@@ -3068,8 +3068,8 @@ export const factoryService = {
         checklist_result: result.checklist_result || "",
         remarks: result.remarks || "",
       }))),
-      p_actor_id: employeeId || null,
-      p_actor_name: String(employeeName || "").trim() || null,
+      p_actor_id: null,
+      p_actor_name: null,
     });
     throwSupabaseError("factory.production_qc.save", error);
     const summary = data || {};
@@ -3593,7 +3593,7 @@ export const factoryService = {
       p_name: name,
       p_result_mode: resultMode,
       p_description: String(template.description || "").trim() || null,
-      p_created_by: employeeId || null,
+      p_created_by: null,
     });
     throwSupabaseError("factory.qc_template.create", error);
     const templateId = Array.isArray(result) ? result[0]?.template_id : result?.template_id;
@@ -3700,7 +3700,7 @@ export const factoryService = {
       p_recipe_id: sop.recipe_id || null,
       p_recipe_version: sop.recipe_version || null,
       p_steps: steps,
-      p_created_by: employeeId || null,
+      p_created_by: null,
     });
     throwSupabaseError("factory.sop.save_structure", error);
     const sopId = Array.isArray(result) ? result[0]?.sop_id : result?.sop_id;
@@ -3867,7 +3867,7 @@ export const factoryService = {
         p_check_date: stockCheck.check_date || malaysiaBusinessDate(),
         p_notes: stockCheck.notes || "",
         p_target_status: status,
-        p_created_by: employeeId || null,
+        p_created_by: null,
         p_rows: items.map((item) => ({
           finished_good_id: item.finished_good_id,
           is_skipped: item.is_skipped,
@@ -3891,47 +3891,39 @@ export const factoryService = {
       return mapStockCheck(result, "product");
     }
 
-    if (isRaw && !isUpdate) {
-      const { data: createdRows, error: createError } = await supabase.rpc("factory_create_raw_material_stock_check", {
+    if (isRaw) {
+      const { data: savedRows, error: saveError } = await supabase.rpc("factory_save_raw_material_stock_check_structure", {
+        p_stock_check_id: stockCheck.id || null,
         p_category_id: stockCheck.category_id || null,
         p_check_date: stockCheck.check_date || malaysiaBusinessDate(),
         p_notes: stockCheck.notes || "",
+        p_target_status: status,
         p_rows: items.map((item) => ({
           raw_material_id: item.raw_material_id,
-          system_qty: item.system_qty,
-          physical_qty: item.physical_qty,
-          variance_qty: item.variance_qty,
-          variance_percent: item.variance_percent,
+          physical_qty: item.physical_qty_input === "" ? null : item.physical_qty,
           count_status: item.count_status,
-          variance_status: item.variance_status,
           variance_reason: item.variance_reason,
-          uom: item.uom,
         })),
       });
-      throwSupabaseError("factory.raw_stock_check.create_rpc", createError);
-      const created = Array.isArray(createdRows) ? createdRows[0] : createdRows;
-      if (!created?.id || !created?.check_no) throw new Error("Raw material stock check reference was not returned.");
-      const createdStockCheck = {
+      throwSupabaseError("factory.raw_stock_check.structure_save", saveError);
+      const saved = Array.isArray(savedRows) ? savedRows[0] : savedRows;
+      if (!saved?.id || !saved?.check_no) throw new Error("Raw material stock check reference was not returned.");
+      const result = {
         ...stockCheck,
-        id: created.id,
-        check_no: created.check_no,
+        ...saved,
         check_date: stockCheck.check_date || malaysiaBusinessDate(),
-        status: "draft",
+        status,
         category_id: stockCheck.category_id || "",
         notes: stockCheck.notes || "",
-        created_by: employeeId || "",
         items,
       };
-      if (status === "submitted") {
-        return factoryService.saveStockCheck(stockType, { ...createdStockCheck, status: "submitted" }, employeeId);
-      }
       await logFactoryAction({
-        action: "factory_raw_stock_check_saved",
-        target: created.check_no,
-        description: "Factory stock check draft saved.",
-        after: createdStockCheck,
+        action: status === "submitted" ? "factory_raw_stock_check_submitted" : "factory_raw_stock_check_saved",
+        target: saved.check_no,
+        description: status === "submitted" ? "Factory stock check submitted for approval." : "Factory stock check draft saved.",
+        after: result,
       });
-      return mapStockCheck(createdStockCheck, stockType);
+      return mapStockCheck(result, stockType);
     }
 
     const payload = {
@@ -3989,7 +3981,7 @@ export const factoryService = {
     if (stockCheck.status !== "draft") throw new Error("Only draft stock checks can be deleted.");
     const isRaw = stockType === "raw";
     const { error } = isRaw
-      ? await supabase.from("factory_raw_material_stock_checks").delete().eq("id", stockCheck.id).eq("status", "draft")
+      ? await supabase.rpc("factory_delete_raw_material_stock_check_draft", { p_stock_check_id: stockCheck.id })
       : await supabase.rpc("factory_delete_product_stock_check_draft", { p_stock_check_id: stockCheck.id });
     throwSupabaseError(`factory.${stockType}_stock_check.delete`, error);
     await logFactoryAction({
@@ -4004,7 +3996,7 @@ export const factoryService = {
     const rpcName = stockType === "raw" ? "factory_approve_raw_material_stock_check" : "factory_approve_product_stock_check";
     const { error } = await supabase.rpc(rpcName, {
       p_stock_check_id: stockCheck.id,
-      p_approved_by: employeeId || null,
+      p_approved_by: null,
     });
     throwSupabaseError(`factory.${stockType}_stock_check.approve`, error);
     await logFactoryAction({

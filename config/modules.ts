@@ -515,7 +515,7 @@ export const moduleRegistry: AppModule[] = [
     icon: "factory-product-movements",
     sidebar: true,
     workspace: "factory",
-    permissions: { view: true, create: true, edit: true, export: true },
+    permissions: { view: true, export: true },
   },
   {
     id: "factory_product_stock_check",

@@ -1900,7 +1900,7 @@ function FactoryTable({ columns, rows, emptyTitle, emptyDescription, onRowClick 
   );
 }
 
-function AccessIssueNotice({ issues }) {
+function AccessIssueNotice({ issues, onRetry }) {
   if (!issues?.length) return null;
   const permissionIssues = issues.filter((issue) => issue.kind === "permission");
   const loadIssues = issues.filter((issue) => issue.kind !== "permission");
@@ -1916,7 +1916,10 @@ function AccessIssueNotice({ issues }) {
       ) : null}
       {loadIssues.length ? (
         <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
-          <div className="font-bold">Some Factory data could not be loaded.</div>
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div className="font-bold">Some Factory data could not be loaded.</div>
+            {onRetry ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={onRetry}><RefreshCw size={13} /> Retry</button> : null}
+          </div>
           <div className="mt-1 text-xs font-semibold text-rose-800">
             {loadIssues.map((issue) => issue.label).join(", ")}
           </div>
@@ -8547,6 +8550,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     setLoading(true);
     const operationalLoad = ["production-overview", "production"].includes(initialTab) ? loadOperationalJobs() : Promise.resolve();
     const productionPlanningLoad = initialTab === "production-planning" ? loadProductionPlanningOpenJobs() : Promise.resolve();
+    let refreshSucceeded = true;
     try {
       const nextData = await factoryService.listFactoryData({
         scope: initialTab,
@@ -8555,6 +8559,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       });
       if (factoryDataRequestRef.current !== requestId || controller.signal.aborted) return;
       const permissionIssues = nextData.accessIssues.filter((issue) => issue.kind === "permission");
+      if (nextData.accessIssues.some((issue) => issue.kind === "load")) refreshSucceeded = false;
       setData((current) => {
         const merged = { ...nextData };
         nextData.accessIssues
@@ -8577,6 +8582,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         setFinishedGoodActionMenu(null);
       }
     } catch (error) {
+      refreshSucceeded = false;
       if (factoryDataRequestRef.current !== requestId || controller.signal.aborted) return;
       console.error("[Factory] Unable to refresh Factory workspace data.", error);
       if (!silent) ui?.notify?.({ title: "Failed to load Factory data", message: error.message, tone: "error" });
@@ -8584,6 +8590,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       if (factoryDataRequestRef.current === requestId) setLoading(false);
     }
     await Promise.all([operationalLoad, productionPlanningLoad]);
+    return refreshSucceeded;
   }
 
   useEffect(() => {
@@ -8757,29 +8764,55 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     };
   }, [data]);
 
-  async function saveJobOrder(form) {
+  async function refreshFactoryAfterMutation({ retryListing = false } = {}) {
     try {
-      await factoryService.saveJobOrder(form);
-      ui?.notify?.({ title: form.id ? "Job order updated" : "Job order created", tone: "success" });
-      setModal(null);
-      await loadData();
-      if (serverListing === "job-orders") factoryListingActions.retry();
+      const refreshed = await loadData({ silent: true });
+      if (!refreshed) throw new Error("Factory refresh returned an incomplete result.");
+      if (retryListing) await factoryListingActions.retry();
+      return true;
+    } catch (refreshError) {
+      console.error("[Factory] Mutation succeeded but Factory data refresh failed.", refreshError);
+      ui?.notify?.({
+        title: "Refresh needed",
+        message: "Updated successfully, but the latest list could not be refreshed.",
+        tone: "warning",
+      });
+      return false;
+    }
+  }
+
+  async function saveJobOrder(form) {
+    let saved;
+    try {
+      saved = await factoryService.saveJobOrder(form);
     } catch (error) {
       ui?.notify?.({ title: "Failed to save job order", message: error.message, tone: "error" });
       throw error;
     }
+    ui?.notify?.({ title: form.id ? "Job order updated" : "Job order created", tone: "success" });
+    setModal(null);
+    if (serverListing === "job-orders" && saved?.id) {
+      factoryListingActions.updateLoadedSnapshot(({ rows, total }) => {
+        const exists = rows.some((row) => row.id === saved.id);
+        return {
+          rows: exists ? rows.map((row) => row.id === saved.id ? saved : row) : rows,
+          total,
+        };
+      });
+    }
+    await refreshFactoryAfterMutation({ retryListing: serverListing === "job-orders" });
   }
 
   async function savePlanningParLevel(form) {
     try {
       await factoryService.updateFinishedGoodParLevel(form.sku, form.par_level);
-      ui?.notify?.({ title: "Par level updated", tone: "success" });
-      setModal(null);
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to update par level", message: error.message, tone: "error" });
       throw error;
     }
+    ui?.notify?.({ title: "Par level updated", tone: "success" });
+    setModal(null);
+    await refreshFactoryAfterMutation();
   }
 
   async function deleteJobOrder(order) {
@@ -8792,12 +8825,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     if (!confirmed) return;
     try {
       await factoryService.deleteJobOrder(order);
-      ui?.notify?.({ title: "Job order deleted", tone: "success" });
-      await loadData();
-      if (serverListing === "job-orders") factoryListingActions.retry();
     } catch (error) {
       ui?.notify?.({ title: "Failed to delete job order", message: error.message, tone: "error" });
+      return;
     }
+    ui?.notify?.({ title: "Job order deleted", tone: "success" });
+    await refreshFactoryAfterMutation({ retryListing: serverListing === "job-orders" });
   }
 
   async function releaseJobOrder(order) {
@@ -8810,12 +8843,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     if (!confirmed) return;
     try {
       await factoryService.releaseJobOrder(order);
-      ui?.notify?.({ title: "Job order released", tone: "success" });
-      await loadData();
-      if (serverListing === "job-orders") factoryListingActions.retry();
     } catch (error) {
       ui?.notify?.({ title: "Failed to release job order", message: error.message, tone: "error" });
+      return;
     }
+    ui?.notify?.({ title: "Job order released", tone: "success" });
+    await refreshFactoryAfterMutation({ retryListing: serverListing === "job-orders" });
   }
 
   async function cancelJobOrder(order) {
@@ -8828,25 +8861,24 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     if (!confirmed) return;
     try {
       await factoryService.cancelJobOrder(order);
-      ui?.notify?.({ title: "Job order cancelled", message: `${order.job_order_no} was removed from the production pipeline.`, tone: "success" });
-      await loadData();
-      if (serverListing === "job-orders") factoryListingActions.retry();
     } catch (error) {
       ui?.notify?.({ title: "Failed to cancel job order", message: error.message, tone: "error" });
+      return;
     }
+    ui?.notify?.({ title: "Job order cancelled", message: `${order.job_order_no} was removed from the production pipeline.`, tone: "success" });
+    await refreshFactoryAfterMutation({ retryListing: serverListing === "job-orders" });
   }
 
   async function startJobOrder(order, form) {
     try {
       await factoryService.startJobOrder(order, form, auth?.profile);
-      ui?.notify?.({ title: "Production started", message: `${order.job_order_no} is now in progress.`, tone: "success" });
-      setModal(null);
-      await loadData();
-      if (serverListing === "job-orders") factoryListingActions.retry();
     } catch (error) {
       ui?.notify?.({ title: "Failed to start production", message: error.message, tone: "error" });
       throw error;
     }
+    ui?.notify?.({ title: "Production started", message: `${order.job_order_no} is now in progress.`, tone: "success" });
+    setModal(null);
+    await refreshFactoryAfterMutation({ retryListing: serverListing === "job-orders" });
   }
 
   async function viewCompletedJobOrder(order) {
@@ -8973,13 +9005,13 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   async function saveRawMaterial(form) {
     try {
       await factoryService.saveRawMaterial(form, auth?.profile?.id);
-      ui?.notify?.({ title: form.id ? "Raw material updated" : "Raw material created", tone: "success" });
-      setModal(null);
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to save raw material", message: error.message, tone: "error" });
       throw error;
     }
+    ui?.notify?.({ title: form.id ? "Raw material updated" : "Raw material created", tone: "success" });
+    setModal(null);
+    await refreshFactoryAfterMutation();
   }
 
   async function archiveRawMaterial(material) {
@@ -8996,23 +9028,24 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     if (!confirmed) return;
     try {
       await factoryService.archiveRawMaterial(material);
-      ui?.notify?.({ title: "Raw material archived", tone: "success" });
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to archive raw material", message: error.message, tone: "error" });
+      return;
     }
+    ui?.notify?.({ title: "Raw material archived", tone: "success" });
+    await refreshFactoryAfterMutation();
   }
 
   async function saveRawMaterialCategory(form, options = {}) {
     try {
       await factoryService.saveRawMaterialCategory(form, auth?.profile?.id);
-      ui?.notify?.({ title: form.id ? "Raw material category updated" : "Raw material category created", tone: "success" });
-      if (!options.keepOpen) setModal(null);
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to save raw material category", message: error.message, tone: "error" });
       throw error;
     }
+    ui?.notify?.({ title: form.id ? "Raw material category updated" : "Raw material category created", tone: "success" });
+    if (!options.keepOpen) setModal(null);
+    await refreshFactoryAfterMutation();
   }
 
   async function archiveRawMaterialCategory(category, options = {}) {
@@ -9025,24 +9058,25 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     if (!confirmed) return;
     try {
       await factoryService.archiveRawMaterialCategory(category);
-      ui?.notify?.({ title: "Raw material category archived", tone: "success" });
-      if (!options.keepOpen) setModal(null);
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to archive raw material category", message: error.message, tone: "error" });
+      return;
     }
+    ui?.notify?.({ title: "Raw material category archived", tone: "success" });
+    if (!options.keepOpen) setModal(null);
+    await refreshFactoryAfterMutation();
   }
 
   async function saveStorageLocation(form, options = {}) {
     try {
       await factoryService.saveStorageLocation(form, auth?.profile?.id);
-      ui?.notify?.({ title: form.id ? "Storage location updated" : "Storage location created", tone: "success" });
-      if (!options.keepOpen) setModal(null);
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to save storage location", message: error.message, tone: "error" });
       throw error;
     }
+    ui?.notify?.({ title: form.id ? "Storage location updated" : "Storage location created", tone: "success" });
+    if (!options.keepOpen) setModal(null);
+    await refreshFactoryAfterMutation();
   }
 
   async function archiveStorageLocation(location, options = {}) {
@@ -9055,24 +9089,25 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     if (!confirmed) return;
     try {
       await factoryService.archiveStorageLocation(location);
-      ui?.notify?.({ title: "Storage location archived", tone: "success" });
-      if (!options.keepOpen) setModal(null);
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to archive storage location", message: error.message, tone: "error" });
+      return;
     }
+    ui?.notify?.({ title: "Storage location archived", tone: "success" });
+    if (!options.keepOpen) setModal(null);
+    await refreshFactoryAfterMutation();
   }
 
   async function saveFactorySupplier(form, options = {}) {
     try {
       await factoryService.saveFactorySupplier(form, auth?.profile?.id);
-      ui?.notify?.({ title: form.id ? "Factory supplier updated" : "Factory supplier created", tone: "success" });
-      if (!options.keepOpen) setModal(null);
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to save Factory supplier", message: error.message, tone: "error" });
       throw error;
     }
+    ui?.notify?.({ title: form.id ? "Factory supplier updated" : "Factory supplier created", tone: "success" });
+    if (!options.keepOpen) setModal(null);
+    await refreshFactoryAfterMutation();
   }
 
   async function archiveFactorySupplier(supplier, options = {}) {
@@ -9085,12 +9120,13 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     if (!confirmed) return;
     try {
       await factoryService.archiveFactorySupplier(supplier);
-      ui?.notify?.({ title: "Factory supplier archived", tone: "success" });
-      if (!options.keepOpen) setModal(null);
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to archive Factory supplier", message: error.message, tone: "error" });
+      return;
     }
+    ui?.notify?.({ title: "Factory supplier archived", tone: "success" });
+    if (!options.keepOpen) setModal(null);
+    await refreshFactoryAfterMutation();
   }
 
   async function restoreFactorySupplier(supplier) {
@@ -9103,23 +9139,24 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     if (!confirmed) return;
     try {
       await factoryService.saveFactorySupplier({ ...supplier, status: "active" }, auth?.profile?.id);
-      ui?.notify?.({ title: "Factory supplier restored", tone: "success" });
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to restore Factory supplier", message: error.message, tone: "error" });
+      return;
     }
+    ui?.notify?.({ title: "Factory supplier restored", tone: "success" });
+    await refreshFactoryAfterMutation();
   }
 
   async function saveFactoryCustomer(form, options = {}) {
     try {
       await factoryService.saveFactoryCustomer(form, auth?.profile?.id);
-      ui?.notify?.({ title: form.id ? "Factory customer updated" : "Factory customer created", tone: "success" });
-      if (!options.keepOpen) setModal(null);
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to save Factory customer", message: error.message, tone: "error" });
       throw error;
     }
+    ui?.notify?.({ title: form.id ? "Factory customer updated" : "Factory customer created", tone: "success" });
+    if (!options.keepOpen) setModal(null);
+    await refreshFactoryAfterMutation();
   }
 
   async function archiveFactoryCustomer(customer, options = {}) {
@@ -9132,12 +9169,13 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     if (!confirmed) return;
     try {
       await factoryService.archiveFactoryCustomer(customer);
-      ui?.notify?.({ title: "Factory customer archived", tone: "success" });
-      if (!options.keepOpen) setModal(null);
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to archive Factory customer", message: error.message, tone: "error" });
+      return;
     }
+    ui?.notify?.({ title: "Factory customer archived", tone: "success" });
+    if (!options.keepOpen) setModal(null);
+    await refreshFactoryAfterMutation();
   }
 
   async function restoreFactoryCustomer(customer) {
@@ -9150,11 +9188,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     if (!confirmed) return;
     try {
       await factoryService.saveFactoryCustomer({ ...customer, status: "active" }, auth?.profile?.id);
-      ui?.notify?.({ title: "Factory customer restored", tone: "success" });
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to restore Factory customer", message: error.message, tone: "error" });
+      return;
     }
+    ui?.notify?.({ title: "Factory customer restored", tone: "success" });
+    await refreshFactoryAfterMutation();
   }
 
   async function completeProduction(form) {
@@ -9235,142 +9274,150 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   async function saveProductionSop(form) {
     try {
       await factoryService.saveProductionSop(form, auth?.profile?.id);
-      ui?.notify?.({ title: form.id ? "Production SOP updated" : "Production SOP created", tone: "success" });
-      setModal(null);
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to save Production SOP", message: error.message, tone: "error" });
       throw error;
     }
+    ui?.notify?.({ title: form.id ? "Production SOP updated" : "Production SOP created", tone: "success" });
+    setModal(null);
+    await refreshFactoryAfterMutation();
   }
 
   async function activateProductionSop(sop) {
     try {
       await factoryService.activateProductionSop(sop);
-      ui?.notify?.({ title: "Production SOP activated", tone: "success" });
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to activate Production SOP", message: error.message, tone: "error" });
+      return;
     }
+    ui?.notify?.({ title: "Production SOP activated", tone: "success" });
+    await refreshFactoryAfterMutation();
   }
 
   async function createProductionSopNewVersion(sop) {
+    let draft;
     try {
-      const draft = await factoryService.createProductionSopNewVersion(sop);
-      ui?.notify?.({ title: "Production SOP draft version created", tone: "success" });
-      await loadData();
-      setModal({ type: "sop", value: draft });
+      draft = await factoryService.createProductionSopNewVersion(sop);
     } catch (error) {
       ui?.notify?.({ title: "Failed to create SOP version", message: error.message, tone: "error" });
+      return;
     }
+    ui?.notify?.({ title: "Production SOP draft version created", tone: "success" });
+    setModal({ type: "sop", value: draft });
+    await refreshFactoryAfterMutation();
   }
 
   async function archiveProductionSop(sop) {
     try {
       await factoryService.archiveProductionSop(sop);
-      ui?.notify?.({ title: "Production SOP archived", tone: "success" });
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to archive Production SOP", message: error.message, tone: "error" });
+      return;
     }
+    ui?.notify?.({ title: "Production SOP archived", tone: "success" });
+    await refreshFactoryAfterMutation();
   }
 
   async function restoreProductionSop(sop) {
     try {
       await factoryService.restoreProductionSop(sop);
-      ui?.notify?.({ title: "Production SOP restored as draft", tone: "success" });
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to restore Production SOP", message: error.message, tone: "error" });
+      return;
     }
+    ui?.notify?.({ title: "Production SOP restored as draft", tone: "success" });
+    await refreshFactoryAfterMutation();
   }
 
   async function deleteProductionSop(sop) {
     try {
       await factoryService.deleteProductionSop(sop);
-      ui?.notify?.({ title: "Production SOP deleted", tone: "success" });
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to delete Production SOP", message: error.message, tone: "error" });
+      return;
     }
+    ui?.notify?.({ title: "Production SOP deleted", tone: "success" });
+    await refreshFactoryAfterMutation();
   }
 
   async function createQcChecklistTemplate(form) {
     try {
       await factoryService.createQcChecklistTemplate(form, auth?.profile?.id);
-      ui?.notify?.({ title: "QC Checklist Preset created", tone: "success" });
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to create QC Checklist Preset", message: error.message, tone: "error" });
       throw error;
     }
+    ui?.notify?.({ title: "QC Checklist Preset created", tone: "success" });
+    await refreshFactoryAfterMutation();
   }
 
   async function updateQcChecklistTemplate(form) {
     try {
       await factoryService.updateQcChecklistTemplate(form);
-      ui?.notify?.({ title: "QC Checklist Preset updated", tone: "success" });
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to update QC Checklist Preset", message: error.message, tone: "error" });
       throw error;
     }
+    ui?.notify?.({ title: "QC Checklist Preset updated", tone: "success" });
+    await refreshFactoryAfterMutation();
   }
 
   async function archiveQcChecklistTemplate(template) {
     try {
       await factoryService.archiveQcChecklistTemplate(template);
-      ui?.notify?.({ title: "QC Checklist Preset archived", tone: "success" });
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to archive QC Checklist Preset", message: error.message, tone: "error" });
       throw error;
     }
+    ui?.notify?.({ title: "QC Checklist Preset archived", tone: "success" });
+    await refreshFactoryAfterMutation();
   }
 
   async function restoreQcChecklistTemplate(template) {
     try {
       await factoryService.restoreQcChecklistTemplate(template);
-      ui?.notify?.({ title: "QC Checklist Preset restored", tone: "success" });
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to restore QC Checklist Preset", message: error.message, tone: "error" });
       throw error;
     }
+    ui?.notify?.({ title: "QC Checklist Preset restored", tone: "success" });
+    await refreshFactoryAfterMutation();
   }
 
   async function deleteQcChecklistTemplate(template) {
     try {
       await factoryService.deleteQcChecklistTemplate(template);
-      ui?.notify?.({ title: "QC Checklist Preset deleted", tone: "success" });
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to delete QC Checklist Preset", message: error.message, tone: "error" });
       throw error;
     }
+    ui?.notify?.({ title: "QC Checklist Preset deleted", tone: "success" });
+    await refreshFactoryAfterMutation();
   }
 
   async function saveProductRecipe(form) {
     try {
       await factoryService.saveProductRecipe(form, auth?.profile?.id);
-      ui?.notify?.({ title: form.id ? "Product recipe updated" : "Product recipe created", tone: "success" });
-      setModal(null);
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to save product recipe", message: error.message, tone: "error" });
       throw error;
     }
+    ui?.notify?.({ title: form.id ? "Product recipe updated" : "Product recipe created", tone: "success" });
+    setModal(null);
+    await refreshFactoryAfterMutation();
   }
 
   async function openNewRecipeVersion(recipe) {
+    let draftCopy;
     try {
-      const draftCopy = await factoryService.createProductRecipeNewVersion(recipe);
-      ui?.notify?.({ title: "Draft version created", tone: "success" });
-      setModal({ type: "recipe", value: draftCopy });
-      await loadData();
+      draftCopy = await factoryService.createProductRecipeNewVersion(recipe);
     } catch (error) {
       ui?.notify?.({ title: "Failed to create new version", message: error.message, tone: "error" });
+      return;
     }
+    ui?.notify?.({ title: "Draft version created", tone: "success" });
+    setModal({ type: "recipe", value: draftCopy });
+    await refreshFactoryAfterMutation();
   }
 
   async function activateProductRecipe(recipe) {
@@ -9383,11 +9430,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     if (!confirmed) return;
     try {
       await factoryService.activateProductRecipe(recipe);
-      ui?.notify?.({ title: "Product recipe activated", tone: "success" });
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to activate product recipe", message: error.message, tone: "error" });
+      return;
     }
+    ui?.notify?.({ title: "Product recipe activated", tone: "success" });
+    await refreshFactoryAfterMutation();
   }
 
   async function archiveProductRecipe(recipe) {
@@ -9400,11 +9448,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     if (!confirmed) return;
     try {
       await factoryService.archiveProductRecipe(recipe);
-      ui?.notify?.({ title: "Product recipe archived", tone: "success" });
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to archive product recipe", message: error.message, tone: "error" });
+      return;
     }
+    ui?.notify?.({ title: "Product recipe archived", tone: "success" });
+    await refreshFactoryAfterMutation();
   }
 
   async function deleteProductRecipe(recipe) {
@@ -9417,11 +9466,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     if (!confirmed) return;
     try {
       await factoryService.deleteProductRecipe(recipe);
-      ui?.notify?.({ title: "Draft production standard deleted", tone: "success" });
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to delete draft standard", message: error.message, tone: "error" });
+      return;
     }
+    ui?.notify?.({ title: "Draft production standard deleted", tone: "success" });
+    await refreshFactoryAfterMutation();
   }
 
   async function restoreProductRecipe(recipe) {
@@ -9434,23 +9484,24 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     if (!confirmed) return;
     try {
       await factoryService.restoreProductRecipe(recipe);
-      ui?.notify?.({ title: "Product recipe restored as draft", tone: "success" });
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to restore product recipe", message: error.message, tone: "error" });
+      return;
     }
+    ui?.notify?.({ title: "Product recipe restored as draft", tone: "success" });
+    await refreshFactoryAfterMutation();
   }
 
   async function saveFinishedGood(form) {
     try {
       await factoryService.saveFinishedGood(form, auth?.profile?.id);
-      ui?.notify?.({ title: form.id ? "Packaging SKU updated" : "Packaging SKU created", tone: "success" });
-      setModal(null);
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to save Packaging SKU", message: error.message, tone: "error" });
       throw error;
     }
+    ui?.notify?.({ title: form.id ? "Packaging SKU updated" : "Packaging SKU created", tone: "success" });
+    setModal(null);
+    await refreshFactoryAfterMutation();
   }
 
   async function archiveFinishedGood(product) {
@@ -9467,11 +9518,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     if (!confirmed) return;
     try {
       await factoryService.archiveFinishedGood(product);
-      ui?.notify?.({ title: "Packaging SKU archived", tone: "success" });
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to archive Packaging SKU", message: error.message, tone: "error" });
+      return;
     }
+    ui?.notify?.({ title: "Packaging SKU archived", tone: "success" });
+    await refreshFactoryAfterMutation();
   }
 
   function dispatchMatchesHistoryFilters(dispatch) {
@@ -9693,13 +9745,13 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   async function saveProductGroup(form) {
     try {
       await factoryService.saveProductFamily(form, auth?.profile?.id);
-      ui?.notify?.({ title: form.id ? "Finished Good updated" : "Finished Good created", tone: "success" });
-      setModal(null);
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to save Finished Good", message: error.message, tone: "error" });
       throw error;
     }
+    ui?.notify?.({ title: form.id ? "Finished Good updated" : "Finished Good created", tone: "success" });
+    setModal(null);
+    await refreshFactoryAfterMutation();
   }
 
   async function archiveProductGroup(group) {
@@ -9717,11 +9769,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     if (!confirmed) return;
     try {
       await factoryService.archiveProductFamily(group);
-      ui?.notify?.({ title: "Finished Good archived", tone: "success" });
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to archive Finished Good", message: error.message, tone: "error" });
+      return;
     }
+    ui?.notify?.({ title: "Finished Good archived", tone: "success" });
+    await refreshFactoryAfterMutation();
   }
 
   function openPackagingSkuModal(group, sku) {
@@ -9745,13 +9798,13 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   async function saveFinishedGoodCategory(form, options = {}) {
     try {
       await factoryService.saveFinishedGoodCategory(form, auth?.profile?.id);
-      ui?.notify?.({ title: form.id ? "Finished good category updated" : "Finished good category created", tone: "success" });
-      if (!options.keepOpen) setModal(null);
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to save finished good category", message: error.message, tone: "error" });
       throw error;
     }
+    ui?.notify?.({ title: form.id ? "Finished good category updated" : "Finished good category created", tone: "success" });
+    if (!options.keepOpen) setModal(null);
+    await refreshFactoryAfterMutation();
   }
 
   async function archiveFinishedGoodCategory(category, options = {}) {
@@ -9764,12 +9817,13 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     if (!confirmed) return;
     try {
       await factoryService.archiveFinishedGoodCategory(category);
-      ui?.notify?.({ title: "Finished good category archived", tone: "success" });
-      if (!options.keepOpen) setModal(null);
-      await loadData();
     } catch (error) {
       ui?.notify?.({ title: "Failed to archive finished good category", message: error.message, tone: "error" });
+      return;
     }
+    ui?.notify?.({ title: "Finished good category archived", tone: "success" });
+    if (!options.keepOpen) setModal(null);
+    await refreshFactoryAfterMutation();
   }
 
   async function approveStockCheck(stockType, check) {
@@ -13309,7 +13363,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   return (
     <>
-      <AccessIssueNotice issues={data.accessIssues} />
+      <AccessIssueNotice issues={data.accessIssues} onRetry={() => loadData()} />
       {initialTab === "production-overview" ? renderProductionOverview() : initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-inventory" ? renderRawInventory() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-movements" ? renderRawMaterialMovements() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? renderFinishedGoodBatchTraceability() : initialTab === "finished-goods" ? renderFinishedGoods() : initialTab === "production-planning" ? renderProductionPlanning() : initialTab === "finished-goods-dispatch" ? renderFinishedGoodsDispatch() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? renderProductRecipes() : initialTab === "production-sop" ? renderProductionSop() : initialTab === "audit-logs" ? renderFactoryAuditLogs() : initialTab === "storage-locations" ? renderStorageLocations() : initialTab === "suppliers" ? renderSuppliers() : initialTab === "customers" ? renderCustomers() : renderDashboard()}
       {modal?.type === "job" ? (
         <JobOrderModal
