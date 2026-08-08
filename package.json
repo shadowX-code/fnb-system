@@ -6,7 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test": "VITE_SUPABASE_URL=http://localhost VITE_SUPABASE_ANON_KEY=test vitest run",
+    "test:factory": "VITE_SUPABASE_URL=http://localhost VITE_SUPABASE_ANON_KEY=test vitest run src/features/factory"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.105.4",
@@ -21,6 +23,7 @@
     "@tailwindcss/postcss": "^4.2.4",
     "autoprefixer": "^10.4.20",
     "postcss": "^8.4.49",
-    "tailwindcss": "^4.2.4"
+    "tailwindcss": "^4.2.4",
+    "vitest": "^4.1.10"
   }
 }

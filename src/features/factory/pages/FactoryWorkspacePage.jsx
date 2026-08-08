@@ -439,7 +439,7 @@ function recipeCostInfo(recipe, receivings) {
   };
 }
 
-function finishedGoodCommercialCost(sku, recipes, receivings) {
+export function finishedGoodCommercialCost(sku, recipes, receivings) {
   const activeRecipes = (recipes || []).filter((recipe) => String(recipe.status || "").toLowerCase() === "active");
   const exactMatches = sku?.product_family_id
     ? activeRecipes.filter((recipe) => recipe.product_family_id === sku.product_family_id)
