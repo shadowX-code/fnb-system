@@ -13,7 +13,7 @@ import FactoryDashboardUomSelect from "../components/dashboard/FactoryDashboardU
 import FactoryDashboardChartTooltip from "../components/dashboard/FactoryDashboardChartTooltip.jsx";
 import useFactoryMasterData from "../hooks/useFactoryMasterData.js";
 import useFactoryDashboardQuery from "../hooks/useFactoryDashboardQuery.js";
-import { dashboardActionTone, dashboardRequiredCheckLabel, dashboardTrendLabel, truncateDashboardChartLabel } from "../utils/factoryDashboardFormatters.js";
+import { analyticsQuantityList, dashboardActionTone, dashboardRequiredCheckLabel, dashboardTrendLabel, truncateDashboardChartLabel } from "../utils/factoryDashboardFormatters.js";
 import { emptyFactoryDashboardAnalytics } from "../utils/factoryDashboardQuery.js";
 import { canonicalDashboardUom, dashboardProductAxisLabel, dashboardUomOptions, selectedDashboardUom, toggleDashboardActionFilter, visibleDashboardActions } from "../utils/factoryDashboardState.js";
 import { factoryMonthLabel, malaysiaBusinessMonthInput, shiftFactoryMonth } from "../utils/factoryDates.js";

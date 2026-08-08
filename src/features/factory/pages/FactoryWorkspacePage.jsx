@@ -59,12 +59,6 @@ const varianceThresholdPercent = 5;
 const varianceReasonTolerance = 0.000001;
 const stockCheckCriticalPercent = 5;
 
-function analyticsQuantityList(rows) {
-  const values = Array.isArray(rows) ? rows : [];
-  if (!values.length) return "—";
-  return values.map((row) => quantity(row.quantity, row.uom)).join(" · ");
-}
-
 function anchoredRect(anchor, width, height) {
   if (!anchor) return null;
   const rect = anchor.getBoundingClientRect();
