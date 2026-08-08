@@ -25,6 +25,8 @@ import FactoryRawMaterialInventoryTable from "../components/rawMaterials/Factory
 import { dashboardActionTone, dashboardRequiredCheckLabel, dashboardTrendLabel, truncateDashboardChartLabel } from "../utils/factoryDashboardFormatters.js";
 import { deriveProductionPlanningRows } from "../utils/productionPlanning.js";
 import { buildProductionPlanningJobOrderDraft } from "../utils/productionPlanningDraft.js";
+import { canArchiveActiveProductRecipe, canCreatePlanningJobOrder, canDeleteDraftProductRecipe, canEditFinishedGoods, canEditProductionPlanningPar, canOpenRawMaterialReceiving } from "../utils/factoryPermissionActions.js";
+import { loadProductionPlanningAggregate, shouldLoadProductionPlanningAggregate } from "../utils/productionPlanningQuery.js";
 import FinishedGoodBatchTraceabilityModal from "../modals/FinishedGoodBatchTraceabilityModal.jsx";
 import FactoryFinishedGoodDetailModal from "../modals/FactoryFinishedGoodDetailModal.jsx";
 import FactoryRawMaterialDetailModal from "../modals/FactoryRawMaterialDetailModal.jsx";
@@ -6903,57 +6905,18 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   async function loadProductionPlanningOpenJobs() {
-    if (initialTab !== "production-planning") return;
+    if (!shouldLoadProductionPlanningAggregate(initialTab)) return;
     const requestId = productionPlanningOpenJobsRequestRef.current + 1;
     productionPlanningOpenJobsRequestRef.current = requestId;
-    if (!can("factory_job_orders.view")) {
-      setProductionPlanningOpenJobs({
-        aggregates: [],
-        diagnostics: {},
-        hasLoaded: false,
-        loading: false,
-        error: "Some Production Planning data is hidden by your current role.",
-        errorKind: "permission",
-      });
-      setModal((current) => current?.type === "job" ? null : current);
-      return;
-    }
-    setProductionPlanningOpenJobs((current) => ({ ...current, loading: true }));
-    try {
-      const result = await factoryService.getProductionPlanningOpenJobOrderAggregate();
-      if (productionPlanningOpenJobsRequestRef.current !== requestId) return;
-      setProductionPlanningOpenJobs({
-        aggregates: result.aggregates || [],
-        diagnostics: result.diagnostics || {},
-        hasLoaded: true,
-        loading: false,
-        error: "",
-        errorKind: "",
-      });
-    } catch (error) {
-      if (productionPlanningOpenJobsRequestRef.current !== requestId) return;
-      console.error("[Factory] Unable to load Production Planning open Job Order quantities.", error);
-      if (isFactoryPermissionError(error)) {
-        setProductionPlanningOpenJobs({
-          aggregates: [],
-          diagnostics: {},
-          hasLoaded: false,
-          loading: false,
-          error: "Some Production Planning data is hidden by your current role.",
-          errorKind: "permission",
-        });
-        setModal((current) => current?.type === "job" ? null : current);
-      } else {
-        setProductionPlanningOpenJobs((current) => ({
-          ...current,
-          loading: false,
-          error: current.hasLoaded
-            ? "Unable to load the latest Production Planning data. Showing the last successfully loaded results."
-            : "Unable to load the latest Production Planning data.",
-          errorKind: "load",
-        }));
-      }
-    }
+    await loadProductionPlanningAggregate({
+      canView: can("factory_job_orders.view"),
+      getAggregate: () => factoryService.getProductionPlanningOpenJobOrderAggregate(),
+      isCurrent: () => productionPlanningOpenJobsRequestRef.current === requestId,
+      setState: setProductionPlanningOpenJobs,
+      isPermissionError: isFactoryPermissionError,
+      onPermissionDenied: () => setModal((current) => current?.type === "job" ? null : current),
+      onError: (error) => console.error("[Factory] Unable to load Production Planning open Job Order quantities.", error),
+    });
   }
 
   async function loadDashboardAnalytics() {
@@ -8502,9 +8465,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "recipe-detail", value: row })}>View</button>
         {row.status === "draft" && can("factory_product_recipes.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "recipe", value: row })}>Edit</button> : null}
         {row.status === "draft" && can("factory_product_recipes.manage") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => activateProductRecipe(row)}>Activate</button> : null}
-        {row.status === "draft" && can("factory_product_recipes.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => deleteProductRecipe(row)}>Delete</button> : null}
+        {row.status === "draft" && canDeleteDraftProductRecipe(can) ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => deleteProductRecipe(row)}>Delete</button> : null}
         {row.status === "active" && can("factory_product_recipes.create") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => openNewRecipeVersion(row)}>New Version</button> : null}
-        {row.status === "active" && (can("factory_product_recipes.edit") || can("factory_product_recipes.manage")) ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => archiveProductRecipe(row)}>Archive</button> : null}
+        {row.status === "active" && canArchiveActiveProductRecipe(can) ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => archiveProductRecipe(row)}>Archive</button> : null}
         {row.status === "archived" && can("factory_product_recipes.edit") ? <button className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50" type="button" onClick={() => restoreProductRecipe(row)}>Restore</button> : null}
       </div>
     );
@@ -8818,7 +8781,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                         {skuBaseEquivalentLabel(row) ? <div className="text-xs font-semibold text-text-secondary">{skuBaseEquivalentLabel(row)}</div> : null}
                       </div>
                       <div>
-                        {can("factory_finished_goods.edit") ? (
+                        {canEditProductionPlanningPar(can) ? (
                           <button className="text-left font-bold text-text-primary underline decoration-dotted underline-offset-4 hover:text-primary" type="button" onClick={() => setModal({ type: "production-planning-par", sku: row })}>{parLevelLabel}</button>
                         ) : (
                           <span className="font-bold text-text-primary">{parLevel > 0 ? parLevelLabel : "—"}</span>
@@ -8832,8 +8795,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                       <div className="font-semibold text-text-primary">{row.suggested_production_qty == null ? "Unavailable" : row.suggested_production_qty > 0 ? productionPlanningUnitLabel(row, row.suggested_production_qty) : "—"}</div>
                       <div><FactoryPlanningStatusBadge status={row.planning_status} /></div>
                       <div className="flex flex-wrap justify-end gap-2">
-                        {can("factory_job_orders.create") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" disabled={row.suggested_production_qty == null} onClick={() => openProductionPlanningJobOrder(row)}>Create Job Order</button> : null}
-                        {can("factory_finished_goods.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production-planning-par", sku: row })}>Edit Par</button> : null}
+                        {canCreatePlanningJobOrder(can) ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" disabled={row.suggested_production_qty == null} onClick={() => openProductionPlanningJobOrder(row)}>Create Job Order</button> : null}
+                        {canEditProductionPlanningPar(can) ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production-planning-par", sku: row })}>Edit Par</button> : null}
                       </div>
                     </div>
                   );
@@ -8862,7 +8825,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                         </div>
                         <div>
                           <div className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">Par Level</div>
-                          {can("factory_finished_goods.edit") ? (
+                          {canEditProductionPlanningPar(can) ? (
                             <button className="font-bold text-text-primary underline decoration-dotted underline-offset-4 hover:text-primary" type="button" onClick={() => setModal({ type: "production-planning-par", sku: row })}>{parLevelLabel}</button>
                           ) : (
                             <div className="font-bold text-text-primary">{parLevel > 0 ? parLevelLabel : "—"}</div>
@@ -8879,8 +8842,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                       </div>
                       <FactoryPlanningCoverage status={row.planning_status} value={row.coverage_percent} variant="mobile" />
                       <div className="mt-4 flex flex-wrap gap-2">
-                        {can("factory_job_orders.create") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" disabled={row.suggested_production_qty == null} onClick={() => openProductionPlanningJobOrder(row)}>Create Job Order</button> : null}
-                        {can("factory_finished_goods.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production-planning-par", sku: row })}>Edit Par</button> : null}
+                        {canCreatePlanningJobOrder(can) ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" disabled={row.suggested_production_qty == null} onClick={() => openProductionPlanningJobOrder(row)}>Create Job Order</button> : null}
+                        {canEditProductionPlanningPar(can) ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production-planning-par", sku: row })}>Edit Par</button> : null}
                       </div>
                     </div>
                   );
@@ -9717,7 +9680,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const activeSuppliers = data.factorySuppliers.filter((supplier) => supplier.status === "active");
     const receivingRows = currentListingRows("receiving-history", []);
     const receivingSummary = factoryListingPage.summary || {};
-    const canCreateReceiving = can("factory_raw_receiving.create");
+    const canCreateReceiving = canOpenRawMaterialReceiving(can);
     const canEditReceiving = can("factory_raw_receiving.edit");
     const showReceivingEntry = receivingTab === "receive" && (editingReceiving ? canEditReceiving : canCreateReceiving);
     return (
@@ -10379,8 +10342,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const renderSkuActions = (sku) => (
       <div className="flex flex-wrap justify-end gap-2">
         <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-detail", product: sku })}>View</button>
-        {can("factory_finished_goods.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => openPackagingSkuModal(data.productFamilies.find((family) => family.id === sku.product_family_id), sku)}>Edit</button> : null}
-        {can("factory_finished_goods.edit") && sku.status !== "archived" ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50" type="button" onClick={() => archiveFinishedGood(sku)}>Archive</button> : null}
+        {canEditFinishedGoods(can) ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => openPackagingSkuModal(data.productFamilies.find((family) => family.id === sku.product_family_id), sku)}>Edit</button> : null}
+        {canEditFinishedGoods(can) && sku.status !== "archived" ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50" type="button" onClick={() => archiveFinishedGood(sku)}>Archive</button> : null}
       </div>
     );
     return (
