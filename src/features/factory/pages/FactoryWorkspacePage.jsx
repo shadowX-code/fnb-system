@@ -1,11 +1,31 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { createPortal } from "react-dom";
-import { Activity, AlertTriangle, ArrowDown, ArrowUp, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleOff, ClipboardCheck, ClipboardList, Clock3, Copy, DollarSign, Factory, FileText, ImageOff, Package, PackageCheck, Play, Plus, RefreshCw, RotateCcw, Tag, Trash2, Truck, Warehouse, X } from "lucide-react";
+import { Activity, AlertTriangle, ArrowDown, ArrowUp, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleOff, ClipboardCheck, ClipboardList, Clock3, Copy, DollarSign, Factory, FileText, Package, PackageCheck, Play, Plus, RefreshCw, RotateCcw, Tag, Trash2, Truck, Warehouse, X } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import FactoryPagination, { FactoryTableLoadState, useFactoryClientPagination, useFactoryPagedQuery } from "../components/FactoryPagination.jsx";
+import { AccessIssueNotice, FactoryTable } from "../components/FactoryDataDisplay.jsx";
+import FactoryBulkSelectionModal, { CompactSelect, Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
+import FeedXDatePicker from "../components/FeedXDatePicker.jsx";
+import SearchableSelect from "../components/SearchableSelect.jsx";
+import FactoryAuditTrailPage from "./FactoryAuditTrailPage.jsx";
+import FactorySuppliersPage from "./FactorySuppliersPage.jsx";
+import FactoryCustomersPage from "./FactoryCustomersPage.jsx";
+import FactoryStorageLocationsPage from "./FactoryStorageLocationsPage.jsx";
+import FactoryBatchTraceabilityPage from "./FactoryBatchTraceabilityPage.jsx";
+import FactoryDashboardMonthPicker from "../components/dashboard/FactoryDashboardMonthPicker.jsx";
+import FactoryDashboardUomSelect from "../components/dashboard/FactoryDashboardUomSelect.jsx";
+import FactoryDashboardChartTooltip from "../components/dashboard/FactoryDashboardChartTooltip.jsx";
+import { dashboardActionTone, dashboardRequiredCheckLabel, dashboardTrendLabel, truncateDashboardChartLabel } from "../utils/factoryDashboardFormatters.js";
+import { deriveProductionPlanningRows } from "../utils/productionPlanning.js";
+import { buildProductionPlanningJobOrderDraft } from "../utils/productionPlanningDraft.js";
+import FinishedGoodBatchTraceabilityModal from "../modals/FinishedGoodBatchTraceabilityModal.jsx";
+import FactoryProductMovementsPage from "./FactoryProductMovementsPage.jsx";
+import FactoryRawMaterialMovementsPage from "./FactoryRawMaterialMovementsPage.jsx";
+import { FactoryMasterDataProvider } from "../context/FactoryMasterDataContext.jsx";
+import { FactoryNavigationProvider } from "../context/FactoryNavigationContext.jsx";
+import { FactoryPermissionsProvider } from "../context/FactoryPermissionsContext.jsx";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import Card from "../../../components/ui/Card.jsx";
@@ -13,6 +33,12 @@ import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
 import MetricCard from "../../../components/ui/MetricCard.jsx";
 import { factoryService, productionQcStatus, strictDateTimeValue, strictDateValue, strictTimeValueMinutes } from "../../../services/factoryService.js";
 import { IMAGE_UPLOAD_ACCEPT } from "../../../utils/imageUpload.js";
+import useFactoryNumberPreview from "../hooks/useFactoryNumberPreview.js";
+import { addDaysToFactoryDate, factoryMonthLabel, formatDateDisplay, formatFactoryAuditDateTime, formatFactoryDate, formatFactoryDateTime, formatFactoryReadableDate, isoDate, malaysiaBusinessDateInput, malaysiaBusinessMonthInput, monthStart, productionDurationLabel, shiftFactoryMonth, timeInput, todayInput } from "../utils/factoryDates.js";
+import { ledgerQuantity, ledgerQuantityList, money, percent, productionTimeLabel, quantity, signedQuantity, sopMinutesLabel, sopStepEstimatedMinutes, sopTotalEstimatedMinutes, validSopMinutes } from "../utils/factoryFormatters.js";
+import { uniqueReceivingBatchPreview } from "../utils/factoryNumbers.js";
+import { isFactoryPermissionError } from "../utils/factoryPermissions.js";
+import { jobPriorityTone, jobStatusLabel, rawMovementTypeMeta, statusTone } from "../utils/factoryStatus.js";
 
 const priorityOptions = ["Low", "Normal", "High", "Urgent"];
 const jobStatusOptions = ["draft", "released", "in_progress", "completed", "cancelled"];
@@ -30,40 +56,6 @@ const sopQcMeasurementOptions = [
 const varianceThresholdPercent = 5;
 const varianceReasonTolerance = 0.000001;
 const stockCheckCriticalPercent = 5;
-
-function todayInput() {
-  const date = new Date();
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
-function malaysiaBusinessDateInput(value = new Date()) {
-  const parts = new Intl.DateTimeFormat("en-CA", {
-    timeZone: "Asia/Kuala_Lumpur",
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-  }).formatToParts(value);
-  const part = (type) => parts.find((item) => item.type === type)?.value || "";
-  return `${part("year")}-${part("month")}-${part("day")}`;
-}
-
-function malaysiaBusinessMonthInput(value = new Date()) {
-  return malaysiaBusinessDateInput(value).slice(0, 7);
-}
-
-function shiftFactoryMonth(value, delta) {
-  const match = /^(\d{4})-(\d{2})$/.exec(String(value || ""));
-  if (!match) return malaysiaBusinessMonthInput();
-  const next = new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1 + delta, 1));
-  return `${next.getUTCFullYear()}-${String(next.getUTCMonth() + 1).padStart(2, "0")}`;
-}
-
-function factoryMonthLabel(value) {
-  const match = /^(\d{4})-(\d{2})$/.exec(String(value || ""));
-  if (!match) return "Selected month";
-  return new Intl.DateTimeFormat("en-MY", { month: "long", year: "numeric", timeZone: "UTC" })
-    .format(new Date(Date.UTC(Number(match[1]), Number(match[2]) - 1, 1)));
-}
 
 function analyticsQuantityList(rows) {
   const values = Array.isArray(rows) ? rows : [];
@@ -98,380 +90,6 @@ function emptyFactoryDashboardAnalytics() {
   };
 }
 
-function useFactoryNumberPreview({ assignedValue = "", previewKey = "", loadPreview, enabled = true, scope }) {
-  const [state, setState] = useState(() => ({ value: assignedValue, loading: enabled && !assignedValue, error: false }));
-  const [retryVersion, setRetryVersion] = useState(0);
-  const requestRef = useRef(0);
-  const loadPreviewRef = useRef(loadPreview);
-  loadPreviewRef.current = loadPreview;
-
-  useEffect(() => {
-    if (assignedValue) {
-      setState({ value: assignedValue, loading: false, error: false });
-      return undefined;
-    }
-    if (!enabled || !previewKey) {
-      setState({ value: "", loading: false, error: false });
-      return undefined;
-    }
-
-    const requestId = requestRef.current + 1;
-    requestRef.current = requestId;
-    let active = true;
-    setState((current) => ({ ...current, loading: true, error: false }));
-    Promise.resolve(loadPreviewRef.current())
-      .then((value) => {
-        if (!active || requestRef.current !== requestId) return;
-        setState({ value: String(value || "").trim(), loading: false, error: false });
-      })
-      .catch((error) => {
-        if (!active || requestRef.current !== requestId) return;
-        console.error(`factory.${scope || "number"}.preview`, error);
-        setState({ value: "", loading: false, error: true });
-      });
-
-    return () => {
-      active = false;
-      if (requestRef.current === requestId) requestRef.current += 1;
-    };
-  }, [assignedValue, enabled, previewKey, retryVersion, scope]);
-
-  return { ...state, retry: () => setRetryVersion((current) => current + 1) };
-}
-
-function money(value) {
-  return `RM${Number(value || 0).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
-}
-
-function quantity(value, uom) {
-  return `${Number(value || 0).toLocaleString("en-MY", { maximumFractionDigits: 2 })}${uom ? ` ${uom}` : ""}`;
-}
-
-function signedQuantity(value, uom) {
-  const numeric = Number(value || 0);
-  const sign = numeric > 0 ? "+" : "";
-  return `${sign}${numeric.toLocaleString("en-MY", { maximumFractionDigits: 2 })}${uom ? ` ${uom}` : ""}`;
-}
-
-function ledgerQuantity(value, uom, { signed = false } = {}) {
-  const numeric = Number(value || 0);
-  const formatted = Math.abs(numeric).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-  const sign = signed ? numeric > 0 ? "+" : numeric < 0 ? "-" : "" : numeric < 0 ? "-" : "";
-  return `${sign}${formatted}${uom ? ` ${uom}` : ""}`;
-}
-
-function ledgerQuantityList(rows) {
-  const values = Array.isArray(rows) ? rows : [];
-  return values.length ? values.map((row) => ledgerQuantity(row.quantity, row.uom)).join(" · ") : "—";
-}
-
-function rawMovementTypeMeta(value) {
-  const normalized = String(value || "").trim().toLowerCase();
-  if (normalized === "receiving") return { label: "Receiving", tone: "success" };
-  if (normalized === "production usage") return { label: "Production Usage", tone: "warning" };
-  if (normalized === "stock check adjustment") return { label: "Stock Check Adjustment", tone: "info" };
-  if (normalized === "transfer") return { label: "Transfer", tone: "info" };
-  if (normalized === "opening balance") return { label: "Opening Balance", tone: "neutral" };
-  return { label: value || "Movement", tone: "neutral" };
-}
-
-function percent(value) {
-  return `${Number(value || 0).toLocaleString("en-MY", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`;
-}
-
-function productionTimeLabel(minutes) {
-  const totalMinutes = Number(minutes || 0);
-  if (!totalMinutes) return "Not set";
-  const hours = Math.floor(totalMinutes / 60);
-  const mins = totalMinutes % 60;
-  if (hours && mins) return `${hours}h ${mins}m`;
-  if (hours) return `${hours}h`;
-  return `${mins}m`;
-}
-
-function sopStepEstimatedMinutes(step) {
-  const subSteps = Array.isArray(step?.sub_steps) ? step.sub_steps : [];
-  if (subSteps.length) {
-    return subSteps.reduce((sum, subStep) => {
-      const minutes = Number(subStep.estimated_minutes || 0);
-      return sum + (Number.isFinite(minutes) && minutes >= 0 ? minutes : 0);
-    }, 0);
-  }
-  const minutes = Number(step?.estimated_time_minutes || 0);
-  return Number.isFinite(minutes) && minutes >= 0 ? minutes : 0;
-}
-
-function sopTotalEstimatedMinutes(sop) {
-  const steps = Array.isArray(sop?.steps) ? sop.steps : [];
-  if (steps.length) return steps.reduce((sum, step) => sum + sopStepEstimatedMinutes(step), 0);
-  const minutes = Number(sop?.estimated_minutes || 0);
-  return Number.isFinite(minutes) && minutes >= 0 ? minutes : 0;
-}
-
-function sopMinutesLabel(minutes) {
-  const numeric = Number(minutes || 0);
-  return `${Number.isFinite(numeric) && numeric >= 0 ? numeric.toLocaleString("en-MY") : "0"} mins`;
-}
-
-function validSopMinutes(value) {
-  if (value === null || value === undefined || value === "") return true;
-  const numeric = Number(value);
-  return Number.isFinite(numeric) && Number.isInteger(numeric) && numeric >= 0;
-}
-
-function formatDateDisplay(value, placeholder = "Select date") {
-  if (!value) return placeholder;
-  const [year, month, day] = String(value).split("-");
-  if (!year || !month || !day) return placeholder;
-  return `${year}-${month}-${day}`;
-}
-
-function formatFactoryDate(value) {
-  if (!value) return "—";
-  const [year, month, day] = String(value).slice(0, 10).split("-");
-  if (year && month && day) return `${year}-${month}-${day}`;
-  return String(value).slice(0, 10) || "—";
-}
-
-function formatFactoryReadableDate(value) {
-  if (!value) return "—";
-  const [year, month, day] = String(value).slice(0, 10).split("-").map(Number);
-  if (!year || !month || !day) return "—";
-  return new Intl.DateTimeFormat("en-GB", {
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    timeZone: "UTC",
-  }).format(new Date(Date.UTC(year, month - 1, day)));
-}
-
-function formatFactoryDateTime(value) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return String(value).slice(0, 16).replace("T", " ");
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")} ${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-}
-
-function formatFactoryAuditDateTime(value) {
-  if (!value) return "—";
-  const date = new Date(value);
-  if (Number.isNaN(date.getTime())) return "—";
-  return new Intl.DateTimeFormat("en-MY", {
-    timeZone: "Asia/Kuala_Lumpur",
-    day: "2-digit",
-    month: "short",
-    year: "numeric",
-    hour: "2-digit",
-    minute: "2-digit",
-    hour12: false,
-  }).format(date);
-}
-
-function humanizeFactoryToken(value) {
-  return String(value || "")
-    .replace(/^factory_/, "")
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (letter) => letter.toUpperCase())
-    .trim();
-}
-
-function factoryAuditActionLabel(action) {
-  const value = String(action || "").toLowerCase();
-  const actionMap = [
-    ["cancelled", "Cancelled"],
-    ["completed", "Completed"],
-    ["approved", "Approved"],
-    ["submitted", "Submitted"],
-    ["activated", "Activated"],
-    ["archived", "Archived"],
-    ["restored", "Restored"],
-    ["deleted", "Deleted"],
-    ["created", "Created"],
-    ["updated", "Updated"],
-    ["received", "Received"],
-    ["released", "Released"],
-    ["started", "Started"],
-    ["saved", "Saved"],
-  ];
-  return actionMap.find(([token]) => value.includes(token))?.[1] || humanizeFactoryToken(value || "event");
-}
-
-function factoryAuditModuleLabel(row) {
-  const action = String(row?.action || "").toLowerCase();
-  const module = String(row?.module || "").toLowerCase();
-  const source = `${module} ${action}`;
-  const moduleMap = [
-    ["raw_material_receiving", "Receiving"],
-    ["raw_stock_check", "Stock Check"],
-    ["product_stock_check", "Stock Check"],
-    ["finished_good_dispatch", "Dispatch"],
-    ["finished_goods_dispatch", "Dispatch"],
-    ["production_qc", "QC"],
-    ["qc_template", "QC"],
-    ["job_order", "Job Order"],
-    ["production_sop", "Production"],
-    ["production", "Production"],
-    ["product_recipe", "Finished Goods"],
-    ["finished_good", "Finished Goods"],
-    ["raw_material", "Raw Material"],
-    ["supplier", "Raw Material"],
-    ["storage_location", "Raw Material"],
-    ["customer", "Dispatch"],
-  ];
-  return moduleMap.find(([token]) => source.includes(token))?.[1] || "Production";
-}
-
-function factoryAuditEventLabel(event) {
-  return event?.event_label || factoryAuditActionLabel(event?.action);
-}
-
-function factoryAuditResultTone(result) {
-  const value = String(result || "Success").toLowerCase();
-  if (value === "failed") return "danger";
-  if (value === "attention") return "warning";
-  return "success";
-}
-
-function FactoryAuditModuleIcon({ module, size = 14 }) {
-  const Icon = {
-    "Job Order": ClipboardList,
-    Production: Factory,
-    Receiving: PackageCheck,
-    Dispatch: Truck,
-    "Finished Goods": Package,
-    "Raw Material": Warehouse,
-    "Stock Check": ClipboardCheck,
-    QC: CheckCircle2,
-  }[module] || Factory;
-  return <Icon aria-hidden="true" size={size} />;
-}
-
-function FactoryAuditEventIcon({ event, size = 14 }) {
-  const Icon = {
-    Created: Plus,
-    Released: Play,
-    Started: Play,
-    Completed: CheckCircle2,
-    "QC Passed": Check,
-    "QC Failed": AlertTriangle,
-    Submitted: ArrowUp,
-    Approved: ClipboardCheck,
-    Archived: CircleOff,
-    Deleted: Trash2,
-    Cancelled: CircleOff,
-    Restored: RotateCcw,
-    Activated: CheckCircle2,
-    Updated: RefreshCw,
-    Saved: Check,
-  }[event] || Activity;
-  return <Icon aria-hidden="true" size={size} />;
-}
-
-const factoryAuditFieldLabels = {
-  status: "Status",
-  product_name: "Finished Good",
-  raw_material_name: "Raw Material",
-  target_quantity: "Target Production",
-  target_production_qty: "Target Production",
-  target_pack_qty: "Target Pack Quantity",
-  produced_quantity: "Produced Quantity",
-  actual_output_qty: "Actual Output",
-  actual_pack_qty: "Actual Pack Quantity",
-  planned_date: "Scheduled Date",
-  scheduled_date: "Scheduled Date",
-  due_date: "Due Date",
-  production_date: "Production Date",
-  dispatch_date: "Dispatch Date",
-  received_date: "Receiving Date",
-  check_date: "Stock Check Date",
-  priority: "Priority",
-  assigned_team: "Assigned Team",
-  remarks: "Remarks",
-  notes: "Notes",
-  customer_name: "Customer",
-  supplier_name: "Supplier",
-  reference_no: "Reference / DO No.",
-  batch_no: "Batch No.",
-  job_order_no: "Job Order No.",
-  dispatch_no: "Dispatch No.",
-  check_no: "Stock Check No.",
-  uom: "UOM",
-  version: "Version",
-};
-
-function isFactoryAuditTechnicalField(key) {
-  const value = String(key || "").toLowerCase();
-  return value === "id"
-    || ["production_no", "recipe_code", "sop_code"].includes(value)
-    || value.endsWith("_id")
-    || value.endsWith("_fingerprint")
-    || value.includes("request_id")
-    || value.includes("payload")
-    || ["created_at", "updated_at", "created_by", "completed_by", "submitted_by", "approved_by", "released_by", "started_by"].includes(value);
-}
-
-function factoryAuditDisplayValue(key, value, record = {}) {
-  if (value === null || value === undefined || value === "") return "—";
-  if (typeof value === "boolean") return value ? "Yes" : "No";
-  if (typeof value === "object") return "";
-  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(String(value))) return "—";
-  const token = String(key || "").toLowerCase();
-  if (token.endsWith("_at")) return formatFactoryAuditDateTime(value);
-  if (token.includes("date")) return formatFactoryReadableDate(value);
-  if (token.includes("status") || token === "priority") return humanizeFactoryToken(value);
-  if ((token.includes("qty") || token.includes("quantity")) && Number.isFinite(Number(value))) {
-    const uom = token.includes("pack") ? (Number(value) === 1 ? "Pack" : "Packs") : record.uom || "";
-    return quantity(Number(value), uom);
-  }
-  return String(value);
-}
-
-function factoryAuditChangeRows(event) {
-  const before = event?.before && typeof event.before === "object" && !Array.isArray(event.before) ? event.before : null;
-  const after = event?.after && typeof event.after === "object" && !Array.isArray(event.after) ? event.after : null;
-  const source = after || before || {};
-  const importantKeys = [
-    "status", "product_name", "raw_material_name", "target_production_qty", "target_quantity", "target_pack_qty",
-    "planned_date", "due_date", "priority", "customer_name", "supplier_name", "dispatch_date", "received_date",
-    "check_date", "batch_no", "job_order_no", "dispatch_no", "check_no", "uom", "version", "remarks", "notes",
-  ];
-  const availableKeys = [...new Set([...importantKeys, ...Object.keys(before || {}), ...Object.keys(after || {})])]
-    .filter((key) => !isFactoryAuditTechnicalField(key))
-    .filter((key) => {
-      const beforeValue = before?.[key];
-      const afterValue = after?.[key];
-      return typeof beforeValue !== "object" && typeof afterValue !== "object";
-    });
-
-  return availableKeys.flatMap((key) => {
-    const beforeValue = before?.[key];
-    const afterValue = after?.[key];
-    if (before && after && JSON.stringify(beforeValue ?? null) === JSON.stringify(afterValue ?? null)) return [];
-    const mode = before && after ? "change" : after ? "created" : before ? "prior" : "none";
-    const formattedBefore = factoryAuditDisplayValue(key, beforeValue, before || source);
-    const formattedAfter = factoryAuditDisplayValue(key, afterValue, after || source);
-    if (mode === "created" && formattedAfter === "—") return [];
-    if (mode === "prior" && formattedBefore === "—") return [];
-    if (!formattedBefore && !formattedAfter) return [];
-    return [{
-      key,
-      label: factoryAuditFieldLabels[key] || humanizeFactoryToken(key),
-      before: formattedBefore || "—",
-      after: formattedAfter || "—",
-      mode,
-    }];
-  }).slice(0, 16);
-}
-
-function monthStart(value) {
-  const date = value ? new Date(`${value}T00:00:00`) : new Date();
-  return new Date(date.getFullYear(), date.getMonth(), 1);
-}
-
-function isoDate(date) {
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
-}
-
 function anchoredRect(anchor, width, height) {
   if (!anchor) return null;
   const rect = anchor.getBoundingClientRect();
@@ -487,442 +105,8 @@ function anchoredRect(anchor, width, height) {
   };
 }
 
-function timeInput() {
-  const date = new Date();
-  return `${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
-}
-
-function addDaysToFactoryDate(value, days) {
-  const timestamp = strictDateValue(value);
-  const dayCount = Number(days);
-  if (timestamp === null || !Number.isInteger(dayCount) || dayCount < 0) return "";
-  return new Date(timestamp + (dayCount * 86400000)).toISOString().slice(0, 10);
-}
-
-function productionDurationLabel(startDate, startTime, endDate, endTime) {
-  const start = strictDateTimeValue(startDate, startTime);
-  const end = strictDateTimeValue(endDate, endTime);
-  if (start === null || end === null || end < start) return "—";
-  const totalMinutes = Math.floor((end - start) / 60000);
-  const hours = Math.floor(totalMinutes / 60);
-  const minutes = totalMinutes % 60;
-  if (!hours) return `${minutes} min${minutes === 1 ? "" : "s"}`;
-  return `${hours} hr${hours === 1 ? "" : "s"}${minutes ? ` ${minutes} min${minutes === 1 ? "" : "s"}` : ""}`;
-}
-
 function employeeDisplayName(auth) {
   return auth?.profile?.nickname || auth?.profile?.full_name || auth?.profile?.email || "";
-}
-
-function statusTone(status) {
-  if (status === "approved") return "success";
-  if (status === "submitted") return "info";
-  if (status === "completed") return "success";
-  if (status === "cancelled") return "danger";
-  if (status === "in_progress" || status === "released" || status === "planned") return "info";
-  return "neutral";
-}
-
-function jobStatusLabel(status) {
-  if (status === "in_progress") return "In Progress";
-  return String(status || "draft").replace(/_/g, " ").replace(/\b\w/g, (letter) => letter.toUpperCase());
-}
-
-function jobPriorityTone(priority) {
-  if (priority === "Urgent") return "danger";
-  if (priority === "High") return "warning";
-  return "neutral";
-}
-
-function Field({ label, children, error }) {
-  return (
-    <label className="block">
-      <span className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">{label}</span>
-      <div className="mt-1.5">{children}</div>
-      {error ? <div className="mt-1 text-xs font-semibold text-rose-600">{error}</div> : null}
-    </label>
-  );
-}
-
-function inputClass(error) {
-  return `w-full rounded-xl border bg-surface px-3 py-2 text-sm font-semibold text-text-primary outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15 ${
-    error ? "border-rose-300" : "border-border"
-  }`;
-}
-
-function SearchableSelect({ value, options, placeholder, onChange, error, searchPlaceholder = "Search", emptyText = "No matching options", disabled = false, buttonRef }) {
-  const [open, setOpen] = useState(false);
-  const [query, setQuery] = useState("");
-  const internalButtonRef = useRef(null);
-  const anchorRef = internalButtonRef;
-  const selected = options.find((option) => option.value === value);
-  const visibleOptions = options.filter((option) => `${option.label} ${option.helper || ""}`.toLowerCase().includes(query.toLowerCase()));
-
-  function setButtonNode(node) {
-    internalButtonRef.current = node;
-    if (typeof buttonRef === "function") buttonRef(node);
-    else if (buttonRef) buttonRef.current = node;
-  }
-
-  return (
-    <div>
-      <button ref={setButtonNode} className={`${inputClass(error)} flex items-center justify-between text-left disabled:cursor-not-allowed disabled:opacity-70`} type="button" disabled={disabled} onClick={() => setOpen((current) => !current)}>
-        <span className={selected ? "text-text-primary" : "text-text-muted"}>{selected?.label || placeholder}</span>
-        <span className="text-xs text-text-muted">Search</span>
-      </button>
-      <FloatingLayer
-        open={open}
-        onOpenChange={setOpen}
-        anchorRef={anchorRef}
-        align="start"
-        minWidth={260}
-        estimatedHeight={320}
-        maxHeight={360}
-        contentClassName="space-y-2"
-      >
-        <div>
-          <input className={inputClass()} value={query} onChange={(event) => setQuery(event.target.value)} placeholder={searchPlaceholder} autoFocus />
-          <div className="mt-2 max-h-56 overflow-y-auto">
-            {visibleOptions.length ? visibleOptions.map((option) => (
-              <button
-                key={option.value}
-                className={`block w-full rounded-lg px-3 py-2 text-left text-sm transition hover:bg-primary/10 ${option.value === value ? "bg-primary/10 font-bold text-primary" : "text-text-primary"}`}
-                type="button"
-                onClick={() => {
-                  onChange(option.value);
-                  setQuery("");
-                  setOpen(false);
-                }}
-              >
-                <span className="block">{option.label}</span>
-                {option.helper ? <span className="block text-xs text-text-secondary">{option.helper}</span> : null}
-              </button>
-            )) : <div className="px-3 py-4 text-sm font-semibold text-text-secondary">{emptyText}</div>}
-          </div>
-        </div>
-      </FloatingLayer>
-    </div>
-  );
-}
-
-const failedFactoryImageUrls = new Set();
-
-function FactoryBulkThumbnail({ item, onPreview }) {
-  const imageUrl = String(item.imageUrl || "").trim();
-  const [loading, setLoading] = useState(Boolean(imageUrl) && !failedFactoryImageUrls.has(imageUrl));
-  const [failed, setFailed] = useState(() => failedFactoryImageUrls.has(imageUrl));
-
-  useEffect(() => {
-    const knownFailure = failedFactoryImageUrls.has(imageUrl);
-    setLoading(Boolean(imageUrl) && !knownFailure);
-    setFailed(knownFailure);
-  }, [imageUrl]);
-
-  if (!imageUrl || failed) {
-    return (
-      <div className="flex h-[52px] w-[52px] shrink-0 items-center justify-center rounded-lg border border-border bg-slate-100 text-text-muted" aria-hidden="true">
-        <ImageOff size={20} />
-      </div>
-    );
-  }
-
-  return (
-    <button
-      className="relative h-[52px] w-[52px] shrink-0 overflow-hidden rounded-lg border border-border bg-slate-100 outline-none transition hover:border-primary/50 focus:ring-2 focus:ring-primary/30"
-      type="button"
-      aria-label={`Preview image for ${item.primary || "item"}`}
-      onClick={(event) => {
-        event.preventDefault();
-        event.stopPropagation();
-        onPreview(item, event.currentTarget);
-      }}
-    >
-      {loading ? <span className="absolute inset-0 animate-pulse bg-slate-200" aria-hidden="true" /> : null}
-      <img
-        className={`h-full w-full object-cover transition-opacity ${loading ? "opacity-0" : "opacity-100"}`}
-        src={imageUrl}
-        alt=""
-        onLoad={() => setLoading(false)}
-        onError={() => { failedFactoryImageUrls.add(imageUrl); setLoading(false); setFailed(true); }}
-      />
-    </button>
-  );
-}
-
-function FactoryImagePreview({ item, onClose }) {
-  const imageUrl = String(item.imageUrl || "").trim();
-  const [loading, setLoading] = useState(() => !failedFactoryImageUrls.has(imageUrl));
-  const [failed, setFailed] = useState(() => failedFactoryImageUrls.has(imageUrl));
-
-  useEffect(() => {
-    function closeOnEscape(event) {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      event.stopPropagation();
-      onClose();
-    }
-    document.addEventListener("keydown", closeOnEscape, true);
-    return () => document.removeEventListener("keydown", closeOnEscape, true);
-  }, [onClose]);
-
-  if (typeof document === "undefined") return null;
-
-  return createPortal(
-    <div
-      className="fixed inset-0 z-lightbox-layer flex items-center justify-center bg-slate-950/70 p-3 backdrop-blur-sm sm:p-6"
-      role="presentation"
-      onClick={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <div
-        className="flex max-h-[92vh] max-w-[92vw] flex-col overflow-hidden rounded-xl border border-white/20 bg-white shadow-2xl"
-        role="dialog"
-        aria-modal="true"
-        aria-label={`Image preview for ${item.primary || "item"}`}
-        onKeyDown={(event) => {
-          if (event.key !== "Tab") return;
-          event.preventDefault();
-          event.currentTarget.querySelector("button")?.focus?.();
-        }}
-      >
-        <div className="flex shrink-0 items-center justify-between gap-4 border-b border-border px-4 py-3">
-          <div className="min-w-0">
-            <div className="truncate font-bold text-text-primary">{item.primary || "Item image"}</div>
-            {item.code ? <div className="truncate text-xs font-semibold text-text-secondary">{item.code}</div> : null}
-          </div>
-          <button className="icon-btn shrink-0" type="button" aria-label="Close image preview" autoFocus onClick={onClose}><X size={18} /></button>
-        </div>
-        <div className="relative flex min-h-[180px] min-w-[min(80vw,320px)] items-center justify-center bg-slate-950 p-3 sm:p-5">
-          {loading && !failed ? <div className="absolute inset-5 animate-pulse rounded-lg bg-slate-800" aria-hidden="true" /> : null}
-          {failed ? (
-            <div className="flex flex-col items-center gap-2 px-8 py-12 text-center text-slate-300"><ImageOff size={28} /><span className="text-sm font-semibold">Image unavailable</span></div>
-          ) : (
-            <img
-              className={`max-h-[80vh] max-w-[80vw] object-contain transition-opacity ${loading ? "opacity-0" : "opacity-100"}`}
-              src={imageUrl}
-              alt={item.primary || "Item image"}
-              onLoad={() => setLoading(false)}
-              onError={() => { failedFactoryImageUrls.add(imageUrl); setLoading(false); setFailed(true); }}
-            />
-          )}
-        </div>
-      </div>
-    </div>,
-    document.body,
-  );
-}
-
-function FactoryBulkSelectionModal({ title, description, items = [], existingIds = [], showImages = false, onClose, onAdd }) {
-  const [query, setQuery] = useState("");
-  const [debouncedQuery, setDebouncedQuery] = useState("");
-  const [category, setCategory] = useState("all");
-  const [selectedOrder, setSelectedOrder] = useState([]);
-  const [imagePreview, setImagePreview] = useState(null);
-  const existingIdSet = useMemo(() => new Set(existingIds.filter(Boolean)), [existingIds]);
-  const itemById = useMemo(() => new Map(items.map((item) => [item.id, item])), [items]);
-  const categories = useMemo(() => [...new Set(items.map((item) => item.category).filter(Boolean))].sort((left, right) => left.localeCompare(right)), [items]);
-
-  useEffect(() => {
-    const timeout = setTimeout(() => setDebouncedQuery(query.trim().toLowerCase()), 180);
-    return () => clearTimeout(timeout);
-  }, [query]);
-
-  useEffect(() => {
-    function closeOnEscape(event) {
-      if (event.key === "Escape" && !imagePreview) onClose();
-    }
-    document.addEventListener("keydown", closeOnEscape);
-    return () => document.removeEventListener("keydown", closeOnEscape);
-  }, [imagePreview, onClose]);
-
-  const visibleItems = items.filter((item) => {
-    if (category !== "all" && item.category !== category) return false;
-    if (!debouncedQuery) return true;
-    return `${item.primary || ""} ${item.secondary || ""} ${item.code || ""} ${item.meta || ""} ${item.category || ""}`.toLowerCase().includes(debouncedQuery);
-  });
-  const selectableVisibleIds = visibleItems.filter((item) => !item.disabled && !existingIdSet.has(item.id)).map((item) => item.id);
-  const allVisibleSelected = selectableVisibleIds.length > 0 && selectableVisibleIds.every((id) => selectedOrder.includes(id));
-  const selectedItems = selectedOrder.map((id) => itemById.get(id)).filter(Boolean);
-
-  function toggleItem(id) {
-    if (existingIdSet.has(id) || itemById.get(id)?.disabled) return;
-    setSelectedOrder((current) => current.includes(id) ? current.filter((value) => value !== id) : [...current, id]);
-  }
-
-  function toggleVisible() {
-    setSelectedOrder((current) => {
-      if (allVisibleSelected) return current.filter((id) => !selectableVisibleIds.includes(id));
-      return [...current, ...selectableVisibleIds.filter((id) => !current.includes(id))];
-    });
-  }
-
-  function closeImagePreview() {
-    const returnFocus = imagePreview?.trigger;
-    setImagePreview(null);
-    window.requestAnimationFrame(() => returnFocus?.focus?.());
-  }
-
-  return (
-    <Modal
-      title={title}
-      description={description}
-      size="xl"
-      onClose={onClose}
-      panelClassName="max-md:h-[calc(100dvh-1rem)] max-md:max-h-none"
-      bodyClassName="flex min-h-0 flex-col"
-      footerClassName="items-center justify-between"
-      footer={(
-        <>
-          <div className="mr-auto text-sm font-bold text-text-secondary">{selectedOrder.length} selected</div>
-          <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="button" disabled={!selectedItems.length} onClick={() => onAdd(selectedItems)}>Add Selected</button>
-        </>
-      )}
-    >
-      <div className="flex min-h-0 flex-1 flex-col gap-3">
-        <div className={`grid gap-3 ${categories.length > 1 ? "sm:grid-cols-[minmax(0,1fr)_220px]" : ""}`}>
-          <label>
-            <div className="mb-1 text-xs font-semibold text-text-secondary">Search</div>
-            <input className={inputClass()} value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search names or codes" autoFocus />
-          </label>
-          {categories.length > 1 ? (
-            <Field label="Category">
-              <CompactSelect ariaLabel="Filter selection by category" value={category} options={[{ value: "all", label: "All" }, ...categories.map((value) => ({ value, label: value }))]} onChange={setCategory} />
-            </Field>
-          ) : null}
-        </div>
-        <label className="flex min-h-11 items-center gap-3 rounded-lg border border-border bg-slate-50 px-3 py-2 text-sm font-bold text-text-primary">
-          <input className="h-4 w-4 accent-primary" type="checkbox" checked={allVisibleSelected} disabled={!selectableVisibleIds.length} onChange={toggleVisible} />
-          <span>Select All Visible</span>
-          <span className="ml-auto text-xs font-semibold text-text-muted">{visibleItems.length} shown</span>
-        </label>
-        <div className="min-h-0 flex-1 overflow-y-auto rounded-lg border border-border">
-          {visibleItems.length ? visibleItems.map((item) => {
-            const alreadyAdded = existingIdSet.has(item.id);
-            const disabled = alreadyAdded || item.disabled;
-            const checked = alreadyAdded || selectedOrder.includes(item.id);
-            const checkboxId = `factory-bulk-item-${item.id}`;
-            return (
-              <div key={item.id} className={`flex min-h-14 items-center gap-3 border-b border-border px-3 py-3 last:border-0 ${disabled ? "bg-slate-50 opacity-70" : "bg-white hover:bg-primary/5"}`}>
-                <input id={checkboxId} className="h-4 w-4 shrink-0 accent-primary" type="checkbox" checked={checked} disabled={disabled} onChange={() => toggleItem(item.id)} />
-                {showImages ? <FactoryBulkThumbnail item={item} onPreview={(previewItem, trigger) => setImagePreview({ item: previewItem, trigger })} /> : null}
-                <label htmlFor={checkboxId} className={`min-w-0 flex-1 ${disabled ? "cursor-not-allowed" : "cursor-pointer"}`}>
-                  <span className="block font-bold text-text-primary">{item.primary || "Unnamed item"}</span>
-                  {item.secondary ? <span className="block text-sm font-semibold text-text-secondary">{item.secondary}</span> : null}
-                  <span className="mt-1 block text-xs font-semibold text-text-muted">{[item.code, item.meta].filter(Boolean).join(" · ") || "—"}</span>
-                </label>
-                <Badge tone={alreadyAdded ? "info" : item.disabled ? "neutral" : "success"}>{alreadyAdded ? "Already added" : item.statusLabel || "Active"}</Badge>
-              </div>
-            );
-          }) : <EmptyState title="No matching items" description="Try another name, code or category." />}
-        </div>
-      </div>
-      {imagePreview ? <FactoryImagePreview item={imagePreview.item} onClose={closeImagePreview} /> : null}
-    </Modal>
-  );
-}
-
-function CompactSelect({ value, options, onChange, ariaLabel = "Select option", disabled = false }) {
-  const [open, setOpen] = useState(false);
-  const anchorRef = useRef(null);
-  const selected = options.find((option) => option.value === value) || options[0];
-
-  return (
-    <div>
-      <button
-        ref={anchorRef}
-        className="flex h-9 min-w-[92px] items-center justify-between gap-3 rounded-lg border border-border bg-white px-3 text-sm font-bold text-text-primary outline-none transition hover:border-primary/40 focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:bg-slate-50 disabled:text-text-muted"
-        type="button"
-        aria-label={ariaLabel}
-        aria-haspopup="listbox"
-        aria-expanded={open}
-        disabled={disabled}
-        onClick={() => setOpen((current) => !current)}
-      >
-        <span>{selected?.label || "—"}</span>
-        <ChevronDown size={14} className="text-text-muted" />
-      </button>
-      <FloatingLayer open={open} onOpenChange={setOpen} anchorRef={anchorRef} align="end" minWidth={150} estimatedHeight={160} placement="auto" focusOnOpen>
-        <div role="listbox" aria-label={ariaLabel}>
-          {options.map((option) => (
-            <button
-              key={option.value}
-              className={`flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2 text-left text-sm font-semibold outline-none transition hover:bg-primary/5 focus:bg-primary/10 ${option.value === value ? "bg-primary/10 text-primary" : "text-text-primary"}`}
-              type="button"
-              role="option"
-              aria-selected={option.value === value}
-              onClick={() => { onChange(option.value); setOpen(false); }}
-            >
-              <span>{option.label}</span>
-              {option.value === value ? <Check size={14} /> : null}
-            </button>
-          ))}
-        </div>
-      </FloatingLayer>
-    </div>
-  );
-}
-
-function FeedXMonthPicker({ value, onChange }) {
-  const [open, setOpen] = useState(false);
-  const [visibleYear, setVisibleYear] = useState(() => Number(String(value || malaysiaBusinessMonthInput()).slice(0, 4)));
-  const anchorRef = useRef(null);
-  const selectedYear = Number(String(value || "").slice(0, 4));
-  const selectedMonth = Number(String(value || "").slice(5, 7));
-  const months = Array.from({ length: 12 }, (_, index) => ({
-    value: index + 1,
-    label: new Intl.DateTimeFormat("en-MY", { month: "short", timeZone: "UTC" }).format(new Date(Date.UTC(2026, index, 1))),
-  }));
-
-  useEffect(() => {
-    if (open && Number.isFinite(selectedYear)) setVisibleYear(selectedYear);
-  }, [open, selectedYear]);
-
-  return (
-    <div>
-      <button
-        ref={anchorRef}
-        className="flex h-10 min-w-[176px] items-center justify-between gap-3 border-x border-border px-3 text-sm font-bold text-text-primary outline-none transition hover:bg-slate-50 focus:bg-primary/5 focus:ring-2 focus:ring-inset focus:ring-primary/20"
-        type="button"
-        aria-label="Select dashboard month"
-        aria-haspopup="dialog"
-        aria-expanded={open}
-        onClick={() => setOpen((current) => !current)}
-      >
-        <span>{factoryMonthLabel(value)}</span>
-        <CalendarDays size={15} className="text-text-muted" />
-      </button>
-      <FloatingLayer open={open} onOpenChange={setOpen} anchorRef={anchorRef} align="center" minWidth={304} estimatedHeight={260} placement="auto" focusOnOpen className="p-3">
-        <div role="dialog" aria-label="Choose dashboard month and year">
-          <div className="flex items-center justify-between gap-3 border-b border-border pb-3">
-            <button className="btn-secondary h-8 w-8 justify-center p-0" type="button" aria-label="Previous year" onClick={() => setVisibleYear((year) => year - 1)}><ChevronLeft size={15} /></button>
-            <div className="text-sm font-black text-text-primary">{visibleYear}</div>
-            <button className="btn-secondary h-8 w-8 justify-center p-0" type="button" aria-label="Next year" onClick={() => setVisibleYear((year) => year + 1)}><ChevronRight size={15} /></button>
-          </div>
-          <div className="mt-3 grid grid-cols-3 gap-2">
-            {months.map((month) => {
-              const active = selectedYear === visibleYear && selectedMonth === month.value;
-              return (
-                <button
-                  key={month.value}
-                  className={`rounded-lg px-3 py-2 text-sm font-bold outline-none transition focus:ring-2 focus:ring-primary/20 ${active ? "bg-primary text-white" : "bg-slate-50 text-text-primary hover:bg-primary/10 hover:text-primary"}`}
-                  type="button"
-                  aria-pressed={active}
-                  onClick={() => {
-                    onChange(`${visibleYear}-${String(month.value).padStart(2, "0")}`);
-                    setOpen(false);
-                  }}
-                >
-                  {month.label}
-                </button>
-              );
-            })}
-          </div>
-        </div>
-      </FloatingLayer>
-    </div>
-  );
 }
 
 function RawMaterialCellPicker({ value, materials, placeholder, open, onToggle, onClose, onSelect, error, buttonRef }) {
@@ -998,181 +182,7 @@ function RawMaterialCellPicker({ value, materials, placeholder, open, onToggle, 
   );
 }
 
-function FeedXDatePicker({ value, onChange, placeholder = "Select date", error, buttonRef, required = false, disabled = false }) {
-  const [open, setOpen] = useState(false);
-  const [visibleMonth, setVisibleMonth] = useState(() => monthStart(value));
-  const [pickerMode, setPickerMode] = useState("days");
-  const [yearRangeStart, setYearRangeStart] = useState(() => {
-    const startYear = value ? monthStart(value).getFullYear() : new Date().getFullYear();
-    return startYear - (startYear % 12);
-  });
-  const buttonNode = useRef(null);
-  const anchorRef = buttonNode;
-  const todayIso = todayInput();
-  const selectedIso = value || "";
-  const monthOptions = Array.from({ length: 12 }, (_, index) => ({ value: index, label: new Date(2026, index, 1).toLocaleDateString("en-MY", { month: "short" }) }));
-  const yearOptions = Array.from({ length: 12 }, (_, index) => yearRangeStart + index);
-  const days = useMemo(() => {
-    const first = new Date(visibleMonth.getFullYear(), visibleMonth.getMonth(), 1);
-    const start = new Date(first);
-    start.setDate(first.getDate() - first.getDay());
-    return Array.from({ length: 42 }, (_, index) => {
-      const date = new Date(start);
-      date.setDate(start.getDate() + index);
-      return date;
-    });
-  }, [visibleMonth]);
-
-  function selectDate(nextDate) {
-    onChange(isoDate(nextDate));
-    setOpen(false);
-  }
-
-  function shiftMonth(delta) {
-    setVisibleMonth((current) => new Date(current.getFullYear(), current.getMonth() + delta, 1));
-  }
-
-  function setMonth(month) {
-    setVisibleMonth((current) => new Date(current.getFullYear(), Number(month), 1));
-    setPickerMode("days");
-  }
-
-  function setYear(year) {
-    setVisibleMonth((current) => new Date(Number(year), current.getMonth(), 1));
-    setPickerMode("months");
-  }
-
-  useEffect(() => {
-    if (value) {
-      const selectedDate = monthStart(value);
-      setVisibleMonth(selectedDate);
-      setYearRangeStart(selectedDate.getFullYear() - (selectedDate.getFullYear() % 12));
-    }
-  }, [value]);
-
-  useEffect(() => {
-    if (open) setPickerMode("days");
-  }, [open]);
-
-  return (
-    <div>
-      <button
-        ref={(node) => {
-          buttonNode.current = node;
-          if (buttonRef) buttonRef(node);
-        }}
-        className={`${inputClass(error)} flex items-center justify-between bg-white text-left disabled:cursor-not-allowed disabled:bg-slate-50 disabled:opacity-70 ${value ? "text-text-primary" : "text-text-muted"}`}
-        type="button"
-        disabled={disabled}
-        onClick={() => setOpen((current) => !current)}
-      >
-        <span>{formatDateDisplay(value, placeholder)}</span>
-        <span className="text-xs font-semibold text-text-muted">{required ? "Required" : "Optional"}</span>
-      </button>
-      <FloatingLayer
-        open={open}
-        onOpenChange={setOpen}
-        anchorRef={anchorRef}
-        align="start"
-        minWidth={300}
-        estimatedHeight={360}
-        maxHeight={420}
-        layer="popover"
-        className="p-3 shadow-2xl"
-        contentClassName=""
-      >
-          <div className="flex items-center gap-2">
-            <button className="btn-secondary px-2 py-1 text-xs" type="button" onClick={() => shiftMonth(-1)}>Prev</button>
-            <button
-              className={`min-w-0 flex-1 rounded-lg border px-2 py-1.5 text-sm font-bold outline-none transition ${pickerMode === "months" ? "border-primary bg-primary/10 text-primary" : "border-border bg-surface text-text-primary hover:border-primary/50"}`}
-              type="button"
-              onClick={() => setPickerMode((current) => current === "months" ? "days" : "months")}
-            >
-              {monthOptions[visibleMonth.getMonth()]?.label}
-            </button>
-            <button
-              className={`w-24 rounded-lg border px-2 py-1.5 text-sm font-bold outline-none transition ${pickerMode === "years" ? "border-primary bg-primary/10 text-primary" : "border-border bg-surface text-text-primary hover:border-primary/50"}`}
-              type="button"
-              onClick={() => {
-                setYearRangeStart(visibleMonth.getFullYear() - (visibleMonth.getFullYear() % 12));
-                setPickerMode((current) => current === "years" ? "days" : "years");
-              }}
-            >
-              {visibleMonth.getFullYear()}
-            </button>
-            <button className="btn-secondary px-2 py-1 text-xs" type="button" onClick={() => shiftMonth(1)}>Next</button>
-          </div>
-          {pickerMode === "years" ? (
-            <div className="mt-3">
-              <div className="mb-2 flex items-center justify-between text-xs font-semibold text-text-secondary">
-                <button className="rounded-lg px-2 py-1 hover:bg-slate-100" type="button" onClick={() => setYearRangeStart((current) => current - 12)}>Prev 12</button>
-                <span>{yearRangeStart} - {yearRangeStart + 11}</span>
-                <button className="rounded-lg px-2 py-1 hover:bg-slate-100" type="button" onClick={() => setYearRangeStart((current) => current + 12)}>Next 12</button>
-              </div>
-              <div className="grid grid-cols-3 gap-2">
-                {yearOptions.map((year) => (
-                  <button
-                    key={year}
-                    className={`rounded-xl px-3 py-2 text-sm font-bold transition ${year === visibleMonth.getFullYear() ? "bg-primary text-white shadow-sm" : "bg-surface text-text-primary hover:bg-primary/10 hover:text-primary"}`}
-                    type="button"
-                    onClick={() => setYear(year)}
-                  >
-                    {year}
-                  </button>
-                ))}
-              </div>
-            </div>
-          ) : pickerMode === "months" ? (
-            <div className="mt-3 grid grid-cols-3 gap-2">
-              {monthOptions.map((month) => (
-                <button
-                  key={month.value}
-                  className={`rounded-xl px-3 py-2 text-sm font-bold transition ${month.value === visibleMonth.getMonth() ? "bg-primary text-white shadow-sm" : "bg-surface text-text-primary hover:bg-primary/10 hover:text-primary"}`}
-                  type="button"
-                  onClick={() => setMonth(month.value)}
-                >
-                  {month.label}
-                </button>
-              ))}
-            </div>
-          ) : (
-            <>
-              <div className="mt-3 grid grid-cols-7 gap-1 text-center text-[11px] font-semibold text-text-muted">
-                {["S", "M", "T", "W", "T", "F", "S"].map((day, index) => <div key={`${day}-${index}`}>{day}</div>)}
-              </div>
-              <div className="mt-1 grid grid-cols-7 gap-1">
-                {days.map((date) => {
-                  const currentIso = isoDate(date);
-                  const inMonth = date.getMonth() === visibleMonth.getMonth();
-                  const selected = currentIso === selectedIso;
-                  const today = currentIso === todayIso;
-                  return (
-                    <button
-                      key={currentIso}
-                      className={`h-9 rounded-lg text-sm font-semibold transition ${selected ? "bg-primary text-white shadow-sm" : today ? "bg-primary/10 text-primary" : inMonth ? "text-text-primary hover:bg-slate-100" : "text-text-muted/50 hover:bg-slate-50"}`}
-                      type="button"
-                      onClick={() => selectDate(date)}
-                    >
-                      {date.getDate()}
-                    </button>
-                  );
-                })}
-              </div>
-            </>
-          )}
-          <div className="mt-3 flex items-center justify-between border-t border-border pt-3">
-            <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => selectDate(new Date())}>Today</button>
-            <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => {
-              onChange("");
-              setOpen(false);
-            }}>Clear</button>
-          </div>
-      </FloatingLayer>
-    </div>
-  );
-}
-
-function focusFirstInvalid(refs, firstKey) {
+ function focusFirstInvalid(refs, firstKey) {
   setTimeout(() => {
     const node = refs.current?.[firstKey];
     node?.scrollIntoView?.({ behavior: "smooth", block: "center" });
@@ -1523,20 +533,6 @@ function skuBaseEquivalentLabel(sku) {
   return quantity(balance * base.amount, base.uom);
 }
 
-function movementPackagingQtyLabel(movement) {
-  const movementQty = Number(movement?.quantity || 0);
-  const label = quantity(Math.abs(movementQty), pluralizePackagingType(packagingTypeLabel(movement), Math.abs(movementQty)));
-  if (movementQty > 0) return `+${label}`;
-  if (movementQty < 0) return `-${label}`;
-  return label;
-}
-
-function movementBalanceLabel(movement) {
-  if (movement?.balance_after == null) return "—";
-  const balance = Number(movement.balance_after || 0);
-  return quantity(balance, pluralizePackagingType(packagingTypeLabel(movement), balance));
-}
-
 function dispatchTotalLabel(dispatch) {
   const items = dispatch?.items || [];
   if (!items.length) return "—";
@@ -1552,18 +548,6 @@ function dispatchLineBaseEquivalentLabel(item) {
   const base = normalizePackSizeToBase(item?.pack_size_qty || item?.base_qty, item?.pack_size_uom || item?.base_uom);
   if (!qty || !base) return "—";
   return quantity(qty * base.amount, base.uom);
-}
-
-function movementSourceLabel(movement) {
-  if (movement?.reference_type === "production") return "Production";
-  if (movement?.reference_type === "finished_goods_dispatch") return "Dispatch";
-  if (movement?.reference_type === "stock_check" || movement?.reference_type === "product_stock_check") return "Stock Check";
-  if (movement?.reference_type === "manual_adjustment") return "Manual Adjustment";
-  return movement?.reference_type || "—";
-}
-
-function movementSourceReference(movement) {
-  return movement?.source_reference || movement?.reference_no || movement?.batch_no || "—";
 }
 
 function productionJobOrderReference(production) {
@@ -1588,30 +572,6 @@ function recipeOperatorIdentity(recipe) {
     || recipe?.finished_good?.name_en
     || "Finished Good";
   return [productName, recipe?.version || "v1"].filter(Boolean).join(" · ");
-}
-
-function movementTypeLabel(movement) {
-  if (movement?.reference_type === "production" && Number(movement?.quantity || 0) > 0) return "Production In";
-  if (movement?.reference_type === "finished_goods_dispatch") return "Dispatch Out";
-  if (movement?.reference_type === "stock_check" || movement?.reference_type === "product_stock_check") return "Stock Check";
-  return movement?.movement_type || "Movement";
-}
-
-function productMovementQuerySignature(page, pageSize, filters) {
-  return JSON.stringify({
-    page,
-    pageSize,
-    dateFrom: filters.dateFrom || "",
-    dateTo: filters.dateTo || "",
-    product: String(filters.product || "").trim(),
-    category: filters.category || "",
-    movementType: filters.movementType || "",
-    batch: String(filters.batch || "").trim(),
-  });
-}
-
-function productMovementFilterSignature(pageSize, filters) {
-  return productMovementQuerySignature(1, pageSize, filters);
 }
 
 function normalizePackSizeToBase(qty, uom) {
@@ -1868,82 +828,6 @@ function weightedMaterialVariancePercent(productions) {
   return standard ? (variance / standard) * 100 : 0;
 }
 
-function FactoryTable({ columns, rows, emptyTitle, emptyDescription, onRowClick }) {
-  if (!rows.length) return <div className="p-4"><EmptyState title={emptyTitle} description={emptyDescription} /></div>;
-  return (
-    <div className="overflow-x-auto">
-      <table className="w-full min-w-[760px] text-left">
-        <thead>
-          <tr className="border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">
-            {columns.map((column) => (
-              <th key={column.key} className={`px-4 py-2.5 ${column.align === "right" ? "text-right" : ""}`}>{column.label}</th>
-            ))}
-          </tr>
-        </thead>
-        <tbody>
-          {rows.map((row) => (
-            <tr
-              key={row.id}
-              className={`border-b border-border last:border-0 ${onRowClick ? "cursor-pointer transition hover:bg-slate-50" : ""}`}
-              onClick={onRowClick ? () => onRowClick(row) : undefined}
-            >
-              {columns.map((column) => (
-                <td key={column.key} className={`px-4 py-3 text-sm ${column.align === "right" ? "text-right" : ""}`}>
-                  {column.render ? column.render(row) : row[column.key]}
-                </td>
-              ))}
-            </tr>
-          ))}
-        </tbody>
-      </table>
-    </div>
-  );
-}
-
-function AccessIssueNotice({ issues, onRetry }) {
-  if (!issues?.length) return null;
-  const permissionIssues = issues.filter((issue) => issue.kind === "permission");
-  const loadIssues = issues.filter((issue) => issue.kind !== "permission");
-  return (
-    <div className="space-y-2">
-      {permissionIssues.length ? (
-        <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-          <div className="font-bold">Some Factory data is hidden by your current role.</div>
-          <div className="mt-1 text-xs font-semibold text-amber-800">
-            {permissionIssues.map((issue) => issue.label).join(", ")}
-          </div>
-        </div>
-      ) : null}
-      {loadIssues.length ? (
-        <div className="rounded-2xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-900">
-          <div className="flex flex-wrap items-center justify-between gap-3">
-            <div className="font-bold">Some Factory data could not be loaded.</div>
-            {onRetry ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={onRetry}><RefreshCw size={13} /> Retry</button> : null}
-          </div>
-          <div className="mt-1 text-xs font-semibold text-rose-800">
-            {loadIssues.map((issue) => issue.label).join(", ")}
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function isFactoryPermissionError(error) {
-  const source = error?.cause || error;
-  const code = String(error?.code || source?.code || "").toUpperCase();
-  const status = Number(error?.status || error?.statusCode || source?.status || source?.statusCode || 0);
-  const message = String(error?.message || source?.message || "").toLowerCase();
-  return code === "42501"
-    || status === 401
-    || status === 403
-    || message.includes("permission denied")
-    || message.includes("insufficient permission")
-    || message.includes("not authorized")
-    || message.includes("unauthorized")
-    || message.includes("forbidden");
-}
-
 function finishedGoodDispatchOperatorError(error, fallback = "Unable to save the Dispatch. Please retry.") {
   if (isFactoryPermissionError(error)) return "Your current role does not allow this Dispatch action.";
   const message = String(error?.message || "").trim();
@@ -2003,20 +887,6 @@ function createFinishedGoodDispatchRequestId() {
 
 function createRawMaterialReceivingRequestId() {
   return crypto.randomUUID();
-}
-
-function uniqueReceivingBatchPreview(candidate, items, rowId) {
-  const value = String(candidate || "");
-  const match = /^(.*-)(\d+)$/.exec(value);
-  if (!match) return value;
-  const used = new Set((items || []).filter((item) => item.row_id !== rowId).map((item) => item.internal_batch_no).filter(Boolean));
-  let sequence = Number(match[2]);
-  let next = value;
-  while (used.has(next)) {
-    sequence += 1;
-    next = `${match[1]}${String(sequence).padStart(match[2].length, "0")}`;
-  }
-  return next;
 }
 
 function groupedProductionSops(sops) {
@@ -3491,94 +2361,6 @@ function ReadOnlyBatchAllocationModal({ title = "Batch Allocation", subtitle = "
             {allocation.location_valid === false ? <div className="mt-2 rounded-lg bg-rose-50 px-2.5 py-2 text-xs font-bold text-rose-700">Storage location unavailable · {allocation.location_issue}</div> : null}
           </div>
         )) : <EmptyState title="No Batch Allocations" description="No batch allocation rows are linked to this record." />}
-      </div>
-    </Modal>
-  );
-}
-
-function FinishedGoodBatchTraceabilityModal({ batch, loading = false, error = "", openingDispatchId = "", onOpenDispatch, onRetry, onClose }) {
-  const dispatches = Array.isArray(batch.dispatch_allocations) ? batch.dispatch_allocations : [];
-  const diagnostics = Array.isArray(batch.diagnostics) ? batch.diagnostics : [];
-  const positiveAdjustmentEvents = Array.isArray(batch.positive_adjustment_events) ? batch.positive_adjustment_events : [];
-  const stockCheckAdjustments = Array.isArray(batch.stock_check_adjustments) ? batch.stock_check_adjustments : [];
-  const sourceType = String(batch.batch_type || "").toLowerCase();
-  const isProduction = sourceType === "production";
-  const isAdjustment = sourceType === "adjustment";
-  const locationState = String(batch.storage_location_status || "").toLowerCase();
-  const locationStatus = !batch.storage_location_id && !batch.storage_location_name
-    ? { label: "Unavailable", tone: "warning" }
-    : locationState === "active" ? { label: "Active", tone: "success" }
-      : ["archived", "inactive"].includes(locationState) ? { label: "Archived", tone: "neutral" }
-        : { label: "Unavailable", tone: "warning" };
-  const packagingSku = [batch.packaging_sku_code, packSizeText(batch)].filter(Boolean).join(" · ") || "—";
-  const diagnosticNote = diagnostics.map((diagnostic) => diagnostic.message).filter(Boolean).join(" ") || batch.source_reason || "Metadata unavailable";
-  const timeline = [
-    ...(isProduction ? [{ id: `opening-${batch.id}`, date: batch.source_event_at || batch.manufacturing_date || batch.created_at, dateOnly: !batch.source_event_at, type: "Production Opening", reference: batch.job_order_no || "—", quantity: Number(batch.original_qty || 0), balance: Number(batch.original_qty || 0), order: 0 }] : []),
-    ...positiveAdjustmentEvents.map((adjustment) => ({ id: `positive-adjustment-${adjustment.event_id}`, date: adjustment.adjustment_date, dateOnly: false, type: "Stock Check Increase", reference: adjustment.stock_check_reference || "—", quantity: Number(adjustment.quantity || 0), balance: null, order: 0 })),
-    ...(isAdjustment && Number(batch.adjustment_carried_forward_qty || 0) > 0 ? [{ id: `adjustment-carried-${batch.id}`, date: "", type: "Adjustment balance carried forward", reference: "—", quantity: Number(batch.adjustment_carried_forward_qty), balance: null, order: 0 }] : []),
-    ...(!isProduction && !isAdjustment ? [{ id: `legacy-carried-${batch.id}`, date: "", type: "Legacy balance carried forward", reference: batch.source_reference || "—", quantity: Number(batch.original_qty || 0), balance: null, order: 0 }] : []),
-    ...dispatches.map((dispatch) => ({ id: `dispatch-${dispatch.allocation_id}`, date: dispatch.dispatch_date, dateOnly: true, type: "Completed Dispatch", reference: dispatch.dispatch_no || "—", quantity: -Number(dispatch.quantity || 0), balance: null, order: 1 })),
-    ...stockCheckAdjustments.map((adjustment) => ({ id: `stock-check-${adjustment.adjustment_id}`, date: adjustment.adjustment_date, dateOnly: false, type: "Stock Check Adjustment", reference: adjustment.stock_check_reference || "—", quantity: -Number(adjustment.quantity || 0), balance: null, order: 2 })),
-  ].sort((left, right) => {
-    const dateOrder = new Date(left.date || 0).getTime() - new Date(right.date || 0).getTime();
-    return dateOrder || left.order - right.order || String(left.id).localeCompare(String(right.id));
-  });
-  timeline.push({ id: `current-${batch.id}`, date: "", type: "Current Remaining Balance", reference: operatorFinishedGoodBatchNo(batch), quantity: null, balance: Number(batch.current_balance || 0) });
-  const sourceDetails = isProduction ? [
-    ["Job Order", batch.job_order_no || "—"],
-    ["Operator", batch.operator_name || "—"],
-    ["Production SOP", [batch.sop_name, batch.sop_version].filter(Boolean).join(" · ") || "—"],
-    ["Recipe Version", batch.recipe_version || "—"],
-    ["QC Status", batch.qc_status ? productionQcDisplayLabel(batch.qc_status) : "—"],
-  ] : isAdjustment ? (positiveAdjustmentEvents.length === 1 && Number(batch.adjustment_carried_forward_qty || 0) === 0 ? [
-    ["Stock Check Reference", batch.stock_check_reference || "—"],
-    ["Adjustment Reason", batch.adjustment_reason || "—"],
-    ["Approved By", batch.adjustment_approved_by || "—"],
-    ["Adjustment Date", formatFactoryDateTime(batch.adjustment_date)],
-  ] : [
-    ["Adjustment Events", positiveAdjustmentEvents.length.toLocaleString("en-MY")],
-    ["Source Detail", Number(batch.adjustment_carried_forward_qty || 0) > 0 ? "Historical metadata unavailable" : "See Batch Timeline"],
-  ]) : [
-    ["Reconciliation Status", <Badge tone={batch.reconciliation_status === "reconciled" ? "success" : "warning"}>{humanizeFactoryToken(batch.reconciliation_status || "unavailable")}</Badge>],
-    ["Diagnostic Note", diagnosticNote],
-  ];
-
-  return (
-    <Modal title="Batch Traceability" description={[operatorFinishedGoodBatchNo(batch), batchTypeLabel(batch.batch_type), batch.packaging_sku_code].filter(Boolean).join(" · ")} size="xl" onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}>
-      <div className="space-y-5">
-        {loading ? <div className="rounded-lg border border-border bg-slate-50 px-4 py-3 text-sm font-semibold text-text-secondary">Loading the latest batch details...</div> : null}
-        {error ? <div className="flex flex-wrap items-center justify-between gap-3 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900"><span>{error}</span><button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={onRetry}>Retry</button></div> : null}
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          {[["Batch Type", batchTypeLabel(batch.batch_type)], ["Original Qty", packQuantity(batch.original_qty)], ["Dispatched Qty", packQuantity(batch.completed_dispatch_qty)], ["Remaining Qty", packQuantity(batch.current_balance)]].map(([label, value]) => <div key={label} className="rounded-xl border border-border bg-slate-50 p-3"><div className="text-[10.5px] font-semibold text-text-muted">{label}</div><div className="mt-1 font-black text-text-primary">{value}</div></div>)}
-        </div>
-        <div className="grid gap-4 lg:grid-cols-2">
-          <Card title="Batch Information">
-            <div className="grid gap-3 p-4 text-sm sm:grid-cols-2">
-              <div><div className="text-xs font-semibold text-text-muted">Finished Good</div><div className="font-bold text-text-primary">{batch.finished_good_name || "—"}</div>{batch.finished_good_name_cn ? <div className="mt-0.5 text-xs font-semibold text-text-secondary">{batch.finished_good_name_cn}</div> : null}</div>
-              <div><div className="text-xs font-semibold text-text-muted">Packaging SKU</div><div className="font-bold text-text-primary">{packagingSku}</div></div>
-              <div><div className="text-xs font-semibold text-text-muted">Manufacturing Date</div><div className="font-bold text-text-primary">{formatFactoryDate(batch.manufacturing_date)}</div></div>
-              <div><div className="text-xs font-semibold text-text-muted">Expiry Date</div><div className="font-bold text-text-primary">{batch.expiry_date ? formatFactoryDate(batch.expiry_date) : "—"}</div></div>
-              <div><div className="text-xs font-semibold text-text-muted">Storage Location</div><div className="font-bold text-text-primary">{batch.storage_location_name || "—"}</div>{batch.storage_location_type ? <div className="mt-0.5 text-xs font-semibold text-text-secondary">{batch.storage_location_type}</div> : null}</div>
-              <div><div className="text-xs font-semibold text-text-muted">Location Status</div><div className="mt-1"><Badge tone={locationStatus.tone}>{locationStatus.label}</Badge></div></div>
-            </div>
-          </Card>
-          <Card title={isProduction ? "Production Source" : isAdjustment ? "Stock Check Adjustment Source" : "Legacy Reconciliation Source"}>
-            <div className="grid gap-3 p-4 text-sm sm:grid-cols-2">
-              {sourceDetails.map(([label, value]) => <div key={label} className={label === "Diagnostic Note" ? "sm:col-span-2" : ""}><div className="text-xs font-semibold text-text-muted">{label}</div><div className="font-bold text-text-primary">{value}</div></div>)}
-            </div>
-          </Card>
-        </div>
-        <Card title="Quantity Reconciliation"><div className="grid gap-3 p-4 sm:grid-cols-2 lg:grid-cols-4">{[["Opening", batch.original_qty], ["Completed Dispatch", batch.completed_dispatch_qty], ["Stock Check Reduction", batch.completed_negative_adjustment_qty], ["Current Balance", batch.current_balance]].map(([label, value]) => <div key={label}><div className="text-xs font-semibold text-text-muted">{label}</div><div className="font-black text-text-primary">{packQuantity(value)}</div></div>)}</div></Card>
-        <Card title="Dispatch History">
-          <div className="p-4">{dispatches.length ? <FactoryTable columns={[
-            { key: "dispatch_no", label: "Dispatch No.", render: (row) => row.dispatch_id && onOpenDispatch ? <button className="font-bold text-primary underline decoration-dotted underline-offset-4 hover:text-emerald-800 disabled:cursor-wait disabled:opacity-60" type="button" disabled={openingDispatchId === row.dispatch_id} onClick={() => onOpenDispatch(row)}>{openingDispatchId === row.dispatch_id ? "Opening..." : row.dispatch_no || "—"}</button> : row.dispatch_no || "—" },
-            { key: "customer", label: "Customer", render: (row) => row.customer || "—" },
-            { key: "date", label: "Date", render: (row) => formatFactoryDate(row.dispatch_date) },
-            { key: "quantity", label: "Qty", render: (row) => <span className="font-bold text-text-primary">{packQuantity(row.quantity)}</span> },
-            { key: "status", label: "Status", render: () => <Badge tone="success">Completed</Badge> },
-          ]} rows={dispatches} /> : <EmptyState title="No Completed Dispatches" description="This batch has not been allocated to a completed Dispatch." />}</div>
-        </Card>
-        <Card title="Batch Timeline"><div className="divide-y divide-border p-4">{timeline.map((event) => <div key={event.id} className="grid gap-2 py-3 text-sm sm:grid-cols-[150px_minmax(150px,1fr)_minmax(120px,1fr)_110px_130px] sm:items-center"><div className="text-xs font-semibold text-text-secondary">{event.date ? (event.dateOnly ? formatFactoryDate(event.date) : formatFactoryDateTime(event.date)) : event.type === "Current Remaining Balance" ? "Now" : "Date unavailable"}</div><div className="font-bold text-text-primary">{event.type}</div><div className="font-semibold text-text-secondary">{event.reference}</div><div className="font-bold text-text-primary">{event.quantity == null ? "—" : signedPackQuantity(event.quantity)}</div><div className="text-xs font-semibold text-text-secondary">{event.balance == null ? null : `Balance ${packQuantity(event.balance)}`}</div></div>)}</div></Card>
       </div>
     </Modal>
   );
@@ -7550,76 +6332,6 @@ function QcChecklistPresetManagerModal({ templates = [], sops = [], onClose, onC
   );
 }
 
-function FactoryAuditLogDetailModal({ event, openingReference = false, onOpenReference, onClose }) {
-  const changes = factoryAuditChangeRows(event);
-  const result = event.result || "Success";
-  const canOpenReference = Boolean(event.reference_id && event.reference_type && onOpenReference);
-  return (
-    <Modal
-      title="Audit Event"
-      description={factoryAuditEventLabel(event)}
-      size="xl"
-      onClose={onClose}
-      footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}
-    >
-      <div className="space-y-5">
-        <div className="rounded-xl border border-border bg-white p-5">
-          <div className="flex flex-wrap items-start justify-between gap-4">
-            <div className="min-w-0">
-              <div className="flex items-center gap-2 text-xl font-black text-text-primary"><FactoryAuditEventIcon event={factoryAuditEventLabel(event)} size={18} />{factoryAuditEventLabel(event)}</div>
-              <div className="mt-2 text-xs font-semibold text-text-muted">Business Reference</div>
-              {canOpenReference ? (
-                <button className="mt-1 font-bold text-primary hover:text-emerald-800 hover:underline disabled:cursor-wait disabled:opacity-60" type="button" disabled={openingReference} onClick={() => onOpenReference(event)}>
-                  {event.entity_reference || "—"}
-                </button>
-              ) : <div className="mt-1 font-bold text-text-primary">{event.entity_reference || "—"}</div>}
-            </div>
-            <Badge tone={factoryAuditResultTone(result)}>{result}</Badge>
-          </div>
-          <div className="mt-5 grid gap-4 sm:grid-cols-3">
-            {[
-              ["Date / Time", formatFactoryAuditDateTime(event.created_at)],
-              ["Module", event.module_label || factoryAuditModuleLabel(event)],
-              ["Performed By", event.actor_kind === "system" ? "System\nAutomated" : `${event.actor_name || "—"}${event.actor_email ? `\n${event.actor_email}` : ""}`],
-            ].map(([label, value]) => (
-              <div key={label}>
-                <div className="text-[10.5px] font-semibold text-text-muted">{label}</div>
-                <div className="mt-1 whitespace-pre-line text-sm font-bold text-text-primary">{value}</div>
-              </div>
-            ))}
-          </div>
-          {event.description ? <div className="mt-5 rounded-lg bg-slate-50 px-3 py-2.5 text-sm font-semibold text-text-secondary">{event.description}</div> : null}
-        </div>
-        <section className="rounded-xl border border-border bg-white p-5">
-          <div className="text-sm font-black text-text-primary">Changes</div>
-          {changes.length ? (
-            <div className="mt-3 divide-y divide-border">
-              {changes.map((change) => (
-                <div key={change.key} className="grid gap-1.5 py-3 sm:grid-cols-[minmax(140px,0.75fr)_minmax(0,1.5fr)] sm:gap-4">
-                  <div className="text-xs font-bold text-text-secondary">{change.label}</div>
-                  <div className="text-sm font-semibold text-text-primary">
-                    {change.mode === "change" ? <><span className="text-text-secondary">{change.before}</span><span className="mx-2 text-text-muted">→</span><span className="rounded-md bg-emerald-50 px-1.5 py-0.5 text-emerald-800">{change.after}</span></> : change.mode === "prior" ? change.before : change.after}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="mt-3 rounded-lg border border-dashed border-border bg-slate-50 p-4 text-sm font-semibold text-text-secondary">No material field changes were captured for this event.</div>
-          )}
-        </section>
-        <details className="rounded-xl border border-border bg-white p-5">
-          <summary className="cursor-pointer text-sm font-black text-text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30">Technical Details · Show raw metadata</summary>
-          <div className="mt-4 space-y-4">
-            <div><div className="mb-2 text-xs font-bold text-text-secondary">Before JSON</div><pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-slate-950 p-3 text-xs text-slate-100">{JSON.stringify(event.before ?? null, null, 2)}</pre></div>
-            <div><div className="mb-2 text-xs font-bold text-text-secondary">After JSON</div><pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-slate-950 p-3 text-xs text-slate-100">{JSON.stringify(event.after ?? null, null, 2)}</pre></div>
-            <div><div className="mb-2 text-xs font-bold text-text-secondary">Raw Metadata</div><pre className="max-h-72 overflow-auto whitespace-pre-wrap break-words rounded-lg bg-slate-950 p-3 text-xs text-slate-100">{JSON.stringify(event.metadata || {}, null, 2)}</pre></div>
-          </div>
-        </details>
-      </div>
-    </Modal>
-  );
-}
-
 function buildStockCheckRows(stockType, stockItems, initialValue, categoryId = "") {
   if (initialValue?.items?.length) {
     return initialValue.items.map((item) => {
@@ -8196,13 +6908,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const [finishedGoodActionMenu, setFinishedGoodActionMenu] = useState(null);
   const [finishedGoodsView, setFinishedGoodsView] = useState("grouped");
   const [productionPlanningFilters, setProductionPlanningFilters] = useState({ product: "", category: "", status: "" });
-  const [warehouseFilters, setWarehouseFilters] = useState({ product: "", family: "", category: "", status: "", batch: "", movementType: "", dateFrom: "", dateTo: "" });
-  const [batchTraceabilityFilters, setBatchTraceabilityFilters] = useState({ dateFrom: "", dateTo: "", finishedGood: "", batchNo: "", batchType: "", expiryStatus: "", storageLocation: "", reconciliationStatus: "", search: "" });
+  const [warehouseFilters, setWarehouseFilters] = useState({ product: "", category: "", status: "" });
   const [rawMaterialFilters, setRawMaterialFilters] = useState({ material: "", status: "", category: "" });
-  const [rawMovementFilters, setRawMovementFilters] = useState({ material: "", movementType: "", storageLocation: "", dateFrom: "", dateTo: "", search: "", batchId: "", batchLabel: "" });
   const [rawMovementReferenceLoading, setRawMovementReferenceLoading] = useState("");
   const [batchTraceabilityDispatchLoading, setBatchTraceabilityDispatchLoading] = useState("");
-  const [auditLogFilters, setAuditLogFilters] = useState({ dateFrom: "", dateTo: "", module: "", action: "", user: "", search: "" });
   const [auditReferenceLoading, setAuditReferenceLoading] = useState("");
   const [operationalJobs, setOperationalJobs] = useState({ jobs: [], productions: [], summary: {}, hasLoaded: false, loading: false, error: "", errorKind: "" });
   const [productionPlanningOpenJobs, setProductionPlanningOpenJobs] = useState({ aggregates: [], diagnostics: {}, hasLoaded: false, loading: false, error: "", errorKind: "" });
@@ -8233,21 +6942,15 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const can = (code) => Boolean(auth?.hasPermission?.(code));
   const factoryPermissionSignature = JSON.stringify([...(auth?.permissions || [])].sort());
   const serverListing = initialTab === "raw-receiving" ? "receiving-history"
-    : initialTab === "raw-movements" ? "raw-movements"
-      : initialTab === "raw-stock-check" ? "raw-stock-checks"
+    : initialTab === "raw-stock-check" ? "raw-stock-checks"
         : initialTab === "job-orders" ? "job-orders"
           : initialTab === "production" ? "production-history"
             : initialTab === "finished-goods-dispatch" ? "dispatch-history"
               : initialTab === "product-stock-check" ? "product-stock-checks"
-                : initialTab === "batch-traceability" ? "batch-traceability"
-                  : initialTab === "audit-logs" ? "audit-logs"
                     : "";
   const serverListingFilters = serverListing === "receiving-history" ? receivingHistoryFilters
-    : serverListing === "raw-movements" ? rawMovementFilters
-      : serverListing === "dispatch-history" ? dispatchHistoryFilters
+    : serverListing === "dispatch-history" ? dispatchHistoryFilters
         : serverListing === "job-orders" ? jobOrderFilters
-        : serverListing === "batch-traceability" ? batchTraceabilityFilters
-        : serverListing === "audit-logs" ? auditLogFilters
           : {};
   const scheduledDateRangeError = jobOrderFilters.scheduledDateFrom && jobOrderFilters.scheduledDateTo && jobOrderFilters.scheduledDateFrom > jobOrderFilters.scheduledDateTo
     ? "From date cannot be later than To date."
@@ -8257,9 +6960,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     : "";
   const jobOrderDateRangeInvalid = Boolean(scheduledDateRangeError || manufacturingDateRangeError);
   const serverListingSignature = JSON.stringify({ listing: serverListing, filters: serverListingFilters, permissions: factoryPermissionSignature });
-  const canViewBatchTraceability = can("factory_batch_traceability.view");
   const canViewDispatchHistory = can("factory_finished_goods_dispatch.view");
-  const canViewProductMovements = can("factory_product_movements.view");
   const canViewReceivingHistory = can("factory_raw_receiving.view");
   const stockCheckListingLabel = serverListing === "raw-stock-checks"
     ? "Raw Material Stock Checks"
@@ -8270,7 +6971,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       && !(serverListing === "job-orders" && jobOrderDateRangeInvalid)
       && !(serverListing === "receiving-history" && receivingTab !== "history")
       && !(serverListing === "dispatch-history" && dispatchTab !== "history")
-      && !(serverListing === "batch-traceability" && !canViewBatchTraceability)
       && !(serverListing === "dispatch-history" && !canViewDispatchHistory)
       && !(serverListing === "receiving-history" && !canViewReceivingHistory),
     querySignature: serverListingSignature,
@@ -8278,19 +6978,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     onError: (error) => {
       console.error(`[Factory] Unable to load ${serverListing}.`, error);
       const permissionDenied = isFactoryPermissionError(error);
-      const message = serverListing === "batch-traceability"
-        ? permissionDenied
-          ? "Some batch traceability data is hidden by your current role."
-          : "Unable to load the latest batch traceability data."
-        : serverListing === "raw-movements"
-          ? permissionDenied
-            ? "Raw Material Movement data is hidden by your current role."
-            : "Unable to load the latest Raw Material Movement data."
-        : serverListing === "audit-logs"
-          ? permissionDenied
-            ? "The Factory Audit Trail is hidden by your current role."
-            : "Unable to load the latest Factory Audit Trail."
-        : stockCheckListingLabel
+      const message = stockCheckListingLabel
           ? permissionDenied
             ? `Some ${stockCheckListingLabel} are hidden by your current role.`
             : `Unable to load ${stockCheckListingLabel}.`
@@ -8301,35 +6989,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     mapError: (error) => ({
       kind: isFactoryPermissionError(error) ? "permission" : "load",
       message: isFactoryPermissionError(error)
-        ? serverListing === "raw-movements" ? "Raw Material Movement data is hidden by your current role." : serverListing === "audit-logs" ? "The Factory Audit Trail is hidden by your current role." : stockCheckListingLabel ? `Some ${stockCheckListingLabel} are hidden by your current role.` : "Some data is hidden by your current role."
-        : serverListing === "raw-movements" ? "Unable to load the latest Raw Material Movement data." : serverListing === "audit-logs" ? "Unable to load the latest Factory Audit Trail." : stockCheckListingLabel ? `Unable to load ${stockCheckListingLabel}.` : "Unable to load the latest data.",
-    }),
-  });
-  const productMovementSignature = `${productMovementFilterSignature(20, warehouseFilters)}:${factoryPermissionSignature}`;
-  const [productMovementLedger, productMovementActions] = useFactoryPagedQuery({
-    storageKey: "product-movements",
-    enabled: initialTab === "product-movements" && canViewProductMovements,
-    querySignature: productMovementSignature,
-    loadPage: ({ page, pageSize }) => factoryService.listProductMovementsPage({ page, pageSize, filters: warehouseFilters }),
-    onError: (error) => {
-      console.error("[Factory] Unable to load Product Movements page.", error);
-      ui?.notify?.({
-        title: isFactoryPermissionError(error) ? "Product Movement data hidden" : "Failed to load Product Movements",
-        message: isFactoryPermissionError(error) ? "Some Product Movement data is hidden by your current role." : "Unable to load the latest Product Movement data.",
-        tone: "error",
-      });
-    },
-    shouldClearOnError: isFactoryPermissionError,
-    mapError: (error) => ({
-      kind: isFactoryPermissionError(error) ? "permission" : "load",
-      message: isFactoryPermissionError(error) ? "Some Product Movement data is hidden by your current role." : "Unable to load the latest Product Movement data.",
+        ? stockCheckListingLabel ? `Some ${stockCheckListingLabel} are hidden by your current role.` : "Some data is hidden by your current role."
+        : stockCheckListingLabel ? `Unable to load ${stockCheckListingLabel}.` : "Unable to load the latest data.",
     }),
   });
   useEffect(() => {
-    if (serverListing === "batch-traceability" && !canViewBatchTraceability) {
-      factoryListingActions.clearForPermission("Some batch traceability data is hidden by your current role.");
-      setModal((current) => current?.type === "batch-traceability-detail" ? null : current);
-    }
     if (serverListing === "dispatch-history" && !canViewDispatchHistory) {
       factoryListingActions.clearForPermission("Some Finished Goods Dispatch data is hidden by your current role.");
       setDispatchCustomersTodayUpdating(false);
@@ -8340,25 +7004,17 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       setEditingReceiving(null);
       setModal((current) => current?.type === "receiving-batch-detail" ? null : current);
     }
-    if (initialTab === "product-movements" && !canViewProductMovements) {
-      productMovementActions.clearForPermission("Some Product Movement data is hidden by your current role.");
-    }
-  }, [canViewBatchTraceability, canViewDispatchHistory, canViewProductMovements, canViewReceivingHistory, factoryListingActions, initialTab, productMovementActions, serverListing]);
+  }, [canViewDispatchHistory, canViewReceivingHistory, factoryListingActions, serverListing]);
   useEffect(() => {
     if (factoryListingPage.errorKind === "permission") {
       if (serverListing === "dispatch-history") setDispatchCustomersTodayUpdating(false);
       setModal((current) => {
-        if (serverListing === "batch-traceability" && current?.type === "batch-traceability-detail") return null;
         if (serverListing === "dispatch-history" && current?.type === "finished-good-dispatch") return null;
         if (serverListing === "receiving-history" && current?.type === "receiving-batch-detail") return null;
-        if (serverListing === "raw-movements" && current?.type === "raw-material-movement-detail") return null;
         if (["raw-stock-checks", "product-stock-checks"].includes(serverListing) && current?.type === "stock-check") return null;
-        if (serverListing === "audit-logs" && current?.type === "factory-audit-log") return null;
         return current;
       });
       if (serverListing === "receiving-history") setEditingReceiving(null);
-      if (serverListing === "raw-movements") setRawMovementReferenceLoading("");
-      if (serverListing === "audit-logs") setAuditReferenceLoading("");
     }
   }, [factoryListingPage.errorKind, serverListing]);
   const rawInventoryMasterRows = filteredRawMaterialRows();
@@ -8390,17 +7046,13 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       onRetry={listing === "dispatch-history"
         ? () => refreshFinishedGoodsDispatches({ page: factoryListingPage.requestedPage, reason: "retry" })
         : factoryListingActions.retry}
-      permissionMessage={listing === "batch-traceability"
-        ? "Some batch traceability data is hidden by your current role."
-        : listing === "job-orders" ? "Some Job Order data is hidden by your current role."
+      permissionMessage={listing === "job-orders" ? "Some Job Order data is hidden by your current role."
           : listing === "raw-stock-checks" ? "Some Raw Material Stock Checks are hidden by your current role."
             : listing === "product-stock-checks" ? "Some Product Stock Checks are hidden by your current role."
               : listing === "dispatch-history" ? "Some Finished Goods Dispatch data is hidden by your current role."
                 : listing === "receiving-history" ? "Some Raw Material Receiving data is hidden by your current role."
-                  : listing === "raw-movements" ? "Raw Material Movement data is hidden by your current role." : undefined}
-      staleMessage={listing === "batch-traceability"
-        ? "Unable to load the latest batch traceability data. Showing the last successfully loaded results."
-        : listing === "dispatch-history" ? "Dispatch was updated, but the latest list could not be refreshed."
+                  : undefined}
+      staleMessage={listing === "dispatch-history" ? "Dispatch was updated, but the latest list could not be refreshed."
           : listing === "receiving-history" ? "Unable to load the latest Receiving History. Showing the last successfully loaded results." : undefined}
     />;
   }
@@ -10359,33 +9011,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   function productionPlanningRows() {
-    const openJobsBySku = new Map(productionPlanningOpenJobs.aggregates.map((row) => [row.packagingSkuId, row]));
-
-    return data.finishedGoods
-      .filter((sku) => sku.status === "active")
-      .map((sku) => {
-        const recipe = activeRecipeForSku(data.recipes, sku, sku.product_family_name || sku.product_name);
-        const openJobAggregate = openJobsBySku.get(sku.id);
-        const planningAggregateReady = productionPlanningOpenJobs.hasLoaded && !Number(openJobAggregate?.invalidJobOrderCount || 0);
-        const openJobQty = planningAggregateReady ? Number(openJobAggregate?.openJobOrderQty || 0) : null;
-        const currentBalance = Number(sku.current_balance || 0);
-        const parLevel = Number(sku.min_stock_level || 0);
-        const coverage = parLevel > 0 ? (currentBalance / parLevel) * 100 : null;
-        const suggestedProduction = planningAggregateReady && parLevel > 0 ? Math.max(parLevel - currentBalance - openJobQty, 0) : planningAggregateReady ? 0 : null;
-        const status = parLevel <= 0 ? "No Par Level" : currentBalance <= 0 ? "Out of Stock" : currentBalance < parLevel ? "Low Stock" : "Healthy";
-        return {
-          ...sku,
-          planning_status: status,
-          coverage_percent: coverage,
-          open_job_qty: openJobQty,
-          open_job_count: Number(openJobAggregate?.openJobOrderCount || 0),
-          open_job_quantity_incomplete: Number(openJobAggregate?.invalidJobOrderCount || 0) > 0,
-          suggested_production_qty: suggestedProduction,
-          active_recipe: recipe,
-          finished_good_name: sku.product_family_name || sku.product_name,
-          finished_good_name_cn: sku.product_family_name_cn || sku.product_name_cn || "",
-        };
-      });
+    const rows = deriveProductionPlanningRows({ finishedGoods: data.finishedGoods, recipes: data.recipes, aggregates: productionPlanningOpenJobs.aggregates, activeRecipeForSku });
+    return rows.map((row) => row.open_job_quantity_incomplete || !productionPlanningOpenJobs.hasLoaded ? { ...row, open_job_qty: null, suggested_production_qty: null } : row);
   }
 
   function filteredProductionPlanningRows() {
@@ -10455,25 +9082,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       ui?.notify?.({ title: "Suggested quantity unavailable", message: "Reload open Job Order quantities before creating a prefilled Job Order.", tone: "error" });
       return;
     }
-    const suggestedPackQty = Number(row.suggested_production_qty || 0);
-    const recipe = row.active_recipe || activeRecipeForSku(data.recipes, row, row.finished_good_name || row.product_name);
-    const productionPlan = suggestedPackQty > 0 ? packagingProductionPlan(suggestedPackQty, row, recipe?.uom) : null;
-    const targetProductionQty = productionPlan && !productionPlan.error ? productionPlan.target_production_qty : "";
-    const productionUom = productionPlan && !productionPlan.error ? productionPlan.production_uom : recipe?.uom || inheritedRecipeUom(row.product_family_id, data.finishedGoods, row.base_uom || row.pack_size_uom || row.uom || "");
-    setModal({
-      type: "job",
-      value: {
-        product_family_key: finishedGoodParentKey(row),
-        finished_good_id: row.id,
-        product_name: row.finished_good_name || row.product_name,
-        target_production_qty: targetProductionQty || "",
-        target_quantity: targetProductionQty || "",
-        uom: productionUom || "",
-        planned_date: todayInput(),
-        priority: "Normal",
-        status: "draft",
-      },
-    });
+    setModal({ type: "job", value: buildProductionPlanningJobOrderDraft({ row, recipes: data.recipes, finishedGoods: data.finishedGoods, activeRecipeForSku, packagingProductionPlan, inheritedRecipeUom, finishedGoodParentKey, today: todayInput }) });
   }
 
   function renderProductionPlanning() {
@@ -10657,116 +9266,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     );
   }
 
-  function updateProductMovementFilters(patch) {
-    setWarehouseFilters((current) => ({ ...current, ...patch }));
-  }
-
-  function productMovementFilterControls() {
-    const movementTypes = productMovementLedger.summary.movementTypes || [];
-    const categories = productMovementLedger.summary.categories || [];
-    return (
-      <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 lg:grid-cols-7">
-        <Field label="Date From">
-          <FeedXDatePicker
-            value={warehouseFilters.dateFrom}
-            placeholder="Start date"
-            onChange={(dateFrom) => updateProductMovementFilters({ dateFrom })}
-          />
-        </Field>
-        <Field label="Date To">
-          <FeedXDatePicker
-            value={warehouseFilters.dateTo}
-            placeholder="End date"
-            onChange={(dateTo) => updateProductMovementFilters({ dateTo })}
-          />
-        </Field>
-        <Field label="Product Search">
-          <input className={inputClass()} value={warehouseFilters.product} onChange={(event) => updateProductMovementFilters({ product: event.target.value })} placeholder="Search product" />
-        </Field>
-        <Field label="Category">
-          <SearchableSelect
-            value={warehouseFilters.category}
-            options={[{ value: "", label: "All" }, ...categories.map((category) => ({ value: category.id, label: category.name }))]}
-            placeholder="All"
-            searchPlaceholder="Search categories"
-            onChange={(category) => updateProductMovementFilters({ category })}
-          />
-        </Field>
-        <Field label="Movement Type">
-          <SearchableSelect
-            value={warehouseFilters.movementType}
-            options={[{ value: "", label: "All" }, ...movementTypes.map((type) => ({ value: type, label: type }))]}
-            placeholder="All"
-            searchPlaceholder="Search movements"
-            onChange={(movementType) => updateProductMovementFilters({ movementType })}
-          />
-        </Field>
-        <Field label="Batch / Source">
-          <input className={inputClass()} value={warehouseFilters.batch} onChange={(event) => updateProductMovementFilters({ batch: event.target.value })} placeholder="Search batch/source" />
-        </Field>
-        <div className="flex items-end">
-          <button className="btn-secondary w-full" type="button" onClick={() => updateProductMovementFilters({ product: "", category: "", batch: "", movementType: "", dateFrom: "", dateTo: "" })}>Clear</button>
-        </div>
-      </div>
-    );
-  }
-
-  function warehouseFilterControls({ showStatus = true } = {}) {
-    const statuses = [...new Set(data.finishedGoods.map((row) => row.status).filter(Boolean))];
-    const movementTypes = [...new Set(data.productMovements.map((row) => row.movement_type).filter(Boolean))];
-    return (
-      <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 md:grid-cols-6">
-        <Field label="Product">
-          <input className={inputClass()} value={warehouseFilters.product} onChange={(event) => setWarehouseFilters((current) => ({ ...current, product: event.target.value }))} placeholder="Search product" />
-        </Field>
-        <Field label="Finished Good">
-          <SearchableSelect
-            value={warehouseFilters.family}
-            options={[{ value: "", label: "All" }, ...data.productFamilies.map((family) => ({ value: family.id, label: family.name_en }))]}
-            placeholder="All"
-            searchPlaceholder="Search finished goods"
-            onChange={(family) => setWarehouseFilters((current) => ({ ...current, family }))}
-          />
-        </Field>
-        <Field label="Category">
-          <SearchableSelect
-            value={warehouseFilters.category}
-            options={[{ value: "", label: "All" }, ...data.finishedGoodCategories.map((category) => ({ value: category.id, label: category.name }))]}
-            placeholder="All"
-            searchPlaceholder="Search categories"
-            onChange={(category) => setWarehouseFilters((current) => ({ ...current, category }))}
-          />
-        </Field>
-        {showStatus ? (
-          <Field label="Status">
-            <SearchableSelect
-              value={warehouseFilters.status}
-              options={[{ value: "", label: "All" }, ...statuses.map((status) => ({ value: status, label: jobStatusLabel(status) }))]}
-              placeholder="All"
-              searchPlaceholder="Search status"
-              onChange={(status) => setWarehouseFilters((current) => ({ ...current, status }))}
-            />
-          </Field>
-        ) : null}
-        <Field label="Batch">
-          <input className={inputClass()} value={warehouseFilters.batch} onChange={(event) => setWarehouseFilters((current) => ({ ...current, batch: event.target.value }))} placeholder="Search batch/source" />
-        </Field>
-        <Field label="Movement Type">
-          <SearchableSelect
-            value={warehouseFilters.movementType}
-            options={[{ value: "", label: "All" }, ...movementTypes.map((type) => ({ value: type, label: type }))]}
-            placeholder="All"
-            searchPlaceholder="Search movements"
-            onChange={(movementType) => setWarehouseFilters((current) => ({ ...current, movementType }))}
-          />
-        </Field>
-        <div className="flex items-end">
-          <button className="btn-secondary w-full" type="button" onClick={() => setWarehouseFilters({ product: "", family: "", category: "", status: "", batch: "", movementType: "", dateFrom: "", dateTo: "" })}>Clear</button>
-        </div>
-      </div>
-    );
-  }
-
   function rawMaterialRows() {
     return data.rawMaterials.map((material) => {
       const materialReceivings = data.receivings.filter((row) => row.raw_material_id === material.id);
@@ -10800,85 +9299,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       && (!rawMaterialFilters.category || row.category_id === rawMaterialFilters.category || row.category === rawMaterialFilters.category));
   }
 
-  function rawMovementFilterControls() {
-    const movementTypes = Array.isArray(factoryListingPage.summary.movement_types)
-      ? factoryListingPage.summary.movement_types
-      : [];
-    const storageLocations = Array.isArray(factoryListingPage.summary.location_values)
-      ? factoryListingPage.summary.location_values
-      : [];
-    const materialOptions = data.rawMaterials.map((material) => ({ value: material.id, label: rawMaterialLabel(material) }));
-    const movementTypeOptions = movementTypes.map((type) => ({ value: type, label: type }));
-    const storageLocationOptions = storageLocations.map((location) => ({ value: location, label: location }));
-    return (
-      <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 lg:grid-cols-6">
-        <Field label="Date From">
-          <FeedXDatePicker
-            value={rawMovementFilters.dateFrom}
-            placeholder="Start date"
-            onChange={(nextDate) => setRawMovementFilters((current) => ({ ...current, dateFrom: nextDate }))}
-          />
-        </Field>
-        <Field label="Date To">
-          <FeedXDatePicker
-            value={rawMovementFilters.dateTo}
-            placeholder="End date"
-            onChange={(nextDate) => setRawMovementFilters((current) => ({ ...current, dateTo: nextDate }))}
-          />
-        </Field>
-        <Field label="Raw Material">
-          <SearchableSelect
-            value={rawMovementFilters.material}
-            options={[{ value: "", label: "All" }, ...materialOptions]}
-            placeholder="All"
-            searchPlaceholder="Search material"
-            emptyText="No matching materials"
-            onChange={(material) => setRawMovementFilters((current) => ({ ...current, material }))}
-          />
-        </Field>
-        <Field label="Movement Type">
-          <SearchableSelect
-            value={rawMovementFilters.movementType}
-            options={[{ value: "", label: "All" }, ...movementTypeOptions]}
-            placeholder="All"
-            searchPlaceholder="Search movements"
-            emptyText="No matching movements"
-            onChange={(movementType) => setRawMovementFilters((current) => ({ ...current, movementType }))}
-          />
-        </Field>
-        <Field label="Storage Location">
-          <SearchableSelect
-            value={rawMovementFilters.storageLocation}
-            options={[{ value: "", label: "All" }, ...storageLocationOptions]}
-            placeholder="All"
-            searchPlaceholder="Search locations"
-            emptyText="No matching locations"
-            onChange={(storageLocation) => setRawMovementFilters((current) => ({ ...current, storageLocation }))}
-          />
-        </Field>
-        <Field label="Search">
-          <input className={inputClass()} value={rawMovementFilters.search} onChange={(event) => setRawMovementFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Reference, batch, lot, material, remarks" />
-          {rawMovementFilters.batchId ? (
-            <button className="mt-2 inline-flex items-center gap-2 text-xs font-bold text-primary hover:text-emerald-800" type="button" onClick={() => setRawMovementFilters((current) => ({ ...current, batchId: "", batchLabel: "" }))}>
-              Exact batch: {rawMovementFilters.batchLabel || "Selected batch"} <X size={13} />
-            </button>
-          ) : null}
-        </Field>
-      </div>
-    );
-  }
-
-  function selectRawMovementBatch(row) {
-    const batchId = String(row?.batch_id || "").trim();
-    if (!batchId) return;
-    setModal((current) => current?.type === "raw-material-movement-detail" ? null : current);
-    setRawMovementFilters((current) => ({
-      ...current,
-      batchId,
-      batchLabel: String(row?.internal_batch_no || "").trim(),
-    }));
-  }
-
   async function openRawMaterialMovementReference(movement) {
     if (!movement.document_id || !movement.document_type || rawMovementReferenceLoading) return;
     setRawMovementReferenceLoading(movement.id);
@@ -10902,7 +9322,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     try {
       const reference = await factoryService.getFactoryAuditReference(event);
       if (reference.type === "job_order") setModal({ type: "job", value: reference.value, readOnly: true });
-      else if (reference.type === "batch_traceability") setModal({ type: "batch-traceability-detail", value: reference.value, loading: false, error: "" });
+      else if (reference.type === "batch_traceability") setModal({ type: "audit-batch-traceability-detail", value: reference.value, loading: false, error: "" });
       else if (reference.type === "receiving") setModal({ type: "receiving-batch-detail", value: reference.value });
       else if (reference.type === "production") setModal({ type: "completed-job-result", job: reference.job, production: reference.production });
       else if (reference.type === "stock_check") setModal({ type: "stock-check", stockType: reference.stockType, value: reference.value, readOnly: true });
@@ -10916,30 +9336,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       });
     } finally {
       setAuditReferenceLoading("");
-    }
-  }
-
-  async function loadBatchTraceabilityDetail(batch) {
-    if (!batch?.batch_balance_id && !batch?.id) return;
-    const batchId = batch.batch_balance_id || batch.id;
-    setModal({ type: "batch-traceability-detail", value: batch, loading: true, error: "" });
-    try {
-      const detail = await factoryService.getFinishedGoodBatchTraceabilityDetail(batch);
-      setModal((current) => current?.type === "batch-traceability-detail" && (current.value?.batch_balance_id || current.value?.id) === batchId
-        ? { type: "batch-traceability-detail", value: detail, loading: false, error: "" }
-        : current);
-    } catch (detailError) {
-      console.error("[Factory] Unable to load Batch Traceability detail.", detailError);
-      if (isFactoryPermissionError(detailError)) {
-        setBatchTraceabilityDispatchLoading("");
-        setModal((current) => current?.type === "batch-traceability-detail" ? null : current);
-        factoryListingActions.clearForPermission("Some batch traceability data is hidden by your current role.");
-        ui?.notify?.({ title: "Batch traceability hidden", message: "Batch traceability is hidden by your current role.", tone: "error" });
-        return;
-      }
-      setModal((current) => current?.type === "batch-traceability-detail" && (current.value?.batch_balance_id || current.value?.id) === batchId
-        ? { ...current, loading: false, error: "Unable to load the latest batch details." }
-        : current);
     }
   }
 
@@ -11086,66 +9482,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     );
   }
 
-  function factoryAuditFilterControls() {
-    const summaryModules = Array.isArray(factoryListingPage.summary.module_values) ? factoryListingPage.summary.module_values : [];
-    const summaryActions = Array.isArray(factoryListingPage.summary.event_values) ? factoryListingPage.summary.event_values : [];
-    const summaryUsers = Array.isArray(factoryListingPage.summary.user_values) ? factoryListingPage.summary.user_values : [];
-    const moduleOptions = summaryModules.map((label) => ({ value: label, label }));
-    const actionOptions = summaryActions.map((label) => ({ value: label, label }));
-    const userOptions = summaryUsers.map((label) => ({ value: label, label }));
-    return (
-      <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 lg:grid-cols-6">
-        <Field label="Date From">
-          <FeedXDatePicker
-            value={auditLogFilters.dateFrom}
-            placeholder="Start date"
-            onChange={(dateFrom) => setAuditLogFilters((current) => ({ ...current, dateFrom }))}
-          />
-        </Field>
-        <Field label="Date To">
-          <FeedXDatePicker
-            value={auditLogFilters.dateTo}
-            placeholder="End date"
-            onChange={(dateTo) => setAuditLogFilters((current) => ({ ...current, dateTo }))}
-          />
-        </Field>
-        <Field label="Module">
-          <SearchableSelect
-            value={auditLogFilters.module}
-            options={[{ value: "", label: "All" }, ...moduleOptions]}
-            placeholder="All"
-            searchPlaceholder="Search modules"
-            emptyText="No matching modules"
-            onChange={(module) => setAuditLogFilters((current) => ({ ...current, module }))}
-          />
-        </Field>
-        <Field label="Event">
-          <SearchableSelect
-            value={auditLogFilters.action}
-            options={[{ value: "", label: "All" }, ...actionOptions]}
-            placeholder="All"
-            searchPlaceholder="Search events"
-            emptyText="No matching events"
-            onChange={(action) => setAuditLogFilters((current) => ({ ...current, action }))}
-          />
-        </Field>
-        <Field label="User">
-          <SearchableSelect
-            value={auditLogFilters.user}
-            options={[{ value: "", label: "All" }, ...userOptions]}
-            placeholder="All"
-            searchPlaceholder="Search users"
-            emptyText="No matching users"
-            onChange={(user) => setAuditLogFilters((current) => ({ ...current, user }))}
-          />
-        </Field>
-        <Field label="Search">
-          <input className={inputClass()} value={auditLogFilters.search} onChange={(event) => setAuditLogFilters((current) => ({ ...current, search: event.target.value }))} placeholder="Reference, event, person, message" />
-        </Field>
-      </div>
-    );
-  }
-
   const recentActivity = useMemo(() => {
     const productionRows = data.productions.map((row) => ({
       id: `production-${row.id}`,
@@ -11211,8 +9547,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const permissions = snapshot.filters?.permissions || {};
     const loadedDashboardMonth = String(snapshot.filters?.month_start || "").slice(0, 7);
     const productAxisLabel = (row) => [row.product, row.packaging_sku].filter(Boolean).join(" · ");
-    const truncateChartLabel = (value, limit = 34) => String(value || "—").length > limit ? `${String(value).slice(0, limit - 1)}…` : String(value || "—");
-    const productionRows = Array.isArray(snapshot.production_summary) ? snapshot.production_summary.map((row) => {
+        const productionRows = Array.isArray(snapshot.production_summary) ? snapshot.production_summary.map((row) => {
       const uom = canonicalDashboardUom(row.uom_key || row.uom);
       return { ...row, uom, uom_key: uom, id: `${row.finished_good_id || "legacy"}-${uom}`, axis_label: productAxisLabel(row) };
     }) : [];
@@ -11257,11 +9592,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const trend = snapshot.production_dispatch_trend || {};
     const trendMonths = Array.isArray(trend.months) ? trend.months : [];
     const productionTrend = trendMonths.map((month) => ({
-      month: new Intl.DateTimeFormat("en-MY", { month: "short", year: "2-digit", timeZone: "UTC" }).format(new Date(`${month}T00:00:00Z`)),
+      month: dashboardTrendLabel(month),
       quantity: (trend.production || []).filter((row) => row.month_start === month && (!selectedProductionUom || canonicalDashboardUom(row.uom_key || row.uom) === selectedProductionUom)).reduce((sum, row) => sum + Number(row.quantity || 0), 0),
     }));
     const dispatchTrend = trendMonths.map((month) => ({
-      month: new Intl.DateTimeFormat("en-MY", { month: "short", year: "2-digit", timeZone: "UTC" }).format(new Date(`${month}T00:00:00Z`)),
+      month: dashboardTrendLabel(month),
       quantity: (trend.dispatch || []).filter((row) => row.month_start === month).reduce((sum, row) => sum + Number(row.quantity || 0), 0),
     }));
     const hasProductionTrendActivity = productionTrend.some((row) => Number(row.quantity || 0) > 0);
@@ -11279,8 +9614,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const qcPendingCount = Number(snapshot.kpis.qc_pass_rate.pending || 0);
     const qcMetadataCount = Number(snapshot.kpis.qc_pass_rate.metadata_unavailable || 0);
     const qcCompletedCount = qcPassedCount + qcFailedCount;
-    const requiredCheckLabel = (count) => `required ${count === 1 ? "check" : "checks"}`;
-    const qcKpiHelper = `${qcPassedCount} of ${qcCompletedCount} ${requiredCheckLabel(qcCompletedCount)} passed · ${qcFailedCount} failed ${requiredCheckLabel(qcFailedCount)} · ${qcPendingCount} pending ${requiredCheckLabel(qcPendingCount)}`;
+        const qcKpiHelper = `${qcPassedCount} of ${qcCompletedCount} ${dashboardRequiredCheckLabel(qcCompletedCount)} passed · ${qcFailedCount} failed ${dashboardRequiredCheckLabel(qcFailedCount)} · ${qcPendingCount} pending ${dashboardRequiredCheckLabel(qcPendingCount)}`;
     const qcChartRows = [
       { name: "Pass", value: Number(qc.passed || 0), color: "#15803d" },
       { name: "Fail", value: Number(qc.failed || 0), color: "#be123c" },
@@ -11302,16 +9636,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       .map((item) => ({ value: item.id, label: jobFinishedGoodName({ finished_good: item, product_name: item.product_name }), helper: `${item.product_code || "No SKU"} · ${item.variant_name || packSizeText(item) || "Packaging SKU"}` }))
       .sort((a, b) => a.label.localeCompare(b.label) || a.helper.localeCompare(b.helper));
     const chartTooltipStyle = { border: "1px solid #d9e2dc", borderRadius: 8, boxShadow: "0 4px 8px rgba(15, 23, 42, 0.08)", fontSize: 12 };
-    const actionTone = (severity) => severity === "Critical" ? "danger" : severity === "Warning" ? "warning" : "info";
-    const uomControl = (uoms, selected, onChange, label) => uoms.length > 1
-      ? <CompactSelect value={selected} options={uoms.map((uom) => ({ value: uom, label: uom }))} onChange={onChange} ariaLabel={label} />
-      : uoms.length === 1 ? <span className="inline-flex h-9 items-center rounded-lg border border-border bg-slate-50 px-3 text-xs font-bold text-text-secondary">{uoms[0]}</span> : null;
-    const DashboardProductTooltip = ({ active, payload, mode }) => {
-      const row = payload?.[0]?.payload;
-      if (!active || !row) return null;
-      return <div className="min-w-[210px] rounded-lg border border-border bg-white p-3 text-xs shadow-lg"><div className="font-black text-text-primary">{row.product || "—"}</div><div className="mb-2 text-text-secondary">{row.packaging_sku || "—"}</div>{mode === "dispatch" ? <><div>Dispatch Qty: <strong>{quantity(row.dispatch_qty, "packs")}</strong></div><div>Dispatch Count: <strong>{Number(row.dispatch_count || 0)}</strong></div><div>Customer Count: <strong>{Number(row.customer_count || 0)}</strong></div><div>Share: <strong>{percent(row.share_percent)}</strong></div></> : <><div>Output: <strong>{quantity(row.output_qty, row.uom)}</strong></div><div>Batch Count: <strong>{Number(row.batch_count || 0)}</strong></div><div>Completion Rate: <strong>{percent(row.completion_rate)}</strong></div></>}</div>;
-    };
-    const metric = (Icon, label, value, helper, visible = true, tone = "neutral") => visible ? (
+                const metric = (Icon, label, value, helper, visible = true, tone = "neutral") => visible ? (
       <div key={label} className={`min-h-[112px] rounded-lg border bg-white p-3.5 ${tone === "danger" ? "border-rose-200" : tone === "warning" ? "border-amber-200" : "border-border"}`}>
         <div className="flex items-center gap-2 text-xs font-semibold text-text-secondary"><Icon size={15} className="text-primary" />{label}</div>
         <div className="mt-3 break-words text-xl font-black text-text-primary">{value}</div>
@@ -11343,7 +9668,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             <div className="mb-1 text-xs font-semibold text-text-secondary">Month</div>
             <div className="flex h-10 items-center rounded-lg border border-border bg-white">
               <button className="flex h-full w-10 items-center justify-center text-text-secondary hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary/20" type="button" aria-label="Previous month" onClick={() => setDashboardMonth((current) => shiftFactoryMonth(current, -1))}><ChevronLeft size={16} /></button>
-              <FeedXMonthPicker value={dashboardMonth} onChange={setDashboardMonth} />
+              <FactoryDashboardMonthPicker value={dashboardMonth} onChange={setDashboardMonth} />
               <button className="flex h-full w-10 items-center justify-center text-text-secondary hover:bg-slate-50 focus:outline-none focus:ring-2 focus:ring-primary/20" type="button" aria-label="Next month" onClick={() => setDashboardMonth((current) => shiftFactoryMonth(current, 1))}><ChevronRight size={16} /></button>
             </div>
           </div>
@@ -11378,25 +9703,25 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
               {metric(AlertTriangle, "Inventory Alerts", Number(snapshot.kpis.inventory_alerts.low_stock || 0) + Number(snapshot.kpis.inventory_alerts.out_of_stock || 0) + Number(snapshot.kpis.inventory_alerts.expiring_soon || 0) + Number(snapshot.kpis.inventory_alerts.reconciliation_required || 0), `${Number(snapshot.kpis.inventory_alerts.out_of_stock || 0)} out · ${Number(snapshot.kpis.inventory_alerts.expiring_soon || 0)} expiring`, permissions.finished_inventory || permissions.raw_inventory, Number(snapshot.kpis.inventory_alerts.out_of_stock || 0) ? "danger" : "warning")}
             </div>
 
-            {permissions.production ? <Card title="Production Summary" description="Completed Production output by product for the selected month." action={<div className="flex flex-wrap items-center gap-2">{uomControl(productionUoms, selectedProductionUom, setDashboardProductionUom, "Production Summary UOM")}<div className="flex rounded-lg border border-border p-0.5"><button className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${dashboardProductionMeasure === "output" ? "bg-primary text-white" : "text-text-secondary"}`} type="button" onClick={() => setDashboardProductionMeasure("output")}>Output Qty</button><button className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${dashboardProductionMeasure === "batches" ? "bg-primary text-white" : "text-text-secondary"}`} type="button" onClick={() => setDashboardProductionMeasure("batches")}>Batch Count</button></div></div>}>
-              {productionChartRows.length ? <div className="p-4"><div className="h-[340px]" role="img" aria-label={`Production Summary horizontal bar chart in ${selectedProductionUom || "selected units"}`}><ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1} initialDimension={{ width: 1, height: 1 }}><BarChart data={productionChartRows} layout="vertical" margin={{ left: 42, right: 28 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" /><XAxis type="number" tick={{ fontSize: 11 }} /><YAxis type="category" dataKey="axis_label" width={190} tick={{ fontSize: 11 }} tickFormatter={(value) => truncateChartLabel(value)} /><Tooltip content={<DashboardProductTooltip mode="production" />} /><Bar dataKey={dashboardProductionMeasure === "batches" ? "batch_count" : "output_qty"} fill="#167d5a" radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer></div></div> : <EmptyState title="No completed Production" description="No completed Production output matches this month and filter." />}
+            {permissions.production ? <Card title="Production Summary" description="Completed Production output by product for the selected month." action={<div className="flex flex-wrap items-center gap-2"><FactoryDashboardUomSelect uoms={productionUoms} value={selectedProductionUom} onChange={setDashboardProductionUom} ariaLabel="Production Summary UOM" /><div className="flex rounded-lg border border-border p-0.5"><button className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${dashboardProductionMeasure === "output" ? "bg-primary text-white" : "text-text-secondary"}`} type="button" onClick={() => setDashboardProductionMeasure("output")}>Output Qty</button><button className={`rounded-md px-2.5 py-1.5 text-xs font-semibold ${dashboardProductionMeasure === "batches" ? "bg-primary text-white" : "text-text-secondary"}`} type="button" onClick={() => setDashboardProductionMeasure("batches")}>Batch Count</button></div></div>}>
+              {productionChartRows.length ? <div className="p-4"><div className="h-[340px]" role="img" aria-label={`Production Summary horizontal bar chart in ${selectedProductionUom || "selected units"}`}><ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1} initialDimension={{ width: 1, height: 1 }}><BarChart data={productionChartRows} layout="vertical" margin={{ left: 42, right: 28 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" /><XAxis type="number" tick={{ fontSize: 11 }} /><YAxis type="category" dataKey="axis_label" width={190} tick={{ fontSize: 11 }} tickFormatter={(value) => truncateDashboardChartLabel(value)} /><Tooltip content={<FactoryDashboardChartTooltip mode="production" />} /><Bar dataKey={dashboardProductionMeasure === "batches" ? "batch_count" : "output_qty"} fill="#167d5a" radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer></div></div> : <EmptyState title="No completed Production" description="No completed Production output matches this month and filter." />}
               <FactoryTable columns={[{ key: "product", label: "Product", render: (row) => <div><div className="font-bold text-text-primary">{row.product}</div><div className="text-xs text-text-secondary">{row.packaging_sku}</div></div> }, { key: "output", label: "Output Qty", render: (row) => quantity(row.output_qty, row.uom) }, { key: "batches", label: "Batches", render: (row) => Number(row.batch_count || 0).toLocaleString("en-MY") }, { key: "average", label: "Average Batch", render: (row) => quantity(row.average_batch_qty, row.uom) }, { key: "completion", label: "Completion Rate", render: (row) => percent(row.completion_rate) }]} rows={productionForUom} emptyTitle="No Production summary" emptyDescription="Completed Production will appear here." />
             </Card> : null}
 
             <div className="grid gap-4 xl:grid-cols-2">
               {permissions.dispatch ? <Card title="Top 10 Dispatched Products" description="Completed Dispatch quantity in pack units." >
-                {dispatchRows.length ? <div className="p-4"><div className="h-[300px]" role="img" aria-label="Top 10 dispatched products horizontal ranking chart"><ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1} initialDimension={{ width: 1, height: 1 }}><BarChart data={dispatchRows} layout="vertical" margin={{ left: 34, right: 24 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" /><XAxis type="number" tick={{ fontSize: 11 }} /><YAxis type="category" dataKey="axis_label" width={160} tick={{ fontSize: 11 }} tickFormatter={(value) => truncateChartLabel(value, 28)} /><Tooltip content={<DashboardProductTooltip mode="dispatch" />} /><Bar dataKey="dispatch_qty" fill="#2563eb" radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer></div></div> : <EmptyState title="No completed Dispatches" description="Completed Dispatch activity will appear here." />}
+                {dispatchRows.length ? <div className="p-4"><div className="h-[300px]" role="img" aria-label="Top 10 dispatched products horizontal ranking chart"><ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1} initialDimension={{ width: 1, height: 1 }}><BarChart data={dispatchRows} layout="vertical" margin={{ left: 34, right: 24 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" /><XAxis type="number" tick={{ fontSize: 11 }} /><YAxis type="category" dataKey="axis_label" width={160} tick={{ fontSize: 11 }} tickFormatter={(value) => truncateDashboardChartLabel(value, 28)} /><Tooltip content={<FactoryDashboardChartTooltip mode="dispatch" />} /><Bar dataKey="dispatch_qty" fill="#2563eb" radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer></div></div> : <EmptyState title="No completed Dispatches" description="Completed Dispatch activity will appear here." />}
                 <FactoryTable columns={[{ key: "rank", label: "Rank", render: (row) => `#${row.rank}` }, { key: "product", label: "Product", render: (row) => <div><div className="font-bold text-text-primary">{row.product}</div><div className="text-xs text-text-secondary">{row.packaging_sku}</div></div> }, { key: "qty", label: "Dispatch Qty", render: (row) => quantity(row.dispatch_qty, "packs") }, { key: "dispatches", label: "Dispatches", render: (row) => row.dispatch_count }, { key: "customers", label: "Customers", render: (row) => row.customer_count }, { key: "share", label: "Share", render: (row) => percent(row.share_percent) }]} rows={dispatchRows} emptyTitle="No Dispatch ranking" emptyDescription="No completed Dispatches match this month." />
               </Card> : null}
 
-              {permissions.receiving ? <Card title="Top Purchased Raw Materials" description="Received quantities are ranked within one compatible UOM." action={uomControl(rawUoms, selectedRawUom, setDashboardRawUom, "Raw Material ranking UOM")}>
-                {rawChartRows.length ? <div className="p-4"><div className="h-[300px]" role="img" aria-label="Top purchased raw materials horizontal ranking chart by quantity"><ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1} initialDimension={{ width: 1, height: 1 }}><BarChart data={rawChartRows} layout="vertical" margin={{ left: 24, right: 24 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" /><XAxis type="number" tick={{ fontSize: 11 }} /><YAxis type="category" dataKey="raw_material" width={150} tick={{ fontSize: 11 }} tickFormatter={(value) => truncateChartLabel(value, 26)} /><Tooltip contentStyle={chartTooltipStyle} formatter={(value) => [quantity(value, selectedRawUom), "Received Qty"]} /><Bar dataKey="received_qty" fill="#7c3aed" radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer></div></div> : <EmptyState title="No receiving data" description="No receiving records match this month and UOM." />}
+              {permissions.receiving ? <Card title="Top Purchased Raw Materials" description="Received quantities are ranked within one compatible UOM." action={<FactoryDashboardUomSelect uoms={rawUoms} value={selectedRawUom} onChange={setDashboardRawUom} ariaLabel="Raw Material ranking UOM" />}>
+                {rawChartRows.length ? <div className="p-4"><div className="h-[300px]" role="img" aria-label="Top purchased raw materials horizontal ranking chart by quantity"><ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1} initialDimension={{ width: 1, height: 1 }}><BarChart data={rawChartRows} layout="vertical" margin={{ left: 24, right: 24 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" /><XAxis type="number" tick={{ fontSize: 11 }} /><YAxis type="category" dataKey="raw_material" width={150} tick={{ fontSize: 11 }} tickFormatter={(value) => truncateDashboardChartLabel(value, 26)} /><Tooltip contentStyle={chartTooltipStyle} formatter={(value) => [quantity(value, selectedRawUom), "Received Qty"]} /><Bar dataKey="received_qty" fill="#7c3aed" radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer></div></div> : <EmptyState title="No receiving data" description="No receiving records match this month and UOM." />}
                 <FactoryTable columns={[{ key: "rank", label: "Rank", render: (row) => `#${row.rank}` }, { key: "material", label: "Raw Material", render: (row) => row.raw_material }, { key: "qty", label: "Received Qty", render: (row) => quantity(row.received_qty, row.uom) }, { key: "records", label: "Receipts", render: (row) => row.receiving_count }, { key: "suppliers", label: "Suppliers", render: (row) => row.supplier_count }]} rows={rawChartRows} emptyTitle="No purchased materials" emptyDescription="No receiving records match the selected month." />
               </Card> : null}
             </div>
 
-            {(permissions.job_orders && permissions.production) ? <Card title="Planned vs Actual Production" description="Due Job Order targets compared with completed output in one compatible UOM." action={uomControl(plannedUoms, selectedPlanUom, setDashboardPlanUom, "Planned versus Actual UOM")}>
-              {plannedChartRows.length ? <div className="p-4"><div className="h-[340px]" role="img" aria-label={`Planned versus Actual Production in ${selectedPlanUom}`}><ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1} initialDimension={{ width: 1, height: 1 }}><BarChart data={plannedChartRows.slice(0, 12)} layout="vertical" margin={{ left: 42, right: 28 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" /><XAxis type="number" tick={{ fontSize: 11 }} /><YAxis type="category" dataKey="axis_label" width={190} tick={{ fontSize: 11 }} tickFormatter={(value) => truncateChartLabel(value)} /><Tooltip contentStyle={chartTooltipStyle} formatter={(value, name) => [quantity(value, selectedPlanUom), name === "planned_qty" ? "Planned Qty" : "Actual Qty"]} labelFormatter={(_, payload) => payload?.[0]?.payload ? productAxisLabel(payload[0].payload) : "Product"} /><Legend wrapperStyle={{ fontSize: 11 }} /><Bar name="Planned Qty" dataKey="planned_qty" fill="#64748b" radius={[0, 4, 4, 0]} /><Bar name="Actual Qty" dataKey="actual_qty" fill="#167d5a" radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer></div></div> : <EmptyState title="No planned Production" description="No eligible Job Orders are due in this month and UOM." />}
+            {(permissions.job_orders && permissions.production) ? <Card title="Planned vs Actual Production" description="Due Job Order targets compared with completed output in one compatible UOM." action={<FactoryDashboardUomSelect uoms={plannedUoms} value={selectedPlanUom} onChange={setDashboardPlanUom} ariaLabel="Planned versus Actual UOM" />}>
+              {plannedChartRows.length ? <div className="p-4"><div className="h-[340px]" role="img" aria-label={`Planned versus Actual Production in ${selectedPlanUom}`}><ResponsiveContainer width="100%" height="100%" minWidth={1} minHeight={1} initialDimension={{ width: 1, height: 1 }}><BarChart data={plannedChartRows.slice(0, 12)} layout="vertical" margin={{ left: 42, right: 28 }}><CartesianGrid strokeDasharray="3 3" horizontal={false} stroke="#e2e8f0" /><XAxis type="number" tick={{ fontSize: 11 }} /><YAxis type="category" dataKey="axis_label" width={190} tick={{ fontSize: 11 }} tickFormatter={(value) => truncateDashboardChartLabel(value)} /><Tooltip contentStyle={chartTooltipStyle} formatter={(value, name) => [quantity(value, selectedPlanUom), name === "planned_qty" ? "Planned Qty" : "Actual Qty"]} labelFormatter={(_, payload) => payload?.[0]?.payload ? productAxisLabel(payload[0].payload) : "Product"} /><Legend wrapperStyle={{ fontSize: 11 }} /><Bar name="Planned Qty" dataKey="planned_qty" fill="#64748b" radius={[0, 4, 4, 0]} /><Bar name="Actual Qty" dataKey="actual_qty" fill="#167d5a" radius={[0, 4, 4, 0]} /></BarChart></ResponsiveContainer></div></div> : <EmptyState title="No planned Production" description="No eligible Job Orders are due in this month and UOM." />}
               <FactoryTable columns={[{ key: "product", label: "Product", render: (row) => <div><div className="font-bold text-text-primary">{row.product}</div><div className="text-xs text-text-secondary">{row.packaging_sku}</div></div> }, { key: "planned", label: "Planned Qty", render: (row) => quantity(row.planned_qty, row.uom) }, { key: "actual", label: "Actual Qty", render: (row) => quantity(row.actual_qty, row.uom) }, { key: "variance", label: "Variance", render: (row) => quantity(row.variance, row.uom) }, { key: "completion", label: "Completion %", render: (row) => percent(row.completion_percent) }]} rows={plannedChartRows} emptyTitle="No planned Production" emptyDescription="Eligible due Job Orders will appear here." />
             </Card> : null}
 
@@ -11427,7 +9752,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                 ["reconciliation", "Reconciliation Required", inventory.reconciliation_required, "text-rose-700"],
               ].map(([filter, label, value, color]) => <button key={label} className={`min-w-[150px] flex-1 rounded-lg px-3 py-2 text-left outline-none transition hover:bg-white focus:ring-2 focus:ring-primary/20 ${dashboardActionFilter === filter ? "bg-white shadow-sm ring-1 ring-border" : ""}`} type="button" aria-pressed={dashboardActionFilter === filter} onClick={() => setDashboardActionFilter((current) => current === filter ? "all" : filter)}><div className={`text-xl font-black ${color}`}>{Number(value || 0).toLocaleString("en-MY")}</div><div className="text-xs font-semibold text-text-secondary">{label}</div></button>)}</div> : null}
               {dashboardActionFilter !== "all" ? <div className="flex items-center justify-between border-b border-border px-4 py-2 text-xs font-semibold text-text-secondary"><span>Filtered by {dashboardActionFilter === "healthy" ? "Healthy SKUs" : dashboardActionFilter.replace(/\b\w/g, (letter) => letter.toUpperCase())}</span><button className="font-bold text-primary hover:underline" type="button" onClick={() => setDashboardActionFilter("all")}>Clear filter</button></div> : null}
-              <FactoryTable columns={[{ key: "severity", label: "Severity", render: (row) => <Badge tone={actionTone(row.severity)}>{row.severity}</Badge> }, { key: "alert", label: "Alert", render: (row) => <div className="font-bold text-text-primary">{row.alert}</div> }, { key: "item", label: "Item", render: (row) => row.item }, { key: "details", label: "Details", render: (row) => <div className="max-w-[320px] text-text-secondary">{row.details}</div> }, { key: "recommended", label: "Recommended Action", render: (row) => String(row.recommended_action || "Review and resolve.").replace(/^Open /, "Review ") }, { key: "link", label: "Link", render: (row) => { const route = row.route || row.link; if (!route) return "—"; const target = row.detail_id ? `${route}?detail_id=${encodeURIComponent(row.detail_id)}&entity_type=${encodeURIComponent(row.entity_type || "")}` : route; return <a className="font-bold text-primary hover:underline focus:outline-none focus:ring-2 focus:ring-primary/20" href={target}>Open</a>; } }]} rows={visibleActions} emptyTitle="No action required" emptyDescription="No permitted operational alerts match this view." />
+              <FactoryTable columns={[{ key: "severity", label: "Severity", render: (row) => <Badge tone={dashboardActionTone(row.severity)}>{row.severity}</Badge> }, { key: "alert", label: "Alert", render: (row) => <div className="font-bold text-text-primary">{row.alert}</div> }, { key: "item", label: "Item", render: (row) => row.item }, { key: "details", label: "Details", render: (row) => <div className="max-w-[320px] text-text-secondary">{row.details}</div> }, { key: "recommended", label: "Recommended Action", render: (row) => String(row.recommended_action || "Review and resolve.").replace(/^Open /, "Review ") }, { key: "link", label: "Link", render: (row) => { const route = row.route || row.link; if (!route) return "—"; const target = row.detail_id ? `${route}?detail_id=${encodeURIComponent(row.detail_id)}&entity_type=${encodeURIComponent(row.entity_type || "")}` : route; return <a className="font-bold text-primary hover:underline focus:outline-none focus:ring-2 focus:ring-primary/20" href={target}>Open</a>; } }]} rows={visibleActions} emptyTitle="No action required" emptyDescription="No permitted operational alerts match this view." />
             </Card> : null}
           </>
         ) : dashboardAnalytics.errorKind === "permission" ? <EmptyState title="Factory Dashboard unavailable" description="Your current role does not include Factory Dashboard analytics." /> : null}
@@ -11912,46 +10237,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   function renderRawMaterialMovements() {
-    const rows = currentListingRows("raw-movements", []);
-    const movementSummary = factoryListingPage.summary || {};
-    const movementColumns = [
-      { key: "movement_date", label: "Date", render: (row) => <span className="whitespace-nowrap font-semibold text-text-primary">{formatFactoryDate(row.movement_date)}</span> },
-      { key: "movement_type", label: "Movement Type", render: (row) => { const meta = rawMovementTypeMeta(row.movement_type); return <Badge tone={meta.tone}>{meta.label}</Badge>; } },
-      { key: "raw_material", label: "Raw Material", render: (row) => <div><div className="font-bold text-text-primary">{row.raw_material_name || "Raw Material"}</div><div className="text-xs text-text-secondary">{row.raw_material_code || "No SKU"}</div></div> },
-      { key: "quantity", label: "Qty", render: (row) => <span className={`whitespace-nowrap font-bold ${Number(row.quantity || 0) >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{ledgerQuantity(row.quantity, row.uom, { signed: true })}</span> },
-      { key: "balance", label: "Balance", render: (row) => <span className="whitespace-nowrap font-bold text-text-primary">{row.balance_after == null ? "—" : ledgerQuantity(row.balance_after, row.uom)}</span> },
-      { key: "storage_location", label: "Storage Location", render: (row) => row.storage_location || "—" },
-      { key: "batch_no", label: "Internal Batch", render: (row) => row.internal_batch_no && row.batch_id ? <button className="font-bold text-text-primary underline decoration-dotted underline-offset-4 hover:text-primary" type="button" title="Filter by this exact Internal Batch" onClick={() => selectRawMovementBatch(row)}>{row.internal_batch_no}</button> : row.internal_batch_no || "—" },
-      { key: "reference", label: "Reference", render: (row) => row.reference_no && row.document_id ? <button className="font-bold text-primary underline decoration-dotted underline-offset-4 hover:text-emerald-800 disabled:cursor-wait disabled:opacity-60" type="button" disabled={rawMovementReferenceLoading === row.id} onClick={() => openRawMaterialMovementReference(row)}>{rawMovementReferenceLoading === row.id ? "Opening..." : row.reference_no}</button> : "—" },
-      { key: "created_by", label: "Operator", render: (row) => row.created_by_name || "—" },
-      { key: "actions", label: "Action", align: "right", render: (row) => <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "raw-material-movement-detail", value: row })}>View</button> },
-    ];
-    return (
-      <div className="space-y-5">
-        <PageHeader
-          section="Raw Material"
-          title="Raw Material Movements"
-          description="View raw material stock-in, stock-out and approved adjustment movement logs."
-        />
-        <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={RefreshCw} label="Movements" value={factoryListingPage.hasLoaded ? Number(movementSummary.movements || 0) : "—"} helper="Filtered movement rows" />
-          <MetricCard icon={PackageCheck} label="Stock In" value={factoryListingPage.hasLoaded ? ledgerQuantityList(movementSummary.stock_in_by_uom) : "—"} helper="Positive movement quantity by UOM" tone="success" />
-          <MetricCard icon={Factory} label="Stock Out" value={factoryListingPage.hasLoaded ? ledgerQuantityList(movementSummary.stock_out_by_uom) : "—"} helper="Negative movement quantity by UOM" tone={(movementSummary.stock_out_by_uom || []).length ? "warning" : "success"} />
-          <MetricCard icon={Warehouse} label="Locations" value={factoryListingPage.hasLoaded ? Number(movementSummary.locations || 0) : "—"} helper="Locations in filtered rows" />
-        </div>
-        {rawMovementFilterControls()}
-        <Card title="Raw Material Movement History" description="Read-only movement log from receiving, production usage and approved stock checks.">
-          {listingLoadState("raw-movements", "Raw Material Movements")}
-          <FactoryTable
-            columns={movementColumns}
-            rows={rows}
-            emptyTitle="No raw material movements"
-            emptyDescription="Receiving, production actual usage and approved stock checks will create raw material movement rows."
-          />
-          {listingPagination("raw-movements")}
-        </Card>
-      </div>
-    );
+    return <FactoryRawMaterialMovementsPage
+      onNotify={ui?.notify}
+      onOpenDetail={(value) => setModal({ type: "raw-material-movement-detail", value })}
+      onCloseDetail={() => setModal((current) => current?.type === "raw-material-movement-detail" ? null : current)}
+    />;
   }
 
   function renderRawInventory() {
@@ -12310,256 +10600,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     );
   }
 
-  function renderBatchTraceability() {
-    const traceProductions = currentListingRows("batch-traceability", data.productions);
-    const rows = traceProductions.map((production) => {
-      const job = data.jobOrders.find((item) => item.id === production.job_order_id);
-      const stockInMovements = production.stock_in_movements || data.productMovements.filter((movement) => movement.reference_type === "production" && movement.reference_id === production.id);
-      const finishedGood = data.finishedGoods.find((item) => item.id === production.finished_good_id || item.id === job?.finished_good_id);
-      const recipe = data.recipes.find((item) => item.id === production.recipe_id)
-        || data.recipes.find((item) => item.status === "active" && item.product_family_id && item.product_family_id === (production.product_family_id || finishedGood?.product_family_id))
-        || data.recipes.find((item) => item.status === "active" && item.finished_good_id && item.finished_good_id === (production.finished_good_id || job?.finished_good_id));
-      const sop = data.sops.find((item) => item.id === production.production_sop_id);
-      return { ...production, job, stockInMovements, finishedGood, recipe, sop };
-    });
-    const totalStockInByType = rows.flatMap((row) => row.stockInMovements).reduce((groups, movement) => {
-      const type = pluralizePackagingType(packagingTypeLabel(movement), Number(movement.quantity || 0));
-      groups[type] = (groups[type] || 0) + Number(movement.quantity || 0);
-      return groups;
-    }, {});
-    const stockInTypes = Object.keys(totalStockInByType);
-    const pageFinishedGoodsProducedValue = stockInTypes.length === 1
-      ? quantity(totalStockInByType[stockInTypes[0]], stockInTypes[0])
-      : stockInTypes.length > 1 ? "Mixed" : "—";
-    const outputGroups = Array.isArray(factoryListingPage.summary.output_groups) ? factoryListingPage.summary.output_groups : [];
-    const finishedGoodsProducedValue = outputGroups.length === 1
-      ? quantity(outputGroups[0].quantity, pluralizePackagingType(outputGroups[0].unit, Number(outputGroups[0].quantity || 0)))
-      : outputGroups.length > 1 ? "Mixed" : pageFinishedGoodsProducedValue;
-    const pageTraceabilityGapCount = rows.reduce((sum, row) => sum + traceabilitySteps(row).filter((step) => step.status !== "complete").length, 0);
-    const traceabilityGapCount = factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.traceability_gaps || 0) : pageTraceabilityGapCount;
-
-    function stockInBaseEquivalent(movement) {
-      const base = normalizePackSizeToBase(movement.pack_size_qty || movement.base_qty, movement.pack_size_uom || movement.base_uom);
-      const qty = Number(movement.quantity || 0);
-      if (!base || !qty) return "";
-      return quantity(qty * base.amount, base.uom);
-    }
-
-    function stockInOutputLabel(row) {
-      const movements = row.stockInMovements || [];
-      if (!movements.length) return "—";
-      const types = [...new Set(movements.map((movement) => packagingTypeLabel(movement)).filter(Boolean))];
-      if (types.length !== 1) return "Mixed";
-      const total = movements.reduce((sum, movement) => sum + Number(movement.quantity || 0), 0);
-      return quantity(total, pluralizePackagingType(types[0], total));
-    }
-
-    function batchStatus(row) {
-      const steps = traceabilitySteps(row);
-      const gaps = steps.filter((step) => step.status === "missing").length;
-      if (gaps) return { label: "Gap Found", tone: "danger" };
-      if (steps.some((step) => step.status === "pending")) return { label: "Pending Review", tone: "warning" };
-      return { label: "Complete", tone: "success" };
-    }
-
-    function traceabilityScore(row) {
-      const steps = traceabilitySteps(row);
-      const completed = steps.filter((step) => step.status === "complete").length;
-      return steps.length ? Math.round((completed / steps.length) * 100) : 0;
-    }
-
-    function recipeLabel(recipe) {
-      if (!recipe) return "Not linked";
-      return recipeOperatorIdentity(recipe);
-    }
-
-    function traceabilitySteps(row) {
-      const hasUsage = (row.material_usage || []).length > 0;
-      const hasLots = hasUsage && row.material_usage.every((item) => item.raw_material_lot_no || item.receiving_ref);
-      const qcResults = (row.step_executions || []).flatMap((step) => step.qc_results || []);
-      const hasQc = qcResults.length > 0 || (row.qc_checkpoints || []).length > 0;
-      const qcState = productionQcStatus(qcResults);
-      const qcFailed = qcState.status === "Failed";
-      const qcIncomplete = ["Not Started", "In Progress"].includes(qcState.status);
-      const qcMain = qcResults.length ? productionQcDisplayLabel(qcState.status) : hasQc ? `${row.qc_checkpoints.length} legacy checkpoint${row.qc_checkpoints.length === 1 ? "" : "s"}` : "No QC Required";
-      return [
-        {
-          key: "recipe",
-          title: "Recipe Used",
-          status: row.recipe ? "complete" : "missing",
-          main: `Active Recipe: ${recipeLabel(row.recipe)}`,
-          detail: row.recipe ? `Standard Output: ${quantity(row.recipe.yield_quantity, row.recipe.uom)}` : "No active recipe linked.",
-        },
-        {
-          key: "sop",
-          title: "SOP Used",
-          status: row.sop ? "complete" : "pending",
-          main: row.sop ? productionSopDisplayName(row.sop) : "No SOP Linked",
-          detail: row.sop ? `Effective Date: ${formatFactoryDate(row.sop.effective_date)}` : "Production SOP is not required in Phase 1 production completion.",
-        },
-        {
-          key: "materials",
-          title: "Raw Material Lots",
-          status: hasLots ? "complete" : hasUsage ? "missing" : "pending",
-          main: hasUsage ? `${row.material_usage.length} material usage row${row.material_usage.length === 1 ? "" : "s"}` : "No material usage rows",
-          detail: hasLots ? "All material rows have lot/reference links." : hasUsage ? "One or more rows have lot not linked." : "Production usage was not captured.",
-        },
-        {
-          key: "production",
-          title: "Production Record",
-          status: row.id || row.job?.job_order_no ? "complete" : "missing",
-          main: `Job Order: ${row.job?.job_order_no || "—"}`,
-          detail: `Production Batch: ${productionBatchReference(row)} · Production Date: ${formatFactoryDate(row.production_date)}`,
-        },
-        {
-          key: "stock-in",
-          title: "Finished Goods Stock-In",
-          status: row.stockInMovements.length ? "complete" : "missing",
-          main: stockInOutputLabel(row),
-          detail: row.stockInMovements.length ? row.stockInMovements.map((movement) => [movement.reference_no, stockInBaseEquivalent(movement)].filter(Boolean).join(" · ")).join(", ") : "No finished goods stock-in movement linked.",
-        },
-        {
-          key: "dispatch",
-          title: "Dispatch",
-          status: "pending",
-          main: "Not linked yet",
-          detail: "Dispatch batch allocation planned for Phase 2.",
-        },
-        {
-          key: "customer",
-          title: "Customer",
-          status: "pending",
-          main: "Not linked yet",
-          detail: "Requires Dispatch Batch Allocation.",
-        },
-        {
-          key: "qc",
-          title: "QC",
-          status: qcFailed || qcIncomplete ? "missing" : "complete",
-          main: qcMain,
-          detail: qcResults.length ? `${qcResults.filter((result) => result.checked_at).length} of ${qcResults.length} QC records completed.` : hasQc ? row.qc_checkpoints.map((checkpoint) => `Step ${checkpoint.step_no}: ${checkpoint.qc_status || "Pending"}`).join(", ") : "No QC checks were required by the snapshotted SOP.",
-        },
-      ];
-    }
-
-    function stepTone(step) {
-      if (step.status === "complete") return "success";
-      if (step.status === "missing") return "danger";
-      return "neutral";
-    }
-
-    return (
-      <div className="space-y-5">
-        <PageHeader
-          section="Factory"
-          title="Batch Traceability"
-          description="Trace a production batch across job order, SOP, raw material lots, QC and finished goods stock-in."
-          actions={<button className="btn-secondary" type="button" onClick={loadData}><RefreshCw size={15} /> Refresh</button>}
-        />
-        <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={Factory} label="Production Batches" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.production_batches || 0) : rows.length} helper="Completed production batches" />
-          <MetricCard icon={Truck} label="Raw Material Lots" value={factoryListingPage.hasLoaded ? Number(factoryListingPage.summary.raw_material_lots || 0) : rows.flatMap((row) => row.material_usage || []).filter((item) => item.raw_material_lot_no || item.receiving_ref).length} helper="Lot-linked material usage" />
-          <MetricCard icon={PackageCheck} label="Finished Goods Produced" value={finishedGoodsProducedValue} helper="Packaging units stocked in" />
-          <MetricCard icon={AlertTriangle} label="Traceability Gaps" value={traceabilityGapCount} helper="Missing lot / QC / dispatch links" tone={traceabilityGapCount ? "warning" : "success"} />
-        </div>
-        <Card title="Batch Traceability Records" description="Follow each production batch from recipe through raw material lots, stock-in, QC and Phase 2 dispatch allocation readiness.">
-          {listingLoadState("batch-traceability", "Batch Traceability")}
-          <div className="space-y-4 p-4">
-            {rows.length ? rows.map((row) => {
-              const status = batchStatus(row);
-              const score = traceabilityScore(row);
-              const timeline = traceabilitySteps(row);
-              return (
-                <div key={row.id} className="rounded-2xl border border-border bg-white p-4">
-                  <div className="grid gap-4 lg:grid-cols-[1.1fr_0.9fr]">
-                    <div>
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <div className="text-xs font-semibold uppercase tracking-wide text-text-muted">Batch No</div>
-                          <div className="mt-1 text-xl font-black text-text-primary">{row.batch_no || "No batch"}</div>
-                          <div className="mt-1 text-sm font-semibold text-text-primary">{row.product_family_name || row.product_name || "Finished Good"}</div>
-                          {row.product_name_cn ? <div className="text-xs font-semibold text-text-secondary">{row.product_name_cn}</div> : null}
-                        </div>
-                        <Badge tone={status.tone}>{status.label}</Badge>
-                      </div>
-                      <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-                        <div><div className="text-xs font-semibold text-text-muted">Packaging SKU</div><div className="text-sm font-semibold text-text-primary">{packagingSkuDisplayName(row.finishedGood || row) || row.product_code || "—"}</div></div>
-                        <div><div className="text-xs font-semibold text-text-muted">Output</div><div className="text-sm font-semibold text-text-primary">{stockInOutputLabel(row)}</div></div>
-                        <div><div className="text-xs font-semibold text-text-muted">Manufacturing Date</div><div className="text-sm font-semibold text-text-primary">{formatFactoryDate(row.manufacturing_date || row.production_date)}</div></div>
-                        <div><div className="text-xs font-semibold text-text-muted">Operator</div><div className="text-sm font-semibold text-text-primary">{row.operator_name || "—"}</div></div>
-                      </div>
-                      <div className="mt-4 grid gap-3 border-t border-border pt-4 sm:grid-cols-2 lg:grid-cols-3">
-                        <div><div className="text-xs font-semibold text-text-muted">Production Start</div><div className="text-sm font-semibold text-text-primary">{row.production_date && row.start_time ? `${formatFactoryDate(row.production_date)} ${factoryTimeAmPmLabel(row.start_time)}` : "—"}</div></div>
-                        <div><div className="text-xs font-semibold text-text-muted">Production End</div><div className="text-sm font-semibold text-text-primary">{row.end_date ? `${formatFactoryDate(row.end_date)} ${factoryTimeAmPmLabel(row.end_time)}` : "—"}</div></div>
-                        <div><div className="text-xs font-semibold text-text-muted">Duration</div><div className="text-sm font-semibold text-text-primary">{row.end_date ? productionDurationLabel(row.production_date, String(row.start_time || "").slice(0, 5), row.end_date, String(row.end_time || "").slice(0, 5)) : "Legacy Production"}</div></div>
-                        <div><div className="text-xs font-semibold text-text-muted">Expiry Date</div><div className="text-sm font-semibold text-text-primary">{row.expiry_date ? formatFactoryDate(row.expiry_date) : "—"}</div></div>
-                        <div><div className="text-xs font-semibold text-text-muted">Storage Location</div><div className="text-sm font-semibold text-text-primary">{row.storage_location || "—"}</div></div>
-                        <div><div className="text-xs font-semibold text-text-muted">Shelf Life Applied</div><div className="text-sm font-semibold text-text-primary">{row.shelf_life_days_snapshot !== "" ? `${row.shelf_life_days_snapshot} days` : "—"}</div></div>
-                        {row.expiry_override_reason ? <div><div className="text-xs font-semibold text-text-muted">Expiry Override Reason</div><div className="text-sm font-semibold text-text-primary">{row.expiry_override_reason}</div></div> : null}
-                      </div>
-                    </div>
-                    <div className="rounded-2xl border border-border bg-slate-50 p-4">
-                      <div className="flex items-center justify-between gap-3">
-                        <div>
-                          <div className="text-sm font-bold text-text-primary">Traceability Score</div>
-                          <div className="text-xs font-semibold text-text-secondary">Linked evidence across production journey</div>
-                        </div>
-                        <div className="text-2xl font-black text-text-primary">{score}%</div>
-                      </div>
-                      <div className="mt-3 h-2 rounded-full bg-white">
-                        <div className="h-full rounded-full bg-primary" style={{ width: `${score}%` }} />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="mt-5 space-y-3">
-                    {timeline.map((step, index) => (
-                      <div key={step.key} className="relative flex gap-3">
-                        {index < timeline.length - 1 ? <div className="absolute left-[13px] top-8 h-[calc(100%-12px)] w-px bg-border" /> : null}
-                        <div className={`relative z-10 mt-1 flex h-7 w-7 shrink-0 items-center justify-center rounded-full border text-xs font-black ${step.status === "complete" ? "border-emerald-200 bg-emerald-50 text-emerald-700" : step.status === "missing" ? "border-rose-200 bg-rose-50 text-rose-700" : "border-slate-200 bg-slate-50 text-text-muted"}`}>
-                          {step.status === "complete" ? "✓" : step.status === "missing" ? "!" : "•"}
-                        </div>
-                        <div className="min-w-0 flex-1 rounded-xl border border-border bg-slate-50 p-3">
-                          <div className="flex flex-wrap items-start justify-between gap-2">
-                            <div>
-                              <div className="text-sm font-bold text-text-primary">{step.title}</div>
-                              <div className="mt-1 text-sm font-semibold text-text-primary">{step.main}</div>
-                              <div className="mt-1 text-xs font-semibold text-text-secondary">{step.detail}</div>
-                            </div>
-                            <Badge tone={stepTone(step)}>{step.status === "complete" ? "Linked" : step.status === "missing" ? "Missing" : "Not linked yet"}</Badge>
-                          </div>
-                          {step.key === "materials" && (row.material_usage || []).length ? (
-                            <div className="mt-3 grid gap-2 md:grid-cols-2">
-                              {row.material_usage.map((item) => (
-                                <div key={item.id} className="rounded-lg border border-border bg-white px-3 py-2 text-xs font-semibold text-text-secondary">
-                                  <div className="text-sm font-bold text-text-primary">{item.raw_material_name || "Raw Material"}</div>
-                                  <div>Required / Actual: {quantity(item.standard_usage || item.actual_usage, item.uom)} / {quantity(item.actual_usage, item.uom)}</div>
-                                  {item.raw_material_lot_no || item.receiving_ref ? (
-                                    <>
-                                      <div>Lot: {item.raw_material_lot_no || "Lot not linked"}</div>
-                                      <div>Receiving: {item.receiving_ref || "—"}</div>
-                                      {item.supplier_name ? <div>Supplier: {item.supplier_name}</div> : null}
-                                    </>
-                                  ) : (
-                                    <div>Lot not linked</div>
-                                  )}
-                                </div>
-                              ))}
-                            </div>
-                          ) : null}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-            }) : <EmptyState title="No batch traceability records" description="Complete production to create batch traceability records." />}
-          </div>
-          {listingPagination("batch-traceability")}
-        </Card>
-      </div>
-    );
-  }
-
   function renderReports() {
     const productionRows = data.productions.map((production) => {
       const cost = productionCostInfo(production, data.receivings);
@@ -12758,75 +10798,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
             />
           </Card>
         </div>
-      </div>
-    );
-  }
-
-  function renderFinishedGoodBatchTraceability() {
-    const rows = factoryListingPage.hasLoaded ? factoryListingPage.rows : [];
-    const summary = factoryListingPage.summary || {};
-    const finishedGoodOptions = data.finishedGoods.map((sku) => ({
-      value: sku.id,
-      label: [sku.product_code, sku.product_family_name || sku.product_name, sku.variant_name || packSizeText(sku)].filter(Boolean).join(" · "),
-    }));
-    const storageOptions = data.storageLocations.filter((location) => String(location.location_type || "").toLowerCase() === "finished goods area").map((location) => ({ value: location.id, label: location.location_name }));
-    const setFilter = (key, value) => setBatchTraceabilityFilters((current) => ({ ...current, [key]: value }));
-    const clearFilters = () => setBatchTraceabilityFilters({ dateFrom: "", dateTo: "", finishedGood: "", batchNo: "", batchType: "", expiryStatus: "", storageLocation: "", reconciliationStatus: "", search: "" });
-
-    function rowStatus(row) {
-      if (["mismatch", "review_required"].includes(row.reconciliation_status)) return { label: "Reconciliation Warning", tone: "danger" };
-      if (row.batch_type === "legacy_unallocated") return { label: "Legacy / Unallocated", tone: "warning" };
-      if (row.expiry_date && row.expiry_date < todayInput()) return { label: "Expired", tone: "danger" };
-      if (row.current_balance <= 0) return { label: "Depleted", tone: "neutral" };
-      if (row.original_qty > 0 && row.current_balance / row.original_qty <= 0.2) return { label: "Low Balance", tone: "warning" };
-      return { label: "Available", tone: "success" };
-    }
-
-    const columns = [
-      { key: "batch_no", label: "Batch No.", render: (row) => <div><div className="font-black text-text-primary">{operatorFinishedGoodBatchNo(row)}</div><Badge tone={row.batch_type === "production" ? "info" : "neutral"}>{batchTypeLabel(row.batch_type)}</Badge></div> },
-      { key: "sku", label: "Packaging SKU", render: (row) => <div><div className="font-bold text-text-primary">{row.packaging_sku_code || "No SKU"}</div><div className="text-xs font-semibold text-text-secondary">{row.finished_good_name || row.packaging_sku_name || "—"}</div></div> },
-      { key: "original", label: "Produced / Adjusted", render: (row) => packQuantity(row.original_qty) },
-      { key: "dispatched", label: "Dispatched", render: (row) => packQuantity(row.completed_dispatch_qty) },
-      { key: "remaining", label: "Remaining", render: (row) => <span className="font-black text-text-primary">{packQuantity(row.current_balance)}</span> },
-      { key: "dates", label: "Manufacturing / Expiry", render: (row) => <div className="whitespace-nowrap"><div>{formatFactoryDate(row.manufacturing_date)}</div><div className="text-xs text-text-secondary">{row.expiry_date ? `Expiry ${formatFactoryDate(row.expiry_date)}` : "No Expiry Recorded"}</div></div> },
-      { key: "storage", label: "Storage", render: (row) => <div><div className="font-semibold text-text-primary">{row.storage_location_name || "—"}</div><div className="text-xs text-text-secondary">{row.storage_location_type || "—"}</div></div> },
-      { key: "status", label: "Status", render: (row) => { const status = rowStatus(row); const diagnostics = Array.isArray(row.diagnostics) ? row.diagnostics : []; return <div className="space-y-1"><Badge tone={status.tone}>{status.label}</Badge>{diagnostics.length ? <div className="text-[10.5px] font-bold text-amber-700">{diagnostics.length} historical diagnostic{diagnostics.length === 1 ? "" : "s"}</div> : null}</div>; } },
-      { key: "action", label: "Actions", align: "right", render: (row) => <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => loadBatchTraceabilityDetail(row)}>View Details</button> },
-    ];
-
-    const hasTracePermission = canViewBatchTraceability;
-    return (
-      <div className="space-y-5">
-        <PageHeader section="Factory" title="Batch Traceability" description="Trace Finished Goods batches from Production or adjustment through Dispatch and Customer." actions={<button className="btn-secondary" type="button" onClick={factoryListingActions.retry}><RefreshCw size={15} /> Refresh</button>} />
-        {!hasTracePermission && factoryListingPage.errorKind !== "permission" ? <div className="rounded-xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">Some batch traceability data is hidden by your current role.</div> : null}
-        <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={Package} label="Batch Records" value={factoryListingPage.loadedTotal} helper="Filtered authoritative batches" />
-          <MetricCard icon={PackageCheck} label="Available" value={Number(summary.available || 0)} helper="Usable batch balances" tone="success" />
-          <MetricCard icon={Warehouse} label="Remaining Qty" value={packQuantity(summary.remaining_qty || 0)} helper="Across filtered batches" />
-          <MetricCard icon={AlertTriangle} label="Warnings" value={Number(summary.warnings || 0)} helper="Expiry or reconciliation review" tone={Number(summary.warnings || 0) ? "warning" : "success"} />
-        </div>
-        <div className="rounded-xl border border-border bg-white p-4">
-          <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-            <Field label="Date From"><FeedXDatePicker value={batchTraceabilityFilters.dateFrom} onChange={(value) => setFilter("dateFrom", value)} /></Field>
-            <Field label="Date To"><FeedXDatePicker value={batchTraceabilityFilters.dateTo} onChange={(value) => setFilter("dateTo", value)} /></Field>
-            <Field label="Packaging SKU"><SearchableSelect value={batchTraceabilityFilters.finishedGood} options={[{ value: "", label: "All" }, ...finishedGoodOptions]} placeholder="All" onChange={(value) => setFilter("finishedGood", value)} /></Field>
-            <Field label="Batch Type"><SearchableSelect value={batchTraceabilityFilters.batchType} options={[{ value: "", label: "All" }, { value: "production", label: "Production" }, { value: "adjustment", label: "Adjustment" }, { value: "legacy_unallocated", label: "Legacy / Unallocated" }]} placeholder="All" onChange={(value) => setFilter("batchType", value)} /></Field>
-            <Field label="Expiry Status"><SearchableSelect value={batchTraceabilityFilters.expiryStatus} options={[{ value: "", label: "All" }, { value: "expired", label: "Expired" }, { value: "expiring_30", label: "Expiring in 30 Days" }, { value: "valid", label: "Valid Beyond 30 Days" }, { value: "no_expiry", label: "No Expiry Recorded" }]} placeholder="All" onChange={(value) => setFilter("expiryStatus", value)} /></Field>
-            <Field label="Storage Location"><SearchableSelect value={batchTraceabilityFilters.storageLocation} options={[{ value: "", label: "All" }, ...storageOptions]} placeholder="All" onChange={(value) => setFilter("storageLocation", value)} /></Field>
-            <Field label="Reconciliation"><SearchableSelect value={batchTraceabilityFilters.reconciliationStatus} options={[{ value: "", label: "All" }, { value: "reconciled", label: "Reconciled" }, { value: "legacy_unallocated", label: "Legacy / Unallocated" }, { value: "review_required", label: "Review Required" }, { value: "mismatch", label: "Mismatch" }]} placeholder="All" onChange={(value) => setFilter("reconciliationStatus", value)} /></Field>
-            <Field label="Batch No."><input className="field-input" value={batchTraceabilityFilters.batchNo} onChange={(event) => setFilter("batchNo", event.target.value)} placeholder="Search batch" /></Field>
-            <Field label="Search"><input className="field-input" value={batchTraceabilityFilters.search} onChange={(event) => setFilter("search", event.target.value)} placeholder="SKU, source, location" /></Field>
-            <div className="flex items-end"><button className="btn-secondary w-full" type="button" onClick={clearFilters}>Clear Filters</button></div>
-          </div>
-        </div>
-        <Card title="Finished Goods Batch Records" description="One row per authoritative Production, Adjustment or Legacy / Unallocated balance.">
-          {listingLoadState("batch-traceability", "Batch Traceability")}
-          <div className="md:hidden">
-            {!rows.length ? <div className="p-4"><EmptyState title="No Batch Records Found" description="No authoritative batches match the selected filters." /></div> : <div className="divide-y divide-border">{rows.map((row) => { const status = rowStatus(row); return <div key={row.id} className="space-y-3 p-4"><div className="flex items-start justify-between gap-3"><div><div className="font-black text-text-primary">{operatorFinishedGoodBatchNo(row)}</div><div className="text-sm font-semibold text-text-secondary">{row.packaging_sku_code || "No SKU"} · {row.finished_good_name || row.packaging_sku_name || "—"}</div></div><Badge tone={status.tone}>{status.label}</Badge></div><div className="grid grid-cols-3 gap-2 text-sm"><div><div className="text-[10.5px] text-text-muted">Original</div><div className="font-bold">{packQuantity(row.original_qty)}</div></div><div><div className="text-[10.5px] text-text-muted">Dispatched</div><div className="font-bold">{packQuantity(row.completed_dispatch_qty)}</div></div><div><div className="text-[10.5px] text-text-muted">Remaining</div><div className="font-bold">{packQuantity(row.current_balance)}</div></div></div><button className="btn-secondary w-full" type="button" onClick={() => loadBatchTraceabilityDetail(row)}>View Details</button></div>; })}</div>}
-          </div>
-          <div className="hidden md:block"><FactoryTable columns={columns} rows={rows} emptyTitle="No Batch Records Found" emptyDescription="No authoritative batches match the selected filters." /></div>
-          {listingPagination("batch-traceability")}
-        </Card>
       </div>
     );
   }
@@ -13175,105 +11146,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   function renderProductMovements() {
-    const rows = productMovementLedger.rows.map((movement) => ({
-      ...movement,
-      source_label: movementSourceLabel(movement),
-      movement_type_label: movementTypeLabel(movement),
-    }));
-    const currentSkuBalanceByType = (productMovementLedger.summary.filteredSkus || [])
-      .reduce((groups, sku) => {
-        const type = pluralizePackagingType(packagingTypeLabel(sku), Number(sku.current_balance || 0));
-        groups[type] = (groups[type] || 0) + Number(sku.current_balance || 0);
-        return groups;
-      }, {});
-    const currentSkuBalanceTypes = Object.keys(currentSkuBalanceByType);
-    const currentSkuBalanceValue = currentSkuBalanceTypes.length === 1
-      ? quantity(currentSkuBalanceByType[currentSkuBalanceTypes[0]], currentSkuBalanceTypes[0])
-      : currentSkuBalanceTypes.length > 1 ? "Mixed" : "—";
-    const storageSummary = (row) => Number(row.missing_storage_location_count || 0) > 0
-      ? "—"
-      : Number(row.storage_location_count || 0) > 1
-        ? `${Number(row.storage_location_count)} Locations`
-        : row.storage_location_name || "—";
-    const batchSummary = (row) => Number(row.batch_count || 0) > 1
-      ? `${Number(row.batch_count)} Batches`
-      : row.batch_summary || row.batch_no || "—";
-    const expirySummary = (row) => Number(row.batch_count || 0) > 1
-      ? row.earliest_expiry_date ? `Earliest: ${formatFactoryReadableDate(row.earliest_expiry_date)}` : "—"
-      : formatFactoryReadableDate(row.expiry_date || row.earliest_expiry_date);
-    const movementColumns = [
-      { key: "movement_date", label: "Date", render: (row) => <span className="whitespace-nowrap font-semibold text-text-primary">{formatFactoryDate(row.movement_date)}</span> },
-      { key: "movement_type", label: "Type", render: (row) => <Badge tone={row.quantity >= 0 ? "success" : "warning"}>{row.movement_type_label}</Badge> },
-      { key: "product_name", label: "Finished Good", render: (row) => <div className="min-w-[190px]"><div className="font-semibold text-text-primary">{row.product_name || "Finished Good"}</div>{row.product_name_cn ? <div className="mt-0.5 text-xs font-medium text-text-secondary">{row.product_name_cn}</div> : null}</div> },
-      { key: "packaging_sku", label: "Packaging SKU", render: (row) => <div><div className="font-semibold text-text-primary">{row.product_code || "No SKU"}</div><div className="text-xs font-medium text-text-secondary">{row.variant_name || packSizeText(row) || "Packaging SKU"}</div></div> },
-      { key: "quantity", label: "Qty", render: (row) => <div className={`font-bold ${Number(row.quantity || 0) >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{movementPackagingQtyLabel(row)}</div> },
-      { key: "balance", label: "Balance", render: (row) => <div className="font-bold text-text-primary">{movementBalanceLabel(row)}</div> },
-      { key: "storage", label: "Storage", render: (row) => <div className="min-w-[135px] max-w-[190px]"><div className="font-semibold leading-5 text-text-primary">{storageSummary(row)}</div>{Number(row.storage_location_count || 0) === 1 && row.storage_location_type ? <div className="text-xs font-medium text-text-secondary">{row.storage_location_type}</div> : null}</div> },
-      { key: "batch_no", label: "Batch", render: (row) => <div className="max-w-[150px] font-semibold text-text-primary">{batchSummary(row)}</div> },
-      { key: "expiry", label: "Expiry", render: (row) => <div className="whitespace-nowrap font-medium text-text-primary">{expirySummary(row)}</div> },
-      { key: "source", label: "Source", render: (row) => <div className="min-w-[125px] max-w-[190px]"><div className="font-semibold leading-5 text-text-primary">{row.source_label}</div><div className="break-words text-xs font-medium text-text-secondary">{movementSourceReference(row)}</div></div> },
-    ];
-    return (
-      <div className="space-y-5">
-        <PageHeader
-          section="Warehouse"
-          title="Product Movements"
-        />
-        <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={Activity} label="Movements" value={productMovementLedger.loadedTotal} helper="Filtered ledger entries" />
-          <MetricCard icon={PackageCheck} label="Stock In" value={productMovementLedger.summary.stockInCount || 0} helper="Filtered inbound entries" tone="success" />
-          <MetricCard icon={AlertTriangle} label="Stock Out" value={productMovementLedger.summary.stockOutCount || 0} helper="Filtered outbound entries" tone="warning" />
-          <MetricCard icon={Warehouse} label="Current SKU Balance" value={currentSkuBalanceValue} helper="Across moved Packaging SKUs" />
-        </div>
-        {productMovementFilterControls()}
-        <Card className="relative">
-          {productMovementLedger.loading ? <div className="absolute inset-x-0 top-0 z-10 h-1 overflow-hidden rounded-t-xl bg-primary/15"><div className="h-full w-1/3 animate-pulse rounded-full bg-primary" /></div> : null}
-          <FactoryTableLoadState state={productMovementLedger} label="Product Movements" onRetry={productMovementActions.retry} />
-          <div className={productMovementLedger.loading && productMovementLedger.hasLoaded ? "opacity-60 transition-opacity" : "transition-opacity"}>
-            <div className="md:hidden">
-            {!productMovementLedger.hasLoaded ? (
-              <div className="p-4"><EmptyState title={productMovementLedger.error ? "Product Movements unavailable" : "Loading Product Movements"} description={productMovementLedger.error ? "Retry to load the movement ledger." : "Loading the movement ledger."} /></div>
-            ) : !rows.length ? (
-              <div className="p-4"><EmptyState title="No Product Movements Found" description="No ledger entries match the selected filters." /></div>
-            ) : (
-              <div className="divide-y divide-border">
-                {rows.map((row) => (
-                  <div key={row.id} className="space-y-3 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div>
-                        <div className="text-xs font-semibold text-text-muted">{formatFactoryDate(row.movement_date)}</div>
-                        <div className="mt-1 font-bold text-text-primary">{row.product_name || "Finished Good"}</div>
-                        {row.product_name_cn ? <div className="text-sm font-medium text-text-secondary">{row.product_name_cn}</div> : null}
-                        <div className="text-sm font-semibold text-text-secondary">{row.product_code || "No SKU"} · {row.variant_name || packSizeText(row) || "Packaging SKU"}</div>
-                      </div>
-                      <Badge tone={row.quantity >= 0 ? "success" : "warning"}>{row.movement_type_label}</Badge>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div><div className="text-[10.5px] font-semibold text-text-muted">Qty</div><div className={`font-bold ${Number(row.quantity || 0) >= 0 ? "text-emerald-700" : "text-rose-700"}`}>{movementPackagingQtyLabel(row)}</div></div>
-                      <div><div className="text-[10.5px] font-semibold text-text-muted">Balance</div><div className="font-bold text-text-primary">{movementBalanceLabel(row)}</div></div>
-                      <div><div className="text-[10.5px] font-semibold text-text-muted">Storage</div><div className="font-semibold text-text-primary">{storageSummary(row)}</div>{Number(row.storage_location_count || 0) === 1 && row.storage_location_type ? <div className="text-xs text-text-secondary">{row.storage_location_type}</div> : null}</div>
-                      <div><div className="text-[10.5px] font-semibold text-text-muted">Batch</div><div className="font-semibold text-text-primary">{batchSummary(row)}</div></div>
-                      <div><div className="text-[10.5px] font-semibold text-text-muted">Expiry</div><div className="font-semibold text-text-primary">{expirySummary(row)}</div></div>
-                      <div><div className="text-[10.5px] font-semibold text-text-muted">Source</div><div className="font-semibold text-text-primary">{row.source_label}</div><div className="text-xs font-medium text-text-secondary">{movementSourceReference(row)}</div></div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-            </div>
-            <div className="hidden md:block">
-            <FactoryTable
-              columns={movementColumns}
-              rows={productMovementLedger.hasLoaded ? rows : []}
-              emptyTitle={!productMovementLedger.hasLoaded ? (productMovementLedger.error ? "Product Movements unavailable" : "Loading Product Movements") : "No Product Movements Found"}
-              emptyDescription={!productMovementLedger.hasLoaded ? (productMovementLedger.error ? "Retry to load the movement ledger." : "Loading the movement ledger.") : "No ledger entries match the selected filters."}
-            />
-            </div>
-          </div>
-          {productMovementLedger.hasLoaded ? <FactoryPagination page={productMovementLedger.loadedPage} pageSize={productMovementLedger.loadedPageSize} total={productMovementLedger.loadedTotal} loading={productMovementLedger.loading} onPageChange={productMovementActions.requestPage} onPageSizeChange={productMovementActions.requestPageSize} /> : null}
-        </Card>
-      </div>
-    );
+    return <FactoryProductMovementsPage onNotify={ui?.notify} />;
   }
 
   function renderProductStockCheck() {
@@ -13301,91 +11174,33 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     );
   }
 
-  function renderFactoryAuditLogs() {
-    const rows = currentListingRows("audit-logs", []);
-    const summary = factoryListingPage.hasLoaded ? factoryListingPage.summary : {};
-    const referenceCell = (row) => row.reference_id && row.reference_type ? (
-      <button
-        className="max-w-[190px] truncate text-left font-bold text-primary hover:text-emerald-800 hover:underline disabled:cursor-wait disabled:opacity-60"
-        type="button"
-        disabled={auditReferenceLoading === row.id}
-        onClick={() => openFactoryAuditReference(row)}
-      >
-        {row.entity_reference || "—"}
-      </button>
-    ) : <span className="font-semibold text-text-primary">{row.entity_reference || "—"}</span>;
-    const auditColumns = [
-      { key: "created_at", label: "Date / Time", render: (row) => <span className="whitespace-nowrap font-semibold text-text-primary">{formatFactoryAuditDateTime(row.created_at)}</span> },
-      { key: "module", label: "Module", render: (row) => <div className="flex items-center gap-2 font-semibold text-text-secondary"><FactoryAuditModuleIcon module={row.module_label || "Production"} />{row.module_label || "Production"}</div> },
-      { key: "event", label: "Event", render: (row) => <div className="flex min-w-[140px] items-center gap-2 font-bold text-text-primary"><FactoryAuditEventIcon event={factoryAuditEventLabel(row)} />{factoryAuditEventLabel(row)}</div> },
-      { key: "reference", label: "Reference", render: referenceCell },
-      { key: "user", label: "Performed By", render: (row) => <div><div className="font-semibold text-text-primary">{row.actor_name || "—"}</div><div className="mt-0.5 text-xs text-text-muted">{row.actor_kind === "system" ? "Automated" : row.actor_email || ""}</div></div> },
-      { key: "result", label: "Result", render: (row) => <Badge tone={factoryAuditResultTone(row.result)}>{row.result || "Success"}</Badge> },
-      { key: "details", label: "Details", align: "right", render: (row) => <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "factory-audit-log", value: row })}>View</button> },
-    ];
-    return (
-      <div className="space-y-5">
-        <PageHeader
-          section="System"
-          title="Factory Audit Trail"
-          description="Review operational events, affected documents and material changes."
-        />
-        <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={ClipboardList} label="Audit Events" value={factoryListingPage.hasLoaded ? Number(summary.events || 0) : "—"} helper="Events matching current filters" />
-          <MetricCard icon={Clock3} label="Today" value={factoryListingPage.hasLoaded ? Number(summary.today || 0) : "—"} helper="Malaysia business day" />
-          <MetricCard icon={Factory} label="Users" value={factoryListingPage.hasLoaded ? Number(summary.users || 0) : "—"} helper="People matching current filters" />
-          <MetricCard icon={AlertTriangle} label="Attention Required" value={factoryListingPage.hasLoaded ? Number(summary.attention_required || 0) : "—"} helper="Explicit abnormal outcomes" tone={Number(summary.attention_required || 0) ? "warning" : "success"} />
-        </div>
-        {factoryAuditFilterControls()}
-        <Card title="Audit Ledger">
-          {listingLoadState("audit-logs", "Factory Audit Trail")}
-          <div className="md:hidden">
-            {!rows.length ? (
-              <div className="p-4"><EmptyState title="No Audit Events Yet" description="Factory actions will appear here as the Audit Trail grows." /></div>
-            ) : (
-              <div className="divide-y divide-border">
-                {rows.map((row) => (
-                  <article key={row.id} className="space-y-3 p-4">
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="flex items-center gap-2 font-bold text-text-primary"><FactoryAuditEventIcon event={factoryAuditEventLabel(row)} />{factoryAuditEventLabel(row)}</div>
-                        <div className="mt-1">{referenceCell(row)}</div>
-                        <div className="mt-1 text-xs font-semibold text-text-muted">{formatFactoryAuditDateTime(row.created_at)}</div>
-                      </div>
-                      <Badge tone={factoryAuditResultTone(row.result)}>{row.result || "Success"}</Badge>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3 text-sm">
-                      <div><div className="text-[10.5px] font-semibold text-text-muted">Module</div><div className="mt-1 flex items-center gap-2 font-semibold text-text-primary"><FactoryAuditModuleIcon module={row.module_label || "Production"} />{row.module_label || "Production"}</div></div>
-                      <div><div className="text-[10.5px] font-semibold text-text-muted">Performed By</div><div className="font-semibold text-text-primary">{row.actor_name || "—"}</div><div className="text-xs text-text-muted">{row.actor_kind === "system" ? "Automated" : row.actor_email || ""}</div></div>
-                    </div>
-                    <button className="btn-secondary w-full px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "factory-audit-log", value: row })}>View Details</button>
-                  </article>
-                ))}
-              </div>
-            )}
-          </div>
-          <div className="hidden md:block">
-            <FactoryTable
-              columns={auditColumns}
-              rows={rows}
-              emptyTitle="No Audit Events Yet"
-              emptyDescription="Factory actions will appear here as the Audit Trail grows."
-            />
-          </div>
-          {listingPagination("audit-logs")}
-        </Card>
-      </div>
-    );
-  }
-
   if (loading) {
     return <div className="card p-6 text-sm font-semibold text-text-secondary">Loading Factory workspace...</div>;
   }
 
   return (
-    <>
+    <FactoryPermissionsProvider permissionSet={auth?.permissions || []} can={can}>
+      <FactoryMasterDataProvider data={data}>
+        <FactoryNavigationProvider
+          auditReferenceLoading={auditReferenceLoading}
+          openAuditReference={openFactoryAuditReference}
+          rawMovementReferenceLoading={rawMovementReferenceLoading}
+          openRawMaterialMovementReference={openRawMaterialMovementReference}
+          openingBatchTraceabilityDispatchId={batchTraceabilityDispatchLoading}
+          openBatchTraceabilityDispatch={canViewDispatchHistory ? openBatchTraceabilityDispatch : undefined}
+          openCreateSupplier={() => setModal({ type: "factory-suppliers" })}
+          openEditSupplier={(supplier) => setModal({ type: "factory-suppliers", value: supplier })}
+          archiveSupplier={archiveFactorySupplier}
+          openCreateCustomer={() => setModal({ type: "factory-customers" })}
+          openEditCustomer={(customer) => setModal({ type: "factory-customers", value: customer })}
+          archiveCustomer={archiveFactoryCustomer}
+          openCreateStorageLocation={() => setModal({ type: "storage-locations" })}
+          openEditStorageLocation={(location) => setModal({ type: "storage-locations", value: location })}
+          archiveStorageLocation={archiveStorageLocation}
+        >
+          <>
       <AccessIssueNotice issues={data.accessIssues} onRetry={() => loadData()} />
-      {initialTab === "production-overview" ? renderProductionOverview() : initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-inventory" ? renderRawInventory() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-movements" ? renderRawMaterialMovements() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? renderFinishedGoodBatchTraceability() : initialTab === "finished-goods" ? renderFinishedGoods() : initialTab === "production-planning" ? renderProductionPlanning() : initialTab === "finished-goods-dispatch" ? renderFinishedGoodsDispatch() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? renderProductRecipes() : initialTab === "production-sop" ? renderProductionSop() : initialTab === "audit-logs" ? renderFactoryAuditLogs() : initialTab === "storage-locations" ? renderStorageLocations() : initialTab === "suppliers" ? renderSuppliers() : initialTab === "customers" ? renderCustomers() : renderDashboard()}
+      {initialTab === "production-overview" ? renderProductionOverview() : initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-inventory" ? renderRawInventory() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-movements" ? renderRawMaterialMovements() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? <FactoryBatchTraceabilityPage onNotify={ui?.notify} /> : initialTab === "finished-goods" ? renderFinishedGoods() : initialTab === "production-planning" ? renderProductionPlanning() : initialTab === "finished-goods-dispatch" ? renderFinishedGoodsDispatch() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? renderProductRecipes() : initialTab === "production-sop" ? renderProductionSop() : initialTab === "audit-logs" ? <FactoryAuditTrailPage onNotify={ui?.notify} /> : initialTab === "storage-locations" ? <FactoryStorageLocationsPage /> : initialTab === "suppliers" ? <FactorySuppliersPage /> : initialTab === "customers" ? <FactoryCustomersPage /> : renderDashboard()}
       {modal?.type === "job" ? (
         <JobOrderModal
           initialValue={modal.value}
@@ -13397,6 +11212,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           onSave={saveJobOrder}
         />
       ) : null}
+      {modal?.type === "audit-batch-traceability-detail" ? <FinishedGoodBatchTraceabilityModal batch={modal.value} loading={modal.loading} error={modal.error} onClose={() => setModal(null)} /> : null}
       {modal?.type === "completed-job-result" ? (
         <CompletedJobOrderResultModal
           job={modal.job}
@@ -13416,7 +11232,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           mode={modal.mode}
         />
       ) : null}
-      {modal?.type === "batch-traceability-detail" ? <FinishedGoodBatchTraceabilityModal batch={modal.value} loading={modal.loading} error={modal.error} openingDispatchId={batchTraceabilityDispatchLoading} onOpenDispatch={canViewDispatchHistory ? openBatchTraceabilityDispatch : undefined} onRetry={() => loadBatchTraceabilityDetail(modal.value)} onClose={() => setModal(null)} /> : null}
       {modal?.type === "production-planning-par" ? (
         <ProductionPlanningParModal
           sku={modal.sku}
@@ -13570,14 +11385,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           onDelete={deleteQcChecklistTemplate}
         />
       ) : null}
-      {modal?.type === "factory-audit-log" ? (
-        <FactoryAuditLogDetailModal
-          event={modal.value}
-          openingReference={auditReferenceLoading === modal.value.id}
-          onOpenReference={openFactoryAuditReference}
-          onClose={() => setModal(null)}
-        />
-      ) : null}
       {modal?.type === "recipe" ? (
         <ProductRecipeModal
           initialValue={modal.value}
@@ -13671,6 +11478,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           onArchive={(category) => archiveFinishedGoodCategory(category, { keepOpen: true })}
         />
       ) : null}
-    </>
+          </>
+        </FactoryNavigationProvider>
+      </FactoryMasterDataProvider>
+    </FactoryPermissionsProvider>
   );
 }
