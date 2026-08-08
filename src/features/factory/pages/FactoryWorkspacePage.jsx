@@ -2618,6 +2618,23 @@ function RawMaterialDetailModal({ material, receivings, movements, stockChecks, 
     : convertedCurrentBalance == null
       ? "Unsupported UOM conversion"
       : `${quantity(material.current_balance, material.uom)} at ${unitCostDisplay(latestCost)}`;
+  const movementReference = (movement) => {
+    const referenceType = String(movement.reference_type || "").toLowerCase();
+    if (referenceType === "production") {
+      return movement.production_batch_no || movement.production_job_order_no || "—";
+    }
+    if (referenceType === "raw_material_receiving") {
+      const receiving = materialReceivings.find((row) => row.id === movement.reference_id);
+      return receiving?.receiving_no || "—";
+    }
+    if (referenceType === "raw_material_stock_check") {
+      const stockCheck = stockChecks.find((row) => row.id === movement.reference_id);
+      return stockCheck?.check_no || "—";
+    }
+    const fallback = String(movement.reference_no || "").trim();
+    if (!fallback || /^PRD(?:-|\d)/i.test(fallback) || /^RMR-/i.test(fallback) || /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(fallback)) return "—";
+    return fallback;
+  };
   const materialInfo = [
     ["Category", material.category || "No category"],
     ["Code", material.material_code || "—"],
@@ -2674,7 +2691,7 @@ function RawMaterialDetailModal({ material, receivings, movements, stockChecks, 
             columns={[
               { key: "movement_date", label: "Date", render: (row) => formatFactoryDate(row.movement_date) },
               { key: "movement_type", label: "Type", render: (row) => <Badge tone={row.quantity >= 0 ? "success" : "warning"}>{row.movement_type}</Badge> },
-              { key: "reference", label: "Reference", render: (row) => <span className="font-bold text-text-primary">{row.reference_no || "—"}</span> },
+              { key: "reference", label: "Reference", render: (row) => <span className="font-bold text-text-primary">{movementReference(row)}</span> },
               { key: "quantity", label: "Qty", render: (row) => signedQuantity(row.quantity, row.uom) },
               { key: "notes", label: "Notes", render: (row) => row.notes || "—" },
             ]}

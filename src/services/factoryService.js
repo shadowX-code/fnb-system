@@ -401,6 +401,8 @@ function mapReceiving(row) {
 
 function mapRawMaterialMovement(row) {
   const rawMaterial = row.raw_material || {};
+  const productionUsage = row.production_usage || {};
+  const production = productionUsage.production || {};
   return {
     id: row.id,
     raw_material_id: row.raw_material_id || "",
@@ -413,7 +415,10 @@ function mapRawMaterialMovement(row) {
     batch_no: row.batch_no || "",
     internal_batch_no: row.batch_no || "",
     batch_id: rawMaterial.batch_id || "",
-    production_material_usage_id: rawMaterial.production_material_usage_id || "",
+    production_material_usage_id: row.production_material_usage_id || "",
+    raw_material_batch_balance_id: row.raw_material_batch_balance_id || "",
+    production_batch_no: production.batch_no || "",
+    production_job_order_no: production.job_order?.job_order_no || "",
     supplier_lot_no: rawMaterial.supplier_lot_no || "",
     balance_after: row.balance_after == null ? null : normalizeNumber(row.balance_after),
     reference_type: row.reference_type || "",
@@ -1595,7 +1600,7 @@ export const factoryService = {
       .in("id", ids), (rows) => rows.map(mapStorageLocation));
     addTask(plan.rawMaterialMovements, "rawMaterialMovements", "Raw Material Movements", () => supabase
       .from("factory_raw_material_movements")
-      .select(`id,raw_material_id,movement_type,quantity,uom,reference_type,reference_id,reference_no,movement_date,notes,created_by,created_at,creator:employees(nickname,full_name),raw_material:factory_raw_materials(${rawMaterialRelationSelect})`)
+      .select(`id,raw_material_id,movement_type,quantity,uom,reference_type,reference_id,reference_no,movement_date,notes,created_by,created_at,production_material_usage_id,raw_material_batch_balance_id,creator:employees(nickname,full_name),raw_material:factory_raw_materials(${rawMaterialRelationSelect}),production_usage:factory_production_material_usage!factory_raw_material_movement_production_material_usage_id_fkey(production:factory_productions(id,batch_no,job_order:factory_job_orders(job_order_no)))`)
       .order("movement_date", { ascending: false })
       .limit(200), (rows) => rows.map(mapRawMaterialMovement));
     addTask(plan.receivings, "receivings", "Raw Material Receiving", () => supabase
