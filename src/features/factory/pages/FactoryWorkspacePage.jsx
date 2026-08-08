@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Activity, AlertTriangle, ArrowDown, ArrowUp, BookOpen, CalendarDays, Check, CheckCircle2, ChevronDown, ChevronLeft, ChevronRight, CircleOff, ClipboardCheck, ClipboardList, Clock3, Copy, DollarSign, Factory, FileText, Package, PackageCheck, Play, Plus, RefreshCw, RotateCcw, Tag, Trash2, Truck, Warehouse, X } from "lucide-react";
 import { Bar, BarChart, CartesianGrid, Cell, Legend, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
@@ -13,20 +13,16 @@ import FactoryAuditTrailPage from "./FactoryAuditTrailPage.jsx";
 import FactorySuppliersPage from "./FactorySuppliersPage.jsx";
 import FactoryCustomersPage from "./FactoryCustomersPage.jsx";
 import FactoryStorageLocationsPage from "./FactoryStorageLocationsPage.jsx";
+import FactoryProductionPlanningPage from "./FactoryProductionPlanningPage.jsx";
 import FactoryBatchTraceabilityPage from "./FactoryBatchTraceabilityPage.jsx";
 import FactoryDashboardMonthPicker from "../components/dashboard/FactoryDashboardMonthPicker.jsx";
 import FactoryDashboardUomSelect from "../components/dashboard/FactoryDashboardUomSelect.jsx";
 import FactoryDashboardChartTooltip from "../components/dashboard/FactoryDashboardChartTooltip.jsx";
-import FactoryPlanningFilters from "../components/planning/FactoryPlanningFilters.jsx";
-import FactoryPlanningWorkloadSummary from "../components/planning/FactoryPlanningWorkloadSummary.jsx";
-import { FactoryPlanningCoverage, FactoryPlanningStatusBadge } from "../components/planning/FactoryPlanningStatusPresentation.jsx";
 import FactoryFinishedGoodCommercialTable from "../components/finishedGoods/FactoryFinishedGoodCommercialTable.jsx";
 import FactoryRawMaterialInventoryTable from "../components/rawMaterials/FactoryRawMaterialInventoryTable.jsx";
 import { dashboardActionTone, dashboardRequiredCheckLabel, dashboardTrendLabel, truncateDashboardChartLabel } from "../utils/factoryDashboardFormatters.js";
-import { deriveProductionPlanningRows } from "../utils/productionPlanning.js";
-import { buildProductionPlanningJobOrderDraft } from "../utils/productionPlanningDraft.js";
-import { canArchiveActiveProductRecipe, canCreatePlanningJobOrder, canDeleteDraftProductRecipe, canEditFinishedGoods, canEditProductionPlanningPar, canOpenRawMaterialReceiving } from "../utils/factoryPermissionActions.js";
-import { loadProductionPlanningAggregate, shouldLoadProductionPlanningAggregate } from "../utils/productionPlanningQuery.js";
+import { activeRecipeForSku, finishedGoodParentKey, inheritedRecipeUom, packagingProductionPlan } from "../utils/productionPlanning.js";
+import { canArchiveActiveProductRecipe, canDeleteDraftProductRecipe, canEditFinishedGoods, canOpenRawMaterialReceiving } from "../utils/factoryPermissionActions.js";
 import FinishedGoodBatchTraceabilityModal from "../modals/FinishedGoodBatchTraceabilityModal.jsx";
 import FactoryFinishedGoodDetailModal from "../modals/FactoryFinishedGoodDetailModal.jsx";
 import FactoryRawMaterialDetailModal from "../modals/FactoryRawMaterialDetailModal.jsx";
@@ -463,20 +459,6 @@ export function finishedGoodCommercialCost(sku, recipes, receivings) {
   return Number(recipeCost.costPerUnit) * Number(recipeQty);
 }
 
-function inheritedRecipeUom(productFamilyId, finishedGoods = [], fallback = "") {
-  if (!productFamilyId) return fallback || "kg";
-  const skus = finishedGoods.filter((sku) => sku.product_family_id === productFamilyId);
-  let inheritedUom = "";
-  for (const sku of skus) {
-    const base = normalizePackSizeToBase(sku.pack_size_qty || sku.base_qty, sku.pack_size_uom || sku.base_uom);
-    const candidate = base?.uom || sku.base_uom || "";
-    if (!candidate) continue;
-    if (inheritedUom && inheritedUom !== candidate) return fallback || inheritedUom;
-    inheritedUom = candidate;
-  }
-  return inheritedUom || fallback || "kg";
-}
-
 function costVarianceInfo(standardCost, actualCost) {
   const standard = Number(standardCost || 0);
   const actual = Number(actualCost || 0);
@@ -595,30 +577,6 @@ function normalizePackSizeToBase(qty, uom) {
   return null;
 }
 
-function packagingProductionPlan(packQty, sku, recipeUom = "") {
-  const targetPackQty = Number(packQty || 0);
-  const packSizeQty = Number(sku?.pack_size_qty || sku?.base_qty || 0);
-  const packSizeUom = sku?.pack_size_uom || sku?.base_uom || "";
-  const packBase = normalizePackSizeToBase(packSizeQty, packSizeUom);
-  const recipeBase = recipeUom ? normalizePackSizeToBase(1, recipeUom) : null;
-
-  if (!targetPackQty) return { target_pack_qty: 0, target_production_qty: 0, production_uom: recipeBase?.uom || packBase?.uom || "", pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "" };
-  if (!packSizeQty || !packSizeUom) return { target_pack_qty: targetPackQty, target_production_qty: 0, production_uom: "", pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "Packaging SKU needs Pack Size before creating Job Order." };
-  if (packBase) {
-    if (recipeBase && recipeBase.uom !== packBase.uom) {
-      return { target_pack_qty: targetPackQty, target_production_qty: 0, production_uom: recipeBase.uom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "Packaging SKU Pack Size UOM cannot convert to the active recipe UOM." };
-    }
-    return { target_pack_qty: targetPackQty, target_production_qty: targetPackQty * packBase.amount, production_uom: packBase.uom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "" };
-  }
-
-  const normalizedPackUom = String(packSizeUom || "").trim();
-  const normalizedRecipeUom = String(recipeUom || "").trim();
-  if (normalizedRecipeUom && normalizedRecipeUom.toLowerCase() !== normalizedPackUom.toLowerCase()) {
-    return { target_pack_qty: targetPackQty, target_production_qty: 0, production_uom: normalizedRecipeUom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "Packaging SKU Pack Size UOM cannot convert to the active recipe UOM." };
-  }
-  return { target_pack_qty: targetPackQty, target_production_qty: targetPackQty * packSizeQty, production_uom: normalizedRecipeUom || normalizedPackUom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "" };
-}
-
 function packagingPackEstimate(productionQty, productionUom, sku, recipeUom = "") {
   const targetProductionQty = Number(productionQty || 0);
   const packSizeQty = Number(sku?.pack_size_qty || sku?.base_qty || 0);
@@ -644,16 +602,6 @@ function packagingPackEstimate(productionQty, productionUom, sku, recipeUom = ""
   if (normalizedRecipeUom && normalizedRecipeUom.toLowerCase() !== normalizedProductionUom.toLowerCase()) return { target_pack_qty: 0, target_production_qty: targetProductionQty, production_uom: normalizedProductionUom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "Production UOM must match the active recipe UOM." };
   if (normalizedPackUom.toLowerCase() !== normalizedProductionUom.toLowerCase()) return { target_pack_qty: 0, target_production_qty: targetProductionQty, production_uom: normalizedProductionUom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "Production UOM cannot convert to the selected Packaging SKU Pack Size." };
   return { target_pack_qty: targetProductionQty / packSizeQty, target_production_qty: targetProductionQty, production_uom: normalizedProductionUom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "" };
-}
-
-function activeRecipeForSku(recipes = [], sku = {}, productName = "") {
-  return recipes.find((recipe) => recipe.status === "active" && recipe.product_family_id && recipe.product_family_id === sku?.product_family_id)
-    || recipes.find((recipe) => recipe.status === "active" && recipe.finished_good_id && recipe.finished_good_id === sku?.id)
-    || recipes.find((recipe) => recipe.status === "active" && String(recipe.product_name || "").toLowerCase() === String(productName || sku?.product_family_name || sku?.product_name || "").toLowerCase());
-}
-
-function finishedGoodParentKey(sku) {
-  return sku?.product_family_id ? `family:${sku.product_family_id}` : sku?.id ? `sku:${sku.id}` : "";
 }
 
 function packagingBaseBalanceInfo(skus = []) {
@@ -6703,14 +6651,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const [expandedProductGroups, setExpandedProductGroups] = useState({});
   const [finishedGoodActionMenu, setFinishedGoodActionMenu] = useState(null);
   const [finishedGoodsView, setFinishedGoodsView] = useState("grouped");
-  const [productionPlanningFilters, setProductionPlanningFilters] = useState({ product: "", category: "", status: "" });
   const [warehouseFilters, setWarehouseFilters] = useState({ product: "", category: "", status: "" });
   const [rawMaterialFilters, setRawMaterialFilters] = useState({ material: "", status: "", category: "" });
   const [rawMovementReferenceLoading, setRawMovementReferenceLoading] = useState("");
   const [batchTraceabilityDispatchLoading, setBatchTraceabilityDispatchLoading] = useState("");
   const [auditReferenceLoading, setAuditReferenceLoading] = useState("");
   const [operationalJobs, setOperationalJobs] = useState({ jobs: [], productions: [], summary: {}, hasLoaded: false, loading: false, error: "", errorKind: "" });
-  const [productionPlanningOpenJobs, setProductionPlanningOpenJobs] = useState({ aggregates: [], diagnostics: {}, hasLoaded: false, loading: false, error: "", errorKind: "" });
   const [dashboardMonth, setDashboardMonth] = useState(() => malaysiaBusinessMonthInput());
   const [dashboardFinishedGood, setDashboardFinishedGood] = useState("");
   const [dashboardProductionUom, setDashboardProductionUom] = useState("");
@@ -6726,7 +6672,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     errorKind: "",
   });
   const operationalJobsRequestRef = useRef(0);
-  const productionPlanningOpenJobsRequestRef = useRef(0);
   const dashboardAnalyticsRequestRef = useRef(0);
   const dashboardPermissionSignatureRef = useRef("");
   const factoryDataRequestRef = useRef(0);
@@ -6736,6 +6681,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const stockCheckMutationRef = useRef(new Set());
   const previousPermissionSignatureRef = useRef("");
   const can = (code) => Boolean(auth?.hasPermission?.(code));
+  const clearPlanningPermission = useCallback(() => setModal((current) => current?.type === "job" ? null : current), []);
   const factoryPermissionSignature = JSON.stringify([...(auth?.permissions || [])].sort());
   const serverListing = initialTab === "raw-receiving" ? "receiving-history"
     : initialTab === "raw-stock-check" ? "raw-stock-checks"
@@ -6816,11 +6762,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const rawInventoryMasterRows = filteredRawMaterialRows();
   const finishedGoodsMasterGroups = finishedGoodProductGroups();
   const finishedGoodsMasterRows = filteredFinishedGoodRows();
-  const productionPlanningMasterRows = filteredProductionPlanningRows();
   const recipeParentCount = new Set(data.recipes.map((recipe) => recipe.product_family_id || recipe.finished_good_id || recipe.product_name || recipe.id)).size;
   const rawInventoryPager = useFactoryClientPagination("raw-inventory", rawInventoryMasterRows.length, 20, JSON.stringify(rawMaterialFilters));
   const finishedGoodsPager = useFactoryClientPagination("finished-goods", finishedGoodsView === "table" ? finishedGoodsMasterRows.length : finishedGoodsMasterGroups.length, 20, JSON.stringify({ ...warehouseFilters, view: finishedGoodsView }));
-  const productionPlanningPager = useFactoryClientPagination("production-planning", productionPlanningMasterRows.length, 20, JSON.stringify(productionPlanningFilters));
   const recipesPager = useFactoryClientPagination("product-recipes", recipeParentCount);
   const sopProductGroups = useMemo(() => groupedProductionSops(data.sops), [data.sops]);
   const sopsPager = useFactoryClientPagination("production-sop", sopProductGroups.length);
@@ -6904,21 +6848,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     }
   }
 
-  async function loadProductionPlanningOpenJobs() {
-    if (!shouldLoadProductionPlanningAggregate(initialTab)) return;
-    const requestId = productionPlanningOpenJobsRequestRef.current + 1;
-    productionPlanningOpenJobsRequestRef.current = requestId;
-    await loadProductionPlanningAggregate({
-      canView: can("factory_job_orders.view"),
-      getAggregate: () => factoryService.getProductionPlanningOpenJobOrderAggregate(),
-      isCurrent: () => productionPlanningOpenJobsRequestRef.current === requestId,
-      setState: setProductionPlanningOpenJobs,
-      isPermissionError: isFactoryPermissionError,
-      onPermissionDenied: () => setModal((current) => current?.type === "job" ? null : current),
-      onError: (error) => console.error("[Factory] Unable to load Production Planning open Job Order quantities.", error),
-    });
-  }
-
   async function loadDashboardAnalytics() {
     if (initialTab !== "dashboard") return;
     const requestId = dashboardAnalyticsRequestRef.current + 1;
@@ -6973,7 +6902,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     factoryDataRequestRef.current = requestId;
     setLoading(true);
     const operationalLoad = ["production-overview", "production"].includes(initialTab) ? loadOperationalJobs() : Promise.resolve();
-    const productionPlanningLoad = initialTab === "production-planning" ? loadProductionPlanningOpenJobs() : Promise.resolve();
     let refreshSucceeded = true;
     try {
       const nextData = await factoryService.listFactoryData({
@@ -7013,7 +6941,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     } finally {
       if (factoryDataRequestRef.current === requestId) setLoading(false);
     }
-    await Promise.all([operationalLoad, productionPlanningLoad]);
+    await Promise.all([operationalLoad]);
     return refreshSucceeded;
   }
 
@@ -7054,7 +6982,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   useEffect(() => () => {
     operationalJobsRequestRef.current += 1;
-    productionPlanningOpenJobsRequestRef.current += 1;
     dashboardAnalyticsRequestRef.current += 1;
     factoryDataRequestRef.current += 1;
     factoryDataAbortRef.current?.abort();
@@ -8673,186 +8600,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <div className="flex items-end">
           <button className="btn-secondary w-full" type="button" onClick={() => setWarehouseFilters((current) => ({ ...current, product: "", category: "", status: "" }))}>Clear</button>
         </div>
-      </div>
-    );
-  }
-
-  function productionPlanningRows() {
-    const rows = deriveProductionPlanningRows({ finishedGoods: data.finishedGoods, recipes: data.recipes, aggregates: productionPlanningOpenJobs.aggregates, activeRecipeForSku });
-    return rows.map((row) => row.open_job_quantity_incomplete || !productionPlanningOpenJobs.hasLoaded ? { ...row, open_job_qty: null, suggested_production_qty: null } : row);
-  }
-
-  function filteredProductionPlanningRows() {
-    return productionPlanningRows().filter((row) => includesText(`${row.finished_good_name} ${row.finished_good_name_cn} ${row.product_name} ${row.product_code} ${row.variant_name}`, productionPlanningFilters.product)
-      && (!productionPlanningFilters.category || row.category_id === productionPlanningFilters.category || row.category === productionPlanningFilters.category)
-      && (!productionPlanningFilters.status || row.planning_status === productionPlanningFilters.status));
-  }
-
-  function productionPlanningUnitLabel(row, value) {
-    return quantity(value, pluralizePackagingType(packagingTypeLabel(row), value));
-  }
-
-  function openProductionPlanningJobOrder(row) {
-    if (row.suggested_production_qty == null) {
-      ui?.notify?.({ title: "Suggested quantity unavailable", message: "Reload open Job Order quantities before creating a prefilled Job Order.", tone: "error" });
-      return;
-    }
-    setModal({ type: "job", value: buildProductionPlanningJobOrderDraft({ row, recipes: data.recipes, finishedGoods: data.finishedGoods, activeRecipeForSku, packagingProductionPlan, inheritedRecipeUom, finishedGoodParentKey, today: todayInput }) });
-  }
-
-  function renderProductionPlanning() {
-    const planningRows = productionPlanningRows();
-    const rows = productionPlanningMasterRows.slice(productionPlanningPager.from, productionPlanningPager.to);
-    const activeSkus = planningRows.length;
-    const lowStockRows = planningRows.filter((row) => row.planning_status === "Low Stock");
-    const outOfStockRows = planningRows.filter((row) => row.planning_status === "Out of Stock");
-    const planningCalculationsComplete = productionPlanningOpenJobs.hasLoaded
-      && Number(productionPlanningOpenJobs.diagnostics.missingPackagingSkuCount || 0) === 0
-      && Number(productionPlanningOpenJobs.diagnostics.invalidQuantityCount || 0) === 0
-      && planningRows.every((row) => row.suggested_production_qty != null);
-    const suggestedGroups = planningRows.filter((row) => Number(row.suggested_production_qty || 0) > 0).reduce((groups, row) => {
-      const unit = pluralizePackagingType(packagingTypeLabel(row), 2);
-      groups.set(unit, (groups.get(unit) || 0) + Number(row.suggested_production_qty || 0));
-      return groups;
-    }, new Map());
-    const suggestedValue = !planningCalculationsComplete
-      ? "Unavailable"
-      : suggestedGroups.size > 1
-      ? "Mixed"
-      : suggestedGroups.size === 1
-        ? quantity([...suggestedGroups.values()][0], [...suggestedGroups.keys()][0])
-        : "0";
-
-    return (
-      <div className="space-y-5">
-        <PageHeader
-          section="Warehouse"
-          title="Production Planning"
-          description="Monitor finished goods stock against par levels and create job orders quickly."
-        />
-        <FactoryPlanningWorkloadSummary
-          activeSkus={activeSkus}
-          lowStockCount={lowStockRows.length}
-          outOfStockCount={outOfStockRows.length}
-          suggestedValue={suggestedValue}
-          hasSuggestedProduction={suggestedGroups.size > 0}
-          openJobs={productionPlanningOpenJobs}
-          onRetry={loadProductionPlanningOpenJobs}
-        />
-        <FactoryPlanningFilters
-          filters={productionPlanningFilters}
-          onChange={(patch) => setProductionPlanningFilters((current) => ({ ...current, ...patch }))}
-          categories={data.finishedGoodCategories}
-          finishedGoods={data.finishedGoods}
-        />
-        <Card title="Daily Production Planning Board" description="Par Level uses Packaging SKU stock counts. Open Job Orders are subtracted from suggested production.">
-          {!rows.length ? (
-            <EmptyState title="No Planning SKUs" description="Active Packaging SKUs with Finished Good setup will appear here." />
-          ) : (
-            <div className="space-y-4 p-4">
-              <div className="hidden rounded-xl border border-border bg-slate-50 px-4 py-2 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted xl:grid xl:grid-cols-[1.25fr_1.1fr_1fr_1fr_1fr_0.9fr_0.9fr_0.8fr_160px]">
-                <div>Finished Good</div>
-                <div>Packaging SKU</div>
-                <div>Current Balance</div>
-                <div>Par Level</div>
-                <div>Coverage</div>
-                <div>Open JO</div>
-                <div>Suggested Qty</div>
-                <div>Status</div>
-                <div className="text-right">Actions</div>
-              </div>
-              <div className="hidden xl:block">
-                {rows.map((row) => {
-                  const parLevel = Number(row.min_stock_level || 0);
-                  const parLevelLabel = parLevel > 0 ? productionPlanningUnitLabel(row, parLevel) : "Set Par Level";
-                  return (
-                    <div key={row.id} className="grid grid-cols-[1.25fr_1.1fr_1fr_1fr_1fr_0.9fr_0.9fr_0.8fr_160px] items-center gap-3 border-b border-border px-4 py-4 text-sm last:border-0">
-                      <div>
-                        <div className="font-bold text-text-primary">{row.finished_good_name || row.product_name}</div>
-                        {row.finished_good_name_cn ? <div className="text-xs font-semibold text-text-secondary">{row.finished_good_name_cn}</div> : null}
-                        <div className="text-xs text-text-muted">{row.category || "No category"}</div>
-                      </div>
-                      <div>
-                        <div className="font-bold text-text-primary">{row.product_code || "No SKU"}</div>
-                        <div className="text-xs font-semibold text-text-secondary">{packagingSkuDisplayName(row)}</div>
-                      </div>
-                      <div>
-                        <div className="font-bold text-text-primary">{skuBalanceLabel(row)}</div>
-                        {skuBaseEquivalentLabel(row) ? <div className="text-xs font-semibold text-text-secondary">{skuBaseEquivalentLabel(row)}</div> : null}
-                      </div>
-                      <div>
-                        {canEditProductionPlanningPar(can) ? (
-                          <button className="text-left font-bold text-text-primary underline decoration-dotted underline-offset-4 hover:text-primary" type="button" onClick={() => setModal({ type: "production-planning-par", sku: row })}>{parLevelLabel}</button>
-                        ) : (
-                          <span className="font-bold text-text-primary">{parLevel > 0 ? parLevelLabel : "—"}</span>
-                        )}
-                      </div>
-                      <div><FactoryPlanningCoverage status={row.planning_status} value={row.coverage_percent} /></div>
-                      <div>
-                        <div className="font-semibold text-text-primary">{row.open_job_qty == null ? "Unavailable" : row.open_job_qty > 0 ? productionPlanningUnitLabel(row, row.open_job_qty) : "—"}</div>
-                        {row.open_job_count > 0 ? <div className="text-xs text-text-muted">{row.open_job_count} open {row.open_job_count === 1 ? "order" : "orders"}</div> : null}
-                      </div>
-                      <div className="font-semibold text-text-primary">{row.suggested_production_qty == null ? "Unavailable" : row.suggested_production_qty > 0 ? productionPlanningUnitLabel(row, row.suggested_production_qty) : "—"}</div>
-                      <div><FactoryPlanningStatusBadge status={row.planning_status} /></div>
-                      <div className="flex flex-wrap justify-end gap-2">
-                        {canCreatePlanningJobOrder(can) ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" disabled={row.suggested_production_qty == null} onClick={() => openProductionPlanningJobOrder(row)}>Create Job Order</button> : null}
-                        {canEditProductionPlanningPar(can) ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production-planning-par", sku: row })}>Edit Par</button> : null}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              <div className="space-y-3 xl:hidden">
-                {rows.map((row) => {
-                  const parLevel = Number(row.min_stock_level || 0);
-                  const parLevelLabel = parLevel > 0 ? productionPlanningUnitLabel(row, parLevel) : "Set Par Level";
-                  return (
-                    <div key={row.id} className="rounded-2xl border border-border bg-white p-4 shadow-sm">
-                      <div className="flex flex-wrap items-start justify-between gap-3">
-                        <div>
-                          <div className="text-base font-bold text-text-primary">{row.finished_good_name || row.product_name}</div>
-                          {row.finished_good_name_cn ? <div className="text-sm font-semibold text-text-secondary">{row.finished_good_name_cn}</div> : null}
-                          <div className="mt-1 text-sm font-bold text-text-primary">{row.product_code || "No SKU"}</div>
-                          <div className="text-xs font-semibold text-text-secondary">{packagingSkuDisplayName(row)}</div>
-                        </div>
-                        <FactoryPlanningStatusBadge status={row.planning_status} />
-                      </div>
-                      <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                        <div>
-                          <div className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">Current Balance</div>
-                          <div className="font-bold text-text-primary">{skuBalanceLabel(row)}</div>
-                          {skuBaseEquivalentLabel(row) ? <div className="text-xs font-semibold text-text-secondary">{skuBaseEquivalentLabel(row)}</div> : null}
-                        </div>
-                        <div>
-                          <div className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">Par Level</div>
-                          {canEditProductionPlanningPar(can) ? (
-                            <button className="font-bold text-text-primary underline decoration-dotted underline-offset-4 hover:text-primary" type="button" onClick={() => setModal({ type: "production-planning-par", sku: row })}>{parLevelLabel}</button>
-                          ) : (
-                            <div className="font-bold text-text-primary">{parLevel > 0 ? parLevelLabel : "—"}</div>
-                          )}
-                        </div>
-                        <div>
-                          <div className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">Open JO</div>
-                          <div className="font-bold text-text-primary">{row.open_job_qty == null ? "Unavailable" : row.open_job_qty > 0 ? productionPlanningUnitLabel(row, row.open_job_qty) : "—"}</div>
-                        </div>
-                        <div>
-                          <div className="text-xs font-semibold uppercase tracking-[0.08em] text-text-muted">Suggested</div>
-                          <div className="font-bold text-text-primary">{row.suggested_production_qty == null ? "Unavailable" : row.suggested_production_qty > 0 ? productionPlanningUnitLabel(row, row.suggested_production_qty) : "—"}</div>
-                        </div>
-                      </div>
-                      <FactoryPlanningCoverage status={row.planning_status} value={row.coverage_percent} variant="mobile" />
-                      <div className="mt-4 flex flex-wrap gap-2">
-                        {canCreatePlanningJobOrder(can) ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" disabled={row.suggested_production_qty == null} onClick={() => openProductionPlanningJobOrder(row)}>Create Job Order</button> : null}
-                        {canEditProductionPlanningPar(can) ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production-planning-par", sku: row })}>Edit Par</button> : null}
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-          )}
-          <FactoryPagination page={productionPlanningPager.page} pageSize={productionPlanningPager.pageSize} total={productionPlanningMasterRows.length} onPageChange={productionPlanningPager.setPage} onPageSizeChange={productionPlanningPager.setPageSize} />
-        </Card>
       </div>
     );
   }
@@ -10695,10 +10442,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           openCreateStorageLocation={() => setModal({ type: "storage-locations" })}
           openEditStorageLocation={(location) => setModal({ type: "storage-locations", value: location })}
           archiveStorageLocation={archiveStorageLocation}
+          openPlanningJobOrderDraft={(draftPayload) => setModal({ type: "job", value: draftPayload })}
+          openProductionPlanningPar={(sku) => setModal({ type: "production-planning-par", sku })}
         >
           <>
       <AccessIssueNotice issues={data.accessIssues} onRetry={() => loadData()} />
-      {initialTab === "production-overview" ? renderProductionOverview() : initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-inventory" ? renderRawInventory() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-movements" ? renderRawMaterialMovements() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? <FactoryBatchTraceabilityPage onNotify={ui?.notify} /> : initialTab === "finished-goods" ? renderFinishedGoods() : initialTab === "production-planning" ? renderProductionPlanning() : initialTab === "finished-goods-dispatch" ? renderFinishedGoodsDispatch() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? renderProductRecipes() : initialTab === "production-sop" ? renderProductionSop() : initialTab === "audit-logs" ? <FactoryAuditTrailPage onNotify={ui?.notify} /> : initialTab === "storage-locations" ? <FactoryStorageLocationsPage /> : initialTab === "suppliers" ? <FactorySuppliersPage /> : initialTab === "customers" ? <FactoryCustomersPage /> : renderDashboard()}
+      {initialTab === "production-overview" ? renderProductionOverview() : initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-inventory" ? renderRawInventory() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-movements" ? renderRawMaterialMovements() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? <FactoryBatchTraceabilityPage onNotify={ui?.notify} /> : initialTab === "finished-goods" ? renderFinishedGoods() : initialTab === "production-planning" ? <FactoryProductionPlanningPage onNotify={ui?.notify} onPermissionDenied={clearPlanningPermission} /> : initialTab === "finished-goods-dispatch" ? renderFinishedGoodsDispatch() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? renderProductRecipes() : initialTab === "production-sop" ? renderProductionSop() : initialTab === "audit-logs" ? <FactoryAuditTrailPage onNotify={ui?.notify} /> : initialTab === "storage-locations" ? <FactoryStorageLocationsPage /> : initialTab === "suppliers" ? <FactorySuppliersPage /> : initialTab === "customers" ? <FactoryCustomersPage /> : renderDashboard()}
       {modal?.type === "job" ? (
         <JobOrderModal
           initialValue={modal.value}

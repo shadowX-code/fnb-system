@@ -13,6 +13,7 @@ export function FactoryMasterDataProvider({ data, children }) {
       finishedGoodCategories: data?.finishedGoodCategories || [],
       rawMaterialCategories: data?.rawMaterialCategories || [],
       productFamilies: data?.productFamilies || [],
+      recipes: data?.recipes || [],
     }),
     [data],
   );
