@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { finishedGoodCommercialCost } from "../pages/FactoryWorkspacePage.jsx";
+import { finishedGoodCommercialCost } from "../utils/finishedGoodsCommercial.js";
 
 const recipe = { status: "active", product_family_id: "family-1", yield_quantity: 10, uom: "kg", items: [{ raw_material_id: "rm-1", quantity_used: 10, uom: "kg" }] };
 const receivings = [{ raw_material_id: "rm-1", unit_cost: 5, uom: "kg", received_date: "2026-08-01" }];

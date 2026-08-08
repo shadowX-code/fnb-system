@@ -1,0 +1,81 @@
+import { useMemo, useState } from "react";
+import { BookOpen, Clock3, Package, PackageCheck, Tag, Warehouse } from "lucide-react";
+import EmptyState from "../../../components/feedback/EmptyState.jsx";
+import PageHeader from "../../../components/layout/PageHeader.jsx";
+import ActionMenu from "../../../components/ui/ActionMenu.jsx";
+import Badge from "../../../components/ui/Badge.jsx";
+import Card from "../../../components/ui/Card.jsx";
+import MetricCard from "../../../components/ui/MetricCard.jsx";
+import FactoryPagination, { useFactoryClientPagination } from "../components/FactoryPagination.jsx";
+import { Field, inputClass } from "../components/FactoryBulkSelectionModal.jsx";
+import FactoryFinishedGoodCommercialTable from "../components/finishedGoods/FactoryFinishedGoodCommercialTable.jsx";
+import SearchableSelect from "../components/SearchableSelect.jsx";
+import useFactoryFinishedGoodsQuery from "../hooks/useFactoryFinishedGoodsQuery.js";
+import useFactoryMasterData from "../hooks/useFactoryMasterData.js";
+import useFactoryNavigation from "../hooks/useFactoryNavigation.js";
+import useFactoryPermissions from "../hooks/useFactoryPermissions.js";
+import FactoryFinishedGoodDetailModal from "../modals/FactoryFinishedGoodDetailModal.jsx";
+import { finishedGoodCommercialCost } from "../utils/finishedGoodsCommercial.js";
+import { activeRecipeForSku } from "../utils/productionPlanning.js";
+import { formatFactoryDate } from "../utils/factoryDates.js";
+import { quantity } from "../utils/factoryFormatters.js";
+import { jobStatusLabel } from "../utils/factoryStatus.js";
+
+const packSizeText = (sku) => Number(sku?.pack_size_qty || 0) > 0 ? `${sku.pack_size_qty} ${sku.pack_size_uom || ""}`.trim() : "";
+const packagingTypeLabel = (sku) => sku?.packaging_type || "Pack";
+const packagingSkuDisplayName = (sku) => [Number(sku?.pack_size_qty || 0) > 0 ? `${sku.pack_size_qty}${sku.pack_size_uom || ""}`.trim() : "", packagingTypeLabel(sku)].filter(Boolean).join(" ") || sku?.variant_name || "Packaging SKU";
+const pluralizePackagingType = (type, value) => Number(value || 0) === 1 ? type || "Pack" : /ch$/i.test(type || "Pack") ? `${type || "Pack"}es` : `${type || "Pack"}s`;
+const skuBalanceLabel = (sku) => quantity(Number(sku?.current_balance || 0), pluralizePackagingType(packagingTypeLabel(sku), sku?.current_balance));
+const normalizePackSizeToBase = (qty, uom) => {
+  const amount = Number(qty || 0); const unit = String(uom || "").trim().toLowerCase();
+  if (!amount || !unit) return null;
+  if (["kg", "kilogram", "kilograms"].includes(unit)) return { amount, uom: "kg" };
+  if (["g", "gram", "grams"].includes(unit)) return { amount: amount / 1000, uom: "kg" };
+  if (["l", "litre", "liter", "litres", "liters"].includes(unit)) return { amount, uom: "L" };
+  if (["ml", "millilitre", "milliliter", "millilitres", "milliliters"].includes(unit)) return { amount: amount / 1000, uom: "L" };
+  return null;
+};
+const skuBaseEquivalentLabel = (sku) => { const base = normalizePackSizeToBase(sku?.pack_size_qty || sku?.base_qty, sku?.pack_size_uom || sku?.base_uom); return base ? quantity(Number(sku?.current_balance || 0) * base.amount, base.uom) : ""; };
+const packagingBaseBalanceInfo = (skus) => {
+  let total = 0; let uom = "";
+  for (const sku of skus) { const base = normalizePackSizeToBase(sku.pack_size_qty || sku.base_qty, sku.pack_size_uom || sku.base_uom); if (!base || (uom && uom !== base.uom)) return { label: "Mixed" }; uom = base.uom; total += Number(sku.current_balance || 0) * base.amount; }
+  return skus.length ? { label: quantity(total, uom) } : { label: "—" };
+};
+const productionJobOrderReference = (production) => production?.job_order_no || production?.job?.job_order_no || production?.job_order?.job_order_no || "—";
+const productionBatchReference = (production) => production?.batch_no || productionJobOrderReference(production);
+
+export default function FactoryFinishedGoodsPage() {
+  const { finishedGoods, finishedGoodCategories, recipes, receivings, productions, productMovements, productionCosts } = useFactoryMasterData();
+  const { can } = useFactoryPermissions();
+  const navigation = useFactoryNavigation();
+  const [filters, setFilters] = useState({ product: "", category: "", status: "" });
+  const [view, setView] = useState("grouped");
+  const [expandedGroups, setExpandedGroups] = useState({});
+  const [actionMenu, setActionMenu] = useState(null);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const query = useFactoryFinishedGoodsQuery({ filters });
+  const pager = useFactoryClientPagination("finished-goods", view === "table" ? query.rows.length : query.groups.length, 20, JSON.stringify({ ...filters, view }));
+  const canManage = can("factory_finished_goods.create") || can("factory_finished_goods.edit");
+  const commercialRows = useMemo(() => query.rows.slice(pager.from, pager.to).map((sku) => {
+    const cost = finishedGoodCommercialCost(sku, recipes, receivings);
+    const price = Number(sku.b2b_price || 0) > 0 ? Number(sku.b2b_price) : null;
+    return { ...sku, commercial_cost: cost, gross_margin: cost != null && price != null ? ((price - cost) / price) * 100 : null };
+  }), [pager.from, pager.to, query.rows, receivings, recipes]);
+  const groups = useMemo(() => query.groups.slice(pager.from, pager.to).map((group) => ({ ...group, total_base_balance: packagingBaseBalanceInfo(group.skus) })), [pager.from, pager.to, query.groups]);
+  const outOfStock = finishedGoods.filter((sku) => Number(sku.current_balance || 0) <= 0).length;
+  const activeRecipes = recipes.filter((recipe) => recipe.status === "active").length;
+  const actionItemClass = "flex w-full items-center rounded-xl px-3 py-2 text-left text-sm font-semibold text-text-primary transition hover:bg-slate-50";
+  const archiveItemClass = "flex w-full items-center rounded-xl px-3 py-2 text-left text-sm font-semibold text-rose-600 transition hover:bg-rose-50";
+
+  const renderSkuActions = (sku, group = null) => <div className="flex flex-wrap justify-end gap-2"><button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setSelectedProduct(sku)}>View</button>{can("factory_finished_goods.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => navigation.openFinishedGoodPackagingSku(group, sku)}>Edit</button> : null}{can("factory_finished_goods.edit") && sku.status !== "archived" ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50" type="button" onClick={() => navigation.archiveFinishedGoodPackagingSku(sku)}>Archive</button> : null}</div>;
+
+  return <div className="space-y-5">
+    <PageHeader section="Warehouse" title="Finished Goods" description="Finished goods master setup with live warehouse balances, production history, batches and stock movements." actions={<div className="flex flex-wrap gap-2">{can("factory_finished_goods.create") ? <button className="btn-primary" type="button" onClick={navigation.openCreateFinishedGood}><Package size={15} /> Create Finished Good</button> : null}{canManage ? <button className="btn-secondary" type="button" onClick={navigation.openFinishedGoodCategory}><Tag size={15} /> Category</button> : null}</div>} />
+    <div className="grid gap-3 md:grid-cols-4"><MetricCard icon={PackageCheck} label="Finished Goods" value={query.groups.length} helper="Product identities" /><MetricCard icon={Warehouse} label="Packaging SKUs" value={finishedGoods.length} helper="Inventory SKUs" /><MetricCard icon={BookOpen} label="Active Recipes" value={activeRecipes} helper="Production standards" tone={activeRecipes ? "success" : "warning"} /><MetricCard icon={Clock3} label="Out of Stock SKUs" value={outOfStock} helper="Current balance zero" tone={outOfStock ? "danger" : "success"} /></div>
+    {query.error ? <div className="rounded-lg border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900" role="alert">{query.error}</div> : null}
+    <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 md:grid-cols-4"><Field label="Product"><input className={inputClass()} value={filters.product} onChange={(event) => setFilters((current) => ({ ...current, product: event.target.value }))} placeholder="Search product" /></Field><Field label="Category"><SearchableSelect value={filters.category} options={[{ value: "", label: "All", helper: "No category filter" }, ...finishedGoodCategories.map((category) => ({ value: category.id, label: category.name, helper: "Category" }))]} placeholder="All" searchPlaceholder="Search categories" emptyText="No matching categories" onChange={(category) => setFilters((current) => ({ ...current, category }))} /></Field><Field label="Status"><SearchableSelect value={filters.status} options={[{ value: "", label: "All" }, { value: "active", label: "Active" }, { value: "archived", label: "Archived" }, { value: "out_of_stock", label: "Out of Stock" }]} placeholder="All" searchPlaceholder="Search status" emptyText="No matching status" onChange={(status) => setFilters((current) => ({ ...current, status }))} /></Field><div className="flex items-end"><button className="btn-secondary w-full" type="button" onClick={() => setFilters({ product: "", category: "", status: "" })}>Clear</button></div></div>
+    <Card title="Finished Goods and Packaging SKUs" description="Each Finished Good can have one or more packaging SKUs. Inventory balances are tracked per SKU."><div className="flex justify-end border-b border-border px-3.5 py-2.5"><div className="inline-flex shrink-0 rounded-lg border border-border bg-slate-50 p-1" aria-label="Finished Goods view"><button className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${view === "grouped" ? "bg-white text-text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"}`} type="button" aria-pressed={view === "grouped"} onClick={() => setView("grouped")}>Grouped View</button><button className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${view === "table" ? "bg-white text-text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"}`} type="button" aria-pressed={view === "table"} onClick={() => setView("table")}>Table View</button></div></div>
+      {view === "table" ? (!commercialRows.length ? <EmptyState title="No Packaging SKUs" description="No Packaging SKUs match the selected filters." /> : <FactoryFinishedGoodCommercialTable rows={commercialRows} renderActions={renderSkuActions} formatPackSize={packSizeText} formatStorage={(sku) => sku.recommended_storage ? jobStatusLabel(sku.recommended_storage) : "—"} />) : (!groups.length ? <EmptyState title="No Finished Goods" description="Create a Finished Good and Packaging SKU to start managing inventory." /> : <div className="divide-y divide-border">{groups.map((group) => { const expanded = expandedGroups[group.groupKey] ?? false; const activeSkuLabel = `${group.active_sku_count} Active SKU${group.active_sku_count === 1 ? "" : "s"}`; const outCount = group.skus.filter((sku) => Number(sku.current_balance || 0) <= 0).length; return <div key={group.groupKey} className="bg-white"><div className="grid gap-3 px-4 py-4 md:grid-cols-[minmax(0,1.5fr)_minmax(120px,0.7fr)_minmax(170px,1fr)_minmax(130px,0.65fr)_minmax(150px,0.7fr)_auto]"><button className="flex min-w-0 items-center gap-2 text-left" type="button" onClick={() => setExpandedGroups((current) => ({ ...current, [group.groupKey]: !expanded }))}><span className="text-xs font-bold text-text-secondary">{expanded ? "▼" : "▶"}</span><span><span className="block text-base font-bold text-text-primary">{group.product_group_name}</span>{group.name_cn ? <span className="mt-0.5 block text-sm font-semibold text-text-secondary">{group.name_cn}</span> : null}</span></button><div className="text-sm font-semibold text-text-secondary">{group.category || "No category"}</div><div className="flex flex-wrap gap-1.5">{group.skus.length ? group.skus.slice(0, 3).map((sku) => <span key={sku.id} className="rounded-full border border-primary/20 bg-primary/5 px-2.5 py-1 text-xs font-bold text-primary">{sku.product_code || packagingSkuDisplayName(sku)}</span>) : <span className="text-sm font-semibold text-text-secondary">No SKU</span>}</div><div className="text-sm font-bold text-text-primary">{group.total_base_balance.label}</div><div className="text-sm font-bold text-text-primary">{activeSkuLabel}{outCount ? <span className="text-text-secondary"> / {outCount} Out</span> : null}</div><div className="flex justify-start md:justify-end">{!group.isStandalone && canManage ? <ActionMenu open={actionMenu === group.groupKey} onOpenChange={(open) => setActionMenu(open ? group.groupKey : null)} width={220} trigger={({ toggle, ariaLabel }) => <button className="icon-btn h-9 w-9" type="button" onClick={toggle} aria-label={ariaLabel}>⋮</button>}>{can("factory_finished_goods.create") ? <button className={actionItemClass} type="button" onClick={() => { setActionMenu(null); navigation.openFinishedGoodPackagingSku(group); }}>Add Packaging SKU</button> : null}{can("factory_finished_goods.edit") ? <button className={actionItemClass} type="button" onClick={() => { setActionMenu(null); navigation.openEditFinishedGood(group); }}>Edit Finished Good</button> : null}{can("factory_finished_goods.edit") && group.status !== "archived" ? <button className={archiveItemClass} type="button" onClick={() => { setActionMenu(null); navigation.archiveFinishedGood(group); }}>Archive Finished Good</button> : null}</ActionMenu> : null}</div></div>{expanded ? <div className="border-t border-border bg-slate-50/70 px-5 py-4">{!group.skus.length ? <EmptyState title="No Packaging SKU configured" description="Add a Packaging SKU before production stock-in." /> : <div className="ml-3 overflow-x-auto rounded-xl border border-border bg-white shadow-inner"><table className="w-full min-w-[720px] text-left"><thead><tr className="border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted"><th className="px-4 py-2.5">SKU</th><th className="px-4 py-2.5">Pack Size</th><th className="px-4 py-2.5">Balance</th><th className="px-4 py-2.5">Recipe</th><th className="px-4 py-2.5">Status</th><th className="px-4 py-2.5 text-right" /></tr></thead><tbody>{group.skus.map((sku) => { const activeRecipe = activeRecipeForSku(recipes, sku, group.product_group_name); return <tr key={sku.id} className="border-b border-border text-sm last:border-0"><td className="px-4 py-2.5"><div className="font-bold text-text-primary">{sku.product_code || "No SKU"}</div><div className="text-xs text-text-secondary">{packagingSkuDisplayName(sku)}</div></td><td className="px-4 py-2.5 font-semibold">{packSizeText(sku) || "—"}</td><td className="px-4 py-2.5"><div className="font-bold">{skuBalanceLabel(sku)}</div>{skuBaseEquivalentLabel(sku) ? <div className="text-xs font-semibold text-text-secondary">{skuBaseEquivalentLabel(sku)}</div> : null}</td><td className="px-4 py-2.5 font-semibold text-text-secondary">{activeRecipe ? activeRecipe.version || activeRecipe.recipe_name || "v1" : "No Recipe"}</td><td className="px-4 py-2.5"><div className="flex flex-wrap gap-1.5"><Badge tone={sku.status === "active" ? "success" : "neutral"}>{jobStatusLabel(sku.status)}</Badge><Badge tone={Number(sku.current_balance || 0) <= 0 ? "danger" : "success"}>{Number(sku.current_balance || 0) <= 0 ? "Out of Stock" : "In Stock"}</Badge></div></td><td className="px-4 py-2.5 text-right">{renderSkuActions(sku, group.isStandalone ? null : group)}</td></tr>; })}</tbody></table></div>}</div> : null}</div>; })}</div>)}<FactoryPagination page={pager.page} pageSize={pager.pageSize} total={view === "table" ? query.rows.length : query.groups.length} onPageChange={pager.setPage} onPageSizeChange={pager.setPageSize} /></Card>
+    {selectedProduct ? <FactoryFinishedGoodDetailModal product={selectedProduct} productions={productions} movements={productMovements} productionCosts={productionCosts} onClose={() => setSelectedProduct(null)} formatBalance={skuBalanceLabel} formatDate={formatFactoryDate} formatQuantity={quantity} productionBatchReference={productionBatchReference} productionJobOrderReference={productionJobOrderReference} /> : null}
+  </div>;
+}
