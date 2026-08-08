@@ -583,6 +583,7 @@ function mapFinishedGood(row) {
     product_family_name: productFamily.name_en || row.product_family_name || "",
     product_family_name_cn: productFamily.name_cn || "",
     product_family_name_bm: productFamily.name_bm || "",
+    is_halal: Boolean(productFamily.is_halal ?? row.is_halal),
     variant_name: row.variant_name || "",
     packaging_type: row.packaging_type || "Pack",
     pack_size_qty: optionalNumber(row.pack_size_qty),
@@ -599,6 +600,8 @@ function mapFinishedGood(row) {
     storage_location: storageLocationName,
     storage_location_type: row.storage_location_ref?.location_type || "",
     storage_location_status: row.storage_location_ref?.status || "",
+    recommended_storage: row.recommended_storage || "",
+    b2b_price: row.b2b_price === null || row.b2b_price === undefined || row.b2b_price === "" ? null : normalizeNumber(row.b2b_price),
     status: row.status || "active",
     remarks: row.remarks || "",
     created_at: row.created_at,
@@ -612,6 +615,7 @@ function mapProductFamily(row) {
     name_en: row.name_en || "",
     name_cn: row.name_cn || "",
     name_bm: row.name_bm || "",
+    is_halal: Boolean(row.is_halal),
     category_id: row.category_id || "",
     category: row.category?.name || "",
     status: row.status || "active",
@@ -1197,8 +1201,8 @@ function emptyFactoryData() {
   };
 }
 
-const finishedGoodSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,category_id,category,uom,current_balance,shelf_life_days,status,category_ref:factory_finished_good_categories(name),product_family:factory_product_families(name_en,name_cn,name_bm,status)";
-const finishedGoodFullSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,category_id,category,uom,current_balance,min_stock_level,shelf_life_days,storage_location_id,storage_location,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),product_family:factory_product_families(name_en,name_cn,name_bm,status)";
+const finishedGoodSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,category_id,category,uom,current_balance,shelf_life_days,recommended_storage,b2b_price,status,category_ref:factory_finished_good_categories(name),product_family:factory_product_families(name_en,name_cn,name_bm,is_halal,status)";
+const finishedGoodFullSelect = "id,product_code,product_name,product_name_en,product_name_cn,product_name_bm,product_family_id,variant_name,packaging_type,pack_size_qty,pack_size_uom,base_qty,base_uom,category_id,category,uom,current_balance,min_stock_level,shelf_life_days,storage_location_id,storage_location,recommended_storage,b2b_price,status,remarks,created_at,updated_at,category_ref:factory_finished_good_categories(name),storage_location_ref:factory_storage_locations(location_name,location_code,location_type,status),product_family:factory_product_families(name_en,name_cn,name_bm,is_halal,status)";
 const storageLocationSelect = "id,location_name,location_code,location_type,status,remarks,created_at,updated_at";
 const factorySupplierSelect = "id,supplier_name,supplier_code,contact_person,phone,email,status,remarks,created_at,updated_at";
 const factoryCustomerSelect = "id,customer_code,customer_name,customer_type,contact_person,phone,email,address,status,remarks,created_at,updated_at";
@@ -1503,8 +1507,8 @@ function factoryDataPlan(scope, hasPermission) {
     finishedGoodCategories: (isFinishedGoods && can("factory_finished_goods.view")) || (isProductionPlanning && can("factory_production_planning.view")) || (isProductStockCheck && can("factory_product_stock_check.view")),
     productFamilies: (isFinishedGoods && can("factory_finished_goods.view")) || (isProductRecipes && (can("factory_product_recipes.view") || can("factory_product_recipes.create") || can("factory_product_recipes.edit") || can("factory_product_recipes.manage"))) || (isProductionSop && (can("factory_production_sop.view") || can("factory_production_sop.create") || can("factory_production_sop.edit") || can("factory_production_sop.manage"))) || (isJobOrders && (can("factory_job_orders.view") || can("factory_job_orders.create") || can("factory_job_orders.edit"))) || (isProduction && (can("factory_product_recipes.view") || can("factory_production.complete"))),
     productMovements: ((isProduction || isProductMovements) && can("factory_product_movements.view")) || (isFinishedGoods && can("factory_finished_goods.view")) || (isFinishedGoodsDispatch && can("factory_finished_goods_dispatch.view")) || (isReports && can("factory_product_movements.view")),
-    recipes: (isRawInventory && can("factory_raw_inventory.view")) || (isProductRecipes && can("factory_product_recipes.view")) || (isProductionSop && (can("factory_production_sop.view") || can("factory_production_sop.create") || can("factory_production_sop.edit") || can("factory_production_sop.manage"))) || (isJobOrders && can("factory_product_recipes.view")) || (isProductionPlanning && can("factory_product_recipes.view")) || (isProduction && (can("factory_product_recipes.view") || can("factory_production.complete"))) || (isReports && can("factory_production_reports.view")),
-    recipeSummaries: isFinishedGoods && can("factory_product_recipes.view"),
+    recipes: (isRawInventory && can("factory_raw_inventory.view")) || ((isProductRecipes || isFinishedGoods) && can("factory_product_recipes.view")) || (isProductionSop && (can("factory_production_sop.view") || can("factory_production_sop.create") || can("factory_production_sop.edit") || can("factory_production_sop.manage"))) || (isJobOrders && can("factory_product_recipes.view")) || (isProductionPlanning && can("factory_product_recipes.view")) || (isProduction && (can("factory_product_recipes.view") || can("factory_production.complete"))) || (isReports && can("factory_production_reports.view")),
+    recipeSummaries: false,
     sops: (isProduction || isProductionSop || isJobOrders)
       && (can("factory_production_sop.view") || can("factory_production.view") || can("factory_production.complete")),
     qcChecklistTemplates: isProductionSop && (can("factory_production_sop.view") || can("factory_production_sop.create") || can("factory_production_sop.edit") || can("factory_production_sop.manage")),
@@ -1614,7 +1618,7 @@ export const factoryService = {
       .in("id", ids), (rows) => rows.map(mapFinishedGoodCategory));
     addMasterTask(plan.productFamilies, "productFamilies", "Product Families", "product_families", (ids) => supabase
       .from("factory_product_families")
-      .select("id,name_en,name_cn,name_bm,category_id,status,remarks,created_at,updated_at,category:factory_finished_good_categories(name)")
+      .select("id,name_en,name_cn,name_bm,is_halal,category_id,status,remarks,created_at,updated_at,category:factory_finished_good_categories(name)")
       .in("id", ids), (rows) => rows.map(mapProductFamily));
     addTask(plan.productMovements && scope !== "product-movements", "productMovements", "Product Movements", () => supabase
       .from("factory_product_stock_movements")
@@ -2633,6 +2637,8 @@ export const factoryService = {
       shelf_life_days: product.shelf_life_days === "" || product.shelf_life_days == null ? null : Number(product.shelf_life_days),
       storage_location_id: product.storage_location_id || null,
       storage_location: storageLocationName || String(product.storage_location || "").trim(),
+      recommended_storage: product.recommended_storage || null,
+      b2b_price: product.b2b_price === "" || product.b2b_price == null ? null : Number(product.b2b_price),
       status: product.status || "active",
       remarks: String(product.remarks || "").trim(),
       updated_at: new Date().toISOString(),
@@ -2642,6 +2648,12 @@ export const factoryService = {
     if (!payload.uom) throw new Error("UOM is required.");
     if (payload.shelf_life_days !== null && (!Number.isInteger(payload.shelf_life_days) || payload.shelf_life_days <= 0)) {
       throw new Error("Shelf Life must be a whole number greater than zero.");
+    }
+    if (payload.b2b_price !== null && (!Number.isFinite(payload.b2b_price) || payload.b2b_price <= 0)) {
+      throw new Error("B2B Price must be greater than zero.");
+    }
+    if (payload.recommended_storage && !["room", "chiller", "freezer"].includes(payload.recommended_storage)) {
+      throw new Error("Select a valid recommended storage method.");
     }
     if (!["active", "archived"].includes(payload.status)) payload.status = "active";
     if (!isUpdate) payload.created_by = employeeId || null;
@@ -2713,6 +2725,7 @@ export const factoryService = {
       name_en: String(family.name_en || "").trim(),
       name_cn: String(family.name_cn || "").trim(),
       name_bm: String(family.name_bm || "").trim(),
+      is_halal: Boolean(family.is_halal),
       category_id: family.category_id || null,
       status: family.status || "active",
       remarks: String(family.remarks || "").trim(),
@@ -2727,7 +2740,7 @@ export const factoryService = {
       : supabase.from("factory_product_families").insert(payload);
 
     const { data, error } = await query
-      .select("id,name_en,name_cn,name_bm,category_id,status,remarks,created_at,updated_at,category:factory_finished_good_categories(name)")
+      .select("id,name_en,name_cn,name_bm,is_halal,category_id,status,remarks,created_at,updated_at,category:factory_finished_good_categories(name)")
       .single();
     throwSupabaseError("factory.product_group.save", error);
     await logFactoryAction({
@@ -2744,7 +2757,7 @@ export const factoryService = {
       .from("factory_product_families")
       .update({ status: "archived", updated_at: new Date().toISOString() })
       .eq("id", family.id)
-      .select("id,name_en,name_cn,name_bm,category_id,status,remarks,created_at,updated_at,category:factory_finished_good_categories(name)")
+      .select("id,name_en,name_cn,name_bm,is_halal,category_id,status,remarks,created_at,updated_at,category:factory_finished_good_categories(name)")
       .single();
     throwSupabaseError("factory.product_group.archive", error);
     await logFactoryAction({
@@ -2853,7 +2866,7 @@ export const factoryService = {
       estimated_production_time_minutes: recipe.estimated_production_time_minutes === "" || recipe.estimated_production_time_minutes == null
         ? null
         : normalizeNumber(recipe.estimated_production_time_minutes),
-      status: recipe.status === "active" ? "active" : recipe.status === "archived" ? "archived" : "draft",
+      status: recipe.status === "archived" ? "archived" : "draft",
       notes: String(recipe.remarks || recipe.notes || "").trim(),
       remarks: String(recipe.remarks || recipe.notes || "").trim(),
       updated_at: new Date().toISOString(),
@@ -2861,18 +2874,6 @@ export const factoryService = {
     if (!isUpdate) {
       payload.recipe_code = makeFactoryRef("FGRCP");
       payload.created_by = employeeId || null;
-    }
-
-    if (payload.status === "active") {
-      const { data: activeRecipe, error: activeError } = await supabase
-        .from("factory_product_recipes")
-        .select("id")
-        .eq("product_family_id", productFamily.id)
-        .eq("status", "active")
-        .neq("id", recipe.id || "00000000-0000-0000-0000-000000000000")
-        .maybeSingle();
-      throwSupabaseError("factory.recipe.active_lookup", activeError);
-      if (activeRecipe?.id) throw new Error("This Finished Good already has an active recipe version.");
     }
 
     const query = isUpdate

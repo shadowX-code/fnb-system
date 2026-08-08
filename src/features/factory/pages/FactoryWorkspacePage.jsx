@@ -1421,6 +1421,28 @@ function recipeCostInfo(recipe, receivings) {
   };
 }
 
+function finishedGoodCommercialCost(sku, recipes, receivings) {
+  const activeRecipes = (recipes || []).filter((recipe) => String(recipe.status || "").toLowerCase() === "active");
+  const exactMatches = sku?.product_family_id
+    ? activeRecipes.filter((recipe) => recipe.product_family_id === sku.product_family_id)
+    : activeRecipes.filter((recipe) => !recipe.product_family_id && recipe.finished_good_id === sku?.id);
+  if (exactMatches.length !== 1) return null;
+  const [recipe] = exactMatches;
+  const recipeCost = recipeCostInfo(recipe, receivings);
+  if (!recipeCost.itemRows.length || recipeCost.missingCostRows || recipeCost.unsupportedCostRows || Number(recipeCost.costPerUnit || 0) <= 0) return null;
+  const packQty = Number(sku?.pack_size_qty ?? sku?.base_qty ?? 0);
+  const packUom = sku?.pack_size_uom || sku?.base_uom || sku?.uom || "";
+  const recipeUom = recipe.uom || "";
+  if (!(packQty > 0) || !packUom || !recipeUom) return null;
+  const normalizedPackUom = String(packUom).trim().toLowerCase();
+  const normalizedRecipeUom = String(recipeUom).trim().toLowerCase();
+  const recipeQty = normalizedPackUom === normalizedRecipeUom
+    ? packQty
+    : convertCostQuantity(packQty, packUom, recipeUom);
+  if (!(Number(recipeQty) > 0)) return null;
+  return Number(recipeCost.costPerUnit) * Number(recipeQty);
+}
+
 function inheritedRecipeUom(productFamilyId, finishedGoods = [], fallback = "") {
   if (!productFamilyId) return fallback || "kg";
   const skus = finishedGoods.filter((sku) => sku.product_family_id === productFamilyId);
@@ -2104,6 +2126,7 @@ function ProductGroupModal({ initialValue, categories = [], onClose, onSave, onA
     name_en: "",
     name_cn: "",
     name_bm: "",
+    is_halal: false,
     category_id: "",
     status: "active",
     remarks: "",
@@ -2202,6 +2225,10 @@ function ProductGroupModal({ initialValue, categories = [], onClose, onSave, onA
               onChange={(status) => setForm((current) => ({ ...current, status }))}
             />
           </Field>
+          <label className="flex items-start gap-3 rounded-xl border border-border bg-white px-3 py-3 text-sm text-text-primary">
+            <input className="mt-0.5 h-4 w-4 shrink-0 accent-primary" type="checkbox" checked={Boolean(form.is_halal)} onChange={(event) => setForm((current) => ({ ...current, is_halal: event.target.checked }))} />
+            <span><span className="block font-semibold">Halal</span><span className="mt-0.5 block text-xs text-text-secondary">Applies to this Finished Good and all of its Packaging SKUs.</span></span>
+          </label>
         </section>
         <section className="space-y-3 rounded-2xl border border-border bg-slate-50/60 p-4">
           <Field label="Remarks">
@@ -2236,6 +2263,8 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
     shelf_life_days: "",
     storage_location_id: "",
     storage_location: "",
+    recommended_storage: "",
+    b2b_price: "",
     status: "active",
     remarks: "",
     ...initialValue,
@@ -2264,6 +2293,7 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
       pack_size_uom: !String(form.pack_size_uom || "").trim() ? "Pack Size UOM is required." : "",
       uom: !String(form.uom || "").trim() ? "UOM is required." : "",
       shelf_life_days: form.shelf_life_days !== "" && (!Number.isInteger(Number(form.shelf_life_days)) || Number(form.shelf_life_days) <= 0) ? "Shelf Life must be a whole number greater than zero." : "",
+      b2b_price: form.b2b_price !== "" && (!Number.isFinite(Number(form.b2b_price)) || Number(form.b2b_price) <= 0) ? "B2B Price must be greater than zero." : "",
       status: !String(form.status || "").trim() ? "Status is required." : "",
     };
     const activeErrors = Object.fromEntries(Object.entries(nextErrors).filter(([, message]) => message));
@@ -2410,6 +2440,35 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
                   searchPlaceholder="Search locations"
                   emptyText="No storage locations"
                   onChange={(locationId) => setForm((current) => ({ ...current, storage_location_id: locationId }))}
+                />
+              </Field>
+              <Field label="Storage">
+                <SearchableSelect
+                  value={form.recommended_storage || ""}
+                  options={[
+                    { value: "", label: "Not Set" },
+                    { value: "room", label: "Room" },
+                    { value: "chiller", label: "Chiller" },
+                    { value: "freezer", label: "Freezer" },
+                  ]}
+                  placeholder="Not Set"
+                  searchPlaceholder="Search storage methods"
+                  onChange={(recommendedStorage) => setForm((current) => ({ ...current, recommended_storage: recommendedStorage }))}
+                />
+                <div className="mt-1 text-xs text-text-secondary">Recommended product storage method, separate from the physical Storage Location.</div>
+              </Field>
+              <Field label="B2B Price (RM)" error={fieldErrors.b2b_price}>
+                <input
+                  className={inputClass(fieldErrors.b2b_price)}
+                  type="number"
+                  min="0.01"
+                  step="0.01"
+                  placeholder="Not set"
+                  value={form.b2b_price ?? ""}
+                  onChange={(event) => {
+                    setFieldErrors((current) => ({ ...current, b2b_price: "" }));
+                    setForm((current) => ({ ...current, b2b_price: event.target.value }));
+                  }}
                 />
               </Field>
             </div>
@@ -8114,6 +8173,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const [jobOrderFilters, setJobOrderFilters] = useState({ search: "", status: "", scheduledDateFrom: "", scheduledDateTo: "", manufacturingDateFrom: "", manufacturingDateTo: "", finishedGood: "" });
   const [expandedProductGroups, setExpandedProductGroups] = useState({});
   const [finishedGoodActionMenu, setFinishedGoodActionMenu] = useState(null);
+  const [finishedGoodsView, setFinishedGoodsView] = useState("grouped");
   const [productionPlanningFilters, setProductionPlanningFilters] = useState({ product: "", category: "", status: "" });
   const [warehouseFilters, setWarehouseFilters] = useState({ product: "", family: "", category: "", status: "", batch: "", movementType: "", dateFrom: "", dateTo: "" });
   const [batchTraceabilityFilters, setBatchTraceabilityFilters] = useState({ dateFrom: "", dateTo: "", finishedGood: "", batchNo: "", batchType: "", expiryStatus: "", storageLocation: "", reconciliationStatus: "", search: "" });
@@ -8282,10 +8342,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }, [factoryListingPage.errorKind, serverListing]);
   const rawInventoryMasterRows = filteredRawMaterialRows();
   const finishedGoodsMasterGroups = finishedGoodProductGroups();
+  const finishedGoodsMasterRows = filteredFinishedGoodRows();
   const productionPlanningMasterRows = filteredProductionPlanningRows();
   const recipeParentCount = new Set(data.recipes.map((recipe) => recipe.product_family_id || recipe.finished_good_id || recipe.product_name || recipe.id)).size;
   const rawInventoryPager = useFactoryClientPagination("raw-inventory", rawInventoryMasterRows.length, 20, JSON.stringify(rawMaterialFilters));
-  const finishedGoodsPager = useFactoryClientPagination("finished-goods", finishedGoodsMasterGroups.length, 20, JSON.stringify(warehouseFilters));
+  const finishedGoodsPager = useFactoryClientPagination("finished-goods", finishedGoodsView === "table" ? finishedGoodsMasterRows.length : finishedGoodsMasterGroups.length, 20, JSON.stringify({ ...warehouseFilters, view: finishedGoodsView }));
   const productionPlanningPager = useFactoryClientPagination("production-planning", productionPlanningMasterRows.length, 20, JSON.stringify(productionPlanningFilters));
   const recipesPager = useFactoryClientPagination("product-recipes", recipeParentCount);
   const sopProductGroups = useMemo(() => groupedProductionSops(data.sops), [data.sops]);
@@ -12698,11 +12759,28 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   function renderFinishedGoods() {
     const allProductGroups = finishedGoodsMasterGroups;
     const productGroups = allProductGroups.slice(finishedGoodsPager.from, finishedGoodsPager.to);
+    const allSkuRows = finishedGoodsMasterRows;
+    const skuRows = allSkuRows.slice(finishedGoodsPager.from, finishedGoodsPager.to).map((sku) => {
+      const cost = finishedGoodCommercialCost(sku, data.recipes, data.receivings);
+      const price = Number(sku.b2b_price || 0) > 0 ? Number(sku.b2b_price) : null;
+      return {
+        ...sku,
+        commercial_cost: cost,
+        gross_margin: cost != null && price != null ? ((price - cost) / price) * 100 : null,
+      };
+    });
     const outOfStockItems = data.finishedGoods.filter((row) => Number(row.current_balance || 0) <= 0);
     const canManageFinishedGoods = can("factory_finished_goods.create") || can("factory_finished_goods.edit");
     const activeRecipeCount = data.recipes.filter((recipe) => recipe.status === "active").length;
     const actionItemClass = "flex w-full items-center rounded-xl px-3 py-2 text-left text-sm font-semibold text-text-primary transition hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50";
     const dangerActionItemClass = "flex w-full items-center rounded-xl px-3 py-2 text-left text-sm font-semibold text-rose-600 transition hover:bg-rose-50 disabled:cursor-not-allowed disabled:opacity-50";
+    const renderSkuActions = (sku) => (
+      <div className="flex flex-wrap justify-end gap-2">
+        <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "finished-good-detail", product: sku })}>View</button>
+        {can("factory_finished_goods.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => openPackagingSkuModal(data.productFamilies.find((family) => family.id === sku.product_family_id), sku)}>Edit</button> : null}
+        {can("factory_finished_goods.edit") && sku.status !== "archived" ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-600 transition hover:bg-rose-50" type="button" onClick={() => archiveFinishedGood(sku)}>Archive</button> : null}
+      </div>
+    );
     return (
       <div className="space-y-5">
         <PageHeader
@@ -12723,8 +12801,47 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={Clock3} label="Out of Stock SKUs" value={outOfStockItems.length} helper="Current balance zero" tone={outOfStockItems.length ? "danger" : "success"} />
         </div>
         {finishedGoodFilterControls()}
-        <Card title="Finished Goods and Packaging SKUs" description="Each Finished Good can have one or more packaging SKUs. Inventory balances are tracked per SKU.">
-          {!productGroups.length ? (
+        <Card
+          title="Finished Goods and Packaging SKUs"
+          description="Each Finished Good can have one or more packaging SKUs. Inventory balances are tracked per SKU."
+        >
+          <div className="flex justify-end border-b border-border px-3.5 py-2.5">
+            <div className="inline-flex shrink-0 rounded-lg border border-border bg-slate-50 p-1" aria-label="Finished Goods view">
+              <button className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${finishedGoodsView === "grouped" ? "bg-white text-text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"}`} type="button" aria-pressed={finishedGoodsView === "grouped"} onClick={() => setFinishedGoodsView("grouped")}>Grouped View</button>
+              <button className={`rounded-md px-3 py-1.5 text-xs font-semibold transition ${finishedGoodsView === "table" ? "bg-white text-text-primary shadow-sm" : "text-text-secondary hover:text-text-primary"}`} type="button" aria-pressed={finishedGoodsView === "table"} onClick={() => setFinishedGoodsView("table")}>Table View</button>
+            </div>
+          </div>
+          {finishedGoodsView === "table" ? (
+            !skuRows.length ? <EmptyState title="No Packaging SKUs" description="No Packaging SKUs match the selected filters." /> : (
+              <>
+                <div className="divide-y divide-border md:hidden">
+                  {skuRows.map((sku) => (
+                    <div key={sku.id} className="space-y-3 p-4">
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="min-w-0"><div className="font-bold text-text-primary">{sku.product_family_name || sku.product_name_en || sku.product_name || "—"}</div>{sku.product_family_name_cn || sku.product_name_cn ? <div className="text-sm text-text-secondary">{sku.product_family_name_cn || sku.product_name_cn}</div> : null}<div className="mt-1 text-xs font-semibold text-text-muted">{sku.product_code || "—"} · {packSizeText(sku) || "—"}</div></div>
+                        <Badge tone={sku.is_halal ? "success" : "neutral"}>{sku.is_halal ? "Halal" : "No"}</Badge>
+                      </div>
+                      <div className="grid grid-cols-2 gap-3 text-sm">
+                        <div><div className="text-[10.5px] font-semibold text-text-muted">Storage</div><div className="font-semibold text-text-primary">{sku.recommended_storage ? jobStatusLabel(sku.recommended_storage) : "—"}</div></div>
+                        <div><div className="text-[10.5px] font-semibold text-text-muted">Shelf Life</div><div className="font-semibold text-text-primary">{sku.shelf_life_days ? `${sku.shelf_life_days} days` : "—"}</div></div>
+                        <div><div className="text-[10.5px] font-semibold text-text-muted">Cost</div><div className="font-semibold text-text-primary">{sku.commercial_cost == null ? "—" : money(sku.commercial_cost)}</div></div>
+                        <div><div className="text-[10.5px] font-semibold text-text-muted">B2B Price</div><div className="font-semibold text-text-primary">{sku.b2b_price == null ? "—" : money(sku.b2b_price)}</div></div>
+                        <div><div className="text-[10.5px] font-semibold text-text-muted">Gross Margin</div><div className="font-semibold text-text-primary">{sku.gross_margin == null ? "—" : percent(sku.gross_margin)}</div></div>
+                        <div><div className="text-[10.5px] font-semibold text-text-muted">Category</div><div className="font-semibold text-text-primary">{sku.category || "—"}</div></div>
+                      </div>
+                      {renderSkuActions(sku)}
+                    </div>
+                  ))}
+                </div>
+                <div className="hidden overflow-x-auto md:block">
+                  <table className="w-full min-w-[1320px] text-left">
+                    <thead><tr className="border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted"><th className="px-4 py-2.5">Category</th><th className="px-4 py-2.5">Product</th><th className="px-4 py-2.5">Halal</th><th className="px-4 py-2.5">SKU</th><th className="px-4 py-2.5">Pack Size</th><th className="px-4 py-2.5">Storage</th><th className="px-4 py-2.5">Shelf Life</th><th className="px-4 py-2.5 text-right">Cost</th><th className="px-4 py-2.5 text-right">B2B Price</th><th className="px-4 py-2.5 text-right">Gross Margin</th><th className="px-4 py-2.5 text-right">Actions</th></tr></thead>
+                    <tbody>{skuRows.map((sku) => <tr key={sku.id} className="border-b border-border text-sm last:border-0"><td className="px-4 py-3 font-semibold text-text-secondary">{sku.category || "—"}</td><td className="px-4 py-3"><div className="font-bold text-text-primary">{sku.product_family_name || sku.product_name_en || sku.product_name || "—"}</div>{sku.product_family_name_cn || sku.product_name_cn ? <div className="text-xs text-text-secondary">{sku.product_family_name_cn || sku.product_name_cn}</div> : null}</td><td className="px-4 py-3"><Badge tone={sku.is_halal ? "success" : "neutral"}>{sku.is_halal ? "Yes" : "No"}</Badge></td><td className="px-4 py-3 font-bold text-text-primary">{sku.product_code || "—"}</td><td className="px-4 py-3 whitespace-nowrap">{packSizeText(sku) || "—"}</td><td className="px-4 py-3">{sku.recommended_storage ? jobStatusLabel(sku.recommended_storage) : "—"}</td><td className="px-4 py-3 whitespace-nowrap">{sku.shelf_life_days ? `${sku.shelf_life_days} days` : "—"}</td><td className="px-4 py-3 text-right font-semibold">{sku.commercial_cost == null ? "—" : money(sku.commercial_cost)}</td><td className="px-4 py-3 text-right font-semibold">{sku.b2b_price == null ? "—" : money(sku.b2b_price)}</td><td className="px-4 py-3 text-right font-semibold">{sku.gross_margin == null ? "—" : percent(sku.gross_margin)}</td><td className="px-4 py-3 text-right">{renderSkuActions(sku)}</td></tr>)}</tbody>
+                  </table>
+                </div>
+              </>
+            )
+          ) : !productGroups.length ? (
             <EmptyState title="No Finished Goods" description="Create a Finished Good, then add Packaging SKUs for production stock-in." />
           ) : (
             <div className="space-y-4 p-4">
@@ -12867,7 +12984,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
               })}
             </div>
           )}
-          <FactoryPagination page={finishedGoodsPager.page} pageSize={finishedGoodsPager.pageSize} total={allProductGroups.length} onPageChange={finishedGoodsPager.setPage} onPageSizeChange={finishedGoodsPager.setPageSize} />
+          <FactoryPagination page={finishedGoodsPager.page} pageSize={finishedGoodsPager.pageSize} total={finishedGoodsView === "table" ? allSkuRows.length : allProductGroups.length} onPageChange={finishedGoodsPager.setPage} onPageSizeChange={finishedGoodsPager.setPageSize} />
         </Card>
       </div>
     );

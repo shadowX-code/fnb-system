@@ -428,6 +428,16 @@ export const moduleRegistry: AppModule[] = [
     permissions: { view: true, export: true },
   },
   {
+    id: "factory_production_planning",
+    section: "Factory",
+    label: "Production Planning",
+    route: "/factory/production-planning",
+    icon: "factory-production-planning",
+    sidebar: true,
+    workspace: "factory",
+    permissions: { view: true, export: true },
+  },
+  {
     id: "factory_job_orders",
     section: "Factory",
     label: "Production Overview",
@@ -486,16 +496,6 @@ export const moduleRegistry: AppModule[] = [
     sidebar: true,
     workspace: "factory",
     permissions: { view: true, create: true, edit: true, export: true },
-  },
-  {
-    id: "factory_production_planning",
-    section: "Warehouse",
-    label: "Production Planning",
-    route: "/factory/production-planning",
-    icon: "factory-production-planning",
-    sidebar: true,
-    workspace: "factory",
-    permissions: { view: true, export: true },
   },
   {
     id: "factory_finished_goods_dispatch",
