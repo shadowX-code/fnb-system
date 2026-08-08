@@ -15,12 +15,11 @@ import FactoryStorageLocationsPage from "./FactoryStorageLocationsPage.jsx";
 import FactoryProductionPlanningPage from "./FactoryProductionPlanningPage.jsx";
 import FactoryDashboardPage from "./FactoryDashboardPage.jsx";
 import FactoryFinishedGoodsPage from "./FactoryFinishedGoodsPage.jsx";
+import FactoryRawMaterialInventoryPage from "./FactoryRawMaterialInventoryPage.jsx";
 import FactoryBatchTraceabilityPage from "./FactoryBatchTraceabilityPage.jsx";
-import FactoryRawMaterialInventoryTable from "../components/rawMaterials/FactoryRawMaterialInventoryTable.jsx";
 import { activeRecipeForSku, finishedGoodParentKey, inheritedRecipeUom, packagingProductionPlan } from "../utils/productionPlanning.js";
 import { canArchiveActiveProductRecipe, canDeleteDraftProductRecipe, canEditFinishedGoods, canOpenRawMaterialReceiving } from "../utils/factoryPermissionActions.js";
 import FinishedGoodBatchTraceabilityModal from "../modals/FinishedGoodBatchTraceabilityModal.jsx";
-import FactoryRawMaterialDetailModal from "../modals/FactoryRawMaterialDetailModal.jsx";
 import FactoryRawMaterialMovementDetailModal from "../modals/FactoryRawMaterialMovementDetailModal.jsx";
 import FactoryProductMovementsPage from "./FactoryProductMovementsPage.jsx";
 import FactoryRawMaterialMovementsPage from "./FactoryRawMaterialMovementsPage.jsx";
@@ -6588,7 +6587,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const [dispatchHistoryFilters, setDispatchHistoryFilters] = useState({ dateFrom: "", dateTo: "", customer: "", status: "" });
   const [dispatchCustomersTodayUpdating, setDispatchCustomersTodayUpdating] = useState(false);
   const [jobOrderFilters, setJobOrderFilters] = useState({ search: "", status: "", scheduledDateFrom: "", scheduledDateTo: "", manufacturingDateFrom: "", manufacturingDateTo: "", finishedGood: "" });
-  const [rawMaterialFilters, setRawMaterialFilters] = useState({ material: "", status: "", category: "" });
   const [rawMovementReferenceLoading, setRawMovementReferenceLoading] = useState("");
   const [batchTraceabilityDispatchLoading, setBatchTraceabilityDispatchLoading] = useState("");
   const [auditReferenceLoading, setAuditReferenceLoading] = useState("");
@@ -6679,9 +6677,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       if (serverListing === "receiving-history") setEditingReceiving(null);
     }
   }, [factoryListingPage.errorKind, serverListing]);
-  const rawInventoryMasterRows = filteredRawMaterialRows();
   const recipeParentCount = new Set(data.recipes.map((recipe) => recipe.product_family_id || recipe.finished_good_id || recipe.product_name || recipe.id)).size;
-  const rawInventoryPager = useFactoryClientPagination("raw-inventory", rawInventoryMasterRows.length, 20, JSON.stringify(rawMaterialFilters));
   const recipesPager = useFactoryClientPagination("product-recipes", recipeParentCount);
   const sopProductGroups = useMemo(() => groupedProductionSops(data.sops), [data.sops]);
   const sopsPager = useFactoryClientPagination("production-sop", sopProductGroups.length);
@@ -8335,39 +8331,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     );
   }
 
-  function rawMaterialRows() {
-    return data.rawMaterials.map((material) => {
-      const materialReceivings = data.receivings.filter((row) => row.raw_material_id === material.id);
-      const materialMovements = data.rawMaterialMovements.filter((row) => row.raw_material_id === material.id);
-      const consumptionRows = materialMovements.filter((row) => Number(row.quantity || 0) < 0 || String(row.movement_type || "").toLowerCase().includes("production"));
-      const lastReceiving = [...materialReceivings].sort((a, b) => new Date(b.received_date || b.created_at || 0) - new Date(a.received_date || a.created_at || 0))[0];
-      const lastConsumption = [...consumptionRows].sort((a, b) => new Date(b.movement_date || b.created_at || 0) - new Date(a.movement_date || a.created_at || 0))[0];
-      const latestCost = latestReceivingCostInfo(data.receivings, material.id, material);
-      const balance = Number(material.current_balance || 0);
-      const minStock = Number(material.min_stock_level || 0);
-      const costBalance = latestCost.missingCost ? null : convertCostQuantity(balance, material.uom, latestCost.uom);
-      const inventoryValue = costBalance == null ? null : costBalance * latestCost.unitCost;
-      return {
-        ...material,
-        last_receiving_date: lastReceiving?.received_date || "",
-        last_consumption_date: lastConsumption?.movement_date || "",
-        latest_cost: latestCost.unitCost,
-        latest_cost_uom: latestCost.uom,
-        latest_cost_missing: latestCost.missingCost,
-        latest_cost_source: latestCost.costSource,
-        latest_cost_unsupported: !latestCost.missingCost && costBalance == null,
-        inventory_value: inventoryValue,
-        stock_status: balance <= 0 ? "Out of Stock" : minStock > 0 && balance <= minStock ? "Low Stock" : "In Stock",
-      };
-    });
-  }
-
-  function filteredRawMaterialRows() {
-    return rawMaterialRows().filter((row) => includesText(`${row.name} ${row.name_en} ${row.name_cn} ${row.name_bm} ${row.material_code}`, rawMaterialFilters.material)
-      && (!rawMaterialFilters.status || row.status === rawMaterialFilters.status || row.stock_status === rawMaterialFilters.status)
-      && (!rawMaterialFilters.category || row.category_id === rawMaterialFilters.category || row.category === rawMaterialFilters.category));
-  }
-
   async function openRawMaterialMovementReference(movement) {
     if (!movement.document_id || !movement.document_type || rawMovementReferenceLoading) return;
     setRawMovementReferenceLoading(movement.id);
@@ -8506,47 +8469,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         <div className="flex items-end">
           <button className="btn-secondary w-full" type="button" onClick={() => setDispatchHistoryFilters({ dateFrom: "", dateTo: "", customer: "", status: "" })}>Clear</button>
         </div>
-      </div>
-    );
-  }
-
-  function rawMaterialFilterControls() {
-    const categories = data.rawMaterialCategories.length
-      ? data.rawMaterialCategories
-      : [...new Set(data.rawMaterials.map((row) => row.category).filter(Boolean))].map((name) => ({ id: name, name }));
-    const statusOptions = [
-      { value: "", label: "All" },
-      { value: "In Stock", label: "In Stock" },
-      { value: "Low Stock", label: "Low Stock" },
-      { value: "Out of Stock", label: "Out of Stock" },
-      { value: "archived", label: "Archived" },
-    ];
-    const categoryOptions = categories.map((category) => ({ value: category.id || category.name, label: category.name }));
-    return (
-      <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 md:grid-cols-3">
-        <Field label="Raw Material">
-          <input className={inputClass()} value={rawMaterialFilters.material} onChange={(event) => setRawMaterialFilters((current) => ({ ...current, material: event.target.value }))} placeholder="Search material/code" />
-        </Field>
-        <Field label="Status">
-          <SearchableSelect
-            value={rawMaterialFilters.status}
-            options={statusOptions}
-            placeholder="All"
-            searchPlaceholder="Search status"
-            emptyText="No matching status"
-            onChange={(status) => setRawMaterialFilters((current) => ({ ...current, status }))}
-          />
-        </Field>
-        <Field label="Category">
-          <SearchableSelect
-            value={rawMaterialFilters.category}
-            options={[{ value: "", label: "All" }, ...categoryOptions]}
-            placeholder="All"
-            searchPlaceholder="Search categories"
-            emptyText="No matching categories"
-            onChange={(category) => setRawMaterialFilters((current) => ({ ...current, category }))}
-          />
-        </Field>
       </div>
     );
   }
@@ -8996,79 +8918,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       onOpenDetail={(value) => setModal({ type: "raw-material-movement-detail", value })}
       onCloseDetail={() => setModal((current) => current?.type === "raw-material-movement-detail" ? null : current)}
     />;
-  }
-
-  function rawMaterialDetailCostSummary(material) {
-    const latestCost = latestReceivingCostInfo(data.receivings, material.id, material);
-    const convertedCurrentBalance = latestCost.missingCost ? 0 : convertCostQuantity(material.current_balance, material.uom, latestCost.uom);
-    const currentValueLabel = latestCost.missingCost ? "Missing Cost" : convertedCurrentBalance == null ? "Incomplete Cost" : money(convertedCurrentBalance * latestCost.unitCost);
-    const currentValueHelper = latestCost.missingCost
-      ? "No unit cost available"
-      : convertedCurrentBalance == null
-        ? "Unsupported UOM conversion"
-        : `${quantity(material.current_balance, material.uom)} at ${unitCostDisplay(latestCost)}`;
-    return {
-      latestCost,
-      currentValueLabel,
-      currentValueHelper,
-      isWarning: latestCost.missingCost || convertedCurrentBalance == null,
-      formatMoney: money,
-    };
-  }
-
-  function renderRawInventory() {
-    const rows = rawInventoryMasterRows.slice(rawInventoryPager.from, rawInventoryPager.to);
-    const activeRows = data.rawMaterials.filter((item) => item.status === "active");
-    const activeInventoryRows = rawMaterialRows().filter((item) => item.status === "active");
-    const inventoryValue = activeInventoryRows.reduce((sum, item) => sum + Number(item.inventory_value || 0), 0);
-    const missingCostRows = activeInventoryRows.filter((item) => item.latest_cost_missing).length;
-    const unsupportedCostRows = activeInventoryRows.filter((item) => item.latest_cost_unsupported).length;
-    const inventoryValueDisplay = missingCostRows ? "Missing Cost" : unsupportedCostRows ? "Incomplete Cost" : money(inventoryValue);
-    const inventoryValueHelper = missingCostRows
-      ? "One or more raw materials have no receiving cost."
-      : unsupportedCostRows
-        ? "One or more raw materials use unsupported cost UOM conversion."
-        : "Current balance × latest cost";
-    const lowStockItems = activeRows.filter((item) => Number(item.current_balance || 0) > 0 && Number(item.current_balance || 0) <= Number(item.min_stock_level || 0));
-    const outOfStockItems = activeRows.filter((item) => Number(item.current_balance || 0) <= 0);
-    return (
-      <div className="space-y-5">
-        <PageHeader
-          section="Raw Material"
-          title="Raw Material Inventory"
-          description="Manage raw material master data and monitor live factory raw material balances."
-          actions={(
-            <div className="flex flex-wrap gap-2">
-              {can("factory_raw_inventory.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "raw-material" })}><Package size={15} /> Raw Material</button> : null}
-              {can("factory_raw_inventory.create") || can("factory_raw_inventory.edit") ? <button className="btn-secondary" type="button" onClick={() => setModal({ type: "raw-material-category" })}><Tag size={15} /> Category</button> : null}
-            </div>
-          )}
-        />
-        <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={Warehouse} label="Total Raw Materials" value={activeRows.length} helper="Active master records" />
-          <MetricCard icon={PackageCheck} label="Inventory Value" value={inventoryValueDisplay} helper={inventoryValueHelper} tone={missingCostRows || unsupportedCostRows ? "warning" : "success"} />
-          <MetricCard icon={AlertTriangle} label="Low Stock Items" value={lowStockItems.length} helper="Above zero, at or below min" tone={lowStockItems.length ? "warning" : "success"} />
-          <MetricCard icon={Clock3} label="Out of Stock" value={outOfStockItems.length} helper="Current balance zero" tone={outOfStockItems.length ? "danger" : "success"} />
-        </div>
-        {rawMaterialFilterControls()}
-        <Card title="Raw Material Master and Inventory" description="Master records define valid materials. Balances are updated by receiving, production actual usage and approved stock checks.">
-          <FactoryRawMaterialInventoryTable
-            rows={rows}
-            canEdit={can("factory_raw_inventory.edit")}
-            materialLabel={rawMaterialLabel}
-            formatQuantity={quantity}
-            formatDate={formatFactoryDate}
-            formatCost={money}
-            normalizedCostUnit={normalizedCostUnit}
-            onPreviewImage={(material) => setModal({ type: "raw-material-image", material })}
-            onOpenCost={(material) => setModal({ type: "raw-material-cost", material })}
-            onOpenDetail={(material) => setModal({ type: "raw-material-detail", material })}
-            onEdit={(material) => setModal({ type: "raw-material", value: material })}
-          />
-          <FactoryPagination page={rawInventoryPager.page} pageSize={rawInventoryPager.pageSize} total={rawInventoryMasterRows.length} onPageChange={rawInventoryPager.setPage} onPageSizeChange={rawInventoryPager.setPageSize} />
-        </Card>
-      </div>
-    );
   }
 
   function renderRawStockCheck() {
@@ -9748,12 +9597,17 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           openFinishedGoodPackagingSku={openPackagingSkuModal}
           archiveFinishedGoodPackagingSku={archiveFinishedGood}
           openFinishedGoodCategory={() => setModal({ type: "finished-good-category" })}
+          openCreateRawMaterial={() => setModal({ type: "raw-material" })}
+          openEditRawMaterial={(material) => setModal({ type: "raw-material", value: material })}
+          openRawMaterialCost={(material) => setModal({ type: "raw-material-cost", material })}
+          openRawMaterialImage={(material) => setModal({ type: "raw-material-image", material })}
+          openRawMaterialCategory={() => setModal({ type: "raw-material-category" })}
           openPlanningJobOrderDraft={(draftPayload) => setModal({ type: "job", value: draftPayload })}
           openProductionPlanningPar={(sku) => setModal({ type: "production-planning-par", sku })}
         >
           <>
       <AccessIssueNotice issues={data.accessIssues} onRetry={() => loadData()} />
-      {initialTab === "production-overview" ? renderProductionOverview() : initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-inventory" ? renderRawInventory() : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-movements" ? renderRawMaterialMovements() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? <FactoryBatchTraceabilityPage onNotify={ui?.notify} /> : initialTab === "finished-goods" ? <FactoryFinishedGoodsPage /> : initialTab === "production-planning" ? <FactoryProductionPlanningPage onNotify={ui?.notify} onPermissionDenied={clearPlanningPermission} /> : initialTab === "finished-goods-dispatch" ? renderFinishedGoodsDispatch() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? renderProductRecipes() : initialTab === "production-sop" ? renderProductionSop() : initialTab === "audit-logs" ? <FactoryAuditTrailPage onNotify={ui?.notify} /> : initialTab === "storage-locations" ? <FactoryStorageLocationsPage /> : initialTab === "suppliers" ? <FactorySuppliersPage /> : initialTab === "customers" ? <FactoryCustomersPage /> : <FactoryDashboardPage onRefreshFactoryData={loadData} />}
+      {initialTab === "production-overview" ? renderProductionOverview() : initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-inventory" ? <FactoryRawMaterialInventoryPage /> : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-movements" ? renderRawMaterialMovements() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? <FactoryBatchTraceabilityPage onNotify={ui?.notify} /> : initialTab === "finished-goods" ? <FactoryFinishedGoodsPage /> : initialTab === "production-planning" ? <FactoryProductionPlanningPage onNotify={ui?.notify} onPermissionDenied={clearPlanningPermission} /> : initialTab === "finished-goods-dispatch" ? renderFinishedGoodsDispatch() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? renderProductRecipes() : initialTab === "production-sop" ? renderProductionSop() : initialTab === "audit-logs" ? <FactoryAuditTrailPage onNotify={ui?.notify} /> : initialTab === "storage-locations" ? <FactoryStorageLocationsPage /> : initialTab === "suppliers" ? <FactorySuppliersPage /> : initialTab === "customers" ? <FactoryCustomersPage /> : <FactoryDashboardPage onRefreshFactoryData={loadData} />}
       {modal?.type === "job" ? (
         <JobOrderModal
           initialValue={modal.value}
@@ -9807,23 +9661,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           openingReference={rawMovementReferenceLoading === modal.value.id}
           onOpenReference={openRawMaterialMovementReference}
           onClose={() => setModal(null)}
-        />
-      ) : null}
-      {modal?.type === "raw-material-detail" ? (
-        <FactoryRawMaterialDetailModal
-          material={modal.material}
-          receivings={data.receivings}
-          movements={data.rawMaterialMovements}
-          stockChecks={data.rawStockChecks}
-          costSummary={rawMaterialDetailCostSummary(modal.material)}
-          onClose={() => setModal(null)}
-          materialLabel={rawMaterialLabel}
-          formatDate={formatFactoryDate}
-          formatQuantity={quantity}
-          formatSignedQuantity={signedQuantity}
-          formatUnitCost={unitCostDisplay}
-          stockVarianceTone={stockVarianceTone}
-          statusTone={statusTone}
         />
       ) : null}
       {modal?.type === "raw-material" ? (
