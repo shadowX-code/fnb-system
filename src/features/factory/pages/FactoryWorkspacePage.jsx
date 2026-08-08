@@ -28,6 +28,7 @@ import { buildProductionPlanningJobOrderDraft } from "../utils/productionPlannin
 import FinishedGoodBatchTraceabilityModal from "../modals/FinishedGoodBatchTraceabilityModal.jsx";
 import FactoryFinishedGoodDetailModal from "../modals/FactoryFinishedGoodDetailModal.jsx";
 import FactoryRawMaterialDetailModal from "../modals/FactoryRawMaterialDetailModal.jsx";
+import FactoryRawMaterialMovementDetailModal from "../modals/FactoryRawMaterialMovementDetailModal.jsx";
 import FactoryProductMovementsPage from "./FactoryProductMovementsPage.jsx";
 import FactoryRawMaterialMovementsPage from "./FactoryRawMaterialMovementsPage.jsx";
 import { FactoryMasterDataProvider } from "../context/FactoryMasterDataContext.jsx";
@@ -3969,40 +3970,6 @@ function ReceivingBatchDetailModal({ batch, onClose }) {
         </section>
 
         {batch.remarks ? <section className="rounded-lg border border-border bg-white p-5"><h3 className="text-sm font-black uppercase tracking-[0.08em] text-text-primary">Remarks</h3><p className="mt-2 text-sm text-text-secondary">{batch.remarks}</p></section> : null}
-      </div>
-    </Modal>
-  );
-}
-
-function RawMaterialMovementDetailModal({ movement, onOpenReference, openingReference = false, onClose }) {
-  const movementMeta = rawMovementTypeMeta(movement.movement_type);
-  const details = [
-    ["Movement Type", <Badge tone={movementMeta.tone}>{movementMeta.label}</Badge>],
-    ["Reference", movement.reference_no ? (
-      <button className="font-bold text-primary underline decoration-dotted underline-offset-4 hover:text-emerald-800 disabled:cursor-wait disabled:opacity-60" type="button" disabled={openingReference} onClick={() => onOpenReference?.(movement)}>
-        {openingReference ? "Opening..." : movement.reference_no}
-      </button>
-    ) : "—"],
-    ["Raw Material", [movement.raw_material_code, movement.raw_material_name].filter(Boolean).join(" · ") || "—"],
-    ["Internal Batch", movement.internal_batch_no || "—"],
-    ["Supplier Lot", movement.supplier_lot_no || "—"],
-    ["Qty", ledgerQuantity(movement.quantity, movement.uom, { signed: true })],
-    ["Balance After", movement.balance_after == null ? "—" : ledgerQuantity(movement.balance_after, movement.uom)],
-    ["Storage", movement.storage_location || "—"],
-    ["Operator", movement.created_by_name || "—"],
-    ["Created At", formatFactoryDateTime(movement.created_at)],
-    ["Remarks", movement.remarks || movement.notes || "—"],
-  ];
-
-  return (
-    <Modal title="Movement Detail" description="Read-only Raw Material Movement audit record" onClose={onClose} size="lg">
-      <div className="divide-y divide-border rounded-lg border border-border bg-white px-5">
-        {details.map(([label, value]) => (
-          <div key={label} className="grid gap-1 py-3 sm:grid-cols-[150px_minmax(0,1fr)] sm:items-start">
-            <div className="text-sm font-semibold text-text-secondary">{label}</div>
-            <div className="min-w-0 break-words text-sm font-bold text-text-primary">{value}</div>
-          </div>
-        ))}
       </div>
     </Modal>
   );
@@ -10814,8 +10781,11 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         />
       ) : null}
       {modal?.type === "raw-material-movement-detail" ? (
-        <RawMaterialMovementDetailModal
+        <FactoryRawMaterialMovementDetailModal
           movement={modal.value}
+          movementMeta={rawMovementTypeMeta(modal.value.movement_type)}
+          formatQuantity={ledgerQuantity}
+          formatDateTime={formatFactoryDateTime}
           openingReference={rawMovementReferenceLoading === modal.value.id}
           onOpenReference={openRawMaterialMovementReference}
           onClose={() => setModal(null)}
