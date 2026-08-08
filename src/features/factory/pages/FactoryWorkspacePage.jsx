@@ -17,10 +17,17 @@ import FactoryBatchTraceabilityPage from "./FactoryBatchTraceabilityPage.jsx";
 import FactoryDashboardMonthPicker from "../components/dashboard/FactoryDashboardMonthPicker.jsx";
 import FactoryDashboardUomSelect from "../components/dashboard/FactoryDashboardUomSelect.jsx";
 import FactoryDashboardChartTooltip from "../components/dashboard/FactoryDashboardChartTooltip.jsx";
+import FactoryPlanningFilters from "../components/planning/FactoryPlanningFilters.jsx";
+import FactoryPlanningWorkloadSummary from "../components/planning/FactoryPlanningWorkloadSummary.jsx";
+import { FactoryPlanningCoverage, FactoryPlanningStatusBadge } from "../components/planning/FactoryPlanningStatusPresentation.jsx";
+import FactoryFinishedGoodCommercialTable from "../components/finishedGoods/FactoryFinishedGoodCommercialTable.jsx";
+import FactoryRawMaterialInventoryTable from "../components/rawMaterials/FactoryRawMaterialInventoryTable.jsx";
 import { dashboardActionTone, dashboardRequiredCheckLabel, dashboardTrendLabel, truncateDashboardChartLabel } from "../utils/factoryDashboardFormatters.js";
 import { deriveProductionPlanningRows } from "../utils/productionPlanning.js";
 import { buildProductionPlanningJobOrderDraft } from "../utils/productionPlanningDraft.js";
 import FinishedGoodBatchTraceabilityModal from "../modals/FinishedGoodBatchTraceabilityModal.jsx";
+import FactoryFinishedGoodDetailModal from "../modals/FactoryFinishedGoodDetailModal.jsx";
+import FactoryRawMaterialDetailModal from "../modals/FactoryRawMaterialDetailModal.jsx";
 import FactoryProductMovementsPage from "./FactoryProductMovementsPage.jsx";
 import FactoryRawMaterialMovementsPage from "./FactoryRawMaterialMovementsPage.jsx";
 import { FactoryMasterDataProvider } from "../context/FactoryMasterDataContext.jsx";
@@ -929,70 +936,6 @@ function productionSopDisplayName(sop) {
   return `${productName} Production SOP · ${sop?.version || "v1"}`;
 }
 
-function FinishedGoodDetailModal({ product, productions, movements, productionCosts, onClose }) {
-  const productKey = String(product.product_name || "").toLowerCase();
-  const productProductions = productions.filter((row) => String(row.product_name || "").toLowerCase() === productKey);
-  const productMovements = movements.filter((row) => row.finished_good_id === product.id || String(row.product_name || "").toLowerCase() === productKey);
-  const costRows = productionCosts.filter((row) => String(row.product_name || "").toLowerCase() === productKey);
-  const totalActualCost = costRows.reduce((sum, row) => sum + Number(row.actual_cost || 0), 0);
-  const totalGoodOutput = productProductions.reduce((sum, row) => sum + Number(row.good_output_qty || row.produced_quantity || 0), 0);
-  const averageCost = totalGoodOutput ? totalActualCost / totalGoodOutput : 0;
-  const hasCostData = costRows.some((row) => (row.material_usage || []).length);
-  const hasMissingCost = !hasCostData || costRows.some((row) => row.missing_cost_rows);
-  const batchRows = productProductions.filter((row) => row.batch_no);
-  return (
-    <Modal title={product.product_name} description="Finished goods stock, production and movement detail" onClose={onClose} size="2xl">
-      <div className="space-y-4">
-        <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={PackageCheck} label="Current Balance" value={skuBalanceLabel(product)} helper={product.product_code || "Packaging SKU"} />
-          <MetricCard icon={Factory} label="Production Runs" value={productProductions.length} helper="Completed history" />
-          <MetricCard icon={Activity} label="Movements" value={productMovements.length} helper="Stock movement rows" />
-          <MetricCard icon={Truck} label="Avg Actual Cost" value={hasMissingCost ? "Missing Cost" : money(averageCost)} helper="From actual usage" />
-        </div>
-        <Card title="Production History" description="Completed production records for this finished good.">
-          <FactoryTable
-            columns={[
-              { key: "production", label: "Production", render: (row) => <div><div className="font-bold text-text-primary">{productionBatchReference(row)}</div><div className="text-xs text-text-secondary">{productionJobOrderReference(row)}</div></div> },
-              { key: "production_date", label: "Date", render: (row) => formatFactoryDate(row.production_date) },
-              { key: "output", label: "Good Output", render: (row) => quantity(row.good_output_qty || row.produced_quantity, row.uom) },
-              { key: "qc_status", label: "QC", render: (row) => <Badge tone={row.qc_status === "Pass" ? "success" : row.qc_status === "Failed" ? "danger" : row.qc_status === "Hold" ? "warning" : "neutral"}>{row.qc_status}</Badge> },
-            ]}
-            rows={productProductions}
-            emptyTitle="No production history"
-            emptyDescription="Complete production first to create finished goods production history."
-          />
-        </Card>
-        <Card title="Movement History" description="Finished goods stock movements linked to this SKU.">
-          <FactoryTable
-            columns={[
-              { key: "reference_no", label: "Reference", render: (row) => <div><div className="font-bold text-text-primary">{row.reference_no || "—"}</div><div className="text-xs text-text-secondary">{row.reference_type || "No source"}</div></div> },
-              { key: "movement_type", label: "Movement", render: (row) => <Badge tone={row.quantity >= 0 ? "success" : "warning"}>{row.movement_type}</Badge> },
-              { key: "quantity", label: "Qty", render: (row) => quantity(row.quantity, row.uom) },
-              { key: "movement_date", label: "Date", render: (row) => formatFactoryDate(row.movement_date) },
-            ]}
-            rows={productMovements}
-            emptyTitle="No movement history"
-            emptyDescription="Production stock-in and stock check adjustments will appear here."
-          />
-        </Card>
-        <Card title="Batch History" description="Batch numbers from completed production runs.">
-          <FactoryTable
-            columns={[
-              { key: "batch_no", label: "Batch", render: (row) => row.batch_no || "—" },
-              { key: "job_order", label: "Job Order", render: (row) => productionJobOrderReference(row) },
-              { key: "production_date", label: "Date", render: (row) => formatFactoryDate(row.production_date) },
-              { key: "operator_name", label: "Operator", render: (row) => row.operator_name || "—" },
-            ]}
-            rows={batchRows}
-            emptyTitle="No batch history"
-            emptyDescription="Complete production with a batch number to populate batch history."
-          />
-        </Card>
-      </div>
-    </Modal>
-  );
-}
-
 function ProductGroupModal({ initialValue, categories = [], onClose, onSave, onArchive }) {
   const [form, setForm] = useState(() => ({
     completion_request_id: crypto.randomUUID(),
@@ -1469,122 +1412,6 @@ function FinishedGoodCategoryModal({ categories, canEdit = false, onClose, onSav
             </div>
           )) : <EmptyState title="No categories" description="Create a category before saving finished good products." />}
         </div>
-      </div>
-    </Modal>
-  );
-}
-
-function RawMaterialDetailModal({ material, receivings, movements, stockChecks, onClose }) {
-  const materialReceivings = receivings.filter((row) => row.raw_material_id === material.id);
-  const materialMovements = movements.filter((row) => row.raw_material_id === material.id);
-  const materialChecks = stockChecks
-    .flatMap((check) => (check.items || []).filter((item) => item.raw_material_id === material.id).map((item) => ({ ...item, check_no: check.check_no, check_date: check.check_date, status: check.status })));
-  const latestCost = latestReceivingCostInfo(receivings, material.id, material);
-  const latestReceiving = materialReceivings[0];
-  const convertedCurrentBalance = latestCost.missingCost ? 0 : convertCostQuantity(material.current_balance, material.uom, latestCost.uom);
-  const currentValueLabel = latestCost.missingCost ? "Missing Cost" : convertedCurrentBalance == null ? "Incomplete Cost" : money(convertedCurrentBalance * latestCost.unitCost);
-  const currentValueHelper = latestCost.missingCost
-    ? "No unit cost available"
-    : convertedCurrentBalance == null
-      ? "Unsupported UOM conversion"
-      : `${quantity(material.current_balance, material.uom)} at ${unitCostDisplay(latestCost)}`;
-  const movementReference = (movement) => {
-    const referenceType = String(movement.reference_type || "").toLowerCase();
-    if (referenceType === "production") {
-      return movement.production_batch_no || movement.production_job_order_no || "—";
-    }
-    if (referenceType === "raw_material_receiving") {
-      const receiving = materialReceivings.find((row) => row.id === movement.reference_id);
-      return receiving?.receiving_no || "—";
-    }
-    if (referenceType === "raw_material_stock_check") {
-      const stockCheck = stockChecks.find((row) => row.id === movement.reference_id);
-      const storedReference = String(movement.reference_no || "").trim();
-      return stockCheck?.check_no || (/^RMSC-?\d{6}-\d+$/i.test(storedReference) ? storedReference : "—");
-    }
-    const fallback = String(movement.reference_no || "").trim();
-    if (!fallback || /^PRD(?:-|\d)/i.test(fallback) || /^RMR-/i.test(fallback) || /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(fallback)) return "—";
-    return fallback;
-  };
-  const materialInfo = [
-    ["Category", material.category || "No category"],
-    ["Code", material.material_code || "—"],
-    ["UOM", material.uom || "—"],
-    ["Storage Location", material.storage_location || "—"],
-    ["Status", <Badge key="status" tone={material.stock_status === "Out of Stock" ? "danger" : material.stock_status === "Low Stock" ? "warning" : "success"}>{material.stock_status || material.status || "Active"}</Badge>],
-  ];
-  return (
-    <Modal title="Material Record" description={rawMaterialLabel(material)} onClose={onClose} size="2xl">
-      <div className="space-y-4">
-        <div className="rounded-2xl border border-border bg-white p-4">
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0 flex-1">
-              <div className="text-lg font-black text-text-primary">{rawMaterialLabel(material)}</div>
-              <div className="mt-3 grid gap-x-6 gap-y-3 sm:grid-cols-2">
-                {materialInfo.map(([label, value]) => (
-                  <div key={label}>
-                    <div className="text-xs font-semibold text-text-muted">{label}</div>
-                    <div className="mt-0.5 text-sm font-bold text-text-primary">{value}</div>
-                  </div>
-                ))}
-              </div>
-            </div>
-            {material.image_url ? (
-              <img className="h-[120px] w-[120px] shrink-0 rounded-2xl border border-border bg-slate-50 object-cover" src={material.image_url} alt={rawMaterialLabel(material)} />
-            ) : (
-              <div className="flex h-[120px] w-[120px] shrink-0 items-center justify-center rounded-2xl border border-border bg-slate-50 text-text-secondary"><Package size={34} /></div>
-            )}
-          </div>
-        </div>
-        <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={Warehouse} label="Current Balance" value={quantity(material.current_balance, material.uom)} helper={material.material_code || "Raw material"} />
-          <MetricCard icon={PackageCheck} label="Latest Unit Cost" value={latestCost.missingCost ? "Missing Cost" : unitCostDisplay(latestCost)} helper={latestCost.receivedDate || latestCost.costSource || "No receiving cost"} />
-          <MetricCard icon={DollarSign} label="Current Value" value={currentValueLabel} helper={currentValueHelper} tone={latestCost.missingCost || convertedCurrentBalance == null ? "warning" : "success"} />
-          <MetricCard icon={Truck} label="Last Receiving" value={latestReceiving ? formatFactoryDate(latestReceiving.received_date) : "—"} helper={latestReceiving?.supplier_name || "No receiving yet"} />
-        </div>
-        <Card title="Receiving History" description="Supplier receiving rows linked to this raw material.">
-          <FactoryTable
-            columns={[
-              { key: "received_date", label: "Date", render: (row) => formatFactoryDate(row.received_date) },
-              { key: "receipt", label: "Receiving", render: (row) => <span className="font-bold text-text-primary">{row.receiving_no || "—"}</span> },
-              { key: "supplier_name", label: "Supplier", render: (row) => row.supplier_name || "—" },
-              { key: "batch_no", label: "Lot", render: (row) => row.batch_no ? <span className="rounded-full bg-slate-100 px-2.5 py-1 text-xs font-bold text-text-secondary">Lot {row.batch_no}</span> : "—" },
-              { key: "qty", label: "Qty", render: (row) => quantity(row.received_qty, row.uom) },
-              { key: "unit_cost", label: "Unit Cost", align: "right", render: (row) => Number(row.unit_cost || 0) > 0 ? `${money(row.unit_cost)}/${row.uom || material.uom || ""}` : "—" },
-            ]}
-            rows={materialReceivings}
-            emptyTitle="No receiving history"
-            emptyDescription="Record receiving for this raw material to populate receiving history."
-          />
-        </Card>
-        <Card title="Stock Movement History" description="Receiving, production usage and approved stock check movements.">
-          <FactoryTable
-            columns={[
-              { key: "movement_date", label: "Date", render: (row) => formatFactoryDate(row.movement_date) },
-              { key: "movement_type", label: "Type", render: (row) => <Badge tone={row.quantity >= 0 ? "success" : "warning"}>{row.movement_type}</Badge> },
-              { key: "reference", label: "Reference", render: (row) => <span className="font-bold text-text-primary">{movementReference(row)}</span> },
-              { key: "quantity", label: "Qty", render: (row) => signedQuantity(row.quantity, row.uom) },
-              { key: "notes", label: "Notes", render: (row) => row.notes || "—" },
-            ]}
-            rows={materialMovements}
-            emptyTitle="No movement history"
-            emptyDescription="Receiving, production usage and approved stock checks will create movement history."
-          />
-        </Card>
-        {materialChecks.length ? <Card title="Stock Check History" description="Physical count rows for this raw material.">
-          <FactoryTable
-            columns={[
-              { key: "check_date", label: "Date", render: (row) => formatFactoryDate(row.check_date) },
-              { key: "check_no", label: "Check No.", render: (row) => <span className="font-bold text-text-primary">{row.check_no || "—"}</span> },
-              { key: "variance_qty", label: "Variance Qty", render: (row) => quantity(row.variance_qty, row.uom) },
-              { key: "variance_status", label: "Variance", render: (row) => <Badge tone={stockVarianceTone(row.variance_status)}>{row.variance_status}</Badge> },
-              { key: "status", label: "Status", render: (row) => <Badge tone={statusTone(row.status)}>{row.status}</Badge> },
-            ]}
-            rows={materialChecks}
-            emptyTitle="No stock check history"
-            emptyDescription="Approved and submitted raw stock checks for this material will appear here."
-          />
-        </Card> : null}
       </div>
     </Modal>
   );
@@ -7028,9 +6855,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const recipesPager = useFactoryClientPagination("product-recipes", recipeParentCount);
   const sopProductGroups = useMemo(() => groupedProductionSops(data.sops), [data.sops]);
   const sopsPager = useFactoryClientPagination("production-sop", sopProductGroups.length);
-  const suppliersPager = useFactoryClientPagination("suppliers", data.factorySuppliers.length);
-  const customersPager = useFactoryClientPagination("customers", data.factoryCustomers.length);
-  const locationsPager = useFactoryClientPagination("storage-locations", data.storageLocations.length);
 
   function currentListingRows(listing, fallbackRows) {
     if (serverListing !== listing) return fallbackRows;
@@ -8663,93 +8487,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     ) },
   ];
 
-  const factorySupplierColumns = [
-    { key: "supplier_name", label: "Supplier", render: (row) => <div><div className="font-semibold text-text-primary">{row.supplier_name}</div><div className="text-xs text-text-secondary">{row.supplier_code || "No code"}</div></div> },
-    { key: "contact_person", label: "Contact Person", render: (row) => row.contact_person || "—" },
-    { key: "phone", label: "Phone", render: (row) => row.phone || "—" },
-    { key: "email", label: "Email", render: (row) => row.email || "—" },
-    { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge> },
-    { key: "remarks", label: "Remarks", render: (row) => row.remarks || "—" },
-    { key: "actions", label: "Actions", align: "right", render: (row) => (
-      <div className="flex flex-wrap justify-end gap-2">
-        {can("factory_suppliers.edit") || can("factory_suppliers.manage") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "factory-suppliers", value: row })}>Edit</button> : null}
-        {row.status === "archived"
-          ? can("factory_suppliers.edit") || can("factory_suppliers.manage") ? <button className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50" type="button" onClick={() => restoreFactorySupplier(row)}>Restore</button> : null
-          : can("factory_suppliers.delete") || can("factory_suppliers.manage") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => archiveFactorySupplier(row)}>Archive</button> : null}
-      </div>
-    ) },
-  ];
-
-  const factoryCustomerColumns = [
-    { key: "customer_name", label: "Customer", render: (row) => <div><div className="font-semibold text-text-primary">{row.customer_name}</div><div className="text-xs text-text-secondary">{row.customer_code || "No code"}</div></div> },
-    { key: "customer_type", label: "Type", render: (row) => row.customer_type || "Other" },
-    { key: "contact_person", label: "Contact Person", render: (row) => row.contact_person || "—" },
-    { key: "phone", label: "Phone", render: (row) => row.phone || "—" },
-    { key: "email", label: "Email", render: (row) => row.email || "—" },
-    { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge> },
-    { key: "actions", label: "Actions", align: "right", render: (row) => (
-      <div className="flex flex-wrap justify-end gap-2">
-        {can("factory_customers.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "factory-customers", value: row })}>Edit</button> : null}
-        {row.status === "archived"
-          ? can("factory_customers.edit") ? <button className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50" type="button" onClick={() => restoreFactoryCustomer(row)}>Restore</button> : null
-          : can("factory_customers.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => archiveFactoryCustomer(row)}>Archive</button> : null}
-      </div>
-    ) },
-  ];
-
-  const rawMaterialInventoryColumns = [
-    { key: "name", label: "Raw Material", render: (row) => {
-      const secondaryNames = [row.name_cn, row.name_bm].filter(Boolean).join(" · ");
-      return (
-        <div className="flex items-center gap-3">
-          {row.image_url ? (
-            <button className="shrink-0" type="button" onClick={() => setModal({ type: "raw-material-image", material: row })}>
-              <img className="h-10 w-10 rounded-lg object-cover ring-1 ring-border transition hover:ring-primary" src={row.image_url} alt={rawMaterialLabel(row)} />
-            </button>
-          ) : (
-            <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-slate-100 text-text-secondary"><Package size={18} /></div>
-          )}
-          <div className="min-w-0">
-            <div className="font-bold text-text-primary">{rawMaterialLabel(row)}</div>
-            {secondaryNames ? <div className="text-xs text-text-secondary">{secondaryNames}</div> : null}
-          </div>
-        </div>
-      );
-    } },
-    { key: "material_code", label: "Code", render: (row) => row.material_code || "—" },
-    { key: "category", label: "Category", render: (row) => row.category || "No category" },
-    { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
-    { key: "current_balance", label: "Current Balance", render: (row) => quantity(row.current_balance, row.uom) },
-    { key: "latest_cost", label: "Latest Cost", render: (row) => (
-      <div>
-        <button className="font-semibold text-primary underline-offset-2 hover:underline" type="button" onClick={() => setModal({ type: "raw-material-cost", material: row })}>
-          {row.latest_cost_missing ? "Missing Cost" : row.latest_cost_uom ? `${money(row.latest_cost)}/${normalizedCostUnit(row.latest_cost_uom)?.display || row.latest_cost_uom}` : "Unsupported UOM"}
-        </button>
-      </div>
-    ) },
-    { key: "last_receiving_date", label: "Last Receiving", render: (row) => formatFactoryDate(row.last_receiving_date) },
-    { key: "last_consumption_date", label: "Last Consumption", render: (row) => formatFactoryDate(row.last_consumption_date) },
-    { key: "status", label: "Status", render: (row) => <Badge tone={row.stock_status === "Out of Stock" ? "danger" : row.stock_status === "Low Stock" ? "warning" : "success"}>{row.stock_status}</Badge> },
-    { key: "actions", label: "Actions", align: "right", render: (row) => (
-      <div className="flex flex-wrap justify-end gap-2">
-        <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "raw-material-detail", material: row })}>Detail</button>
-        {can("factory_raw_inventory.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "raw-material", value: row })}>Edit</button> : null}
-      </div>
-    ) },
-  ];
-
-  const storageLocationColumns = [
-    { key: "location_name", label: "Location", render: (row) => <div><div className="font-semibold text-text-primary">{row.location_name}</div><div className="text-xs text-text-secondary">{row.location_code || "No code"}</div></div> },
-    { key: "location_type", label: "Type", render: (row) => row.location_type || "—" },
-    { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : "neutral"}>{row.status}</Badge> },
-    { key: "remarks", label: "Remarks", render: (row) => row.remarks || "—" },
-    { key: "actions", label: "Actions", align: "right", render: (row) => (
-      <div className="flex justify-end gap-2">
-        {can("factory_storage_locations.edit") || can("factory_storage_locations.manage") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "storage-locations", value: row })}>Manage</button> : null}
-      </div>
-    ) },
-  ];
-
   const productionColumns = [
     { key: "production", label: "Production Batch", render: (row) => <div><div className="font-bold text-text-primary">{productionBatchReference(row)}</div><div className="text-xs text-text-secondary">{row.product_name} · {productionJobOrderReference(row)}</div></div> },
     { key: "production_date", label: "Date", render: (row) => formatFactoryDate(row.production_date) },
@@ -9021,60 +8758,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       && (!productionPlanningFilters.status || row.planning_status === productionPlanningFilters.status));
   }
 
-  function productionPlanningStatusTone(status) {
-    if (status === "Healthy") return "success";
-    if (status === "Low Stock") return "warning";
-    if (status === "Out of Stock") return "danger";
-    return "neutral";
-  }
-
   function productionPlanningUnitLabel(row, value) {
     return quantity(value, pluralizePackagingType(packagingTypeLabel(row), value));
-  }
-
-  function productionPlanningFilterControls() {
-    const categoryMap = new Map();
-    data.finishedGoodCategories.forEach((category) => {
-      if (category.id || category.name) categoryMap.set(category.id || category.name, category.name);
-    });
-    data.finishedGoods.forEach((sku) => {
-      if (sku.category_id || sku.category) categoryMap.set(sku.category_id || sku.category, sku.category || "Category");
-    });
-    const categoryOptions = [...categoryMap.entries()].map(([value, label]) => ({ value, label })).sort((a, b) => a.label.localeCompare(b.label));
-    const statusOptions = [
-      { value: "", label: "All" },
-      { value: "Healthy", label: "Healthy" },
-      { value: "Low Stock", label: "Low Stock" },
-      { value: "Out of Stock", label: "Out of Stock" },
-      { value: "No Par Level", label: "No Par Level" },
-    ];
-    return (
-      <div className="grid gap-3 rounded-2xl border border-border bg-white p-4 md:grid-cols-3">
-        <Field label="Product">
-          <input className={inputClass()} value={productionPlanningFilters.product} onChange={(event) => setProductionPlanningFilters((current) => ({ ...current, product: event.target.value }))} placeholder="Search product or SKU" />
-        </Field>
-        <Field label="Category">
-          <SearchableSelect
-            value={productionPlanningFilters.category}
-            options={[{ value: "", label: "All" }, ...categoryOptions]}
-            placeholder="All"
-            searchPlaceholder="Search categories"
-            emptyText="No matching categories"
-            onChange={(category) => setProductionPlanningFilters((current) => ({ ...current, category }))}
-          />
-        </Field>
-        <Field label="Status">
-          <SearchableSelect
-            value={productionPlanningFilters.status}
-            options={statusOptions}
-            placeholder="All"
-            searchPlaceholder="Search status"
-            emptyText="No matching status"
-            onChange={(status) => setProductionPlanningFilters((current) => ({ ...current, status }))}
-          />
-        </Field>
-      </div>
-    );
   }
 
   function openProductionPlanningJobOrder(row) {
@@ -9115,24 +8800,21 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           title="Production Planning"
           description="Monitor finished goods stock against par levels and create job orders quickly."
         />
-        <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={PackageCheck} label="Planning SKUs" value={activeSkus} helper="Active packaging SKUs" />
-          <MetricCard icon={AlertTriangle} label="Low Stock" value={lowStockRows.length} helper="Below par level" tone={lowStockRows.length ? "warning" : "success"} />
-          <MetricCard icon={Clock3} label="Out of Stock" value={outOfStockRows.length} helper="Current balance zero" tone={outOfStockRows.length ? "danger" : "success"} />
-          <MetricCard icon={Factory} label="Suggested Production" value={suggestedValue} helper="Needed to reach par" tone={suggestedGroups.size ? "info" : "success"} />
-        </div>
-        {productionPlanningOpenJobs.error ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
-            <div className="flex items-start gap-2"><AlertTriangle className="mt-0.5 shrink-0" size={16} /><span>{productionPlanningOpenJobs.error}</span></div>
-            <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={productionPlanningOpenJobs.loading} onClick={loadProductionPlanningOpenJobs}>Retry</button>
-          </div>
-        ) : productionPlanningOpenJobs.loading ? (
-          <div className="rounded-xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-800">{productionPlanningOpenJobs.hasLoaded ? "Refreshing open Job Order quantities…" : "Loading open Job Order quantities…"}</div>
-        ) : null}
-        {productionPlanningOpenJobs.hasLoaded && (Number(productionPlanningOpenJobs.diagnostics.missingPackagingSkuCount || 0) > 0 || Number(productionPlanningOpenJobs.diagnostics.invalidQuantityCount || 0) > 0) ? (
-          <div className="rounded-xl border border-amber-300 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">Some open Job Orders have incomplete Packaging SKU or quantity data. Suggested Qty is unavailable for affected SKUs.</div>
-        ) : null}
-        {productionPlanningFilterControls()}
+        <FactoryPlanningWorkloadSummary
+          activeSkus={activeSkus}
+          lowStockCount={lowStockRows.length}
+          outOfStockCount={outOfStockRows.length}
+          suggestedValue={suggestedValue}
+          hasSuggestedProduction={suggestedGroups.size > 0}
+          openJobs={productionPlanningOpenJobs}
+          onRetry={loadProductionPlanningOpenJobs}
+        />
+        <FactoryPlanningFilters
+          filters={productionPlanningFilters}
+          onChange={(patch) => setProductionPlanningFilters((current) => ({ ...current, ...patch }))}
+          categories={data.finishedGoodCategories}
+          finishedGoods={data.finishedGoods}
+        />
         <Card title="Daily Production Planning Board" description="Par Level uses Packaging SKU stock counts. Open Job Orders are subtracted from suggested production.">
           {!rows.length ? (
             <EmptyState title="No Planning SKUs" description="Active Packaging SKUs with Finished Good setup will appear here." />
@@ -9151,7 +8833,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
               </div>
               <div className="hidden xl:block">
                 {rows.map((row) => {
-                  const coverage = row.coverage_percent == null ? null : Math.max(0, Math.min(100, row.coverage_percent));
                   const parLevel = Number(row.min_stock_level || 0);
                   const parLevelLabel = parLevel > 0 ? productionPlanningUnitLabel(row, parLevel) : "Set Par Level";
                   return (
@@ -9176,24 +8857,13 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                           <span className="font-bold text-text-primary">{parLevel > 0 ? parLevelLabel : "—"}</span>
                         )}
                       </div>
-                      <div>
-                        {coverage == null ? (
-                          <span className="font-bold text-text-secondary">—</span>
-                        ) : (
-                          <div className="space-y-1">
-                            <div className="font-bold text-text-primary">{percent(row.coverage_percent)}</div>
-                            <div className="h-2 rounded-full bg-slate-100">
-                              <div className={`h-2 rounded-full ${row.planning_status === "Healthy" ? "bg-emerald-500" : row.planning_status === "Low Stock" ? "bg-amber-500" : "bg-rose-500"}`} style={{ width: `${coverage}%` }} />
-                            </div>
-                          </div>
-                        )}
-                      </div>
+                      <div><FactoryPlanningCoverage status={row.planning_status} value={row.coverage_percent} /></div>
                       <div>
                         <div className="font-semibold text-text-primary">{row.open_job_qty == null ? "Unavailable" : row.open_job_qty > 0 ? productionPlanningUnitLabel(row, row.open_job_qty) : "—"}</div>
                         {row.open_job_count > 0 ? <div className="text-xs text-text-muted">{row.open_job_count} open {row.open_job_count === 1 ? "order" : "orders"}</div> : null}
                       </div>
                       <div className="font-semibold text-text-primary">{row.suggested_production_qty == null ? "Unavailable" : row.suggested_production_qty > 0 ? productionPlanningUnitLabel(row, row.suggested_production_qty) : "—"}</div>
-                      <div><Badge tone={productionPlanningStatusTone(row.planning_status)}>{row.planning_status}</Badge></div>
+                      <div><FactoryPlanningStatusBadge status={row.planning_status} /></div>
                       <div className="flex flex-wrap justify-end gap-2">
                         {can("factory_job_orders.create") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" disabled={row.suggested_production_qty == null} onClick={() => openProductionPlanningJobOrder(row)}>Create Job Order</button> : null}
                         {can("factory_finished_goods.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production-planning-par", sku: row })}>Edit Par</button> : null}
@@ -9204,7 +8874,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
               </div>
               <div className="space-y-3 xl:hidden">
                 {rows.map((row) => {
-                  const coverage = row.coverage_percent == null ? null : Math.max(0, Math.min(100, row.coverage_percent));
                   const parLevel = Number(row.min_stock_level || 0);
                   const parLevelLabel = parLevel > 0 ? productionPlanningUnitLabel(row, parLevel) : "Set Par Level";
                   return (
@@ -9216,7 +8885,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                           <div className="mt-1 text-sm font-bold text-text-primary">{row.product_code || "No SKU"}</div>
                           <div className="text-xs font-semibold text-text-secondary">{packagingSkuDisplayName(row)}</div>
                         </div>
-                        <Badge tone={productionPlanningStatusTone(row.planning_status)}>{row.planning_status}</Badge>
+                        <FactoryPlanningStatusBadge status={row.planning_status} />
                       </div>
                       <div className="mt-4 grid gap-3 sm:grid-cols-2">
                         <div>
@@ -9241,15 +8910,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
                           <div className="font-bold text-text-primary">{row.suggested_production_qty == null ? "Unavailable" : row.suggested_production_qty > 0 ? productionPlanningUnitLabel(row, row.suggested_production_qty) : "—"}</div>
                         </div>
                       </div>
-                      <div className="mt-4">
-                        <div className="flex items-center justify-between text-xs font-bold text-text-secondary">
-                          <span>Coverage</span>
-                          <span>{coverage == null ? "—" : percent(row.coverage_percent)}</span>
-                        </div>
-                        <div className="mt-1 h-2 rounded-full bg-slate-100">
-                          {coverage == null ? null : <div className={`h-2 rounded-full ${row.planning_status === "Healthy" ? "bg-emerald-500" : row.planning_status === "Low Stock" ? "bg-amber-500" : "bg-rose-500"}`} style={{ width: `${coverage}%` }} />}
-                        </div>
-                      </div>
+                      <FactoryPlanningCoverage status={row.planning_status} value={row.coverage_percent} variant="mobile" />
                       <div className="mt-4 flex flex-wrap gap-2">
                         {can("factory_job_orders.create") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" disabled={row.suggested_production_qty == null} onClick={() => openProductionPlanningJobOrder(row)}>Create Job Order</button> : null}
                         {can("factory_finished_goods.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "production-planning-par", sku: row })}>Edit Par</button> : null}
@@ -10139,109 +9800,30 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     );
   }
 
-  function renderSuppliers() {
-    const activeSuppliers = data.factorySuppliers.filter((supplier) => supplier.status === "active");
-    const archivedSuppliers = data.factorySuppliers.filter((supplier) => supplier.status === "archived");
-    const withContact = data.factorySuppliers.filter((supplier) => supplier.contact_person || supplier.phone || supplier.email);
-    return (
-      <div className="space-y-5">
-        <PageHeader
-          section="System"
-          title="Suppliers"
-          description="Manage Factory supplier master data used by raw material receiving documents."
-          actions={can("factory_suppliers.create") || can("factory_suppliers.manage") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "factory-suppliers" })}><Truck size={15} /> Create Supplier</button> : null}
-        />
-        <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={Truck} label="Total Suppliers" value={data.factorySuppliers.length} helper="Active and archived" />
-          <MetricCard icon={CheckCircle2} label="Active" value={activeSuppliers.length} helper="Available for receiving" tone="success" />
-          <MetricCard icon={Clock3} label="Archived" value={archivedSuppliers.length} helper="Historical suppliers" />
-          <MetricCard icon={Tag} label="With Contact" value={withContact.length} helper="Phone, email or contact person" />
-        </div>
-        <Card title="Factory Supplier Master" description="Create, edit and archive suppliers for Factory raw material receiving.">
-          <FactoryTable
-            columns={factorySupplierColumns}
-            rows={data.factorySuppliers.slice(suppliersPager.from, suppliersPager.to)}
-            emptyTitle="No Factory suppliers"
-            emptyDescription="Create a Factory supplier before recording raw material receiving documents."
-          />
-          <FactoryPagination page={suppliersPager.page} pageSize={suppliersPager.pageSize} total={data.factorySuppliers.length} onPageChange={suppliersPager.setPage} onPageSizeChange={suppliersPager.setPageSize} />
-        </Card>
-      </div>
-    );
-  }
-
-  function renderCustomers() {
-    const activeCustomers = data.factoryCustomers.filter((customer) => customer.status === "active");
-    const archivedCustomers = data.factoryCustomers.filter((customer) => customer.status === "archived");
-    const withContact = data.factoryCustomers.filter((customer) => customer.contact_person || customer.phone || customer.email);
-    const customerTypes = new Set(data.factoryCustomers.map((customer) => customer.customer_type).filter(Boolean));
-    return (
-      <div className="space-y-5">
-        <PageHeader
-          section="System"
-          title="Customers"
-          description="Manage Factory customers and destinations used by finished goods dispatch documents."
-          actions={can("factory_customers.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "factory-customers" })}><Truck size={15} /> Create Customer</button> : null}
-        />
-        <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={Truck} label="Total Customers" value={data.factoryCustomers.length} helper="Active and archived" />
-          <MetricCard icon={CheckCircle2} label="Active" value={activeCustomers.length} helper="Available for dispatch" tone="success" />
-          <MetricCard icon={Clock3} label="Archived" value={archivedCustomers.length} helper="Historical customers" />
-          <MetricCard icon={Tag} label="Customer Types" value={customerTypes.size} helper={`${withContact.length} with contact details`} />
-        </div>
-        <Card title="Factory Customer Master" description="Create, edit and archive customers for Factory finished goods dispatch.">
-          <FactoryTable
-            columns={factoryCustomerColumns}
-            rows={data.factoryCustomers.slice(customersPager.from, customersPager.to)}
-            emptyTitle="No Factory customers"
-            emptyDescription="Create a Factory customer before recording finished goods dispatch documents."
-          />
-          <FactoryPagination page={customersPager.page} pageSize={customersPager.pageSize} total={data.factoryCustomers.length} onPageChange={customersPager.setPage} onPageSizeChange={customersPager.setPageSize} />
-        </Card>
-      </div>
-    );
-  }
-
-  function renderStorageLocations() {
-    const activeLocations = data.storageLocations.filter((location) => location.status === "active");
-    const archivedLocations = data.storageLocations.filter((location) => location.status === "archived");
-    const byType = storageLocationTypes.map((type) => ({
-      type,
-      count: activeLocations.filter((location) => location.location_type === type).length,
-    })).filter((row) => row.count > 0);
-    return (
-      <div className="space-y-5">
-        <PageHeader
-          section="System"
-          title="Storage Locations"
-          description="Manage Factory warehouse and production storage locations used by raw material and finished goods master records."
-          actions={can("factory_storage_locations.create") || can("factory_storage_locations.manage") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "storage-locations" })}><Warehouse size={15} /> Storage Location</button> : null}
-        />
-        <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={Warehouse} label="Total Locations" value={data.storageLocations.length} helper="Active and archived" />
-          <MetricCard icon={CheckCircle2} label="Active" value={activeLocations.length} helper="Available for selection" tone="success" />
-          <MetricCard icon={Clock3} label="Archived" value={archivedLocations.length} helper="Historical locations" />
-          <MetricCard icon={Tag} label="Location Types" value={byType.length} helper="Active type coverage" />
-        </div>
-        <Card title="Storage Location Master" description="Create, edit and archive storage locations for Factory master data.">
-          <FactoryTable
-            columns={storageLocationColumns}
-            rows={data.storageLocations.slice(locationsPager.from, locationsPager.to)}
-            emptyTitle="No storage locations"
-            emptyDescription="Create storage locations before assigning warehouse locations to raw materials or finished goods."
-          />
-          <FactoryPagination page={locationsPager.page} pageSize={locationsPager.pageSize} total={data.storageLocations.length} onPageChange={locationsPager.setPage} onPageSizeChange={locationsPager.setPageSize} />
-        </Card>
-      </div>
-    );
-  }
-
   function renderRawMaterialMovements() {
     return <FactoryRawMaterialMovementsPage
       onNotify={ui?.notify}
       onOpenDetail={(value) => setModal({ type: "raw-material-movement-detail", value })}
       onCloseDetail={() => setModal((current) => current?.type === "raw-material-movement-detail" ? null : current)}
     />;
+  }
+
+  function rawMaterialDetailCostSummary(material) {
+    const latestCost = latestReceivingCostInfo(data.receivings, material.id, material);
+    const convertedCurrentBalance = latestCost.missingCost ? 0 : convertCostQuantity(material.current_balance, material.uom, latestCost.uom);
+    const currentValueLabel = latestCost.missingCost ? "Missing Cost" : convertedCurrentBalance == null ? "Incomplete Cost" : money(convertedCurrentBalance * latestCost.unitCost);
+    const currentValueHelper = latestCost.missingCost
+      ? "No unit cost available"
+      : convertedCurrentBalance == null
+        ? "Unsupported UOM conversion"
+        : `${quantity(material.current_balance, material.uom)} at ${unitCostDisplay(latestCost)}`;
+    return {
+      latestCost,
+      currentValueLabel,
+      currentValueHelper,
+      isWarning: latestCost.missingCost || convertedCurrentBalance == null,
+      formatMoney: money,
+    };
   }
 
   function renderRawInventory() {
@@ -10280,11 +9862,18 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         </div>
         {rawMaterialFilterControls()}
         <Card title="Raw Material Master and Inventory" description="Master records define valid materials. Balances are updated by receiving, production actual usage and approved stock checks.">
-          <FactoryTable
-            columns={rawMaterialInventoryColumns}
+          <FactoryRawMaterialInventoryTable
             rows={rows}
-            emptyTitle="No raw materials"
-            emptyDescription="Create a raw material before receiving stock or building Product Recipes."
+            canEdit={can("factory_raw_inventory.edit")}
+            materialLabel={rawMaterialLabel}
+            formatQuantity={quantity}
+            formatDate={formatFactoryDate}
+            formatCost={money}
+            normalizedCostUnit={normalizedCostUnit}
+            onPreviewImage={(material) => setModal({ type: "raw-material-image", material })}
+            onOpenCost={(material) => setModal({ type: "raw-material-cost", material })}
+            onOpenDetail={(material) => setModal({ type: "raw-material-detail", material })}
+            onEdit={(material) => setModal({ type: "raw-material", value: material })}
           />
           <FactoryPagination page={rawInventoryPager.page} pageSize={rawInventoryPager.pageSize} total={rawInventoryMasterRows.length} onPageChange={rawInventoryPager.setPage} onPageSizeChange={rawInventoryPager.setPageSize} />
         </Card>
@@ -10859,33 +10448,12 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           </div>
           {finishedGoodsView === "table" ? (
             !skuRows.length ? <EmptyState title="No Packaging SKUs" description="No Packaging SKUs match the selected filters." /> : (
-              <>
-                <div className="divide-y divide-border md:hidden">
-                  {skuRows.map((sku) => (
-                    <div key={sku.id} className="space-y-3 p-4">
-                      <div className="flex items-start justify-between gap-3">
-                        <div className="min-w-0"><div className="font-bold text-text-primary">{sku.product_family_name || sku.product_name_en || sku.product_name || "—"}</div>{sku.product_family_name_cn || sku.product_name_cn ? <div className="text-sm text-text-secondary">{sku.product_family_name_cn || sku.product_name_cn}</div> : null}<div className="mt-1 text-xs font-semibold text-text-muted">{sku.product_code || "—"} · {packSizeText(sku) || "—"}</div></div>
-                        <Badge tone={sku.is_halal ? "success" : "neutral"}>{sku.is_halal ? "Halal" : "No"}</Badge>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3 text-sm">
-                        <div><div className="text-[10.5px] font-semibold text-text-muted">Storage</div><div className="font-semibold text-text-primary">{sku.recommended_storage ? jobStatusLabel(sku.recommended_storage) : "—"}</div></div>
-                        <div><div className="text-[10.5px] font-semibold text-text-muted">Shelf Life</div><div className="font-semibold text-text-primary">{sku.shelf_life_days ? `${sku.shelf_life_days} days` : "—"}</div></div>
-                        <div><div className="text-[10.5px] font-semibold text-text-muted">Cost</div><div className="font-semibold text-text-primary">{sku.commercial_cost == null ? "—" : money(sku.commercial_cost)}</div></div>
-                        <div><div className="text-[10.5px] font-semibold text-text-muted">B2B Price</div><div className="font-semibold text-text-primary">{sku.b2b_price == null ? "—" : money(sku.b2b_price)}</div></div>
-                        <div><div className="text-[10.5px] font-semibold text-text-muted">Gross Margin</div><div className="font-semibold text-text-primary">{sku.gross_margin == null ? "—" : percent(sku.gross_margin)}</div></div>
-                        <div><div className="text-[10.5px] font-semibold text-text-muted">Category</div><div className="font-semibold text-text-primary">{sku.category || "—"}</div></div>
-                      </div>
-                      {renderSkuActions(sku)}
-                    </div>
-                  ))}
-                </div>
-                <div className="hidden overflow-x-auto md:block">
-                  <table className="w-full min-w-[1320px] text-left">
-                    <thead><tr className="border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted"><th className="px-4 py-2.5">Category</th><th className="px-4 py-2.5">Product</th><th className="px-4 py-2.5">Halal</th><th className="px-4 py-2.5">SKU</th><th className="px-4 py-2.5">Pack Size</th><th className="px-4 py-2.5">Storage</th><th className="px-4 py-2.5">Shelf Life</th><th className="px-4 py-2.5 text-right">Cost</th><th className="px-4 py-2.5 text-right">B2B Price</th><th className="px-4 py-2.5 text-right">Gross Margin</th><th className="px-4 py-2.5 text-right">Actions</th></tr></thead>
-                    <tbody>{skuRows.map((sku) => <tr key={sku.id} className="border-b border-border text-sm last:border-0"><td className="px-4 py-3 font-semibold text-text-secondary">{sku.category || "—"}</td><td className="px-4 py-3"><div className="font-bold text-text-primary">{sku.product_family_name || sku.product_name_en || sku.product_name || "—"}</div>{sku.product_family_name_cn || sku.product_name_cn ? <div className="text-xs text-text-secondary">{sku.product_family_name_cn || sku.product_name_cn}</div> : null}</td><td className="px-4 py-3"><Badge tone={sku.is_halal ? "success" : "neutral"}>{sku.is_halal ? "Yes" : "No"}</Badge></td><td className="px-4 py-3 font-bold text-text-primary">{sku.product_code || "—"}</td><td className="px-4 py-3 whitespace-nowrap">{packSizeText(sku) || "—"}</td><td className="px-4 py-3">{sku.recommended_storage ? jobStatusLabel(sku.recommended_storage) : "—"}</td><td className="px-4 py-3 whitespace-nowrap">{sku.shelf_life_days ? `${sku.shelf_life_days} days` : "—"}</td><td className="px-4 py-3 text-right font-semibold">{sku.commercial_cost == null ? "—" : money(sku.commercial_cost)}</td><td className="px-4 py-3 text-right font-semibold">{sku.b2b_price == null ? "—" : money(sku.b2b_price)}</td><td className="px-4 py-3 text-right font-semibold">{sku.gross_margin == null ? "—" : percent(sku.gross_margin)}</td><td className="px-4 py-3 text-right">{renderSkuActions(sku)}</td></tr>)}</tbody>
-                  </table>
-                </div>
-              </>
+              <FactoryFinishedGoodCommercialTable
+                rows={skuRows}
+                renderActions={renderSkuActions}
+                formatPackSize={packSizeText}
+                formatStorage={(sku) => sku.recommended_storage ? jobStatusLabel(sku.recommended_storage) : "—"}
+              />
             )
           ) : !productGroups.length ? (
             <EmptyState title="No Finished Goods" description="Create a Finished Good, then add Packaging SKUs for production stock-in." />
@@ -11254,12 +10822,20 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         />
       ) : null}
       {modal?.type === "raw-material-detail" ? (
-        <RawMaterialDetailModal
+        <FactoryRawMaterialDetailModal
           material={modal.material}
           receivings={data.receivings}
           movements={data.rawMaterialMovements}
           stockChecks={data.rawStockChecks}
+          costSummary={rawMaterialDetailCostSummary(modal.material)}
           onClose={() => setModal(null)}
+          materialLabel={rawMaterialLabel}
+          formatDate={formatFactoryDate}
+          formatQuantity={quantity}
+          formatSignedQuantity={signedQuantity}
+          formatUnitCost={unitCostDisplay}
+          stockVarianceTone={stockVarianceTone}
+          statusTone={statusTone}
         />
       ) : null}
       {modal?.type === "raw-material" ? (
@@ -11441,12 +11017,17 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         />
       ) : null}
       {modal?.type === "finished-good-detail" ? (
-        <FinishedGoodDetailModal
+        <FactoryFinishedGoodDetailModal
           product={modal.product}
           productions={data.productions}
           movements={data.productMovements}
           productionCosts={metrics.productionCostRows}
           onClose={() => setModal(null)}
+          formatBalance={skuBalanceLabel}
+          formatDate={formatFactoryDate}
+          formatQuantity={quantity}
+          productionBatchReference={productionBatchReference}
+          productionJobOrderReference={productionJobOrderReference}
         />
       ) : null}
       {modal?.type === "product-group" ? (
