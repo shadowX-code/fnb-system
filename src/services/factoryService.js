@@ -1975,6 +1975,13 @@ export const factoryService = {
       throw new Error(`Unsupported Factory listing: ${listing}`);
     }
 
+    if (listing === "raw-stock-checks" || listing === "product-stock-checks") {
+      const { error: permissionError } = await supabase.rpc("factory_assert_stock_check_view", {
+        p_stock_type: listing === "raw-stock-checks" ? "raw" : "product",
+      });
+      throwSupabaseError(`factory.${listing}.permission`, permissionError);
+    }
+
     const summaryParams = { p_listing: listing, p_filters: filters || {} };
     const summaryQuery = listing === "audit-logs"
       ? supabase.rpc("factory_audit_trail_summary", { p_filters: filters || {} })
