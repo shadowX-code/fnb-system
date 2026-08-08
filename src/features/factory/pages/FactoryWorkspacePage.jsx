@@ -2629,7 +2629,8 @@ function RawMaterialDetailModal({ material, receivings, movements, stockChecks, 
     }
     if (referenceType === "raw_material_stock_check") {
       const stockCheck = stockChecks.find((row) => row.id === movement.reference_id);
-      return stockCheck?.check_no || "—";
+      const storedReference = String(movement.reference_no || "").trim();
+      return stockCheck?.check_no || (/^RMSC-?\d{6}-\d+$/i.test(storedReference) ? storedReference : "—");
     }
     const fallback = String(movement.reference_no || "").trim();
     if (!fallback || /^PRD(?:-|\d)/i.test(fallback) || /^RMR-/i.test(fallback) || /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(fallback)) return "—";
