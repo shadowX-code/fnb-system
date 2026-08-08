@@ -2,6 +2,16 @@
 
 Purpose: concise development history for meaningful FeedX development sessions. The master document remains the source of truth for final logic and architecture; release notes under `docs/releases/` document production releases.
 
+## 2026-08-08
+
+### Factory V1 - Staging Signed Off
+- Delivered the Factory workspace from planning through traceable warehouse execution: Production Planning, Job Orders, Production Start/QC/Complete, Raw Material Receiving, Finished Goods Dispatch, Stock Checks, and Batch Traceability.
+- Added exact Raw Material receiving-batch allocation for Production usage, FEFO allocation, Finished Goods batch creation, batch-aware Dispatch, and Product/Raw Material movement ledgers.
+- Established official Factory business-number formats for Job Orders, Production Batches, Receiving, Raw Material internal batches, Dispatches, and Stock Checks; PRD and recipe/SOP codes remain internal historical compatibility fields.
+- Added Recipe/BOM and Production SOP versioning, Factory Audit Trail, Finished Goods commercial fields, and current Factory analytics and operational views.
+- Hardened Factory trusted RPC and RLS boundaries through migration `202608050031_factory_permission_boundary_hardening.sql`.
+- Completed Owner, Operator, and read-only staging smoke coverage for the approved Factory V1 scope. See `docs/audits/FACTORY_V1_STAGING_SIGNOFF.md` for the concise certification record.
+
 ## 2026-06-18
 
 ### Factory

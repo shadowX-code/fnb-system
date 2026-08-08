@@ -1,6 +1,6 @@
 # FeedX Project Master Document
 
-Last updated: 2026-06-04
+Last updated: 2026-08-08
 Document owner: FeedX product / engineering workspace  
 Document purpose: Permanent project source-of-truth for requirements, architecture, modules, fields, business rules, permissions, integrations, and development plan.
 
@@ -1914,7 +1914,7 @@ Inventory Control permissions:
 
 RBAC verification status:
 
-- RBAC Full Verification completed on 30 May 2026. Report: `FEEDX_RBAC_VERIFICATION_REPORT.md`.
+- RBAC Full Verification completed on 30 May 2026. Historical report: [FEEDX RBAC Verification Report](../docs/archive/2026-05/FEEDX_RBAC_VERIFICATION_REPORT.md).
 - Result: Pass with live-role UAT caveat.
 - Stock Requests was removed from the active module registry during verification so it cannot appear in generated permission groups or the permission catalog for new role saves.
 - Inventory Control bootstrap context now checks active child Inventory permissions instead of legacy `inventory_control.view`, so Inventory-only roles can load outlet and supplier context required for filters and scoped workflows.
@@ -2076,7 +2076,7 @@ Status as of 30 May 2026:
 - Purchase Suggestions to Draft PO creation is Supabase-backed through `inventory_purchase_orders` and `inventory_purchase_order_items`.
 - Purchase Orders submit, edit Draft PO, receive, partial receive, complete, and cancel are Supabase-backed through `inventory_purchase_orders`, `inventory_purchase_order_items`, `inventory_purchase_receipts`, `inventory_purchase_receipt_items`, and `inventory_movements`.
 - Inventory Movements created from Purchase Receive are Supabase-backed. Manual Inventory Movements entry is also Supabase-backed through `inventory_movements`.
-- Inventory Control P0 UAT completed on 29 May 2026. Report: `FEEDX_INVENTORY_UAT_REPORT.md`.
+- Inventory Control P0 UAT completed on 29 May 2026. Historical report: [FEEDX Inventory Control UAT Report](../docs/archive/2026-05/FEEDX_INVENTORY_UAT_REPORT.md).
 - Wastage create waste record is Supabase-backed through `inventory_waste_records` and creates a Waste movement row in `inventory_movements`.
 - Recipes & Usage create/edit/archive and ingredient mapping are Supabase-backed through `inventory_recipes` and `inventory_recipe_items`.
 - Production Readiness Cleanup Phase 1 completed on 30 May 2026:
@@ -2695,7 +2695,7 @@ RBAC and outlet scope:
 
 ---
 
-## 5.13B Factory Workspace
+## 5.13B Factory Workspace - Historical Phase 1 Notes (Superseded)
 
 Purpose:
 
@@ -3094,12 +3094,71 @@ Factory RLS and permissions:
 - Custom roles must be assigned Factory permissions through Roles & Permissions.
 - Factory tables enforce RLS through `current_user_has_permission(...)`.
 
-Current Factory exclusions after Phase 1E:
+Historical Factory exclusions after Phase 1E:
 
 - Finished goods receipt and shipment workflow.
 - Product recipe BOM editor.
 - Full QC result editing/checklist completion workflow beyond checkpoint snapshots and batch QC status.
 - Advanced Factory analytics beyond Phase 1E read-only report foundations.
+
+## 5.13C Factory Workspace - Current V1 Authority
+
+This section supersedes the historical Factory Phase 1 notes above. Historical records and compatibility fields remain readable; current behavior is governed by the trusted database functions, RLS policies, and Factory UI.
+
+### Navigation
+
+- **Factory**: Dashboard, Production Planning, Production Overview, Job Order, Batch Traceability.
+- **Warehouse**: Finished Goods, Finished Goods Dispatch, Product Movements, Product Stock Check.
+- **Raw Material**: Raw Material Receiving, Raw Material Inventory, Raw Material Movements, Raw Material Stock Check.
+- **Master Data**: Product Recipes, Production SOP.
+- **System**: Audit Trail, Storage Locations, Suppliers, Customers.
+
+### Operational Authority
+
+- Job Orders are structurally saved as Draft or Planned based on authoritative completeness. Planned jobs may be released; Released jobs start Production; In Progress jobs complete only through the trusted Production authority. Closed jobs are read-only.
+- Production Start records the operational start context. Production QC follows the active SOP/QC requirements where applicable. Production Complete locks and validates the Job Order, exact Raw Material batch allocations, and Finished Good output in one transaction.
+- Raw Material usage is allocated to exact receiving batches. FEFO orders eligible batches by expiry, then receiving/manufacturing context, internal batch number, and stable ID. Aggregate capacity never substitutes for exact eligible batch capacity.
+- Production completion deducts exact Raw Material batches, posts one authoritative usage movement per allocation, creates the Finished Goods Production Batch, posts Finished Goods stock-in, and remains idempotent for a valid retry.
+- Raw Material Receiving supports Draft, Complete, and Draft Cancel. Drafts do not post stock, movement, or an Internal Batch number. Completion atomically creates receiving items, internal batches, balances, and movements.
+- Finished Goods Dispatch supports Draft, Complete, and Draft Cancel. Completion validates exact batch allocations, posts stock and movements atomically, and uses an idempotent request fingerprint. Dispatch FEFO does not allocate unavailable or reconciliation-required stock.
+- Finished Goods and Raw Material Stock Checks use trusted submit/approve flows. Negative Raw Material variance consumes exact eligible batches; positive adjustments remain controlled unavailable reconciliation balances until resolved.
+- Product and Raw Material movement ledgers are read-only audit views over posted movement authority. Batch Traceability follows Finished Goods batches, allocation history, source context, QC summary, and reconciliation diagnostics without guessing historical links.
+- Product Recipes and Production SOPs are versioned. Only one active Recipe is authoritative for an exact product family or unambiguous legacy Finished Good linkage. Recipe/SOP version values use `vN` and are not transaction document numbers.
+
+### Commercial and Master Data
+
+- Finished Goods store `is_halal` at Finished Good level. Packaging SKUs store recommended storage (`room`, `chiller`, `freezer`) and optional B2B price independently of physical inventory locations.
+- Finished Goods Cost derives only from one authoritative active Recipe, standard output, material cost availability, and exact compatible pack-size conversion. Gross Margin is calculated only when B2B price and cost are authoritative.
+- Recommended Storage is advisory master data and is never an inventory location, FEFO input, or stock-posting target.
+
+### Permissions, Audit, and Errors
+
+- Role Setting / Permission Matrix remains the source for Factory module-action permissions. Trusted RPCs derive the actor from `auth.uid()` through an active employee and enforce `current_user_has_permission(...)`; client actor identifiers are not trusted.
+- RLS and trusted RPC boundaries protect lifecycle, balances, movements, allocations, master-data writes, and audit records. The permission hardening implementation is current through `202608050031_factory_permission_boundary_hardening.sql`.
+- Factory Audit Trail records normalized module, event, business reference, actor, result, and readable changes. Raw metadata is collapsed by default.
+- A committed mutation is never reported as failed because a later refresh fails. The UI applies the authoritative result locally, shows success, and separately warns/retries when a list or summary refresh cannot complete.
+
+### Official Business Numbering
+
+| Object | Format | Authority |
+|---|---|---|
+| Job Order | `JOYYMMDD-##` | Database allocator / preview |
+| Production Batch | `PBYYMMDD-##` | Production completion |
+| Raw Material Receiving | `RYYMMDD-##` | Receiving allocator / preview |
+| Raw Material Internal Batch | `RM-{CODE}-YYMMDD-##` | Receiving completion |
+| Finished Goods Dispatch | `DYYMMDD-##` | Dispatch allocator / preview |
+| Finished Goods Stock Check | `FGSCYYMMDD-##` | Stock Check authority |
+| Raw Material Stock Check | `RMSC-YYMMDD-##` | Stock Check authority |
+
+`PRD`, `recipe_code`, and `sop_code` are internal or historical compatibility identifiers. They must not be substituted for the official operator-facing business references above.
+
+### Factory V1 - Staging Signed Off
+
+Date: 2026-08-08
+
+The approved Factory V1 scope passed Owner runtime smoke coverage, Operator permission smoke coverage, and read-only permission smoke coverage. Permission-boundary hardening is applied through migration `202608050031_factory_permission_boundary_hardening.sql`. This sign-off is operational release evidence, not a claim of independent penetration testing or exhaustive security certification.
+
+See [Factory V1 Staging Sign-off](../docs/audits/FACTORY_V1_STAGING_SIGNOFF.md) for the concise certification record.
 
 ## 5.14 Outlets
 
@@ -3691,7 +3750,7 @@ Permission UI:
 
 People UAT status:
 
-- People Module UAT & Stabilization completed on 30 May 2026. Report: `FEEDX_PEOPLE_UAT_REPORT.md`.
+- People Module UAT & Stabilization completed on 30 May 2026. Historical report: [FEEDX People Module UAT & Stabilization Report](../docs/archive/2026-05/FEEDX_PEOPLE_UAT_REPORT.md).
 - Result: Production Ready Candidate with live-account UAT caveat.
 - Verified/stabilized modules: Employees, Job Positions, Departments, Roles & Permissions, and Employee Login Access.
 - Critical fixes from the pass:
@@ -4837,7 +4896,7 @@ Typography rules:
 - Shared components must use semantic type classes instead of raw `text-sm`, `text-lg`, or arbitrary text sizes.
 - Raw Tailwind typography is allowed only for one-off visual exceptions, not repeated UI patterns.
 - Page-level modules should migrate gradually through shared components rather than mass rewriting every text node.
-- Desktop density is tracked in `FEEDX_TYPOGRAPHY_AUDIT.md`; future typography changes should update that audit when they intentionally alter the global scale.
+- Desktop density is historically tracked in [FEEDX Desktop Typography Audit](../docs/archive/2026-06/FEEDX_TYPOGRAPHY_AUDIT.md); future typography changes should create or update a current audit when they intentionally alter the global scale.
 - Sidebar navigation uses 13.5px-14px, medium-weight labels with 20px line height. Sidebar section labels use 11px, uppercase, 0.12em letter spacing, and 600 weight.
 - Sidebar user footer uses 14px for the name and 12px for the role.
 - Page header eyebrow labels use 12px uppercase text with 0.18em letter spacing. Page titles stay strong at about 26-28px with 700 weight, and subtitles use 13-14px muted text.
@@ -5089,15 +5148,15 @@ Production release gates:
 - Verify production RLS for owner/admin, all-outlet role, selected-outlet role, view-only role, and no-permission role.
 - Verify production Storage buckets and policies for `inventory-item-photos` and `asset-photos`.
 - Verify production Supabase Auth redirects, SMTP email delivery, forgot-password, invite/setup-password, and employee onboarding Edge Function.
-- Execute `FEEDX_PRODUCTION_UAT_CHECKLIST.md` before cutover.
+- Execute the current release checklist before cutover. The June 2026 checklist is preserved as [historical evidence](../docs/archive/2026-06/FEEDX_PRODUCTION_UAT_CHECKLIST.md).
 - Confirm no authenticated production workflow relies on browser-local operational records or fallback/demo data.
 
 Release governance documents:
 
-- `FEEDX_PRODUCTION_READINESS_AUDIT.md`
-- `FEEDX_PRODUCTION_UAT_CHECKLIST.md`
-- `FEEDX_RELEASE_CANDIDATE_REPORT.md`
-- `FEEDX_GO_LIVE_CHECKLIST.md`
+- [FEEDX Production Readiness Audit](../docs/archive/2026-06/FEEDX_PRODUCTION_READINESS_AUDIT.md)
+- [FEEDX Production UAT Checklist](../docs/archive/2026-06/FEEDX_PRODUCTION_UAT_CHECKLIST.md)
+- [FEEDX Release Candidate Report](../docs/archive/2026-06/FEEDX_RELEASE_CANDIDATE_REPORT.md)
+- [FEEDX Go-Live Checklist](../docs/archive/2026-06/FEEDX_GO_LIVE_CHECKLIST.md)
 - `FEEDX_DEVELOPMENT_LOG.md`
 - `docs/releases/`
 
