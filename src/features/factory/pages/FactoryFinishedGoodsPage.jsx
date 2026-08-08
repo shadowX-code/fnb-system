@@ -45,7 +45,14 @@ const productionJobOrderReference = (production) => production?.job_order_no || 
 const productionBatchReference = (production) => production?.batch_no || productionJobOrderReference(production);
 
 export default function FactoryFinishedGoodsPage() {
-  const { finishedGoods, finishedGoodCategories, recipes, receivings, productions, productMovements, productionCosts } = useFactoryMasterData();
+  const masterData = useFactoryMasterData();
+  const finishedGoods = Array.isArray(masterData.finishedGoods) ? masterData.finishedGoods : [];
+  const finishedGoodCategories = Array.isArray(masterData.finishedGoodCategories) ? masterData.finishedGoodCategories : [];
+  const recipes = Array.isArray(masterData.recipes) ? masterData.recipes : [];
+  const receivings = Array.isArray(masterData.receivings) ? masterData.receivings : [];
+  const productions = Array.isArray(masterData.productions) ? masterData.productions : [];
+  const productMovements = Array.isArray(masterData.productMovements) ? masterData.productMovements : [];
+  const productionCosts = Array.isArray(masterData.productionCosts) ? masterData.productionCosts : [];
   const { can } = useFactoryPermissions();
   const navigation = useFactoryNavigation();
   const [filters, setFilters] = useState({ product: "", category: "", status: "" });

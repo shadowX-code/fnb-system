@@ -21,7 +21,11 @@ const normalizedCostUnit = (uom) => ({ kg: { display: "kg" }, g: { display: "g" 
 const stockVarianceTone = (status) => status === "Critical" ? "danger" : status === "Warning" || status === "Variance" ? "warning" : "success";
 
 export default function FactoryRawMaterialInventoryPage() {
-  const { rawMaterials, rawStockChecks, rawMaterialMovements, receivings } = useFactoryMasterData();
+  const masterData = useFactoryMasterData();
+  const rawMaterials = Array.isArray(masterData.rawMaterials) ? masterData.rawMaterials : [];
+  const rawStockChecks = Array.isArray(masterData.rawStockChecks) ? masterData.rawStockChecks : [];
+  const rawMaterialMovements = Array.isArray(masterData.rawMaterialMovements) ? masterData.rawMaterialMovements : [];
+  const receivings = Array.isArray(masterData.receivings) ? masterData.receivings : [];
   const { can } = useFactoryPermissions(); const nav = useFactoryNavigation();
   const [filters, setFilters] = useState({ material: "", status: "", category: "" }); const [selected, setSelected] = useState(null);
   const query = useFactoryRawMaterialInventoryQuery({ filters }); const pager = useFactoryClientPagination("raw-inventory", query.rows.length, 20, JSON.stringify(filters));

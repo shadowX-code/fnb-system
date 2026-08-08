@@ -17,15 +17,20 @@ export default function useFactoryFinishedGoodsQuery({ filters }) {
   const { finishedGoods, finishedGoodCategories, productFamilies, productions, productMovements } = useFactoryMasterData();
   const { can } = useFactoryPermissions();
   const permitted = can("factory_finished_goods.view");
+  const products = Array.isArray(finishedGoods) ? finishedGoods : [];
+  const categories = Array.isArray(finishedGoodCategories) ? finishedGoodCategories : [];
+  const families = Array.isArray(productFamilies) ? productFamilies : [];
+  const productionRows = Array.isArray(productions) ? productions : [];
+  const movementRows = Array.isArray(productMovements) ? productMovements : [];
   return useMemo(() => {
     if (!permitted) return { rows: [], groups: [], loading: false, error: "Some Finished Goods data is hidden by your current role.", errorKind: "permission", retry: () => {} };
-    const rows = finishedGoods.map((product) => toFinishedGoodRow(product, productions, productMovements)).filter((row) => {
+    const rows = products.map((product) => toFinishedGoodRow(product, productionRows, movementRows)).filter((row) => {
       const productText = `${row.product_family_name} ${row.product_name} ${row.product_name_en} ${row.product_name_cn} ${row.product_name_bm} ${row.product_code} ${row.variant_name}`;
       const stockStatus = Number(row.current_balance || 0) <= 0 ? "out_of_stock" : "in_stock";
       return includesText(productText, filters.product) && (!filters.category || row.category_id === filters.category) && (!filters.status || row.status === filters.status || stockStatus === filters.status);
     });
-    const categoryById = new Map(finishedGoodCategories.map((category) => [category.id, category]));
-    const groups = productFamilies.map((family) => ({ ...family, groupKey: family.id, product_group_name: family.name_en, category: family.category || categoryById.get(family.category_id)?.name || "No category", skus: rows.filter((row) => row.product_family_id === family.id), active_sku_count: rows.filter((row) => row.product_family_id === family.id && row.status === "active").length, isStandalone: false }));
+    const categoryById = new Map(categories.map((category) => [category.id, category]));
+    const groups = families.map((family) => ({ ...family, groupKey: family.id, product_group_name: family.name_en, category: family.category || categoryById.get(family.category_id)?.name || "No category", skus: rows.filter((row) => row.product_family_id === family.id), active_sku_count: rows.filter((row) => row.product_family_id === family.id && row.status === "active").length, isStandalone: false }));
     rows.filter((row) => !row.product_family_id).forEach((sku) => groups.push({ id: `__sku_${sku.id}`, groupKey: `__sku_${sku.id}`, product_group_name: sku.product_name_en || sku.product_name || sku.product_code || "Unassigned Finished Good", name_cn: sku.product_name_cn || "", name_bm: sku.product_name_bm || "", category: sku.category || "No category", category_id: sku.category_id || "", status: sku.status || "active", skus: [sku], active_sku_count: sku.status === "active" ? 1 : 0, isStandalone: true }));
     const visibleGroups = groups.filter((group) => {
       const groupNameMatches = includesText(`${group.product_group_name} ${group.name_cn || ""} ${group.name_bm || ""}`, filters.product);
@@ -34,5 +39,5 @@ export default function useFactoryFinishedGoodsQuery({ filters }) {
       return (groupNameMatches || group.skus.length > 0) && matchesCategory && matchesStatus && (group.skus.length > 0 || !filters.product || groupNameMatches);
     });
     return { rows, groups: visibleGroups, loading: false, error: "", errorKind: "", retry: () => {} };
-  }, [filters, finishedGoods, finishedGoodCategories, permitted, productFamilies, productions, productMovements]);
+  }, [categories, families, filters, movementRows, permitted, products, productionRows]);
 }

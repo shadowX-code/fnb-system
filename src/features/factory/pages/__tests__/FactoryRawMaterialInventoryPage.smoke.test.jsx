@@ -18,4 +18,14 @@ describe("FactoryRawMaterialInventoryPage smoke", () => {
     fireEvent.change(screen.getByPlaceholderText("Search material/code"), { target: { value: "Chili" } }); fireEvent.click(screen.getByRole("button", { name: "Detail" }));
     expect(screen.getByText("Material Record")).not.toBeNull(); expect(screen.getByText("Dry Store A")).not.toBeNull();
   });
+
+  it("keeps every collection boundary safe for empty, missing, and permission-cleared master data", () => {
+    const can = (key) => key === "factory_raw_inventory.view";
+    const { rerender } = render(<FactoryPermissionsProvider permissionSet={[]} can={can}><FactoryMasterDataProvider data={{ rawMaterials: [], rawMaterialCategories: [], receivings: [], rawMaterialMovements: [], rawStockChecks: [] }}><FactoryNavigationProvider {...navigation}><FactoryRawMaterialInventoryPage /></FactoryNavigationProvider></FactoryMasterDataProvider></FactoryPermissionsProvider>);
+    expect(screen.getByText("No raw materials")).not.toBeNull();
+    rerender(<FactoryPermissionsProvider permissionSet={[]} can={can}><FactoryMasterDataProvider data={{ rawMaterials: undefined, rawMaterialCategories: undefined, receivings: undefined, rawMaterialMovements: undefined, rawStockChecks: undefined }}><FactoryNavigationProvider {...navigation}><FactoryRawMaterialInventoryPage /></FactoryNavigationProvider></FactoryMasterDataProvider></FactoryPermissionsProvider>);
+    expect(screen.getByText("No raw materials")).not.toBeNull();
+    rerender(<FactoryPermissionsProvider permissionSet={[]} can={() => false}><FactoryMasterDataProvider data={{}}><FactoryNavigationProvider {...navigation}><FactoryRawMaterialInventoryPage /></FactoryNavigationProvider></FactoryMasterDataProvider></FactoryPermissionsProvider>);
+    expect(screen.getByRole("alert")).not.toBeNull();
+  });
 });

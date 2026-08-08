@@ -18,6 +18,8 @@ export function FactoryMasterDataProvider({ data, children }) {
       productions: data?.productions || [],
       productMovements: data?.productMovements || [],
       productionCosts: data?.productionCosts || [],
+      rawMaterialMovements: data?.rawMaterialMovements || [],
+      rawStockChecks: data?.rawStockChecks || [],
     }),
     [data],
   );
