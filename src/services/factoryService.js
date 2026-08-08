@@ -2287,8 +2287,8 @@ export const factoryService = {
     }
     const { error } = await supabase.rpc("factory_start_job_order", {
       p_job_order_id: order.id,
-      p_operator_id: operatorId,
-      p_operator_name: operatorName,
+      p_operator_id: null,
+      p_operator_name: null,
       p_production_date: startInfo.production_date || malaysiaBusinessDate(),
       p_start_time: startInfo.start_time || null,
       p_remarks: startInfo.remarks || "",
@@ -3008,14 +3008,14 @@ export const factoryService = {
     if (!["active", "draft"].includes(currentStatus)) {
       throw new Error("Only active or draft product recipes can be archived.");
     }
-    const { data, error } = await supabase
-      .from("factory_product_recipes")
-      .update({ status: "archived", updated_at: new Date().toISOString() })
-      .eq("id", recipe.id)
-      .in("status", ["active", "draft"])
-      .select(recipeSelect)
-      .single();
-    throwSupabaseError("factory.recipe.archive", error);
+    const { data: archived, error: archiveError } = await supabase.rpc("factory_archive_product_recipe", {
+      p_recipe_id: recipe.id,
+    });
+    throwSupabaseError("factory.recipe.archive_rpc", archiveError);
+    const archivedId = Array.isArray(archived) ? archived[0]?.recipe_id : archived?.recipe_id;
+    if (!archivedId) throw new Error("Product Recipe archive did not return a recipe id.");
+    const { data, error } = await supabase.from("factory_product_recipes").select(recipeSelect).eq("id", archivedId).single();
+    throwSupabaseError("factory.recipe.archive_fetch", error);
     await logFactoryAction({
       action: "factory_product_recipe_archived",
       target: factoryRevisionReference(data),
@@ -3103,7 +3103,7 @@ export const factoryService = {
     return factoryService.getProductionExecution(jobOrderId);
   },
 
-  async completeProduction(production, employeeId) {
+  async completeProduction(production) {
     if (!String(production.end_date || "").trim()) throw new Error("End Date is required.");
     if (!String(production.end_time || "").trim()) throw new Error("End Time is required.");
     const { data: authoritativeJob, error: jobError } = await supabase
@@ -3206,8 +3206,6 @@ export const factoryService = {
         finished_good_id: production.finished_good_id || null,
         production_no: productionNo,
         batch_no: production.batch_no || "",
-        operator_id: production.operator_id || employeeId || null,
-        operator_name: production.operator_name || "",
         end_date: production.end_date || null,
         end_time: production.end_time || null,
         expiry_date: production.expiry_date || null,

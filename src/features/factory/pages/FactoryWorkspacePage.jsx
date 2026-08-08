@@ -2508,7 +2508,7 @@ function FinishedGoodMasterModal({ initialValue, categories, storageLocations = 
   );
 }
 
-function FinishedGoodCategoryModal({ categories, onClose, onSave, onArchive }) {
+function FinishedGoodCategoryModal({ categories, canEdit = false, onClose, onSave, onArchive }) {
   const [form, setForm] = useState(() => ({
     name: "",
     description: "",
@@ -2593,8 +2593,8 @@ function FinishedGoodCategoryModal({ categories, onClose, onSave, onArchive }) {
                 <div className="mt-2"><Badge tone={category.status === "active" ? "success" : "neutral"}>{category.status}</Badge></div>
               </div>
               <div className="flex shrink-0 gap-2">
-                <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={saving} onClick={() => edit(category)}>Edit</button>
-                {category.status !== "archived" ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" disabled={saving} onClick={() => archive(category)}>Archive</button> : null}
+                {canEdit ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={saving} onClick={() => edit(category)}>Edit</button> : null}
+                {canEdit && onArchive && category.status !== "archived" ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" disabled={saving} onClick={() => archive(category)}>Archive</button> : null}
               </div>
             </div>
           )) : <EmptyState title="No categories" description="Create a category before saving finished good products." />}
@@ -3035,7 +3035,7 @@ function RawMaterialImagePreviewModal({ material, onClose }) {
   );
 }
 
-function RawMaterialCategoryModal({ categories, onClose, onSave, onArchive }) {
+function RawMaterialCategoryModal({ categories, canEdit = false, onClose, onSave, onArchive }) {
   const [form, setForm] = useState(() => ({
     name: "",
     description: "",
@@ -3118,8 +3118,8 @@ function RawMaterialCategoryModal({ categories, onClose, onSave, onArchive }) {
                 <div className="mt-2"><Badge tone={category.status === "active" ? "success" : "neutral"}>{category.status}</Badge></div>
               </div>
               <div className="flex shrink-0 gap-2">
-                <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={saving} onClick={() => edit(category)}>Edit</button>
-                {category.status !== "archived" ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" disabled={saving} onClick={() => archive(category)}>Archive</button> : null}
+                {canEdit ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={saving} onClick={() => edit(category)}>Edit</button> : null}
+                {canEdit && onArchive && category.status !== "archived" ? <button className="btn-danger px-3 py-1.5 text-xs" type="button" disabled={saving} onClick={() => archive(category)}>Archive</button> : null}
               </div>
             </div>
           )) : <EmptyState title="No categories" description="Create a category before saving raw material master records." />}
@@ -9216,7 +9216,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
 
   async function completeProduction(form) {
     try {
-      await factoryService.completeProduction(form, auth?.profile?.id);
+      await factoryService.completeProduction(form);
     } catch (error) {
       console.error("factory.production.complete", error);
       const operatorMessage = productionCompletionOperatorError(error);
@@ -10148,7 +10148,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         {row.status === "draft" && can("factory_product_recipes.manage") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => activateProductRecipe(row)}>Activate</button> : null}
         {row.status === "draft" && can("factory_product_recipes.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => deleteProductRecipe(row)}>Delete</button> : null}
         {row.status === "active" && can("factory_product_recipes.create") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => openNewRecipeVersion(row)}>New Version</button> : null}
-        {row.status === "active" && can("factory_product_recipes.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => archiveProductRecipe(row)}>Archive</button> : null}
+        {row.status === "active" && (can("factory_product_recipes.edit") || can("factory_product_recipes.manage")) ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => archiveProductRecipe(row)}>Archive</button> : null}
         {row.status === "archived" && can("factory_product_recipes.edit") ? <button className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50" type="button" onClick={() => restoreProductRecipe(row)}>Restore</button> : null}
       </div>
     );
@@ -11764,6 +11764,9 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const activeSuppliers = data.factorySuppliers.filter((supplier) => supplier.status === "active");
     const receivingRows = currentListingRows("receiving-history", []);
     const receivingSummary = factoryListingPage.summary || {};
+    const canCreateReceiving = can("factory_raw_receiving.create");
+    const canEditReceiving = can("factory_raw_receiving.edit");
+    const showReceivingEntry = receivingTab === "receive" && (editingReceiving ? canEditReceiving : canCreateReceiving);
     return (
       <div className="space-y-5">
         <PageHeader
@@ -11777,14 +11780,14 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           <MetricCard icon={Warehouse} label="Total Qty" value={factoryListingPage.hasLoaded ? quantity(receivingSummary.total_qty, "") : "—"} helper="Across received items" />
           <MetricCard icon={Tag} label="Active Suppliers" value={activeSuppliers.length} helper="Available for receiving" />
         </div>
-        {receivingTab === "history" ? receivingHistoryFilterControls() : null}
+        {!showReceivingEntry ? receivingHistoryFilterControls() : null}
 
         <div className="inline-flex rounded-xl border border-border bg-white p-1">
-          <button className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${receivingTab === "history" ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-slate-50"}`} type="button" onClick={() => { setEditingReceiving(null); setReceivingTab("history"); }}>Receiving History</button>
-          <button className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${receivingTab === "receive" ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-slate-50"}`} type="button" onClick={() => { setEditingReceiving(null); setReceivingTab("receive"); }}>Receive Raw Material</button>
+          <button className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${!showReceivingEntry ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-slate-50"}`} type="button" onClick={() => { setEditingReceiving(null); setReceivingTab("history"); }}>Receiving History</button>
+          {canCreateReceiving ? <button className={`rounded-lg px-4 py-2 text-sm font-semibold transition ${showReceivingEntry && !editingReceiving ? "bg-primary text-white shadow-sm" : "text-text-secondary hover:bg-slate-50"}`} type="button" onClick={() => { setEditingReceiving(null); setReceivingTab("receive"); }}>Receive Raw Material</button> : null}
         </div>
 
-        {receivingTab === "receive" ? (
+        {showReceivingEntry ? (
           <RawReceivingEntryPanel
             key={editingReceiving?.id || "new-receiving"}
             initialBatch={editingReceiving}
@@ -13469,6 +13472,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       {modal?.type === "raw-material-category" ? (
         <RawMaterialCategoryModal
           categories={data.rawMaterialCategories}
+          canEdit={can("factory_raw_inventory.edit")}
           onClose={() => setModal(null)}
           onSave={(form) => saveRawMaterialCategory(form, { keepOpen: true })}
           onArchive={(category) => archiveRawMaterialCategory(category, { keepOpen: true })}
@@ -13661,6 +13665,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       {modal?.type === "finished-good-category" ? (
         <FinishedGoodCategoryModal
           categories={data.finishedGoodCategories}
+          canEdit={can("factory_finished_goods.edit")}
           onClose={() => setModal(null)}
           onSave={(form) => saveFinishedGoodCategory(form, { keepOpen: true })}
           onArchive={(category) => archiveFinishedGoodCategory(category, { keepOpen: true })}
