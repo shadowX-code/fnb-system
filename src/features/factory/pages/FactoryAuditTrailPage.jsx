@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useCallback, useState } from "react";
 import { Activity, AlertTriangle, ArrowUp, Check, CheckCircle2, CircleOff, ClipboardCheck, ClipboardList, Clock3, Factory, Package, PackageCheck, Play, Plus, RefreshCw, RotateCcw, Trash2, Truck, Warehouse } from "lucide-react";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
@@ -29,7 +29,8 @@ function AuditDetailModal({ event, openingReference, onOpenReference, onClose })
 
 export default function FactoryAuditTrailPage({ onNotify }) {
   const { auditReferenceLoading, openAuditReference } = useFactoryNavigation(); const [selected, setSelected] = useState(null);
-  const { filters, listing, updateFilters, requestPage, requestPageSize, retry, clearFilters } = useFactoryAuditTrailQuery({ onNotify, onPermissionDenied: () => setSelected(null) });
+  const clearSelected = useCallback(() => setSelected(null), []);
+  const { filters, listing, updateFilters, requestPage, requestPageSize, retry, clearFilters } = useFactoryAuditTrailQuery({ onNotify, onPermissionDenied: clearSelected });
   const rows = listing.hasLoaded ? listing.rows : []; const summary = listing.summary || {}; const reference = (row) => row.reference_id && row.reference_type ? <button className="font-bold text-primary hover:underline disabled:opacity-60" type="button" disabled={auditReferenceLoading === row.id} onClick={() => openAuditReference(row)}>{row.entity_reference || "—"}</button> : <span className="font-semibold">{row.entity_reference || "—"}</span>;
   const columns = [{ key: "created", label: "Date / Time", render: (row) => formatFactoryAuditDateTime(row.created_at) }, { key: "module", label: "Module", render: (row) => <div className="flex items-center gap-2"><ModuleIcon module={moduleLabel(row)} />{moduleLabel(row)}</div> }, { key: "event", label: "Event", render: (row) => <div className="flex items-center gap-2 font-bold"><EventIcon event={eventLabel(row)} />{eventLabel(row)}</div> }, { key: "reference", label: "Reference", render: reference }, { key: "user", label: "Performed By", render: (row) => row.actor_kind === "system" ? "System" : row.actor_name || "—" }, { key: "result", label: "Result", render: (row) => <Badge tone={resultTone(row.result)}>{row.result || "Success"}</Badge> }, { key: "details", label: "Details", align: "right", render: (row) => <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setSelected(row)}>View</button> }];
   const selectOptions = (key) => (Array.isArray(summary[key]) ? summary[key] : []).map((value) => ({ value, label: value }));
