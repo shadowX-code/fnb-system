@@ -49,7 +49,8 @@ import { factoryService, productionQcStatus, strictDateTimeValue, strictDateValu
 import { IMAGE_UPLOAD_ACCEPT } from "../../../utils/imageUpload.js";
 import useFactoryNumberPreview from "../hooks/useFactoryNumberPreview.js";
 import { addDaysToFactoryDate, factoryMonthLabel, formatDateDisplay, formatFactoryAuditDateTime, formatFactoryDate, formatFactoryDateTime, formatFactoryReadableDate, isoDate, malaysiaBusinessDateInput, monthStart, productionDurationLabel, timeInput, todayInput } from "../utils/factoryDates.js";
-import { ledgerQuantity, ledgerQuantityList, money, packSizeText, packagingTypeLabel, percent, pluralizePackagingType, productionTimeLabel, quantity, signedQuantity, skuBalanceLabel, sopMinutesLabel, sopStepEstimatedMinutes, sopTotalEstimatedMinutes, validSopMinutes } from "../utils/factoryFormatters.js";
+import { compactCompare, dispatchLineBaseEquivalentLabel, dispatchTotalLabel, ledgerQuantity, ledgerQuantityList, money, normalizePackSizeToBase, packSizeText, packagingTypeLabel, percent, pluralizePackagingType, productionTimeLabel, quantity, recipeOperatorIdentity, signedQuantity, skuBalanceLabel, sopMinutesLabel, sopStepEstimatedMinutes, sopTotalEstimatedMinutes, validSopMinutes } from "../utils/factoryFormatters.js";
+import { operatorFinishedGoodBatchNo, productionBatchReference, productionJobOrderReference } from "../utils/factoryReferences.js";
 import { uniqueReceivingBatchPreview } from "../utils/factoryNumbers.js";
 import { isFactoryPermissionError } from "../utils/factoryPermissions.js";
 import { jobPriorityTone, jobStatusLabel, rawMovementTypeMeta, statusTone } from "../utils/factoryStatus.js";
@@ -285,16 +286,6 @@ function stockCheckVarianceSummary(items = []) {
     return { label: `${signedQuantity(total, uom)} (${status})`, tone: status === "Critical" ? "danger" : "warning" };
   }
   return { label: `${varianceItems.length} mixed (${status})`, tone: status === "Critical" ? "danger" : "warning" };
-}
-
-function normalizePackSizeToBase(qty, uom) {
-  const amount = Number(qty || 0); const unit = String(uom || "").trim().toLowerCase();
-  if (!amount || !unit) return null;
-  if (["kg", "kilogram", "kilograms"].includes(unit)) return { amount, uom: "kg" };
-  if (["g", "gram", "grams"].includes(unit)) return { amount: amount / 1000, uom: "kg" };
-  if (["l", "litre", "liter", "litres", "liters"].includes(unit)) return { amount, uom: "L" };
-  if (["ml", "millilitre", "milliliter", "millilitres", "milliliters"].includes(unit)) return { amount: amount / 1000, uom: "L" };
-  return null;
 }
 
 function packagingPackEstimate(productionQty, productionUom, sku, recipeUom = "") {

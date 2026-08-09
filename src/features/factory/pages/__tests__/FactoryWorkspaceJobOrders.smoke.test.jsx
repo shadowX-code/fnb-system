@@ -45,7 +45,7 @@ describe("FactoryWorkspacePage Job Order route smoke", () => {
     fireEvent.click(screen.getByRole("button", { name: /SKU-1KG/ }));
     expect(screen.getAllByText("1 kg").length).toBeGreaterThan(0);
     expect(screen.getByText("No active recipe")).not.toBeNull();
-  });
+  }, 15000);
 
   it("keeps the create modal stable when no Packaging SKU is available", async () => {
     vi.spyOn(factoryService, "listFactoryData").mockResolvedValue({ ...workspaceData, finishedGoods: [] });

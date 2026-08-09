@@ -24,6 +24,47 @@ export function skuBalanceLabel(sku) {
   return quantity(balance, pluralizePackagingType(packagingTypeLabel(sku), balance));
 }
 
+export function dispatchTotalLabel(dispatch) {
+  const items = Array.isArray(dispatch?.items) ? dispatch.items : [];
+  if (!items.length) return "—";
+  const types = [...new Set(items.map((item) => packagingTypeLabel(item)).filter(Boolean))];
+  if (types.length === 1) {
+    return quantity(dispatch.total_qty, pluralizePackagingType(types[0], dispatch.total_qty));
+  }
+  const itemCount = Number(dispatch.items_count || items.length);
+  return `${itemCount.toLocaleString("en-MY")} SKU${itemCount === 1 ? "" : "s"}`;
+}
+
+export function recipeOperatorIdentity(recipe) {
+  const productName = recipe?.product_name
+    || recipe?.finished_good?.product_name
+    || recipe?.finished_good?.name_en
+    || "Finished Good";
+  return [productName, recipe?.version || "v1"].filter(Boolean).join(" · ");
+}
+
+export function compactCompare(value) {
+  return String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
+}
+
+export function normalizePackSizeToBase(qty, uom) {
+  const amount = Number(qty || 0);
+  const unit = String(uom || "").trim().toLowerCase();
+  if (!amount || !unit) return null;
+  if (["kg", "kilogram", "kilograms"].includes(unit)) return { amount, uom: "kg" };
+  if (["g", "gram", "grams"].includes(unit)) return { amount: amount / 1000, uom: "kg" };
+  if (["l", "litre", "liter", "litres", "liters"].includes(unit)) return { amount, uom: "L" };
+  if (["ml", "millilitre", "milliliter", "millilitres", "milliliters"].includes(unit)) return { amount: amount / 1000, uom: "L" };
+  return null;
+}
+
+export function dispatchLineBaseEquivalentLabel(item) {
+  const qty = Number(item?.quantity || 0);
+  const base = normalizePackSizeToBase(item?.pack_size_qty || item?.base_qty, item?.pack_size_uom || item?.base_uom);
+  if (!qty || !base) return "—";
+  return quantity(qty * base.amount, base.uom);
+}
+
 export function quantity(value, uom) {
   return `${Number(value || 0).toLocaleString("en-MY", { maximumFractionDigits: 2 })}${uom ? ` ${uom}` : ""}`;
 }

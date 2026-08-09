@@ -19,6 +19,7 @@ import { finishedGoodCommercialCost } from "../utils/finishedGoodsCommercial.js"
 import { activeRecipeForSku } from "../utils/productionPlanning.js";
 import { formatFactoryDate } from "../utils/factoryDates.js";
 import { quantity } from "../utils/factoryFormatters.js";
+import { productionBatchReference, productionJobOrderReference } from "../utils/factoryReferences.js";
 import { jobStatusLabel } from "../utils/factoryStatus.js";
 
 const packSizeText = (sku) => Number(sku?.pack_size_qty || 0) > 0 ? `${sku.pack_size_qty} ${sku.pack_size_uom || ""}`.trim() : "";
@@ -41,8 +42,6 @@ const packagingBaseBalanceInfo = (skus) => {
   for (const sku of skus) { const base = normalizePackSizeToBase(sku.pack_size_qty || sku.base_qty, sku.pack_size_uom || sku.base_uom); if (!base || (uom && uom !== base.uom)) return { label: "Mixed" }; uom = base.uom; total += Number(sku.current_balance || 0) * base.amount; }
   return skus.length ? { label: quantity(total, uom) } : { label: "—" };
 };
-const productionJobOrderReference = (production) => production?.job_order_no || production?.job?.job_order_no || production?.job_order?.job_order_no || "—";
-const productionBatchReference = (production) => production?.batch_no || productionJobOrderReference(production);
 
 export default function FactoryFinishedGoodsPage() {
   const masterData = useFactoryMasterData();

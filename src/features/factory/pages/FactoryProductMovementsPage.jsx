@@ -12,6 +12,7 @@ import SearchableSelect from "../components/SearchableSelect.jsx";
 import useProductMovementsQuery from "../hooks/useProductMovementsQuery.js";
 import { formatFactoryDate, formatFactoryReadableDate } from "../utils/factoryDates.js";
 import { quantity } from "../utils/factoryFormatters.js";
+import { productionBatchReference } from "../utils/factoryReferences.js";
 
 function movementTypeLabel(movement) {
   if (movement?.reference_type === "production" && Number(movement?.quantity || 0) > 0) return "Production In";
@@ -28,7 +29,7 @@ function movementSourceLabel(movement) {
 }
 
 function movementSourceReference(movement) {
-  return movement?.source_reference || movement?.reference_no || "—";
+  return movement?.source_reference || movement?.reference_no || (movement?.reference_type === "production" ? productionBatchReference(movement) : movement?.batch_no || "—");
 }
 
 function packSizeText(sku) {
