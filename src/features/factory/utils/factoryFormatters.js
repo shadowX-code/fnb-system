@@ -2,6 +2,12 @@ export function money(value) {
   return `RM${Number(value || 0).toLocaleString("en-MY", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+export function packSizeText(sku) {
+  return Number(sku?.pack_size_qty || 0) > 0
+    ? `${sku.pack_size_qty} ${sku.pack_size_uom || ""}`.trim()
+    : "";
+}
+
 export function quantity(value, uom) {
   return `${Number(value || 0).toLocaleString("en-MY", { maximumFractionDigits: 2 })}${uom ? ` ${uom}` : ""}`;
 }

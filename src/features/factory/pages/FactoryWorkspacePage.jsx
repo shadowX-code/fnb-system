@@ -49,7 +49,7 @@ import { factoryService, productionQcStatus, strictDateTimeValue, strictDateValu
 import { IMAGE_UPLOAD_ACCEPT } from "../../../utils/imageUpload.js";
 import useFactoryNumberPreview from "../hooks/useFactoryNumberPreview.js";
 import { addDaysToFactoryDate, factoryMonthLabel, formatDateDisplay, formatFactoryAuditDateTime, formatFactoryDate, formatFactoryDateTime, formatFactoryReadableDate, isoDate, malaysiaBusinessDateInput, monthStart, productionDurationLabel, timeInput, todayInput } from "../utils/factoryDates.js";
-import { ledgerQuantity, ledgerQuantityList, money, percent, productionTimeLabel, quantity, signedQuantity, sopMinutesLabel, sopStepEstimatedMinutes, sopTotalEstimatedMinutes, validSopMinutes } from "../utils/factoryFormatters.js";
+import { ledgerQuantity, ledgerQuantityList, money, packSizeText, percent, productionTimeLabel, quantity, signedQuantity, sopMinutesLabel, sopStepEstimatedMinutes, sopTotalEstimatedMinutes, validSopMinutes } from "../utils/factoryFormatters.js";
 import { uniqueReceivingBatchPreview } from "../utils/factoryNumbers.js";
 import { isFactoryPermissionError } from "../utils/factoryPermissions.js";
 import { jobPriorityTone, jobStatusLabel, rawMovementTypeMeta, statusTone } from "../utils/factoryStatus.js";
