@@ -69,6 +69,14 @@ export function productionCost(production, receivings) {
   return productionCostInfo(production, receivings).cost;
 }
 
+export function costVarianceInfo(standardCost, actualCost) {
+  const standard = Number(standardCost || 0);
+  const actual = Number(actualCost || 0);
+  const variance = actual - standard;
+  const variancePercent = standard ? (variance / standard) * 100 : 0;
+  return { variance, variancePercent };
+}
+
 export function costDisplay(value, missingCostRows = 0, unsupportedCostRows = 0) {
   if (missingCostRows) return "Missing Cost";
   if (unsupportedCostRows) return "Incomplete Cost";

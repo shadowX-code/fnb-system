@@ -53,7 +53,7 @@ import { ledgerQuantity, ledgerQuantityList, money, percent, productionTimeLabel
 import { uniqueReceivingBatchPreview } from "../utils/factoryNumbers.js";
 import { isFactoryPermissionError } from "../utils/factoryPermissions.js";
 import { jobPriorityTone, jobStatusLabel, rawMovementTypeMeta, statusTone } from "../utils/factoryStatus.js";
-import { costDisplay, latestReceivingCostInfo, productionCost, productionCostInfo, recipeCostInfo, usageUnitCost, usageUnitCostInfo } from "../utils/factoryCosting.js";
+import { costDisplay, costVarianceInfo, latestReceivingCostInfo, productionCost, productionCostInfo, recipeCostInfo, usageUnitCost, usageUnitCostInfo } from "../utils/factoryCosting.js";
 
 const priorityOptions = ["Low", "Normal", "High", "Urgent"];
 const jobStatusOptions = ["draft", "released", "in_progress", "completed", "cancelled"];
