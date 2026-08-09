@@ -8,6 +8,22 @@ export function packSizeText(sku) {
     : "";
 }
 
+export function packagingTypeLabel(sku) {
+  return sku?.packaging_type || "Pack";
+}
+
+export function pluralizePackagingType(type, value) {
+  const label = type || "Pack";
+  if (Number(value || 0) === 1) return label;
+  if (/ch$/i.test(label)) return `${label}es`;
+  return `${label}s`;
+}
+
+export function skuBalanceLabel(sku) {
+  const balance = Number(sku?.current_balance || 0);
+  return quantity(balance, pluralizePackagingType(packagingTypeLabel(sku), balance));
+}
+
 export function quantity(value, uom) {
   return `${Number(value || 0).toLocaleString("en-MY", { maximumFractionDigits: 2 })}${uom ? ` ${uom}` : ""}`;
 }

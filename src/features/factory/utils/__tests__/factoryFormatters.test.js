@@ -7,4 +7,10 @@ describe("packSizeText", () => {
     expect(packSizeText({ pack_size_qty: 1, pack_size_uom: "kg" })).toBe("1 kg");
     expect(packSizeText({ pack_size_qty: 0, pack_size_uom: "g" })).toBe("");
   });
+
+  it("preserves the packaging balance label used by legacy Job Order SKU options", async () => {
+    const { skuBalanceLabel } = await import("../factoryFormatters.js");
+    expect(skuBalanceLabel({ current_balance: 1, packaging_type: "Pouch" })).toBe("1 Pouch");
+    expect(skuBalanceLabel({ current_balance: 2, packaging_type: "Pouch" })).toBe("2 Pouches");
+  });
 });
