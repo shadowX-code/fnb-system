@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ProductRecipeDetailModal, ProductRecipeModal } from "../FactoryWorkspacePage.jsx";
+import ProductRecipeDetailModal from "../../modals/recipes/ProductRecipeDetailModal.jsx";
+import ProductRecipeModal from "../../modals/recipes/ProductRecipeModal.jsx";
 
 const family = { id: "family-1", name_en: "Sambal", name_cn: "\u53c1\u5df4\u9171", status: "active", category: "Sauces" };
 const sku = { id: "sku-1", product_family_id: family.id, product_name_en: family.name_en, uom: "kg", status: "active" };

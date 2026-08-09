@@ -16,9 +16,10 @@ import FactoryProductionPlanningPage from "./FactoryProductionPlanningPage.jsx";
 import FactoryDashboardPage from "./FactoryDashboardPage.jsx";
 import FactoryFinishedGoodsPage from "./FactoryFinishedGoodsPage.jsx";
 import FactoryRawMaterialInventoryPage from "./FactoryRawMaterialInventoryPage.jsx";
+import FactoryProductRecipesPage from "./FactoryProductRecipesPage.jsx";
 import FactoryBatchTraceabilityPage from "./FactoryBatchTraceabilityPage.jsx";
 import { activeRecipeForSku, finishedGoodParentKey, inheritedRecipeUom, packagingProductionPlan } from "../utils/productionPlanning.js";
-import { canArchiveActiveProductRecipe, canDeleteDraftProductRecipe, canEditFinishedGoods, canOpenRawMaterialReceiving } from "../utils/factoryPermissionActions.js";
+import { canEditFinishedGoods, canOpenRawMaterialReceiving } from "../utils/factoryPermissionActions.js";
 import FinishedGoodBatchTraceabilityModal from "../modals/FinishedGoodBatchTraceabilityModal.jsx";
 import FactoryRawMaterialMovementDetailModal from "../modals/FactoryRawMaterialMovementDetailModal.jsx";
 import ProductGroupModal from "../modals/finishedGoods/FactoryProductGroupModal.jsx";
@@ -50,6 +51,7 @@ import { ledgerQuantity, ledgerQuantityList, money, percent, productionTimeLabel
 import { uniqueReceivingBatchPreview } from "../utils/factoryNumbers.js";
 import { isFactoryPermissionError } from "../utils/factoryPermissions.js";
 import { jobPriorityTone, jobStatusLabel, rawMovementTypeMeta, statusTone } from "../utils/factoryStatus.js";
+import { costDisplay, latestReceivingCostInfo, productionCost, productionCostInfo, recipeCostInfo, usageUnitCost, usageUnitCostInfo } from "../utils/factoryCosting.js";
 
 const priorityOptions = ["Low", "Normal", "High", "Urgent"];
 const jobStatusOptions = ["draft", "released", "in_progress", "completed", "cancelled"];
@@ -283,258 +285,18 @@ function stockCheckVarianceSummary(items = []) {
   return { label: `${varianceItems.length} mixed (${status})`, tone: status === "Critical" ? "danger" : "warning" };
 }
 
-function latestReceivingCost(receivings, rawMaterialId) {
-  return latestReceivingCostInfo(receivings, rawMaterialId).unitCost;
-}
-
-function latestReceivingCostInfo(receivings, rawMaterialId, rawMaterial = {}) {
-  const rows = receivings
-    .filter((row) => row.raw_material_id === rawMaterialId && Number(row.unit_cost || 0) > 0)
-    .sort((a, b) => new Date(b.received_date || b.created_at || 0) - new Date(a.received_date || a.created_at || 0));
-  const row = rows[0];
-  if (!row && Number(rawMaterial.manual_unit_cost || 0) > 0) {
-    return {
-      unitCost: Number(rawMaterial.manual_unit_cost || 0),
-      uom: rawMaterial.manual_cost_uom || "",
-      receiptNo: "",
-      supplierName: "",
-      receivedDate: "",
-      missingCost: false,
-      costSource: "Manual Cost",
-    };
-  }
-  return {
-    unitCost: Number(row?.unit_cost || 0),
-    uom: row?.uom || "",
-    receiptNo: row?.receiving_no || "",
-    supplierName: row?.supplier_name || "",
-    receivedDate: row?.received_date || "",
-    missingCost: !row,
-    costSource: row ? "Receiving Cost" : "Missing Cost",
-  };
-}
-
-function normalizedCostUnit(uom) {
-  const unit = String(uom || "").trim().toLowerCase();
-  if (unit === "kg" || unit === "kilogram" || unit === "kilograms") return { key: "kg", family: "weight", toBase: 1000, display: "kg" };
-  if (unit === "g" || unit === "gram" || unit === "grams") return { key: "g", family: "weight", toBase: 1, display: "g" };
-  if (unit === "l" || unit === "litre" || unit === "liter" || unit === "litres" || unit === "liters") return { key: "l", family: "volume", toBase: 1000, display: "L" };
-  if (unit === "ml" || unit === "millilitre" || unit === "milliliter" || unit === "millilitres" || unit === "milliliters") return { key: "ml", family: "volume", toBase: 1, display: "ml" };
-  return null;
-}
-
-function convertCostQuantity(quantityValue, fromUom, toUom) {
-  const quantityNumber = Number(quantityValue || 0);
-  const from = normalizedCostUnit(fromUom);
-  const to = normalizedCostUnit(toUom);
-  if (!from || !to || from.family !== to.family) return null;
-  return (quantityNumber * from.toBase) / to.toBase;
-}
-
-function unitCostDisplay(costInfo) {
-  if (costInfo?.missingCost) return "Missing Cost";
-  if (!costInfo?.uom) return "Unsupported UOM";
-  return `${money(costInfo.unitCost)} / ${normalizedCostUnit(costInfo.uom)?.display || costInfo.uom}`;
-}
-
-function recipeCostLineInfo(item, receivings, rawMaterial = {}) {
-  const latestCost = latestReceivingCostInfo(receivings, item.raw_material_id, rawMaterial);
-  const quantityWithWastage = Number(item.quantity_used || 0) * (1 + Number(item.wastage_percent || 0) / 100);
-  const convertedQty = latestCost.missingCost ? 0 : convertCostQuantity(quantityWithWastage, item.uom, latestCost.uom);
-  const unsupportedCost = !latestCost.missingCost && convertedQty == null;
-  return {
-    quantityWithWastage,
-    convertedQty: convertedQty || 0,
-    unitCost: latestCost.unitCost,
-    costUom: latestCost.uom,
-    lineCost: unsupportedCost || latestCost.missingCost ? 0 : (convertedQty || 0) * latestCost.unitCost,
-    source: latestCost.receiptNo || latestCost.costSource || (latestCost.missingCost ? "Missing Cost" : "Unsupported UOM"),
-    costSource: latestCost.costSource || "",
-    supplierName: latestCost.supplierName,
-    receivedDate: latestCost.receivedDate,
-    missingCost: latestCost.missingCost,
-    unsupportedCost,
-  };
-}
-
-function usageUnitCost(usage, receivings) {
-  return usageUnitCostInfo(usage, receivings).unitCost;
-}
-
-function usageUnitCostInfo(usage, receivings) {
-  const recordedCost = Number(usage.unit_cost || 0);
-  if (recordedCost > 0) return { unitCost: recordedCost, source: usage.receiving_ref || "Recorded receiving", missingCost: false };
-  const latestCost = latestReceivingCostInfo(receivings, usage.raw_material_id);
-  return { unitCost: latestCost.unitCost, source: latestCost.receiptNo || "Missing Cost", missingCost: latestCost.missingCost };
-}
-
-function productionCost(production, receivings) {
-  return productionCostInfo(production, receivings).cost;
-}
-
-function productionCostInfo(production, receivings) {
-  return (production.material_usage || []).reduce((summary, usage) => {
-    const costInfo = usageUnitCostInfo(usage, receivings);
-    summary.cost += Number(usage.actual_usage || 0) * costInfo.unitCost;
-    if (costInfo.missingCost) summary.missingCostRows += 1;
-    return summary;
-  }, { cost: 0, missingCostRows: 0 });
-}
-
-function recipeCostInfo(recipe, receivings) {
-  const itemRows = (recipe.items || []).map((item) => {
-    const lineCost = recipeCostLineInfo(item, receivings, item);
-    return {
-      ...item,
-      quantity_with_wastage: lineCost.quantityWithWastage,
-      unit_cost: lineCost.unitCost,
-      cost_uom: lineCost.costUom,
-      cost_source: lineCost.source,
-      cost_source_type: lineCost.costSource,
-      supplier_name: lineCost.supplierName,
-      received_date: lineCost.receivedDate,
-      missing_cost: lineCost.missingCost,
-      unsupported_cost: lineCost.unsupportedCost,
-      standard_cost: lineCost.lineCost,
-    };
-  });
-  const standardCost = itemRows.reduce((sum, item) => sum + item.standard_cost, 0);
-  const yieldQuantity = Number(recipe.yield_quantity || 0);
-  return {
-    itemRows,
-    standardCost,
-    costPerUnit: yieldQuantity ? standardCost / yieldQuantity : 0,
-    missingCostRows: itemRows.filter((item) => item.missing_cost).length,
-    unsupportedCostRows: itemRows.filter((item) => item.unsupported_cost).length,
-  };
-}
-
-function costVarianceInfo(standardCost, actualCost) {
-  const standard = Number(standardCost || 0);
-  const actual = Number(actualCost || 0);
-  const variance = actual - standard;
-  const variancePercent = standard ? (variance / standard) * 100 : 0;
-  return { variance, variancePercent };
-}
-
-function costDisplay(value, missingCostRows = 0, unsupportedCostRows = 0) {
-  if (missingCostRows) return "Missing Cost";
-  if (unsupportedCostRows) return "Incomplete Cost";
-  return money(value);
-}
-
-function includesText(value, search) {
-  if (!search) return true;
-  return String(value || "").toLowerCase().includes(String(search).toLowerCase());
-}
-
-function compactCompare(value) {
-  return String(value || "").toLowerCase().replace(/[^a-z0-9]/g, "");
-}
-
-function packSizeText(sku) {
-  return Number(sku?.pack_size_qty || 0) > 0 ? `${sku.pack_size_qty} ${sku.pack_size_uom || ""}`.trim() : "";
-}
-
-function compactPackSizeText(sku) {
-  return Number(sku?.pack_size_qty || 0) > 0 ? `${sku.pack_size_qty}${sku.pack_size_uom || ""}`.trim() : "";
-}
-
-function packagingSkuDisplayName(sku) {
-  return [compactPackSizeText(sku), packagingTypeLabel(sku)].filter(Boolean).join(" ") || sku?.variant_name || "Packaging SKU";
-}
-
-function packagingTypeLabel(sku) {
-  return sku?.packaging_type || "Pack";
-}
-
-function pluralizePackagingType(type, value) {
-  const label = type || "Pack";
-  if (Number(value || 0) === 1) return label;
-  if (/ch$/i.test(label)) return `${label}es`;
-  return `${label}s`;
-}
-
-function packQuantity(value) {
-  return quantity(value, Number(value || 0) === 1 ? "Pack" : "Packs");
-}
-
-function signedPackQuantity(value) {
-  return signedQuantity(value, Number(Math.abs(value || 0)) === 1 ? "Pack" : "Packs");
-}
-
-function skuBalanceLabel(sku) {
-  const balance = Number(sku?.current_balance || 0);
-  return quantity(balance, pluralizePackagingType(packagingTypeLabel(sku), balance));
-}
-
-function skuBaseEquivalentLabel(sku) {
-  const balance = Number(sku?.current_balance || 0);
-  const base = normalizePackSizeToBase(sku?.pack_size_qty || sku?.base_qty, sku?.pack_size_uom || sku?.base_uom);
-  if (!base) return "";
-  return quantity(balance * base.amount, base.uom);
-}
-
-function dispatchTotalLabel(dispatch) {
-  const items = dispatch?.items || [];
-  if (!items.length) return "—";
-  const types = [...new Set(items.map((item) => packagingTypeLabel(item)).filter(Boolean))];
-  if (types.length === 1) {
-    return quantity(dispatch.total_qty, pluralizePackagingType(types[0], dispatch.total_qty));
-  }
-  return `${Number(dispatch.items_count || items.length).toLocaleString("en-MY")} SKU${Number(dispatch.items_count || items.length) === 1 ? "" : "s"}`;
-}
-
-function dispatchLineBaseEquivalentLabel(item) {
-  const qty = Number(item?.quantity || 0);
-  const base = normalizePackSizeToBase(item?.pack_size_qty || item?.base_qty, item?.pack_size_uom || item?.base_uom);
-  if (!qty || !base) return "—";
-  return quantity(qty * base.amount, base.uom);
-}
-
-function productionJobOrderReference(production) {
-  return production?.job_order_no
-    || production?.job?.job_order_no
-    || production?.job_order?.job_order_no
-    || "—";
-}
-
-function productionBatchReference(production) {
-  return production?.batch_no || productionJobOrderReference(production);
-}
-
-function operatorFinishedGoodBatchNo(batch) {
-  const sourceType = String(batch?.batch_type || batch?.source_type || "").toLowerCase();
-  return sourceType && sourceType !== "production" ? "—" : batch?.batch_no || "—";
-}
-
-function recipeOperatorIdentity(recipe) {
-  const productName = recipe?.product_name
-    || recipe?.finished_good?.product_name
-    || recipe?.finished_good?.name_en
-    || "Finished Good";
-  return [productName, recipe?.version || "v1"].filter(Boolean).join(" · ");
-}
-
 function normalizePackSizeToBase(qty, uom) {
-  const amount = Number(qty || 0);
-  const unit = String(uom || "").trim().toLowerCase();
+  const amount = Number(qty || 0); const unit = String(uom || "").trim().toLowerCase();
   if (!amount || !unit) return null;
-  if (unit === "kg" || unit === "kilogram" || unit === "kilograms") return { amount, uom: "kg" };
-  if (unit === "g" || unit === "gram" || unit === "grams") return { amount: amount / 1000, uom: "kg" };
-  if (unit === "l" || unit === "litre" || unit === "liter" || unit === "litres" || unit === "liters") return { amount, uom: "L" };
-  if (unit === "ml" || unit === "millilitre" || unit === "milliliter" || unit === "millilitres" || unit === "milliliters") return { amount: amount / 1000, uom: "L" };
+  if (["kg", "kilogram", "kilograms"].includes(unit)) return { amount, uom: "kg" };
+  if (["g", "gram", "grams"].includes(unit)) return { amount: amount / 1000, uom: "kg" };
+  if (["l", "litre", "liter", "litres", "liters"].includes(unit)) return { amount, uom: "L" };
+  if (["ml", "millilitre", "milliliter", "millilitres", "milliliters"].includes(unit)) return { amount: amount / 1000, uom: "L" };
   return null;
 }
 
 function packagingPackEstimate(productionQty, productionUom, sku, recipeUom = "") {
-  const targetProductionQty = Number(productionQty || 0);
-  const packSizeQty = Number(sku?.pack_size_qty || sku?.base_qty || 0);
-  const packSizeUom = sku?.pack_size_uom || sku?.base_uom || "";
-  const packBase = normalizePackSizeToBase(packSizeQty, packSizeUom);
-  const productionBase = normalizePackSizeToBase(targetProductionQty, productionUom);
-  const recipeBase = recipeUom ? normalizePackSizeToBase(1, recipeUom) : null;
-
+  const targetProductionQty = Number(productionQty || 0); const packSizeQty = Number(sku?.pack_size_qty || sku?.base_qty || 0); const packSizeUom = sku?.pack_size_uom || sku?.base_uom || ""; const packBase = normalizePackSizeToBase(packSizeQty, packSizeUom); const productionBase = normalizePackSizeToBase(targetProductionQty, productionUom); const recipeBase = recipeUom ? normalizePackSizeToBase(1, recipeUom) : null;
   if (!targetProductionQty) return { target_pack_qty: 0, target_production_qty: 0, production_uom: productionUom || recipeBase?.uom || packBase?.uom || "", pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "" };
   if (!String(productionUom || "").trim()) return { target_pack_qty: 0, target_production_qty: targetProductionQty, production_uom: "", pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "Production UOM is required." };
   if (!packSizeQty || !packSizeUom) return { target_pack_qty: 0, target_production_qty: targetProductionQty, production_uom: productionUom, pack_size_qty: packSizeQty, pack_size_uom: packSizeUom, error: "Packaging SKU needs Pack Size before creating Job Order." };
@@ -2668,417 +2430,6 @@ function buildInitialUsageRows(job, rawMaterials, recipes) {
   return [];
 }
 
-export function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods = [], rawMaterials, receivings = [], onClose, onSave }) {
-  const legacyFinishedGood = finishedGoods.find((product) => product.id === initialValue?.finished_good_id);
-  const initialProductFamilyId = initialValue?.product_family_id || legacyFinishedGood?.product_family_id || "";
-  const [form, setForm] = useState(() => ({
-    recipe_code: "",
-    finished_good_id: "",
-    product_family_id: initialProductFamilyId,
-    version: "v1",
-    yield_quantity: "",
-    uom: inheritedRecipeUom(initialProductFamilyId, finishedGoods, initialValue?.uom || "kg"),
-    status: "draft",
-    remarks: "",
-    ...initialValue,
-    items: initialValue?.items?.length ? initialValue.items.map((item, index) => ({ ...item, remarks: item.remarks || item.notes || "", sort_order: item.sort_order || index + 1 })) : [
-      { id: "item-1", raw_material_id: "", quantity_used: "", uom: "kg", wastage_percent: 0, remarks: "", sort_order: 1 },
-    ],
-  }));
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState("");
-  const isLocked = initialValue?.status && initialValue.status !== "draft";
-  const activeProductFamilies = productFamilies.filter((family) => family.status === "active" || family.id === form.product_family_id);
-  const productFamilyOptions = activeProductFamilies.map((family) => ({ value: family.id, label: family.name_en, helper: [family.category, family.status].filter(Boolean).join(" · ") || "Finished Good" }));
-  const inheritedUom = inheritedRecipeUom(form.product_family_id, finishedGoods, form.uom || "kg");
-  const itemCostRows = form.items.map((item) => {
-    const material = rawMaterials.find((row) => row.id === item.raw_material_id);
-    const lineCost = recipeCostLineInfo(item, receivings, material || item);
-    return {
-      id: item.id,
-      unitCost: lineCost.unitCost,
-      costUom: lineCost.costUom,
-      lineCost: lineCost.lineCost,
-      source: lineCost.source,
-      costSource: lineCost.costSource,
-      missingCost: lineCost.missingCost,
-      unsupportedCost: lineCost.unsupportedCost,
-    };
-  });
-  const totalCost = itemCostRows.reduce((sum, row) => sum + row.lineCost, 0);
-  const missingCostRows = itemCostRows.filter((row) => row.missingCost).length;
-  const unsupportedCostRows = itemCostRows.filter((row) => row.unsupportedCost).length;
-
-  function costForItem(rowId) {
-    return itemCostRows.find((row) => row.id === rowId) || { unitCost: 0, costUom: "", lineCost: 0, source: "Missing Cost", missingCost: true, unsupportedCost: false };
-  }
-
-  function updateItem(rowId, patch) {
-    setForm((current) => ({
-      ...current,
-      items: current.items.map((item) => (item.id === rowId ? { ...item, ...patch } : item)),
-    }));
-  }
-
-  function addItem() {
-    setForm((current) => ({
-      ...current,
-      items: [
-        ...current.items,
-        { id: `item-${Date.now()}`, raw_material_id: "", quantity_used: "", uom: "kg", wastage_percent: 0, remarks: "", sort_order: current.items.length + 1 },
-      ],
-    }));
-  }
-
-  function removeItem(rowId) {
-    setForm((current) => ({
-      ...current,
-      items: current.items.filter((item) => item.id !== rowId).map((item, index) => ({ ...item, sort_order: index + 1 })),
-    }));
-  }
-
-  async function submit(event) {
-    event.preventDefault();
-    setError("");
-    if (isLocked) {
-      setError("Only draft recipes can be edited.");
-      return;
-    }
-    if (!form.product_family_id) {
-      setError("Finished Good is required.");
-      return;
-    }
-    if (Number(form.yield_quantity || 0) <= 0) {
-      setError("Standard Output must be greater than 0.");
-      return;
-    }
-    const validItems = form.items.filter((item) => item.raw_material_id || Number(item.quantity_used || 0) > 0);
-    if (!validItems.length || validItems.some((item) => !item.raw_material_id || Number(item.quantity_used || 0) <= 0)) {
-      setError("Every material row needs a raw material and standard quantity greater than 0.");
-      return;
-    }
-    setSaving(true);
-    try {
-      const productFamily = activeProductFamilies.find((family) => family.id === form.product_family_id);
-      await onSave({
-        ...form,
-        finished_good_id: form.finished_good_id || null,
-        product_family_id: productFamily?.id || form.product_family_id,
-        product_name: productFamily?.name_en || form.product_name,
-        recipe_name: productFamily?.name_en || form.product_name || "Product Recipe",
-        uom: inheritedUom || form.uom || "",
-      });
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  return (
-    <Modal
-      title={initialValue?.id ? "Edit Product Recipe / BOM" : "Create Product Recipe / BOM"}
-      description="Define the standard output quantity and raw material requirements for a finished good."
-      size="xl"
-      onClose={saving ? undefined : onClose}
-      footer={(
-        <>
-          <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="submit" form="factory-product-recipe-form" disabled={saving || isLocked}>{saving ? "Saving..." : "Save Recipe"}</button>
-        </>
-      )}
-    >
-      <form id="factory-product-recipe-form" className="space-y-5" onSubmit={submit}>
-        {error ? <div className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm font-semibold text-rose-700">{error}</div> : null}
-        {isLocked ? <div className="rounded-xl border border-amber-200 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-800">Only draft recipes can be edited. Active and archived recipes remain readable for history.</div> : null}
-        <section className="space-y-3">
-          <div>
-            <div className="text-sm font-bold text-text-primary">Recipe Header</div>
-            <div className="text-xs font-semibold text-text-secondary">Finished Good, standard output and version details.</div>
-          </div>
-          <div className="grid gap-3 md:grid-cols-3">
-            <Field label="Finished Good">
-              <SearchableSelect
-                value={form.product_family_id || ""}
-                options={productFamilyOptions}
-                placeholder="Select Finished Good"
-                searchPlaceholder="Search finished goods"
-                emptyText="No matching finished goods"
-                disabled={isLocked}
-                onChange={(productFamilyId) => {
-                  const productFamily = activeProductFamilies.find((item) => item.id === productFamilyId);
-                  const nextUom = inheritedRecipeUom(productFamilyId, finishedGoods, form.uom || "kg");
-                  setForm((current) => ({
-                    ...current,
-                    product_family_id: productFamilyId,
-                    finished_good_id: "",
-                    product_name: productFamily?.name_en || "",
-                    uom: nextUom,
-                  }));
-                }}
-              />
-            </Field>
-            <Field label="Version">
-              <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-bold text-text-primary">{form.version || "v1"}</div>
-            </Field>
-            <Field label="Status">
-              <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3">
-                <Badge tone={form.status === "active" ? "success" : form.status === "draft" ? "info" : "neutral"}>{form.status || "draft"}</Badge>
-              </div>
-            </Field>
-            <Field label="Standard Output Qty">
-              <input className={inputClass()} type="number" min="0" step="0.01" value={form.yield_quantity || ""} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, yield_quantity: event.target.value }))} />
-            </Field>
-            <Field label="UOM">
-              <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-bold text-text-primary">{inheritedUom || "—"}</div>
-              <div className="mt-1 text-xs font-semibold text-text-secondary">Inherited from Finished Good packaging/base UOM.</div>
-            </Field>
-            <div className="md:col-span-3">
-              <Field label="Remarks">
-                <textarea className={inputClass()} rows={3} value={form.remarks || ""} disabled={isLocked} onChange={(event) => setForm((current) => ({ ...current, remarks: event.target.value }))} />
-              </Field>
-            </div>
-          </div>
-        </section>
-        <Card
-          title="BOM Materials"
-          description="Standard quantities are scaled into production material usage."
-          action={!isLocked ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={addItem}><Package size={14} /> Add Material</button> : null}
-        >
-          <div className="space-y-3 md:hidden">
-            {form.items.map((item) => {
-              const material = rawMaterials.find((row) => row.id === item.raw_material_id);
-              const materialOptions = rawMaterials.filter((row) => row.status === "active" || row.id === item.raw_material_id).map((materialOption) => ({
-                value: materialOption.id,
-                label: rawMaterialLabel(materialOption),
-                helper: rawMaterialHelper(materialOption) || materialOption.category || "Raw material",
-              }));
-              return (
-                <div key={item.id} className="rounded-2xl border border-border bg-slate-50 p-3">
-                  <div className="grid gap-3">
-                    <Field label="Raw Material">
-                      <SearchableSelect
-                        value={item.raw_material_id || ""}
-                        options={materialOptions}
-                        placeholder="Select raw material"
-                        searchPlaceholder="Search raw materials"
-                        emptyText="No matching raw materials"
-                        disabled={isLocked}
-                        onChange={(rawMaterialId) => {
-                          const nextMaterial = rawMaterials.find((row) => row.id === rawMaterialId);
-                          updateItem(item.id, { raw_material_id: rawMaterialId, uom: nextMaterial?.uom || item.uom });
-                        }}
-                      />
-                    </Field>
-                    <div className="grid grid-cols-2 gap-3">
-                      <Field label="Qty">
-                        <input className={inputClass()} type="number" min="0" step="0.0001" value={item.quantity_used || ""} disabled={isLocked} onChange={(event) => updateItem(item.id, { quantity_used: event.target.value })} />
-                      </Field>
-                      <Field label="UOM">
-                        <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-bold text-text-primary">{item.uom || material?.uom || "—"}</div>
-                        <div className="mt-1 text-xs font-semibold text-text-secondary">Inherited from raw material.</div>
-                      </Field>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Unit Cost</div>
-                        <div className="mt-1 text-sm font-bold text-text-primary">{costForItem(item.id).missingCost ? "Missing Cost" : unitCostDisplay({ unitCost: costForItem(item.id).unitCost, uom: costForItem(item.id).costUom })}</div>
-                      </div>
-                      <div>
-                        <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Material Cost</div>
-                        <div className="mt-1 text-sm font-bold text-text-primary">{costDisplay(costForItem(item.id).lineCost, costForItem(item.id).missingCost ? 1 : 0, costForItem(item.id).unsupportedCost ? 1 : 0)}</div>
-                      </div>
-                    </div>
-                    <Field label="Wastage">
-                      <input className={inputClass()} type="number" min="0" step="0.01" value={item.wastage_percent || 0} disabled={isLocked} onChange={(event) => updateItem(item.id, { wastage_percent: event.target.value })} />
-                    </Field>
-                    <Field label="Remarks">
-                      <input className={inputClass()} value={item.remarks || ""} disabled={isLocked} onChange={(event) => updateItem(item.id, { remarks: event.target.value })} />
-                    </Field>
-                    {!isLocked ? <button className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => removeItem(item.id)}>Remove Material</button> : null}
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[1080px] text-left">
-              <thead>
-                <tr className="border-b border-border bg-slate-50 text-[10.5px] font-semibold text-[rgb(107,114,128)]">
-                  <th className="px-4 py-2.5">Raw Material</th>
-                  <th className="px-4 py-2.5">Qty</th>
-                  <th className="px-4 py-2.5">UOM</th>
-                  <th className="px-4 py-2.5">Unit Cost</th>
-                  <th className="px-4 py-2.5">Material Cost</th>
-                  <th className="px-4 py-2.5">Wastage</th>
-                  <th className="px-4 py-2.5">Remarks</th>
-                  <th className="px-4 py-2.5 text-right">Action</th>
-                </tr>
-              </thead>
-              <tbody>
-                {form.items.map((item) => {
-                  const material = rawMaterials.find((row) => row.id === item.raw_material_id);
-                  const materialOptions = rawMaterials.filter((row) => row.status === "active" || row.id === item.raw_material_id).map((materialOption) => ({
-                    value: materialOption.id,
-                    label: rawMaterialLabel(materialOption),
-                    helper: rawMaterialHelper(materialOption) || materialOption.category || "Raw material",
-                  }));
-                  return (
-                    <tr key={item.id} className="border-b border-border last:border-0">
-                      <td className="px-4 py-3">
-                        <SearchableSelect
-                          value={item.raw_material_id || ""}
-                          options={materialOptions}
-                          placeholder="Select raw material"
-                          searchPlaceholder="Search raw materials"
-                          emptyText="No matching raw materials"
-                          disabled={isLocked}
-                          onChange={(rawMaterialId) => {
-                            const nextMaterial = rawMaterials.find((row) => row.id === rawMaterialId);
-                            updateItem(item.id, { raw_material_id: rawMaterialId, uom: nextMaterial?.uom || item.uom });
-                          }}
-                        />
-                        <div className="mt-1 text-xs text-text-secondary">{material?.category || "Raw material BOM item"}</div>
-                      </td>
-                      <td className="px-4 py-3"><input className={inputClass()} type="number" min="0" step="0.0001" value={item.quantity_used || ""} disabled={isLocked} onChange={(event) => updateItem(item.id, { quantity_used: event.target.value })} /></td>
-                      <td className="px-4 py-3">
-                        <div className="flex min-h-[42px] items-center rounded-xl border border-border bg-slate-50 px-3 text-sm font-bold text-text-primary">{item.uom || material?.uom || "—"}</div>
-                      </td>
-                      <td className="px-4 py-3">
-                        <div className="font-semibold text-text-primary">{costForItem(item.id).missingCost ? "Missing Cost" : unitCostDisplay({ unitCost: costForItem(item.id).unitCost, uom: costForItem(item.id).costUom })}</div>
-                      </td>
-                      <td className="px-4 py-3 font-bold text-text-primary">{costDisplay(costForItem(item.id).lineCost, costForItem(item.id).missingCost ? 1 : 0, costForItem(item.id).unsupportedCost ? 1 : 0)}</td>
-                      <td className="px-4 py-3"><input className={inputClass()} type="number" min="0" step="0.01" value={item.wastage_percent || 0} disabled={isLocked} onChange={(event) => updateItem(item.id, { wastage_percent: event.target.value })} /></td>
-                      <td className="px-4 py-3"><input className={inputClass()} value={item.remarks || ""} disabled={isLocked} onChange={(event) => updateItem(item.id, { remarks: event.target.value })} /></td>
-                      <td className="px-4 py-3 text-right">
-                        {!isLocked ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => removeItem(item.id)}>Remove</button> : null}
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          <div className="mt-4 flex flex-col gap-2 rounded-xl border border-border bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="text-sm font-bold text-text-primary">Recipe Total Cost</div>
-              <div className="text-xs font-semibold text-text-secondary">Costed from the current BOM material quantities.</div>
-            </div>
-            <div className="grid gap-2 text-right sm:grid-cols-3">
-              <div>
-                <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Total Cost</div>
-                <div className="text-lg font-black text-text-primary">{costDisplay(totalCost, missingCostRows, unsupportedCostRows)}</div>
-              </div>
-              <div>
-                <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Output Qty</div>
-                <div className="text-lg font-black text-text-primary">{quantity(form.yield_quantity, inheritedUom || form.uom)}</div>
-              </div>
-              <div>
-                <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Cost / {inheritedUom || form.uom || "UOM"}</div>
-                <div className="text-lg font-black text-text-primary">
-                  {costDisplay(Number(form.yield_quantity || 0) > 0 ? totalCost / Number(form.yield_quantity || 1) : 0, missingCostRows, unsupportedCostRows)}
-                </div>
-              </div>
-            </div>
-          </div>
-        </Card>
-      </form>
-    </Modal>
-  );
-}
-
-export function ProductRecipeDetailModal({ recipe, receivings = [], onClose }) {
-  const finishedGoodName = recipe.product_name_en || recipe.product_name || "Finished Good";
-  const finishedGoodCn = recipe.product_name_cn || "";
-  const recipeCost = recipeCostInfo(recipe, receivings);
-  return (
-    <Modal
-      title={finishedGoodName}
-      description={`Product Recipe / BOM · ${recipe.version || "v1"}`}
-      size="2xl"
-      onClose={onClose}
-      footer={(
-        <button className="btn-secondary" type="button" onClick={onClose}>Close</button>
-      )}
-    >
-      <div className="space-y-5">
-        <Card title="Recipe Summary">
-          <div className="grid gap-x-8 gap-y-3 px-2 py-1 sm:px-4 md:grid-cols-3 lg:px-6">
-            <div>
-              <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Finished Good</div>
-              <div className="mt-1 text-sm font-bold text-text-primary">{finishedGoodName}</div>
-              {finishedGoodCn ? <div className="text-xs font-semibold text-text-secondary">{finishedGoodCn}</div> : null}
-            </div>
-            <div>
-              <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Version</div>
-              <div className="mt-1"><Badge tone="info">{recipe.version || "v1"}</Badge></div>
-            </div>
-            <div>
-              <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Status</div>
-              <div className="mt-1"><Badge tone={recipe.status === "active" ? "success" : recipe.status === "draft" ? "info" : "neutral"}>{jobStatusLabel(recipe.status)}</Badge></div>
-            </div>
-            <div>
-              <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Standard Output</div>
-              <div className="mt-1 text-sm font-bold text-text-primary">{quantity(recipe.yield_quantity, recipe.uom)}</div>
-            </div>
-            <div>
-              <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Updated</div>
-              <div className="mt-1 text-sm font-bold text-text-primary">{formatFactoryDate(recipe.updated_at)}</div>
-            </div>
-            <div>
-              <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Recipe Total Cost</div>
-              <div className="mt-1 text-sm font-bold text-text-primary">{costDisplay(recipeCost.standardCost, recipeCost.missingCostRows, recipeCost.unsupportedCostRows)}</div>
-            </div>
-            <div>
-              <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Cost / {recipe.uom || "UOM"}</div>
-              <div className="mt-1 text-sm font-bold text-text-primary">{costDisplay(recipeCost.costPerUnit, recipeCost.missingCostRows, recipeCost.unsupportedCostRows)}</div>
-            </div>
-            <div className="hidden md:block" aria-hidden="true" />
-          </div>
-        </Card>
-        <Card title="BOM Materials">
-          <FactoryTable
-            columns={[
-              { key: "raw_material", label: "Raw Material", render: (row) => <div className="font-semibold text-text-primary">{row.raw_material_name || "Raw Material"}</div> },
-              { key: "required_qty", label: "Qty", render: (row) => quantity(row.quantity_used, row.uom) },
-              { key: "uom", label: "UOM", render: (row) => row.uom || "—" },
-              { key: "unit_cost", label: "Unit Cost", render: (row) => row.missing_cost ? "Missing Cost" : unitCostDisplay({ unitCost: row.unit_cost, uom: row.cost_uom }) },
-              { key: "line_cost", label: "Material Cost", render: (row) => costDisplay(row.standard_cost, row.missing_cost ? 1 : 0, row.unsupported_cost ? 1 : 0) },
-              { key: "wastage_percent", label: "Wastage", render: (row) => percent(row.wastage_percent) },
-              { key: "remarks", label: "Remarks", render: (row) => row.remarks || row.notes || "—" },
-            ]}
-            rows={recipeCost.itemRows}
-            emptyTitle="No BOM materials"
-            emptyDescription="Add raw material rows before activating this production standard."
-          />
-          <div className="mt-4 flex flex-col gap-2 rounded-xl border border-border bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-            <div>
-              <div className="text-sm font-bold text-text-primary">Recipe Total Cost</div>
-              <div className="text-xs font-semibold text-text-secondary">Costed from the saved BOM material quantities.</div>
-            </div>
-            <div className="grid gap-2 text-right sm:grid-cols-3">
-              <div>
-                <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Total Cost</div>
-                <div className="text-lg font-black text-text-primary">{costDisplay(recipeCost.standardCost, recipeCost.missingCostRows, recipeCost.unsupportedCostRows)}</div>
-              </div>
-              <div>
-                <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Output Qty</div>
-                <div className="text-lg font-black text-text-primary">{quantity(recipe.yield_quantity, recipe.uom)}</div>
-              </div>
-              <div>
-                <div className="text-[10.5px] font-semibold text-[rgb(107,114,128)]">Cost / {recipe.uom || "UOM"}</div>
-                <div className="text-lg font-black text-text-primary">{costDisplay(recipeCost.costPerUnit, recipeCost.missingCostRows, recipeCost.unsupportedCostRows)}</div>
-              </div>
-            </div>
-          </div>
-        </Card>
-        {recipe.remarks || recipe.notes ? (
-          <Card title="Remarks">
-            <p className="whitespace-pre-wrap text-sm font-medium leading-6 text-text-secondary">{recipe.remarks || recipe.notes}</p>
-          </Card>
-        ) : null}
-      </div>
-    </Modal>
-  );
-}
 
 function StartProductionModal({ job, sops = [], auth, onClose, onSave }) {
   const [form, setForm] = useState(() => ({
@@ -5456,8 +4807,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       if (serverListing === "receiving-history") setEditingReceiving(null);
     }
   }, [factoryListingPage.errorKind, serverListing]);
-  const recipeParentCount = new Set(data.recipes.map((recipe) => recipe.product_family_id || recipe.finished_good_id || recipe.product_name || recipe.id)).size;
-  const recipesPager = useFactoryClientPagination("product-recipes", recipeParentCount);
   const sopProductGroups = useMemo(() => groupedProductionSops(data.sops), [data.sops]);
   const sopsPager = useFactoryClientPagination("production-sop", sopProductGroups.length);
 
@@ -6392,8 +5741,8 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       return;
     }
     ui?.notify?.({ title: "Draft version created", tone: "success" });
-    setModal({ type: "recipe", value: draftCopy });
     await refreshFactoryAfterMutation();
+    return draftCopy;
   }
 
   async function activateProductRecipe(recipe) {
@@ -7007,37 +6356,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     { key: "actions", label: "Actions", align: "right", render: renderSopActions },
   ];
 
-  function renderRecipeActions(row) {
-    return (
-      <div className="flex flex-wrap justify-end gap-2" onClick={(event) => event.stopPropagation()}>
-        <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "recipe-detail", value: row })}>View</button>
-        {row.status === "draft" && can("factory_product_recipes.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "recipe", value: row })}>Edit</button> : null}
-        {row.status === "draft" && can("factory_product_recipes.manage") ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => activateProductRecipe(row)}>Activate</button> : null}
-        {row.status === "draft" && canDeleteDraftProductRecipe(can) ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => deleteProductRecipe(row)}>Delete</button> : null}
-        {row.status === "active" && can("factory_product_recipes.create") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => openNewRecipeVersion(row)}>New Version</button> : null}
-        {row.status === "active" && canArchiveActiveProductRecipe(can) ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => archiveProductRecipe(row)}>Archive</button> : null}
-        {row.status === "archived" && can("factory_product_recipes.edit") ? <button className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50" type="button" onClick={() => restoreProductRecipe(row)}>Restore</button> : null}
-      </div>
-    );
-  }
-
-  const recipeColumns = [
-    { key: "finished_good", label: "Finished Good", render: (row) => {
-      const englishName = row.product_name_en || row.product_name || row.product_family_name || "Finished Good";
-      const chineseName = row.product_name_cn || "";
-      return <div><div className="font-semibold text-text-primary">{englishName}</div>{chineseName ? <div className="text-xs text-text-secondary">{chineseName}</div> : null}</div>;
-    } },
-    { key: "version", label: "Version", render: (row) => <Badge tone="info">{row.version || "v1"}</Badge> },
-    { key: "standard_output", label: "Standard Output", render: (row) => quantity(row.yield_quantity, row.uom) },
-    { key: "items", label: "Materials", render: (row) => row.items?.length || 0 },
-    { key: "recipe_cost", label: "Recipe Cost", render: (row) => {
-      const cost = recipeCostInfo(row, data.receivings);
-      return <div className="font-bold text-text-primary">{costDisplay(cost.standardCost, cost.missingCostRows, cost.unsupportedCostRows)}</div>;
-    } },
-    { key: "status", label: "Status", render: (row) => <Badge tone={row.status === "active" ? "success" : row.status === "draft" ? "info" : "neutral"}>{jobStatusLabel(row.status)}</Badge> },
-    { key: "updated_at", label: "Updated", render: (row) => formatFactoryDate(row.updated_at) },
-    { key: "actions", label: "Actions", align: "right", render: renderRecipeActions },
-  ];
 
   function stockCheckColumns(stockType) {
     const renderActions = (row) => (
@@ -7785,133 +7103,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     );
   }
 
-  function renderProductRecipes() {
-    const draftRecipes = data.recipes.filter((recipe) => recipe.status === "draft");
-    const activeRecipes = data.recipes.filter((recipe) => recipe.status === "active");
-    const familiesWithActiveRecipe = new Set(activeRecipes.map((recipe) => recipe.product_family_id).filter(Boolean));
-    const activeFinishedGoodsWithoutRecipe = data.productFamilies.filter((product) => product.status === "active" && !familiesWithActiveRecipe.has(product.id));
-    const activeRecipeCosts = activeRecipes.map((recipe) => recipeCostInfo(recipe, data.receivings));
-    const totalActiveRecipeCost = activeRecipeCosts.reduce((sum, cost) => sum + Number(cost.standardCost || 0), 0);
-    const missingRecipeCosts = activeRecipeCosts.reduce((sum, cost) => sum + Number(cost.missingCostRows || 0), 0);
-    const unsupportedRecipeCosts = activeRecipeCosts.reduce((sum, cost) => sum + Number(cost.unsupportedCostRows || 0), 0);
-    const recipeGroups = Object.values(data.recipes.reduce((groups, recipe) => {
-      const family = data.productFamilies.find((item) => item.id === recipe.product_family_id);
-      const fallbackKey = recipe.product_family_id || recipe.finished_good_id || recipe.product_name || recipe.id;
-      const key = String(fallbackKey);
-      if (!groups[key]) {
-        groups[key] = {
-          id: key,
-          name: family?.name_en || recipe.product_name_en || recipe.product_name || recipe.product_family_name || "Finished Good",
-          nameCn: family?.name_cn || recipe.product_name_cn || "",
-          recipes: [],
-        };
-      }
-      groups[key].recipes.push(recipe);
-      return groups;
-    }, {})).map((group) => ({
-      ...group,
-      recipes: group.recipes.sort((a, b) => {
-        const statusRank = { active: 0, draft: 1, archived: 2 };
-        const versionA = Number(String(a.version || "").replace(/[^0-9]/g, "")) || 0;
-        const versionB = Number(String(b.version || "").replace(/[^0-9]/g, "")) || 0;
-        return (statusRank[a.status] ?? 9) - (statusRank[b.status] ?? 9) || versionA - versionB;
-      }),
-    })).sort((a, b) => a.name.localeCompare(b.name));
-    const visibleRecipeGroups = recipeGroups.slice(recipesPager.from, recipesPager.to);
-    return (
-      <div className="space-y-5">
-        <PageHeader
-          section="Master Data"
-          title="Product Recipes / BOM"
-          description="Manage finished good recipes, standard output quantities and raw material requirements."
-          actions={can("factory_product_recipes.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "recipe" })}><BookOpen size={15} /> Create Recipe</button> : null}
-        />
-        <div className="grid gap-3 md:grid-cols-4">
-          <MetricCard icon={ClipboardCheck} label="Draft" value={draftRecipes.length} helper="Editable recipes" />
-          <MetricCard icon={CheckCircle2} label="Active" value={activeRecipes.length} helper="Production defaults" tone="success" />
-          <MetricCard icon={PackageCheck} label="FG Without Recipe" value={activeFinishedGoodsWithoutRecipe.length} helper="Finished goods missing active recipe" tone={activeFinishedGoodsWithoutRecipe.length ? "warning" : "success"} />
-          <MetricCard icon={DollarSign} label="Cost" value={costDisplay(totalActiveRecipeCost, missingRecipeCosts, unsupportedRecipeCosts)} helper={missingRecipeCosts ? "Missing receiving cost" : unsupportedRecipeCosts ? "Review BOM and receiving UOMs" : "Active recipe total"} tone={missingRecipeCosts || unsupportedRecipeCosts ? "warning" : "success"} />
-        </div>
-        <Card title="Recipe Records" description="Versions are grouped under each Finished Good. Drafts can be edited before activation. Click a version to view BOM details.">
-          {recipeGroups.length ? (
-            <div className="space-y-4">
-              {visibleRecipeGroups.map((group) => (
-                <div key={group.id} className="overflow-hidden rounded-2xl border border-border bg-white">
-                  <div className="flex flex-col gap-1 border-b border-border bg-slate-50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
-                    <div>
-                      <div className="font-bold text-text-primary">{group.name}</div>
-                      {group.nameCn ? <div className="text-sm font-semibold text-text-secondary">{group.nameCn}</div> : null}
-                    </div>
-                    <Badge tone="neutral">{group.recipes.length} {group.recipes.length === 1 ? "Version" : "Versions"}</Badge>
-                  </div>
-                  <div className="hidden overflow-x-auto md:block">
-                    <table className="w-full min-w-[980px] text-left">
-                      <thead>
-                        <tr className="border-b border-border text-[10.5px] font-semibold text-[rgb(107,114,128)]">
-                          <th className="px-4 py-2.5">Version</th>
-                          <th className="px-4 py-2.5">Standard Output</th>
-                          <th className="px-4 py-2.5">Materials</th>
-                          <th className="px-4 py-2.5">Recipe Cost</th>
-                          <th className="px-4 py-2.5">Status</th>
-                          <th className="px-4 py-2.5">Updated</th>
-                          <th className="px-4 py-2.5 text-right">Actions</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {group.recipes.map((recipe) => {
-                          const cost = recipeCostInfo(recipe, data.receivings);
-                          return (
-                            <tr key={recipe.id} className="cursor-pointer border-b border-border last:border-0 transition hover:bg-slate-50" onClick={() => setModal({ type: "recipe-detail", value: recipe })}>
-                              <td className="px-4 py-3"><Badge tone="info">{recipe.version || "v1"}</Badge></td>
-                              <td className="px-4 py-3 font-semibold text-text-primary">{quantity(recipe.yield_quantity, recipe.uom)}</td>
-                              <td className="px-4 py-3">{recipe.items?.length || 0}</td>
-                              <td className="px-4 py-3 font-bold text-text-primary">{costDisplay(cost.standardCost, cost.missingCostRows, cost.unsupportedCostRows)}</td>
-                              <td className="px-4 py-3"><Badge tone={recipe.status === "active" ? "success" : recipe.status === "draft" ? "info" : "neutral"}>{jobStatusLabel(recipe.status)}</Badge></td>
-                              <td className="px-4 py-3">{formatFactoryDate(recipe.updated_at)}</td>
-                              <td className="px-4 py-3 text-right">{renderRecipeActions(recipe)}</td>
-                            </tr>
-                          );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                  <div className="space-y-3 p-3 md:hidden">
-                    {group.recipes.map((recipe) => {
-                      const cost = recipeCostInfo(recipe, data.receivings);
-                      return (
-                        <div key={recipe.id} className="w-full rounded-xl border border-border bg-white p-3 text-left transition hover:border-primary/40 hover:bg-slate-50" role="button" tabIndex={0} onClick={() => setModal({ type: "recipe-detail", value: recipe })} onKeyDown={(event) => {
-                          if (event.key === "Enter" || event.key === " ") {
-                            event.preventDefault();
-                            setModal({ type: "recipe-detail", value: recipe });
-                          }
-                        }}>
-                          <div className="flex items-start justify-between gap-3">
-                            <div>
-                              <Badge tone={recipe.status === "active" ? "success" : recipe.status === "draft" ? "info" : "neutral"}>{recipe.version || "v1"} · {jobStatusLabel(recipe.status)}</Badge>
-                              <div className="mt-2 text-sm font-bold text-text-primary">{quantity(recipe.yield_quantity, recipe.uom)}</div>
-                              <div className="text-xs font-semibold text-text-secondary">{recipe.items?.length || 0} materials · {formatFactoryDate(recipe.updated_at)}</div>
-                            </div>
-                            <div className="text-right text-sm font-black text-text-primary">{costDisplay(cost.standardCost, cost.missingCostRows, cost.unsupportedCostRows)}</div>
-                          </div>
-                          <div className="mt-3">{renderRecipeActions(recipe)}</div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : (
-            <div className="rounded-2xl border border-dashed border-border bg-slate-50 p-8 text-center">
-              <div className="font-bold text-text-primary">No Product Recipes</div>
-              <div className="mt-1 text-sm font-semibold text-text-secondary">Create a Product Recipe / BOM to prefill production material usage.</div>
-            </div>
-          )}
-          <FactoryPagination page={recipesPager.page} pageSize={recipesPager.pageSize} total={recipeGroups.length} onPageChange={recipesPager.setPage} onPageSizeChange={recipesPager.setPageSize} />
-        </Card>
-      </div>
-    );
-  }
 
   function renderProduction() {
     const recipeForJob = (job) => activeRecipeForSku(data.recipes, job.finished_good || job, job.product_name);
@@ -8383,10 +7574,16 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           openRawMaterialCategory={() => setModal({ type: "raw-material-category" })}
           openPlanningJobOrderDraft={(draftPayload) => setModal({ type: "job", value: draftPayload })}
           openProductionPlanningPar={(sku) => setModal({ type: "production-planning-par", sku })}
+          saveProductRecipe={saveProductRecipe}
+          activateProductRecipe={activateProductRecipe}
+          archiveProductRecipe={archiveProductRecipe}
+          restoreProductRecipe={restoreProductRecipe}
+          createProductRecipeNewVersion={openNewRecipeVersion}
+          deleteProductRecipe={deleteProductRecipe}
         >
           <>
       <AccessIssueNotice issues={data.accessIssues} onRetry={() => loadData()} />
-      {initialTab === "production-overview" ? renderProductionOverview() : initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-inventory" ? <FactoryRawMaterialInventoryPage /> : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-movements" ? renderRawMaterialMovements() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? <FactoryBatchTraceabilityPage onNotify={ui?.notify} /> : initialTab === "finished-goods" ? <FactoryFinishedGoodsPage /> : initialTab === "production-planning" ? <FactoryProductionPlanningPage onNotify={ui?.notify} onPermissionDenied={clearPlanningPermission} /> : initialTab === "finished-goods-dispatch" ? renderFinishedGoodsDispatch() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? renderProductRecipes() : initialTab === "production-sop" ? renderProductionSop() : initialTab === "audit-logs" ? <FactoryAuditTrailPage onNotify={ui?.notify} /> : initialTab === "storage-locations" ? <FactoryStorageLocationsPage /> : initialTab === "suppliers" ? <FactorySuppliersPage /> : initialTab === "customers" ? <FactoryCustomersPage /> : <FactoryDashboardPage onRefreshFactoryData={loadData} />}
+      {initialTab === "production-overview" ? renderProductionOverview() : initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-inventory" ? <FactoryRawMaterialInventoryPage /> : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-movements" ? renderRawMaterialMovements() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? <FactoryBatchTraceabilityPage onNotify={ui?.notify} /> : initialTab === "finished-goods" ? <FactoryFinishedGoodsPage /> : initialTab === "production-planning" ? <FactoryProductionPlanningPage onNotify={ui?.notify} onPermissionDenied={clearPlanningPermission} /> : initialTab === "finished-goods-dispatch" ? renderFinishedGoodsDispatch() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? <FactoryProductRecipesPage /> : initialTab === "production-sop" ? renderProductionSop() : initialTab === "audit-logs" ? <FactoryAuditTrailPage onNotify={ui?.notify} /> : initialTab === "storage-locations" ? <FactoryStorageLocationsPage /> : initialTab === "suppliers" ? <FactorySuppliersPage /> : initialTab === "customers" ? <FactoryCustomersPage /> : <FactoryDashboardPage onRefreshFactoryData={loadData} />}
       {modal?.type === "job" ? (
         <JobOrderModal
           initialValue={modal.value}
@@ -8563,42 +7760,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           onArchive={archiveQcChecklistTemplate}
           onRestore={restoreQcChecklistTemplate}
           onDelete={deleteQcChecklistTemplate}
-        />
-      ) : null}
-      {modal?.type === "recipe" ? (
-        <ProductRecipeModal
-          initialValue={modal.value}
-          productFamilies={data.productFamilies}
-          finishedGoods={data.finishedGoods}
-          rawMaterials={data.rawMaterials}
-          receivings={data.receivings}
-          onClose={() => setModal(null)}
-          onSave={saveProductRecipe}
-        />
-      ) : null}
-      {modal?.type === "recipe-detail" ? (
-        <ProductRecipeDetailModal
-          recipe={modal.value}
-          receivings={data.receivings}
-          onClose={() => setModal(null)}
-          onEdit={(recipe) => setModal({ type: "recipe", value: recipe })}
-          onNewVersion={openNewRecipeVersion}
-          onActivate={async (recipe) => {
-            setModal(null);
-            await activateProductRecipe(recipe);
-          }}
-          onArchive={async (recipe) => {
-            setModal(null);
-            await archiveProductRecipe(recipe);
-          }}
-          onDelete={async (recipe) => {
-            setModal(null);
-            await deleteProductRecipe(recipe);
-          }}
-          canCreateRecipe={can("factory_product_recipes.create")}
-          canEditRecipe={can("factory_product_recipes.edit")}
-          canManageRecipe={can("factory_product_recipes.manage")}
-          canDeleteRecipe={can("factory_product_recipes.delete")}
         />
       ) : null}
       {modal?.type === "stock-check" ? (
