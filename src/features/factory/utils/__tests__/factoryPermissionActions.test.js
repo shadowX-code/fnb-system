@@ -6,6 +6,7 @@ import {
   canEditFinishedGoods,
   canEditProductionPlanningPar,
   canOpenRawMaterialReceiving,
+  productionSopActions,
 } from "../factoryPermissionActions.js";
 
 function canWith(permissionSet) {
@@ -52,5 +53,20 @@ describe("Factory permission action presentation", () => {
     expect(canEditProductionPlanningPar(jobCreator)).toBe(false);
     expect(canCreatePlanningJobOrder(finishedGoodEditor)).toBe(false);
     expect(canEditProductionPlanningPar(finishedGoodEditor)).toBe(true);
+  });
+
+  it("keeps SOP Draft, lifecycle, archive, restore, and QC preset guards on their current exact permissions", () => {
+    const viewOnly = canWith(["factory_production_sop.view"]);
+    const editor = canWith(["factory_production_sop.edit"]);
+    const deleter = canWith(["factory_production_sop.delete"]);
+    const creator = canWith(["factory_production_sop.create"]);
+    const manager = canWith(["factory_production_sop.manage"]);
+    expect(productionSopActions(viewOnly, "draft")).toMatchObject({ edit: false, activate: false, deleteDraft: false, manageQcPresets: false });
+    expect(productionSopActions(editor, "draft")).toMatchObject({ edit: true, activate: true, deleteDraft: false });
+    expect(productionSopActions(deleter, "draft")).toMatchObject({ deleteDraft: true, activate: false });
+    expect(productionSopActions(creator, "active")).toMatchObject({ newVersion: true, archive: false });
+    expect(productionSopActions(deleter, "active")).toMatchObject({ archive: true, newVersion: false });
+    expect(productionSopActions(editor, "archived")).toMatchObject({ restore: true });
+    expect(productionSopActions(manager, "draft")).toMatchObject({ activate: true, manageQcPresets: true });
   });
 });

@@ -19,7 +19,7 @@ import FactoryRawMaterialInventoryPage from "./FactoryRawMaterialInventoryPage.j
 import FactoryProductRecipesPage from "./FactoryProductRecipesPage.jsx";
 import FactoryBatchTraceabilityPage from "./FactoryBatchTraceabilityPage.jsx";
 import { activeRecipeForSku, finishedGoodParentKey, inheritedRecipeUom, packagingProductionPlan } from "../utils/productionPlanning.js";
-import { canEditFinishedGoods, canOpenRawMaterialReceiving } from "../utils/factoryPermissionActions.js";
+import { canEditFinishedGoods, canOpenRawMaterialReceiving, productionSopActions } from "../utils/factoryPermissionActions.js";
 import FinishedGoodBatchTraceabilityModal from "../modals/FinishedGoodBatchTraceabilityModal.jsx";
 import FactoryRawMaterialMovementDetailModal from "../modals/FactoryRawMaterialMovementDetailModal.jsx";
 import ProductGroupModal from "../modals/finishedGoods/FactoryProductGroupModal.jsx";
@@ -3435,7 +3435,7 @@ function SopIngredientPicker({ ingredients = [], value = [], disabled = false, o
   );
 }
 
-function ProductionSopBuilderModal({ initialValue, productFamilies = [], recipes = [], sops = [], qcChecklistTemplates = [], onClose, onSave }) {
+export function ProductionSopBuilderModal({ initialValue, productFamilies = [], recipes = [], sops = [], qcChecklistTemplates = [], onClose, onSave }) {
   const isEdit = Boolean(initialValue?.id);
   const activeQcTemplates = qcChecklistTemplates.filter((template) => template.is_active !== false);
   const activeQcTemplateIds = new Set(activeQcTemplates.map((template) => template.id));
@@ -3988,7 +3988,7 @@ function ProductionSopDetailModal({ sop, onClose }) {
   );
 }
 
-function ProductionSopDocumentModal({ sop, onClose }) {
+export function ProductionSopDocumentModal({ sop, onClose }) {
   const steps = [...(sop.steps || [])].sort((a, b) => Number(a.step_no || 0) - Number(b.step_no || 0));
   const qcCount = steps.reduce((count, step) => count + (step.qc_checks?.length || ((step.qc_required || step.is_qc_checkpoint) ? 1 : 0)), 0);
   const recipe = sop.linked_recipe;
@@ -4033,7 +4033,7 @@ function ProductionSopDocumentModal({ sop, onClose }) {
   );
 }
 
-function QcChecklistPresetManagerModal({ templates = [], sops = [], onClose, onCreate, onUpdate, onArchive, onRestore, onDelete }) {
+export function QcChecklistPresetManagerModal({ templates = [], sops = [], onClose, onCreate, onUpdate, onArchive, onRestore, onDelete }) {
   const emptyForm = { id: "", name: "", result_mode: "checklist", description: "", is_active: true };
   const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
@@ -6333,15 +6333,16 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   ];
 
   function renderSopActions(row) {
+    const actions = productionSopActions(can, row.status);
     return (
       <div className="flex flex-wrap justify-end gap-2" onClick={(event) => event.stopPropagation()}>
         <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "sop-detail", value: row })}>View</button>
-        {row.status === "draft" && can("factory_production_sop.edit") ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "sop", value: row })}>Edit</button> : null}
-        {row.status === "draft" && (can("factory_production_sop.edit") || can("factory_production_sop.manage")) ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => activateProductionSop(row)}>Activate</button> : null}
-        {row.status === "draft" && can("factory_production_sop.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => deleteProductionSop(row)}>Delete</button> : null}
-        {row.status === "active" && can("factory_production_sop.create") ? <button className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50" type="button" onClick={() => createProductionSopNewVersion(row)}>New Version</button> : null}
-        {row.status === "active" && can("factory_production_sop.delete") ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => archiveProductionSop(row)}>Archive</button> : null}
-        {row.status === "archived" && can("factory_production_sop.edit") ? <button className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50" type="button" onClick={() => restoreProductionSop(row)}>Restore</button> : null}
+        {actions.edit ? <button className="btn-secondary px-3 py-1.5 text-xs" type="button" onClick={() => setModal({ type: "sop", value: row })}>Edit</button> : null}
+        {actions.activate ? <button className="btn-primary px-3 py-1.5 text-xs" type="button" onClick={() => activateProductionSop(row)}>Activate</button> : null}
+        {actions.deleteDraft ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => deleteProductionSop(row)}>Delete</button> : null}
+        {actions.newVersion ? <button className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50" type="button" onClick={() => createProductionSopNewVersion(row)}>New Version</button> : null}
+        {actions.archive ? <button className="rounded-lg border border-rose-200 px-3 py-1.5 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => archiveProductionSop(row)}>Archive</button> : null}
+        {actions.restore ? <button className="rounded-lg border border-emerald-200 px-3 py-1.5 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50" type="button" onClick={() => restoreProductionSop(row)}>Restore</button> : null}
       </div>
     );
   }
@@ -7055,7 +7056,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           section="Master Data"
           title="Production SOP"
           description="Manage standard process references, product steps and QC checkpoint flags."
-          actions={<div className="flex flex-wrap gap-2">{can("factory_production_sop.manage") ? <button className="btn-secondary" type="button" onClick={() => setModal({ type: "qc-checklist-presets" })}><ClipboardCheck size={15} /> Manage QC Checks</button> : null}{can("factory_production_sop.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "sop" })}><FileText size={15} /> Create SOP</button> : null}</div>}
+          actions={<div className="flex flex-wrap gap-2">{productionSopActions(can, "").manageQcPresets ? <button className="btn-secondary" type="button" onClick={() => setModal({ type: "qc-checklist-presets" })}><ClipboardCheck size={15} /> Manage QC Checks</button> : null}{can("factory_production_sop.create") ? <button className="btn-primary" type="button" onClick={() => setModal({ type: "sop" })}><FileText size={15} /> Create SOP</button> : null}</div>}
         />
         <div className="grid gap-3 md:grid-cols-4">
           <MetricCard icon={ClipboardCheck} label="SOPs" value={data.sops.length} helper="Standard process references" />
