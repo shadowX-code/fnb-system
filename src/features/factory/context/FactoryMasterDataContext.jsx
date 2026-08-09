@@ -14,6 +14,8 @@ export function FactoryMasterDataProvider({ data, children }) {
       rawMaterialCategories: data?.rawMaterialCategories || [],
       productFamilies: data?.productFamilies || [],
       recipes: data?.recipes || [],
+      sops: data?.sops || [],
+      qcChecklistTemplates: data?.qcChecklistTemplates || [],
       receivings: data?.receivings || [],
       productions: data?.productions || [],
       productMovements: data?.productMovements || [],

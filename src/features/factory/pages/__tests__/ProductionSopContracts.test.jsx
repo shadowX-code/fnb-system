@@ -1,6 +1,6 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { ProductionSopBuilderModal, ProductionSopDocumentModal, QcChecklistPresetManagerModal } from "../FactoryWorkspacePage.jsx";
+import { ProductionSopBuilderModal, ProductionSopDocumentModal, QcChecklistPresetManagerModal } from "../../modals/sop/FactoryProductionSopModals.jsx";
 
 const family = { id: "family-1", name_en: "Sambal", name_cn: "叁巴酱", status: "active" };
 const template = { id: "qc-1", name: "Temperature", result_mode: "checklist", description: "Check core temperature", is_active: true };
