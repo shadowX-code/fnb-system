@@ -1,7 +1,9 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { factoryService } from "../../../../services/factoryService.js";
 import { malaysiaBusinessDateInput } from "../../utils/factoryDates.js";
+import { FactoryOperationalJobsProvider } from "../../context/FactoryOperationalJobsContext.jsx";
+import FactoryProductionOverviewPage from "../FactoryProductionOverviewPage.jsx";
 import FactoryWorkspacePage from "../FactoryWorkspacePage.jsx";
 
 const permissions = [
@@ -82,6 +84,13 @@ const data = {
 const auth = { permissions, hasPermission: (key) => permissions.includes(key), profile: { id: "employee-1", nickname: "Isaac" } };
 const ui = { notify: vi.fn() };
 
+function deferred() {
+  let resolve;
+  let reject;
+  const promise = new Promise((nextResolve, nextReject) => { resolve = nextResolve; reject = nextReject; });
+  return { promise, resolve, reject };
+}
+
 function setup(response = data) {
   vi.spyOn(factoryService, "listFactoryData").mockResolvedValue(response);
   vi.spyOn(factoryService, "listFactoryListingPage").mockImplementation(({ listing }) => {
@@ -107,7 +116,7 @@ function setup(response = data) {
   vi.spyOn(factoryService, "getProductionByJobOrder").mockResolvedValue(completedProduction);
 }
 
-afterEach(() => { cleanup(); vi.restoreAllMocks(); });
+afterEach(() => { vi.restoreAllMocks(); });
 
 describe("FactoryWorkspacePage operational route smoke", () => {
   it.each([
@@ -217,6 +226,59 @@ describe("FactoryWorkspacePage operational route smoke", () => {
 
     await waitFor(() => expect(complete).toHaveBeenCalledWith(expect.objectContaining({ job_order_id: inProgressJob.id })));
     await waitFor(() => expect(factoryService.listOperationalJobOrders).toHaveBeenCalledTimes(2));
+  });
+
+  it("mounts the extracted Production Overview page with explicit lifecycle action bridges", async () => {
+    setup();
+    const openJob = vi.fn(); const startJob = vi.fn(); const completeProduction = vi.fn(); const viewCompletedResult = vi.fn();
+    render(<FactoryOperationalJobsProvider route="production-overview" auth={auth} refreshKey="fixture" onPermissionDenied={vi.fn()}><FactoryProductionOverviewPage route="production-overview" auth={auth} openJob={openJob} startJob={startJob} completeProduction={completeProduction} viewCompletedResult={viewCompletedResult} releaseJob={vi.fn()} cancelJob={vi.fn()} /></FactoryOperationalJobsProvider>);
+
+    expect(await screen.findByText(plannedJob.job_order_no)).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Start" }));
+    expect(startJob).toHaveBeenCalledWith(job);
+    fireEvent.click(screen.getByRole("button", { name: "Complete Production" }));
+    expect(completeProduction).toHaveBeenCalledWith(inProgressJob);
+    fireEvent.click(screen.getByRole("button", { name: "View Result" }));
+    expect(viewCompletedResult).toHaveBeenCalledWith(completedJob.id);
+    fireEvent.click(screen.getAllByRole("button", { name: "View" })[0]);
+    expect(openJob).toHaveBeenCalledWith(plannedJob, { readOnly: true });
+  });
+
+  it("uses the shared operational model for the Production Records queue and retry", async () => {
+    setup();
+    render(<FactoryWorkspacePage initialTab="production" auth={auth} ui={ui} />);
+    expect((await screen.findAllByText(job.job_order_no)).length).toBeGreaterThan(0);
+    expect(factoryService.listOperationalJobOrders).toHaveBeenCalledTimes(1);
+  });
+
+  it("renders the existing Production Records loading state from the shared operational model", async () => {
+    setup();
+    const pending = deferred();
+    factoryService.listOperationalJobOrders.mockImplementation(() => pending.promise);
+    render(<FactoryWorkspacePage initialTab="production" auth={auth} ui={ui} />);
+    expect(await screen.findByText("Loading operational Job Orders…")).not.toBeNull();
+    expect(screen.getByText("Loading production queue")).not.toBeNull();
+    pending.resolve({ jobs: [], productions: [], summary: {} });
+  });
+
+  it("retries the shared Production Records read model after an ordinary error", async () => {
+    setup();
+    factoryService.listOperationalJobOrders.mockRejectedValueOnce(new Error("temporary")).mockResolvedValueOnce({ jobs: [job], productions: [], summary: { released: 1 } });
+    render(<FactoryWorkspacePage initialTab="production" auth={auth} ui={ui} />);
+    expect(await screen.findByText("Unable to load operational Job Orders. The production queue is unavailable.")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Retry" }));
+    await waitFor(() => expect(factoryService.listOperationalJobOrders).toHaveBeenCalledTimes(2));
+    expect((await screen.findAllByText(job.job_order_no)).length).toBeGreaterThan(0);
+  });
+
+  it("clears protected Production Records queue data on shared-model permission denial", async () => {
+    setup();
+    factoryService.listOperationalJobOrders.mockRejectedValue({ code: "42501" });
+    render(<FactoryWorkspacePage initialTab="production" auth={auth} ui={ui} />);
+    expect(await screen.findByText("Unable to load operational Job Orders. The production queue is unavailable.")).not.toBeNull();
+    expect(screen.queryByText(job.job_order_no)).toBeNull();
+    expect(screen.queryByRole("button", { name: "Start" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Complete" })).toBeNull();
   });
 
   it("keeps lifecycle controls absent for a view-only operational user", async () => {

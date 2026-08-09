@@ -18,6 +18,7 @@ import FactoryFinishedGoodsPage from "./FactoryFinishedGoodsPage.jsx";
 import FactoryRawMaterialInventoryPage from "./FactoryRawMaterialInventoryPage.jsx";
 import FactoryProductRecipesPage from "./FactoryProductRecipesPage.jsx";
 import FactoryProductionSopPage from "./FactoryProductionSopPage.jsx";
+import FactoryProductionOverviewPage from "./FactoryProductionOverviewPage.jsx";
 import FactoryBatchTraceabilityPage from "./FactoryBatchTraceabilityPage.jsx";
 import { activeRecipeForSku, finishedGoodParentKey, inheritedRecipeUom, packagingProductionPlan } from "../utils/productionPlanning.js";
 import { productionSopDisplayName } from "../utils/productionSop.js";
@@ -40,6 +41,7 @@ import FactoryRawMaterialMovementsPage from "./FactoryRawMaterialMovementsPage.j
 import { FactoryMasterDataProvider } from "../context/FactoryMasterDataContext.jsx";
 import { FactoryNavigationProvider } from "../context/FactoryNavigationContext.jsx";
 import { FactoryPermissionsProvider } from "../context/FactoryPermissionsContext.jsx";
+import { FactoryOperationalJobsProvider } from "../context/FactoryOperationalJobsContext.jsx";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import Card from "../../../components/ui/Card.jsx";
@@ -53,7 +55,6 @@ import { compactCompare, dispatchLineBaseEquivalentLabel, dispatchTotalLabel, le
 import { operatorFinishedGoodBatchNo, productionBatchReference, productionJobOrderReference } from "../utils/factoryReferences.js";
 import { uniqueReceivingBatchPreview } from "../utils/factoryNumbers.js";
 import { isFactoryPermissionError } from "../utils/factoryPermissions.js";
-import { emptyProductionOverviewState, loadProductionOverview, operationalJobOrdersRequest, shouldLoadProductionOverview } from "../utils/productionOverviewQuery.js";
 import { jobPriorityTone, jobStatusLabel, rawMovementTypeMeta, statusTone } from "../utils/factoryStatus.js";
 import { costDisplay, costVarianceInfo, latestReceivingCostInfo, productionCost, productionCostInfo, recipeCostInfo, usageUnitCost, usageUnitCostInfo } from "../utils/factoryCosting.js";
 
@@ -3892,8 +3893,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const [rawMovementReferenceLoading, setRawMovementReferenceLoading] = useState("");
   const [batchTraceabilityDispatchLoading, setBatchTraceabilityDispatchLoading] = useState("");
   const [auditReferenceLoading, setAuditReferenceLoading] = useState("");
-  const [operationalJobs, setOperationalJobs] = useState(emptyProductionOverviewState);
-  const operationalJobsRequestRef = useRef(0);
   const factoryDataRequestRef = useRef(0);
   const factoryDataAbortRef = useRef(null);
   const dispatchMutationRef = useRef(new Set());
@@ -4018,20 +4017,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     );
   }
 
-  async function loadOperationalJobs() {
-    if (!shouldLoadProductionOverview(initialTab)) return;
-    const requestId = operationalJobsRequestRef.current + 1;
-    operationalJobsRequestRef.current = requestId;
-    return loadProductionOverview({
-      getOperationalJobs: () => factoryService.listOperationalJobOrders(operationalJobOrdersRequest({ date: malaysiaBusinessDateInput(), can })),
-      isCurrent: () => operationalJobsRequestRef.current === requestId,
-      setState: setOperationalJobs,
-      isPermissionError: isFactoryPermissionError,
-      onPermissionDenied: () => setModal(null),
-      onError: (error) => console.error("[Factory] Unable to load operational Job Orders.", error),
-    });
-  }
-
   async function loadData({ silent = false } = {}) {
     factoryDataAbortRef.current?.abort();
     const controller = new AbortController();
@@ -4039,7 +4024,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const requestId = factoryDataRequestRef.current + 1;
     factoryDataRequestRef.current = requestId;
     setLoading(true);
-    const operationalLoad = shouldLoadProductionOverview(initialTab) ? loadOperationalJobs() : Promise.resolve();
+    const operationalLoad = Promise.resolve();
     let refreshSucceeded = true;
     try {
       const nextData = await factoryService.listFactoryData({
@@ -4099,7 +4084,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }, [factoryListingPage.errorKind, serverListing]);
 
   useEffect(() => () => {
-    operationalJobsRequestRef.current += 1;
     factoryDataRequestRef.current += 1;
     factoryDataAbortRef.current?.abort();
   }, []);
@@ -5747,240 +5731,6 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
       .slice(0, 8);
   }, [data.jobOrders, data.productions, data.productStockChecks, data.rawStockChecks, data.receivings]);
 
-  function renderProductionOverview() {
-    const operationalJobRows = operationalJobs.hasLoaded ? operationalJobs.jobs : [];
-    const completedTodayProductions = operationalJobs.hasLoaded ? operationalJobs.productions : [];
-    const productionByJobId = new Map(completedTodayProductions.map((production) => [production.job_order_id, production]));
-    const outputTodayLabel = aggregateProductionOutput(operationalJobs.summary.outputByUom || []);
-    const scheduledBoardJobs = operationalJobRows.filter((job) => job.status === "planned");
-    const releasedBoardJobs = operationalJobRows.filter((job) => job.status === "released");
-    const inProgressBoardJobs = operationalJobRows.filter((job) => job.status === "in_progress");
-    const completedBoardJobs = operationalJobRows.filter((job) => job.status === "completed");
-    const completionRate = Number(operationalJobs.summary.completionRate || 0);
-    const jobById = new Map(operationalJobRows.map((job) => [job.id, job]));
-    const startedActivities = operationalJobRows.filter((job) => job.production_date && job.start_time).map((job) => {
-      const production = productionByJobId.get(job.id);
-      return {
-        id: `start-${job.id}`,
-        ...factoryActivityDateTime(job.production_date, job.start_time, job.started_at),
-        label: "Production Started",
-        product: productionActivityFinishedGood(job, production),
-        reference: productionActivityReference(job, production),
-        operator: productionActivityOperator(job.production_operator_name),
-        result: "Started",
-        tone: "warning",
-      };
-    });
-    const completedActivities = completedTodayProductions.map((production) => {
-      const job = jobById.get(production.job_order_id);
-      return {
-        id: `complete-${production.id}`,
-        ...factoryActivityDateTime(production.end_date, production.end_time, production.completed_at || production.created_at),
-        label: "Production Completed",
-        product: productionActivityFinishedGood(job, production),
-        reference: productionActivityReference(job, production),
-        operator: productionActivityOperator(production.operator_name || job?.production_operator_name),
-        result: "Completed",
-        tone: "success",
-      };
-    });
-    const qcActivities = operationalJobRows.flatMap((job) => {
-      const checks = (job.step_executions || []).flatMap((step) => step.qc_results || []);
-      const recordedChecks = checks.filter((check) => check.checked_at);
-      if (!recordedChecks.length) return [];
-      const latestCheck = recordedChecks.reduce((latest, check) => new Date(check.checked_at).getTime() > new Date(latest.checked_at).getTime() ? check : latest);
-      const qcState = productionQcStatus(checks);
-      const production = productionByJobId.get(job.id);
-      return [{
-        id: `qc-${job.id}-${latestCheck.id}`,
-        ...factoryActivityDateTime("", "", latestCheck.checked_at),
-        label: qcState.status === "Failed" ? "QC Failed" : "QC Check",
-        product: productionActivityFinishedGood(job, production),
-        reference: productionActivityReference(job, production),
-        operator: productionActivityOperator(latestCheck.checked_by_name || job.production_operator_name),
-        result: qcState.status === "Failed" ? "Failed" : qcState.requiredTotal ? `${qcState.requiredCompleted}/${qcState.requiredTotal} Passed` : "Passed",
-        tone: qcState.status === "Failed" ? "danger" : qcState.status === "Passed" ? "success" : "warning",
-      }];
-    });
-    const productionActivity = [...startedActivities, ...completedActivities, ...qcActivities]
-      .filter((activity) => activity.sortValue > 0)
-      .sort((a, b) => b.sortValue - a.sortValue || b.id.localeCompare(a.id))
-      .slice(0, 8);
-    const productionActivityColumns = [
-      { key: "date_time", label: "Date / Time", render: (row) => <div className="whitespace-nowrap"><div className="font-semibold text-text-primary">{row.dateLabel}</div><div className="text-xs text-text-muted">{row.timeLabel}</div></div> },
-      { key: "event", label: "Event", render: (row) => <div className="font-semibold text-text-primary">{row.label}</div> },
-      { key: "finished_good", label: "Finished Good", render: (row) => <div className="min-w-[180px] font-bold text-text-primary">{row.product}</div> },
-      { key: "reference", label: "Reference", render: (row) => <div className="whitespace-nowrap font-mono text-xs font-bold text-text-secondary">{row.reference}</div> },
-      { key: "operator", label: "Operator", render: (row) => <div><div className="font-semibold text-text-primary">{row.operator.name}</div>{row.operator.helper ? <div className="text-xs text-text-muted">{row.operator.helper}</div> : null}</div> },
-      { key: "result", label: "Result", render: (row) => <Badge tone={row.tone}>{row.result}</Badge> },
-    ];
-    const overviewCards = [
-      { label: "Scheduled", value: operationalJobs.hasLoaded ? Number(operationalJobs.summary.scheduled || 0) : "—", helper: "Scheduled for future production", tone: "border-slate-200 bg-white text-text-primary" },
-      { label: "Released", value: operationalJobs.hasLoaded ? Number(operationalJobs.summary.released || 0) : "—", helper: "Ready to start", tone: "border-blue-200 bg-blue-50 text-blue-800" },
-      { label: "In Progress", value: operationalJobs.hasLoaded ? Number(operationalJobs.summary.inProgress || 0) : "—", helper: "Currently running", tone: "border-amber-200 bg-amber-50 text-amber-800" },
-      { label: "Completed Today", value: operationalJobs.hasLoaded ? Number(operationalJobs.summary.completedToday || 0) : "—", helper: "Finished today", tone: "border-emerald-200 bg-emerald-50 text-emerald-800" },
-      { label: "Output Today", value: operationalJobs.hasLoaded ? outputTodayLabel : "—", helper: "Total kg/L produced today", tone: "border-slate-200 bg-white text-text-primary" },
-      { label: "Completion Rate", value: operationalJobs.hasLoaded ? percent(completionRate) : "—", helper: "Completed vs planned", tone: "border-primary/20 bg-primary/5 text-primary" },
-    ];
-    const boardColumns = [
-      { key: "scheduled", title: "Schedule", helper: "Scheduled for future production", jobs: scheduledBoardJobs, accent: "border-slate-200 bg-slate-50", badge: "neutral" },
-      { key: "released", title: "Released", helper: "Ready to start", jobs: releasedBoardJobs, accent: "border-blue-200 bg-blue-50", badge: "info" },
-      { key: "in_progress", title: "In Progress", helper: "Currently running", jobs: inProgressBoardJobs, accent: "border-amber-200 bg-amber-50", badge: "warning" },
-      { key: "completed", title: "Completed Today", helper: "Finished today", jobs: completedBoardJobs, accent: "border-emerald-200 bg-emerald-50", badge: "success" },
-    ];
-    const renderBoardAction = (job) => {
-      if (job.status === "planned") {
-        return <div className="grid grid-cols-2 gap-2">
-          {can("factory_job_orders.edit") ? <button className="btn-primary justify-center px-3 py-2 text-xs" type="button" onClick={() => releaseJobOrder(job)}>Release</button> : null}
-          {can("factory_job_orders.edit") ? <button className="btn-secondary justify-center px-3 py-2 text-xs" type="button" onClick={() => setModal({ type: "job", value: job, readOnly: false })}>Edit</button> : null}
-          <button className="btn-secondary justify-center px-3 py-2 text-xs" type="button" onClick={() => setModal({ type: "job", value: job, readOnly: true })}>View</button>
-          {can("factory_job_orders.cancel") ? <button className="rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => cancelJobOrder(job)}>Cancel</button> : null}
-        </div>;
-      }
-      if (job.status === "released") {
-        return <div className="grid grid-cols-2 gap-2">
-          {can("factory_production.complete") ? <button className="btn-primary justify-center px-3 py-2 text-xs" type="button" onClick={() => setModal({ type: "start-production", job })}><Play size={13} /> Start</button> : null}
-          <button className="btn-secondary justify-center px-3 py-2 text-xs" type="button" onClick={() => setModal({ type: "job", value: job, readOnly: true })}>View</button>
-          {can("factory_job_orders.cancel") ? <button className="col-span-2 rounded-lg border border-rose-200 px-3 py-2 text-xs font-semibold text-rose-700 transition hover:bg-rose-50" type="button" onClick={() => cancelJobOrder(job)}>Cancel</button> : null}
-        </div>;
-      }
-      if (job.status === "in_progress" && can("factory_production.complete")) {
-        return <div className="grid grid-cols-2 gap-2"><button className="btn-secondary justify-center px-3 py-2 text-xs" type="button" onClick={() => setModal({ type: "production-process", job, readOnly: false })}>View Process</button><button className="btn-primary justify-center px-3 py-2 text-xs" type="button" onClick={() => setModal({ type: "production", job })}>Complete Production</button></div>;
-      }
-      if (job.status === "in_progress" && can("factory_production.view")) {
-        return <button className="btn-secondary w-full justify-center px-3 py-2 text-xs" type="button" onClick={() => setModal({ type: "production-process", job, readOnly: true })}>View Process</button>;
-      }
-      if (job.status === "completed") {
-        return <button className="btn-secondary w-full justify-center px-3 py-2 text-xs" type="button" onClick={() => viewCompletedJobOrder(job)}>View Result</button>;
-      }
-      return null;
-    };
-    const renderJobCard = (job, columnKey) => {
-      const progress = jobProgressPercent(job);
-      const production = productionByJobId.get(job.id);
-      return (
-        <div key={job.id} className="rounded-2xl border border-border bg-white p-4 shadow-sm">
-          <div className="flex items-start justify-between gap-3">
-            <div className="min-w-0 flex-1">
-              <div className="line-clamp-2 text-base font-black leading-5 text-text-primary">{jobFinishedGoodName(job)}</div>
-              <div className="mt-1 line-clamp-2 text-xs font-semibold leading-4 text-text-secondary">{jobPackagingSkuLabel(job)}</div>
-              <div className="mt-2 font-mono text-[11px] font-bold text-text-muted">{job.job_order_no}</div>
-            </div>
-            <div className="flex shrink-0 flex-col items-end gap-1.5">
-              <Badge tone={statusTone(job.status)}>{jobStatusLabel(job.status)}</Badge>
-              <Badge tone={jobPriorityTone(job.priority)}>{job.priority || "Normal"}</Badge>
-            </div>
-          </div>
-          {columnKey === "in_progress" ? <div className="mt-3 flex items-center justify-between gap-2 rounded-xl border border-border px-3 py-2"><span className="text-xs font-semibold text-text-muted">Production QC</span><Badge tone={productionQcTone(jobProductionQcState(job).status)}>{productionQcDisplayLabel(jobProductionQcState(job).status)}</Badge></div> : null}
-          <div className="mt-3 grid grid-cols-2 gap-2 text-xs font-semibold">
-            <div className="rounded-xl border border-border px-3 py-2">
-              <div className="text-text-muted">Target Production</div>
-              <div className="mt-1 text-sm font-black text-text-primary">{quantity(job.target_production_qty || job.target_quantity, job.uom)}</div>
-            </div>
-            {columnKey === "completed" ? (
-              <div className="rounded-xl border border-border px-3 py-2">
-                <div className="text-text-muted">Output Qty</div>
-                <div className="mt-1 text-sm font-black text-text-primary">{production ? productionOutputLabel(production) : quantity(job.produced_quantity || job.target_production_qty || job.target_quantity, job.uom)}</div>
-              </div>
-            ) : columnKey === "in_progress" ? (
-              <div className="rounded-xl border border-border px-3 py-2">
-                <div className="text-text-muted">Started</div>
-                <div className="mt-1 text-sm font-black text-text-primary">{job.production_date && job.start_time ? `${formatFactoryDate(job.production_date)} · ${factoryTimeAmPmLabel(job.start_time)}` : "—"}</div>
-              </div>
-            ) : columnKey === "scheduled" ? (
-              <div className="rounded-xl border border-border px-3 py-2">
-                <div className="text-text-muted">Scheduled Date</div>
-                <div className="mt-1 text-sm font-black text-text-primary">{formatFactoryDate(job.planned_date)}</div>
-              </div>
-            ) : (
-              <div className="rounded-xl border border-border px-3 py-2">
-                <div className="text-text-muted">Scheduled Date</div>
-                <div className="mt-1 text-sm font-black text-blue-700">{formatFactoryDate(job.planned_date)}</div>
-              </div>
-            )}
-          </div>
-          {columnKey === "completed" ? (
-            <div className="mt-3 text-xs font-semibold text-text-secondary">Completed {factoryTimeLabel(job.completed_at || production?.completed_at || production?.end_time)}</div>
-          ) : (
-            <div className="mt-3">
-              <div className="flex items-center justify-between text-xs font-bold text-text-secondary">
-                <span>Progress</span>
-                <span>{progress}%</span>
-              </div>
-              <div className="mt-1.5 h-2 rounded-full bg-slate-100">
-                <div className={`h-full rounded-full ${progressToneClass(progress)}`} style={{ width: `${progress}%` }} />
-              </div>
-            </div>
-          )}
-          <div className="mt-3">{renderBoardAction(job)}</div>
-        </div>
-      );
-    };
-
-    return (
-      <div className="space-y-5">
-        <PageHeader
-          section="Factory"
-          title="Production Overview"
-          description="Monitor, release, start and complete factory production from one operational board."
-        />
-        {operationalJobs.error ? (
-          <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
-            <div className="flex items-start gap-2"><AlertTriangle className="mt-0.5 shrink-0" size={16} /><span>{operationalJobs.errorKind === "permission" ? operationalJobs.error : operationalJobs.hasLoaded ? "Unable to refresh operational Job Orders. Showing the last successfully loaded pipeline." : "Unable to load operational Job Orders. The production pipeline is unavailable."}</span></div>
-            <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={operationalJobs.loading} onClick={loadOperationalJobs}>Retry</button>
-          </div>
-        ) : operationalJobs.loading ? (
-          <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-800">{operationalJobs.hasLoaded ? "Refreshing operational Job Orders…" : "Loading operational Job Orders…"}</div>
-        ) : null}
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3 2xl:grid-cols-6">
-          {overviewCards.map((card) => (
-            <div key={card.label} className={`rounded-2xl border p-4 shadow-sm ${card.tone}`}>
-              <div className="text-[11px] font-bold uppercase tracking-[0.08em] opacity-80">{card.label}</div>
-              <div className="mt-2 text-3xl font-black">{card.value}</div>
-              <div className="mt-1 text-sm font-semibold opacity-85">{card.helper}</div>
-            </div>
-          ))}
-        </div>
-        <Card title="Production Pipeline" description="Schedule, release, execute and complete Factory production in lifecycle order.">
-            {!operationalJobs.hasLoaded ? (
-              <div className="p-4"><EmptyState title={operationalJobs.error ? "Production pipeline unavailable" : "Loading production pipeline"} description={operationalJobs.error ? "Retry the operational Job Order query before continuing production work." : "Loading Scheduled, Released, In Progress and today’s Completed Job Orders."} /></div>
-            ) : <div className="overflow-x-auto p-4"><div className="grid min-w-[1120px] grid-cols-4 gap-4">
-              {boardColumns.map((column) => (
-                <div key={column.key} className={`rounded-2xl border p-3 ${column.accent}`}>
-                  <div className="mb-3 flex items-center justify-between gap-3">
-                    <div>
-                      <div className="text-sm font-black text-text-primary">{column.title}</div>
-                      <div className="text-xs font-semibold text-text-secondary">{column.helper}</div>
-                    </div>
-                    <Badge tone={column.badge}>{column.jobs.length}</Badge>
-                  </div>
-                  <div className="space-y-3">
-                    {column.jobs.length ? column.jobs.map((job) => renderJobCard(job, column.key)) : (
-                      <div className="rounded-2xl border border-dashed border-border bg-white/80 px-3 py-6 text-center text-sm font-semibold text-text-secondary">
-                        No {column.title.toLowerCase()} jobs.
-                      </div>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div></div>}
-        </Card>
-        <Card title="Recent Production Activity" description="Latest production starts, meaningful QC updates and completed output.">
-          {!operationalJobs.hasLoaded ? (
-            <div className="p-4"><EmptyState title={operationalJobs.error ? "Production activity unavailable" : "Loading production activity"} description="Operational activity appears after the complete pipeline loads." /></div>
-          ) : (
-            <FactoryTable
-              columns={productionActivityColumns}
-              rows={productionActivity}
-              emptyTitle="No production activity"
-              emptyDescription="Production starts, QC updates and completed output will appear here."
-            />
-          )}
-        </Card>
-      </div>
-    );
-  }
-
   function renderJobOrders() {
     const rows = currentListingRows("job-orders", []);
     const hasFilters = Object.values(jobOrderFilters).some(Boolean);
@@ -6162,7 +5912,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     );
   }
 
-  function renderProduction() {
+  function renderProduction(operationalJobs) {
     const recipeForJob = (job) => activeRecipeForSku(data.recipes, job.finished_good || job, job.product_name);
     const sopForJob = (job) => data.sops.find((sop) => sop.status !== "inactive" && sop.product_name.toLowerCase() === String(job.product_name || "").toLowerCase());
     const readinessForJob = (job) => {
@@ -6214,7 +5964,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
         {operationalJobs.error ? (
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-900">
             <div className="flex items-start gap-2"><AlertTriangle className="mt-0.5 shrink-0" size={16} /><span>{operationalJobs.hasLoaded ? "Unable to refresh operational Job Orders. Showing the last successfully loaded queue." : "Unable to load operational Job Orders. The production queue is unavailable."}</span></div>
-            <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={operationalJobs.loading} onClick={loadOperationalJobs}>Retry</button>
+            <button className="btn-secondary px-3 py-1.5 text-xs" type="button" disabled={operationalJobs.loading} onClick={operationalJobs.retry}>Retry</button>
           </div>
         ) : operationalJobs.loading ? (
           <div className="rounded-2xl border border-sky-200 bg-sky-50 px-4 py-3 text-sm font-semibold text-sky-800">{operationalJobs.hasLoaded ? "Refreshing operational Job Orders…" : "Loading operational Job Orders…"}</div>
@@ -6651,8 +6401,10 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
           deleteQcChecklistTemplate={deleteQcChecklistTemplate}
         >
           <>
+      <FactoryOperationalJobsProvider route={initialTab} auth={auth} refreshKey={data} onPermissionDenied={() => setModal(null)}>{(operationalJobs) => <>
       <AccessIssueNotice issues={data.accessIssues} onRetry={() => loadData()} />
-      {initialTab === "production-overview" ? renderProductionOverview() : initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-inventory" ? <FactoryRawMaterialInventoryPage /> : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-movements" ? renderRawMaterialMovements() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction() : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? <FactoryBatchTraceabilityPage onNotify={ui?.notify} /> : initialTab === "finished-goods" ? <FactoryFinishedGoodsPage /> : initialTab === "production-planning" ? <FactoryProductionPlanningPage onNotify={ui?.notify} onPermissionDenied={clearPlanningPermission} /> : initialTab === "finished-goods-dispatch" ? renderFinishedGoodsDispatch() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? <FactoryProductRecipesPage /> : initialTab === "production-sop" ? <FactoryProductionSopPage /> : initialTab === "audit-logs" ? <FactoryAuditTrailPage onNotify={ui?.notify} /> : initialTab === "storage-locations" ? <FactoryStorageLocationsPage /> : initialTab === "suppliers" ? <FactorySuppliersPage /> : initialTab === "customers" ? <FactoryCustomersPage /> : <FactoryDashboardPage onRefreshFactoryData={loadData} />}
+      {initialTab === "production-overview" ? <FactoryProductionOverviewPage route={initialTab} auth={auth} openJob={(job, options) => setModal({ type: "job", value: job, readOnly: options?.readOnly })} startJob={(job) => setModal({ type: "start-production", job })} completeProduction={(job, options) => setModal(options?.processOnly ? { type: "production-process", job, readOnly: Boolean(options.readOnly) } : { type: "production", job })} viewCompletedResult={viewCompletedJobOrder} releaseJob={releaseJobOrder} cancelJob={cancelJobOrder} /> : initialTab === "job-orders" ? renderJobOrders() : initialTab === "raw-inventory" ? <FactoryRawMaterialInventoryPage /> : initialTab === "raw-receiving" ? renderRawReceiving() : initialTab === "raw-movements" ? renderRawMaterialMovements() : initialTab === "raw-stock-check" ? renderRawStockCheck() : initialTab === "production" ? renderProduction(operationalJobs) : initialTab === "reports" ? renderReports() : initialTab === "batch-traceability" ? <FactoryBatchTraceabilityPage onNotify={ui?.notify} /> : initialTab === "finished-goods" ? <FactoryFinishedGoodsPage /> : initialTab === "production-planning" ? <FactoryProductionPlanningPage onNotify={ui?.notify} onPermissionDenied={clearPlanningPermission} /> : initialTab === "finished-goods-dispatch" ? renderFinishedGoodsDispatch() : initialTab === "product-movements" ? renderProductMovements() : initialTab === "product-stock-check" ? renderProductStockCheck() : initialTab === "product-recipes" ? <FactoryProductRecipesPage /> : initialTab === "production-sop" ? <FactoryProductionSopPage /> : initialTab === "audit-logs" ? <FactoryAuditTrailPage onNotify={ui?.notify} /> : initialTab === "storage-locations" ? <FactoryStorageLocationsPage /> : initialTab === "suppliers" ? <FactorySuppliersPage /> : initialTab === "customers" ? <FactoryCustomersPage /> : <FactoryDashboardPage onRefreshFactoryData={loadData} />}
+      </>}</FactoryOperationalJobsProvider>
       {modal?.type === "job" ? (
         <JobOrderModal
           initialValue={modal.value}
