@@ -2668,7 +2668,7 @@ function buildInitialUsageRows(job, rawMaterials, recipes) {
   return [];
 }
 
-function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods = [], rawMaterials, receivings = [], onClose, onSave }) {
+export function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods = [], rawMaterials, receivings = [], onClose, onSave }) {
   const legacyFinishedGood = finishedGoods.find((product) => product.id === initialValue?.finished_good_id);
   const initialProductFamilyId = initialValue?.product_family_id || legacyFinishedGood?.product_family_id || "";
   const [form, setForm] = useState(() => ({
@@ -2985,7 +2985,7 @@ function ProductRecipeModal({ initialValue, productFamilies = [], finishedGoods 
   );
 }
 
-function ProductRecipeDetailModal({ recipe, receivings = [], onClose }) {
+export function ProductRecipeDetailModal({ recipe, receivings = [], onClose }) {
   const finishedGoodName = recipe.product_name_en || recipe.product_name || "Finished Good";
   const finishedGoodCn = recipe.product_name_cn || "";
   const recipeCost = recipeCostInfo(recipe, receivings);

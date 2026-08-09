@@ -30,9 +30,15 @@ describe("Factory permission action presentation", () => {
   });
 
   it("keeps Draft Delete separate from Active Archive for Product Recipes", () => {
+    const viewOnly = canWith(["factory_product_recipes.view"]);
+    const creator = canWith(["factory_product_recipes.create"]);
     const deleteOnly = canWith(["factory_product_recipes.delete"]);
     const editor = canWith(["factory_product_recipes.edit"]);
     const manager = canWith(["factory_product_recipes.manage"]);
+    expect(viewOnly("factory_product_recipes.view")).toBe(true);
+    expect(viewOnly("factory_product_recipes.create")).toBe(false);
+    expect(creator("factory_product_recipes.create")).toBe(true);
+    expect(creator("factory_product_recipes.manage")).toBe(false);
     expect(canDeleteDraftProductRecipe(deleteOnly)).toBe(true);
     expect(canArchiveActiveProductRecipe(deleteOnly)).toBe(false);
     expect(canArchiveActiveProductRecipe(editor)).toBe(true);
