@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { factoryService } from "../../../../services/factoryService.js";
+import { malaysiaBusinessDateInput } from "../../utils/factoryDates.js";
 import FactoryWorkspacePage from "../FactoryWorkspacePage.jsx";
 
 const permissions = [
@@ -15,6 +16,15 @@ const job = {
   id: "job-1", job_order_no: "JO260809-01", status: "released", planned_date: "2026-08-09", production_date: "2026-08-09",
   finished_good_id: "sku-1", finished_good_name: "Sambal", product_name: "Sambal", product_code: "SKU-1",
   target_production_qty: 10, target_quantity: 10, uom: "kg", priority: "Normal", production_qc_status: "pending",
+};
+
+const plannedJob = {
+  ...job,
+  id: "job-0",
+  job_order_no: "JO260809-00",
+  status: "planned",
+  planned_date: "2026-08-10",
+  priority: "High",
 };
 
 const inProgressJob = {
@@ -60,7 +70,7 @@ const rawStockCheck = { id: "rm-check-1", check_no: "RMSC-260809-01", status: "s
 const productStockCheck = { id: "fg-check-1", check_no: "FGSC260809-01", status: "submitted", created_at: "2026-08-09T10:00:00+08:00", items: [{ id: "fg-check-item-1", product_name: "Sambal", system_qty: 10, physical_qty: 9, variance_qty: -1, variance_status: "Variance", count_status: "counted" }] };
 
 const data = {
-  jobOrders: [job, inProgressJob, completedJob], rawMaterials: [{ id: "rm-1", name: "Chili", name_en: "Chili", material_code: "CHI", uom: "kg", current_balance: 8, status: "active" }],
+  jobOrders: [plannedJob, job, inProgressJob, completedJob], rawMaterials: [{ id: "rm-1", name: "Chili", name_en: "Chili", material_code: "CHI", uom: "kg", current_balance: 8, status: "active" }],
   rawMaterialCategories: [], rawMaterialMovements: [], receivings: [receiving], receivingBatches: [receiving],
   factorySuppliers: [{ id: "supplier-1", name: "Spice Supply" }], factoryCustomers: [{ id: "customer-1", name: "Outlet A" }], storageLocations: [{ id: "storage-1", name: "Dry Store A" }],
   productions: [completedProduction], finishedGoods: [{ id: "sku-1", product_name: "Sambal", product_family_name: "Sambal", product_code: "SKU-1", pack_size_qty: 500, pack_size_uom: "g", current_balance: 10, status: "active" }],
@@ -86,11 +96,15 @@ function setup(response = data) {
     const result = listings[listing] || { rows: [], summary: {}, totalCount: 0 };
     return Promise.resolve({ ...result, page: 1, pageSize: 20 });
   });
-  vi.spyOn(factoryService, "listOperationalJobOrders").mockResolvedValue({ jobs: [job, inProgressJob, completedJob], productions: [completedProduction], summary: { scheduled: 0, released: 1, inProgress: 1, completedToday: 1, outputByUom: [{ quantity: 9, uom: "kg" }], completionRate: 100 } });
+  vi.spyOn(factoryService, "listOperationalJobOrders").mockResolvedValue({ jobs: [plannedJob, job, inProgressJob, completedJob], productions: [completedProduction], summary: { scheduled: 1, released: 1, inProgress: 1, completedToday: 1, outputByUom: [{ quantity: 9, uom: "kg" }], completionRate: 100 } });
   vi.spyOn(factoryService, "getRawMaterialReceivingNoPreview").mockResolvedValue("R260809-02");
   vi.spyOn(factoryService, "getFinishedGoodDispatchNoPreview").mockResolvedValue("D260809-02");
   vi.spyOn(factoryService, "getStockCheckNoPreview").mockResolvedValue("RMSC-260809-02");
   vi.spyOn(factoryService, "getFinishedGoodInventoryReconciliation").mockResolvedValue([]);
+  vi.spyOn(factoryService, "getProductionExecution").mockResolvedValue({ steps: [], snapshotCreatedAt: "", sopId: "", sopVersion: "" });
+  vi.spyOn(factoryService, "getRawMaterialBatchAvailability").mockResolvedValue([{ batch_balance_id: "batch-balance-1", raw_material_id: "rm-1", internal_batch_no: "RB260809-01", available_qty: 8, uom: "kg" }]);
+  vi.spyOn(factoryService, "getProductionBatchNoPreview").mockResolvedValue("PB260809-02");
+  vi.spyOn(factoryService, "getProductionByJobOrder").mockResolvedValue(completedProduction);
 }
 
 afterEach(() => { cleanup(); vi.restoreAllMocks(); });
@@ -121,6 +135,88 @@ describe("FactoryWorkspacePage operational route smoke", () => {
     fireEvent.click(screen.getByRole("button", { name: "Start Production" }));
 
     await waitFor(() => expect(start).toHaveBeenCalledWith(job, expect.objectContaining({ production_date: expect.any(String) }), auth.profile));
+    await waitFor(() => expect(factoryService.listOperationalJobOrders).toHaveBeenCalledTimes(2));
+  });
+
+  it("uses the Malaysia business date and production visibility semantics for the operational query", async () => {
+    setup();
+    render(<FactoryWorkspacePage initialTab="production-overview" auth={auth} ui={ui} />);
+
+    await waitFor(() => expect(factoryService.listOperationalJobOrders).toHaveBeenCalledWith({
+      date: malaysiaBusinessDateInput(),
+      includeProductions: true,
+    }));
+  });
+
+  it("does not request operational jobs for unrelated Factory routes", async () => {
+    setup();
+    render(<FactoryWorkspacePage initialTab="raw-receiving" auth={auth} ui={ui} />);
+    await screen.findByText("Raw Material Receiving");
+    expect(factoryService.listOperationalJobOrders).not.toHaveBeenCalled();
+  });
+
+  it("keeps production data optional when the current permission semantics do not grant production visibility", async () => {
+    setup();
+    const jobsOnly = { permissions: ["factory_job_orders.view"], hasPermission: (key) => key === "factory_job_orders.view" };
+    render(<FactoryWorkspacePage initialTab="production-overview" auth={jobsOnly} ui={ui} />);
+
+    await waitFor(() => expect(factoryService.listOperationalJobOrders).toHaveBeenCalledWith({
+      date: malaysiaBusinessDateInput(),
+      includeProductions: false,
+    }));
+  });
+
+  it("renders representative scheduled, released, in-progress, and completed board cards from operational data", async () => {
+    setup();
+    render(<FactoryWorkspacePage initialTab="production-overview" auth={auth} ui={ui} />);
+
+    for (const jobOrderNo of [plannedJob.job_order_no, job.job_order_no, inProgressJob.job_order_no, completedJob.job_order_no]) {
+      expect((await screen.findAllByText(jobOrderNo)).length).toBeGreaterThan(0);
+    }
+    expect(screen.getAllByText("Sambal").length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/Packaging SKU/).length).toBeGreaterThan(0);
+    expect(screen.getAllByText(/10 kg/).length).toBeGreaterThan(0);
+    expect(screen.getByText("High")).not.toBeNull();
+    expect(screen.getByText("Production QC")).not.toBeNull();
+    expect(screen.getByText("No QC Required")).not.toBeNull();
+    expect(screen.getByText("PB260809-01")).not.toBeNull();
+    expect(screen.getByText("Output Qty")).not.toBeNull();
+  });
+
+  it("routes board actions into the workspace-owned Start, Complete, Result, and Job modal callbacks", async () => {
+    setup();
+    render(<FactoryWorkspacePage initialTab="production-overview" auth={auth} ui={ui} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Start" }));
+    expect(screen.getByRole("heading", { name: "Start Production" })).not.toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "×" }).at(-1));
+
+    fireEvent.click(screen.getByRole("button", { name: "Complete Production" }));
+    expect(await screen.findByRole("heading", { name: "Complete Production" })).not.toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "×" }).at(-1));
+
+    fireEvent.click(screen.getAllByRole("button", { name: "View Result" })[0]);
+    await waitFor(() => expect(factoryService.getProductionByJobOrder).toHaveBeenCalledWith(completedJob.id));
+    expect(await screen.findByRole("heading", { name: "Completed Job Order Result" })).not.toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "×" }).at(-1));
+
+    fireEvent.click(screen.getAllByRole("button", { name: "View" })[0]);
+    expect(await screen.findByRole("heading", { name: "View Job Order" })).not.toBeNull();
+  });
+
+  it("refreshes the operational board through the workspace after a successful production completion", async () => {
+    setup();
+    const complete = vi.spyOn(factoryService, "completeProduction").mockResolvedValue({ id: "production-2" });
+    render(<FactoryWorkspacePage initialTab="production-overview" auth={auth} ui={ui} />);
+
+    fireEvent.click(await screen.findByRole("button", { name: "Complete Production" }));
+    await screen.findByRole("heading", { name: "Complete Production" });
+    await waitFor(() => expect(factoryService.getRawMaterialBatchAvailability).toHaveBeenCalledWith(["rm-1"], inProgressJob.id));
+    await waitFor(() => expect(screen.getAllByRole("button", { name: "Complete Production" }).at(-1).disabled).toBe(false));
+    fireEvent.click(screen.getAllByRole("button", { name: "Complete Production" }).at(-1));
+
+    await waitFor(() => expect(complete).toHaveBeenCalledWith(expect.objectContaining({ job_order_id: inProgressJob.id })));
+    await waitFor(() => expect(factoryService.listOperationalJobOrders).toHaveBeenCalledTimes(2));
   });
 
   it("keeps lifecycle controls absent for a view-only operational user", async () => {

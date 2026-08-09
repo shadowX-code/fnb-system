@@ -53,6 +53,7 @@ import { compactCompare, dispatchLineBaseEquivalentLabel, dispatchTotalLabel, le
 import { operatorFinishedGoodBatchNo, productionBatchReference, productionJobOrderReference } from "../utils/factoryReferences.js";
 import { uniqueReceivingBatchPreview } from "../utils/factoryNumbers.js";
 import { isFactoryPermissionError } from "../utils/factoryPermissions.js";
+import { emptyProductionOverviewState, loadProductionOverview, operationalJobOrdersRequest, shouldLoadProductionOverview } from "../utils/productionOverviewQuery.js";
 import { jobPriorityTone, jobStatusLabel, rawMovementTypeMeta, statusTone } from "../utils/factoryStatus.js";
 import { costDisplay, costVarianceInfo, latestReceivingCostInfo, productionCost, productionCostInfo, recipeCostInfo, usageUnitCost, usageUnitCostInfo } from "../utils/factoryCosting.js";
 
@@ -3891,7 +3892,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   const [rawMovementReferenceLoading, setRawMovementReferenceLoading] = useState("");
   const [batchTraceabilityDispatchLoading, setBatchTraceabilityDispatchLoading] = useState("");
   const [auditReferenceLoading, setAuditReferenceLoading] = useState("");
-  const [operationalJobs, setOperationalJobs] = useState({ jobs: [], productions: [], summary: {}, hasLoaded: false, loading: false, error: "", errorKind: "" });
+  const [operationalJobs, setOperationalJobs] = useState(emptyProductionOverviewState);
   const operationalJobsRequestRef = useRef(0);
   const factoryDataRequestRef = useRef(0);
   const factoryDataAbortRef = useRef(null);
@@ -4018,43 +4019,17 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
   }
 
   async function loadOperationalJobs() {
-    if (!["production-overview", "production"].includes(initialTab)) return;
+    if (!shouldLoadProductionOverview(initialTab)) return;
     const requestId = operationalJobsRequestRef.current + 1;
     operationalJobsRequestRef.current = requestId;
-    setOperationalJobs((current) => ({ ...current, loading: true }));
-    try {
-      const result = await factoryService.listOperationalJobOrders({
-        date: malaysiaBusinessDateInput(),
-        includeProductions: can("factory_production.view") || can("factory_production.complete"),
-      });
-      if (operationalJobsRequestRef.current !== requestId) return;
-      setOperationalJobs({
-        jobs: result.jobs || [],
-        productions: result.productions || [],
-        summary: result.summary || {},
-        hasLoaded: true,
-        loading: false,
-        error: "",
-        errorKind: "",
-      });
-    } catch (error) {
-      if (operationalJobsRequestRef.current !== requestId) return;
-      console.error("[Factory] Unable to load operational Job Orders.", error);
-      if (isFactoryPermissionError(error)) {
-        setOperationalJobs({
-          jobs: [],
-          productions: [],
-          summary: {},
-          hasLoaded: false,
-          loading: false,
-          error: "Some Production Overview data is hidden by your current role.",
-          errorKind: "permission",
-        });
-        setModal(null);
-      } else {
-        setOperationalJobs((current) => ({ ...current, loading: false, error: "Unable to load the latest operational Job Orders.", errorKind: "load" }));
-      }
-    }
+    return loadProductionOverview({
+      getOperationalJobs: () => factoryService.listOperationalJobOrders(operationalJobOrdersRequest({ date: malaysiaBusinessDateInput(), can })),
+      isCurrent: () => operationalJobsRequestRef.current === requestId,
+      setState: setOperationalJobs,
+      isPermissionError: isFactoryPermissionError,
+      onPermissionDenied: () => setModal(null),
+      onError: (error) => console.error("[Factory] Unable to load operational Job Orders.", error),
+    });
   }
 
   async function loadData({ silent = false } = {}) {
@@ -4064,7 +4039,7 @@ export default function FactoryWorkspacePage({ initialTab = "dashboard", ui, aut
     const requestId = factoryDataRequestRef.current + 1;
     factoryDataRequestRef.current = requestId;
     setLoading(true);
-    const operationalLoad = ["production-overview", "production"].includes(initialTab) ? loadOperationalJobs() : Promise.resolve();
+    const operationalLoad = shouldLoadProductionOverview(initialTab) ? loadOperationalJobs() : Promise.resolve();
     let refreshSucceeded = true;
     try {
       const nextData = await factoryService.listFactoryData({
