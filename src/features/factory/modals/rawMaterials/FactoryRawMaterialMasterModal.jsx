@@ -4,10 +4,19 @@ import { Field, inputClass } from "../../components/FactoryBulkSelectionModal.js
 import SearchableSelect from "../../components/SearchableSelect.jsx";
 import { factoryService } from "../../../../services/factoryService.js";
 import { IMAGE_UPLOAD_ACCEPT } from "../../../../utils/imageUpload.js";
+import { money } from "../../utils/factoryFormatters.js";
 
 function focusFirstInvalid(refs, firstKey) { setTimeout(() => { const node = refs.current?.[firstKey]; node?.scrollIntoView?.({ behavior: "smooth", block: "center" }); node?.focus?.({ preventScroll: true }); }, 0); }
 
 const commonUoms = ["kg", "g", "litre", "ml", "pcs", "carton", "pail", "bottle", "pack"];
+const normalizedCostUnit = (uom) => {
+  const unit = String(uom || "").trim().toLowerCase();
+  if (["kg", "kilogram", "kilograms"].includes(unit)) return { display: "kg" };
+  if (["g", "gram", "grams"].includes(unit)) return { display: "g" };
+  if (["l", "litre", "liter", "litres", "liters"].includes(unit)) return { display: "L" };
+  if (["ml", "millilitre", "milliliter", "millilitres", "milliliters"].includes(unit)) return { display: "ml" };
+  return null;
+};
 export default function RawMaterialMasterModal({ initialValue, categories, storageLocations = [], onClose, onSave }) {
   const fieldRefs = useRef({});
   const [form, setForm] = useState(() => ({
@@ -244,4 +253,3 @@ export default function RawMaterialMasterModal({ initialValue, categories, stora
     </Modal>
   );
 }
-

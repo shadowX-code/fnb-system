@@ -82,6 +82,14 @@ describe("Factory master-data modal contracts", () => {
     await waitFor(() => expect(saveCost).toHaveBeenCalledWith(expect.objectContaining({ id: material.id, manual_unit_cost: "12.5" })));
   });
 
+  it("renders Raw Material Cost Information for populated and empty fallback costs", () => {
+    const view = render(<RawMaterialMasterModal initialValue={{ ...material, manual_unit_cost: 12.5, manual_cost_uom: "kg" }} categories={[category]} storageLocations={[location]} onClose={vi.fn()} onSave={vi.fn()} />);
+    expect(screen.getByText("RM12.50 / kg")).not.toBeNull();
+    view.unmount();
+    render(<RawMaterialMasterModal initialValue={{ ...material, manual_unit_cost: "", manual_cost_uom: "" }} categories={[category]} storageLocations={[location]} onClose={vi.fn()} onSave={vi.fn()} />);
+    expect(screen.getByText("Add a manual fallback cost if this material has no receiving cost yet.")).not.toBeNull();
+  });
+
   it("surfaces image upload failures and keeps the current image authority", async () => {
     vi.spyOn(factoryService, "uploadRawMaterialImage").mockRejectedValue(new Error("Upload unavailable"));
     render(<RawMaterialMasterModal initialValue={material} categories={[category]} storageLocations={[location]} onClose={vi.fn()} onSave={vi.fn()} />);
