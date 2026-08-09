@@ -1,4 +1,4 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { factoryService } from "../../../../services/factoryService.js";
 import { malaysiaBusinessDateInput } from "../../utils/factoryDates.js";
@@ -116,7 +116,7 @@ function setup(response = data) {
   vi.spyOn(factoryService, "getProductionByJobOrder").mockResolvedValue(completedProduction);
 }
 
-afterEach(() => { vi.restoreAllMocks(); });
+afterEach(() => { cleanup(); vi.restoreAllMocks(); });
 
 describe("FactoryWorkspacePage operational route smoke", () => {
   it.each([
