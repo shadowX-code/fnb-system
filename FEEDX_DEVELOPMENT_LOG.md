@@ -274,6 +274,15 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 
 ## 2026-08-10
 
+### Employee / Auth Identity
+- Hardened the canonical Employee/Auth model: `employees.id` is the employee identity, `auth.users.id` is the login identity, and `employees.auth_user_id` is the unique one-to-one link.
+- Added normalized login-email identity (`trim().toLowerCase()`) with a unique employee-email migration guard; profile compatibility lookup remains ordered `auth_user_id` -> legacy employee ID -> normalized email while legacy migration cleanup is deferred.
+- Hardened `employee-auth-onboarding` to verify the authoritative employee ID, existing Auth link, conflicting links, ambiguous Auth-email matches, and invite races before conditionally linking the intended Auth account.
+- Fixed Save & Send Login Setup rejection recovery: persisted employees retain their identity, the modal remains usable, and retry targets the same employee rather than inserting a duplicate.
+- Blocked ordinary linked-employee login-email edits pending a dedicated future Auth-email migration flow; the UI and employee service both defend the boundary.
+- Added server-owned immutable `employees.created_by` attribution from `auth.uid()` on insert, preserved across updates, with historical null creators left untouched.
+- Employee/Auth lifecycle baseline: employee service 7/7, auth identity 4/4, UsersPage 3/3, creator migration contract 1/1; 15/15 focused tests passing.
+
 ### Product Analytics
 - Added the authenticated `product_analytics_save_report` RPC for atomic new-upload and replacement persistence under the canonical `(outlet_id, report_month, report_year)` identity.
 - Added `product_analytics_lifecycle_requests` for request-ID idempotency, authenticated actor/outlet binding, payload-fingerprint conflict protection, and canonical retry results.

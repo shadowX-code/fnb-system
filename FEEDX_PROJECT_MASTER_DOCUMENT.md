@@ -635,6 +635,12 @@ RBAC and outlet scope:
 
 Current status:
 
+- Employee/Auth identity is frozen around `employees.id` (employee), `auth.users.id` (login), and unique `employees.auth_user_id` (canonical link). Login email is normalized by trim/lowercase and is unique across non-empty employee rows after the Employee/Auth identity migration applies.
+- Employee profile compatibility lookup remains intentionally ordered: `auth_user_id`, legacy employee ID, then normalized email. The fallbacks are migration-compatibility debt only; normalized-email ambiguity is prevented by the new constraint.
+- Login onboarding is a trusted Edge-function authority. It validates the server-side employee ID and permission, protects existing links, rejects conflicting Auth accounts, and makes retries converge on the same intended identity. Ordinary edits cannot change a linked login email; a dedicated Auth-email-change flow is deferred.
+- Disable Login preserves the Auth account and link but sets employee access disabled/inactive, so session profile loading denies application context. Password setup remains trusted through `complete_employee_password_setup`.
+- `employees.created_by` is an immutable `auth.users` UUID assigned server-side from `auth.uid()` on insert and preserved on update. Historical null values are retained; audit-log actor identity remains a separate event record.
+
 - CSV upload is implemented.
 - Standard XLSX worksheet upload is implemented through the browser parser path.
 - Product Analytics upload and period replacement use the authenticated `product_analytics_save_report` RPC. The canonical report identity is `(outlet_id, report_month, report_year)`; the RPC resolves that identity server-side rather than trusting a client-supplied existing report ID.

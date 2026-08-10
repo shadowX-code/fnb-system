@@ -16,6 +16,7 @@ import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import { EMPLOYEE_ACCESS_STATE, EMPLOYEE_ACCESS_STATE_LABEL, normalizeEmployeeAccessState } from "../../../constants/employeeAccessStates.js";
 import { employeeService } from "../../../services/employeeService.js";
 import { employeeAuthOnboardingService } from "../../../services/employeeAuthOnboardingService.js";
+import { normalizeEmployeeLoginEmail } from "../../../services/employeeIdentity.js";
 import { jobPositionService } from "../../../services/jobPositionService.js";
 import { roleService } from "../../../services/roleService.js";
 import { formatDateTime } from "../../../lib/dateTime.js";
@@ -574,8 +575,8 @@ function UserFormModal({
     initialUser.access_state ?? (savedAccessEnabled ? EMPLOYEE_ACCESS_STATE.NOT_SENT : EMPLOYEE_ACCESS_STATE.NO_ACCESS),
     savedAccessEnabled,
   );
-  const savedLoginEmail = String(initialUser.email || "").trim().toLowerCase();
-  const currentLoginEmail = String(values.email || "").trim().toLowerCase();
+  const savedLoginEmail = normalizeEmployeeLoginEmail(initialUser.email);
+  const currentLoginEmail = normalizeEmployeeLoginEmail(values.email);
   const savedRoleId = String(initialUser.role_id || "").trim();
   const currentRoleId = String(values.role_id || "").trim();
   const accessSetupHasUnsavedChanges = (
@@ -609,7 +610,7 @@ function UserFormModal({
 
   useEffect(() => {
     if (isViewMode) return undefined;
-    const email = String(values.email || "").trim().toLowerCase();
+    const email = normalizeEmployeeLoginEmail(values.email);
     if (!email) {
       setEmailStatus("not_checked");
       return undefined;
@@ -620,7 +621,7 @@ function UserFormModal({
         setEmailStatus("invalid");
         return;
       }
-      const alreadyUsed = users.some((user) => user.id !== values.id && String(user.email || "").toLowerCase() === email);
+      const alreadyUsed = users.some((user) => user.id !== values.id && normalizeEmployeeLoginEmail(user.email) === email);
       setEmailStatus(alreadyUsed ? "used" : "valid");
     }, 500);
     return () => window.clearTimeout(timer);
@@ -718,17 +719,25 @@ function UserFormModal({
   }
 
   function openChangeEmailPanel() {
+    if (values.auth_user_id) {
+      ui.notify({
+        title: "Login email is managed separately",
+        message: "A linked employee login email cannot be changed from the employee profile. Use the future dedicated identity change flow.",
+        tone: "error",
+      });
+      return;
+    }
     setNextLoginEmail(values.email || "");
     setShowChangeEmail(true);
   }
 
   function applyLoginEmailChange() {
-    const email = String(nextLoginEmail || "").trim().toLowerCase();
+    const email = normalizeEmployeeLoginEmail(nextLoginEmail);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       ui.notify({ title: "Enter a valid login email", tone: "error" });
       return;
     }
-    const alreadyUsed = users.some((user) => user.id !== values.id && String(user.email || "").toLowerCase() === email);
+    const alreadyUsed = users.some((user) => user.id !== values.id && normalizeEmployeeLoginEmail(user.email) === email);
     if (alreadyUsed) {
       ui.notify({ title: "Login email already used", message: "Choose a different employee login email.", tone: "error" });
       return;
@@ -770,7 +779,7 @@ function UserFormModal({
     return normalizeEmployeeAccessState(values.access_state ?? EMPLOYEE_ACCESS_STATE.NOT_SENT, true);
   }
 
-  function handleSubmit({ sendLoginSetup = false } = {}) {
+  async function handleSubmit({ sendLoginSetup = false } = {}) {
     if (!canEditEmployee) {
       notifyPermissionDenied(ui, "save employee profiles");
       return;
@@ -793,8 +802,9 @@ function UserFormModal({
     setIsSaving(true);
     const normalizedFullName = normalizeOfficialName(values.full_name);
     const nextAccessStatus = resolveSavedAccessStatus();
-    window.setTimeout(() => {
-      onSubmit({
+    await new Promise((resolve) => window.setTimeout(resolve, 450));
+    try {
+      await onSubmit({
         ...values,
         full_name: normalizedFullName,
         nickname: values.nickname.trim(),
@@ -808,7 +818,11 @@ function UserFormModal({
           ? "Employee profile saved with system login enabled. Send a login setup link before the employee signs in."
           : "Employee profile saved without system login.",
       });
-    }, 450);
+    } catch {
+      // The parent already reports mutation errors; leave this modal open for retry.
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   async function sendLoginSetupForExistingEmployee() {
@@ -1552,6 +1566,9 @@ export default function UsersPage({ ui, store, auth }) {
       const selectedPosition = jobPositions.find((position) => position.name === payload.position);
       payload.department = selectedPosition?.department || payload.department || null;
       let saved = await employeeService.saveEmployee(payload);
+      if (isNew) {
+        setFormState((current) => current ? { mode: "edit", user: saved } : current);
+      }
       if (shouldSendLoginSetup) {
         const setupResult = await sendLoginSetupForUser(saved);
         if (setupResult?.auth_user_id) {
@@ -1585,6 +1602,7 @@ export default function UsersPage({ ui, store, auth }) {
     } catch (error) {
       console.error("Unable to save employee", error);
       ui.notify({ title: "Unable to save employee", message: error.message || "Please try again.", tone: "error" });
+      throw error;
     }
   }
 
@@ -1838,14 +1856,15 @@ export default function UsersPage({ ui, store, auth }) {
           onClose={() => setSelectedUser(null)}
           onSendLoginSetup={sendLoginSetupForUser}
           onSwitchToEdit={() => setProfileMode("edit")}
-          onSubmit={(user) => {
-            saveUser(user);
+          onSubmit={async (user) => {
+            await saveUser(user);
             setSelectedUser(null);
           }}
         />
       ) : null}
       {formState ? (
         <UserFormModal
+          key={formState.user?.id || "new-employee"}
           mode={formState.mode}
           initialUser={formState.user}
           jobPositions={jobPositions}
