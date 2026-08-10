@@ -732,6 +732,8 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
   const [rankBy, setRankBy] = useState("sales");
   const [lowFilter, setLowFilter] = useState("lt5");
   const [uploadBanner, setUploadBanner] = useState(null);
+  const [uploadSaving, setUploadSaving] = useState(false);
+  const uploadRequestIdRef = useRef(null);
   const [uploadForm, setUploadForm] = useState({ outletId: "", month: new Date().getMonth() + 1, year: new Date().getFullYear(), file: null, parsedItems: [], columnMapping: null, reportMetadata: {}, parseError: "" });
   const canUpload = hasPermission(auth, "product_analytics.upload");
   const canExportReport = canExport(auth, "product_analytics");
@@ -892,6 +894,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
 
   async function handleFile(file) {
     if (!file) return;
+    uploadRequestIdRef.current = null;
     const extension = file.name.split(".").pop()?.toLowerCase();
     try {
       if (!["csv", "xlsx"].includes(extension)) throw new Error("Please upload a CSV or XLSX file.");
@@ -918,6 +921,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
   }
 
   async function submitUpload() {
+    if (uploadSaving) return;
     if (!canUpload) return notifyPermissionDenied(ui, "upload product reports");
     if (!uploadForm.outletId || !uploadForm.month || !uploadForm.year || !uploadForm.file) {
       ui.notify({ title: "Missing upload details", message: "Select outlet, month, year and report file.", tone: "error" });
@@ -928,6 +932,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
       return;
     }
     try {
+      setUploadSaving(true);
       const existing = await productAnalyticsService.findReport(uploadForm.outletId, uploadForm.month, uploadForm.year);
       if (existing) {
         const confirmed = await ui.confirm({
@@ -945,10 +950,21 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
         fileName: uploadForm.file.name,
         items: uploadForm.parsedItems,
         existingReportId: existing?.id ?? null,
+        requestId: uploadRequestIdRef.current || (uploadRequestIdRef.current = crypto.randomUUID()),
         metadata: { ...uploadForm.reportMetadata, column_mapping: uploadForm.columnMapping, row_count: uploadForm.parsedItems.length },
       });
-      const nextReports = await productAnalyticsService.listReports({ outletIds: activeOutlets.map((outlet) => outlet.id) });
-      setReports(nextReports);
+      let refreshError = null;
+      try {
+        const nextReports = await productAnalyticsService.listReports({ outletIds: activeOutlets.map((outlet) => outlet.id) });
+        setReports(nextReports);
+      } catch (error) {
+        refreshError = error;
+        console.error("Unable to refresh product reports after save", error);
+        setReports((currentReports) => [
+          ...currentReports.filter((item) => item.outlet_id !== report.outlet_id || item.report_month !== report.report_month || item.report_year !== report.report_year),
+          report,
+        ]);
+      }
       setOutletId(report.outlet_id);
       setMonth(report.report_month);
       setYear(report.report_year);
@@ -959,11 +975,20 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
         skipped: Number(uploadForm.reportMetadata?.skipped_rows ?? 0),
       });
       setUploadForm({ outletId: "", month: new Date().getMonth() + 1, year: new Date().getFullYear(), file: null, parsedItems: [], columnMapping: null, reportMetadata: {}, parseError: "" });
+      uploadRequestIdRef.current = null;
       ui.notify({ title: "Product report uploaded", message: "Product analytics updated." });
+      if (refreshError) ui.notify({ title: "Product report saved; refresh needed", message: "The report was saved, but the latest analytics could not be reloaded. Please reload to sync.", tone: "warning" });
     } catch (error) {
       console.error("Unable to upload product report", error);
       ui.notify({ title: "Unable to upload report", message: error.message, tone: "error" });
+    } finally {
+      setUploadSaving(false);
     }
+  }
+
+  function openUploadModal() {
+    uploadRequestIdRef.current = null;
+    setUploadModal(true);
   }
 
   function exportCurrent() {
@@ -997,7 +1022,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
           <div className="flex flex-wrap gap-2">
             <button className="btn-secondary" type="button" onClick={() => setHistoryOpen(true)}><History size={16} /> Upload History</button>
             {canExportReport ? <button className="btn-secondary" type="button" onClick={exportCurrent}><Download size={16} /> Export</button> : null}
-            {canUpload ? <button className="btn-primary" type="button" onClick={() => setUploadModal(true)}><Upload size={16} /> Upload Report</button> : <Badge tone="neutral">Read-only access</Badge>}
+            {canUpload ? <button className="btn-primary" type="button" onClick={openUploadModal}><Upload size={16} /> Upload Report</button> : <Badge tone="neutral">Read-only access</Badge>}
           </div>
         }
       />
@@ -1338,12 +1363,12 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
           description="Upload monthly POS product sales report in CSV or XLSX format."
           size="lg"
           onClose={() => setUploadModal(false)}
-          footer={<><button className="btn-secondary" type="button" onClick={() => setUploadModal(false)}>Cancel</button><button className="btn-primary" type="button" onClick={submitUpload}>Upload Report</button></>}
+          footer={<><button className="btn-secondary" type="button" disabled={uploadSaving} onClick={() => setUploadModal(false)}>Cancel</button><button className="btn-primary" type="button" disabled={uploadSaving} onClick={submitUpload}>{uploadSaving ? "Uploading..." : "Upload Report"}</button></>}
         >
           <div className="grid gap-4 md:grid-cols-3">
-            <SelectField label="Outlet" value={uploadForm.outletId} searchable options={activeOutlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={(value) => setUploadForm((currentForm) => ({ ...currentForm, outletId: value }))} required />
-            <MonthSelector value={uploadForm.month} onChange={(value) => setUploadForm((currentForm) => ({ ...currentForm, month: value }))} />
-            <YearSelector value={uploadForm.year} onChange={(value) => setUploadForm((currentForm) => ({ ...currentForm, year: value }))} years={yearOptions} />
+            <SelectField label="Outlet" value={uploadForm.outletId} searchable options={activeOutlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={(value) => { uploadRequestIdRef.current = null; setUploadForm((currentForm) => ({ ...currentForm, outletId: value })); }} required />
+            <MonthSelector value={uploadForm.month} onChange={(value) => { uploadRequestIdRef.current = null; setUploadForm((currentForm) => ({ ...currentForm, month: value })); }} />
+            <YearSelector value={uploadForm.year} onChange={(value) => { uploadRequestIdRef.current = null; setUploadForm((currentForm) => ({ ...currentForm, year: value })); }} years={yearOptions} />
           </div>
           <div className="mt-4 rounded-2xl border border-dashed border-border bg-slate-50 p-5 text-center">
             <input ref={inputRef} hidden type="file" accept=".csv,.xlsx" onChange={(event) => handleFile(event.target.files?.[0])} />
@@ -1409,6 +1434,7 @@ export default function ProductAnalyticsPage({ store, ui, auth }) {
                 <div className="flex justify-end gap-2">
                   <button className="btn-secondary h-8 text-xs" type="button" onClick={() => { setOutletId(row.outlet_id); setMonth(row.report_month); setYear(row.report_year); setHistoryOpen(false); }}>View</button>
                   {canManageReports ? <button className="btn-secondary h-8 text-xs" type="button" onClick={() => {
+                    uploadRequestIdRef.current = null;
                     setUploadForm({ outletId: row.outlet_id, month: row.report_month, year: row.report_year, file: null, parsedItems: [], columnMapping: null, reportMetadata: {}, parseError: "" });
                     setHistoryOpen(false);
                     setUploadModal(true);

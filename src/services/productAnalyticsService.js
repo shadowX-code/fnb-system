@@ -41,9 +41,10 @@ function mapItem(row) {
   };
 }
 
-async function currentUserId() {
-  const { data } = await supabase.auth.getUser();
-  return data?.user?.id ?? null;
+function lifecycleRequestId(value) {
+  if (value) return value;
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return `product-report-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 export const productAnalyticsService = {
@@ -83,43 +84,14 @@ export const productAnalyticsService = {
     return data ? mapReport(data) : null;
   },
 
-  async replaceReport({ outletId, month, year, fileName, items, existingReportId = null, metadata = {} }) {
-    const uploadedBy = await currentUserId();
+  async replaceReport({ outletId, month, year, fileName, items, existingReportId = null, metadata = {}, requestId: suppliedRequestId }) {
+    const requestId = lifecycleRequestId(suppliedRequestId);
     const totals = items.reduce((sum, item) => ({
       quantity: sum.quantity + Number(item.quantity || 0),
       netSales: sum.netSales + Number(item.nett_sales || 0),
       discount: sum.discount + Number(item.discount || 0),
     }), { quantity: 0, netSales: 0, discount: 0 });
-
-    if (existingReportId) {
-      const { error: deleteError } = await supabase
-        .from("product_sales_reports")
-        .delete()
-        .eq("id", existingReportId);
-      throwSupabaseError("product_sales_reports.replace_delete", deleteError);
-    }
-
-    const { data: report, error: reportError } = await supabase
-      .from("product_sales_reports")
-      .insert({
-        outlet_id: outletId,
-        report_month: month,
-        report_year: year,
-        file_name: fileName,
-        uploaded_by: uploadedBy,
-        status: "completed",
-        total_net_sales: totals.netSales,
-        total_quantity: totals.quantity,
-        total_discount: totals.discount,
-        raw_metadata: metadata,
-      })
-      .select(reportFields)
-      .single();
-    throwSupabaseError("product_sales_reports.insert", reportError);
-
     const rows = items.map((item) => ({
-      report_id: report.id,
-      outlet_id: outletId,
       category_name: item.category_name,
       product_name: item.product_name,
       variant_name: item.variant_name || null,
@@ -130,11 +102,24 @@ export const productAnalyticsService = {
       service_charge: Number(item.service_charge || 0),
       nett_sales: Number(item.nett_sales || 0),
     }));
-
-    if (rows.length) {
-      const { error: itemError } = await supabase.from("product_sales_items").insert(rows);
-      throwSupabaseError("product_sales_items.insert", itemError);
-    }
+    const operation = existingReportId ? "replace" : "new";
+    const { data, error } = await supabase.rpc("product_analytics_save_report", {
+      p_request_id: requestId,
+      p_operation: operation,
+      p_payload: {
+        outlet_id: outletId,
+        report_month: month,
+        report_year: year,
+        file_name: fileName,
+        total_net_sales: totals.netSales,
+        total_quantity: totals.quantity,
+        total_discount: totals.discount,
+        raw_metadata: metadata,
+      },
+      p_items: rows,
+    });
+    throwSupabaseError("product_analytics.save_report", error);
+    const report = data?.report ?? data;
 
     await auditLogService.createAuditLog({
       action: existingReportId ? "product_sales_report_replaced" : "product_sales_report_uploaded",
@@ -142,7 +127,7 @@ export const productAnalyticsService = {
       target: fileName,
       outlet: outletId,
       description: existingReportId ? "Product sales report replaced." : "Product sales report uploaded.",
-      after: { outlet_id: outletId, report_month: month, report_year: year, rows: rows.length, total_net_sales: totals.netSales },
+      after: { outlet_id: outletId, report_month: month, report_year: year, rows: rows.length, total_net_sales: totals.netSales, request_id: requestId },
     }).catch(() => {});
 
     return mapReport(report);

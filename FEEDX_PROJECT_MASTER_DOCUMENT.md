@@ -637,6 +637,12 @@ Current status:
 
 - CSV upload is implemented.
 - Standard XLSX worksheet upload is implemented through the browser parser path.
+- Product Analytics upload and period replacement use the authenticated `product_analytics_save_report` RPC. The canonical report identity is `(outlet_id, report_month, report_year)`; the RPC resolves that identity server-side rather than trusting a client-supplied existing report ID.
+- `product_analytics_lifecycle_requests` stores request ID, operation, authenticated actor, outlet/period identity, payload fingerprint, and canonical result. The same logical retry returns its prior result; a conflicting reuse of a request ID is rejected.
+- New uploads require `product_analytics.upload`; replacements require both `product_analytics.upload` and `product_analytics.manage`. The RPC derives `auth.uid()` and validates outlet access server-side.
+- Report header and item rows persist in one transaction. Failed replacements preserve the previous report; no header-only replacement can persist. Explicit Delete remains a separate single report delete with FK item cascade and best-effort audit logging.
+- After a successful trusted save, a report-list refresh failure does not reclassify persistence as failed: the returned canonical report is applied locally and the page shows a separate sync warning. This is P2 read-sync/availability debt. Large client-side analytics derivations are separate P2 performance debt and should be optimized only with real volume evidence.
+- Lifecycle test baseline: Product Analytics service 6/6 and mounted page 7/7; the full suite baseline is 277 passing tests.
 
 ---
 

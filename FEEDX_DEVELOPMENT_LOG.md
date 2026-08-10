@@ -274,6 +274,13 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 
 ## 2026-08-10
 
+### Product Analytics
+- Added the authenticated `product_analytics_save_report` RPC for atomic new-upload and replacement persistence under the canonical `(outlet_id, report_month, report_year)` identity.
+- Added `product_analytics_lifecycle_requests` for request-ID idempotency, authenticated actor/outlet binding, payload-fingerprint conflict protection, and canonical retry results.
+- Replaced browser delete/header/item choreography with the one trusted RPC, preserving explicit Delete as a separate report delete with FK item cascade and best-effort audit.
+- Added upload/replace pending-submit protection and preserved the same request ID for a logical retry. A post-save report-list refresh failure now reports sync availability separately without misreporting the successful write as failed.
+- Added Product Analytics service and mounted lifecycle tests covering RPC payloads, permission controls, success/retry/rejection, duplicate-submit protection, and refresh-after-success behavior.
+
 ### Asset Tracking
 - Added trusted transactional Asset lifecycle RPCs for quantity adjustment, inspection/correction, maintenance, and per-row import.
 - Added `asset_lifecycle_requests` request-ID ledger semantics so retrying a logical lifecycle request returns its canonical result without duplicate balance, movement, inspection, maintenance, or import effects.
