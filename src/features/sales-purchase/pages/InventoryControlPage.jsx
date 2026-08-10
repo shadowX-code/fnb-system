@@ -30,7 +30,6 @@ import {
   ShoppingCart,
   Sparkles,
   Trash2,
-  Truck,
   Upload,
   Warehouse,
   X,
@@ -51,6 +50,10 @@ import { findRecipeCodeMatches, uploadRecipePhoto } from "../inventory/recipes/i
 import InventoryWastePage from "../inventory/waste/InventoryWastePage.jsx";
 import InventoryMovementsPage from "../inventory/movements/InventoryMovementsPage.jsx";
 import InventoryManualMovementModal from "../inventory/movements/InventoryManualMovementModal.jsx";
+import InventoryGroupsPage, { InventoryGroupsPageActions } from "../inventory/groups/InventoryGroupsPage.jsx";
+import InventoryPurchaseOrdersPage from "../inventory/purchaseOrders/InventoryPurchaseOrdersPage.jsx";
+import InventoryPurchaseOrderDetail from "../inventory/purchaseOrders/InventoryPurchaseOrderDetail.jsx";
+import { orderedQty, poProgress, poSourceLabel, poStatusLabel, receivedQty, remainingQty } from "../inventory/purchaseOrders/inventoryPurchaseOrderHelpers.js";
 import { productAnalyticsService } from "../../../services/productAnalyticsService.js";
 import { getAccessibleOutletOptions, getAccessibleOutlets, hasAllOutletAccess, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { IMAGE_UPLOAD_ACCEPT, isImageDataUrl as isStandardImageDataUrl, optimizeImageFileForPreview, removeStorageObjectFromPublicUrl, uploadOptimizedImage } from "../../../utils/imageUpload.js";
@@ -132,8 +135,6 @@ const shifts = ["Opening", "Mid", "Closing", "Any Shift"];
 const weekdays = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
 const movementTypes = ["purchase", "transfer_in", "transfer_out", "waste", "adjustment", "staff_meal", "production_usage", "return"];
 const wasteTypes = ["Spoilage", "Expired", "Kitchen Error", "Burnt", "Returned Item", "Staff Consumption", "Unknown"];
-const poStatuses = ["draft", "submitted", "supplier_confirmed", "partial_received", "fully_received", "completed", "cancelled"];
-const poSources = ["stock_check", "manual"];
 const auditTypes = ["Month-End Closing", "Full Stock Audit", "Spot Check", "Category Audit", "Custom Audit"];
 const recipeMenuCategories = ["Main Dish", "Beverage", "Side Dish", "Sauce", "Dessert", "Prep Item", "Combo", "Other"];
 
@@ -219,19 +220,6 @@ function toTitle(value = "") {
     .replace(/\b\w/g, (match) => match.toUpperCase());
 }
 
-function poStatusLabel(status) {
-  const labels = {
-    supplier_confirmed: "Supplier Confirmed",
-    partial_received: "Partial Received",
-    fully_received: "Fully Received",
-  };
-  return labels[status] || toTitle(status);
-}
-
-function poSourceLabel(source) {
-  const labels = { stock_check: "Stock Check", stock_request: "Stock Request", manual: "Manual" };
-  return labels[source] || toTitle(source || "manual");
-}
 
 function toCurrency(value) {
   return `RM${Number(value || 0).toLocaleString("en-MY", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
@@ -2619,24 +2607,6 @@ function ordersSuffix(value) {
   return String(value || "GEN").slice(-3).toUpperCase();
 }
 
-function orderedQty(order = {}) {
-  return (order.lines || []).reduce((sum, line) => sum + Number(line.requestedQty || 0), 0);
-}
-
-function receivedQty(order = {}) {
-  return (order.lines || []).reduce((sum, line) => sum + Number(line.receivedQty || 0), 0);
-}
-
-function remainingQty(line = {}) {
-  return Math.max(0, Number(line.requestedQty || 0) - Number(line.receivedQty || 0));
-}
-
-function poProgress(order = {}) {
-  const ordered = orderedQty(order);
-  const received = receivedQty(order);
-  const percent = ordered ? Math.round((received / ordered) * 100) : 0;
-  return { ordered, received, percent };
-}
 
 function normalizeInventoryData(raw, outlets = [], suppliers = [], options = {}) {
   const fallback = import.meta.env.DEV ? defaultData(outlets, suppliers) : emptyInventoryData();
@@ -3040,7 +3010,7 @@ function LinkedOutletsSummary({ item, outlets, onConfigure }) {
   );
 }
 
-function SupplierAssignmentPicker({ suppliers, outletId, selectedIds = [], onSave }) {
+function SupplierAssignmentPicker({ suppliers, outletId, selectedIds = [], onSave, disabled = false }) {
   const anchorRef = useRef(null);
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -3068,6 +3038,7 @@ function SupplierAssignmentPicker({ suppliers, outletId, selectedIds = [], onSav
         ref={anchorRef}
         className="inline-flex h-8 max-w-[180px] items-center gap-1 rounded-full border border-border bg-white px-2.5 type-caption font-bold text-text-primary transition hover:border-primary/30 hover:text-primary"
         type="button"
+        disabled={disabled}
         onClick={() => setOpen(true)}
       >
         <span className="truncate">{label}</span>
@@ -3118,7 +3089,7 @@ function SupplierAssignmentPicker({ suppliers, outletId, selectedIds = [], onSav
           </div>
           <div className="flex justify-end gap-2 border-t border-border pt-2">
             <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setOpen(false)}>Cancel</button>
-            <button className="btn-primary h-8 px-2.5 text-xs" type="button" onClick={() => { onSave(draftIds); setOpen(false); }}>Save</button>
+            <button className="btn-primary h-8 px-2.5 text-xs" type="button" disabled={disabled} onClick={() => { onSave(draftIds); setOpen(false); }}>Save</button>
           </div>
         </div>
       </FloatingLayer>
@@ -5696,6 +5667,8 @@ function PurchaseOrderEditModal({ order, suppliers, items, onClose, onSave }) {
     setSaving(true);
     try {
       await onSave(form);
+    } catch {
+      // Parent owns the error notification; keeping this modal open preserves retry.
     } finally {
       setSaving(false);
     }
@@ -5770,6 +5743,8 @@ export function ReceiveInventoryModal({ order, supplier, outlet, items, displayP
     setSaving(true);
     try {
       await onReceive(rows, remark);
+    } catch {
+      // Parent owns the error notification; keeping this modal open preserves retry.
     } finally {
       setSaving(false);
     }
@@ -5973,9 +5948,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [categoryFilter, setCategoryFilter] = useState("all");
   const [statusFilter, setStatusFilter] = useState("active");
   const [masterGroupBy, setMasterGroupBy] = useState("category");
-  const [groupStatusFilter, setGroupStatusFilter] = useState("all");
-  const [groupFrequencyFilter, setGroupFrequencyFilter] = useState("all");
-  const [groupSearch, setGroupSearch] = useState("");
   const [collapsedCategoryIds, setCollapsedCategoryIds] = useState(() => new Set());
   const [parLevelView, setParLevelView] = useState("outlet");
   const [parLevelGroupBy, setParLevelGroupBy] = useState("category");
@@ -6013,6 +5985,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const skipCostBlurSaveRef = useRef(false);
   const parLevelGridRef = useRef(null);
   const parLevelMatrixRef = useRef(null);
+  const parLevelSaveRequestsRef = useRef(new Map());
+  const parLevelSaveStatusRequestRef = useRef(0);
   const [activeCheckGroupId, setActiveCheckGroupId] = useState(null);
   const [activeScheduledCheckId, setActiveScheduledCheckId] = useState(null);
   const [activeAuditCheck, setActiveAuditCheck] = useState(null);
@@ -7076,32 +7050,60 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }
 
   async function saveParLevelConfig(itemId, outletId, patch) {
+    if (!requirePermission(can.editParLevels, "edit par levels")) return;
     const item = data.items.find((entry) => entry.id === itemId);
     if (!item) {
       notify("Unable to save Par Level", "Inventory item was not found.", "error");
       return;
     }
+    const configKey = `${itemId}:${outletId}`;
+    const priorRequest = parLevelSaveRequestsRef.current.get(configKey);
+    const currentConfig = outletConfigForItem(item, outletId);
+    const baseConfig = priorRequest?.intentConfig || currentConfig;
+    const intentConfig = {
+      ...baseConfig,
+      ...(Object.prototype.hasOwnProperty.call(patch, "parLevel") ? { parLevel: patch.parLevel } : {}),
+      ...(Object.prototype.hasOwnProperty.call(patch, "storageLocation") ? { storageLocation: patch.storageLocation } : {}),
+      ...(Object.prototype.hasOwnProperty.call(patch, "supplierIds") ? { supplierIds: uniqueIds(patch.supplierIds || []) } : {}),
+    };
+    const requestSequence = (priorRequest?.sequence || 0) + 1;
+    const statusSequence = parLevelSaveStatusRequestRef.current + 1;
+    parLevelSaveRequestsRef.current.set(configKey, { sequence: requestSequence, intentConfig });
+    parLevelSaveStatusRequestRef.current = statusSequence;
     setParLevelSaveState("saving");
+    const persistencePatch = {
+      ...patch,
+      parLevel: intentConfig.parLevel,
+      storageLocation: intentConfig.storageLocation,
+    };
+    const isLatestRequest = () => parLevelSaveRequestsRef.current.get(configKey)?.sequence === requestSequence;
+    const isLatestStatus = () => parLevelSaveStatusRequestRef.current === statusSequence;
     try {
-      const savedConfig = await persistRemoteParLevelConfig(item, outletId, patch);
-      setData((current) => ({
-        ...current,
-        items: current.items.map((entry) => {
-          if (entry.id !== itemId) return entry;
-          const normalized = normalizeInventoryItem(entry);
-          const linkedOutletIds = uniqueIds(normalized.linkedOutletIds);
-          const existing = new Map((normalized.outletConfigs || []).map((config) => [config.outletId, config]));
-          existing.set(outletId, savedConfig);
-          const outletConfigs = linkedOutletIds.map((id) => buildOutletConfig({ ...normalized, linkedOutletIds }, id, existing.get(id)));
-          return normalizeInventoryItem({ ...normalized, linkedOutletIds, outletConfigs });
-        }),
-      }));
-      setParLevelSaveState("saved");
+      const savedConfig = await persistRemoteParLevelConfig(item, outletId, persistencePatch);
+      if (isLatestRequest()) {
+        parLevelSaveRequestsRef.current.set(configKey, { sequence: requestSequence, intentConfig: savedConfig });
+        setData((current) => ({
+          ...current,
+          items: current.items.map((entry) => {
+            if (entry.id !== itemId) return entry;
+            const normalized = normalizeInventoryItem(entry);
+            const linkedOutletIds = uniqueIds(normalized.linkedOutletIds);
+            const existing = new Map((normalized.outletConfigs || []).map((config) => [config.outletId, config]));
+            existing.set(outletId, savedConfig);
+            const outletConfigs = linkedOutletIds.map((id) => buildOutletConfig({ ...normalized, linkedOutletIds }, id, existing.get(id)));
+            return normalizeInventoryItem({ ...normalized, linkedOutletIds, outletConfigs });
+          }),
+        }));
+      }
+      if (isLatestStatus()) setParLevelSaveState("saved");
     } catch (error) {
       console.warn("[InventoryControl] Unable to save Par Level config.", error);
-      debugLog("[ParLevelSaveDebug]", { action: "save", itemId, outletId, payload: patch, result: null, error });
-      setParLevelSaveState("error");
-      notify("Unable to save Par Level", error.message || "Please try again.", "error");
+      debugLog("[ParLevelSaveDebug]", { action: "save", itemId, outletId, payload: persistencePatch, result: null, error });
+      if (isLatestRequest()) {
+        parLevelSaveRequestsRef.current.set(configKey, { sequence: requestSequence, intentConfig: currentConfig });
+        if (isLatestStatus()) setParLevelSaveState("error");
+        notify("Unable to save Par Level", error.message || "Please try again.", "error");
+      }
     }
   }
 
@@ -7648,12 +7650,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         orders: current.orders.map((entry) => entry.id === order.id ? updatedOrder : entry),
       }));
       await refreshInventory();
-      setModal(null);
       notify("Draft PO saved");
+      return updatedOrder;
     } catch (error) {
       console.warn("[InventoryControl] Unable to save Draft PO.", error);
       debugLog("[POSubmitDebug]", { action: "save-draft-po", orderId: order?.id, order, error });
       notify("Failed to update Draft PO", error.message || "Please try again.", "error");
+      throw error;
     }
   }
 
@@ -7695,12 +7698,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     try {
       const result = await persistRemotePurchaseOrderReceive(order, rows, receiptRemark, auth?.user?.id);
       await refreshInventory();
-      setModal(null);
       notify("Inventory received", result.status === "fully_received" ? "PO fully received. Inventory movement records were created." : "PO partially received. Inventory movement records were created.");
+      return result;
     } catch (error) {
       console.warn("[InventoryControl] Unable to receive PO.", error);
       debugLog("[POReceiveDebug]", { action: "receive-po", orderId: order?.id, rows, receiptRemark, error });
       notify("Failed to receive inventory", error.message || "Please try again.", "error");
+      throw error;
     }
   }
 
@@ -8655,6 +8659,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               onFocus={selectInputText}
               onKeyDown={(event) => handleParGridKeyDown(event, item.id, "par")}
               onChange={(event) => saveParLevelConfig(item.id, activeOutletId, { parLevel: parseNonNegativeNumber(event.target.value) })}
+              disabled={!can.editParLevels}
             />
           </td>
           <td>
@@ -8667,6 +8672,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               onKeyDown={(event) => handleParGridKeyDown(event, item.id, "storage")}
               onChange={(event) => saveParLevelConfig(item.id, activeOutletId, { storageLocation: event.target.value })}
               placeholder="Optional"
+              disabled={!can.editParLevels}
             />
           </td>
           <td>
@@ -8675,6 +8681,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               outletId={activeOutletId}
               selectedIds={config.supplierIds}
               onSave={(supplierIds) => saveParLevelConfig(item.id, activeOutletId, { supplierIds })}
+              disabled={!can.editParLevels}
             />
           </td>
         </tr>
@@ -8874,6 +8881,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                                           onFocus={selectInputText}
                                           onKeyDown={(event) => handleMatrixKeyDown(event, item.id, outletIndex)}
                                           onChange={(event) => saveParLevelConfig(item.id, outlet.id, { parLevel: parseNonNegativeNumber(event.target.value) })}
+                                          disabled={!can.editParLevels}
                                         />
                                       ) : (
                                         <span className="inline-flex h-9 w-12 items-center justify-center rounded-xl border border-slate-200 bg-slate-100 type-body-sm font-black text-text-muted" title={`${item.name} is not linked to ${outlet.name}`}>⊘</span>
@@ -8893,91 +8901,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
             ) : <EmptyState title="No inventory items found" description="Adjust filters or create inventory items first." />}
           </SectionCard>
         )}
-      </div>
-    );
-  }
-
-  function renderGroups() {
-    const outletOptions = getAccessibleOutletOptions(auth, outlets);
-    const filteredGroups = data.groups.filter((group) => {
-      const outlet = outletById.get(group.outletId);
-      const categoryIds = groupCategoryIds(group, data.items);
-      const categoryNames = categoryIds.map((id) => categoryById.get(id)?.name).join(" ");
-      const matchesOutlet = selectedOutletId === "all" || group.outletId === selectedOutletId;
-      const matchesStatus = groupStatusFilter === "all" || group.status === groupStatusFilter;
-      const matchesFrequency = groupFrequencyFilter === "all" || group.frequency === groupFrequencyFilter;
-      const matchesSearch = !groupSearch.trim() || `${group.name} ${group.description} ${outlet?.name || ""} ${categoryNames}`.toLowerCase().includes(groupSearch.trim().toLowerCase());
-      return matchesOutlet && matchesStatus && matchesFrequency && matchesSearch;
-    });
-    const dueToday = filteredGroups.filter((group) => dueStatus(group, data.checks, date) === "Due Today").length;
-    const completedToday = filteredGroups.filter((group) => dueStatus(group, data.checks, date) === "Completed").length;
-    const inactiveGroups = filteredGroups.filter((group) => group.status !== "active").length;
-    const emptyTitle = selectedOutletId === "all" ? "Create stock check groups so outlets know what to count." : "Create the first stock check group for this outlet.";
-
-    return (
-      <div className="space-y-4">
-        <div className="card grid gap-3 p-3 lg:grid-cols-[220px_160px_160px_1fr] lg:items-end">
-          <SelectField label="Outlet" value={selectedOutletId} options={outletOptions} onChange={setSelectedOutletId} searchable />
-          <SelectField label="Status" value={groupStatusFilter} options={[{ value: "all", label: "All Status" }, ...statuses.map((status) => ({ value: status, label: toTitle(status) }))]} onChange={setGroupStatusFilter} />
-          <SelectField label="Frequency" value={groupFrequencyFilter} options={[{ value: "all", label: "All Frequency" }, ...frequencies.map((frequency) => ({ value: frequency, label: toTitle(frequency) }))]} onChange={setGroupFrequencyFilter} />
-          <label>
-            <div className="mb-1 type-caption font-semibold text-text-secondary">Search group</div>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
-              <input className="control h-9 w-full pl-9 text-[13px]" value={groupSearch} onChange={(event) => setGroupSearch(event.target.value)} placeholder="Search group or category" />
-            </div>
-          </label>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-4">
-          <MetricCard icon={ClipboardList} label="Total Groups" value={filteredGroups.length} helper="Current filter scope" />
-          <MetricCard icon={CalendarDays} label="Due Today" value={dueToday} helper="Ready to count" tone={dueToday ? "warning" : "success"} />
-          <MetricCard icon={CheckCircle2} label="Completed Today" value={completedToday} helper="Done for selected date" tone="success" />
-          <MetricCard icon={AlertTriangle} label="Inactive Groups" value={inactiveGroups} helper="Archived or inactive" tone={inactiveGroups ? "neutral" : "success"} />
-        </div>
-        <div className="card p-3">
-          {filteredGroups.length ? (
-            <div className="space-y-2">
-              {filteredGroups.map((group) => {
-              const categoryIds = groupCategoryIds(group, data.items);
-              const itemCount = stockCheckItemsForGroup(group, data.items).length;
-              const categoryNames = categoryIds.map((id) => categoryById.get(id)?.name).filter(Boolean);
-              const visibleCategories = categoryNames.slice(0, 3);
-              const hiddenCategoryCount = Math.max(0, categoryNames.length - visibleCategories.length);
-              const due = dueStatus(group, data.checks, date);
-              return (
-                <div key={group.id} className="rounded-2xl border border-border bg-white p-3 transition hover:border-primary/25 hover:bg-primary/5">
-                  <div className="grid gap-3 lg:grid-cols-[1.2fr_1fr_auto] lg:items-center">
-                    <div className="min-w-0">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <div className="truncate type-title font-bold text-text-primary">{group.name}</div>
-                        <Badge tone={statusTone(due.toLowerCase())}>{due}</Badge>
-                      </div>
-                      <div className="mt-1 type-caption text-text-secondary">{outletById.get(group.outletId)?.name || "Outlet"} · {group.shift} · Last checked {group.lastChecked ? formatDate(group.lastChecked) : "Never"}</div>
-                    </div>
-                    <div className="min-w-0 space-y-2">
-                      <div className="flex flex-wrap items-center gap-2">
-                        <MiniPill tone="info"><span title={(group.checkDays || []).join(", ")}>{compactFrequencyLabel(group)}</span></MiniPill>
-                        <MiniPill tone={statusTone(group.status)}>{toTitle(group.status)}</MiniPill>
-                        <MiniPill>{itemCount} items</MiniPill>
-                      </div>
-                      <div className="flex flex-wrap gap-1.5" title={categoryNames.join(", ")}>
-                        {visibleCategories.map((name) => <span key={name} className="rounded-full border border-border bg-slate-50 px-2 py-0.5 type-caption font-semibold text-text-secondary">{name}</span>)}
-                        {hiddenCategoryCount ? <span className="rounded-full border border-border bg-slate-50 px-2 py-0.5 type-caption font-semibold text-text-secondary">+{hiddenCategoryCount} categories</span> : null}
-                        {!categoryNames.length ? <span className="type-caption font-semibold text-text-muted">No categories</span> : null}
-                      </div>
-                    </div>
-                    <div className="flex flex-wrap justify-end gap-2">
-                      <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.manageGroups, "edit stock check groups") && setModal({ type: "group", group })}>Edit</button>
-                      <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.manageGroups, "duplicate stock check groups") && setModal({ type: "group", outletId: group.outletId, group: { ...group, id: "", name: `${group.name} Copy`, categoryIds } })}>Duplicate</button>
-                      {group.status === "active" ? <button className="btn-secondary h-8 px-2.5 text-xs text-rose-700" type="button" onClick={() => archiveGroup(group.id)}>Archive</button> : null}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-            </div>
-          ) : <EmptyState title={emptyTitle} description="Groups decide which categories appear in custom or monthly checks." />}
-        </div>
       </div>
     );
   }
@@ -9371,178 +9294,26 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }
 
   function renderOrders() {
-    const filteredOrders = data.orders.filter((order) => {
-      const outletId = order.outletId || order.outletIds?.[0] || "";
-      const supplier = suppliers.find((entry) => entry.id === order.supplierId);
-      const createdDate = (order.createdAt || order.submittedAt || "").slice(0, 10);
-      const searchText = [
-        businessPoNo(order),
-        order.poNo,
-        supplier?.name,
-        ...(order.lines || []).map((line) => itemById.get(line.itemId)?.name),
-      ].join(" ").toLowerCase();
-      const matchesOutlet = poFilters.outletId === "all" || outletId === poFilters.outletId;
-      const matchesSupplier = poFilters.supplierId === "all" || order.supplierId === poFilters.supplierId;
-      const matchesStatus = poFilters.status === "all" || order.status === poFilters.status;
-      const matchesSource = poFilters.source === "all" || (order.sourceType || "manual") === poFilters.source;
-      const matchesSearch = !poFilters.search.trim() || searchText.includes(poFilters.search.trim().toLowerCase());
-      const matchesFrom = !poFilters.from || !createdDate || createdDate >= poFilters.from;
-      const matchesTo = !poFilters.to || !createdDate || createdDate <= poFilters.to;
-      return matchesOutlet && matchesSupplier && matchesStatus && matchesSource && matchesSearch && matchesFrom && matchesTo;
-    });
-    const updateFilter = (key, value) => setPoFilters((current) => ({ ...current, [key]: value }));
-    const primaryAction = (order) => {
-      if (order.status === "draft") return { label: "Submit Order", tone: "primary", action: () => requirePermission(can.submitPo, "submit purchase orders") && updatePurchaseOrderStatus(order.id, "submitted") };
-      if (["submitted", "supplier_confirmed"].includes(order.status)) return { label: "Receive", tone: "primary", action: () => requirePermission(can.receivePo, "receive inventory") && setModal({ type: "po-receive", order }) };
-      if (order.status === "partial_received") return { label: "Receive More", tone: "primary", action: () => requirePermission(can.receivePo, "receive inventory") && setModal({ type: "po-receive", order }) };
-      if (order.status === "fully_received") return { label: "Complete PO", tone: "primary", action: () => requirePermission(can.completePo, "complete purchase orders") && setModal({ type: "po-complete", order }) };
-      return { label: "View", tone: "secondary", action: () => setModal({ type: "po-detail", order }) };
-    };
-    const mobilePrimaryAction = (order) => {
-      if (order.status === "draft") return { label: "Submit Order", tone: "primary", action: () => requirePermission(can.submitPo, "submit purchase orders") && updatePurchaseOrderStatus(order.id, "submitted") };
-      if (order.status === "submitted") return { label: "Mark Confirmed", tone: "primary", action: () => requirePermission(can.submitPo, "mark supplier confirmed") && updatePurchaseOrderStatus(order.id, "supplier_confirmed") };
-      if (order.status === "supplier_confirmed") return { label: "Receive", tone: "primary", action: () => requirePermission(can.receivePo, "receive inventory") && setModal({ type: "po-receive", order }) };
-      if (order.status === "partial_received") return { label: "Receive More", tone: "primary", action: () => requirePermission(can.receivePo, "receive inventory") && setModal({ type: "po-receive", order }) };
-      if (order.status === "fully_received") return { label: "Complete PO", tone: "primary", action: () => requirePermission(can.completePo, "complete purchase orders") && setModal({ type: "po-complete", order }) };
-      return { label: "View", tone: "secondary", action: () => setModal({ type: "po-detail", order }) };
-    };
-
-    return (
-      <SectionCard title="Purchase Orders" description="Draft POs are created from reviewed stock check suggestions or manual purchase planning.">
-        <div className="mb-4 grid gap-3 lg:grid-cols-6">
-          <SelectField label="Outlet" value={poFilters.outletId} options={getAccessibleOutletOptions(auth, outlets)} onChange={(value) => updateFilter("outletId", value)} searchable />
-          <SelectField label="Supplier" value={poFilters.supplierId} options={[{ value: "all", label: "All Suppliers" }, ...suppliers.map((supplier) => ({ value: supplier.id, label: supplier.name }))]} onChange={(value) => updateFilter("supplierId", value)} searchable />
-          <SelectField label="Status" value={poFilters.status} options={[{ value: "all", label: "All Status" }, ...poStatuses.map((status) => ({ value: status, label: poStatusLabel(status) }))]} onChange={(value) => updateFilter("status", value)} />
-          <SelectField label="Source" value={poFilters.source} options={[{ value: "all", label: "All Sources" }, ...poSources.map((source) => ({ value: source, label: poSourceLabel(source) }))]} onChange={(value) => updateFilter("source", value)} />
-          <DatePickerField label="From" value={poFilters.from} onChange={(value) => updateFilter("from", value)} />
-          <DatePickerField label="To" value={poFilters.to} onChange={(value) => updateFilter("to", value)} />
-          <label className="lg:col-span-6">
-            <div className="mb-1 type-caption font-semibold text-text-secondary">Search Business PO / Supplier / Item</div>
-            <input className="control h-9 w-full text-[13px]" value={poFilters.search} onChange={(event) => updateFilter("search", event.target.value)} placeholder="Search business PO no, internal ID, supplier or item" />
-          </label>
-        </div>
-        {filteredOrders.length ? (
-          <>
-          <div className="space-y-3 md:hidden">
-            {filteredOrders.map((order) => {
-              const supplier = suppliers.find((entry) => entry.id === order.supplierId);
-              const outlet = outletById.get(order.outletId || order.outletIds?.[0]);
-              const progress = poProgress(order);
-              const action = mobilePrimaryAction(order);
-              const canCancelOrder = ["draft", "submitted", "supplier_confirmed"].includes(order.status) && progress.received <= 0;
-              return (
-                <div key={order.id} className="rounded-2xl border border-border bg-white p-4 shadow-sm">
-                  <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <div className="truncate font-mono text-sm font-black text-text-primary" title={`Internal system ID: ${order.poNo}`}>{businessPoNo(order)}</div>
-                      <div className="mt-1 type-caption text-text-secondary">Internal ID: {order.poNo}</div>
-                    </div>
-                    <Badge tone={statusTone(order.status)}>{poStatusLabel(order.status)}</Badge>
-                  </div>
-
-                  <div className="mt-4 grid gap-3 text-sm">
-                    <div>
-                      <div className="type-caption font-semibold text-text-muted">Supplier</div>
-                      <div className="mt-0.5 font-bold text-text-primary">{supplier?.name ?? "Unassigned Supplier"}</div>
-                    </div>
-                    <div className="grid grid-cols-2 gap-3">
-                      <div>
-                        <div className="type-caption font-semibold text-text-muted">Outlet</div>
-                        <div className="mt-0.5 font-semibold text-text-primary">{outlet?.name ?? "Outlet"}</div>
-                      </div>
-                      <div>
-                        <div className="type-caption font-semibold text-text-muted">Source</div>
-                        <div className="mt-0.5 font-semibold text-text-primary">{poSourceLabel(order.sourceType)}</div>
-                      </div>
-                    </div>
-                    <div>
-                      <div className="type-caption font-semibold text-text-muted">Created Date</div>
-                      <div className="mt-0.5 font-semibold text-text-primary">{formatDate(order.createdAt || order.submittedAt || todayInput())}</div>
-                    </div>
-                  </div>
-
-                  <div className="mt-4 rounded-xl border border-border bg-slate-50 p-3">
-                    <div className="flex items-center justify-between gap-3">
-                      <div>
-                        <div className="type-caption font-semibold text-text-muted">Items received</div>
-                        <div className="mt-1 text-lg font-black text-text-primary">{progress.received} / {progress.ordered}</div>
-                      </div>
-                      <div className="text-right type-caption font-bold text-text-secondary">{Math.min(progress.percent, 100).toFixed(0)}%</div>
-                    </div>
-                    <div className="mt-2 h-2 rounded-full bg-white">
-                      <div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(progress.percent, 100)}%` }} />
-                    </div>
-                  </div>
-
-                  <div className="mt-4 flex flex-col gap-2">
-                    <button className={action.tone === "primary" ? "btn-primary w-full justify-center" : "btn-secondary w-full justify-center"} type="button" onClick={action.action}>{action.label}</button>
-                    <div className="grid grid-cols-2 gap-2">
-                      {action.label !== "View" ? <button className="btn-secondary min-w-0 justify-center px-2 text-xs" type="button" onClick={() => setModal({ type: "po-detail", order })}>View</button> : null}
-                      <button className="btn-secondary min-w-0 justify-center px-2 text-xs" type="button" onClick={() => copyPurchaseOrderText(order)}><Copy size={13} /> Copy Text</button>
-                      {order.status === "draft" ? <button className="btn-secondary min-w-0 justify-center px-2 text-xs" type="button" onClick={() => requirePermission(can.editPo, "edit purchase orders") && setModal({ type: "po-edit", order })}>Edit</button> : null}
-                      {canCancelOrder ? <button className="btn-secondary min-w-0 justify-center px-2 text-xs text-rose-700" type="button" onClick={() => requirePermission(can.cancelPo, "cancel purchase orders") && setModal({ type: "po-cancel", order })}>Cancel</button> : null}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-          <div className="hidden overflow-x-auto md:block">
-            <table className="w-full min-w-[1040px] text-left">
-              <thead className="text-[11px] uppercase tracking-wide text-text-muted">
-                <tr className="border-b border-border">
-                  <th className="py-2">Business PO No.</th>
-                  <th>Supplier</th>
-                  <th>Outlet</th>
-                  <th>Items</th>
-                  <th>Received Progress</th>
-                  <th>Status</th>
-                  <th>Source</th>
-                  <th>Created Date</th>
-                  <th className="text-right">Actions</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border text-[13px]">
-                {filteredOrders.map((order) => {
-                  const supplier = suppliers.find((entry) => entry.id === order.supplierId);
-                  const outlet = outletById.get(order.outletId || order.outletIds?.[0]);
-                  const progress = poProgress(order);
-                  const action = primaryAction(order);
-                  const canCancelOrder = ["draft", "submitted", "supplier_confirmed"].includes(order.status) && progress.received <= 0;
-                  return (
-                    <tr key={order.id} className="transition hover:bg-primary/5">
-                      <td className="py-3 font-mono text-xs font-bold text-text-primary" title={`Internal system ID: ${order.poNo}`}>{businessPoNo(order)}</td>
-                      <td className="font-semibold text-text-primary">{supplier?.name ?? "Unassigned Supplier"}</td>
-                      <td>{outlet?.name ?? "Outlet"}</td>
-                      <td>{order.lines.length}</td>
-                      <td>
-                        <div className="font-semibold text-text-primary">{progress.received} / {progress.ordered}</div>
-                        <div className="mt-1 h-1.5 rounded-full bg-slate-100"><div className="h-full rounded-full bg-primary" style={{ width: `${Math.min(progress.percent, 100)}%` }} /></div>
-                      </td>
-                      <td><Badge tone={statusTone(order.status)}>{poStatusLabel(order.status)}</Badge></td>
-                      <td>{poSourceLabel(order.sourceType)}</td>
-                      <td>{formatDate(order.createdAt || order.submittedAt || todayInput())}</td>
-                      <td>
-                        <div className="flex justify-end gap-2">
-                          <button className={action.tone === "primary" ? "btn-primary h-8 px-2.5 text-xs" : "btn-secondary h-8 px-2.5 text-xs"} type="button" onClick={action.action}>{action.label}</button>
-                          {action.label !== "View" ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setModal({ type: "po-detail", order })}>View</button> : null}
-                          <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => copyPurchaseOrderText(order)}><Copy size={13} /> Copy Text</button>
-                          {order.status === "draft" ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.editPo, "edit purchase orders") && setModal({ type: "po-edit", order })}>Edit</button> : null}
-                          {order.status === "submitted" ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.submitPo, "mark supplier confirmed") && updatePurchaseOrderStatus(order.id, "supplier_confirmed")}>Mark Confirmed</button> : null}
-                          {order.status === "partial_received" ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.completePo, "complete purchase orders") && setModal({ type: "po-complete", order })}>Complete PO</button> : null}
-                          {canCancelOrder ? <button className="btn-secondary h-8 px-2.5 text-xs text-rose-700" type="button" onClick={() => requirePermission(can.cancelPo, "cancel purchase orders") && setModal({ type: "po-cancel", order })}>Cancel</button> : null}
-                        </div>
-                      </td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-          </>
-        ) : <EmptyState title="No purchase orders found." description="Adjust filters or create Draft POs from scheduled stock check suggestions or manual purchase planning." />}
-      </SectionCard>
-    );
+    return <InventoryPurchaseOrdersPage
+      orders={data.orders}
+      items={data.items}
+      suppliers={suppliers}
+      outletOptions={getAccessibleOutletOptions(auth, outlets)}
+      outletById={outletById}
+      getBusinessPoNo={businessPoNo}
+      formatDate={formatDate}
+      todayInput={todayInput}
+      statusTone={statusTone}
+      onFiltersChange={setPoFilters}
+      onRequestEdit={(order) => requirePermission(can.editPo, "edit purchase orders") && setModal({ type: "po-edit", order })}
+      onSubmit={(order) => requirePermission(can.submitPo, "submit purchase orders") && updatePurchaseOrderStatus(order.id, "submitted")}
+      onConfirm={(order) => requirePermission(can.submitPo, "mark supplier confirmed") && updatePurchaseOrderStatus(order.id, "supplier_confirmed")}
+      onRequestReceive={(order) => requirePermission(can.receivePo, "receive inventory") && setModal({ type: "po-receive", order })}
+      onComplete={(order) => requirePermission(can.completePo, "complete purchase orders") && setModal({ type: "po-complete", order })}
+      onCancel={(order) => requirePermission(can.cancelPo, "cancel purchase orders") && setModal({ type: "po-cancel", order })}
+      onView={(order) => setModal({ type: "po-detail", order })}
+      onCopyPurchaseOrder={copyPurchaseOrderText}
+    />;
   }
 
   function renderMovements() {
@@ -10332,7 +10103,29 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     if (activeTab === "dashboard") return renderDashboard();
     if (activeTab === "master") return renderMasterInventory();
     if (activeTab === "par-levels") return renderParLevels();
-    if (activeTab === "groups") return renderGroups();
+    if (activeTab === "groups") return <InventoryGroupsPage
+      groups={data.groups}
+      items={data.items}
+      checks={data.checks}
+      categories={data.categories}
+      outlets={outlets}
+      outletOptions={getAccessibleOutletOptions(auth, outlets)}
+      selectedOutletId={selectedOutletId}
+      onSelectedOutletChange={setSelectedOutletId}
+      date={date}
+      statuses={statuses}
+      frequencies={frequencies}
+      toTitle={toTitle}
+      statusTone={statusTone}
+      formatDate={formatDate}
+      groupCategoryIds={groupCategoryIds}
+      stockCheckItemsForGroup={stockCheckItemsForGroup}
+      dueStatus={dueStatus}
+      compactFrequencyLabel={compactFrequencyLabel}
+      onEditGroup={(group) => requirePermission(can.manageGroups, "edit stock check groups") && setModal({ type: "group", group })}
+      onDuplicateGroup={(group, categoryIds) => requirePermission(can.manageGroups, "duplicate stock check groups") && setModal({ type: "group", outletId: group.outletId, group: { ...group, id: "", name: `${group.name} Copy`, categoryIds } })}
+      onArchiveGroup={(group) => archiveGroup(group.id)}
+    />;
     if (activeTab === "stock-check") return renderStockCheck();
     if (activeTab === "requests") return renderRequests();
     if (activeTab === "orders") return renderOrders();
@@ -10372,7 +10165,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       );
     }
     if (activeTab === "groups") {
-      return <button className="btn-primary" type="button" onClick={openCreateGroup}><PackagePlus size={15} /> Add Group</button>;
+      return <InventoryGroupsPageActions onCreateGroup={openCreateGroup} />;
     }
     if (activeTab === "stock-check") {
       return <button className="btn-primary" type="button" onClick={() => requirePermission(can.createCheck, "create audit stock checks") && setModal({ type: "audit-stock-check" })}><ClipboardCheck size={15} /> Audit Stock Check</button>;
@@ -10560,7 +10353,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           onClose={() => setModal(null)}
         />
       ) : null}
-      {modal?.type === "po-edit" ? <PurchaseOrderEditModal order={modal.order} suppliers={suppliers} items={data.items} onClose={() => setModal(null)} onSave={savePurchaseOrder} /> : null}
+      {modal?.type === "po-edit" ? <PurchaseOrderEditModal order={modal.order} suppliers={suppliers} items={data.items} onClose={() => setModal(null)} onSave={async (order) => { const result = await savePurchaseOrder(order); setModal(null); return result; }} /> : null}
       {modal?.type === "po-receive" ? (
         <ReceiveInventoryModal
           order={modal.order}
@@ -10569,7 +10362,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           outlet={outletById.get(modal.order.outletId || modal.order.outletIds?.[0])}
           items={data.items}
           onClose={() => setModal(null)}
-          onReceive={(rows, remark) => receivePurchaseOrder(modal.order, rows, remark)}
+          onReceive={async (rows, remark) => { const result = await receivePurchaseOrder(modal.order, rows, remark); setModal(null); return result; }}
         />
       ) : null}
       {modal?.type === "po-cancel" ? <CancelPurchaseOrderModal order={modal.order} displayPoNo={businessPoNo(modal.order)} onClose={() => setModal(null)} onCancel={(reason) => cancelPurchaseOrder(modal.order, reason)} /> : null}
@@ -10694,141 +10487,22 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           </Modal>
         );
       })() : null}
-      {modal?.type === "po-detail" ? (() => {
-        const order = modal.order;
-        const progress = poProgress(order);
-        const supplier = suppliers.find((entry) => entry.id === order.supplierId);
-        const outlet = outletById.get(order.outletId || order.outletIds?.[0]);
-        const sourceCheck = data.checks.find((check) => check.id === order.sourceStockCheckId);
-        const balance = Math.max(0, progress.ordered - progress.received);
-        const isReceivable = ["submitted", "supplier_confirmed", "partial_received"].includes(order.status) && balance > 0;
-        const workflowSteps = [
-          { key: "created", label: "Created", date: order.createdAt, complete: Boolean(order.createdAt) },
-          { key: "submitted", label: "Submitted", date: order.submittedAt, complete: Boolean(order.submittedAt) || order.status !== "draft" },
-          { key: "receiving", label: "Receiving", date: order.receipts?.[0]?.receivedAt, complete: progress.received > 0 || ["fully_received", "completed"].includes(order.status) },
-          { key: "completed", label: "Completed", date: order.completedAt, complete: Boolean(order.completedAt) || order.status === "completed" },
-        ];
-        const workflowIndex = order.status === "draft" ? 0 : ["submitted", "supplier_confirmed"].includes(order.status) ? 1 : ["partial_received", "fully_received"].includes(order.status) ? 2 : order.status === "completed" ? 3 : -1;
-        const sourceName = sourceCheck ? `${sourceCheck.auditName || sourceCheck.groupName || "Stock Check"} · ${formatDate(sourceCheck.date)}` : order.sourceStockCheckId || "Manual purchase planning";
-        const displayPoNo = businessPoNo(order);
-
-        return (
-          <Modal
-            title="Purchase Order Detail"
-            description={`${displayPoNo} · ${supplier?.name || "Supplier"} · ${outlet?.name || "Outlet"}`}
-            size="xl"
-            onClose={() => setModal(null)}
-            footer={<button className="btn-secondary" type="button" onClick={() => setModal(null)}>Close</button>}
-          >
-            <div className="space-y-4">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <Badge tone={order.status === "partial_received" ? "warning" : statusTone(order.status)}>{poStatusLabel(order.status)}</Badge>
-                <div className="flex flex-wrap justify-end gap-2">
-                  {isReceivable ? <button className="btn-primary" type="button" onClick={() => requirePermission(can.receivePo, "receive inventory") && setModal({ type: "po-receive", order })}><Truck size={15} /> Receive</button> : null}
-                  <button className="btn-secondary" type="button" onClick={() => copyPurchaseOrderText(order)}><Copy size={15} /> Copy PO Text</button>
-                  <button className="btn-secondary" type="button" onClick={() => { notify("Export PDF", "Use the print dialog to save this PO as PDF."); window.print(); }}><Download size={15} /> Export PDF</button>
-                  <button className="btn-secondary" type="button" onClick={() => window.print()}><FileText size={15} /> Print</button>
-                </div>
-              </div>
-
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="rounded-2xl border border-primary/20 bg-primary/5 p-3">
-                  <div className="type-caption font-semibold text-text-muted">Business PO Number</div>
-                  <div className="mt-1 font-mono text-lg font-black text-text-primary">{displayPoNo}</div>
-                </div>
-                <div className="rounded-2xl border border-border bg-surface p-3">
-                  <div className="type-caption font-semibold text-text-muted">Internal System ID</div>
-                  <div className="mt-1 font-mono text-sm font-bold text-text-secondary">{order.poNo}</div>
-                </div>
-              </div>
-
-              <div className="grid gap-3 lg:grid-cols-[1.2fr_0.8fr]">
-                <div className="rounded-2xl border border-border bg-surface p-3">
-                  <div className="mb-3 type-title font-bold text-text-primary">Generated From</div>
-                  <div className="grid gap-3 sm:grid-cols-3">
-                    <div><div className="type-caption font-semibold text-text-muted">Source Type</div><div className="mt-1 type-body-sm font-bold text-text-primary">{poSourceLabel(order.sourceType)}</div></div>
-                    <div><div className="type-caption font-semibold text-text-muted">Source Name</div><div className="mt-1 type-body-sm font-bold text-text-primary">{sourceName}</div></div>
-                    <div><div className="type-caption font-semibold text-text-muted">Created Date</div><div className="mt-1 type-body-sm font-bold text-text-primary">{formatDate(order.createdAt)}</div></div>
-                  </div>
-                </div>
-                <div className="rounded-2xl border border-border bg-surface p-3">
-                  <div className="mb-3 type-title font-bold text-text-primary">Supplier Contact</div>
-                  <div className="grid gap-2 type-body-sm">
-                    <div className="flex justify-between gap-3"><span className="text-text-secondary">Supplier</span><span className="font-bold text-text-primary">{supplier?.name || "Supplier"}</span></div>
-                    <div className="flex justify-between gap-3"><span className="text-text-secondary">Phone</span><span className="font-bold text-text-primary">{supplier?.phone || supplier?.contactPhone || "Not configured"}</span></div>
-                    <div className="flex justify-between gap-3"><span className="text-text-secondary">Email</span><span className="font-bold text-text-primary">{supplier?.email || "Not configured"}</span></div>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-border bg-surface p-3">
-                <div className="mb-3 type-title font-bold text-text-primary">Workflow Progress</div>
-                <div className="grid gap-2 sm:grid-cols-4">
-                  {workflowSteps.map((step, index) => {
-                    const active = workflowIndex === index;
-                    const complete = step.complete || workflowIndex > index;
-                    return (
-                      <div key={step.key} className={`rounded-2xl border p-3 ${active ? "border-primary/30 bg-primary/8" : complete ? "border-emerald-200 bg-emerald-50/70" : "border-border bg-slate-50"}`}>
-                        <div className="flex items-center gap-2"><span className={`grid h-6 w-6 place-items-center rounded-full text-[11px] font-black ${complete ? "bg-emerald-600 text-white" : active ? "bg-primary text-white" : "bg-slate-200 text-text-muted"}`}>{index + 1}</span><span className="type-body-sm font-black text-text-primary">{step.label}</span></div>
-                        <div className="mt-2 type-caption font-semibold text-text-secondary">{step.date ? formatDate(step.date) : "Pending"}</div>
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-
-              <div className="rounded-2xl border border-border bg-surface p-3">
-                <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-                  <div><div className="type-title font-bold text-text-primary">Fulfillment</div><div className="type-caption text-text-secondary">{progress.received} / {progress.ordered} received</div></div>
-                  <Badge tone={order.status === "partial_received" ? "warning" : progress.percent >= 100 ? "success" : "info"}>{progress.percent}% fulfilled</Badge>
-                </div>
-                <div className="h-3 overflow-hidden rounded-full bg-slate-100"><div className={`h-full rounded-full ${order.status === "partial_received" ? "bg-amber-500" : "bg-primary"}`} style={{ width: `${Math.min(100, progress.percent)}%` }} /></div>
-                <div className="mt-3 grid gap-3 sm:grid-cols-3">
-                  <MetricCard label="Ordered Qty" value={progress.ordered} helper="Original order" size="compact" />
-                  <MetricCard label="Received Qty" value={progress.received} helper="Confirmed received" tone={progress.received ? "success" : "neutral"} size="compact" />
-                  <MetricCard label="Balance" value={balance} helper={order.status === "completed" && order.completionType === "partial" ? "Unfulfilled" : "Open balance"} tone={balance ? "warning" : "success"} size="compact" />
-                </div>
-              </div>
-
-              <div className="overflow-x-auto rounded-2xl border border-border">
-                <table className="w-full min-w-[760px] text-left">
-                  <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted"><tr><th className="px-3 py-2">Item</th><th>Order Qty</th><th>Received</th><th>Balance</th><th>Unit</th><th>Remark</th></tr></thead>
-                  <tbody className="divide-y divide-border text-[13px]">
-                    {order.lines.map((line) => {
-                      const item = itemById.get(line.itemId);
-                      return <tr key={line.id || line.itemId}><td className="px-3 py-2 font-bold text-text-primary">{item?.name || "Inventory item"}</td><td>{line.requestedQty}</td><td>{line.receivedQty || 0}</td><td className={remainingQty(line) ? "font-bold text-amber-700" : "font-semibold text-emerald-700"}>{remainingQty(line)}</td><td>{line.unit || item?.unit || ""}</td><td>{line.remark || "-"}</td></tr>;
-                    })}
-                  </tbody>
-                </table>
-              </div>
-
-              <div className="rounded-2xl border border-border p-3">
-                <div className="mb-3 type-title font-bold text-text-primary">Receiving History</div>
-                {order.receipts?.length ? (
-                  <div className="space-y-3">
-                    {order.receipts.map((receipt) => {
-                      const receiptQty = (receipt.items || []).reduce((sum, line) => sum + Number(line.receivedQty || 0), 0);
-                      return (
-                        <div key={receipt.id} className="relative pl-5">
-                          <span className="absolute left-0 top-1.5 h-2.5 w-2.5 rounded-full bg-primary" />
-                          <div className="rounded-xl bg-slate-50 p-3">
-                            <div className="flex flex-wrap items-center justify-between gap-2"><div className="type-body-sm font-black text-text-primary">{formatDate(receipt.receivedAt)}</div><Badge tone="success">+{receiptQty} qty</Badge></div>
-                            <div className="mt-1 type-caption font-semibold text-text-secondary">Received By: {actorNameByAnyId(receipt.receivedBy)}</div>
-                            {receipt.remark ? <div className="mt-1 type-caption text-text-secondary">Remark: {receipt.remark}</div> : null}
-                            <div className="mt-2 space-y-1">{(receipt.items || []).map((line) => <div key={line.id} className="type-caption text-text-secondary">{itemById.get(line.itemId)?.name || "Inventory item"} · +{line.receivedQty} {line.unit}{line.remark ? ` · ${line.remark}` : ""}</div>)}</div>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                ) : <div className="type-caption font-semibold text-text-muted">No receiving records yet.</div>}
-              </div>
-
-              {order.cancellationReason ? <div className="rounded-2xl border border-rose-200 bg-rose-50 p-3 type-body-sm font-semibold text-rose-800">Cancellation reason: {order.cancellationReason}</div> : null}
-            </div>
-          </Modal>
-        );
-      })() : null}
+      {modal?.type === "po-detail" ? <InventoryPurchaseOrderDetail
+        order={modal.order}
+        getBusinessPoNo={businessPoNo}
+        suppliers={suppliers}
+        outletById={outletById}
+        itemById={itemById}
+        checks={data.checks}
+        actorNameByAnyId={actorNameByAnyId}
+        formatDate={formatDate}
+        statusTone={statusTone}
+        onClose={() => setModal(null)}
+        onRequestReceive={(order) => requirePermission(can.receivePo, "receive inventory") && setModal({ type: "po-receive", order })}
+        onCopyPurchaseOrder={copyPurchaseOrderText}
+        onNotify={notify}
+        onPrint={() => window.print()}
+      /> : null}
       <InventoryItemPhotoPreview preview={photoPreview} onClose={() => setPhotoPreview(null)} />
     </div>
   );

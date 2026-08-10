@@ -1,6 +1,6 @@
 # FeedX Project Master Document
 
-Last updated: 2026-08-08
+Last updated: 2026-08-10
 Document owner: FeedX product / engineering workspace  
 Document purpose: Permanent project source-of-truth for requirements, architecture, modules, fields, business rules, permissions, integrations, and development plan.
 
@@ -2534,8 +2534,8 @@ Page behavior:
 - Waste Records are outlet-scoped and should show Date, Item, Category, Waste Type, Qty, Outlet, Recorded By, Notes, Evidence, and Actions.
 - Recorded By must display employee nickname, falling back to full name/email, and must never expose raw UUIDs.
 - Record Waste item picker only shows active inventory items linked to the selected outlet.
-- Record Waste writes to `inventory_waste_records` and succeeds only after Supabase confirms the insert.
-- After a waste record is saved, FeedX creates an `inventory_movements` row with `movement_type = Waste`, `reference_type = waste`, `reference_id = inventory_waste_records.id`, and a `WASTE-XXXXXXXX` reference number.
+- Record Waste invokes the trusted `inventory_save_waste` RPC and succeeds only after its atomic waste-record and negative-movement result is confirmed.
+- The trusted waste result creates an `inventory_movements` row with `movement_type = Waste`, `reference_type = waste`, `reference_id = inventory_waste_records.id`, and a `WASTE-XXXXXXXX` reference number.
 - Waste movement quantity follows the current inventory movement convention: waste is stored as a negative quantity because it reduces stock.
 - Photo evidence is optional. Uploaded evidence is stored in Supabase Storage and the public URL is saved to `inventory_waste_records.photo_url`; the table shows `View Photo`, and the detail modal displays the evidence photo and movement reference.
 - Waste metrics currently use record count and quantity only; cost/value analysis is deferred until item costing exists.
@@ -2667,8 +2667,7 @@ Rules:
 - Ingredient preview shows up to five ingredient lines in `Ingredient name · Qty UOM · Cost` format, then `+N more` when additional ingredients exist.
 - Recipe exports include `recipe_code`, `recipe_name_en`, and `recipe_name_cn`.
 - Margin % is `((Selling Price - Estimated Cost) / Selling Price) × 100`; badges are green at 70%+, amber at 40%-69%, and red below 40%.
-- Add Recipe writes to `inventory_recipes` and `inventory_recipe_items`; success is shown only after Supabase confirms the recipe and ingredient rows.
-- Edit Recipe updates the recipe row and replaces its ingredient snapshot rows in `inventory_recipe_items`.
+- Add/Edit Recipe invokes the trusted `inventory_save_recipe` RPC; success is shown only after its atomic recipe and ingredient snapshot result is confirmed.
 - Archive Recipe sets `inventory_recipes.status = inactive`; inactive recipes are hidden from the default Active filter but remain available for audit/history when filtering by status.
 - Quantity Used must be greater than zero and Wastage % must be zero or greater.
 - Recipe management actions require `inventory_recipes.manage`; view and export use `inventory_recipes.view` and `inventory_recipes.export`.
@@ -2692,6 +2691,23 @@ RBAC and outlet scope:
 - Owner/admin can access all outlets.
 - Custom roles can only view and act on assigned outlets.
 - Service-layer queries and RLS policies must enforce outlet scope, not just UI filters.
+
+### Inventory Control Structural Architecture (Current)
+
+Inventory Control is intentionally a centralized orchestration workspace. `InventoryControlPage` owns the broad `useInventoryData` / `loadRemoteInventoryMaster` snapshot, `normalizeInventoryItem`, `refreshInventory`, route/modal coordination, permission checks, notifications, and lifecycle callbacks. Extracted domains consume explicit data and callback contracts; they do not create duplicate Inventory list/query authority.
+
+- Extracted presentation ownership: Wastage, Movement History, Manual Movement modal, Purchase Order list/detail, and Stock Check Groups.
+- Intentionally centralized high-coupling ownership: Master Inventory, Categories/UOM controls, Par Levels, Stock Check workflow, Purchase Order Edit/Receive/Suggestion modals, Recipes/Recipe Intelligence, normalization, and broad refresh orchestration.
+- Stock-changing or multi-table lifecycle writes are server-authoritative through `inventoryLifecycleService`: Receiving → `inventory_receive_purchase_order`; Waste → `inventory_save_waste`; Transfer → `inventory_transfer_inventory`; Stock Check → `inventory_save_stock_check`; Purchase Order → `inventory_save_purchase_order`; Manual Movement → `inventory_save_manual_movement`; Recipe → `inventory_save_recipe`. These RPCs derive the actor from `auth.uid()`, validate permission/outlet scope, use request-ID idempotency, and execute their write sets transactionally.
+- Direct browser CRUD remains limited to master/configuration and bounded support data: Inventory Items and outlet links, Categories/UOMs, Par Level configuration and supplier links, Stock Check Group configuration, single-row archive/status actions, Menu Categories, and Recipe Intelligence mappings. These are not active stock-changing lifecycle paths.
+- Par Levels remains centralized. `inventory_par_levels.edit` gates all mutation controls and the parent callback; saves are sequenced by `itemId + outletId`, suppress stale success/failure UI, and permit independent concurrent saves for different configurations. Successful Par saves intentionally update the local normalized snapshot without broad refresh or a success notification.
+
+Post-freeze rules:
+
+1. Do not add large domain renderers or modal blocks directly to `InventoryControlPage`; new domains begin in a domain folder with explicit read, mutation, permission, and focused-test contracts.
+2. Extract an existing centralized domain only when it is materially changed, has a regression gate, and has a clear authority seam. Do not create duplicate query or refresh authorities during extraction.
+3. Keep stock-changing and multi-table lifecycle effects server-authoritative. Do not refactor `normalizeInventoryItem` or broad read ownership without dedicated characterization coverage and an explicit redesign decision.
+4. Remaining debt is intentional unless feature work changes it: broad master overfetch, normalization coupling, Stock Check/Master Inventory/Recipe Intelligence complexity, Groups' lack of an in-flight save guard, centralized PO Edit/Receive modals, and configuration CRUD consistency review.
 
 ---
 

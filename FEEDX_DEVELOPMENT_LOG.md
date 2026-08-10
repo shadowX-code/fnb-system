@@ -2,6 +2,14 @@
 
 Purpose: concise development history for meaningful FeedX development sessions. The master document remains the source of truth for final logic and architecture; release notes under `docs/releases/` document production releases.
 
+## 2026-08-10
+
+### Inventory Structural Freeze
+- Completed Inventory trusted lifecycle authority through request-ID-idempotent Supabase RPCs for Receiving, Waste, Transfer, Stock Check, Purchase Order, Manual Movement, and Recipe persistence.
+- Established extracted presentation ownership for Wastage, Movement History, Manual Movement, Purchase Order list/detail, and Stock Check Groups while retaining one broad Inventory read/refresh authority in `InventoryControlPage`.
+- Hardened Par Levels without extraction: `inventory_par_levels.edit` now gates UI and parent persistence callbacks; per-item/outlet sequencing prevents stale save responses or stale failures from overwriting the normalized local snapshot, while unrelated configurations continue saving concurrently.
+- Recorded the Inventory structural freeze rules and post-launch debt: normalization/broad-read coupling, Stock Check/Master/Recipe complexity, Groups save concurrency, centralized PO Edit/Receive modals, and configuration CRUD review remain deliberately centralized until materially changed and covered by focused tests.
+
 ## 2026-08-08
 
 ### Factory Structural Refactor Closeout
