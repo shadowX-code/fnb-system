@@ -1471,10 +1471,11 @@ async function loadProductionSopRows({ signal }) {
   }, label);
 }
 
-function factoryDataPlan(scope, hasPermission) {
+export function factoryDataPlan(scope, hasPermission) {
   const can = (code) => !hasPermission || hasPermission(code);
   const isDashboard = scope === "dashboard";
-  const isJobOrders = scope === "job-orders" || scope === "production-overview";
+  const isProductionOverview = scope === "production-overview";
+  const isJobOrdersOrProductionOverview = scope === "job-orders" || isProductionOverview;
   const isRawInventory = scope === "raw-inventory";
   const isRawReceiving = scope === "raw-receiving";
   const isRawMovements = scope === "raw-movements";
@@ -1497,27 +1498,27 @@ function factoryDataPlan(scope, hasPermission) {
   const canReadProductionReports = can("factory_production_reports.view") || canTraceBatches;
   const needsProductionDetails = isProduction || isReports;
   return {
-    jobOrders: (isJobOrders && can("factory_job_orders.view")) || (isProductionPlanning && can("factory_job_orders.view")) || ((isProduction || isReports) && (can("factory_production.view") || canReadProductionReports)),
-    rawMaterials: (isRawInventory && can("factory_raw_inventory.view")) || (isRawReceiving && can("factory_raw_receiving.view")) || (isRawMovements && can("factory_raw_movements.view")) || (isRawStockCheck && can("factory_raw_stock_check.view")) || (isProductRecipes && can("factory_product_recipes.view")) || (isJobOrders && can("factory_product_recipes.view")) || (isProductionPlanning && can("factory_product_recipes.view")) || (isProduction && (can("factory_raw_inventory.view") || can("factory_product_recipes.view") || can("factory_production.complete") || can("factory_dashboard.view"))),
+    jobOrders: (isProductionOverview && can("factory_job_orders.view")) || (isProductionPlanning && can("factory_job_orders.view")) || ((isProduction || isReports) && (can("factory_production.view") || canReadProductionReports)),
+    rawMaterials: (isRawInventory && can("factory_raw_inventory.view")) || (isRawReceiving && can("factory_raw_receiving.view")) || (isRawMovements && can("factory_raw_movements.view")) || (isRawStockCheck && can("factory_raw_stock_check.view")) || (isProductRecipes && can("factory_product_recipes.view")) || (isJobOrdersOrProductionOverview && can("factory_product_recipes.view")) || (isProductionPlanning && can("factory_product_recipes.view")) || (isProduction && (can("factory_raw_inventory.view") || can("factory_product_recipes.view") || can("factory_production.complete") || can("factory_dashboard.view"))),
     rawMaterialCategories: (isRawInventory && can("factory_raw_inventory.view")) || (isRawStockCheck && can("factory_raw_stock_check.view")),
     factorySuppliers: (isSuppliers && can("factory_suppliers.view")) || (isRawReceiving && can("factory_raw_receiving.view")),
     factoryCustomers: (isCustomers && can("factory_customers.view")) || (isFinishedGoodsDispatch && (can("factory_customers.view") || can("factory_finished_goods_dispatch.view") || can("factory_finished_goods_dispatch.create") || can("factory_finished_goods_dispatch.edit"))),
     receivingBatches: false,
-    storageLocations: (isStorageLocations && can("factory_storage_locations.view")) || (isBatchTraceability && canTraceBatches) || ((isRawInventory || isRawReceiving || isRawMovements || isFinishedGoods || isJobOrders || isProduction) && (can("factory_storage_locations.view") || can("factory_raw_inventory.view") || can("factory_raw_receiving.view") || can("factory_raw_movements.view") || can("factory_finished_goods.view") || can("factory_job_orders.view") || can("factory_production.view") || can("factory_production.complete"))),
+    storageLocations: (isStorageLocations && can("factory_storage_locations.view")) || (isBatchTraceability && canTraceBatches) || ((isRawInventory || isRawReceiving || isRawMovements || isFinishedGoods || isJobOrdersOrProductionOverview || isProduction) && (can("factory_storage_locations.view") || can("factory_raw_inventory.view") || can("factory_raw_receiving.view") || can("factory_raw_movements.view") || can("factory_finished_goods.view") || can("factory_job_orders.view") || can("factory_production.view") || can("factory_production.complete"))),
     rawMaterialMovements: isRawInventory && can("factory_raw_inventory.view"),
     receivings: (isRawInventory && can("factory_raw_inventory.view")) || (isReports && can("factory_production_reports.view")) || (isProduction && can("factory_raw_receiving.view")),
     productions: needsProductionSummary && (can("factory_dashboard.view") || can("factory_production.view") || canReadProductionReports || can("factory_finished_goods.view") || can("factory_product_movements.view")),
     productionDetails: needsProductionDetails,
-    finishedGoods: (isDashboard && can("factory_dashboard.view")) || (isJobOrders && (can("factory_job_orders.view") || can("factory_job_orders.create") || can("factory_job_orders.edit"))) || (isProductRecipes && can("factory_product_recipes.view")) || (isProductionPlanning && can("factory_production_planning.view")) || ((isProduction || isFinishedGoods || isFinishedGoodsDispatch || isProductMovements) && can("factory_finished_goods.view")) || (isFinishedGoodsDispatch && (can("factory_finished_goods_dispatch.view") || can("factory_finished_goods_dispatch.create") || can("factory_finished_goods_dispatch.edit") || can("factory_finished_goods_dispatch.complete"))) || (isProduction && can("factory_production.complete")) || (isProductStockCheck && can("factory_product_stock_check.view")) || (isBatchTraceability && canTraceBatches),
+    finishedGoods: (isDashboard && can("factory_dashboard.view")) || (isJobOrdersOrProductionOverview && (can("factory_job_orders.view") || can("factory_job_orders.create") || can("factory_job_orders.edit"))) || (isProductRecipes && can("factory_product_recipes.view")) || (isProductionPlanning && can("factory_production_planning.view")) || ((isProduction || isFinishedGoods || isFinishedGoodsDispatch || isProductMovements) && can("factory_finished_goods.view")) || (isFinishedGoodsDispatch && (can("factory_finished_goods_dispatch.view") || can("factory_finished_goods_dispatch.create") || can("factory_finished_goods_dispatch.edit") || can("factory_finished_goods_dispatch.complete"))) || (isProduction && can("factory_production.complete")) || (isProductStockCheck && can("factory_product_stock_check.view")) || (isBatchTraceability && canTraceBatches),
     finishedGoodCategories: (isFinishedGoods && can("factory_finished_goods.view")) || (isProductionPlanning && can("factory_production_planning.view")) || (isProductStockCheck && can("factory_product_stock_check.view")),
-    productFamilies: (isFinishedGoods && can("factory_finished_goods.view")) || (isProductRecipes && (can("factory_product_recipes.view") || can("factory_product_recipes.create") || can("factory_product_recipes.edit") || can("factory_product_recipes.manage"))) || (isProductionSop && (can("factory_production_sop.view") || can("factory_production_sop.create") || can("factory_production_sop.edit") || can("factory_production_sop.manage"))) || (isJobOrders && (can("factory_job_orders.view") || can("factory_job_orders.create") || can("factory_job_orders.edit"))) || (isProduction && (can("factory_product_recipes.view") || can("factory_production.complete"))),
+    productFamilies: (isFinishedGoods && can("factory_finished_goods.view")) || (isProductRecipes && (can("factory_product_recipes.view") || can("factory_product_recipes.create") || can("factory_product_recipes.edit") || can("factory_product_recipes.manage"))) || (isProductionSop && (can("factory_production_sop.view") || can("factory_production_sop.create") || can("factory_production_sop.edit") || can("factory_production_sop.manage"))) || (isJobOrdersOrProductionOverview && (can("factory_job_orders.view") || can("factory_job_orders.create") || can("factory_job_orders.edit"))) || (isProduction && (can("factory_product_recipes.view") || can("factory_production.complete"))),
     productMovements: ((isProduction || isProductMovements) && can("factory_product_movements.view")) || (isFinishedGoods && can("factory_finished_goods.view")) || (isFinishedGoodsDispatch && can("factory_finished_goods_dispatch.view")) || (isReports && can("factory_product_movements.view")),
-    recipes: (isRawInventory && can("factory_raw_inventory.view")) || ((isProductRecipes || isFinishedGoods) && can("factory_product_recipes.view")) || (isProductionSop && (can("factory_production_sop.view") || can("factory_production_sop.create") || can("factory_production_sop.edit") || can("factory_production_sop.manage"))) || (isJobOrders && can("factory_product_recipes.view")) || (isProductionPlanning && can("factory_product_recipes.view")) || (isProduction && (can("factory_product_recipes.view") || can("factory_production.complete"))) || (isReports && can("factory_production_reports.view")),
+    recipes: (isRawInventory && can("factory_raw_inventory.view")) || ((isProductRecipes || isFinishedGoods) && can("factory_product_recipes.view")) || (isProductionSop && (can("factory_production_sop.view") || can("factory_production_sop.create") || can("factory_production_sop.edit") || can("factory_production_sop.manage"))) || (isJobOrdersOrProductionOverview && can("factory_product_recipes.view")) || (isProductionPlanning && can("factory_product_recipes.view")) || (isProduction && (can("factory_product_recipes.view") || can("factory_production.complete"))) || (isReports && can("factory_production_reports.view")),
     recipeSummaries: false,
-    sops: (isProduction || isProductionSop || isJobOrders)
+    sops: (isProduction || isProductionSop || isJobOrdersOrProductionOverview)
       && (can("factory_production_sop.view") || can("factory_production.view") || can("factory_production.complete")),
     qcChecklistTemplates: isProductionSop && (can("factory_production_sop.view") || can("factory_production_sop.create") || can("factory_production_sop.edit") || can("factory_production_sop.manage")),
-    auditLogs: isJobOrders && can("factory_audit_logs.view"),
+    auditLogs: false,
   };
 }
 
@@ -3936,55 +3937,6 @@ export const factoryService = {
       return mapStockCheck(result, stockType);
     }
 
-    const payload = {
-      check_no: stockCheck.check_no,
-      check_date: stockCheck.check_date || malaysiaBusinessDate(),
-      status,
-      notes: stockCheck.notes || "",
-      updated_at: new Date().toISOString(),
-    };
-    if (isRaw) payload.category_id = stockCheck.category_id || null;
-    if (!isUpdate) payload.created_by = employeeId || null;
-    if (status === "submitted") {
-      payload.submitted_by = employeeId || null;
-      payload.submitted_at = new Date().toISOString();
-    }
-
-    const query = isUpdate
-      ? supabase.from(table).update(payload).eq("id", stockCheck.id)
-      : supabase.from(table).insert(payload);
-    const { data, error } = await query
-      .select(isRaw ? "id,check_no,check_date,category_id,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at" : "id,check_no,check_date,status,notes,created_by,submitted_by,submitted_at,approved_by,approved_at,created_at,updated_at")
-      .single();
-    throwSupabaseError(`factory.${stockType}_stock_check.save`, error);
-
-    if (isUpdate) {
-      const deleteResult = await supabase.from(itemTable).delete().eq("stock_check_id", data.id);
-      throwSupabaseError(`factory.${stockType}_stock_check.items_delete`, deleteResult.error);
-    }
-
-    const insertResult = await supabase.from(itemTable).insert(items.map((item) => ({
-      stock_check_id: data.id,
-      [itemIdColumn]: item[itemIdColumn],
-      system_qty: item.system_qty,
-      physical_qty: item.physical_qty,
-      variance_qty: item.variance_qty,
-      variance_percent: item.variance_percent,
-      ...(isRaw ? { count_status: item.count_status } : {}),
-      variance_status: item.variance_status,
-      variance_reason: item.variance_reason,
-      uom: item.uom,
-      updated_at: new Date().toISOString(),
-    })));
-    throwSupabaseError(`factory.${stockType}_stock_check.items_insert`, insertResult.error);
-
-    await logFactoryAction({
-      action: status === "submitted" ? `factory_${stockType}_stock_check_submitted` : `factory_${stockType}_stock_check_saved`,
-      target: data.check_no,
-      description: status === "submitted" ? "Factory stock check submitted for approval." : "Factory stock check draft saved.",
-      after: { ...data, items },
-    });
-    return mapStockCheck({ ...data, items }, stockType);
   },
 
   async deleteStockCheck(stockType, stockCheck) {

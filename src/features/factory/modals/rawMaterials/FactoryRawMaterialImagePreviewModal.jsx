@@ -2,8 +2,8 @@ import { useRef, useState } from "react";
 import Modal from "../../../../components/feedback/Modal.jsx";
 import { Field, inputClass } from "../../components/FactoryBulkSelectionModal.jsx";
 import SearchableSelect from "../../components/SearchableSelect.jsx";
+import { rawMaterialLabel } from "../../utils/factoryFormatters.js";
 
-const rawMaterialLabel = (material) => material?.name_en || material?.name || "";
 export default function RawMaterialImagePreviewModal({ material, onClose }) {
   return (
     <Modal

@@ -2,8 +2,8 @@ import { useRef, useState } from "react";
 import Modal from "../../../../components/feedback/Modal.jsx";
 import { Field, inputClass } from "../../components/FactoryBulkSelectionModal.jsx";
 import SearchableSelect from "../../components/SearchableSelect.jsx";
+import { rawMaterialLabel } from "../../utils/factoryFormatters.js";
 
-const rawMaterialLabel = (material) => material?.name_en || material?.name || "";
 const commonUoms = ["kg", "g", "litre", "ml", "pcs", "carton", "pail", "bottle", "pack"];
 export default function RawMaterialCostModal({ material, onClose, onSave }) {
   const [form, setForm] = useState(() => ({

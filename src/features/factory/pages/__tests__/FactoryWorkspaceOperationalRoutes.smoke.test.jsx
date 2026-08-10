@@ -239,7 +239,7 @@ describe("FactoryWorkspacePage operational route smoke", () => {
     fireEvent.click(screen.getByRole("button", { name: "Complete Production" }));
     expect(completeProduction).toHaveBeenCalledWith(inProgressJob);
     fireEvent.click(screen.getByRole("button", { name: "View Result" }));
-    expect(viewCompletedResult).toHaveBeenCalledWith(completedJob.id);
+    expect(viewCompletedResult).toHaveBeenCalledWith(completedJob);
     fireEvent.click(screen.getAllByRole("button", { name: "View" })[0]);
     expect(openJob).toHaveBeenCalledWith(plannedJob, { readOnly: true });
   });

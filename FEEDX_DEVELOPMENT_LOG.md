@@ -4,6 +4,14 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 
 ## 2026-08-08
 
+### Factory Structural Refactor Closeout
+- Froze Factory frontend structure after extracting domain pages and the remaining high-value modal/form surfaces: Job Orders, Production Execution, Dispatch, Stock Checks, batch allocation, and their presentation helpers.
+- `FactoryWorkspacePage` is now the lifecycle/orchestration hub: it retains permissions, route/modal coordination, listing/refresh plumbing, notifications, and trusted lifecycle mutation callbacks; extracted components own presentation and local form/read state.
+- Confirmed one Job Orders listing authority through the stable listing bridge and one shared Operational Jobs read model through `FactoryOperationalJobsContext` / `useFactoryProductionOverviewQuery`.
+- Retained server/RPC authority for stock, batch, receiving, dispatch, production completion, and stock-check effects. Removed only the unreachable legacy direct-DML tail from `factoryService.saveStockCheck`; active stock-check saves remain RPC-backed.
+- Lifecycle gates: Job Orders, Production Execution, Receiving, Dispatch, Product/Raw Stock Checks, operational route smoke, and RPC contract tests; Factory baseline is 153 passing tests. Next phase is staging operational acceptance.
+- Known post-launch debt: factoryService internal split behind its stable facade, Production history dual-read review, combined Vitest/JSDOM operational-route runner behavior, Completed View Result permission design, React key warnings, and compatibility cleanup after data-migration confidence.
+
 ### Factory V1 - Staging Signed Off
 - Delivered the Factory workspace from planning through traceable warehouse execution: Production Planning, Job Orders, Production Start/QC/Complete, Raw Material Receiving, Finished Goods Dispatch, Stock Checks, and Batch Traceability.
 - Added exact Raw Material receiving-batch allocation for Production usage, FEFO allocation, Finished Goods batch creation, batch-aware Dispatch, and Product/Raw Material movement ledgers.

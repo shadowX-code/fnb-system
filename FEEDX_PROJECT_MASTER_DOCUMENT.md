@@ -2697,6 +2697,16 @@ RBAC and outlet scope:
 
 ## 5.13B Factory Workspace - Historical Phase 1 Notes (Superseded)
 
+## 5.13C Factory Frontend Structural Architecture (Current)
+
+Factory frontend structure is frozen for staging acceptance. `FactoryWorkspacePage` is the lifecycle and orchestration hub, retaining route/modal coordination, canonical permission checks, shared listing/query plumbing, mutation refreshes, notifications, and trusted lifecycle callback boundaries. It intentionally keeps Raw Receiving, Start Production, Reports, master-data coordination, and the `factoryService` facade centralized.
+
+Extracted ownership includes Dashboard, Planning, Overview, inventory/movement/master-data pages, Job Orders presentation and modal, Production Execution, raw-material allocation, Finished Goods Dispatch and allocation presentation, and Stock Check form/presentation helpers. Job Orders have one listing authority through the stable listing bridge. Production Overview and Production Records share one Operational Jobs read model through `FactoryOperationalJobsContext` and `useFactoryProductionOverviewQuery`.
+
+Lifecycle mutations remain Workspace-owned: Job Orders, Start/Complete Production, Receiving, Dispatch, and Raw/Product Stock Checks. Extracted forms invoke narrow callbacks only. Stock, batch, and lifecycle effects remain server/RPC authoritative; `factoryService` remains a stable facade before go-live. Current Factory test baseline is 153 passing tests, including lifecycle, RPC-contract, and data-bearing operational-route coverage.
+
+Known post-launch review items: internal `factoryService` split behind the stable facade, Production history dual-read, combined Vitest/JSDOM OperationalRoutes runner behavior, Completed View Result permission design, React key warnings, optional Raw Receiving/Reports presentation extraction when feature work warrants it, and legacy compatibility cleanup after migration confidence.
+
 Purpose:
 
 Factory Workspace is a separate FeedX operational workspace for factory production and warehouse processes. It is intentionally separate from Restaurant Inventory Control so outlet-facing stock operations do not mix with factory raw material, finished goods, SOP, and production planning workflows.

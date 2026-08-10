@@ -125,3 +125,11 @@ export function validSopMinutes(value) {
   const numeric = Number(value);
   return Number.isFinite(numeric) && Number.isInteger(numeric) && numeric >= 0;
 }
+
+export function rawMaterialLabel(material) {
+  return material?.name_en || material?.name || "";
+}
+
+export function finishedGoodLabel(product) {
+  return product?.product_family_name || product?.product_name_en || product?.product_name || "";
+}
