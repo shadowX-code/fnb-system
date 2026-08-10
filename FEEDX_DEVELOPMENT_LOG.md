@@ -4,6 +4,13 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 
 ## 2026-08-10
 
+### Data Import Lifecycle Authority
+- Moved active Sales and Purchase import persistence behind the request-bound trusted lifecycle: begin request, row apply, and server-derived finalization; the browser no longer owns target writes, row-history writes, or batch completion.
+- Added canonical request/batch and row identities for retry/idempotency, including payload-conflict protection and independent row outcomes for intentional `partial_failed` imports.
+- Added trusted Purchase supplier/category preparation with canonical UUID mapping, normalized duplicate protection, server-side create permissions, actor attribution, and outlet validation.
+- Added service, migration, and mounted Data Import coverage for new/existing masters, permissions, preparation rejection/retry, partial completion, and Sales regression. Data Import baseline: 21/21 focused tests passing.
+- Deferred large CSV/XLSX parsing and high-row-count RPC optimization as P2 performance work; no lifecycle integrity gap remains.
+
 ### Inventory Structural Freeze
 - Completed Inventory trusted lifecycle authority through request-ID-idempotent Supabase RPCs for Receiving, Waste, Transfer, Stock Check, Purchase Order, Manual Movement, and Recipe persistence.
 - Established extracted presentation ownership for Wastage, Movement History, Manual Movement, Purchase Order list/detail, and Stock Check Groups while retaining one broad Inventory read/refresh authority in `InventoryControlPage`.

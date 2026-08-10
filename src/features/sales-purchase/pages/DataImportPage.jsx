@@ -407,6 +407,7 @@ export function DataImportWorkspace({
   onImported,
 }) {
   const inputRef = useRef(null);
+  const importRequestIdRef = useRef("");
   const [importType, setImportType] = useState(fixedImportType || initialImportType);
   const [step, setStep] = useState("upload");
   const [fileMeta, setFileMeta] = useState(null);
@@ -526,6 +527,7 @@ export function DataImportWorkspace({
       const detected = autoDetect(result.headers, importType);
       console.info("[Import:file] parsed", { file: file.name, importType, headers: result.headers, rows: result.rows.length, detected });
       setFileMeta({ name: file.name, extension });
+      importRequestIdRef.current = "";
       setParsed(result);
       setMappings(detected);
       setPreview(null);
@@ -853,6 +855,9 @@ export function DataImportWorkspace({
 
   async function buildPreview(records, issues, skippedRows = []) {
     try {
+      if (!importRequestIdRef.current) {
+        importRequestIdRef.current = globalThis.crypto?.randomUUID?.() || `import-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+      }
       const deduped = collapseDuplicateRows(importType, records);
       records = deduped.records;
       setValidationState({ loading: true, message: "Checking existing records...", error: "" });
@@ -990,45 +995,39 @@ export function DataImportWorkspace({
       let finalConflicts = preview.conflicts;
 
       if (importType === "Purchases") {
-        for (const [name, resolution] of Object.entries(categoryResolutions)) {
-          if (resolution.action !== "create") continue;
-          if (!canCreateImportCategory) {
-            throw new Error("You do not have permission to create supplier categories during import.");
-          }
-          const category = await purchaseCategoryService.savePurchaseCategory({
+        const categoryIntents = Object.entries(categoryResolutions)
+          .filter(([, resolution]) => resolution.action === "create")
+          .map(([name]) => ({ source_key: name, name }));
+        const supplierIntents = Object.entries(supplierResolutions)
+          .filter(([, resolution]) => resolution.action === "create")
+          .flatMap(([name, resolution]) => (resolution.outletIds || unknownSuppliers.find((item) => item.name === name)?.outletIds || []).map((outlet_id) => ({
+            source_key: name,
             name,
-            status: "active",
-          });
-          createdCategoryMap[name] = category;
-        }
-        for (const [name, resolution] of Object.entries(supplierResolutions)) {
-          if (resolution.action !== "create") continue;
-          if (!canCreateImportSupplier) {
-            throw new Error("You do not have permission to create suppliers during import.");
-          }
-          const pendingName = pendingCategoryName(resolution.category_id);
-          const category = store.purchaseCategories.find((item) => item.id === resolution.category_id)
-            || createdCategoryMap[pendingName];
-          if (!category?.id) {
-            throw new Error(`Default category is missing for new supplier "${name}".`);
-          }
-          const supplier = await supplierService.saveSupplier({
-            name,
-            default_category_id: category.id,
-            category: category?.name || "",
-            outletIds: resolution.outletIds || unknownSuppliers.find((item) => item.name === name)?.outletIds || [],
-            status: "active",
-          });
-          createdSupplierMap[name] = supplier;
-        }
+            category_source_key: pendingCategoryName(resolution.category_id) || store.purchaseCategories.find((item) => item.id === resolution.category_id)?.name || "",
+            outlet_id,
+          })));
+        const requiredCategoryNames = [...new Set([
+          ...categoryIntents.map((item) => item.name),
+          ...supplierIntents.map((item) => item.category_source_key),
+        ].filter(Boolean))];
+        const prepared = await importService.preparePurchaseMasters({
+          requestId: importRequestIdRef.current,
+          fileName: fileMeta?.name || "purchase-import.csv",
+          records: finalRecords,
+          categories: requiredCategoryNames.map((name) => ({ source_key: name, name })),
+          suppliers: supplierIntents,
+        });
+        importRequestIdRef.current = prepared.requestId;
+        createdCategoryMap = Object.fromEntries(Object.entries(prepared.categories || {}).map(([name, id]) => [name, { id, name, status: "active" }]));
+        createdSupplierMap = Object.fromEntries(Object.entries(prepared.suppliers || {}).map(([name, id]) => [name, { id, name, outletIds: supplierIntents.filter((item) => item.source_key === name).map((item) => item.outlet_id), status: "active" }]));
         const rebuilt = buildPurchaseRecords(createdSupplierMap, createdCategoryMap);
         finalRecords = rebuilt.records;
         finalConflicts = await importService.detectPurchaseConflicts(finalRecords);
         if (Object.keys(createdSupplierMap).length || Object.keys(createdCategoryMap).length) {
           setStore((current) => ({
             ...current,
-            purchaseCategories: [...current.purchaseCategories, ...Object.values(createdCategoryMap)].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name)),
-            suppliers: [...current.suppliers, ...Object.values(createdSupplierMap)].sort((a, b) => a.name.localeCompare(b.name)),
+            purchaseCategories: [...current.purchaseCategories, ...Object.values(createdCategoryMap).filter((item) => !current.purchaseCategories.some((existing) => existing.id === item.id))].sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name)),
+            suppliers: [...current.suppliers, ...Object.values(createdSupplierMap).filter((item) => !current.suppliers.some((existing) => existing.id === item.id))].sort((a, b) => a.name.localeCompare(b.name)),
           }));
         }
       }
@@ -1037,18 +1036,12 @@ export function DataImportWorkspace({
         ? await importService.importSales({
             fileName: fileMeta?.name || "sales-import.csv",
             records: finalRecords,
-            conflicts: finalConflicts,
-            failedRows: preview.failures,
-            skippedRows: preview.skippedRows ?? [],
-            warningCount: preview.warnings.length,
+            requestId: importRequestIdRef.current,
           })
         : await importService.importPurchases({
             fileName: fileMeta?.name || "purchase-import.csv",
             records: finalRecords,
-            conflicts: finalConflicts,
-            failedRows: preview.failures,
-            skippedRows: preview.skippedRows ?? [],
-            warningCount: preview.warnings.length,
+            requestId: importRequestIdRef.current,
           });
 
       setStore((current) => {
@@ -1063,11 +1056,12 @@ export function DataImportWorkspace({
         };
       });
       setAllRecentImports((current) => [result.batch, ...current]);
+      const authoritativeFailedCount = Number(result.failedCount ?? 0);
       setImportSummary({
         created: result.createdCount,
         updated: result.updatedCount,
         skipped: preview.skippedRows?.length ?? 0,
-        failed: preview.failures.length,
+        failed: authoritativeFailedCount + preview.failures.length,
         migrationWarning: result.batch?.migration_warning ?? "",
         report: buildImportReport(preview),
       });
@@ -1080,7 +1074,9 @@ export function DataImportWorkspace({
       setCategoryResolutions({});
       setUnknownCategories([]);
       onImported?.(result, importType);
-      ui.notify({ title: "Import completed", message: `${result.createdCount} created · ${result.updatedCount} updated.` });
+      ui.notify(authoritativeFailedCount
+        ? { title: "Import partially completed", message: `${result.createdCount} created · ${result.updatedCount} updated · ${authoritativeFailedCount} failed.`, tone: "warning" }
+        : { title: "Import completed", message: `${result.createdCount} created · ${result.updatedCount} updated.` });
     } catch (error) {
       console.error("Unable to import records", error);
       ui.notify({ title: "Import failed", message: error.message, tone: "error" });
@@ -1099,6 +1095,7 @@ export function DataImportWorkspace({
 
   function switchImportType(type) {
     setImportType(type);
+    importRequestIdRef.current = "";
     setModeConfirmed(false);
     setPreview(null);
     setUnknownSuppliers([]);

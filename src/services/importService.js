@@ -144,123 +144,71 @@ function buildHistoryRawRow(record) {
   return raw;
 }
 
-async function createImportBatch({ importType, fileName, records, createdCount, updatedCount, failedCount, warningCount, status = "pending" }) {
+function importRequestId(value) {
+  if (value) return value;
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return `import-${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+function importRequestPayload(importType, fileName, records) {
   const range = getPeriodRange(records);
   const outletIds = [...new Set(records.map((record) => record.outlet_id).filter(Boolean))];
-  const payload = {
-    import_type: importType,
+  return {
     outlet_id: outletIds.length === 1 ? outletIds[0] : null,
     year: range.year,
     month_start: range.month_start,
     month_end: range.month_end,
     source_filename: fileName,
-    total_rows: records.length,
-    created_count: createdCount,
-    updated_count: updatedCount,
-    failed_count: failedCount,
-    warning_count: warningCount,
-    status,
-    imported_at: null,
-    completed_at: null,
+    targets: records.map((record) => (importType === "sales"
+      ? [record.outlet_id, Number(record.year), Number(record.month), record.channel_id]
+      : [record.outlet_id, Number(record.year), Number(record.month), record.supplier_name, record.category_name])),
   };
-  const { data, error } = await supabase
-    .from("import_batches")
-    .insert(payload)
-    .select(importBatchSelect)
-    .single();
-
-  if (isMissingImportInfrastructure(error)) {
-    console.warn("[Supabase:import_batches.insert] import batch schema is missing or outdated. Import will continue without persisted batch history.", error);
-    return {
-      id: `local-${Date.now()}`,
-      ...payload,
-      created_by: null,
-      created_at: new Date().toISOString(),
-      migration_warning: "Import batch schema is missing or outdated. Apply migration 202605180001_import_integrity_safety.sql.",
-    };
-  }
-
-  throwSupabaseError("import_batches.insert", error);
-  return data;
 }
 
-async function updateImportBatch(batch, patch) {
-  if (!batch?.id || isLocalBatch(batch)) return { ...batch, ...patch };
-  const { data, error } = await supabase
-    .from("import_batches")
-    .update(patch)
-    .eq("id", batch.id)
-    .select(importBatchSelect)
-    .single();
-
-  if (isMissingImportInfrastructure(error)) {
-    console.warn("[Supabase:import_batches.update] import batch schema is missing or outdated. Import will continue without persisted batch status.", error);
-    return { ...batch, ...patch };
-  }
-
-  throwSupabaseError("import_batches.update", error);
-  return data;
-}
-
-async function insertImportBatchRows(batch, rows) {
-  if (!batch?.id || isLocalBatch(batch) || !rows.length) return;
-  const payload = rows.map((row) => ({
-    batch_id: batch.id,
-    source_row: Number.isFinite(Number(row.source_row)) ? Number(row.source_row) : null,
-    raw_row: row.raw_row ?? null,
-    action: row.action,
-    validation_result: row.validation_result,
-    imported_record_id: row.imported_record_id ?? null,
-    failure_reason: row.failure_reason ?? null,
-  }));
-  const { error } = await supabase.from("import_batch_rows").insert(payload);
-  if (isMissingImportInfrastructure(error)) {
-    console.warn("[Supabase:import_batch_rows.insert] import_batch_rows table is missing. Apply Sprint 4C migration to persist row-level import reports.", error);
-    return;
-  }
-  throwSupabaseError("import_batch_rows.insert", error);
-}
-
-function buildRowDetails({ batch, records, savedRows, conflicts, keyFn, skippedRows = [], failedRows = [] }) {
-  const savedByKey = new Map(savedRows.map((row) => [keyFn(row), row]));
-  const importedRows = records.map((record) => {
-    const key = keyFn(record);
-    const saved = savedByKey.get(key);
-    return {
-      batch_id: batch.id,
-      source_row: record.sourceRow,
-      raw_row: buildHistoryRawRow(record),
-      action: conflicts.has(key) ? "update" : "create",
-      validation_result: saved ? "success" : "failed",
-      imported_record_id: saved?.id ?? null,
-      failure_reason: saved ? null : "Imported record was not returned by post-import verification.",
-    };
+async function importTrustedRows({ importType, fileName, records, requestId: suppliedRequestId }) {
+  const requestId = importRequestId(suppliedRequestId);
+  const { data: started, error: startError } = await supabase.rpc("import_begin_request", {
+    p_request_id: requestId,
+    p_import_type: importType,
+    p_payload: importRequestPayload(importType, fileName, records),
   });
-  const skipped = skippedRows.map((row) => ({
-    batch_id: batch.id,
-    source_row: row.row,
-    raw_row: row.rawRow ?? null,
-    action: "skip",
-    validation_result: "skipped",
-    failure_reason: row.message ?? "Skipped during import preview.",
-  }));
-  const failed = failedRows.map((row) => ({
-    batch_id: batch.id,
-    source_row: row.row,
-    raw_row: row.rawRow ?? null,
-    action: "failed",
-    validation_result: "failed",
-    failure_reason: row.message ?? "Validation failed.",
-  }));
-  return [...importedRows, ...skipped, ...failed];
-}
+  throwSupabaseError("imports.begin_request", startError);
 
-function verifySavedRows(records, savedRows, keyFn) {
-  const savedKeys = new Set(savedRows.map(keyFn));
-  const missingKeys = records.filter((record) => !savedKeys.has(keyFn(record)));
-  if (missingKeys.length) {
-    throw new Error(`Post-import verification failed for ${missingKeys.length} row(s). No partial silent success was recorded.`);
-  }
+  const rpcName = importType === "sales" ? "import_apply_sales_row" : "import_apply_purchase_row";
+  const outcomes = await Promise.all(records.map(async (record) => {
+    const { data, error } = await supabase.rpc(rpcName, {
+      p_request_id: requestId,
+      p_payload: {
+        outlet_id: record.outlet_id,
+        year: Number(record.year),
+        month: Number(record.month),
+        ...(importType === "sales"
+          ? { channel_id: record.channel_id, channel_name: record.channel_name }
+          : { supplier_id: record.supplier_id, category_id: record.category_id }),
+        amount: Number(record.amount) || 0,
+        remark: record.remark ?? "",
+        source_row: record.sourceRow ?? null,
+        raw_row: buildHistoryRawRow(record),
+      },
+    });
+    throwSupabaseError(`imports.${importType}_row`, error);
+    return { record, outcome: data ?? {} };
+  }));
+
+  const { data: finalized, error: finalizeError } = await supabase.rpc("import_finalize_batch", { p_request_id: requestId });
+  throwSupabaseError("imports.finalize_batch", finalizeError);
+  const successful = outcomes.filter(({ outcome }) => outcome.success);
+  const savedRows = successful.map(({ record, outcome }) => ({ ...record, ...(outcome.record ?? {}) }));
+  const batch = finalized?.batch ?? started?.batch;
+  return {
+    requestId,
+    batch,
+    savedRows,
+    outcomes: outcomes.map(({ outcome }) => outcome),
+    createdCount: Number(finalized?.created ?? 0),
+    updatedCount: Number(finalized?.updated ?? 0),
+    failedCount: Number(finalized?.failed ?? 0),
+  };
 }
 
 async function detectSalesConflictsForRecords(records) {
@@ -309,6 +257,20 @@ async function detectPurchaseConflictsForRecords(records) {
 }
 
 export const importService = {
+  async preparePurchaseMasters({ requestId: suppliedRequestId, fileName, records, categories = [], suppliers = [] }) {
+    const requestId = importRequestId(suppliedRequestId);
+    const { error: beginError } = await supabase.rpc("import_begin_request", {
+      p_request_id: requestId,
+      p_import_type: "purchase",
+      p_payload: importRequestPayload("purchase", fileName, records),
+    });
+    throwSupabaseError("imports.begin_purchase_preparation", beginError);
+    const { data, error } = await supabase.rpc("import_prepare_purchase_masters", {
+      p_request_id: requestId, p_categories: categories, p_suppliers: suppliers,
+    });
+    throwSupabaseError("imports.prepare_purchase_masters", error);
+    return { requestId, ...(data ?? {}) };
+  },
   async listImportBatches({ importType = "", outletId = "" } = {}) {
     let query = supabase
       .from("import_batches")
@@ -381,135 +343,23 @@ export const importService = {
     return detectPurchaseConflictsForRecords(records);
   },
 
-  async importSales({ fileName, records, conflicts, failedRows = [], skippedRows = [], warningCount = 0 }) {
-    const createdCount = records.filter((record) => !conflicts.has(salesKey(record))).length;
-    const updatedCount = records.length - createdCount;
-    let batch = await createImportBatch({
-      importType: "sales",
-      fileName,
-      records,
-      createdCount,
-      updatedCount,
-      failedCount: failedRows.length,
-      warningCount,
-      status: "pending",
-    });
-
-    try {
-      batch = await updateImportBatch(batch, { status: "validating" });
-      const { data, error } = await supabase
-        .from("sales_records")
-        .upsert(records.map(salesPayload), { onConflict: "outlet_id,year,month,channel_id" })
-        .select("id,outlet_id,year,month,channel_id,channel_name,amount,remark,created_at,updated_at");
-      throwSupabaseError("imports.sales_upsert", error);
-      const savedRows = data ?? [];
-      verifySavedRows(records, savedRows, salesKey);
-      const persistedRows = [...(await detectSalesConflictsForRecords(records)).values()];
-      verifySavedRows(records, persistedRows, salesKey);
-      await insertImportBatchRows(batch, buildRowDetails({ batch, records, savedRows, conflicts, keyFn: salesKey, skippedRows, failedRows }));
-      batch = await updateImportBatch(batch, {
-        status: failedRows.length ? "partial_failed" : "completed",
-        imported_at: new Date().toISOString(),
-        completed_at: new Date().toISOString(),
-      });
-
-      await auditLogService.createAuditLog({
-        action: "sales_import_completed",
-        module: "sales",
-        target: fileName,
-        outlet: batch.outlet_id || "Multiple outlets",
-        description: "Sales import completed.",
-        after: { batch_id: batch.id, createdCount, updatedCount, failedCount: failedRows.length, warningCount },
-      }).catch(() => {});
-      return { savedRows, batch, createdCount, updatedCount };
-    } catch (error) {
-      await updateImportBatch(batch, {
-        status: "failed",
-        imported_at: new Date().toISOString(),
-        completed_at: new Date().toISOString(),
-        failure_reason: error.message,
-      }).catch(() => {});
-      await insertImportBatchRows(batch, records.map((record) => ({
-        source_row: record.sourceRow,
-        raw_row: buildHistoryRawRow(record),
-        action: conflicts.has(salesKey(record)) ? "update" : "create",
-        validation_result: "failed",
-        failure_reason: error.message,
-      }))).catch(() => {});
-      await auditLogService.createAuditLog({
-        action: "sales_import_failed",
-        module: "sales",
-        target: fileName,
-        description: error.message,
-        after: { batch_id: batch.id, createdCount, updatedCount, failedCount: records.length, warningCount },
-      }).catch(() => {});
-      throw error;
-    }
+  async importSales({ fileName, records, requestId }) {
+    const result = await importTrustedRows({ importType: "sales", fileName, records, requestId });
+    await auditLogService.createAuditLog({
+      action: "sales_import_completed", module: "sales", target: fileName,
+      outlet: result.batch?.outlet_id || "Multiple outlets", description: "Sales import completed.",
+      after: { batch_id: result.batch?.id, request_id: result.requestId, createdCount: result.createdCount, updatedCount: result.updatedCount, failedCount: result.failedCount },
+    }).catch(() => {});
+    return result;
   },
 
-  async importPurchases({ fileName, records, conflicts, failedRows = [], skippedRows = [], warningCount = 0 }) {
-    const createdCount = records.filter((record) => !conflicts.has(purchaseKey(record))).length;
-    const updatedCount = records.length - createdCount;
-    let batch = await createImportBatch({
-      importType: "purchase",
-      fileName,
-      records,
-      createdCount,
-      updatedCount,
-      failedCount: failedRows.length,
-      warningCount,
-      status: "pending",
-    });
-
-    try {
-      batch = await updateImportBatch(batch, { status: "validating" });
-      const { data, error } = await supabase
-        .from("purchase_records")
-        .upsert(records.map(purchasePayload), { onConflict: "outlet_id,year,month,supplier_id,category_id" })
-        .select(purchaseRecordSelect);
-      throwSupabaseError("imports.purchase_upsert", error);
-      const savedRows = (data ?? []).map(mapPurchaseRecord);
-      verifySavedRows(records, savedRows, purchaseKey);
-      const persistedRows = [...(await detectPurchaseConflictsForRecords(records)).values()];
-      verifySavedRows(records, persistedRows, purchaseKey);
-      await insertImportBatchRows(batch, buildRowDetails({ batch, records, savedRows, conflicts, keyFn: purchaseKey, skippedRows, failedRows }));
-      batch = await updateImportBatch(batch, {
-        status: failedRows.length ? "partial_failed" : "completed",
-        imported_at: new Date().toISOString(),
-        completed_at: new Date().toISOString(),
-      });
-
-      await auditLogService.createAuditLog({
-        action: "purchase_import_completed",
-        module: "purchases",
-        target: fileName,
-        outlet: batch.outlet_id || "Multiple outlets",
-        description: "Purchase import completed.",
-        after: { batch_id: batch.id, createdCount, updatedCount, failedCount: failedRows.length, warningCount },
-      }).catch(() => {});
-      return { savedRows, batch, createdCount, updatedCount };
-    } catch (error) {
-      await updateImportBatch(batch, {
-        status: "failed",
-        imported_at: new Date().toISOString(),
-        completed_at: new Date().toISOString(),
-        failure_reason: error.message,
-      }).catch(() => {});
-      await insertImportBatchRows(batch, records.map((record) => ({
-        source_row: record.sourceRow,
-        raw_row: buildHistoryRawRow(record),
-        action: conflicts.has(purchaseKey(record)) ? "update" : "create",
-        validation_result: "failed",
-        failure_reason: error.message,
-      }))).catch(() => {});
-      await auditLogService.createAuditLog({
-        action: "purchase_import_failed",
-        module: "purchases",
-        target: fileName,
-        description: error.message,
-        after: { batch_id: batch.id, createdCount, updatedCount, failedCount: records.length, warningCount },
-      }).catch(() => {});
-      throw error;
-    }
+  async importPurchases({ fileName, records, requestId }) {
+    const result = await importTrustedRows({ importType: "purchase", fileName, records, requestId });
+    await auditLogService.createAuditLog({
+      action: "purchase_import_completed", module: "purchases", target: fileName,
+      outlet: result.batch?.outlet_id || "Multiple outlets", description: "Purchase import completed.",
+      after: { batch_id: result.batch?.id, request_id: result.requestId, createdCount: result.createdCount, updatedCount: result.updatedCount, failedCount: result.failedCount },
+    }).catch(() => {});
+    return result;
   },
 };

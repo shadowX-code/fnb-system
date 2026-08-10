@@ -3356,6 +3356,24 @@ Batch status:
 - partial_failed
 - failed
 
+### Trusted Sales and Purchase Import Authority
+
+Sales and Purchase imports use one request-bound server lifecycle. The browser remains responsible for parsing, mapping, previewing, and presenting the result; it does not persist target rows, row history, or final batch status.
+
+```text
+Sales:    import_begin_request → import_apply_sales_row → import_finalize_batch
+Purchases: import_begin_request → import_prepare_purchase_masters → import_apply_purchase_row → import_finalize_batch
+```
+
+- `request_id` identifies one logical import and is retained for retry. A conflicting reuse with a different payload is rejected.
+- Canonical row keys are `sales:<outlet>:<year>:<month>:<channel>` and `purchase:<outlet>:<year>:<month>:<supplier>:<category>`; `(batch_id, row_request_key)` is unique in import history.
+- Purchase preparation resolves or creates normalized supplier/category masters only on the server, returns canonical UUID mappings, and requires `purchase_categories.create` or `suppliers.create` only when that creation is needed.
+- Sales/Purchase import permissions, actor identity (`auth.uid()`), and outlet access are server-authoritative.
+- Rows are independently atomic. Mixed outcomes produce `partial_failed`; successful rows stay committed and a retry reconciles failed rows without reapplying successful rows.
+- `import_finalize_batch` derives persisted counts and final status from row outcomes. Client audit logging and parent read refresh are best effort and never redefine a successful mutation.
+
+Residual performance debt is P2: browser CSV/XLSX parsing retains file content in memory and large files may incur many row RPC round trips. Profile and optimize only when real import volume requires it.
+
 Removed:
 
 - Dry Run Mode
