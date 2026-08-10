@@ -129,6 +129,27 @@ describe("Factory Raw Receiving mounted lifecycle", () => {
     await waitFor(() => expect(screen.queryByText("Receiving Items")).toBeNull());
   });
 
+  it("keeps a rejected new receiving completion open and retryable without a successful refresh", async () => {
+    const notify = vi.fn();
+    const { listing, loadData } = mount({ ui: { confirm: vi.fn().mockResolvedValue(true), notify } });
+    const save = vi.spyOn(factoryService, "saveRawMaterialReceivingBatch")
+      .mockRejectedValueOnce(new Error("reject"))
+      .mockResolvedValue({ ...receiving, id: "new", status: "completed" });
+    await prepareNew();
+    fireEvent.click(screen.getByRole("button", { name: "Complete Receiving" }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(1));
+    expect(save).toHaveBeenLastCalledWith(expect.any(Object), { complete: true });
+    expect(screen.getByText("Receiving Items")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Complete Receiving" }).disabled).toBe(false);
+    expect(listing).toHaveBeenCalledTimes(1);
+    expect(loadData).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ title: "Failed to complete receiving", tone: "error" }));
+    fireEvent.click(screen.getByRole("button", { name: "Complete Receiving" }));
+    await waitFor(() => expect(save).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(listing).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(loadData).toHaveBeenCalledTimes(2));
+  });
+
   it("keeps a rejected new draft open and retryable without a successful refresh", async () => {
     const notify = vi.fn();
     const { listing, loadData } = mount({ ui: { confirm: vi.fn().mockResolvedValue(true), notify } });

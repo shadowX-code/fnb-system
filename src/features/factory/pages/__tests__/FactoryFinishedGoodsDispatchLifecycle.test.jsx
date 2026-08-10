@@ -130,6 +130,26 @@ describe("Factory Finished Goods Dispatch mounted lifecycle", () => {
     expect(screen.getByText("Completed finished goods dispatch record.")).not.toBeNull();
   });
 
+  it("keeps a rejected new dispatch completion open and retryable without a successful refresh", async () => {
+    const notify = vi.fn();
+    const { listing, loadData } = mount({ ui: { confirm: vi.fn().mockResolvedValue(true), notify } });
+    const complete = vi.spyOn(factoryService, "saveAndCompleteFinishedGoodDispatch")
+      .mockRejectedValueOnce(new Error("reject"))
+      .mockResolvedValue({ ...dispatch, id: "new", dispatch_no: "D-NEW", status: "completed" });
+    await prepareNew({ allocate: true });
+    fireEvent.click(screen.getByRole("button", { name: "Complete Dispatch" }));
+    await waitFor(() => expect(complete).toHaveBeenCalledTimes(1));
+    expect(screen.getByText("Dispatch Items")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Complete Dispatch" }).disabled).toBe(false);
+    expect(listing).toHaveBeenCalledTimes(1);
+    expect(loadData).toHaveBeenCalledTimes(1);
+    expect(notify).toHaveBeenCalledWith(expect.objectContaining({ title: "Failed to complete dispatch", tone: "error" }));
+    fireEvent.click(screen.getByRole("button", { name: "Complete Dispatch" }));
+    await waitFor(() => expect(complete).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(listing).toHaveBeenCalledTimes(2));
+    await waitFor(() => expect(loadData).toHaveBeenCalledTimes(2));
+  });
+
   it("keeps a rejected new draft open and retryable without a successful refresh", async () => {
     const notify = vi.fn();
     const { listing, loadData } = mount({ ui: { confirm: vi.fn().mockResolvedValue(true), notify } });
