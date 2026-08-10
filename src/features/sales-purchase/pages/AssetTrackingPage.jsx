@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useMemo, useState } from "react";
+import { Fragment, useEffect, useMemo, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { AlertTriangle, CalendarDays, ClipboardCheck, Download, Eye, MoreHorizontal, PackageCheck, Plus, Search, Settings2, SlidersHorizontal, UploadCloud, Wrench, X } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
@@ -49,6 +49,11 @@ const quickFilterLabels = {
 
 function titleCase(value) {
   return String(value || "").replace(/_/g, " ").replace(/\b\w/g, (char) => char.toUpperCase());
+}
+
+function lifecycleRequestId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function formatFullDate(value) {
@@ -2864,6 +2869,10 @@ export default function AssetTrackingPage({ store, ui, auth }) {
   const [categoryModalOpen, setCategoryModalOpen] = useState(false);
   const [adjustAsset, setAdjustAsset] = useState(null);
   const [inspectionOpen, setInspectionOpen] = useState(false);
+  const adjustmentRequestIdRef = useRef("");
+  const inspectionRequestIdRef = useRef("");
+  const maintenanceRequestIdRef = useRef("");
+  const importRowRequestIdsRef = useRef(new Map());
   const [maintenanceContext, setMaintenanceContext] = useState(null);
   const [detailAsset, setDetailAsset] = useState(null);
   const [imagePreviewAsset, setImagePreviewAsset] = useState(null);
@@ -2884,6 +2893,18 @@ export default function AssetTrackingPage({ store, ui, auth }) {
   const canDeleteAsset = canDelete(auth, "asset_tracking");
   const canManageAsset = canManage(auth, "asset_tracking");
   const canExportAsset = canExport(auth, "asset_tracking");
+
+  useEffect(() => {
+    adjustmentRequestIdRef.current = "";
+  }, [adjustAsset?.id]);
+
+  useEffect(() => {
+    inspectionRequestIdRef.current = "";
+  }, [inspectionOpen === true ? "new" : inspectionOpen?.id || "closed"]);
+
+  useEffect(() => {
+    maintenanceRequestIdRef.current = "";
+  }, [maintenanceContext?.asset?.id, maintenanceContext?.record?.id]);
 
   useEffect(() => {
     if (!activeOutlets.length) {
@@ -3212,7 +3233,6 @@ export default function AssetTrackingPage({ store, ui, auth }) {
         continue;
       }
       try {
-        const beforeQuantity = Number(row.existing?.current_quantity ?? 0);
         if (import.meta.env.DEV) {
           console.log("[AssetImportDebug]", {
             rowNumber: row.rowNumber,
@@ -3220,14 +3240,10 @@ export default function AssetTrackingPage({ store, ui, auth }) {
             payload: row.asset,
           });
         }
-        const savedAsset = await assetTrackingService.saveAsset(row.asset);
-        await assetTrackingService.logImportMovement(savedAsset, {
-          beforeQuantity: isUpdate ? beforeQuantity : 0,
-          afterQuantity: Number(savedAsset.current_quantity ?? row.asset.current_quantity ?? 0),
-          remark: isUpdate ? "Asset updated from import" : "Asset created from import",
-        }).catch((movementError) => {
-          if (import.meta.env.DEV) console.warn("[AssetImportMovementDebug]", movementError);
-        });
+        const rowKey = `${row.rowNumber}:${row.action}:${row.asset.id || row.asset.outlet_id}:${row.asset.asset_code || row.asset.name}`;
+        const requestId = importRowRequestIdsRef.current.get(rowKey) || lifecycleRequestId();
+        importRowRequestIdsRef.current.set(rowKey, requestId);
+        await assetTrackingService.importAssetRow(row.asset, { action: row.action, requestId });
         if (isUpdate) summary.updated += 1;
         else summary.created += 1;
       } catch (importError) {
@@ -3303,8 +3319,10 @@ export default function AssetTrackingPage({ store, ui, auth }) {
     }
     setSaving(true);
     try {
-      await assetTrackingService.adjustQuantity(adjustAsset, values);
+      const requestId = adjustmentRequestIdRef.current || (adjustmentRequestIdRef.current = lifecycleRequestId());
+      await assetTrackingService.adjustQuantity(adjustAsset, { ...values, requestId });
       setAdjustAsset(null);
+      adjustmentRequestIdRef.current = "";
       await loadData();
       ui.notify({ title: "Quantity adjusted", message: adjustAsset.name });
     } catch (adjustError) {
@@ -3322,8 +3340,10 @@ export default function AssetTrackingPage({ store, ui, auth }) {
     }
     setSaving(true);
     try {
-      await assetTrackingService.submitInspection(payload);
+      const requestId = inspectionRequestIdRef.current || (inspectionRequestIdRef.current = lifecycleRequestId());
+      await assetTrackingService.submitInspection({ ...payload, requestId });
       setInspectionOpen(false);
+      inspectionRequestIdRef.current = "";
       await loadData();
       ui.notify({ title: payload.status === "draft" ? "Inspection draft saved" : "Inspection submitted" });
     } catch (inspectionError) {
@@ -3388,7 +3408,9 @@ export default function AssetTrackingPage({ store, ui, auth }) {
     if (!targetAsset) return;
     setSaving(true);
     try {
-      const result = await assetTrackingService.saveMaintenanceRecord(targetAsset, values);
+      const requestId = maintenanceRequestIdRef.current || (maintenanceRequestIdRef.current = lifecycleRequestId());
+      const result = await assetTrackingService.saveMaintenanceRecord(targetAsset, { ...values, requestId });
+      maintenanceRequestIdRef.current = "";
       setMaintenanceRecords((current) => {
         const withoutCurrent = current.filter((record) => record.id !== result.record.id);
         return [result.record, ...withoutCurrent].sort(sortMaintenanceNewestFirst);

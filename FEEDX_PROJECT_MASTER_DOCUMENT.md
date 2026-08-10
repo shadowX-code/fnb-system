@@ -1293,6 +1293,16 @@ Core rules:
 - Asset condition and asset status are separate systems.
 - Maintenance is optional and is enabled by category, with an asset-level override.
 
+### Trusted Lifecycle Authority
+
+- Quantity adjustment is owned by `asset_adjust_quantity(...)`; it validates the authenticated actor, `asset_tracking.manage`, outlet scope, locks the asset, derives balances server-side, and atomically writes the adjustment movement.
+- Inspection submission and correction is owned by `asset_submit_inspection(...)`; inspection header, rows, evidence database references, corrected balances/conditions, and correction movements commit atomically.
+- Maintenance save is owned by `asset_save_maintenance(...)`; its record save and any condition transition are one transaction.
+- Asset Import uses `asset_import_row(...)` per logical preview row. Each row is independently atomic and idempotent, preserving mixed-file partial completion while preventing a quantity change without its movement record.
+- `asset_lifecycle_requests` is the single request-ID ledger for these operations. Repeating the same logical request returns its canonical result without duplicating lifecycle effects.
+- Storage uploads may precede an RPC, so failed inspection or maintenance submissions can leave an orphaned storage object. This is documented P2 storage-cleanup debt; database lifecycle writes remain atomic.
+- AssetTrackingPage remains the active presentation and broad-read owner. Presentation extraction and five-read refresh optimization are deferred until the module is materially touched.
+
 Permissions:
 
 - asset_tracking.view

@@ -271,3 +271,13 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Updated the Finished Goods form and listing with Finished Good / Packaging Variant fields, Finished Good/category/status filters and Finished Good/SKU/pack-size warehouse columns.
 - Refactored the Finished Goods UI from one flat SKU table into Finished Good -> Packaging SKU management, with expandable Finished Good rows, nested SKU rows, Finished Good actions and SKU-level View/Edit/Archive actions.
 - Documented the Phase 1 limitation that Production Standards remain per Finished Good SKU; bulk production with packaging split into multiple SKUs is deferred to Phase 2.
+
+## 2026-08-10
+
+### Asset Tracking
+- Added trusted transactional Asset lifecycle RPCs for quantity adjustment, inspection/correction, maintenance, and per-row import.
+- Added `asset_lifecycle_requests` request-ID ledger semantics so retrying a logical lifecycle request returns its canonical result without duplicate balance, movement, inspection, maintenance, or import effects.
+- Moved active browser multi-table lifecycle orchestration behind the authenticated RPC boundaries; permissions and outlet access are now server-authoritative for those operations.
+- Kept mixed-file import behavior: each row is independently atomic and can report success or failure without duplicating a successful retry.
+- Added Asset service and mounted lifecycle coverage for RPC mapping, request-ID reuse, rejection/retry, pending-submit guards, and import row authority.
+- Documented residual P2 storage-orphan cleanup debt: uploads that precede a rejected RPC may orphan, but no partial database lifecycle state persists.
