@@ -45,7 +45,12 @@ import SelectField from "../../../components/forms/SelectField.jsx";
 import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import { supabase } from "../../../lib/supabase.ts";
-import { auditLogService } from "../../../services/auditLogService.js";
+import { inventoryLifecycleService } from "../../../services/inventoryLifecycleService.js";
+import { createInventoryRecipeReadModel } from "../inventory/recipes/inventoryRecipeReadModel.js";
+import { findRecipeCodeMatches, uploadRecipePhoto } from "../inventory/recipes/inventoryRecipeModalSupportReads.js";
+import InventoryWastePage from "../inventory/waste/InventoryWastePage.jsx";
+import InventoryMovementsPage from "../inventory/movements/InventoryMovementsPage.jsx";
+import InventoryManualMovementModal from "../inventory/movements/InventoryManualMovementModal.jsx";
 import { productAnalyticsService } from "../../../services/productAnalyticsService.js";
 import { getAccessibleOutletOptions, getAccessibleOutlets, hasAllOutletAccess, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { IMAGE_UPLOAD_ACCEPT, isImageDataUrl as isStandardImageDataUrl, optimizeImageFileForPreview, removeStorageObjectFromPublicUrl, uploadOptimizedImage } from "../../../utils/imageUpload.js";
@@ -660,12 +665,6 @@ async function parseXlsx(file) {
 async function uploadInventoryItemPhoto(file, itemId = "draft", previousPublicUrl = "") {
   const bucket = "inventory-item-photos";
   const path = `${itemId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
-  return uploadOptimizedImage(file, { bucket, path, previousPublicUrl });
-}
-
-async function uploadRecipePhoto(file, recipeId = "draft", previousPublicUrl = "") {
-  const bucket = "inventory-item-photos";
-  const path = `recipe_photos/${recipeId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.webp`;
   return uploadOptimizedImage(file, { bucket, path, previousPublicUrl });
 }
 
@@ -2014,6 +2013,28 @@ async function persistRemoteStockCheck(activeGroup, rows = [], status = "draft",
   if (!payload.outlet_id) throw new Error("Outlet is required.");
   if (!isAudit && !payload.group_id) throw new Error("Stock check group is required.");
 
+  const result = await inventoryLifecycleService.saveInventoryStockCheck({
+    check: {
+      id: existingId || null,
+      ...payload,
+    },
+    items: rows.map((row) => ({
+      item_id: isUuid(row.itemId) ? row.itemId : null,
+      category_id: isUuid(row.categoryId) ? row.categoryId : null,
+      par_level_quantity: row.expectedQty === "" || row.expectedQty === null || row.expectedQty === undefined ? null : Number(row.expectedQty),
+      actual_count_quantity: row.actualCount === "" || row.actualCount === null || row.actualCount === undefined ? null : Number(row.actualCount),
+      actual_missing: row.actualCount === "" || row.actualCount === null || row.actualCount === undefined,
+      variance: Number(row.variance || 0),
+      unit: row.unit || null,
+      status: row.skipped ? "skipped" : (row.na ? "na" : row.status || "normal"),
+      notes: row.notes || null,
+      skipped: Boolean(row.skipped),
+      na: Boolean(row.na),
+      skip_reason: row.skipped ? (row.skipReason || null) : null,
+    })),
+  });
+  return mapRemoteStockCheck(result.check || {}, result.items || []);
+
   const action = status === "submitted" ? "submit" : "save-draft";
   const logLabel = isAudit ? "[AuditStockCheckDebug]" : status === "submitted" ? "[StockCheckSubmitDebug]" : "[StockCheckSaveDebug]";
   const debug = { action, payload, rows, checkResult: null, deleteItemsResult: null, insertItemsResult: null, groupUpdateResult: null, error: null };
@@ -2214,43 +2235,23 @@ async function persistRemoteDraftPurchaseOrders(stockCheck, suggestionRows = [],
 
   for (const [supplierId, rows] of supplierGroups.entries()) {
     const poNo = `PO-${Date.now().toString().slice(-6)}-${ordersSuffix(supplierId)}`;
-    const orderPayload = {
+    const itemPayload = rows.map((row) => ({
+      item_id: isUuid(row.itemId) ? row.itemId : null,
+      requested_qty: Number(row.suggestedOrderQty || 0),
+      unit: row.unit || null,
+      remark: row.remark || null,
+      source_stock_check_item_id: isUuid(row.stockCheckItemId) ? row.stockCheckItemId : null,
+    }));
+    const result = await inventoryLifecycleService.savePurchaseOrder({ order: {
       po_no: poNo,
       outlet_id: stockCheck.outletId,
       supplier_id: supplierId,
       status: "draft",
       source_type: "stock_check",
       source_stock_check_id: stockCheck.id,
-      created_by: userId || null,
-      created_at: createdAt,
-      updated_at: createdAt,
-    };
-    const orderResult = await supabase
-      .from("inventory_purchase_orders")
-      .insert(orderPayload)
-      .select("*")
-      .single();
-    debugLog("[CreateDraftPODebug]", { action: "insert-order", stockCheckId: stockCheck.id, payload: orderPayload, result: { data: orderResult.data, error: orderResult.error }, error: orderResult.error });
-    if (orderResult.error) throw orderResult.error;
-
-    const itemPayload = rows.map((row) => ({
-      purchase_order_id: orderResult.data.id,
-      item_id: isUuid(row.itemId) ? row.itemId : null,
-      requested_qty: Number(row.suggestedOrderQty || 0),
-      received_qty: 0,
-      unit: row.unit || null,
-      remark: row.remark || null,
-      source_stock_check_item_id: isUuid(row.stockCheckItemId) ? row.stockCheckItemId : null,
-      created_at: createdAt,
-      updated_at: createdAt,
-    }));
-    const itemsResult = await supabase
-      .from("inventory_purchase_order_items")
-      .insert(itemPayload)
-      .select("*");
-    debugLog("[CreateDraftPODebug]", { action: "insert-order-items", stockCheckId: stockCheck.id, poNo, payload: itemPayload, result: { data: itemsResult.data, error: itemsResult.error }, error: itemsResult.error });
-    if (itemsResult.error) throw itemsResult.error;
-    createdOrders.push(mapRemotePurchaseOrder(orderResult.data, itemsResult.data || []));
+      lines: itemPayload,
+    } });
+    createdOrders.push(mapRemotePurchaseOrder(result.order || {}, result.items || []));
   }
 
   debugLog("[CreateDraftPODebug]", { action: "created-draft-pos", stockCheckId: stockCheck.id, createdOrders, error: null });
@@ -2302,6 +2303,23 @@ async function persistRemotePurchaseOrderStatus(orderId, status) {
 async function persistRemotePurchaseOrderEdit(order = {}) {
   if (!isUuid(order.id)) throw new Error("Valid purchase order is required.");
   if (order.status !== "draft") throw new Error("Only Draft purchase orders can be edited.");
+  const result = await inventoryLifecycleService.savePurchaseOrder({
+    order: {
+      id: order.id,
+      outlet_id: order.outletId || order.outletIds?.[0] || null,
+      supplier_id: order.supplierId || null,
+      status: order.status,
+      lines: (order.lines || []).map((line) => ({
+        item_id: line.itemId,
+        requested_qty: Number(line.requestedQty || 0),
+        unit: line.unit || null,
+        remark: line.remark || null,
+        source_stock_check_item_id: line.sourceStockCheckItemId || null,
+      })),
+    },
+    requestId: undefined,
+  });
+  return mapRemotePurchaseOrder(result.order || {}, result.items || [], []);
   const timestamp = new Date().toISOString();
   const orderPayload = {
     supplier_id: isUuid(order.supplierId) ? order.supplierId : null,
@@ -2398,96 +2416,10 @@ async function persistRemotePurchaseOrderComplete(order = {}, reason = "") {
 }
 
 async function persistRemotePurchaseOrderReceive(order = {}, rows = [], receiptRemark = "", userId) {
-  if (!isUuid(order.id)) throw new Error("Valid purchase order is required.");
   if (["cancelled", "completed"].includes(order.status)) throw new Error("Cannot receive a Cancelled or Completed PO.");
-  const receivedRows = rows.filter((row) => Number(row.receiveNowQty || 0) > 0);
-  if (!receivedRows.length) throw new Error("Enter received quantity for at least one item.");
-  const invalidRow = receivedRows.find((row) => Number(row.receiveNowQty || 0) < 0 || Number(row.receiveNowQty || 0) > remainingQty(row));
+  const invalidRow = rows.find((row) => Number(row.receiveNowQty || 0) < 0 || Number(row.receiveNowQty || 0) > remainingQty(row));
   if (invalidRow) throw new Error("Receive quantity cannot exceed remaining quantity.");
-  const receivedAt = new Date().toISOString();
-  const receiptPayload = {
-    purchase_order_id: order.id,
-    outlet_id: order.outletId || order.outletIds?.[0] || null,
-    supplier_id: order.supplierId || null,
-    received_by: userId || null,
-    received_at: receivedAt,
-    remark: receiptRemark || null,
-    created_at: receivedAt,
-  };
-  const receiptResult = await supabase
-    .from("inventory_purchase_receipts")
-    .insert(receiptPayload)
-    .select("*")
-    .single();
-  debugLog("[POReceiveDebug]", { action: "insert-receipt", orderId: order.id, payload: receiptPayload, result: { data: receiptResult.data, error: receiptResult.error }, error: receiptResult.error });
-  if (receiptResult.error) throw receiptResult.error;
-
-  const receiptItemsPayload = receivedRows.map((row) => ({
-    receipt_id: receiptResult.data.id,
-    purchase_order_item_id: isUuid(row.id) ? row.id : null,
-    item_id: isUuid(row.itemId) ? row.itemId : null,
-    received_qty: Number(row.receiveNowQty || 0),
-    unit: row.unit || null,
-    remark: row.receiveRemark || null,
-    created_at: receivedAt,
-  }));
-  const receiptItemsResult = await supabase
-    .from("inventory_purchase_receipt_items")
-    .insert(receiptItemsPayload)
-    .select("*");
-  debugLog("[POReceiveDebug]", { action: "insert-receipt-items", orderId: order.id, payload: receiptItemsPayload, result: { data: receiptItemsResult.data, error: receiptItemsResult.error }, error: receiptItemsResult.error });
-  if (receiptItemsResult.error) throw receiptItemsResult.error;
-
-  for (const row of receivedRows) {
-    const nextReceivedQty = Number(row.receivedQty || 0) + Number(row.receiveNowQty || 0);
-    const itemResult = await supabase
-      .from("inventory_purchase_order_items")
-      .update({ received_qty: nextReceivedQty, updated_at: receivedAt })
-      .eq("id", row.id)
-      .select("*")
-      .single();
-    debugLog("[POReceiveDebug]", { action: "update-order-item-received", orderId: order.id, itemId: row.id, nextReceivedQty, result: { data: itemResult.data, error: itemResult.error }, error: itemResult.error });
-    if (itemResult.error) throw itemResult.error;
-  }
-
-  const nextLines = (order.lines || []).map((line) => {
-    const received = receivedRows.find((row) => (row.id || row.itemId) === (line.id || line.itemId));
-    return received ? { ...line, receivedQty: Number(line.receivedQty || 0) + Number(received.receiveNowQty || 0) } : line;
-  });
-  const nextStatus = nextLines.every((line) => remainingQty(line) <= 0) ? "fully_received" : "partial_received";
-  const orderResult = await supabase
-    .from("inventory_purchase_orders")
-    .update({ status: nextStatus, updated_at: receivedAt })
-    .eq("id", order.id)
-    .select("*")
-    .single();
-  debugLog("[POReceiveDebug]", { action: "update-order-status", orderId: order.id, nextStatus, result: { data: orderResult.data, error: orderResult.error }, error: orderResult.error });
-  if (orderResult.error) throw orderResult.error;
-
-  const movementPayload = receivedRows.map((row) => ({
-    outlet_id: order.outletId || order.outletIds?.[0] || null,
-    inventory_item_id: isUuid(row.itemId) ? row.itemId : null,
-    movement_type: "Purchase",
-    quantity: Number(row.receiveNowQty || 0),
-    unit: row.unit || null,
-    reference_type: "purchase_order",
-    reference_id: order.id,
-    reference_no: order.poNo,
-    notes: row.receiveRemark || receiptRemark || "Purchase receive",
-    created_by: userId || null,
-    created_at: receivedAt,
-  }));
-  const movementResult = await supabase
-    .from("inventory_movements")
-    .insert(movementPayload)
-    .select("*");
-  debugLog("[POReceiveDebug]", { action: "insert-movements", orderId: order.id, payload: movementPayload, result: { data: movementResult.data, error: movementResult.error }, error: movementResult.error });
-  if (movementResult.error) throw movementResult.error;
-
-  return {
-    order: await fetchRemotePurchaseOrder(order.id),
-    movements: (movementResult.data || []).map(mapRemoteInventoryMovement),
-  };
+  return inventoryLifecycleService.receivePurchaseOrder({ order, rows, receiptRemark });
 }
 
 async function persistRemoteInventoryMovement(movement = {}, userId) {
@@ -2513,14 +2445,8 @@ async function persistRemoteInventoryMovement(movement = {}, userId) {
     created_by: userId || null,
     created_at: timestamp,
   };
-  const result = await supabase
-    .from("inventory_movements")
-    .insert(payload)
-    .select("*")
-    .single();
-  debugLog("[InventoryMovementDebug]", { action: "insert-movement", payload, result: { data: result.data, error: result.error }, error: result.error });
-  if (result.error) throw result.error;
-  return mapRemoteInventoryMovement(result.data);
+  const rpcResult = await inventoryLifecycleService.saveInventoryMovement({ movement: payload });
+  return mapRemoteInventoryMovement(rpcResult.movement || {});
 }
 
 function canEditInventoryMovement(movement = {}) {
@@ -2556,78 +2482,12 @@ async function persistRemoteInventoryMovementUpdate(movement = {}, userId) {
   if (!isUuid(movement.id)) throw new Error("Movement record is required.");
   if (!canEditInventoryMovement(movement)) throw new Error("Purchase receiving movements are read-only.");
   const payload = movementEditPayload(movement);
-  const result = await supabase
-    .from("inventory_movements")
-    .update(payload)
-    .eq("id", movement.id)
-    .select("*")
-    .single();
-  debugLog("[InventoryMovementDebug]", { action: "update-movement", movementId: movement.id, payload, result: { data: result.data, error: result.error }, error: result.error });
-  if (result.error) throw result.error;
-  await auditLogService.createAuditLog({
-    action: "inventory_movement_updated",
-    module: "inventory_movements",
-    target: payload.reference_no || movement.id,
-    description: "Inventory movement updated.",
-    before: movement,
-    after: result.data,
-    outlet: payload.outlet_id,
-    metadata: { outlet_id: payload.outlet_id, movement_id: movement.id, edited_by: userId || null },
-  }).catch((error) => debugLog("[InventoryMovementDebug]", { action: "movement-edit-audit-log", movementId: movement.id, error }));
-  return mapRemoteInventoryMovement(result.data);
+  const rpcResult = await inventoryLifecycleService.saveInventoryMovement({ movement: { id: movement.id, ...payload } });
+  return mapRemoteInventoryMovement(rpcResult.movement || {});
 }
 
 async function persistRemoteWasteRecord(waste = {}, userId) {
-  if (!isUuid(waste.outletId)) throw new Error("Outlet is required.");
-  if (!isUuid(waste.itemId)) throw new Error("Inventory item is required.");
-  const quantity = Number(waste.quantity || 0);
-  if (!Number.isFinite(quantity) || quantity <= 0) throw new Error("Waste quantity must be greater than zero.");
-  const wasteDate = normalizeBusinessDate(waste.date || waste.wasteDate);
-  const timestamp = new Date().toISOString();
-  const wastePayload = {
-    outlet_id: waste.outletId,
-    inventory_item_id: waste.itemId,
-    waste_type: waste.wasteType || "Unknown",
-    quantity,
-    unit: waste.unit || null,
-    waste_date: wasteDate,
-    notes: waste.notes || null,
-    photo_url: /^https?:\/\//i.test(String(waste.photoUrl || waste.photo_url || "")) ? (waste.photoUrl || waste.photo_url) : null,
-    created_by: userId || null,
-    updated_at: timestamp,
-  };
-  const wasteResult = await supabase
-    .from("inventory_waste_records")
-    .insert(wastePayload)
-    .select("*")
-    .single();
-  debugLog("[WasteSaveDebug]", { action: "insert-waste", payload: wastePayload, result: { data: wasteResult.data, error: wasteResult.error }, error: wasteResult.error });
-  if (wasteResult.error) throw wasteResult.error;
-
-  const shortRef = `WASTE-${String(wasteResult.data.id).slice(0, 8).toUpperCase()}`;
-  try {
-    const movement = await persistRemoteInventoryMovement({
-      outletId: waste.outletId,
-      itemId: waste.itemId,
-      type: "waste",
-      quantity: -Math.abs(quantity),
-      unit: waste.unit || null,
-      referenceType: "waste",
-      referenceId: wasteResult.data.id,
-      reference: shortRef,
-      notes: waste.notes || waste.wasteType || "Waste recorded",
-      date: wasteDate,
-    }, userId);
-    debugLog("[WasteSaveDebug]", { action: "insert-waste-movement", wasteRecordId: wasteResult.data.id, movement, error: null });
-    return { waste: mapRemoteWasteRecord(wasteResult.data), movement };
-  } catch (error) {
-    debugLog("[WasteSaveDebug]", { action: "insert-waste-movement", wasteRecordId: wasteResult.data.id, movement: null, error });
-    const wrapped = new Error("Waste saved, but inventory movement failed.");
-    wrapped.cause = error;
-    wrapped.partialWasteSaved = true;
-    wrapped.waste = mapRemoteWasteRecord(wasteResult.data);
-    throw wrapped;
-  }
+  return inventoryLifecycleService.saveInventoryWaste({ waste: { ...waste, date: normalizeBusinessDate(waste.date || waste.wasteDate) } });
 }
 
 async function persistRemoteRecipe(recipe = {}, userId) {
@@ -2671,61 +2531,12 @@ async function persistRemoteRecipe(recipe = {}, userId) {
     notes: recipe.notes || null,
     updated_at: new Date().toISOString(),
   };
-  const mode = isUuid(recipe.id) ? "edit" : "create";
-  const debug = { action: mode, payload: recipePayload, ingredientPayload: ingredients, recipeResult: null, deleteItemsResult: null, insertItemsResult: null, error: null };
-  const recipeResult = mode === "edit"
-    ? await supabase
-      .from("inventory_recipes")
-      .update(recipePayload)
-      .eq("id", recipe.id)
-      .select("*")
-      .single()
-    : await supabase
-      .from("inventory_recipes")
-      .insert({ ...recipePayload, created_by: userId || null })
-      .select("*")
-      .single();
-  debug.recipeResult = { data: recipeResult.data, error: recipeResult.error };
-  if (recipeResult.error) {
-    debug.error = recipeResult.error;
-    debugLog("[RecipeSaveDebug]", debug);
-    throw recipeResult.error;
-  }
-
-  const recipeId = recipeResult.data.id;
-  const deleteItemsResult = await supabase
-    .from("inventory_recipe_items")
-    .delete()
-    .eq("recipe_id", recipeId);
-  debug.deleteItemsResult = { data: deleteItemsResult.data || null, error: deleteItemsResult.error };
-  if (deleteItemsResult.error) {
-    debug.error = deleteItemsResult.error;
-    debugLog("[RecipeSaveDebug]", debug);
-    throw deleteItemsResult.error;
-  }
-
-  const itemPayload = ingredients.map((line) => ({
-    recipe_id: recipeId,
-    inventory_item_id: line.inventory_item_id,
-    quantity_used: line.quantity_used,
-    unit: line.unit,
-    wastage_percent: line.wastage_percent,
-    remark: line.remark,
-    updated_at: new Date().toISOString(),
-  }));
-  const insertItemsResult = await supabase
-    .from("inventory_recipe_items")
-    .insert(itemPayload)
-    .select("*");
-  debug.insertItemsResult = { data: insertItemsResult.data, error: insertItemsResult.error };
-  if (insertItemsResult.error) {
-    debug.error = insertItemsResult.error;
-    debugLog("[RecipeSaveDebug]", debug);
-    throw insertItemsResult.error;
-  }
-
-  debugLog("[RecipeSaveDebug]", debug);
-  return mapRemoteRecipe(recipeResult.data, insertItemsResult.data || []);
+  const rpcResult = await inventoryLifecycleService.saveInventoryRecipe({ recipe: {
+    id: isUuid(recipe.id) ? recipe.id : null,
+    ...recipePayload,
+    ingredients,
+  } });
+  return mapRemoteRecipe(rpcResult.recipe || {}, rpcResult.items || []);
 }
 
 async function archiveRemoteRecipe(recipeId) {
@@ -2740,6 +2551,20 @@ async function archiveRemoteRecipe(recipeId) {
   if (result.error) throw result.error;
   return mapRemoteRecipe(result.data, []);
 }
+
+// Existing persistence contracts exposed for focused lifecycle tests; runtime ownership remains in InventoryControlPage.
+export const inventoryLifecycleContracts = {
+  persistRemoteStockCheck,
+  persistRemotePurchaseOrderStatus,
+  persistRemotePurchaseOrderEdit,
+  persistRemotePurchaseOrderCancel,
+  persistRemotePurchaseOrderComplete,
+  persistRemotePurchaseOrderReceive,
+  persistRemoteInventoryMovement,
+  persistRemoteInventoryMovementUpdate,
+  persistRemoteWasteRecord,
+  persistRemoteRecipe,
+};
 
 async function persistRemoteMenuCategory(category = {}) {
   const name = String(category.name || "").trim();
@@ -4560,229 +4385,6 @@ function SkipReasonModal({ itemName, onClose, onSave }) {
   );
 }
 
-function MovementModal({ outlets, items, movements = [], movement, onClose, onSave }) {
-  const isEdit = Boolean(movement?.id);
-  const movementKey = canonical(movement?.movementType || movement?.type || "");
-  const isTransferEdit = movementKey.includes("transfer");
-  const pairedTransfer = isTransferEdit
-    ? movements.find((entry) => entry.id !== movement.id && entry.reference && movement.reference && entry.reference === movement.reference && canonical(entry.movementType || entry.type || "").includes("transfer"))
-    : null;
-  const outgoingTransfer = isTransferEdit && movementKey === "transfer_in" ? pairedTransfer : movement;
-  const incomingTransfer = isTransferEdit && movementKey === "transfer_out" ? pairedTransfer : movement;
-  const initialType = isTransferEdit ? "transfer" : movementKey === "waste" ? "waste" : movementKey === "purchase" ? "purchase" : "adjustment";
-  const initialDirection = Number(movement?.quantity || 0) < 0 ? "decrease" : "increase";
-  const selectableItems = items.filter(isActiveInventoryItem);
-  const [form, setForm] = useState({
-    id: isTransferEdit ? outgoingTransfer?.id || movement?.id || "" : movement?.id || "",
-    pairMovementId: isTransferEdit ? incomingTransfer?.id || "" : "",
-    date: movement?.date || todayInput(),
-    itemId: movement?.itemId || selectableItems[0]?.id || "",
-    type: initialType,
-    direction: initialDirection,
-    quantity: movement?.quantity ? Math.abs(Number(movement.quantity)) : "",
-    outletId: movement?.outletId || outlets[0]?.id || "",
-    fromOutletId: isTransferEdit ? outgoingTransfer?.outletId || "" : movement?.outletId || "",
-    toOutletId: isTransferEdit ? incomingTransfer?.outletId || "" : "",
-    user: "Current User",
-    reference: movement?.reference || "",
-    referenceType: movement?.referenceType || (isEdit ? "manual" : ""),
-    referenceId: movement?.referenceId || "",
-    notes: movement?.notes || "",
-  });
-  const selectedItem = items.find((item) => item.id === form.itemId);
-  const isTransfer = form.type === "transfer";
-  const quantity = Number(form.quantity || 0);
-  const canSave = form.itemId && quantity > 0 && (
-    isTransfer
-      ? form.fromOutletId && form.toOutletId && form.fromOutletId !== form.toOutletId
-      : form.outletId
-  );
-  const movementTypeOptions = [
-    { value: "purchase", label: "Purchase" },
-    { value: "waste", label: "Waste" },
-    { value: "transfer", label: "Transfer" },
-    { value: "adjustment", label: "Adjustment" },
-  ].filter((option) => !isEdit || option.value !== "purchase");
-  const update = (key, value) => setForm((current) => {
-    if (key === "type") {
-      return {
-        ...current,
-        type: value,
-        direction: value === "waste" ? "decrease" : current.direction,
-        outletId: current.outletId || current.fromOutletId || outlets[0]?.id || "",
-        fromOutletId: current.fromOutletId || current.outletId || outlets[0]?.id || "",
-        toOutletId: current.toOutletId || "",
-      };
-    }
-    return { ...current, [key]: value };
-  });
-  const handleSave = () => {
-    if (isTransfer) {
-      const reference = form.reference || `TRF-${Date.now().toString().slice(-8)}`;
-      onSave({
-        transfer: true,
-        pairMovementId: form.pairMovementId,
-        id: form.id,
-        itemId: form.itemId,
-        quantity,
-        unit: selectedItem?.unit || "",
-        fromOutletId: form.fromOutletId,
-        toOutletId: form.toOutletId,
-        reference,
-        referenceType: "transfer",
-        notes: form.notes,
-      });
-      return;
-    }
-    const signedQuantity = form.type === "waste"
-      ? -Math.abs(quantity)
-      : form.type === "adjustment" && form.direction === "decrease"
-        ? -Math.abs(quantity)
-        : Math.abs(quantity);
-    onSave({
-      ...form,
-      quantity: signedQuantity,
-      unit: selectedItem?.unit || "",
-      movementType: form.type,
-      id: form.id || makeId("move"),
-      referenceType: form.referenceType || "manual",
-    });
-  };
-  return (
-    <Modal
-      title={isEdit ? "Edit Inventory Movement" : "Record Inventory Movement"}
-      description="Every stock movement should create an operational audit trail."
-      onClose={onClose}
-      footer={(
-        <>
-          <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="button" disabled={!canSave} onClick={handleSave}>{isEdit ? "Update Movement" : "Save Movement"}</button>
-        </>
-      )}
-    >
-      <div className="grid gap-3">
-        {isTransfer ? (
-          <div className="grid gap-3 md:grid-cols-2">
-            <SelectField label="From Outlet" value={form.fromOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={(value) => update("fromOutletId", value)} searchable />
-            <SelectField label="To Outlet" value={form.toOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={(value) => update("toOutletId", value)} searchable />
-          </div>
-        ) : (
-          <SelectField label="Outlet" value={form.outletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} onChange={(value) => update("outletId", value)} searchable />
-        )}
-        <SelectField label="Item" value={form.itemId} options={selectableItems.map((item) => ({ value: item.id, label: `${item.name}${item.sku ? ` · ${item.sku}` : ""}` }))} onChange={(value) => update("itemId", value)} searchable />
-        <SelectField label="Movement Type" value={form.type} options={movementTypeOptions} onChange={(value) => update("type", value)} />
-        {form.type === "adjustment" ? (
-          <SelectField label="Adjustment Direction" value={form.direction} options={[{ value: "increase", label: "Increase" }, { value: "decrease", label: "Decrease" }]} onChange={(value) => update("direction", value)} />
-        ) : null}
-        <Field label={`Quantity${selectedItem?.unit ? ` (${selectedItem.unit})` : ""}`} type="number" value={form.quantity} placeholder="Enter quantity" onChange={(value) => update("quantity", parseNonNegativeNumber(value))} />
-        <Field label="Reference" value={form.reference} onChange={(value) => update("reference", value)} />
-        <TextArea label="Notes" value={form.notes} onChange={(value) => update("notes", value)} />
-        {form.type === "purchase" ? (
-          <div className="rounded-2xl border border-emerald-200 bg-emerald-50 px-3 py-2 type-caption font-semibold text-emerald-800">
-            Purchase movements are saved as positive quantities. PO receiving records remain read-only after creation.
-          </div>
-        ) : null}
-        {form.type === "waste" ? (
-          <div className="rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 type-caption font-semibold text-amber-800">
-            Waste movements are saved as negative quantities because they reduce stock.
-          </div>
-        ) : null}
-        {form.type === "transfer" && form.fromOutletId === form.toOutletId ? (
-          <div className="rounded-2xl border border-rose-200 bg-rose-50 px-3 py-2 type-caption font-semibold text-rose-700">
-            From Outlet and To Outlet must be different.
-          </div>
-        ) : null}
-      </div>
-    </Modal>
-  );
-}
-
-function WasteModal({ outlet, items, onClose, onSave }) {
-  const [form, setForm] = useState({
-    id: "",
-    date: todayInput(),
-    itemId: items[0]?.id ?? "",
-    outletId: outlet?.id ?? "",
-    wasteType: "Spoilage",
-    quantity: "",
-    photoUrl: "",
-    photoFile: null,
-    notes: "",
-  });
-  const [photoError, setPhotoError] = useState("");
-  const [isSaving, setIsSaving] = useState(false);
-  const selectedItem = items.find((item) => item.id === form.itemId);
-  const update = (key, value) => setForm((current) => ({ ...current, [key]: value }));
-
-  async function handlePhoto(file) {
-    setPhotoError("");
-    if (!file) return;
-    try {
-      const optimized = await optimizeImageFileForPreview(file);
-      setForm((current) => ({ ...current, photoUrl: optimized.dataUrl, photoFile: file }));
-    } catch (error) {
-      setPhotoError(error.message || "Unable to read image.");
-    }
-  }
-
-  async function handleSave() {
-    setIsSaving(true);
-    try {
-      await onSave({ ...form, unit: selectedItem?.unit || selectedItem?.uom_code || "" });
-    } finally {
-      setIsSaving(false);
-    }
-  }
-
-  return (
-    <Modal
-      title="Record Waste"
-      description={`${outlet?.name || "Selected outlet"} · Track spoilage, expiry, kitchen error and unexplained leakage.`}
-      onClose={onClose}
-      footer={(
-        <>
-          <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="button" disabled={isSaving || !form.itemId || !form.outletId || Number(form.quantity) <= 0} onClick={handleSave}>{isSaving ? "Saving..." : "Save Waste"}</button>
-        </>
-      )}
-    >
-      <div className="grid gap-3">
-        <div className="rounded-2xl border border-border bg-slate-50 p-3">
-          <div className="type-caption font-semibold text-text-secondary">Outlet</div>
-          <div className="mt-1 type-body-sm font-bold text-text-primary">{outlet?.name || "Selected outlet"}</div>
-        </div>
-        <SelectField label="Item" value={form.itemId} options={items.map((item) => ({ value: item.id, label: item.name }))} onChange={(value) => update("itemId", value)} searchable />
-        <SelectField label="Waste Type" value={form.wasteType} options={wasteTypes.map((type) => ({ value: type, label: type }))} onChange={(value) => update("wasteType", value)} />
-        <div className="grid gap-3 sm:grid-cols-2">
-          <Field label="Quantity" type="number" value={form.quantity} placeholder="Enter quantity" onChange={(value) => update("quantity", parseNonNegativeNumber(value))} />
-          <label className="block">
-            <div className="mb-1 type-caption font-semibold text-text-secondary">Unit</div>
-            <div className="control flex h-9 items-center text-[13px] font-semibold text-text-secondary">{selectedItem?.unit || "Unit"}</div>
-          </label>
-        </div>
-        <DatePickerField label="Waste Date" value={form.date} onChange={(value) => update("date", value)} />
-        <TextArea label="Reason / Remark" value={form.notes} onChange={(value) => update("notes", value)} />
-        <div>
-          <div className="mb-1 type-caption font-semibold text-text-secondary">Photo Evidence</div>
-          <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-border bg-slate-50 p-3">
-            <label className="btn-secondary h-8 cursor-pointer px-3 text-xs">
-              <Upload size={14} /> Upload Photo
-              <input className="sr-only" type="file" accept={IMAGE_UPLOAD_ACCEPT} onChange={(event) => handlePhoto(event.target.files?.[0])} />
-            </label>
-            {form.photoUrl ? (
-              <>
-                <img className="h-12 w-12 rounded-xl border border-border object-cover" src={form.photoUrl} alt="Waste evidence preview" />
-                <button className="btn-secondary h-8 px-3 text-xs text-rose-700" type="button" onClick={() => setForm((current) => ({ ...current, photoUrl: "", photoFile: null }))}>Remove</button>
-              </>
-            ) : <span className="type-caption font-semibold text-text-muted">Optional evidence</span>}
-          </div>
-          {photoError ? <div className="mt-1 type-caption font-semibold text-amber-700">{photoError}</div> : null}
-        </div>
-      </div>
-    </Modal>
-  );
-}
-
 function recipeIngredientCost(line = {}, item) {
   const quantity = Number(line.quantityUsed || 0);
   const unitCost = Number(item?.cost || 0);
@@ -5488,7 +5090,7 @@ function IngredientConsumptionModal({ rows = [], categories = [], filters, onFil
   );
 }
 
-function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existingRecipes = [], onClose, onSave }) {
+export function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existingRecipes = [], onClose, onSave }) {
   const [isSaving, setIsSaving] = useState(false);
   const [photoPreview, setPhotoPreview] = useState(recipe?.recipePhotoUrl || recipe?.recipe_photo_url || "");
   const [photoError, setPhotoError] = useState("");
@@ -5624,11 +5226,7 @@ function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existing
     }
     setCheckingRecipeCode(true);
     try {
-      const result = await supabase
-        .from("inventory_recipes")
-        .select("id, recipe_code")
-        .ilike("recipe_code", code)
-        .limit(5);
+      const result = await findRecipeCodeMatches(code);
       if (result.error) throw result.error;
       const duplicate = (result.data || []).some((row) => row.id !== form.id && normalizeProductRecipeKey(recipeCode(row)) === codeKey);
       const isLatest = duplicateCheckRef.current.requestId === requestId && recipeCode(form).toLowerCase() === code.toLowerCase();
@@ -6092,6 +5690,16 @@ function PurchaseOrderEditModal({ order, suppliers, items, onClose, onSave }) {
     ...order,
     lines: (order.lines || []).map((line) => ({ ...line })),
   });
+  const [saving, setSaving] = useState(false);
+  const submit = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await onSave(form);
+    } finally {
+      setSaving(false);
+    }
+  };
   const updateLine = (index, patch) => setForm((current) => ({
     ...current,
     lines: current.lines.map((line, lineIndex) => lineIndex === index ? { ...line, ...patch } : line),
@@ -6106,8 +5714,8 @@ function PurchaseOrderEditModal({ order, suppliers, items, onClose, onSave }) {
       onClose={onClose}
       footer={(
         <>
-          <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="button" disabled={form.status !== "draft" || !form.lines.length} onClick={() => onSave(form)}>Save Draft PO</button>
+          <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
+          <button className="btn-primary" type="button" disabled={saving || form.status !== "draft" || !form.lines.length} onClick={submit}>{saving ? "Saving…" : "Save Draft PO"}</button>
         </>
       )}
     >
@@ -6143,9 +5751,10 @@ function PurchaseOrderEditModal({ order, suppliers, items, onClose, onSave }) {
   );
 }
 
-function ReceiveInventoryModal({ order, supplier, outlet, items, displayPoNo, onClose, onReceive }) {
+export function ReceiveInventoryModal({ order, supplier, outlet, items, displayPoNo, onClose, onReceive }) {
   const [remark, setRemark] = useState("");
   const [rows, setRows] = useState((order.lines || []).map((line) => ({ ...line, receiveNowQty: "", receiveRemark: "" })));
+  const [saving, setSaving] = useState(false);
   const receiveGridRef = useRef(null);
   const receivable = rows.filter((row) => remainingQty(row) > 0);
   const hasValidQty = rows.some((row) => Number(row.receiveNowQty || 0) > 0);
@@ -6156,6 +5765,15 @@ function ReceiveInventoryModal({ order, supplier, outlet, items, displayPoNo, on
   const receivingStatus = totalReceivingNow > 0 && totalReceivingNow >= totalRemainingBeforeReceive ? "Full Receive" : "Partial Receive";
   const updateRow = (id, patch) => setRows((current) => current.map((row) => (row.id || row.itemId) === id ? { ...row, ...patch } : row));
   const fillRemaining = () => setRows((current) => current.map((row) => ({ ...row, receiveNowQty: remainingQty(row) > 0 ? remainingQty(row) : "" })));
+  const submitReceive = async () => {
+    if (saving) return;
+    setSaving(true);
+    try {
+      await onReceive(rows, remark);
+    } finally {
+      setSaving(false);
+    }
+  };
 
   function handleReceiveKeyDown(event, rowIndex) {
     if (event.key !== "Enter") return;
@@ -6171,8 +5789,8 @@ function ReceiveInventoryModal({ order, supplier, outlet, items, displayPoNo, on
       onClose={onClose}
       footer={(
         <>
-          <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-          <button className="btn-primary" type="button" disabled={!hasValidQty || invalid || ["cancelled", "completed"].includes(order.status)} onClick={() => onReceive(rows, remark)}>Confirm Receive</button>
+          <button className="btn-secondary" type="button" disabled={saving} onClick={onClose}>Cancel</button>
+          <button className="btn-primary" type="button" disabled={saving || !hasValidQty || invalid || ["cancelled", "completed"].includes(order.status)} onClick={submitReceive}>{saving ? "Receiving…" : "Confirm Receive"}</button>
         </>
       )}
     >
@@ -6366,8 +5984,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [parLevelSaveState, setParLevelSaveState] = useState("saved");
   const [uomWriteStatus, setUomWriteStatus] = useState("Not written");
   const [poFilters, setPoFilters] = useState({ outletId: "all", supplierId: "all", status: "all", source: "all", search: "", from: "", to: "" });
-  const [movementFilters, setMovementFilters] = useState({ outletId: "all", movementType: "all", search: "", from: "", to: "" });
-  const [wasteFilters, setWasteFilters] = useState({ wasteType: "all", from: "", to: "", search: "" });
   const [recipeFilters, setRecipeFilters] = useState({ category: "all", status: "active", search: "" });
   const [recipeWorkspaceTab, setRecipeWorkspaceTab] = useState("recipes");
   const [recipeMappingFilters, setRecipeMappingFilters] = useState({ status: "all", search: "" });
@@ -6390,6 +6006,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const selectedDateSourceRef = useRef(initialStockCheckDate.source);
   const [stockCheckShiftFilter, setStockCheckShiftFilter] = useState("all");
   const [modal, setModal] = useState(null);
+  const wasteActionsRef = useRef(null);
   const [editingCostItemId, setEditingCostItemId] = useState(null);
   const [editingCostValue, setEditingCostValue] = useState("");
   const [savingCostItemId, setSavingCostItemId] = useState(null);
@@ -6400,6 +6017,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   const [activeScheduledCheckId, setActiveScheduledCheckId] = useState(null);
   const [activeAuditCheck, setActiveAuditCheck] = useState(null);
   const [checkRows, setCheckRows] = useState([]);
+  const [savingStockCheck, setSavingStockCheck] = useState(false);
   const [checkValidationAttempted, setCheckValidationAttempted] = useState(false);
   const [checkSearch, setCheckSearch] = useState("");
   const [collapsedCheckCategoryIds, setCollapsedCheckCategoryIds] = useState(() => new Set());
@@ -7526,10 +7144,10 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     const wasteOutletId = selectedOutletId === "all" ? getAccessibleOutlets(auth, outlets)[0]?.id : selectedOutletId;
     if (!wasteOutletId) {
       notify("Select an outlet first", "Select an outlet before recording waste.", "warning");
-      return;
+      return "";
     }
     if (selectedOutletId === "all") setSelectedOutletId(wasteOutletId);
-    setModal({ type: "waste", outletId: wasteOutletId });
+    return wasteOutletId;
   }
 
   async function archiveGroup(groupId) {
@@ -7794,6 +7412,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
 
   async function saveStockCheck(status) {
     if (!activeCheckGroup) return;
+    if (savingStockCheck) return;
     const isAudit = activeCheckGroup.stockCheckType === "audit";
     if (status === "submitted") {
       const invalidRows = stockCheckValidationIssues(checkRows, isAudit);
@@ -7813,6 +7432,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
     };
     const rows = buildStockCheckRowsForGroup(persistGroup);
     try {
+      setSavingStockCheck(true);
       const savedCheck = await persistRemoteStockCheck(persistGroup, rows, status, auth?.user?.id, auth?.profile?.id);
       const refreshedInventory = status === "submitted" ? await refreshInventory() : null;
       if (status === "submitted") {
@@ -7870,6 +7490,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         error.message || "Please try again.",
         "error",
       );
+    } finally {
+      setSavingStockCheck(false);
     }
   }
 
@@ -8072,14 +7694,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   async function receivePurchaseOrder(order, rows, receiptRemark) {
     try {
       const result = await persistRemotePurchaseOrderReceive(order, rows, receiptRemark, auth?.user?.id);
-      setData((current) => ({
-        ...current,
-        orders: current.orders.map((entry) => entry.id === order.id ? result.order : entry),
-        movements: [...result.movements, ...current.movements.filter((movement) => !result.movements.some((entry) => entry.id === movement.id))],
-      }));
       await refreshInventory();
       setModal(null);
-      notify("Inventory received", result.order.status === "fully_received" ? "PO fully received. Inventory movement records were created." : "PO partially received. Inventory movement records were created.");
+      notify("Inventory received", result.status === "fully_received" ? "PO fully received. Inventory movement records were created." : "PO partially received. Inventory movement records were created.");
     } catch (error) {
       console.warn("[InventoryControl] Unable to receive PO.", error);
       debugLog("[POReceiveDebug]", { action: "receive-po", orderId: order?.id, rows, receiptRemark, error });
@@ -8098,56 +7715,10 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           referenceType: "transfer",
           notes: movement.notes,
         };
-        if (movement.id) {
-          const outgoing = await persistRemoteInventoryMovementUpdate({
-            id: movement.id,
-            ...base,
-            outletId: movement.fromOutletId,
-            type: "transfer_out",
-            quantity: -Math.abs(Number(movement.quantity || 0)),
-          }, auth?.user?.id);
-          const incoming = movement.pairMovementId
-            ? await persistRemoteInventoryMovementUpdate({
-              id: movement.pairMovementId,
-              ...base,
-              outletId: movement.toOutletId,
-              type: "transfer_in",
-              quantity: Math.abs(Number(movement.quantity || 0)),
-            }, auth?.user?.id)
-            : await persistRemoteInventoryMovement({
-              ...base,
-              outletId: movement.toOutletId,
-              type: "transfer_in",
-              quantity: Math.abs(Number(movement.quantity || 0)),
-            }, auth?.user?.id);
-          setData((current) => ({
-            ...current,
-            movements: [outgoing, incoming, ...current.movements.filter((entry) => ![outgoing.id, incoming.id].includes(entry.id))],
-          }));
-          await refreshInventory();
-          setModal(null);
-          notify("Inventory movement updated");
-          return;
-        }
-        const outgoing = await persistRemoteInventoryMovement({
-          ...base,
-          outletId: movement.fromOutletId,
-          type: "transfer_out",
-          quantity: -Math.abs(Number(movement.quantity || 0)),
-        }, auth?.user?.id);
-        const incoming = await persistRemoteInventoryMovement({
-          ...base,
-          outletId: movement.toOutletId,
-          type: "transfer_in",
-          quantity: Math.abs(Number(movement.quantity || 0)),
-        }, auth?.user?.id);
-        setData((current) => ({
-          ...current,
-          movements: [outgoing, incoming, ...current.movements.filter((entry) => ![outgoing.id, incoming.id].includes(entry.id))],
-        }));
+        await inventoryLifecycleService.transferInventory({ movement: { ...movement, ...base } });
         await refreshInventory();
         setModal(null);
-        notify("Inventory movement recorded");
+        notify(movement.id ? "Inventory movement updated" : "Inventory movement recorded");
         return;
       }
       const selectedItem = itemById.get(movement.itemId);
@@ -8186,18 +7757,13 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       const result = await persistRemoteWasteRecord({ ...waste, photoUrl: evidenceUrl, photo_url: evidenceUrl }, auth?.user?.id);
       debugLog("[WasteEvidenceDebug]", {
         ...evidenceDebug,
-        wasteRecordId: result.waste?.id || waste.id || "new",
-        savedEvidenceUrl: result.waste?.photoUrl || result.waste?.photo_url || "",
-        displayEvidenceUrl: result.waste?.photoUrl || result.waste?.photo_url || "",
+        wasteRecordId: result.waste_id || waste.id || "new",
+        savedEvidenceUrl: evidenceUrl,
+        displayEvidenceUrl: evidenceUrl,
       });
-      setData((current) => ({
-        ...current,
-        waste: [result.waste, ...current.waste.filter((entry) => entry.id !== result.waste.id)],
-        movements: [result.movement, ...current.movements.filter((entry) => entry.id !== result.movement.id)],
-      }));
       await refreshInventory();
-      setModal(null);
       notify("Waste record created", "A waste movement was added to the inventory audit trail.");
+      return true;
     } catch (error) {
       console.warn("[InventoryControl] Unable to save waste record.", error);
       debugLog("[WasteSaveDebug]", { action: "save-waste", payload: waste, error });
@@ -8210,11 +7776,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         error,
       });
       await refreshInventory();
-      if (error?.partialWasteSaved) {
-        notify("Waste record created, but movement failed", error.cause?.message || error.message || "Please check Inventory Movements permissions.", "warning");
-      } else {
-        notify("Failed to create Waste Record", error.message || "Please try again.", "error");
-      }
+      notify("Failed to create Waste Record", error.message || "Please try again.", "error");
+      return false;
     }
   }
 
@@ -9666,8 +9229,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
               <span>{checkRows.filter((row) => !row.skipped && varianceStatus(parLevelForOutlet(itemById.get(row.itemId), activeCheckGroup.outletId), row.actualCount).tone === "danger").length} critical items</span>
             </div>
             <div className="flex gap-2">
-              <button className="btn-secondary" type="button" onClick={() => requirePermission(can.editCheck, "save stock check drafts") && saveStockCheck("draft")}>Save Draft</button>
-              <button className="btn-primary" type="button" onClick={() => requirePermission(can.createCheck, "submit stock checks") && saveStockCheck("submitted")}>{isAudit ? "Submit Audit Check" : "Submit Stock Check"}</button>
+              <button className="btn-secondary" type="button" disabled={savingStockCheck} onClick={() => requirePermission(can.editCheck, "save stock check drafts") && saveStockCheck("draft")}>{savingStockCheck ? "Saving…" : "Save Draft"}</button>
+              <button className="btn-primary" type="button" disabled={savingStockCheck} onClick={() => requirePermission(can.createCheck, "submit stock checks") && saveStockCheck("submitted")}>{savingStockCheck ? "Saving…" : isAudit ? "Submit Audit Check" : "Submit Stock Check"}</button>
             </div>
           </div>
         </div>
@@ -9983,282 +9546,28 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
   }
 
   function renderMovements() {
-    const movementTypesForFilter = uniqueIds(data.movements.map((movement) => movement.movementType || movement.type).filter(Boolean));
-    const updateMovementFilter = (key, value) => setMovementFilters((current) => ({ ...current, [key]: value }));
-    const movementTypeKey = (movement) => canonical(movement.movementType || movement.type || "");
-    const movementTypeClass = (movement) => {
-      const key = movementTypeKey(movement);
-      if (key === "purchase") return "border-emerald-200 bg-emerald-50 text-emerald-700";
-      if (key === "transfer_in") return "border-blue-200 bg-blue-50 text-blue-700";
-      if (key === "transfer_out") return "border-purple-200 bg-purple-50 text-purple-700";
-      if (key === "waste") return "border-orange-200 bg-orange-50 text-orange-700";
-      if (key === "adjustment") return "border-slate-200 bg-slate-50 text-text-secondary";
-      return "border-slate-200 bg-slate-50 text-text-secondary";
-    };
-    const movementQuantityClass = (movement) => {
-      const key = movementTypeKey(movement);
-      if (key === "purchase") return "text-emerald-700";
-      if (key === "waste") return "text-amber-700";
-      if (key.includes("transfer")) return "text-blue-700";
-      if (key === "adjustment") return "text-purple-700";
-      return "text-text-primary";
-    };
-    const movementTypeLabel = (movement) => {
-      const key = movementTypeKey(movement);
-      if (key === "transfer_in") return "Transfer In";
-      if (key === "transfer_out") return "Transfer Out";
-      return toTitle(movement.movementType || movement.type || "movement");
-    };
-    const movementQuantityLabel = (movement, item) => {
-      const quantity = Number(movement.quantity || 0);
-      const unit = movement.unit || item?.unit || "";
-      return `${quantity > 0 ? "+" : ""}${quantity}${unit ? ` ${unit}` : ""}`;
-    };
-    const filteredMovements = data.movements.filter((movement) => {
-      const item = itemById.get(movement.itemId);
-      const movementDate = String(movement.dateTime || movement.date || "").slice(0, 10);
-      const searchText = `${item?.name || ""} ${movement.reference || ""} ${movement.notes || ""} ${movement.movementType || movement.type || ""}`.toLowerCase();
-      const matchesOutlet = movementFilters.outletId === "all" || movement.outletId === movementFilters.outletId;
-      const matchesType = movementFilters.movementType === "all" || canonical(movement.movementType || movement.type) === canonical(movementFilters.movementType);
-      const matchesSearch = !movementFilters.search.trim() || searchText.includes(movementFilters.search.trim().toLowerCase());
-      const matchesFrom = !movementFilters.from || !movementDate || movementDate >= movementFilters.from;
-      const matchesTo = !movementFilters.to || !movementDate || movementDate <= movementFilters.to;
-      return matchesOutlet && matchesType && matchesSearch && matchesFrom && matchesTo;
-    });
-    const movementSummary = filteredMovements.reduce((summary, movement) => {
-      const key = movementTypeKey(movement);
-      if (key === "purchase") summary.purchase += 1;
-      else if (key.includes("transfer")) summary.transfer += 1;
-      else if (key === "waste") summary.waste += 1;
-      else if (key === "adjustment") summary.adjustment += 1;
-      return summary;
-    }, { purchase: 0, transfer: 0, waste: 0, adjustment: 0 });
     const openMovementReference = (movement) => {
       const referenceType = canonical(movement.referenceType || "");
       if (referenceType === "purchase_order" || referenceType === "po") {
         const order = data.orders.find((entry) => entry.id === movement.referenceId || entry.poNo === movement.reference);
-        if (order) {
-          setModal({ type: "po-detail", order });
-          return;
-        }
+        if (order) return setModal({ type: "po-detail", order });
       }
       if (referenceType === "waste") {
         const waste = data.waste.find((entry) => entry.id === movement.referenceId);
-        if (waste) {
-          setModal({ type: "waste-detail", waste });
-          return;
-        }
+        if (waste) return setModal({ type: "waste-detail", waste });
       }
       if (referenceType === "transfer") {
         const transferMovements = data.movements.filter((entry) => entry.reference && movement.reference && entry.reference === movement.reference);
-        setModal({ type: "transfer-detail", movement, movements: transferMovements.length ? transferMovements : [movement] });
-        return;
+        return setModal({ type: "transfer-detail", movement, movements: transferMovements.length ? transferMovements : [movement] });
       }
       notify("Reference detail unavailable", "No linked detail record is available for this movement.", "info");
     };
-    return (
-      <div className="space-y-4">
-        <SectionCard title="Filters" description="Filter movement records by outlet, type, date range and item/reference search.">
-          <div className="grid gap-3 lg:grid-cols-5">
-            <SelectField label="Outlet" value={movementFilters.outletId} options={getAccessibleOutletOptions(auth, outlets)} onChange={(value) => updateMovementFilter("outletId", value)} searchable />
-            <SelectField label="Movement Type" value={movementFilters.movementType} options={[{ value: "all", label: "All Types" }, ...movementTypesForFilter.map((type) => ({ value: type, label: toTitle(type) }))]} onChange={(value) => updateMovementFilter("movementType", value)} />
-            <DatePickerField label="From" value={movementFilters.from} onChange={(value) => updateMovementFilter("from", value)} />
-            <DatePickerField label="To" value={movementFilters.to} onChange={(value) => updateMovementFilter("to", value)} />
-            <label>
-              <div className="mb-1 type-caption font-semibold text-text-secondary">Search Item / Reference</div>
-              <input className="control h-9 w-full text-[13px]" value={movementFilters.search} onChange={(event) => updateMovementFilter("search", event.target.value)} placeholder="Search item, PO no, notes" />
-            </label>
-          </div>
-        </SectionCard>
-
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard icon={PackagePlus} label="Purchase In" value={movementSummary.purchase} helper="Received inventory records" tone="success" size="compact" />
-          <MetricCard icon={Truck} label="Transfer" value={movementSummary.transfer} helper="Transfer in/out records" tone="info" size="compact" />
-          <MetricCard icon={Trash2} label="Waste" value={movementSummary.waste} helper="Waste movement records" tone="warning" size="compact" />
-          <MetricCard icon={Warehouse} label="Adjustments" value={movementSummary.adjustment} helper="Manual correction records" tone="neutral" size="compact" />
-        </div>
-
-        <SectionCard title="Movement Records" description={`Showing ${filteredMovements.length} record${filteredMovements.length === 1 ? "" : "s"}`}>
-          {filteredMovements.length ? (
-            <div className="overflow-x-auto">
-              <table className="w-full min-w-[1080px] text-left">
-                <thead className="text-[11px] uppercase tracking-wide text-text-muted">
-                  <tr className="border-b border-border">
-                    <th className="py-2">Date & Time</th>
-                    <th>Outlet</th>
-                    <th>Item</th>
-                    <th>Movement Type</th>
-                    <th>Qty / UOM</th>
-                    <th>Reference No.</th>
-                    <th>Notes</th>
-                    <th>Created By</th>
-                    <th className="text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border text-[13px]">
-                  {filteredMovements.map((movement) => {
-                    const item = itemById.get(movement.itemId);
-                    const hasReference = Boolean(movement.reference || movement.referenceId);
-                    return (
-                      <tr key={movement.id}>
-                        <td className="py-3">{formatDateTimeCompact(movement.dateTime || movement.date)}</td>
-                        <td>{outletById.get(movement.outletId)?.name ?? "Unknown outlet"}</td>
-                        <td className="font-bold text-text-primary">{item?.name ?? "Inventory item"}</td>
-                        <td>
-                          <span className={`inline-flex rounded-full border px-2 py-0.5 type-caption font-semibold ${movementTypeClass(movement)}`}>
-                            {movementTypeLabel(movement)}
-                          </span>
-                        </td>
-                        <td className={`font-semibold ${movementQuantityClass(movement)}`}>{movementQuantityLabel(movement, item)}</td>
-                        <td>
-                          {hasReference ? (
-                            <button className="type-caption font-black text-primary underline-offset-2 hover:underline" type="button" onClick={() => openMovementReference(movement)}>
-                              {movement.reference || "Open reference"}
-                            </button>
-                          ) : "-"}
-                        </td>
-                        <td>{movement.notes || "-"}</td>
-                        <td>{actorNameByAnyId(movement.user || movement.createdBy)}</td>
-                        <td className="text-right">
-                          {canEditInventoryMovement(movement) && can.recordMovement ? (
-                            <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setModal({ type: "movement", movement })}>Edit</button>
-                          ) : (
-                            <span className="type-caption font-semibold text-text-muted">Read-only</span>
-                          )}
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
-            </div>
-          ) : <EmptyState title="No inventory movements found." description={data.movements.length ? "Adjust filters to see more movement records." : "Purchase receiving and manual movements will appear here after they are saved to Supabase."} />}
-        </SectionCard>
-      </div>
-    );
+    return <InventoryMovementsPage movements={data.movements} itemById={itemById} outletById={outletById} outletOptions={getAccessibleOutletOptions(auth, outlets)} actorNameByAnyId={actorNameByAnyId} formatDateTimeCompact={formatDateTimeCompact} canonical={canonical} toTitle={toTitle} canEditMovement={canEditInventoryMovement} canRecordMovement={can.recordMovement} onEditMovement={(movement) => setModal({ type: "movement", movement })} onOpenReference={openMovementReference} />;
   }
 
   function renderWaste() {
-    if (!can.viewWaste) {
-      return <EmptyState title="Permission required" description="You do not have permission to view Wastage." />;
-    }
     const outletOptions = getAccessibleOutletOptions(auth, outlets).filter((option) => option.value !== "all");
-    const activeWasteOutletId = selectedOutletId === "all" ? (outletOptions[0]?.value || "") : selectedOutletId;
-    const filteredWaste = data.waste.filter((row) => {
-      const item = itemById.get(row.itemId);
-      const category = categoryById.get(item?.categoryId);
-      const searchText = `${item?.name || ""} ${item?.sku || ""} ${category?.name || ""} ${row.notes || ""} ${outletById.get(row.outletId)?.name || ""}`.toLowerCase();
-      const matchesOutlet = activeWasteOutletId ? row.outletId === activeWasteOutletId : false;
-      const matchesType = wasteFilters.wasteType === "all" || row.wasteType === wasteFilters.wasteType;
-      const matchesFrom = !wasteFilters.from || row.date >= wasteFilters.from;
-      const matchesTo = !wasteFilters.to || row.date <= wasteFilters.to;
-      const matchesSearch = !wasteFilters.search.trim() || searchText.includes(wasteFilters.search.trim().toLowerCase());
-      return matchesOutlet && matchesType && matchesFrom && matchesTo && matchesSearch;
-    });
-    const totalWasteQuantity = filteredWaste.reduce((sum, row) => sum + Number(row.quantity || 0), 0);
-    const typeCounts = wasteTypes.map((type) => ({
-      type,
-      count: filteredWaste.filter((row) => row.wasteType === type).length,
-    }));
-    const categoryTotals = new Map();
-    const itemTotals = new Map();
-    filteredWaste.forEach((row) => {
-      const item = itemById.get(row.itemId);
-      const categoryName = categoryById.get(item?.categoryId)?.name || "Uncategorized";
-      categoryTotals.set(categoryName, (categoryTotals.get(categoryName) || 0) + Number(row.quantity || 0));
-      itemTotals.set(item?.name || "Inventory item", (itemTotals.get(item?.name || "Inventory item") || 0) + Number(row.quantity || 0));
-    });
-    const topCategory = [...categoryTotals.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || "No data";
-    const topItem = [...itemTotals.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] || "No data";
-    const updateWasteFilter = (key, value) => setWasteFilters((current) => ({ ...current, [key]: value }));
-    return (
-      <div className="space-y-4">
-        <div className="card grid gap-3 p-3 lg:grid-cols-[220px_180px_170px_170px_1fr] lg:items-end">
-          <SelectField label="Outlet" value={activeWasteOutletId} options={outletOptions} onChange={setSelectedOutletId} searchable />
-          <SelectField label="Waste Type" value={wasteFilters.wasteType} options={[{ value: "all", label: "All Waste Types" }, ...wasteTypes.map((type) => ({ value: type, label: type }))]} onChange={(value) => updateWasteFilter("wasteType", value)} />
-          <DatePickerField label="From" value={wasteFilters.from} onChange={(value) => updateWasteFilter("from", value)} />
-          <DatePickerField label="To" value={wasteFilters.to} onChange={(value) => updateWasteFilter("to", value)} />
-          <label>
-            <div className="mb-1 type-caption font-semibold text-text-secondary">Search item/record</div>
-            <div className="relative">
-              <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={15} />
-              <input className="control h-9 w-full pl-9 text-[13px]" value={wasteFilters.search} onChange={(event) => updateWasteFilter("search", event.target.value)} placeholder="Search item, category, note" />
-            </div>
-          </label>
-        </div>
-        <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-          <MetricCard icon={Trash2} label="Waste Quantity" value={totalWasteQuantity} helper="Total recorded quantity" tone={totalWasteQuantity ? "warning" : "success"} />
-          <MetricCard icon={ClipboardList} label="Waste Records" value={filteredWaste.length} helper="Matching current filters" tone={filteredWaste.length ? "warning" : "success"} />
-          <MetricCard icon={AlertTriangle} label="Highest Waste Item" value={topItem} helper="Based on quantity recorded" />
-          <MetricCard icon={Sparkles} label="Unexplained Loss %" value="0%" helper="No unexplained loss logged" />
-        </div>
-        <DashboardSection title="Operational Insights" subtitle="Rule-based signals for leakage and stock variance.">
-          <div className="grid gap-3 xl:grid-cols-3">
-            {[
-              "Top wasted items will appear after records are created.",
-              "Recurring spoilage patterns will appear after more operational data is collected.",
-              "Variance trends will appear after stock checks are completed.",
-            ].map((insight) => (
-              <div key={insight} className="rounded-2xl border border-primary/15 bg-primary/5 p-3">
-                <div className="flex items-center gap-2 type-body-sm font-bold text-text-primary"><Sparkles size={15} className="text-primary" /> Operational signal</div>
-                <p className="mt-2 type-body-sm text-text-secondary">{insight}</p>
-              </div>
-            ))}
-          </div>
-        </DashboardSection>
-        <DashboardSection title="Waste Types" subtitle="Current waste mix across the selected outlet and filter range." density="compact">
-          <div className="flex flex-wrap gap-2">{typeCounts.map(({ type, count }) => <Badge key={type} tone={count ? "warning" : "neutral"}>{type} ({count})</Badge>)}</div>
-        </DashboardSection>
-        <DashboardSection title="Waste Records" subtitle="Outlet-scoped waste entries and future audit trail structure.">
-          {filteredWaste.length ? (
-            <div className="overflow-x-auto rounded-2xl border border-border">
-              <table className="w-full min-w-[980px] text-left">
-                <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
-                  <tr>
-                    <th className="px-3 py-2">Date</th>
-                    <th>Item</th>
-                    <th>Category</th>
-                    <th>Waste Type</th>
-                    <th>Qty</th>
-                    <th>Outlet</th>
-                    <th>Recorded By</th>
-                    <th>Notes</th>
-                    <th>Evidence</th>
-                    <th>Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-border text-[13px]">
-                  {filteredWaste.map((row) => {
-                const item = itemById.get(row.itemId);
-                const category = categoryById.get(item?.categoryId);
-                return (
-                    <tr key={row.id}>
-                      <td className="px-3 py-2 font-semibold text-text-primary">{formatDate(row.date)}</td>
-                      <td className="font-bold text-text-primary">{item?.name ?? "Inventory item"}</td>
-                      <td>{category?.name || "Uncategorized"}</td>
-                      <td><Badge tone="warning">{row.wasteType}</Badge></td>
-                      <td className="font-semibold">{row.quantity} {row.unit || item?.unit}</td>
-                      <td>{outletById.get(row.outletId)?.name || "Outlet"}</td>
-                      <td>{actorNameByAnyId(row.recordedBy || row.user)}</td>
-                      <td className="max-w-52 truncate">{row.notes || "-"}</td>
-                      <td>
-                        {row.photoUrl || row.photo_url ? (
-                          <button className="type-caption font-black text-primary underline-offset-2 hover:underline" type="button" onClick={() => setPhotoPreview({ src: row.photoUrl || row.photo_url, title: `${item?.name || "Waste"} evidence` })}>
-                            📷 View Photo
-                          </button>
-                        ) : <span className="type-caption text-text-muted">—</span>}
-                      </td>
-                      <td><button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setModal({ type: "waste-detail", waste: row })}>View</button></td>
-                    </tr>
-                );
-              })}
-                </tbody>
-              </table>
-            </div>
-          ) : <EmptyState title="No waste records for this outlet and filter range." description="Record spoilage, expiry or kitchen error to begin tracking operational leakage." />}
-        </DashboardSection>
-      </div>
-    );
+    return <InventoryWastePage wasteRecords={data.waste} movements={data.movements} selectedOutletId={selectedOutletId} onSelectedOutletChange={setSelectedOutletId} outletOptions={outletOptions} itemById={itemById} categoryById={categoryById} outletById={outletById} actorNameByAnyId={actorNameByAnyId} formatDate={formatDate} outletDisplayCode={outletDisplayCode} todayInput={todayInput} parseNonNegativeNumber={parseNonNegativeNumber} selectableItems={(outletId) => data.items.filter((item) => isActiveInventoryItem(item) && itemHasActiveOutletLink(item, outletId))} onRequestRecordWaste={openRecordWaste} onSaveWaste={saveWaste} onPreviewPhoto={setPhotoPreview} actionRef={wasteActionsRef} canView={can.viewWaste} canRecord={can.recordWaste} />;
   }
 
   function renderRecipes() {
@@ -10266,18 +9575,16 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       return <EmptyState title="Permission required" description={`You do not have permission to view ${activeTab === "recipe-intelligence" ? "Recipe Intelligence" : "Recipes & Usage"}.`} />;
     }
     const isRecipeIntelligencePage = activeTab === "recipe-intelligence";
-    const activeMenuCategories = (data.menuCategories?.length ? data.menuCategories : recipeMenuCategories.map((name, index) => mapRemoteMenuCategory({ id: `default_menu_${index + 1}`, name, sort_order: index + 1, status: "active" })))
-      .filter((category) => category.status === "active")
-      .sort((a, b) => Number(a.sortOrder || 0) - Number(b.sortOrder || 0) || a.name.localeCompare(b.name));
-    const updateRecipeFilter = (key, value) => setRecipeFilters((current) => ({ ...current, [key]: value }));
-    const filteredRecipes = data.recipes.filter((recipe) => {
-      const outlet = outletById.get(recipe.outletId);
-      const searchText = `${recipeCode(recipe)} ${recipeNameEn(recipe)} ${recipeNameCn(recipe)} ${recipe.menuCategory || ""} ${outlet?.name || ""} ${(recipe.ingredients || []).map((line) => itemById.get(line.itemId)?.name).join(" ")}`.toLowerCase();
-      return recipe.outletId === activeRecipeOutletId
-        && (recipeFilters.category === "all" || recipe.menuCategory === recipeFilters.category)
-        && (recipeFilters.status === "all" || recipe.status === recipeFilters.status)
-        && (!recipeFilters.search.trim() || searchText.includes(recipeFilters.search.trim().toLowerCase()));
+    const recipeReadModel = createInventoryRecipeReadModel({
+      recipes: data.recipes,
+      items: data.items,
+      outletsById: outletById,
+      menuCategories: data.menuCategories?.length ? data.menuCategories : recipeMenuCategories.map((name, index) => mapRemoteMenuCategory({ id: `default_menu_${index + 1}`, name, sort_order: index + 1, status: "active" })),
+      activeOutletId: activeRecipeOutletId,
+      filters: recipeFilters,
     });
+    const { activeMenuCategories, filteredRecipes } = recipeReadModel;
+    const updateRecipeFilter = (key, value) => setRecipeFilters((current) => ({ ...current, [key]: value }));
     const recipeCostRows = filteredRecipes.map((recipe) => {
       const summary = recipeCostSummary(recipe, data.items);
       const margin = recipeMarginPercent(recipe.sellingPrice ?? recipe.selling_price, summary.totalCost);
@@ -10694,8 +10001,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                       <td className="pr-8">
                         <div className="flex justify-end gap-2">
                           <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => setModal({ type: "recipe-detail", recipe })}>View</button>
-                          <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.manageRecipes, "edit recipes") && setModal({ type: "recipe", recipe })}>Edit</button>
-                          {recipe.status === "active" ? <button className="btn-secondary h-8 px-2.5 text-xs text-rose-700" type="button" onClick={() => archiveRecipe(recipe.id)}>Archive</button> : null}
+                          {can.manageRecipes ? <button className="btn-secondary h-8 px-2.5 text-xs" type="button" onClick={() => requirePermission(can.manageRecipes, "edit recipes") && setModal({ type: "recipe", recipe })}>Edit</button> : null}
+                          {can.manageRecipes && recipe.status === "active" ? <button className="btn-secondary h-8 px-2.5 text-xs text-rose-700" type="button" onClick={() => archiveRecipe(recipe.id)}>Archive</button> : null}
                         </div>
                       </td>
                     </tr>
@@ -10709,7 +10016,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                 title="No recipes set up yet."
                 description="Create recipes to connect menu items with inventory ingredients and estimate future usage variance."
               />
-              <div className="flex justify-center">
+              {can.manageRecipes ? <div className="flex justify-center">
                 <button
                   className="btn-primary"
                   type="button"
@@ -10724,7 +10031,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                 >
                   Add Recipe
                 </button>
-              </div>
+              </div> : null}
             </div>
           )}
         </DashboardSection> : null}
@@ -11078,7 +10385,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       return <button className="btn-primary" type="button" onClick={() => requirePermission(can.recordMovement, "record inventory movements") && setModal({ type: "movement" })}><RefreshCw size={15} /> Record Movement</button>;
     }
     if (activeTab === "waste") {
-      return <button className="btn-primary" type="button" onClick={openRecordWaste}>Record Waste</button>;
+      return can.recordWaste ? <button className="btn-primary" type="button" onClick={() => wasteActionsRef.current?.()}>Record Waste</button> : null;
     }
     if (activeTab === "recipe-intelligence") {
       return null;
@@ -11096,8 +10403,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       return (
         <>
           <button className="btn-secondary" type="button" onClick={exportRecipes}><Download size={15} /> Export</button>
-          <button className="btn-secondary" type="button" onClick={() => requirePermission(can.manageRecipes, "manage recipe menu categories") && setModal({ type: "recipe-menu-categories" })}>Menu Categories</button>
-          <button className="btn-primary" type="button" onClick={openAddRecipe}><PackagePlus size={15} /> Add Recipe</button>
+          {can.manageRecipes ? <button className="btn-secondary" type="button" onClick={() => requirePermission(can.manageRecipes, "manage recipe menu categories") && setModal({ type: "recipe-menu-categories" })}>Menu Categories</button> : null}
+          {can.manageRecipes ? <button className="btn-primary" type="button" onClick={openAddRecipe}><PackagePlus size={15} /> Add Recipe</button> : null}
         </>
       );
     }
@@ -11170,7 +10477,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
       {modal?.type === "group" ? <GroupModal group={modal.group} outletId={modal.outletId || selectedOutletId} outlets={outlets} items={data.items} categories={sortedCategories} onClose={() => setModal(null)} onSave={saveGroup} /> : null}
       {modal?.type === "audit-stock-check" ? <AuditStockCheckModal outlets={outlets} categories={sortedCategories} items={data.items} onClose={() => setModal(null)} onStart={startAuditStockCheck} /> : null}
       {modal?.type === "skip-check-row" ? <SkipReasonModal itemName={modal.itemName} onClose={() => setModal(null)} onSave={(reason) => skipCheckRow(modal.rowIndex, reason)} /> : null}
-      {modal?.type === "movement" ? <MovementModal outlets={outlets} items={data.items} movements={data.movements} movement={modal.movement} onClose={() => setModal(null)} onSave={saveMovement} /> : null}
+      {modal?.type === "movement" ? <InventoryManualMovementModal outlets={outlets} items={data.items} movements={data.movements} movement={modal.movement} canonical={canonical} isActiveInventoryItem={isActiveInventoryItem} todayInput={todayInput} makeId={makeId} parseNonNegativeNumber={parseNonNegativeNumber} onClose={() => setModal(null)} onSave={saveMovement} /> : null}
       {modal?.type === "transfer-detail" ? (() => {
         const rows = modal.movements || [];
         const reference = modal.movement?.reference || rows[0]?.reference || "Transfer";
@@ -11203,53 +10510,6 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           </Modal>
         );
       })() : null}
-      {modal?.type === "waste-detail" ? (() => {
-        const waste = modal.waste || {};
-        const item = itemById.get(waste.itemId);
-        const outlet = outletById.get(waste.outletId);
-        const category = categoryById.get(item?.categoryId);
-        const movement = data.movements.find((entry) => entry.referenceType === "waste" && entry.referenceId === waste.id);
-        const evidenceUrl = waste.photoUrl || waste.photo_url || "";
-        return (
-          <Modal
-            title="Waste Record Detail"
-            description={`${outlet?.name || "Outlet"} · ${formatDate(waste.date || waste.createdAt)}`}
-            size="lg"
-            onClose={() => setModal(null)}
-            footer={<button className="btn-secondary" type="button" onClick={() => setModal(null)}>Close</button>}
-          >
-            <div className="grid gap-3 md:grid-cols-2">
-              <MetricCard label="Date" value={formatDate(waste.date || waste.createdAt)} helper="Waste date" size="compact" />
-              <MetricCard label="Outlet" value={outlet?.name || "Outlet"} helper={outletDisplayCode(outlet)} size="compact" />
-              <MetricCard label="Item" value={item?.name || "Inventory item"} helper={item?.sku || "No SKU"} size="compact" />
-              <MetricCard label="Category" value={category?.name || "Uncategorized"} helper="Inventory category" size="compact" />
-              <MetricCard label="Waste Type" value={toTitle(waste.wasteType || "waste")} helper="Recorded classification" tone="warning" size="compact" />
-              <MetricCard label="Quantity" value={`${waste.quantity || 0} ${waste.unit || item?.unit || ""}`.trim()} helper="Recorded waste amount" tone="warning" size="compact" />
-              <MetricCard label="Recorded By" value={actorNameByAnyId(waste.recordedBy || waste.user)} helper="Record owner" size="compact" />
-              <MetricCard label="Movement Reference" value={movement?.reference || "—"} helper={movement ? "Inventory movement created" : "No movement linked"} size="compact" />
-            </div>
-            <div className="mt-3 rounded-2xl border border-border bg-slate-50 p-3 type-body-sm text-text-secondary">
-              {waste.notes || "No notes recorded."}
-            </div>
-            <div className="mt-3 rounded-2xl border border-border bg-slate-50 p-3">
-              <div className="type-caption font-semibold text-text-secondary">Evidence Photo</div>
-              {evidenceUrl ? (
-                <button className="mt-2 block overflow-hidden rounded-2xl border border-border bg-white" type="button" onClick={() => setPhotoPreview({ src: evidenceUrl, title: `${item?.name || "Waste"} evidence` })}>
-                  <img className="max-h-72 w-full object-cover" src={evidenceUrl} alt="Waste evidence" />
-                </button>
-              ) : <div className="mt-2 type-body-sm font-semibold text-text-muted">No evidence photo uploaded.</div>}
-            </div>
-          </Modal>
-        );
-      })() : null}
-      {modal?.type === "waste" ? (
-        <WasteModal
-          outlet={outletById.get(modal.outletId || selectedOutletId)}
-          items={data.items.filter((item) => isActiveInventoryItem(item) && itemHasActiveOutletLink(item, modal.outletId || selectedOutletId))}
-          onClose={() => setModal(null)}
-          onSave={saveWaste}
-        />
-      ) : null}
       {modal?.type === "recipe" ? (
         <RecipeModal
           recipe={modal.recipe}

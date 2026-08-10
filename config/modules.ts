@@ -25,6 +25,8 @@ export type AppModule = {
   route: string;
   icon?: string;
   sidebar: boolean;
+  // Internal modules may supply data or modal workflows without being valid hash-route destinations.
+  routable?: boolean;
   workspace?: "restaurant" | "factory";
   permissions: Partial<Record<ModuleAction, boolean>>;
 };
@@ -289,6 +291,7 @@ export const moduleRegistry: AppModule[] = [
     route: "/inventory/categories",
     icon: "purchase-categories",
     sidebar: false,
+    routable: false,
     permissions: { view: true, create: true, edit: true, delete: true },
   },
   {
@@ -298,6 +301,7 @@ export const moduleRegistry: AppModule[] = [
     route: "/inventory/uoms",
     icon: "settings",
     sidebar: false,
+    routable: false,
     permissions: { view: true, create: true, edit: true, delete: true },
   },
   {

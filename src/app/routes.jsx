@@ -39,7 +39,7 @@ function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSe
   );
 }
 
-const routeDetails = {
+export const routeDetails = {
   dashboard: {
     description: "Monthly HQ management overview for outlet health, alerts, operations and team moments.",
     component: DashboardOverviewPage,
@@ -150,12 +150,6 @@ const routeDetails = {
     component: InventoryControlPage,
     permission: "inventory_master.view",
     props: { initialTab: "master" },
-  },
-  inventory_categories: {
-    description: "Manage inventory item categories used across inventory workflows.",
-    component: InventoryControlPage,
-    permission: "inventory_categories.view",
-    props: { initialTab: "categories" },
   },
   inventory_par_levels: {
     description: "Bulk manage outlet-specific minimum stock levels.",
@@ -341,7 +335,7 @@ const routeDetails = {
   },
 };
 
-export const salesPurchaseRoutes = moduleRegistry.map((module) => {
+export const salesPurchaseRoutes = moduleRegistry.filter((module) => module.routable !== false).map((module) => {
   const details = routeDetails[module.id] ?? {};
   return {
     id: module.id,
