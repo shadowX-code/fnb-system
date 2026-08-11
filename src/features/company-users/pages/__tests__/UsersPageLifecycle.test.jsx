@@ -32,7 +32,10 @@ beforeEach(() => {
   mocks.employees.saveEmployee.mockReset();
   mocks.positions.listJobPositions.mockReset().mockResolvedValue([{ id: "position-1", name: "Supervisor", department: "Operations", status: "active" }]);
   mocks.roles.listRoleOptions.mockReset().mockResolvedValue([{ id: "role-1", name: "Supervisor" }]);
-  mocks.onboarding.sendLoginSetupEmail.mockReset();
+  mocks.onboarding.sendLoginSetupEmail.mockReset().mockResolvedValue({
+    auth_user_id: "auth-aisha",
+    email: employee.email,
+  });
 });
 
 afterEach(cleanup);
@@ -56,6 +59,71 @@ describe("Users page employee/auth lifecycle guards", () => {
     fireEvent.click(screen.getByRole("button", { name: "User actions" }));
     expect(screen.getByText("Edit")).toBeTruthy();
     expect(screen.getByText("Disable Access")).toBeTruthy();
+  });
+
+  it("uses reset-password authority for active employees and does not expose that action without it", async () => {
+    const ui = mount(["employees.view", "employees.reset_password"]);
+    await screen.findByText("Aisha");
+    fireEvent.click(screen.getByRole("button", { name: "User actions" }));
+    const reset = screen.getByRole("button", { name: "Send Reset Password Email" });
+    fireEvent.click(reset);
+
+    await waitFor(() => expect(mocks.onboarding.sendLoginSetupEmail).toHaveBeenCalledWith(employee.id, { mode: "email" }));
+    expect(ui.notify).toHaveBeenCalledWith(expect.objectContaining({ title: "Reset password email sent." }));
+
+    cleanup();
+    mount(["employees.view", "employees.enable_login"]);
+    await screen.findByText("Aisha");
+    fireEvent.click(screen.getByRole("button", { name: "User actions" }));
+    expect(screen.queryByRole("button", { name: "Send Reset Password Email" })).toBeNull();
+  });
+
+  it.each(["not_sent", "invited"])("uses enable-login authority for %s setup actions", async (accessState) => {
+    const pendingEmployee = { ...employee, access_state: accessState, email_verified: false };
+    mocks.employees.listEmployees.mockResolvedValue([pendingEmployee]);
+    mount(["employees.view", "employees.enable_login"]);
+
+    await screen.findByText("Aisha");
+    fireEvent.click(screen.getByRole("button", { name: "User actions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send Login Setup" }));
+    await waitFor(() => expect(mocks.onboarding.sendLoginSetupEmail).toHaveBeenCalledWith(pendingEmployee.id, { mode: "email" }));
+  });
+
+  it("does not grant pending login setup from reset-password authority and lets enable-login generate a manual link without roles.edit", async () => {
+    const pendingEmployee = { ...employee, access_state: "not_sent", email_verified: false };
+    mocks.employees.listEmployees.mockResolvedValue([pendingEmployee]);
+    mount(["employees.view", "employees.reset_password"]);
+
+    await screen.findByText("Aisha");
+    fireEvent.click(screen.getByRole("button", { name: "User actions" }));
+    expect(screen.queryByRole("button", { name: "Send Login Setup" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Generate Setup Link" })).toBeNull();
+
+    cleanup();
+    mocks.employees.listEmployees.mockResolvedValue([pendingEmployee]);
+    mount(["employees.view", "employees.enable_login"]);
+    await screen.findByText("Aisha");
+    fireEvent.click(screen.getByRole("button", { name: "User actions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Generate Setup Link" }));
+    fireEvent.click(screen.getByRole("button", { name: "Generate Setup Link" }));
+
+    await waitFor(() => expect(mocks.onboarding.sendLoginSetupEmail).toHaveBeenCalledWith(pendingEmployee.id, { mode: "manual_link" }));
+  });
+
+  it("uses reset-password authority for an active employee manual-link fallback without roles.edit", async () => {
+    const smtpFailure = Object.assign(new Error("SMTP unavailable"), { canGenerateManualLink: true, code: "SMTP_NOT_CONFIGURED" });
+    mocks.onboarding.sendLoginSetupEmail
+      .mockRejectedValueOnce(smtpFailure)
+      .mockResolvedValueOnce({ auth_user_id: "auth-aisha", email: employee.email, setupUrl: "https://feedx.test/setup" });
+    mount(["employees.view", "employees.reset_password"]);
+
+    await screen.findByText("Aisha");
+    fireEvent.click(screen.getByRole("button", { name: "User actions" }));
+    fireEvent.click(screen.getByRole("button", { name: "Send Reset Password Email" }));
+    await screen.findByRole("button", { name: "Generate Setup Link" });
+    fireEvent.click(screen.getByRole("button", { name: "Generate Setup Link" }));
+
+    await waitFor(() => expect(mocks.onboarding.sendLoginSetupEmail).toHaveBeenLastCalledWith(employee.id, { mode: "manual_link" }));
   });
 
   it("keeps a saved employee modal retryable after login onboarding rejects and retries the same employee identity", async () => {

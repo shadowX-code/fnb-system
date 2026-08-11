@@ -586,7 +586,9 @@ function UserFormModal({
     accessState !== savedAccessState
   );
   const savedAccessCanGenerateSetup = mode === "edit" && Boolean(initialUser.id && savedAccessEnabled && savedLoginEmail && savedRoleId);
-  const setupActionDisabled = !canResetPassword || setupAction === "manual_link" || accessSetupHasUnsavedChanges || !savedAccessCanGenerateSetup;
+  const requiresResetPassword = accessState === EMPLOYEE_ACCESS_STATE.ACTIVE;
+  const canManageCurrentLoginSetup = requiresResetPassword ? canResetPassword : canEnableLogin;
+  const setupActionDisabled = !canManageCurrentLoginSetup || setupAction === "manual_link" || accessSetupHasUnsavedChanges || !savedAccessCanGenerateSetup;
   const accessHasLoginMetadata = Boolean(values.email || values.role || values.role_id || values.auth_user_id || values.last_login_at);
   const shouldShowAccessSetup = showAccessSetup || (values.enable_system_login && accessState !== EMPLOYEE_ACCESS_STATE.ACTIVE && accessState !== EMPLOYEE_ACCESS_STATE.DISABLED);
   const isMalaysia = isMalaysiaNationality(values.nationality);
@@ -784,8 +786,8 @@ function UserFormModal({
       notifyPermissionDenied(ui, "save employee profiles");
       return;
     }
-    if (sendLoginSetup && !canResetPassword) {
-      notifyPermissionDenied(ui, "send password setup links");
+    if (sendLoginSetup && !canManageCurrentLoginSetup) {
+      notifyPermissionDenied(ui, requiresResetPassword ? "send reset password emails" : "send password setup links");
       return;
     }
     const nextErrors = validateUserForm(values);
@@ -826,8 +828,8 @@ function UserFormModal({
   }
 
   async function sendLoginSetupForExistingEmployee() {
-    if (!canResetPassword) {
-      notifyPermissionDenied(ui, "send password setup links");
+    if (!canManageCurrentLoginSetup) {
+      notifyPermissionDenied(ui, requiresResetPassword ? "send reset password emails" : "send password setup links");
       return;
     }
     if (accessSetupHasUnsavedChanges || !savedAccessCanGenerateSetup) {
@@ -852,8 +854,8 @@ function UserFormModal({
   }
 
   async function generateSetupLinkForExistingEmployee() {
-    if (!canResetPassword) {
-      notifyPermissionDenied(ui, "generate password setup links");
+    if (!canManageCurrentLoginSetup) {
+      notifyPermissionDenied(ui, requiresResetPassword ? "generate reset password links" : "generate password setup links");
       return;
     }
     if (accessSetupHasUnsavedChanges || !savedAccessCanGenerateSetup) {
@@ -932,7 +934,7 @@ function UserFormModal({
         ) : (
           <>
             <button className="btn-secondary" type="button" disabled={isSaving} onClick={onClose}>Cancel</button>
-              {shouldShowAccessSetup && canResetPassword ? (
+              {shouldShowAccessSetup && canManageCurrentLoginSetup ? (
                 <button
                   className="btn-primary"
                   type="button"
@@ -1412,8 +1414,9 @@ export default function UsersPage({ ui, store, auth }) {
   }
 
   async function sendLoginSetupForUser(user, { mode = "email" } = {}) {
-    if (!canResetPassword) {
-      notifyPermissionDenied(ui, "send password setup links");
+    const isResetPassword = getAccessState(user) === EMPLOYEE_ACCESS_STATE.ACTIVE;
+    if (isResetPassword ? !canResetPassword : !canEnableLogin) {
+      notifyPermissionDenied(ui, isResetPassword ? "send reset password emails" : "send password setup links");
       return;
     }
     if (!user.email) {
@@ -1465,7 +1468,7 @@ export default function UsersPage({ ui, store, auth }) {
         });
       }
       ui.notify({
-        title: result.setupUrl ? "Setup link generated." : "Login setup email sent.",
+        title: result.setupUrl ? "Setup link generated." : isResetPassword ? "Reset password email sent." : "Login setup email sent.",
         message: result.warning || result.message || result.email || user.email,
         tone: result.warning ? "warning" : undefined,
       });
@@ -1622,6 +1625,9 @@ export default function UsersPage({ ui, store, auth }) {
     if (accessState === EMPLOYEE_ACCESS_STATE.ACTIVE) {
       return (
         <>
+          {canResetPassword ? <button className={buttonClass} type="button" onClick={() => sendLoginSetupForUser(row)}>
+            <KeyRound size={14} /> Send Reset Password Email
+          </button> : null}
           {canDeactivateEmployee ? <button className={dangerClass} type="button" onClick={() => disableUserAccess(row)}>
             <Power size={14} /> Disable Access
           </button> : null}
@@ -1632,10 +1638,10 @@ export default function UsersPage({ ui, store, auth }) {
     if (accessState === EMPLOYEE_ACCESS_STATE.NOT_SENT || accessState === EMPLOYEE_ACCESS_STATE.INVITED) {
       return (
         <>
-          {canResetPassword ? <button className={buttonClass} type="button" onClick={() => sendLoginSetupForUser(row)}>
+          {canEnableLogin ? <button className={buttonClass} type="button" onClick={() => sendLoginSetupForUser(row)}>
             <KeyRound size={14} /> Send Login Setup
           </button> : null}
-          {canResetPassword ? <button className={buttonClass} type="button" onClick={() => openManualSetupFallback(row)}>
+          {canEnableLogin ? <button className={buttonClass} type="button" onClick={() => openManualSetupFallback(row)}>
             <KeyRound size={14} /> Generate Setup Link
           </button> : null}
           {canDeactivateEmployee ? <button className={dangerClass} type="button" onClick={() => disableUserAccess(row)}>
