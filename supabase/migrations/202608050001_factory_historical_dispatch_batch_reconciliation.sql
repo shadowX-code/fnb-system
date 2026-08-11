@@ -11,7 +11,23 @@ declare
   v_production_date date;
   v_aggregate_balance numeric;
   v_known_batch_balance numeric;
+  v_factory_operational_row_count bigint;
 begin
+  -- This reconciliation is intentionally limited to the known historical
+  -- Factory dataset that existed before the batch ledger was introduced. A
+  -- fresh environment has no Factory operational rows to reconcile. Any
+  -- non-empty environment continues through the strict historical validation
+  -- below, so partial historical data cannot be silently accepted.
+  select
+    (select count(*) from public.factory_finished_goods)
+    + (select count(*) from public.factory_finished_good_dispatches)
+    + (select count(*) from public.factory_finished_good_dispatch_items)
+    + (select count(*) from public.factory_productions)
+  into v_factory_operational_row_count;
+
+  if v_factory_operational_row_count = 0 then
+    raise notice 'Skipping historical Dispatch batch reconciliation because this environment has no Factory operational records.';
+  else
   -- Validate and lock both mappings before either Dispatch Item is updated.
   for v_mapping in
     select *
@@ -287,5 +303,6 @@ begin
         and nullif(btrim(audit.metadata ->> 'assigned_batch_no'), '') = v_mapping.batch_no
     );
   end loop;
+  end if;
 end;
 $$;
