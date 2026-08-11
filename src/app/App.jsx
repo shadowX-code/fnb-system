@@ -274,8 +274,9 @@ export default function App() {
     [auth.profile?.role?.outlet_access_type, auth.profile?.roleOutletIds, auth.profile?.role_outlet_access_type, auth.profile?.role_outlet_ids],
   );
   const initialRoute = window.location.hash?.replace("#", "") || "dashboard";
+  const initialRouteId = initialRoute.split("/")[0] || "dashboard";
   const [activeRouteId, setActiveRouteId] = useState(
-    salesPurchaseRoutes.some((route) => route.id === initialRoute) ? initialRoute : "dashboard",
+    salesPurchaseRoutes.some((route) => route.id === initialRouteId) ? initialRouteId : "dashboard",
   );
   const [workspace, setWorkspace] = useState(() => {
     const routeWorkspace = workspaceForRoute(initialRoute);

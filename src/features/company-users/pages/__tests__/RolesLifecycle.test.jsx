@@ -35,7 +35,10 @@ beforeEach(() => {
   ui.confirm.mockReset().mockResolvedValue(true);
   ui.notify.mockReset();
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  window.history.replaceState(null, "", "#roles");
+});
 
 describe("Roles current mounted lifecycle", () => {
   it("creates through the parent-owned save callback, closes only after success, and updates the local listing without a second read", async () => {
@@ -74,6 +77,40 @@ describe("Roles current mounted lifecycle", () => {
     await screen.findByText("operations");
     expect(screen.queryByRole("button", { name: "Add Role" })).toBeNull();
     expect(mocks.save).not.toHaveBeenCalled();
+  });
+
+  it("navigates catalog actions through full-page role routes and keeps permission selection across category tabs", async () => {
+    window.history.replaceState(null, "", "#roles");
+    const factoryRole = { ...existing, permissions: ["factory_dashboard.view", "factory_job_orders.view"] };
+    mocks.list.mockResolvedValueOnce([factoryRole]);
+    render(<RolesPage ui={ui} auth={auth} store={{ outlets: [] }} />);
+    await screen.findByText("operations");
+
+    fireEvent.click(screen.getByRole("button", { name: "Add Role" }));
+    await screen.findByText("Create Role");
+    expect(window.location.hash).toBe("#roles/new");
+    fireEvent.click(screen.getByRole("button", { name: /back to roles/i }));
+    expect(window.location.hash).toBe("#roles");
+
+    fireEvent.click(screen.getByText("operations"));
+    await screen.findByText("View Role");
+    expect(window.location.hash).toBe("#roles/role-1");
+    fireEvent.click(screen.getByRole("button", { name: "Edit Role" }));
+    await screen.findByText("Edit Role");
+    expect(window.location.hash).toBe("#roles/role-1/edit");
+
+    fireEvent.click(screen.getByRole("tab", { name: /Factory · \d+/ }));
+    expect(screen.getByText("Factory")).not.toBeNull();
+    expect(screen.getByText("Production Overview")).not.toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "Off" })[0]);
+    fireEvent.click(screen.getByRole("tab", { name: /Restaurant · \d+/ }));
+    expect(screen.getByText("Sales Input")).not.toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: /People & HR · \d+/ }));
+    expect(screen.getByText("Employees")).not.toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: /System · \d+/ }));
+    expect(screen.getByText("Roles & Permissions")).not.toBeNull();
+    fireEvent.click(screen.getByRole("tab", { name: /Factory · \d+/ }));
+    expect(screen.getAllByRole("button", { name: "Enabled" }).length).toBeGreaterThanOrEqual(1);
   });
 
   it("edits the existing role through one trusted snapshot and preserves its UUID across a rejected retry", async () => {
