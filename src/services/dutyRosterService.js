@@ -99,6 +99,53 @@ function buildPublishedPayload(status, snapshot) {
 }
 
 export const dutyRosterService = {
+  async copyRosterWeek({ requestId, outletId, sourceWeekStartDate, targetWeekStartDate, overwrite }) {
+    const { data, error } = await supabase.rpc("copy_roster_week", {
+      p_request_id: requestId, p_outlet_id: outletId, p_source_week_start_date: sourceWeekStartDate,
+      p_target_week_start_date: targetWeekStartDate, p_overwrite: Boolean(overwrite),
+    });
+    throwSupabaseError("duty_rosters.copy_week", error);
+    return { period: data?.period ?? null, rows: (data?.rows ?? []).map(mapRoster) };
+  },
+
+  async publishRosterWeek({ requestId, outletId, weekStartDate }) {
+    const { data, error } = await supabase.rpc("publish_roster_week", { p_request_id: requestId, p_outlet_id: outletId, p_week_start_date: weekStartDate });
+    throwSupabaseError("duty_rosters.publish_week", error);
+    return { period: data?.period ?? null, rows: (data?.rows ?? []).map(mapRoster) };
+  },
+
+  async unpublishRosterWeek({ requestId, outletId, weekStartDate }) {
+    const { data, error } = await supabase.rpc("unpublish_roster_week", { p_request_id: requestId, p_outlet_id: outletId, p_week_start_date: weekStartDate });
+    throwSupabaseError("duty_rosters.unpublish_week", error);
+    return { period: data?.period ?? null, rows: (data?.rows ?? []).map(mapRoster) };
+  },
+
+  async lockRosterWeek({ requestId, outletId, weekStartDate }) {
+    const { data, error } = await supabase.rpc("lock_roster_week", { p_request_id: requestId, p_outlet_id: outletId, p_week_start_date: weekStartDate });
+    throwSupabaseError("duty_rosters.lock_week", error);
+    return { period: data?.period ?? null, rows: (data?.rows ?? []).map(mapRoster) };
+  },
+
+  async saveRosterWeekSnapshot({ requestId, outletId, weekStartDate, rows }) {
+    const payloadRows = (rows ?? []).map((row) => ({
+      employee_id: row.employee_id,
+      roster_date: row.roster_date,
+      shift_template_id: row.shift_template_id ?? row.template?.id ?? null,
+      remark: row.remark ?? "",
+    }));
+    const { data, error } = await supabase.rpc("save_roster_week_snapshot", {
+      p_request_id: requestId,
+      p_outlet_id: outletId,
+      p_week_start_date: weekStartDate,
+      p_rows: payloadRows,
+    });
+    throwSupabaseError("duty_rosters.save_week_snapshot", error);
+    return {
+      period: data?.period ?? null,
+      rows: (data?.rows ?? []).map(mapRoster),
+    };
+  },
+
   async listDutyRosters(outletId, startDate, endDate) {
     const { data, error } = await supabase
       .from("duty_rosters")

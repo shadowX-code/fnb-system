@@ -25,6 +25,12 @@ const groupLabels = {
   other: "OTHER",
 };
 
+function createRosterRequestId() {
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  const random = Math.floor(Math.random() * 0xffffffffffff).toString(16).padStart(12, "0");
+  return `00000000-0000-4000-8000-${random}`;
+}
+
 function toDateInputValue(date) {
   const value = new Date(date);
   const year = value.getFullYear();
@@ -1520,6 +1526,10 @@ export default function DutyRosterPage({ store, ui, auth }) {
   const activeOutlets = store.outlets.filter((outlet) => outlet.status === "active" || outlet.is_active);
   const [outletId, setOutletId] = useState(activeOutlets[0]?.id ?? "");
   const outletIdRef = useRef(outletId);
+  const bulkSnapshotRequestIdRef = useRef("");
+  const publishedWeekRequestIdRef = useRef("");
+  const copyRequestIdRef = useRef("");
+  const statusRequestIdRef = useRef({});
   const [weekStart, setWeekStart] = useState(() => toDateInputValue(startOfWeek(new Date())));
   const [viewMode, setViewMode] = useState("week");
   const [employees, setEmployees] = useState([]);
@@ -1543,6 +1553,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
   const [positionFilter, setPositionFilter] = useState("all");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [copying, setCopying] = useState(false);
   const [error, setError] = useState("");
 
   const canAddShift = canCreate(auth, "duty_roster");
@@ -1729,6 +1740,30 @@ export default function DutyRosterPage({ store, ui, auth }) {
       setSelectedTemplateId("");
       return;
     }
+    if (period?.status === "published") {
+      setSaving(true);
+      try {
+        const nextRows = rosters
+          .filter((row) => row.roster_date >= weekDateValues[0] && row.roster_date <= weekEnd)
+          .filter((row) => row.id !== existing?.id);
+        nextRows.push({ employee_id: employee.id, roster_date: date, shift_template_id: templateOverride.id, template: templateOverride, remark });
+        const requestId = publishedWeekRequestIdRef.current || createRosterRequestId();
+        publishedWeekRequestIdRef.current = requestId;
+        const result = await dutyRosterService.saveRosterWeekSnapshot({ requestId, outletId, weekStartDate: weekDateValues[0], rows: nextRows });
+        setPeriod(result.period);
+        setRosters((current) => [...current.filter((row) => row.roster_date < weekDateValues[0] || row.roster_date > weekEnd), ...result.rows]);
+        publishedWeekRequestIdRef.current = "";
+        setShiftDrawer(null);
+        ui.notify({ title: "Shift saved", message: `${employee.nickname || employee.full_name} · ${templateOverride.name}` });
+        return;
+      } catch (saveError) {
+        console.error("Unable to save duty roster shift", saveError);
+        ui.notify({ title: "Unable to save shift", message: saveError.message || "Please try again.", tone: "error" });
+        return;
+      } finally {
+        setSaving(false);
+      }
+    }
     setSaving(true);
     try {
       const shouldResetPublishedWeek = period?.status === "published";
@@ -1788,6 +1823,29 @@ export default function DutyRosterPage({ store, ui, auth }) {
       return;
     }
     if (locked) return;
+    if (period?.status === "published") {
+      setSaving(true);
+      try {
+        const requestId = publishedWeekRequestIdRef.current || createRosterRequestId();
+        publishedWeekRequestIdRef.current = requestId;
+        const result = await dutyRosterService.saveRosterWeekSnapshot({
+          requestId, outletId, weekStartDate: weekDateValues[0],
+          rows: rosters.filter((row) => row.roster_date >= weekDateValues[0] && row.roster_date <= weekEnd && row.id !== roster.id),
+        });
+        setPeriod(result.period);
+        setRosters((current) => [...current.filter((row) => row.roster_date < weekDateValues[0] || row.roster_date > weekEnd), ...result.rows]);
+        publishedWeekRequestIdRef.current = "";
+        setShiftDrawer(null);
+        ui.notify({ title: "Shift removed" });
+        return;
+      } catch (deleteError) {
+        console.error("Unable to delete duty roster shift", deleteError);
+        ui.notify({ title: "Unable to remove shift", message: deleteError.message || "Please try again.", tone: "error" });
+        return;
+      } finally {
+        setSaving(false);
+      }
+    }
     try {
       await dutyRosterService.deleteDutyRoster(roster.id, { outletId, rosterDate: roster.roster_date, employee_id: roster.employee_id });
       if (period?.status === "published") {
@@ -1815,36 +1873,39 @@ export default function DutyRosterPage({ store, ui, auth }) {
 
   async function bulkAssign(employee, dates, template, remark = "") {
     if (!dates.length || !template) return;
+    if (dates.some((date) => date < weekDateValues[0] || date > weekEnd)) {
+      ui.notify({ title: "Choose dates from one roster week", message: "Bulk assignment saves one complete roster week at a time.", tone: "warning" });
+      return;
+    }
     setSaving(true);
     try {
-      const shouldResetPublishedWeek = period?.status === "published";
-      const savedRows = await Promise.all(dates.map((date) => dutyRosterService.saveDutyRoster({
-        outletId,
-        employeeId: employee.id,
-        rosterDate: date,
-        template,
-        status: "draft",
-        remark,
-      })));
-      if (shouldResetPublishedWeek) {
-        const [nextPeriod, nextRows] = await Promise.all([
-          rosterPeriodService.setRosterPeriodStatus(period, "draft"),
-          dutyRosterService.setWeekRosterStatus({
-            outletId,
-            startDate: weekDateValues[0],
-            endDate: weekEnd,
-            status: "draft",
-          }),
-        ]);
-        setPeriod(nextPeriod);
-        setRosters(nextRows);
-      } else {
-        setRosters((current) => {
-          const byId = new Map(current.map((item) => [item.id, item]));
-          savedRows.forEach((row) => byId.set(row.id, row));
-          return [...byId.values()];
+      const weekRows = rosters.filter((row) => row.roster_date >= weekDateValues[0] && row.roster_date <= weekEnd);
+      const byEmployeeDate = new Map(weekRows.map((row) => [rosterKey(row.employee_id, row.roster_date), row]));
+      dates.forEach((date) => {
+        const key = rosterKey(employee.id, date);
+        byEmployeeDate.set(key, {
+          ...(byEmployeeDate.get(key) ?? {}),
+          employee_id: employee.id,
+          roster_date: date,
+          shift_template_id: template.id,
+          template,
+          remark,
         });
-      }
+      });
+      const requestId = bulkSnapshotRequestIdRef.current || createRosterRequestId();
+      bulkSnapshotRequestIdRef.current = requestId;
+      const result = await dutyRosterService.saveRosterWeekSnapshot({
+        requestId,
+        outletId,
+        weekStartDate: weekDateValues[0],
+        rows: [...byEmployeeDate.values()],
+      });
+      setPeriod(result.period);
+      setRosters((current) => [
+        ...current.filter((row) => row.roster_date < weekDateValues[0] || row.roster_date > weekEnd),
+        ...result.rows,
+      ]);
+      bulkSnapshotRequestIdRef.current = "";
       setBulkDrawer(null);
       ui.notify({ title: "Bulk assignment saved", message: `${dates.length} dates assigned to ${template.name}.` });
     } catch (bulkError) {
@@ -1942,6 +2003,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
   }
 
   async function copyWeek() {
+    if (copying) return;
     if (!canAddShift && !canEditShift) {
       notifyPermissionDenied(ui, "copy duty roster weeks");
       return;
@@ -1955,25 +2017,26 @@ export default function DutyRosterPage({ store, ui, auth }) {
       message: "Overwrite existing shifts in the selected week?",
       confirmLabel: "Copy Week",
     });
+    setCopying(true);
     try {
-      const result = await dutyRosterService.copyWeek({
+      const requestId = copyRequestIdRef.current || createRosterRequestId();
+      copyRequestIdRef.current = requestId;
+      const result = await dutyRosterService.copyRosterWeek({
+        requestId,
         outletId,
-        sourceStartDate: sourceStart,
-        sourceEndDate: sourceEnd,
-        targetDates: weekDateValues,
+        sourceWeekStartDate: sourceStart,
+        targetWeekStartDate: weekDateValues[0],
         overwrite,
-        targetStatus: "draft",
       });
-      const [nextRows, nextPeriod] = await Promise.all([
-        dutyRosterService.listDutyRosters(outletId, weekDateValues[0], weekEnd),
-        period?.status === "published" ? rosterPeriodService.setRosterPeriodStatus(period, "draft") : Promise.resolve(period),
-      ]);
-      setRosters(nextRows);
-      setPeriod(nextPeriod);
-      ui.notify({ title: "Week copied", message: `${result.created} shifts copied.` });
+      setRosters((current) => [...current.filter((row) => row.roster_date < weekDateValues[0] || row.roster_date > weekEnd), ...result.rows]);
+      setPeriod(result.period);
+      copyRequestIdRef.current = "";
+      ui.notify({ title: "Week copied", message: `${result.rows.length} shifts copied.` });
     } catch (copyError) {
       console.error("Unable to copy week roster", copyError);
       ui.notify({ title: "Unable to copy week", message: copyError.message || "Please try again.", tone: "error" });
+    } finally {
+      setCopying(false);
     }
   }
 
@@ -1982,37 +2045,25 @@ export default function DutyRosterPage({ store, ui, auth }) {
       notifyPermissionDenied(ui, "manage duty roster status");
       return;
     }
+    if (saving) return;
+    setSaving(true);
     try {
-      const employeeById = new Map(employeesWithGroups.map((employee) => [employee.id, employee]));
-      const snapshots = status === "published"
-        ? rosters
-            .filter((roster) => roster.roster_date >= weekDateValues[0] && roster.roster_date <= weekEnd)
-            .map((roster) => {
-              const employee = employeeById.get(roster.employee_id) ?? roster.employee_snapshot ?? {};
-              return {
-                ...roster,
-                employee_name_snapshot: employee.nickname || employee.full_name || roster.employee_name_snapshot || "",
-                position_snapshot: employee.position || roster.position_snapshot || "",
-                department_snapshot: employee.department || roster.department_snapshot || "",
-                outlet_snapshot: outletName,
-                template: roster.template,
-              };
-            })
-        : [];
-      const nextPeriod = await rosterPeriodService.setRosterPeriodStatus(period, status);
-      const nextRosters = await dutyRosterService.setWeekRosterStatus({
-        outletId,
-        startDate: weekDateValues[0],
-        endDate: weekEnd,
-        status,
-        snapshots,
-      });
-      setPeriod(nextPeriod);
-      setRosters(nextRosters);
+      const requestId = statusRequestIdRef.current[status] || createRosterRequestId();
+      statusRequestIdRef.current[status] = requestId;
+      const result = status === "published"
+        ? await dutyRosterService.publishRosterWeek({ requestId, outletId, weekStartDate: weekDateValues[0] })
+        : status === "draft"
+          ? await dutyRosterService.unpublishRosterWeek({ requestId, outletId, weekStartDate: weekDateValues[0] })
+          : await dutyRosterService.lockRosterWeek({ requestId, outletId, weekStartDate: weekDateValues[0] });
+      setPeriod(result.period);
+      setRosters((current) => [...current.filter((row) => row.roster_date < weekDateValues[0] || row.roster_date > weekEnd), ...result.rows]);
+      statusRequestIdRef.current[status] = "";
       ui.notify({ title: status === "published" ? "Roster published" : status === "locked" ? "Roster locked" : "Roster unlocked" });
     } catch (statusError) {
       console.error("Unable to update roster status", statusError);
       ui.notify({ title: "Unable to update roster", message: statusError.message || "Please try again.", tone: "error" });
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -2448,7 +2499,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
       {bulkDrawer ? (
         <BulkAssignDrawer
           employee={bulkDrawer.employee}
-          dates={visibleDates}
+          dates={weekDates}
           templates={templates}
           selectedTemplateId={selectedTemplateId}
           saving={saving}

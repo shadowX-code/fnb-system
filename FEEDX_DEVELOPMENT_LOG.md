@@ -4,6 +4,12 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 
 ## 2026-08-10
 
+### Duty Roster Trusted Lifecycle Freeze
+- Replaced browser-owned week-level roster lifecycle sequences with transactional `save_roster_week_snapshot`, `copy_roster_week`, `publish_roster_week`, `unpublish_roster_week`, and `lock_roster_week` RPCs.
+- Added the shared `duty_roster_lifecycle_requests` request-ID/fingerprint ledger and a compatible week advisory-lock namespace; Copy Week takes source and destination locks in deterministic order.
+- The server now derives the actor from `auth.uid()`, validates outlet access and permissions, preserves matching roster UUIDs, derives published snapshots, and returns canonical period/row state for refresh.
+- Duty Roster lifecycle architecture is frozen at a 13/13 focused-test baseline. Deferred P2 debt: stale-editor last-write-wins, undefined cross-outlet employee-overlap policy, isolated single-draft-shift CRUD, and read/render performance only when production volume requires it.
+
 ### Sales / Purchase Monthly Snapshot Authority
 - Replaced browser-owned monthly Sales and Purchase multi-step persistence with `save_sales_period_snapshot` and `save_purchase_period_snapshot` trusted RPCs.
 - Added one shared request ledger with request-ID reuse, payload-fingerprint conflict protection, authenticated actor/outlet validation, and per-period advisory locks.

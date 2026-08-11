@@ -1254,6 +1254,19 @@ Behavior:
 - Monthly overview status badges derive from actual duty_rosters row status first, not stale local UI state.
 - Saved roster data must persist after refresh.
 
+### Trusted weekly lifecycle authority
+
+Week-level Duty Roster lifecycle changes are frozen behind trusted, transactional Supabase RPCs. The browser supplies intent and refreshes from the returned canonical snapshot; it does not coordinate multi-write roster lifecycle sequences.
+
+- `save_roster_week_snapshot` owns complete-week replacement, including published-week reconciliation back to Draft when an authorized edit changes the snapshot.
+- `copy_roster_week` owns Copy Week atomically and locks its source and destination weeks in deterministic order.
+- `publish_roster_week`, `unpublish_roster_week`, and `lock_roster_week` atomically update both the roster period and its rows.
+- `duty_roster_lifecycle_requests` is the shared request-ID ledger. Each operation records a canonical payload fingerprint, returns the recorded result for an identical retry, and rejects conflicting request-ID reuse.
+- All week-level operations use the `roster_week_snapshot:<outlet>:<week>` advisory-lock namespace; Copy Week acquires both relevant keys in sorted order.
+- Trusted functions derive the actor from `auth.uid()`, validate outlet access and the applicable Duty Roster permission server-side, and preserve an existing matching `duty_rosters.id` during snapshot updates. Copy Week preserves matching destination UUIDs and never reuses source UUIDs.
+
+The frozen lifecycle baseline covers snapshot save, Copy, Publish, Unpublish, and Lock. Remaining P2 debt is deliberately outside this authority boundary: stale-editor last-write-wins behavior, cross-outlet employee-overlap policy, isolated single-draft-shift browser CRUD, and future read/render performance work if production volume requires it.
+
 Audit actions:
 
 - Create shift
