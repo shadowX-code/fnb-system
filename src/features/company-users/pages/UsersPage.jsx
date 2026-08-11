@@ -1179,7 +1179,20 @@ function UserFormModal({
                 {accessState === EMPLOYEE_ACCESS_STATE.ACTIVE ? (
                   <div className="mt-3 grid gap-3 md:grid-cols-2">
                     <ReadOnlyField label="Login Email">{values.email || "-"}</ReadOnlyField>
-                    <ReadOnlyField label="Role"><Badge tone={values.role ? "info" : "warning"}>{values.role || "No Role"}</Badge></ReadOnlyField>
+                    {canEditEmployee ? (
+                      <FormField label="Role" required error={visibleError("role")} helper="Role controls permissions and outlet scope. Outlet access updates from the selected role.">
+                        <SelectField
+                          value={values.role}
+                          placeholder="No Role"
+                          buttonClassName={visibleError("role") ? "border-rose-200" : ""}
+                          searchable
+                          options={roleOptions.map((role) => ({ value: role, label: role }))}
+                          onChange={updateRole}
+                        />
+                      </FormField>
+                    ) : (
+                      <ReadOnlyField label="Role"><Badge tone={values.role ? "info" : "warning"}>{values.role || "No Role"}</Badge></ReadOnlyField>
+                    )}
                     <ReadOnlyField label="Outlet Access">
                       <RoleOutletAccessSummary roleName={values.role} roleRecords={roleRecords} outlets={outlets} />
                     </ReadOnlyField>

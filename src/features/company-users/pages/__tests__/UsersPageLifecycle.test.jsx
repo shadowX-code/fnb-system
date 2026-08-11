@@ -23,7 +23,7 @@ function auth(permissions = []) {
 
 function mount(permissions) {
   const ui = { notify: vi.fn(), confirm: vi.fn().mockResolvedValue(true) };
-  render(<UsersPage ui={ui} store={{ outlets: [{ id: "outlet-1", name: "KL Central", status: "active" }] }} auth={auth(permissions)} />);
+  render(<UsersPage ui={ui} store={{ outlets: [{ id: "outlet-1", name: "KL Central", status: "active" }, { id: "outlet-2", name: "PJ Sentral", status: "active" }] }} auth={auth(permissions)} />);
   return ui;
 }
 
@@ -31,7 +31,10 @@ beforeEach(() => {
   mocks.employees.listEmployees.mockReset().mockResolvedValue([employee]);
   mocks.employees.saveEmployee.mockReset();
   mocks.positions.listJobPositions.mockReset().mockResolvedValue([{ id: "position-1", name: "Supervisor", department: "Operations", status: "active" }]);
-  mocks.roles.listRoleOptions.mockReset().mockResolvedValue([{ id: "role-1", name: "Supervisor" }]);
+  mocks.roles.listRoleOptions.mockReset().mockResolvedValue([
+    { id: "role-1", name: "Supervisor", outlet_access_type: "all" },
+    { id: "role-2", name: "Manager", outlet_access_type: "selected", selected_outlet_ids: ["outlet-2"] },
+  ]);
   mocks.onboarding.sendLoginSetupEmail.mockReset().mockResolvedValue({
     auth_user_id: "auth-aisha",
     email: employee.email,
@@ -147,5 +150,60 @@ describe("Users page employee/auth lifecycle guards", () => {
     await waitFor(() => expect(mocks.employees.saveEmployee).toHaveBeenCalledTimes(2));
     expect(mocks.employees.saveEmployee.mock.calls.map(([value]) => value.id)).toEqual([pendingEmployee.id, pendingEmployee.id]);
     expect(mocks.onboarding.sendLoginSetupEmail.mock.calls.map(([id]) => id)).toEqual([pendingEmployee.id, pendingEmployee.id]);
+  });
+
+  it("allows an active linked employee role to change through the existing employee save authority without changing identity fields", async () => {
+    const activeEmployee = { ...employee, auth_user_id: "auth-aisha" };
+    const savedEmployee = { ...activeEmployee, role: "Manager", role_id: "role-2" };
+    mocks.employees.listEmployees
+      .mockResolvedValueOnce([activeEmployee])
+      .mockResolvedValueOnce([savedEmployee]);
+    mocks.employees.saveEmployee.mockResolvedValue(savedEmployee);
+    mount(["employees.view", "employees.edit"]);
+
+    await screen.findByText("Aisha");
+    fireEvent.click(screen.getByRole("button", { name: "User actions" }));
+    fireEvent.click(screen.getByText("Edit"));
+
+    fireEvent.click(screen.getAllByText("Supervisor").at(-1));
+    fireEvent.click(await screen.findByRole("button", { name: "Manager", exact: true }));
+
+    expect(screen.getByText("PJ Sentral")).toBeTruthy();
+    expect(screen.getAllByText(employee.email).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Save Employee" }));
+
+    await waitFor(() => expect(mocks.employees.saveEmployee).toHaveBeenCalledTimes(1));
+    expect(mocks.employees.saveEmployee).toHaveBeenCalledWith(expect.objectContaining({
+      id: activeEmployee.id,
+      role: "Manager",
+      role_id: "role-2",
+      email: activeEmployee.email,
+      auth_user_id: activeEmployee.auth_user_id,
+    }));
+    expect(mocks.onboarding.sendLoginSetupEmail).not.toHaveBeenCalled();
+  });
+
+  it("keeps active role assignment read-only for a user without employee edit permission", async () => {
+    mount(["employees.view"]);
+    await screen.findByText("Aisha");
+    fireEvent.click(screen.getByText("Aisha"));
+
+    expect(screen.queryByRole("button", { name: "Edit Employee" })).toBeNull();
+    expect(screen.queryByRole("button", { name: "Supervisor", exact: true })).toBeNull();
+    expect(screen.getAllByText("Supervisor").length).toBeGreaterThan(0);
+  });
+
+  it.each(["not_sent", "invited"])("keeps the editable role selector for %s employee access", async (accessState) => {
+    const pendingEmployee = { ...employee, access_state: accessState, email_verified: false, auth_user_id: "auth-aisha" };
+    mocks.employees.listEmployees.mockResolvedValue([pendingEmployee]);
+    mount(["employees.view", "employees.edit"]);
+
+    await screen.findByText("Aisha");
+    fireEvent.click(screen.getByRole("button", { name: "User actions" }));
+    fireEvent.click(screen.getByText("Edit"));
+    fireEvent.click(screen.getAllByText("Supervisor").at(-1));
+    fireEvent.click(await screen.findByRole("button", { name: "Manager", exact: true }));
+
+    expect(screen.getByText("PJ Sentral")).toBeTruthy();
   });
 });
