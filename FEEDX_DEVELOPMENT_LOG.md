@@ -2,6 +2,37 @@
 
 Purpose: concise development history for meaningful FeedX development sessions. The master document remains the source of truth for final logic and architecture; release notes under `docs/releases/` document production releases.
 
+## 2026-08-11
+
+### Crew Journey Phase B — Backend Closed
+- Applied Crew Journey migrations `202608110006` through `202608110020` to `fnb-system-staging` only.
+- Completed Staging verification for immutable quiz scoring and strict validation, safe learning serialization, pinned SOP acknowledgement gating, exact sequential availability, direct-write RLS denial, and Crew ownership isolation.
+- Deferred hardening debt remains separately tracked: three Phase A utility search-path warnings, an unrelated public migration-report RLS warning, and frontend bundle-size optimization.
+- Phase B UI implementation is now wired locally: Crew Learn uses only token-bound safe RPCs, Admin draft CRUD uses authenticated RLS, and the pending `202608110021` migration supplies controlled publish/new-version authorities so published Journey and SOP content cannot be silently rewritten.
+- Phase B UI implementation is the next phase; no Production deployment was performed.
+
+### Crew Foundation — Phase A
+- Added Crew as FeedX's third workspace with a desktop admin navigation for Dashboard, Crew Employees, and Attendance. Restaurant and Factory routes and their lifecycle ownership remain unchanged.
+- Established a one-to-one `crew_access` extension of the canonical Employee Master Record. It deliberately does not reuse or alter Admin Access fields (`auth_user_id`, role, access state, or Admin last login).
+- Added protected Crew passcode lifecycle authority: normalized mobile sign-in, bcrypt-hashed four-digit passcodes, common-passcode rejection, one-time temporary-passcode responses, session revocation on reset/disable, throttled failures and temporary lockouts.
+- Added mobile-first Crew Home, clock in/out, attendance history and Me profile at `#crew`; Phase A stores attendance time only and intentionally excludes location verification, payroll and OT.
+- Added Employee Directory Admin Access / Crew Access separation and Crew Access actions for users with `crew_employees.manage`.
+
+### Crew Foundation — Phase A.1 GPS Geofence
+- Added append-only Crew geofence migration `202608110002_crew_attendance_geofence.sql`. Outlet is the attendance-location source of truth through disabled-by-default location verification, latitude, longitude and a configurable 25–2,000m radius; no outlet receives fabricated coordinates or automatic enablement.
+- Crew clock in now records GPS latitude/longitude, browser accuracy, calculated Haversine distance, GPS verification result and a required exception reason when a configured geofence cannot be verified. Clock out attempts GPS capture but never blocks ending a shift; unavailable/outside clock-out evidence is marked as an exception for review.
+- Removed the original two-argument clock RPC in the follow-up migration so an older client cannot bypass the geofence contract. Current session validation rechecks active Crew Access and employment state on every request.
+- Scoped Crew Access and Attendance admin reads/actions to the existing outlet-scope authority. Original GPS evidence remains immutable; no manual attendance correction workflow exists in Phase A.1, so there is no silent overwrite path.
+- Deferred stronger verification methods (Wi-Fi, QR, NFC, beacon, selfie/face recognition) and all payroll/OT logic. The verification method vocabulary reserves their future addition without enabling them.
+- Added Crew self-service Change Passcode through an active opaque session. It verifies the current passcode, applies the same weak-passcode rules, revokes all prior sessions, and immediately returns a fresh session without exposing any hash.
+
+### Crew Foundation — Phase A Security Hardening
+- Added forward-only migration `202608110003_crew_foundation_security_hardening.sql`; it explicitly revokes PostgreSQL default `PUBLIC EXECUTE` from every Crew helper/RPC before granting only the intended Admin or mobile roles.
+- Internal helpers, including employee-to-outlet and session-to-employee resolution, have no client execution boundary. Admin access management remains authenticated-only plus its existing in-function permission/outlet validation; mobile RPCs remain explicitly anon/authenticated only because they require an opaque Crew token.
+- Fixed expired lock recovery under the existing row lock and made successful login begin a fresh failure window. Disabled or resigned/terminated access cannot be automatically restored.
+- Allowed authorized Admins to revoke Crew Access for resigned/terminated employees before eligibility checks for enable/reset, preserving security cleanup.
+- Added database-level GPS evidence constraints for non-negative accuracy/distance, mutually exclusive verified/exception states, and reason consistency while retaining valid nullable legacy evidence.
+
 ## 2026-08-10
 
 ### Duty Roster Trusted Lifecycle Freeze

@@ -13,6 +13,111 @@ export function crewAccessState(access) {
 }
 
 export const crewService = {
+  async learningHome(token) {
+    const { data, error } = await supabase.rpc("crew_learning_home", { p_token: token });
+    throwSupabaseError("crew.learningHome", error);
+    return data || { assignment: null, required_sops: [] };
+  },
+
+  async learningAssignment(token, assignmentId) {
+    const { data, error } = await supabase.rpc("crew_learning_assignment", { p_token: token, p_assignment_id: assignmentId });
+    throwSupabaseError("crew.learningAssignment", error);
+    return data;
+  },
+
+  async submitQuiz(token, assignmentId, quizId, answers) {
+    const { data, error } = await supabase.rpc("crew_submit_quiz", { p_token: token, p_assignment_id: assignmentId, p_quiz_id: quizId, p_answers: answers });
+    throwSupabaseError("crew.submitQuiz", error);
+    return data;
+  },
+
+  async completeLesson(token, assignmentId, lessonId) {
+    const { data, error } = await supabase.rpc("crew_complete_lesson", { p_token: token, p_assignment_id: assignmentId, p_lesson_id: lessonId });
+    throwSupabaseError("crew.completeLesson", error);
+    return data;
+  },
+
+  async sopVersion(token, sopVersionId) {
+    const { data, error } = await supabase.rpc("crew_sop_version", { p_token: token, p_sop_version_id: sopVersionId });
+    throwSupabaseError("crew.sopVersion", error);
+    return data;
+  },
+
+  async acknowledgeSop(token, sopVersionId, source = "journey") {
+    const { data, error } = await supabase.rpc("crew_acknowledge_sop", { p_token: token, p_sop_version_id: sopVersionId, p_source: source });
+    throwSupabaseError("crew.acknowledgeSop", error);
+    return data;
+  },
+
+  async listLearningAdmin() {
+    const [{ data: journeys, error: journeyError }, { data: assignments, error: assignmentError }] = await Promise.all([
+      supabase.from("crew_journeys").select("*, modules:crew_journey_modules(id,title,sort_order,required,status,lessons:crew_lessons(id,title,sort_order,required,estimated_minutes,blocks:crew_lesson_blocks(id,block_type,payload,sort_order),quizzes:crew_quizzes(id,title,passing_score,required,status,questions:crew_quiz_questions(id,prompt,question_type,sort_order,options:crew_quiz_options(id,label,is_correct,sort_order)))))").order("updated_at", { ascending: false }),
+      supabase.from("crew_journey_assignments").select("id,journey_id,employee_id,status,due_at,assigned_at,employee:employees(id,full_name,position),journey:crew_journeys(id,name,version)").order("assigned_at", { ascending: false }).limit(100),
+    ]);
+    throwSupabaseError("crew.listLearningAdmin.journeys", journeyError);
+    throwSupabaseError("crew.listLearningAdmin.assignments", assignmentError);
+    return { journeys: journeys || [], assignments: assignments || [] };
+  },
+
+  async listSopsAdmin() {
+    const { data, error } = await supabase.from("crew_sops").select("*, versions:crew_sop_versions(id,version,status,effective_date,change_summary,require_acknowledgement,published_at,sections:crew_sop_sections(id,title,body,sort_order,key_point))").order("updated_at", { ascending: false });
+    throwSupabaseError("crew.listSopsAdmin", error);
+    return data || [];
+  },
+
+  async saveJourney(values) {
+    const { id, ...payload } = values;
+    const query = id ? supabase.from("crew_journeys").update({ ...payload, updated_at: new Date().toISOString() }).eq("id", id) : supabase.from("crew_journeys").insert(payload);
+    const { data, error } = await query.select().single();
+    throwSupabaseError("crew.saveJourney", error);
+    return data;
+  },
+
+  async saveSop(values) {
+    const { id, ...payload } = values;
+    const query = id ? supabase.from("crew_sops").update({ ...payload, updated_at: new Date().toISOString() }).eq("id", id) : supabase.from("crew_sops").insert(payload);
+    const { data, error } = await query.select().single();
+    throwSupabaseError("crew.saveSop", error);
+    return data;
+  },
+
+  async saveDraftRecord(table, values) {
+    const { id, ...payload } = values;
+    const query = id ? supabase.from(table).update(payload).eq("id", id) : supabase.from(table).insert(payload);
+    const { data, error } = await query.select().single();
+    throwSupabaseError(`crew.saveDraftRecord.${table}`, error);
+    return data;
+  },
+
+  async assignJourney(employeeId, journeyId, dueAt = null) {
+    const { data, error } = await supabase.rpc("assign_crew_journey", { p_employee_id: employeeId, p_journey_id: journeyId, p_due_at: dueAt || null });
+    throwSupabaseError("crew.assignJourney", error);
+    return data;
+  },
+
+  async publishJourney(journeyId) {
+    const { data, error } = await supabase.rpc("crew_publish_journey", { p_journey_id: journeyId });
+    throwSupabaseError("crew.publishJourney", error);
+    return data;
+  },
+
+  async newJourneyVersion(journeyId) {
+    const { data, error } = await supabase.rpc("crew_new_journey_version", { p_journey_id: journeyId });
+    throwSupabaseError("crew.newJourneyVersion", error);
+    return data;
+  },
+
+  async publishSopVersion(sopVersionId) {
+    const { data, error } = await supabase.rpc("crew_publish_sop_version", { p_sop_version_id: sopVersionId });
+    throwSupabaseError("crew.publishSopVersion", error);
+    return data;
+  },
+
+  async newSopVersion(sopId) {
+    const { data, error } = await supabase.rpc("crew_new_sop_version", { p_sop_id: sopId });
+    throwSupabaseError("crew.newSopVersion", error);
+    return data;
+  },
   async manageAccess(employeeId, action, passcode = "") {
     const { data, error } = await supabase.rpc("manage_crew_access", {
       p_employee_id: employeeId,

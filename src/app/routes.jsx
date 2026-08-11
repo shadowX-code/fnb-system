@@ -24,6 +24,7 @@ import AuditLogsPage from "../features/company-users/pages/AuditLogsPage.jsx";
 import FactoryWorkspacePage from "../features/factory/pages/FactoryWorkspacePage.jsx";
 import CrewWorkspacePage from "../features/crew/pages/CrewWorkspacePage.jsx";
 import CrewAttendanceAdminPage from "../features/crew/pages/CrewAttendanceAdminPage.jsx";
+import CrewLearningAdminPage from "../features/crew/pages/CrewLearningAdminPage.jsx";
 import { getSidebarSections, moduleRegistry, viewPermission } from "../../config/modules.ts";
 
 function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSection = "Workspace" }) {
@@ -350,6 +351,17 @@ export const routeDetails = {
     description: "Review Crew mobile attendance history.",
     component: CrewAttendanceAdminPage,
     permission: "crew_attendance.view",
+  },
+  crew_learning: {
+    description: "Create, publish and assign versioned Crew learning journeys.",
+    component: CrewLearningAdminPage,
+    permission: "crew_learning.view OR crew_learning.manage",
+  },
+  crew_sop_library: {
+    description: "Maintain versioned Crew SOPs and acknowledgement content.",
+    component: CrewLearningAdminPage,
+    permission: "crew_sop.view OR crew_sop.manage",
+    props: { initialTab: "sops" },
   },
 };
 

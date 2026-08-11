@@ -666,6 +666,26 @@ export const moduleRegistry: AppModule[] = [
     workspace: "crew",
     permissions: { view: true, manage: true },
   },
+  {
+    id: "crew_learning",
+    section: "Journey",
+    label: "Learning",
+    route: "/crew/learning",
+    icon: "crew-learning",
+    sidebar: true,
+    workspace: "crew",
+    permissions: { view: true, create: true, edit: true, manage: true },
+  },
+  {
+    id: "crew_sop_library",
+    section: "Knowledge",
+    label: "SOP Library",
+    route: "/crew/sops",
+    icon: "crew-sops",
+    sidebar: true,
+    workspace: "crew",
+    permissions: { view: true, create: true, edit: true, manage: true },
+  },
 ];
 
 export function moduleWorkspace(module: AppModule): WorkspaceKey {

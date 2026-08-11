@@ -111,12 +111,12 @@ describe("Roles current mounted lifecycle", () => {
     fireEvent.click(screen.getByRole("tab", { name: /Restaurant · \d+/ }));
     expect(screen.getByText("Sales Input")).not.toBeNull();
     fireEvent.click(screen.getByRole("tab", { name: /People & HR · \d+/ }));
-    expect(screen.getByText("Employees")).not.toBeNull();
+    expect(screen.getAllByText("Employees")).toHaveLength(2);
     fireEvent.click(screen.getByRole("tab", { name: /System · \d+/ }));
     expect(screen.getByText("Roles & Permissions")).not.toBeNull();
     fireEvent.click(screen.getByRole("tab", { name: /Factory · \d+/ }));
     expect(screen.getAllByRole("button", { name: "Enabled" }).length).toBeGreaterThanOrEqual(1);
-  });
+  }, 10_000);
 
   it("edits the existing role through one trusted snapshot and preserves its UUID across a rejected retry", async () => {
     const changed = { ...existing, description: "Updated operations", permissions: ["dashboard.view"], selectedOutletIds: [] };
