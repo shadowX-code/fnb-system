@@ -16,6 +16,7 @@ import DatePickerField from "../../../components/forms/DatePickerField.jsx";
 import { EMPLOYEE_ACCESS_STATE, EMPLOYEE_ACCESS_STATE_LABEL, normalizeEmployeeAccessState } from "../../../constants/employeeAccessStates.js";
 import { employeeService } from "../../../services/employeeService.js";
 import { employeeAuthOnboardingService } from "../../../services/employeeAuthOnboardingService.js";
+import { normalizeEmployeeLoginEmail } from "../../../services/employeeIdentity.js";
 import { jobPositionService } from "../../../services/jobPositionService.js";
 import { roleService } from "../../../services/roleService.js";
 import { formatDateTime } from "../../../lib/dateTime.js";
@@ -574,8 +575,8 @@ function UserFormModal({
     initialUser.access_state ?? (savedAccessEnabled ? EMPLOYEE_ACCESS_STATE.NOT_SENT : EMPLOYEE_ACCESS_STATE.NO_ACCESS),
     savedAccessEnabled,
   );
-  const savedLoginEmail = String(initialUser.email || "").trim().toLowerCase();
-  const currentLoginEmail = String(values.email || "").trim().toLowerCase();
+  const savedLoginEmail = normalizeEmployeeLoginEmail(initialUser.email);
+  const currentLoginEmail = normalizeEmployeeLoginEmail(values.email);
   const savedRoleId = String(initialUser.role_id || "").trim();
   const currentRoleId = String(values.role_id || "").trim();
   const accessSetupHasUnsavedChanges = (
@@ -585,15 +586,9 @@ function UserFormModal({
     accessState !== savedAccessState
   );
   const savedAccessCanGenerateSetup = mode === "edit" && Boolean(initialUser.id && savedAccessEnabled && savedLoginEmail && savedRoleId);
-  const canSendLoginSetup = accessState === EMPLOYEE_ACCESS_STATE.ACTIVE ? canResetPassword : canEnableLogin;
-  const setupActionDisabled = !canSendLoginSetup || setupAction === "manual_link" || accessSetupHasUnsavedChanges || !savedAccessCanGenerateSetup;
-  const setupActionDisabledReason = !canSendLoginSetup
-    ? "You do not have permission to send this employee access action."
-    : accessSetupHasUnsavedChanges || !savedAccessCanGenerateSetup
-      ? "Save the employee first, or use Save & Send Login Setup to save and send the setup email."
-      : setupAction === "manual_link"
-        ? "A setup link is being generated."
-        : "";
+  const requiresResetPassword = accessState === EMPLOYEE_ACCESS_STATE.ACTIVE;
+  const canManageCurrentLoginSetup = requiresResetPassword ? canResetPassword : canEnableLogin;
+  const setupActionDisabled = !canManageCurrentLoginSetup || setupAction === "manual_link" || accessSetupHasUnsavedChanges || !savedAccessCanGenerateSetup;
   const accessHasLoginMetadata = Boolean(values.email || values.role || values.role_id || values.auth_user_id || values.last_login_at);
   const shouldShowAccessSetup = showAccessSetup || (values.enable_system_login && accessState !== EMPLOYEE_ACCESS_STATE.ACTIVE && accessState !== EMPLOYEE_ACCESS_STATE.DISABLED);
   const isMalaysia = isMalaysiaNationality(values.nationality);
@@ -617,7 +612,7 @@ function UserFormModal({
 
   useEffect(() => {
     if (isViewMode) return undefined;
-    const email = String(values.email || "").trim().toLowerCase();
+    const email = normalizeEmployeeLoginEmail(values.email);
     if (!email) {
       setEmailStatus("not_checked");
       return undefined;
@@ -628,7 +623,7 @@ function UserFormModal({
         setEmailStatus("invalid");
         return;
       }
-      const alreadyUsed = users.some((user) => user.id !== values.id && String(user.email || "").toLowerCase() === email);
+      const alreadyUsed = users.some((user) => user.id !== values.id && normalizeEmployeeLoginEmail(user.email) === email);
       setEmailStatus(alreadyUsed ? "used" : "valid");
     }, 500);
     return () => window.clearTimeout(timer);
@@ -726,17 +721,25 @@ function UserFormModal({
   }
 
   function openChangeEmailPanel() {
+    if (values.auth_user_id) {
+      ui.notify({
+        title: "Login email is managed separately",
+        message: "A linked employee login email cannot be changed from the employee profile. Use the future dedicated identity change flow.",
+        tone: "error",
+      });
+      return;
+    }
     setNextLoginEmail(values.email || "");
     setShowChangeEmail(true);
   }
 
   function applyLoginEmailChange() {
-    const email = String(nextLoginEmail || "").trim().toLowerCase();
+    const email = normalizeEmployeeLoginEmail(nextLoginEmail);
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       ui.notify({ title: "Enter a valid login email", tone: "error" });
       return;
     }
-    const alreadyUsed = users.some((user) => user.id !== values.id && String(user.email || "").toLowerCase() === email);
+    const alreadyUsed = users.some((user) => user.id !== values.id && normalizeEmployeeLoginEmail(user.email) === email);
     if (alreadyUsed) {
       ui.notify({ title: "Login email already used", message: "Choose a different employee login email.", tone: "error" });
       return;
@@ -778,13 +781,13 @@ function UserFormModal({
     return normalizeEmployeeAccessState(values.access_state ?? EMPLOYEE_ACCESS_STATE.NOT_SENT, true);
   }
 
-  function handleSubmit({ sendLoginSetup = false } = {}) {
+  async function handleSubmit({ sendLoginSetup = false } = {}) {
     if (!canEditEmployee) {
       notifyPermissionDenied(ui, "save employee profiles");
       return;
     }
-    if (sendLoginSetup && !canEnableLogin) {
-      notifyPermissionDenied(ui, "send password setup links");
+    if (sendLoginSetup && !canManageCurrentLoginSetup) {
+      notifyPermissionDenied(ui, requiresResetPassword ? "send reset password emails" : "send password setup links");
       return;
     }
     const nextErrors = validateUserForm(values);
@@ -801,8 +804,9 @@ function UserFormModal({
     setIsSaving(true);
     const normalizedFullName = normalizeOfficialName(values.full_name);
     const nextAccessStatus = resolveSavedAccessStatus();
-    window.setTimeout(() => {
-      onSubmit({
+    await new Promise((resolve) => window.setTimeout(resolve, 450));
+    try {
+      await onSubmit({
         ...values,
         full_name: normalizedFullName,
         nickname: values.nickname.trim(),
@@ -816,13 +820,16 @@ function UserFormModal({
           ? "Employee profile saved with system login enabled. Send a login setup link before the employee signs in."
           : "Employee profile saved without system login.",
       });
-    }, 450);
+    } catch {
+      // The parent already reports mutation errors; leave this modal open for retry.
+    } finally {
+      setIsSaving(false);
+    }
   }
 
   async function sendLoginSetupForExistingEmployee() {
-    const isResetPassword = accessState === EMPLOYEE_ACCESS_STATE.ACTIVE;
-    if (isResetPassword ? !canResetPassword : !canEnableLogin) {
-      notifyPermissionDenied(ui, isResetPassword ? "send reset password emails" : "send password setup links");
+    if (!canManageCurrentLoginSetup) {
+      notifyPermissionDenied(ui, requiresResetPassword ? "send reset password emails" : "send password setup links");
       return;
     }
     if (accessSetupHasUnsavedChanges || !savedAccessCanGenerateSetup) {
@@ -838,20 +845,17 @@ function UserFormModal({
       return;
     }
     const confirmed = await ui.confirm({
-      title: isResetPassword ? "Send reset password email?" : "Send login setup email?",
-      message: isResetPassword
-        ? "A secure email will let the employee reset their own password. Admins cannot view or create passwords."
-        : "A secure email will let the employee set their own password. Admins cannot view or create passwords.",
-      confirmLabel: isResetPassword ? "Send Reset Email" : "Send Login Setup",
+      title: "Send login setup email?",
+      message: "A secure email will let the employee set their own password. Admins cannot view or create passwords.",
+      confirmLabel: "Send Login Setup",
     });
     if (!confirmed) return;
     await onSendLoginSetup?.(values);
   }
 
   async function generateSetupLinkForExistingEmployee() {
-    const isResetPassword = accessState === EMPLOYEE_ACCESS_STATE.ACTIVE;
-    if (isResetPassword ? !canResetPassword : !canEnableLogin) {
-      notifyPermissionDenied(ui, isResetPassword ? "generate reset password links" : "generate password setup links");
+    if (!canManageCurrentLoginSetup) {
+      notifyPermissionDenied(ui, requiresResetPassword ? "generate reset password links" : "generate password setup links");
       return;
     }
     if (accessSetupHasUnsavedChanges || !savedAccessCanGenerateSetup) {
@@ -930,12 +934,11 @@ function UserFormModal({
         ) : (
           <>
             <button className="btn-secondary" type="button" disabled={isSaving} onClick={onClose}>Cancel</button>
-              {shouldShowAccessSetup && canEnableLogin ? (
+              {shouldShowAccessSetup && canManageCurrentLoginSetup ? (
                 <button
                   className="btn-primary"
                   type="button"
                   disabled={isSaving || emailStatus !== "valid"}
-                  title={emailStatus !== "valid" ? "Enter a valid login email before saving and sending setup." : "Save this employee and send the login setup email."}
                   onClick={() => handleSubmit({ sendLoginSetup: true })}
                 >
                   {isSaving ? "Saving..." : "Save & Send Login Setup"}
@@ -1161,9 +1164,6 @@ function UserFormModal({
                         <button className="btn-secondary h-9 px-3 text-xs" type="button" disabled={!canDeactivateEmployee} onClick={disableAccessInModal}>
                           <Power size={14} /> Disable Access
                         </button>
-                        <button className="btn-secondary h-9 px-3 text-xs" type="button" disabled={!canResetPassword} onClick={sendLoginSetupForExistingEmployee}>
-                          <KeyRound size={14} /> Send Reset Password Email
-                        </button>
                         <button className="btn-secondary h-9 px-3 text-xs" type="button" disabled={!canResetPassword} onClick={openChangeEmailPanel}>
                           <KeyRound size={14} /> Change Login Email
                         </button>
@@ -1259,23 +1259,16 @@ function UserFormModal({
                       <div className="rounded-xl border border-border bg-surface px-3 py-2.5">
                         <div className="text-xs font-semibold text-text-secondary">Setup Link</div>
                         {accessSetupHasUnsavedChanges || !savedAccessCanGenerateSetup ? (
-                          <p className="mt-1 text-xs font-semibold text-amber-700">Save the employee first, or use Save & Send Login Setup to save and send the setup email.</p>
+                          <p className="mt-1 text-xs font-semibold text-amber-700">Save this employee before generating a setup link.</p>
                         ) : null}
                         <div className="mt-2 flex flex-wrap gap-2">
-                          <button
-                            className="btn-secondary h-9 px-3 text-xs"
-                            type="button"
-                            disabled={setupActionDisabled}
-                            title={setupActionDisabledReason}
-                            onClick={sendLoginSetupForExistingEmployee}
-                          >
-                            <KeyRound size={14} /> {accessState === EMPLOYEE_ACCESS_STATE.ACTIVE ? "Send Reset Password Email" : "Send Login Setup Email"}
+                          <button className="btn-secondary h-9 px-3 text-xs" type="button" disabled={setupActionDisabled} onClick={sendLoginSetupForExistingEmployee}>
+                            <KeyRound size={14} /> Send Login Setup Email
                           </button>
                           <button
                             className="btn-secondary h-9 px-3 text-xs"
                             type="button"
                             disabled={setupActionDisabled}
-                            title={setupActionDisabledReason}
                             onClick={generateSetupLinkForExistingEmployee}
                           >
                             <KeyRound size={14} /> {setupAction === "manual_link" ? "Generating..." : "Generate Setup Link"}
@@ -1576,6 +1569,9 @@ export default function UsersPage({ ui, store, auth }) {
       const selectedPosition = jobPositions.find((position) => position.name === payload.position);
       payload.department = selectedPosition?.department || payload.department || null;
       let saved = await employeeService.saveEmployee(payload);
+      if (isNew) {
+        setFormState((current) => current ? { mode: "edit", user: saved } : current);
+      }
       if (shouldSendLoginSetup) {
         const setupResult = await sendLoginSetupForUser(saved);
         if (setupResult?.auth_user_id) {
@@ -1609,6 +1605,7 @@ export default function UsersPage({ ui, store, auth }) {
     } catch (error) {
       console.error("Unable to save employee", error);
       ui.notify({ title: "Unable to save employee", message: error.message || "Please try again.", tone: "error" });
+      throw error;
     }
   }
 
@@ -1865,14 +1862,15 @@ export default function UsersPage({ ui, store, auth }) {
           onClose={() => setSelectedUser(null)}
           onSendLoginSetup={sendLoginSetupForUser}
           onSwitchToEdit={() => setProfileMode("edit")}
-          onSubmit={(user) => {
-            saveUser(user);
+          onSubmit={async (user) => {
+            await saveUser(user);
             setSelectedUser(null);
           }}
         />
       ) : null}
       {formState ? (
         <UserFormModal
+          key={formState.user?.id || "new-employee"}
           mode={formState.mode}
           initialUser={formState.user}
           jobPositions={jobPositions}

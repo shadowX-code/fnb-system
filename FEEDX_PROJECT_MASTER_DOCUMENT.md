@@ -1,6 +1,6 @@
 # FeedX Project Master Document
 
-Last updated: 2026-06-04
+Last updated: 2026-08-10
 Document owner: FeedX product / engineering workspace  
 Document purpose: Permanent project source-of-truth for requirements, architecture, modules, fields, business rules, permissions, integrations, and development plan.
 
@@ -135,6 +135,7 @@ FACTORY
 
 WAREHOUSE
 - Finished Goods
+- Finished Goods Dispatch
 - Product Movements
 - Product Stock Check
 
@@ -148,6 +149,9 @@ MASTER DATA
 - Production SOP
 
 SYSTEM
+- Storage Locations
+- Suppliers
+- Customers
 - Factory Audit Logs
 - Factory Settings
 ```
@@ -631,8 +635,20 @@ RBAC and outlet scope:
 
 Current status:
 
+- Employee/Auth identity is frozen around `employees.id` (employee), `auth.users.id` (login), and unique `employees.auth_user_id` (canonical link). Login email is normalized by trim/lowercase and is unique across non-empty employee rows after the Employee/Auth identity migration applies.
+- Employee profile compatibility lookup remains intentionally ordered: `auth_user_id`, legacy employee ID, then normalized email. The fallbacks are migration-compatibility debt only; normalized-email ambiguity is prevented by the new constraint.
+- Login onboarding is a trusted Edge-function authority. It validates the server-side employee ID and permission, protects existing links, rejects conflicting Auth accounts, and makes retries converge on the same intended identity. Ordinary edits cannot change a linked login email; a dedicated Auth-email-change flow is deferred.
+- Disable Login preserves the Auth account and link but sets employee access disabled/inactive, so session profile loading denies application context. Password setup remains trusted through `complete_employee_password_setup`.
+- `employees.created_by` is an immutable `auth.users` UUID assigned server-side from `auth.uid()` on insert and preserved on update. Historical null values are retained; audit-log actor identity remains a separate event record.
+
 - CSV upload is implemented.
 - Standard XLSX worksheet upload is implemented through the browser parser path.
+- Product Analytics upload and period replacement use the authenticated `product_analytics_save_report` RPC. The canonical report identity is `(outlet_id, report_month, report_year)`; the RPC resolves that identity server-side rather than trusting a client-supplied existing report ID.
+- `product_analytics_lifecycle_requests` stores request ID, operation, authenticated actor, outlet/period identity, payload fingerprint, and canonical result. The same logical retry returns its prior result; a conflicting reuse of a request ID is rejected.
+- New uploads require `product_analytics.upload`; replacements require both `product_analytics.upload` and `product_analytics.manage`. The RPC derives `auth.uid()` and validates outlet access server-side.
+- Report header and item rows persist in one transaction. Failed replacements preserve the previous report; no header-only replacement can persist. Explicit Delete remains a separate single report delete with FK item cascade and best-effort audit logging.
+- After a successful trusted save, a report-list refresh failure does not reclassify persistence as failed: the returned canonical report is applied locally and the page shows a separate sync warning. This is P2 read-sync/availability debt. Large client-side analytics derivations are separate P2 performance debt and should be optimized only with real volume evidence.
+- Lifecycle test baseline: Product Analytics service 6/6 and mounted page 7/7; the full suite baseline is 277 passing tests.
 
 ---
 
@@ -666,6 +682,8 @@ Unique key:
 ```text
 outlet_id + year + month + channel_id
 ```
+
+Monthly persistence uses the trusted `save_sales_period_snapshot` RPC. It validates the authenticated actor, Sales permission, and outlet access; serializes same-period writes; reuses request IDs only for the same payload; and atomically updates canonical rows in place, inserts missing rows, and deletes omitted rows. Existing matching record UUIDs are preserved.
 
 Behavior:
 
@@ -838,6 +856,8 @@ Unique key:
 ```text
 outlet_id + year + month + supplier_id + category_id
 ```
+
+Monthly persistence uses the trusted `save_purchase_period_snapshot` RPC with the same request-ID ledger and period serialization model as Sales. It validates the authenticated actor, Purchase permission, and outlet access; atomically updates canonical rows in place, inserts missing rows, and deletes omitted rows. Existing matching record UUIDs are preserved.
 
 Behavior:
 
@@ -1234,6 +1254,19 @@ Behavior:
 - Monthly overview status badges derive from actual duty_rosters row status first, not stale local UI state.
 - Saved roster data must persist after refresh.
 
+### Trusted weekly lifecycle authority
+
+Week-level Duty Roster lifecycle changes are frozen behind trusted, transactional Supabase RPCs. The browser supplies intent and refreshes from the returned canonical snapshot; it does not coordinate multi-write roster lifecycle sequences.
+
+- `save_roster_week_snapshot` owns complete-week replacement, including published-week reconciliation back to Draft when an authorized edit changes the snapshot.
+- `copy_roster_week` owns Copy Week atomically and locks its source and destination weeks in deterministic order.
+- `publish_roster_week`, `unpublish_roster_week`, and `lock_roster_week` atomically update both the roster period and its rows.
+- `duty_roster_lifecycle_requests` is the shared request-ID ledger. Each operation records a canonical payload fingerprint, returns the recorded result for an identical retry, and rejects conflicting request-ID reuse.
+- All week-level operations use the `roster_week_snapshot:<outlet>:<week>` advisory-lock namespace; Copy Week acquires both relevant keys in sorted order.
+- Trusted functions derive the actor from `auth.uid()`, validate outlet access and the applicable Duty Roster permission server-side, and preserve an existing matching `duty_rosters.id` during snapshot updates. Copy Week preserves matching destination UUIDs and never reuses source UUIDs.
+
+The frozen lifecycle baseline covers snapshot save, Copy, Publish, Unpublish, and Lock. Remaining P2 debt is deliberately outside this authority boundary: stale-editor last-write-wins behavior, cross-outlet employee-overlap policy, isolated single-draft-shift browser CRUD, and future read/render performance work if production volume requires it.
+
 Audit actions:
 
 - Create shift
@@ -1288,6 +1321,16 @@ Core rules:
 - Inspection can run for all categories, selected categories, or a manually adjusted checklist.
 - Asset condition and asset status are separate systems.
 - Maintenance is optional and is enabled by category, with an asset-level override.
+
+### Trusted Lifecycle Authority
+
+- Quantity adjustment is owned by `asset_adjust_quantity(...)`; it validates the authenticated actor, `asset_tracking.manage`, outlet scope, locks the asset, derives balances server-side, and atomically writes the adjustment movement.
+- Inspection submission and correction is owned by `asset_submit_inspection(...)`; inspection header, rows, evidence database references, corrected balances/conditions, and correction movements commit atomically.
+- Maintenance save is owned by `asset_save_maintenance(...)`; its record save and any condition transition are one transaction.
+- Asset Import uses `asset_import_row(...)` per logical preview row. Each row is independently atomic and idempotent, preserving mixed-file partial completion while preventing a quantity change without its movement record.
+- `asset_lifecycle_requests` is the single request-ID ledger for these operations. Repeating the same logical request returns its canonical result without duplicating lifecycle effects.
+- Storage uploads may precede an RPC, so failed inspection or maintenance submissions can leave an orphaned storage object. This is documented P2 storage-cleanup debt; database lifecycle writes remain atomic.
+- AssetTrackingPage remains the active presentation and broad-read owner. Presentation extraction and five-read refresh optimization are deferred until the module is materially touched.
 
 Permissions:
 
@@ -1910,7 +1953,7 @@ Inventory Control permissions:
 
 RBAC verification status:
 
-- RBAC Full Verification completed on 30 May 2026. Report: `FEEDX_RBAC_VERIFICATION_REPORT.md`.
+- RBAC Full Verification completed on 30 May 2026. Historical report: [FEEDX RBAC Verification Report](../docs/archive/2026-05/FEEDX_RBAC_VERIFICATION_REPORT.md).
 - Result: Pass with live-role UAT caveat.
 - Stock Requests was removed from the active module registry during verification so it cannot appear in generated permission groups or the permission catalog for new role saves.
 - Inventory Control bootstrap context now checks active child Inventory permissions instead of legacy `inventory_control.view`, so Inventory-only roles can load outlet and supplier context required for filters and scoped workflows.
@@ -2072,7 +2115,7 @@ Status as of 30 May 2026:
 - Purchase Suggestions to Draft PO creation is Supabase-backed through `inventory_purchase_orders` and `inventory_purchase_order_items`.
 - Purchase Orders submit, edit Draft PO, receive, partial receive, complete, and cancel are Supabase-backed through `inventory_purchase_orders`, `inventory_purchase_order_items`, `inventory_purchase_receipts`, `inventory_purchase_receipt_items`, and `inventory_movements`.
 - Inventory Movements created from Purchase Receive are Supabase-backed. Manual Inventory Movements entry is also Supabase-backed through `inventory_movements`.
-- Inventory Control P0 UAT completed on 29 May 2026. Report: `FEEDX_INVENTORY_UAT_REPORT.md`.
+- Inventory Control P0 UAT completed on 29 May 2026. Historical report: [FEEDX Inventory Control UAT Report](../docs/archive/2026-05/FEEDX_INVENTORY_UAT_REPORT.md).
 - Wastage create waste record is Supabase-backed through `inventory_waste_records` and creates a Waste movement row in `inventory_movements`.
 - Recipes & Usage create/edit/archive and ingredient mapping are Supabase-backed through `inventory_recipes` and `inventory_recipe_items`.
 - Production Readiness Cleanup Phase 1 completed on 30 May 2026:
@@ -2530,8 +2573,8 @@ Page behavior:
 - Waste Records are outlet-scoped and should show Date, Item, Category, Waste Type, Qty, Outlet, Recorded By, Notes, Evidence, and Actions.
 - Recorded By must display employee nickname, falling back to full name/email, and must never expose raw UUIDs.
 - Record Waste item picker only shows active inventory items linked to the selected outlet.
-- Record Waste writes to `inventory_waste_records` and succeeds only after Supabase confirms the insert.
-- After a waste record is saved, FeedX creates an `inventory_movements` row with `movement_type = Waste`, `reference_type = waste`, `reference_id = inventory_waste_records.id`, and a `WASTE-XXXXXXXX` reference number.
+- Record Waste invokes the trusted `inventory_save_waste` RPC and succeeds only after its atomic waste-record and negative-movement result is confirmed.
+- The trusted waste result creates an `inventory_movements` row with `movement_type = Waste`, `reference_type = waste`, `reference_id = inventory_waste_records.id`, and a `WASTE-XXXXXXXX` reference number.
 - Waste movement quantity follows the current inventory movement convention: waste is stored as a negative quantity because it reduces stock.
 - Photo evidence is optional. Uploaded evidence is stored in Supabase Storage and the public URL is saved to `inventory_waste_records.photo_url`; the table shows `View Photo`, and the detail modal displays the evidence photo and movement reference.
 - Waste metrics currently use record count and quantity only; cost/value analysis is deferred until item costing exists.
@@ -2663,8 +2706,7 @@ Rules:
 - Ingredient preview shows up to five ingredient lines in `Ingredient name · Qty UOM · Cost` format, then `+N more` when additional ingredients exist.
 - Recipe exports include `recipe_code`, `recipe_name_en`, and `recipe_name_cn`.
 - Margin % is `((Selling Price - Estimated Cost) / Selling Price) × 100`; badges are green at 70%+, amber at 40%-69%, and red below 40%.
-- Add Recipe writes to `inventory_recipes` and `inventory_recipe_items`; success is shown only after Supabase confirms the recipe and ingredient rows.
-- Edit Recipe updates the recipe row and replaces its ingredient snapshot rows in `inventory_recipe_items`.
+- Add/Edit Recipe invokes the trusted `inventory_save_recipe` RPC; success is shown only after its atomic recipe and ingredient snapshot result is confirmed.
 - Archive Recipe sets `inventory_recipes.status = inactive`; inactive recipes are hidden from the default Active filter but remain available for audit/history when filtering by status.
 - Quantity Used must be greater than zero and Wastage % must be zero or greater.
 - Recipe management actions require `inventory_recipes.manage`; view and export use `inventory_recipes.view` and `inventory_recipes.export`.
@@ -2689,9 +2731,36 @@ RBAC and outlet scope:
 - Custom roles can only view and act on assigned outlets.
 - Service-layer queries and RLS policies must enforce outlet scope, not just UI filters.
 
+### Inventory Control Structural Architecture (Current)
+
+Inventory Control is intentionally a centralized orchestration workspace. `InventoryControlPage` owns the broad `useInventoryData` / `loadRemoteInventoryMaster` snapshot, `normalizeInventoryItem`, `refreshInventory`, route/modal coordination, permission checks, notifications, and lifecycle callbacks. Extracted domains consume explicit data and callback contracts; they do not create duplicate Inventory list/query authority.
+
+- Extracted presentation ownership: Wastage, Movement History, Manual Movement modal, Purchase Order list/detail, and Stock Check Groups.
+- Intentionally centralized high-coupling ownership: Master Inventory, Categories/UOM controls, Par Levels, Stock Check workflow, Purchase Order Edit/Receive/Suggestion modals, Recipes/Recipe Intelligence, normalization, and broad refresh orchestration.
+- Stock-changing or multi-table lifecycle writes are server-authoritative through `inventoryLifecycleService`: Receiving → `inventory_receive_purchase_order`; Waste → `inventory_save_waste`; Transfer → `inventory_transfer_inventory`; Stock Check → `inventory_save_stock_check`; Purchase Order → `inventory_save_purchase_order`; Manual Movement → `inventory_save_manual_movement`; Recipe → `inventory_save_recipe`. These RPCs derive the actor from `auth.uid()`, validate permission/outlet scope, use request-ID idempotency, and execute their write sets transactionally.
+- Direct browser CRUD remains limited to master/configuration and bounded support data: Inventory Items and outlet links, Categories/UOMs, Par Level configuration and supplier links, Stock Check Group configuration, single-row archive/status actions, Menu Categories, and Recipe Intelligence mappings. These are not active stock-changing lifecycle paths.
+- Par Levels remains centralized. `inventory_par_levels.edit` gates all mutation controls and the parent callback; saves are sequenced by `itemId + outletId`, suppress stale success/failure UI, and permit independent concurrent saves for different configurations. Successful Par saves intentionally update the local normalized snapshot without broad refresh or a success notification.
+
+Post-freeze rules:
+
+1. Do not add large domain renderers or modal blocks directly to `InventoryControlPage`; new domains begin in a domain folder with explicit read, mutation, permission, and focused-test contracts.
+2. Extract an existing centralized domain only when it is materially changed, has a regression gate, and has a clear authority seam. Do not create duplicate query or refresh authorities during extraction.
+3. Keep stock-changing and multi-table lifecycle effects server-authoritative. Do not refactor `normalizeInventoryItem` or broad read ownership without dedicated characterization coverage and an explicit redesign decision.
+4. Remaining debt is intentional unless feature work changes it: broad master overfetch, normalization coupling, Stock Check/Master Inventory/Recipe Intelligence complexity, Groups' lack of an in-flight save guard, centralized PO Edit/Receive modals, and configuration CRUD consistency review.
+
 ---
 
-## 5.13B Factory Workspace
+## 5.13B Factory Workspace - Historical Phase 1 Notes (Superseded)
+
+## 5.13C Factory Frontend Structural Architecture (Current)
+
+Factory frontend structure is frozen for staging acceptance. `FactoryWorkspacePage` is the lifecycle and orchestration hub, retaining route/modal coordination, canonical permission checks, shared listing/query plumbing, mutation refreshes, notifications, and trusted lifecycle callback boundaries. It intentionally keeps Raw Receiving, Start Production, Reports, master-data coordination, and the `factoryService` facade centralized.
+
+Extracted ownership includes Dashboard, Planning, Overview, inventory/movement/master-data pages, Job Orders presentation and modal, Production Execution, raw-material allocation, Finished Goods Dispatch and allocation presentation, and Stock Check form/presentation helpers. Job Orders have one listing authority through the stable listing bridge. Production Overview and Production Records share one Operational Jobs read model through `FactoryOperationalJobsContext` and `useFactoryProductionOverviewQuery`.
+
+Lifecycle mutations remain Workspace-owned: Job Orders, Start/Complete Production, Receiving, Dispatch, and Raw/Product Stock Checks. Extracted forms invoke narrow callbacks only. Stock, batch, and lifecycle effects remain server/RPC authoritative; `factoryService` remains a stable facade before go-live. Current Factory test baseline is 153 passing tests, including lifecycle, RPC-contract, and data-bearing operational-route coverage.
+
+Known post-launch review items: internal `factoryService` split behind the stable facade, Production history dual-read, combined Vitest/JSDOM OperationalRoutes runner behavior, Completed View Result permission design, React key warnings, optional Raw Receiving/Reports presentation extraction when feature work warrants it, and legacy compatibility cleanup after migration confidence.
 
 Purpose:
 
@@ -2719,31 +2788,44 @@ Factory Phase 1A implemented scope:
 
 Factory Phase 1B implemented scope:
 
-- Production execution starts from a Factory Job Order.
+- Factory production follows the MES-style sequence: Product Recipe standard BOM -> Job Order draft -> Release Job Order -> Start Production -> Complete Production -> inventory movements and batch traceability.
+- Production execution starts from a released Factory Job Order.
 - A Factory Job Order is a production planning task, not an actual production result.
-- New Factory Job Orders must select an active Finished Goods Master item from `factory_finished_goods`.
-- Job Orders store `finished_good_id`, `target_quantity`, `uom`, `planned_date`, `due_date`, `priority`, `assigned_team`, `status` and `remarks`.
-- Finished Goods Master is the valid SKU source for production planning; new Job Orders must not rely on free-text product names when Finished Goods Master exists.
-- Archived Finished Goods products cannot be selected for new Job Orders.
+- New Factory Job Orders start by selecting a parent Finished Good, then a Packaging SKU from `factory_finished_goods` under that Finished Good.
+- `factory_job_orders.finished_good_id` remains the compatibility reference to the Packaging SKU inventory record.
+- Job Orders store `finished_good_id`, `target_pack_qty`, `target_production_qty`, `target_quantity`, `uom`, `planned_date`, `due_date`, `priority`, `assigned_team`, `status`, `remarks`, release metadata, start metadata, and completion metadata.
+- Target Production Qty and Production UOM are the business planning inputs. Target Pack Qty is an estimated pack count derived from the selected Packaging SKU pack size using supported g/kg and ml/L conversions.
+- Estimated pack quantity can be fractional during planning when the requested production quantity does not divide evenly into the selected pack size; completion captures Actual Pack Qty for the real stock-in.
+- Job Order references are generated in the database through `factory_create_job_order(...)` using the business format `JOYYMMDD-001`; reference generation is protected by an advisory transaction lock.
+- Job Order lifecycle statuses are `draft`, `released`, `in_progress`, `completed`, and `cancelled`. Legacy `planned` rows are mapped to `released`.
+- Packaging SKU master data is the valid SKU source for production planning; new Job Orders must not rely on free-text product names when Packaging SKUs exist.
+- Archived Packaging SKUs cannot be selected for new Job Orders.
 - Completed and cancelled Job Orders are operationally closed; only remarks should be changed after closure.
 - Production Records represent actual execution/completion.
-- Production Records list ready Job Orders with `planned` and `in_progress` statuses.
-- Production completion starts from a selected Job Order and auto-fills Finished Good, target quantity, UOM, and available Recipe/SOP reference by product.
-- Production completion captures batch number, production date, operator, start time, end time, actual produced quantity, good output quantity, wastage quantity, QC status and notes.
+- Draft Job Orders can be edited or deleted. Released Job Orders can be started. In Progress Job Orders can be completed. Completed and cancelled Job Orders are read-only.
+- Production Records list ready Job Orders with `released` and `in_progress` statuses.
+- Start Production captures only production start context: selected Job Order summary, operator, production date, start time and remarks. Start Production does not create inventory movement.
+- Production completion starts from an In Progress Job Order and auto-fills Packaging SKU, parent Finished Good, estimated target pack quantity, target production quantity, UOM, and available Production Standard / BOM reference by product.
+- Production completion is the final production confirmation step. Operators confirm Actual Pack Qty, review auto-calculated Actual Output Qty, and enter Actual Material Usage against the active Production Standard / BOM.
+- Production batch numbers are system-generated during completion; operators do not manually enter batch numbers in the Complete Production modal.
+- When an active Production Standard / BOM exists, completion material rows are locked to the recipe BOM: operators cannot add/remove ingredients, change raw materials, or edit standard quantities.
+- If no active Production Standard / BOM exists, manual material usage rows may be entered for that completion as a fallback.
 - Production material usage captures raw material, standard usage, actual usage, variance quantity, variance percent and variance reason.
 - Actual material usage is the source of truth for raw material deduction.
 - Product Recipe remains the standard BOM only and is never overwritten by actual production usage.
-- Variance reason is required when material usage variance exceeds 5%.
+- Production material usage defaults from the active Product Recipe BOM at the time the completion modal is opened; Phase 1 does not persist a frozen Job Order BOM snapshot.
+- Frozen Job Order BOM snapshots are planned for Phase 2 when recipe-version locking is required between Job Order release and completion.
+- Variance reason is required whenever actual material usage differs from standard usage, using a small numeric tolerance for rounding.
 - Completing production creates:
   - `factory_productions` completed production record.
   - `factory_production_material_usage` actual usage and variance records.
   - `factory_raw_material_movements` deduction rows using actual usage.
   - raw material balance deductions through `factory_adjust_raw_material_balance(...)`.
-  - finished goods balance increase for an existing active `factory_finished_goods` master product.
+  - finished goods balance increase for the selected active Packaging SKU in pack units.
   - `factory_product_stock_movements` finished goods stock-in row.
   - Factory Job Order status update to `completed`.
-- Production completion must stock-in to the Finished Goods product linked to the selected Job Order and must not stock-in to a free-text product.
-- Production completion must not auto-create finished goods master products. A Finished Goods product must be created and active before production stock-in.
+- Production completion must stock-in to the Packaging SKU linked to the selected Job Order and must not stock-in to a free-text product.
+- Production completion must not auto-create Packaging SKUs. A Packaging SKU must be created and active before production stock-in.
 - Production dashboard and activity cards include completed production, good output and high-variance usage signals.
 
 Factory Phase 1C implemented scope:
@@ -2790,6 +2872,9 @@ Factory Phase 1D implemented scope:
   - QC status and production QC checkpoints.
 - Factory Dashboard includes quick alerts for batches with Pending, Hold, or Failed QC status.
 - Batch traceability must not modify Recipe, SOP, stock check or Production Actual Usage records; it is a connected read view over production data.
+- Factory Phase 1 UAT Round 1 passed for Raw Material Receiving, Product Recipes / BOM, Job Orders, Complete Production, Finished Goods Balance, Finished Goods Dispatch, and Product Movements.
+- Known Phase 2 traceability gap: Batch Traceability does not yet trace Dispatch -> Customer by production batch because Finished Goods Dispatch currently records customer/SKU quantity without production-batch allocation.
+- Phase 2 Dispatch Batch Allocation requirement: Production Batch -> Dispatch Qty -> Customer.
 
 Factory Phase 1E implemented scope:
 
@@ -2816,17 +2901,28 @@ Factory Phase 1E implemented scope:
 
 Factory Finished Goods Master and Warehouse implemented scope:
 
-- Finished Goods is a functional master-plus-warehouse page through `factory_finished_goods`.
-- Finished Goods product setup supports Create, Edit and Archive.
-- Finished Goods product fields include Product Name EN, Product Name CN, Product Name BM, SKU Code, Category, UOM, Min Stock Level, Active/Archived status and Remarks.
+- Finished Goods is a functional Packaging SKU management and warehouse page through `factory_finished_goods`.
+- User-facing Finished Goods uses the model Finished Good -> Packaging SKUs.
+- Internally, Finished Good parent records are stored in `factory_product_families` with Name EN/CN/BM, category, status and remarks.
+- Finished Goods displays Finished Good -> Packaging SKUs instead of one flat SKU table, making product identity and inventory SKUs visually distinct.
+- Finished Good rows show Finished Good, Category, SKUs, Total Base Balance, Status and actions for Add Packaging SKU, Edit Finished Good and Archive Finished Good.
+- Packaging SKU rows show SKU, Variant, Pack Size, Balance, Active Production Standard, Status and actions for View SKU, Edit SKU and Archive SKU.
+- Packaging SKU setup supports Create, Edit and Archive.
+- Packaging SKU fields include Finished Good context, SKU Code, Packaging Variant, Pack Size Qty/UOM, Storage Location, Active/Archived status and Remarks.
+- Finished Good / Packaging Variant examples include Black Pepper Sauce -> BPS-1KG / BPS-2KG / BPS-5KG.
+- Finished Good SKU records remain the inventory unit. Each packaging variant still tracks stock separately through its own `factory_finished_goods.id`.
+- Existing Packaging SKU records can have no internal parent initially; they remain compatible and display as their own Finished Good row using the SKU product name.
+- Base Qty/Base UOM remain internal future conversion fields for Phase 2 bulk production and packaging conversion. In Phase 1 they are auto-set from Pack Size and are not exposed in the user-facing Packaging SKU form.
+- Finished Goods must not maintain user-facing min stock thresholds; raw material inventory remains the stock-planning control point.
 - Product Name EN is the canonical production stock-in name and is mirrored to `factory_finished_goods.product_name` for existing production matching.
 - Finished Goods category selection must use a searchable FeedX-style selector, show "Select Category" before selection, and require a category before save.
 - Finished Good Category setup supports Create, Edit and Archive through `factory_finished_good_categories`.
 - Finished Good Categories must be managed inside the Category modal/drawer only, not as a main-page table.
 - Category fields include Category Name, Description and Active/Archived status.
-- Finished Goods listing shows Product Name EN/CN/BM where available, SKU, category, UOM, current balance, batch count, latest batch, last production date, last movement date, status and actions.
-- Finished Goods dashboard cards show Total SKUs, Total Finished Goods Stock, Low Stock Items and Out of Stock Items.
-- Finished Goods warehouse insight panels include Stock Distribution by Product, Top Produced Products for the last 30 days, Production In vs Stock Out movement summary, Batch Count/latest batch, and Days Coverage when stock-out movement data is available.
+- Finished Goods grouped listing keeps current balance, batch, production and movement visibility at Packaging SKU level.
+- Finished Goods filters support Product, Finished Good, Category, Status, Batch and Movement Type where relevant.
+- Finished Goods dashboard cards show Finished Goods, Packaging SKUs, Active Recipes and Out of Stock SKUs.
+- Finished Goods warehouse insight panels include Stock Distribution by Product, Top Produced Products for the last 30 days, Production In vs Stock Out movement summary, and Batch Count/latest batch where stock movement data is available.
 - Finished Goods detail shows current balance, production history, movement history, batch history and actual-cost summary when cost data is available.
 - Finished Goods archive is blocked while current balance is greater than zero and must show: "Cannot archive while stock balance is greater than zero."
 - Production completion can stock-in only to active Finished Goods master products.
@@ -2837,13 +2933,50 @@ Factory Finished Goods Master and Warehouse implemented scope:
 - Finished Goods and Product Movements must not create duplicate stock balance logic.
 - Product Movements remains read-only and uses `factory_product_stock_movements` and production header history for context.
 
+Factory Finished Goods Dispatch implemented scope:
+
+- Finished Goods Dispatch is a Warehouse module through `factory_finished_goods_dispatch`.
+- Dispatch uses a Dispatch History / Create Dispatch tab workflow.
+- New dispatch documents must select an active Factory Customer from the Factory Customers master; free-text customer entry is not used for new dispatches.
+- Dispatch headers store `customer_id` plus a `customer_name` snapshot so historical records remain readable even if the customer master changes later.
+- Legacy dispatch rows with only `customer_name` remain readable.
+- Dispatch numbers use the business format `DYYMMDD-01` and are generated by `factory_create_finished_good_dispatch(...)` with an advisory transaction lock.
+- Draft dispatches do not adjust inventory.
+- Completed dispatches deduct finished goods balance once, create `factory_product_stock_movements` rows with movement type Dispatch Out, and mark the dispatch completed through `factory_complete_finished_good_dispatch(...)`.
+- Phase 1 dispatch is customer/SKU quantity based; production-batch-specific dispatch allocation is deferred to Phase 2.
+- Direct table updates must not be able to set dispatch status to completed; completion must go through the controlled RPC path.
+- Completed and cancelled dispatch headers/items are immutable through direct table access.
+- Dispatch history shows Dispatch No., Customer, Items, Total Dispatch, Status, Date and Actions.
+- Dispatch quantity display uses Packaging SKU count units such as Packs, Bottles or Pails. Mixed packaging types must not be shown as a fake summed SKU unit.
+- Draft dispatch can be edited or cancelled. Completed dispatch cannot be edited, cancelled or completed again.
+
+Factory Customers implemented scope:
+
+- Customers is a functional Factory System page through `factory_customers`.
+- Factory Customers are separate from Restaurant/Inventory customer or outlet data.
+- Customer fields include Customer Code, Customer Name, Customer Type, Contact Person, Phone, Email, Address, Active/Archived status and Remarks.
+- Customer Type values include Outlet, Distributor, Retailer, OEM, Export and Other.
+- Archived Factory Customers remain readable on historical dispatch documents but cannot be selected for new dispatch documents.
+
+Factory form UX standard:
+
+- Factory data-entry forms use normal-case FeedX operational labels such as "Category *", "SKU Code *", and "Product Name (EN)".
+- Factory form labels use 10.5px, 600 weight, `rgb(107, 114, 128)`, Title Case, and normal letter spacing.
+- Factory form labels must not use KPI-style uppercase or tracked letter spacing. KPI/card and table header treatments remain separate from form labels.
+- Factory create/add action buttons should use semantic lucide icons instead of a generic leading plus icon.
+
 Factory Raw Material Master and Inventory implemented scope:
 
 - Raw Material Inventory is a functional master-plus-inventory page through `factory_raw_inventory`.
 - Raw Material Master setup supports Create, Edit and Archive.
-- Raw Material fields include Raw Material Name EN, Raw Material Name CN, Raw Material Name BM, Raw Material Code, Category, Default UOM, Min Stock Level, Preferred Supplier, Storage Location, Active/Archived status and Remarks.
+- Raw Material create/edit uses a simple single-column form.
+- Raw Material form fields include Category, SKU Code, Raw Material Name EN, Default UOM, Storage Location, Active/Archived status and Remarks.
+- Raw Material Name CN, Raw Material Name BM and Min Stock Level may remain in the schema for compatibility, but they are not shown in the Raw Material user-facing form.
+- Preferred Supplier is not shown in the Raw Material user-facing form.
+- Raw Material and Finished Good master forms show inline required-field errors, scroll/focus to the first invalid field, and show a compact footer helper when required fields are missing.
 - Raw Material Name EN is the canonical material name and is mirrored to `factory_raw_materials.name` for existing production/report matching.
 - Raw Material category selection must use a searchable FeedX-style selector, show "Select Category" before selection, and require a category before save.
+- Raw Material Storage Location must use the Factory Storage Locations selector for new records instead of free-text location entry.
 - Raw Material Category setup supports Create, Edit and Archive through `factory_raw_material_categories`.
 - Raw Material Categories must be managed inside the Category modal/drawer only, not as a main-page table.
 - Raw Material Inventory listing shows Product Name EN/CN/BM equivalent raw material names where available, raw material code, category, UOM, current balance, min stock, last receiving date, last consumption date, status, stock status and actions.
@@ -2852,25 +2985,61 @@ Factory Raw Material Master and Inventory implemented scope:
 - Raw Material detail shows current balance, receiving history, consumption/movement history, stock check history, latest unit cost and supplier cost trend when receiving cost data is available.
 - Raw Material archive is blocked while current balance is greater than zero and must show: "Cannot archive while stock balance is greater than zero."
 - Raw Material Receiving must select an active Raw Material Master record and must not allow free-text raw material stock-in when master records exist.
-- Receiving defaults UOM and storage location from the selected Raw Material where available, but receiving UOM remains editable for operational receipt differences.
+- Raw Material Receiving uses a page-based two-tab workflow: Receiving History and Receive Raw Material.
+- Receiving History summarizes receiving documents by Received Date, Reference No., Supplier, Items Count, Total Qty, Created By and View Details action.
+- Receive Raw Material records one supplier delivery document with a batch/header row and multiple receiving item rows.
+- Receiving header required fields are Supplier and Received Date. Reference No. replaces the previous Invoice No. wording.
+- Receiving item required fields are Raw Material, Qty and UOM.
+- Receiving defaults UOM and storage location from the selected Raw Material where available, but receiving UOM and storage location remain editable for operational receipt differences.
+- Receiving validation shows per-row inline field errors, scroll/focuses to the first invalid field and shows a compact footer/table helper when required fields are missing.
+- Raw Material Receiving no longer asks for or displays Unit Cost or Total Cost in the receiving entry flow. Existing cost columns remain schema-compatible for historical/reporting data.
+- New receiving documents must select an active Factory Supplier from the Factory Suppliers master; free-text supplier entry is not used for new receiving documents.
+- Multi-row receiving save must use the `factory_save_raw_material_receiving_batch` RPC so the receiving batch header, all receiving item rows, raw material balance updates and raw material movement logs are committed atomically or rolled back together.
 - Product Recipe BOM and Production material usage must select active Raw Material Master records where possible.
 - Production actual usage remains the source of raw material stock deduction.
 - Raw Material Master and Inventory must not create duplicate stock balance logic; balances remain updated by receiving, production actual usage and approved stock check adjustments through existing movement/balance helpers.
 
-Factory Product Recipes implemented scope:
+Factory Storage Locations implemented scope:
 
-- Product Recipes is a functional Factory Master Data page through `factory_product_recipes`.
-- Product Recipes define the standard raw material BOM for Finished Goods production.
-- A Product Recipe must select an active Finished Goods Master product through `finished_good_id`.
-- Recipe header fields include Finished Good, Recipe Name, Version, Expected Yield Qty, Yield UOM, Draft/Active/Archived status and Remarks.
-- Recipe material rows are stored in `factory_product_recipe_items` and capture Raw Material, Standard Qty, UOM, Wastage %, Remarks and Sort Order.
-- One Finished Good can have only one active recipe version at a time.
+- Storage Locations is a functional Factory System page through `factory_storage_locations`.
+- Storage Location setup supports Create, Edit and Archive.
+- Storage Location fields include Location Name, Location Code, Location Type, Active/Archived status and Remarks.
+- Location Type examples include Dry Store, Chiller, Freezer, Production Area, Finished Goods Area and Packaging Area.
+- Raw Material and Finished Goods master forms can select active Storage Locations.
+- Raw Material Receiving uses the managed Storage Location selector while preserving the receiving row's stored location text for receipt history.
+- Archived Storage Locations remain readable but cannot be selected for new active master setup.
+
+Factory Suppliers implemented scope:
+
+- Suppliers is a functional Factory System page through `factory_suppliers`.
+- Supplier setup supports Create, Edit and Archive.
+- Supplier fields include Supplier Name, Supplier Code, Contact Person, Phone, Email, Active/Archived status and Remarks.
+- Raw Material Receiving supplier selection uses active Factory Suppliers only.
+- Archived Factory Suppliers remain readable on historical receiving documents but cannot be selected for new receiving documents.
+- Factory Suppliers are separate from Restaurant/Inventory supplier modules.
+
+Factory Product Recipes / BOM implemented scope:
+
+- Product Recipes is a functional Factory Master Data page through `factory_product_recipes`, presented to users as Product Recipes / BOM.
+- Product Recipes define the Standard Output quantity, optional Estimated Production Time, and raw material BOM for parent Finished Good production.
+- New Product Recipes select the parent Finished Good concept, stored internally through `factory_product_recipes.product_family_id`.
+- Legacy recipes tied to a Packaging SKU through `finished_good_id` remain readable and usable for compatibility.
+- Phase 1 Job Orders and Production still stock into a selected Packaging SKU. Phase 2 will support bulk product production with packaging split into multiple Packaging SKUs.
+- Recipe Code remains an internal generated identifier and is not edited in the create/edit UI.
+- New standards start at version `v1`; users cannot manually type version values.
+- New Version creates a draft copy of the selected standard and auto-increments the version to `v2`, `v3`, `v4`, and so on.
+- Header fields include Finished Good, Recipe Name, Version, Standard Output Qty, UOM, Estimated Production Time, status display and Remarks.
+- BOM material rows are stored in `factory_product_recipe_items` and capture Raw Material, Required Qty, UOM, Wastage %, Remarks and Sort Order.
+- One parent Finished Good can have only one active recipe version at a time when `product_family_id` is available.
 - Draft recipes can be edited; active and archived recipes remain readable for history.
 - Activating a recipe makes it the production material-usage default for that Finished Good.
 - Archiving a recipe removes it from production defaults but preserves history.
-- Production completion from a Job Order looks for the active recipe linked to the selected Finished Good.
+- Archived recipes can be restored as draft for review before activation; restore never makes a recipe active directly.
+- The Product Recipes list shows Finished Good, Version, Standard Output, Materials, Status, Updated and Actions.
+- Clicking a recipe row opens a read-only detail view with Recipe Summary and BOM Materials.
+- Production completion from a Job Order looks for the active recipe linked to the selected Packaging SKU's parent Finished Good first, then falls back to legacy SKU-linked standards.
 - If an active recipe exists, Production material usage rows are prefilled from recipe materials.
-- Standard usage defaults scale from recipe expected yield to the Job Order target quantity; Actual Usage defaults to Standard Usage but remains editable by staff.
+- Standard usage defaults scale from the recipe Standard Output to the Job Order target or actual output quantity; Actual Usage defaults to Standard Usage but remains editable by staff.
 - Actual Usage remains the source of raw material stock deduction.
 - Product Recipe remains the standard reference only and must not be modified by production completion or actual usage variance.
 - If no active recipe exists, Production shows: "No active recipe found. Add material usage manually or create a Product Recipe first."
@@ -2911,6 +3080,7 @@ Factory sidebar modules:
 - Production Reports
 - Batch Traceability
 - Finished Goods
+- Finished Goods Dispatch
 - Product Movements
 - Product Stock Check
 - Raw Material Receiving
@@ -2918,6 +3088,9 @@ Factory sidebar modules:
 - Raw Material Stock Check
 - Product Recipes
 - Production SOP
+- Storage Locations
+- Suppliers
+- Customers
 - Factory Audit Logs
 - Factory Settings
 
@@ -2929,6 +3102,7 @@ Current functional Factory modules after Raw Material Master optimization:
 - Production Reports / Factory Reports.
 - Batch Traceability.
 - Finished Goods.
+- Finished Goods Dispatch.
 - Product Movements.
 - Product Stock Check.
 - Raw Material Receiving.
@@ -2936,6 +3110,9 @@ Current functional Factory modules after Raw Material Master optimization:
 - Raw Material Stock Check.
 - Product Recipes.
 - Production SOP.
+- Storage Locations.
+- Suppliers.
+- Customers.
 
 Current registered Factory placeholder modules:
 
@@ -2982,12 +3159,71 @@ Factory RLS and permissions:
 - Custom roles must be assigned Factory permissions through Roles & Permissions.
 - Factory tables enforce RLS through `current_user_has_permission(...)`.
 
-Current Factory exclusions after Phase 1E:
+Historical Factory exclusions after Phase 1E:
 
 - Finished goods receipt and shipment workflow.
 - Product recipe BOM editor.
 - Full QC result editing/checklist completion workflow beyond checkpoint snapshots and batch QC status.
 - Advanced Factory analytics beyond Phase 1E read-only report foundations.
+
+## 5.13C Factory Workspace - Current V1 Authority
+
+This section supersedes the historical Factory Phase 1 notes above. Historical records and compatibility fields remain readable; current behavior is governed by the trusted database functions, RLS policies, and Factory UI.
+
+### Navigation
+
+- **Factory**: Dashboard, Production Planning, Production Overview, Job Order, Batch Traceability.
+- **Warehouse**: Finished Goods, Finished Goods Dispatch, Product Movements, Product Stock Check.
+- **Raw Material**: Raw Material Receiving, Raw Material Inventory, Raw Material Movements, Raw Material Stock Check.
+- **Master Data**: Product Recipes, Production SOP.
+- **System**: Audit Trail, Storage Locations, Suppliers, Customers.
+
+### Operational Authority
+
+- Job Orders are structurally saved as Draft or Planned based on authoritative completeness. Planned jobs may be released; Released jobs start Production; In Progress jobs complete only through the trusted Production authority. Closed jobs are read-only.
+- Production Start records the operational start context. Production QC follows the active SOP/QC requirements where applicable. Production Complete locks and validates the Job Order, exact Raw Material batch allocations, and Finished Good output in one transaction.
+- Raw Material usage is allocated to exact receiving batches. FEFO orders eligible batches by expiry, then receiving/manufacturing context, internal batch number, and stable ID. Aggregate capacity never substitutes for exact eligible batch capacity.
+- Production completion deducts exact Raw Material batches, posts one authoritative usage movement per allocation, creates the Finished Goods Production Batch, posts Finished Goods stock-in, and remains idempotent for a valid retry.
+- Raw Material Receiving supports Draft, Complete, and Draft Cancel. Drafts do not post stock, movement, or an Internal Batch number. Completion atomically creates receiving items, internal batches, balances, and movements.
+- Finished Goods Dispatch supports Draft, Complete, and Draft Cancel. Completion validates exact batch allocations, posts stock and movements atomically, and uses an idempotent request fingerprint. Dispatch FEFO does not allocate unavailable or reconciliation-required stock.
+- Finished Goods and Raw Material Stock Checks use trusted submit/approve flows. Negative Raw Material variance consumes exact eligible batches; positive adjustments remain controlled unavailable reconciliation balances until resolved.
+- Product and Raw Material movement ledgers are read-only audit views over posted movement authority. Batch Traceability follows Finished Goods batches, allocation history, source context, QC summary, and reconciliation diagnostics without guessing historical links.
+- Product Recipes and Production SOPs are versioned. Only one active Recipe is authoritative for an exact product family or unambiguous legacy Finished Good linkage. Recipe/SOP version values use `vN` and are not transaction document numbers.
+
+### Commercial and Master Data
+
+- Finished Goods store `is_halal` at Finished Good level. Packaging SKUs store recommended storage (`room`, `chiller`, `freezer`) and optional B2B price independently of physical inventory locations.
+- Finished Goods Cost derives only from one authoritative active Recipe, standard output, material cost availability, and exact compatible pack-size conversion. Gross Margin is calculated only when B2B price and cost are authoritative.
+- Recommended Storage is advisory master data and is never an inventory location, FEFO input, or stock-posting target.
+
+### Permissions, Audit, and Errors
+
+- Role Setting / Permission Matrix remains the source for Factory module-action permissions. Trusted RPCs derive the actor from `auth.uid()` through an active employee and enforce `current_user_has_permission(...)`; client actor identifiers are not trusted.
+- RLS and trusted RPC boundaries protect lifecycle, balances, movements, allocations, master-data writes, and audit records. The permission hardening implementation is current through `202608050031_factory_permission_boundary_hardening.sql`.
+- Factory Audit Trail records normalized module, event, business reference, actor, result, and readable changes. Raw metadata is collapsed by default.
+- A committed mutation is never reported as failed because a later refresh fails. The UI applies the authoritative result locally, shows success, and separately warns/retries when a list or summary refresh cannot complete.
+
+### Official Business Numbering
+
+| Object | Format | Authority |
+|---|---|---|
+| Job Order | `JOYYMMDD-##` | Database allocator / preview |
+| Production Batch | `PBYYMMDD-##` | Production completion |
+| Raw Material Receiving | `RYYMMDD-##` | Receiving allocator / preview |
+| Raw Material Internal Batch | `RM-{CODE}-YYMMDD-##` | Receiving completion |
+| Finished Goods Dispatch | `DYYMMDD-##` | Dispatch allocator / preview |
+| Finished Goods Stock Check | `FGSCYYMMDD-##` | Stock Check authority |
+| Raw Material Stock Check | `RMSC-YYMMDD-##` | Stock Check authority |
+
+`PRD`, `recipe_code`, and `sop_code` are internal or historical compatibility identifiers. They must not be substituted for the official operator-facing business references above.
+
+### Factory V1 - Staging Signed Off
+
+Date: 2026-08-08
+
+The approved Factory V1 scope passed Owner runtime smoke coverage, Operator permission smoke coverage, and read-only permission smoke coverage. Permission-boundary hardening is applied through migration `202608050031_factory_permission_boundary_hardening.sql`. This sign-off is operational release evidence, not a claim of independent penetration testing or exhaustive security certification.
+
+See [Factory V1 Staging Sign-off](../docs/audits/FACTORY_V1_STAGING_SIGNOFF.md) for the concise certification record.
 
 ## 5.14 Outlets
 
@@ -3136,6 +3372,24 @@ Batch status:
 - completed
 - partial_failed
 - failed
+
+### Trusted Sales and Purchase Import Authority
+
+Sales and Purchase imports use one request-bound server lifecycle. The browser remains responsible for parsing, mapping, previewing, and presenting the result; it does not persist target rows, row history, or final batch status.
+
+```text
+Sales:    import_begin_request → import_apply_sales_row → import_finalize_batch
+Purchases: import_begin_request → import_prepare_purchase_masters → import_apply_purchase_row → import_finalize_batch
+```
+
+- `request_id` identifies one logical import and is retained for retry. A conflicting reuse with a different payload is rejected.
+- Canonical row keys are `sales:<outlet>:<year>:<month>:<channel>` and `purchase:<outlet>:<year>:<month>:<supplier>:<category>`; `(batch_id, row_request_key)` is unique in import history.
+- Purchase preparation resolves or creates normalized supplier/category masters only on the server, returns canonical UUID mappings, and requires `purchase_categories.create` or `suppliers.create` only when that creation is needed.
+- Sales/Purchase import permissions, actor identity (`auth.uid()`), and outlet access are server-authoritative.
+- Rows are independently atomic. Mixed outcomes produce `partial_failed`; successful rows stay committed and a retry reconciles failed rows without reapplying successful rows.
+- `import_finalize_batch` derives persisted counts and final status from row outcomes. Client audit logging and parent read refresh are best effort and never redefine a successful mutation.
+
+Residual performance debt is P2: browser CSV/XLSX parsing retains file content in memory and large files may incur many row RPC round trips. Profile and optimize only when real import volume requires it.
 
 Removed:
 
@@ -3579,7 +3833,7 @@ Permission UI:
 
 People UAT status:
 
-- People Module UAT & Stabilization completed on 30 May 2026. Report: `FEEDX_PEOPLE_UAT_REPORT.md`.
+- People Module UAT & Stabilization completed on 30 May 2026. Historical report: [FEEDX People Module UAT & Stabilization Report](../docs/archive/2026-05/FEEDX_PEOPLE_UAT_REPORT.md).
 - Result: Production Ready Candidate with live-account UAT caveat.
 - Verified/stabilized modules: Employees, Job Positions, Departments, Roles & Permissions, and Employee Login Access.
 - Critical fixes from the pass:
@@ -4052,14 +4306,14 @@ supabase/functions/employee-auth-onboarding
 
 Environment variables:
 
-- PROJECT_URL or SUPABASE_URL
-- PROJECT_SERVICE_ROLE_KEY or SUPABASE_SERVICE_ROLE_KEY
+- PROJECT_URL
+- PROJECT_SERVICE_ROLE_KEY
 - SUPABASE_ANON_KEY
 - FEEDX_SITE_URL or SITE_URL or PUBLIC_SITE_URL
 
 Responsibilities:
 
-- Verify caller permission by employee login action context.
+- Verify caller permission.
 - Load employee.
 - Validate email and role.
 - Invite/create Supabase Auth user.
@@ -4106,11 +4360,6 @@ Manual setup link:
 
 Frontend fallback behavior:
 
-- Initial employee login setup is controlled by `employees.enable_login`.
-- Reset password for an existing active/auth-linked employee is controlled by `employees.reset_password`.
-- Manual setup links use the same employee login permission as the current setup/reset context and must not require unrelated role-management permissions such as `roles.edit`.
-- When login setup fields have unsaved changes, direct setup/link buttons remain disabled and the modal must explain that users should save first or use `Save & Send Login Setup`.
-- `Save & Send Login Setup` is the primary action for new or edited unsaved login setup when the user has `employees.enable_login`.
 - Email setup success shows "Login setup email sent." only when the Edge Function returns ok true for email mode.
 - Email setup failure with canGenerateManualLink shows a warning modal with Generate Setup Link.
 - Employees already in Invitation Pending can still resend setup email or generate a manual setup link.
@@ -4730,7 +4979,7 @@ Typography rules:
 - Shared components must use semantic type classes instead of raw `text-sm`, `text-lg`, or arbitrary text sizes.
 - Raw Tailwind typography is allowed only for one-off visual exceptions, not repeated UI patterns.
 - Page-level modules should migrate gradually through shared components rather than mass rewriting every text node.
-- Desktop density is tracked in `FEEDX_TYPOGRAPHY_AUDIT.md`; future typography changes should update that audit when they intentionally alter the global scale.
+- Desktop density is historically tracked in [FEEDX Desktop Typography Audit](../docs/archive/2026-06/FEEDX_TYPOGRAPHY_AUDIT.md); future typography changes should create or update a current audit when they intentionally alter the global scale.
 - Sidebar navigation uses 13.5px-14px, medium-weight labels with 20px line height. Sidebar section labels use 11px, uppercase, 0.12em letter spacing, and 600 weight.
 - Sidebar user footer uses 14px for the name and 12px for the role.
 - Page header eyebrow labels use 12px uppercase text with 0.18em letter spacing. Page titles stay strong at about 26-28px with 700 weight, and subtitles use 13-14px muted text.
@@ -4982,15 +5231,15 @@ Production release gates:
 - Verify production RLS for owner/admin, all-outlet role, selected-outlet role, view-only role, and no-permission role.
 - Verify production Storage buckets and policies for `inventory-item-photos` and `asset-photos`.
 - Verify production Supabase Auth redirects, SMTP email delivery, forgot-password, invite/setup-password, and employee onboarding Edge Function.
-- Execute `FEEDX_PRODUCTION_UAT_CHECKLIST.md` before cutover.
+- Execute the current release checklist before cutover. The June 2026 checklist is preserved as [historical evidence](../docs/archive/2026-06/FEEDX_PRODUCTION_UAT_CHECKLIST.md).
 - Confirm no authenticated production workflow relies on browser-local operational records or fallback/demo data.
 
 Release governance documents:
 
-- `FEEDX_PRODUCTION_READINESS_AUDIT.md`
-- `FEEDX_PRODUCTION_UAT_CHECKLIST.md`
-- `FEEDX_RELEASE_CANDIDATE_REPORT.md`
-- `FEEDX_GO_LIVE_CHECKLIST.md`
+- [FEEDX Production Readiness Audit](../docs/archive/2026-06/FEEDX_PRODUCTION_READINESS_AUDIT.md)
+- [FEEDX Production UAT Checklist](../docs/archive/2026-06/FEEDX_PRODUCTION_UAT_CHECKLIST.md)
+- [FEEDX Release Candidate Report](../docs/archive/2026-06/FEEDX_RELEASE_CANDIDATE_REPORT.md)
+- [FEEDX Go-Live Checklist](../docs/archive/2026-06/FEEDX_GO_LIVE_CHECKLIST.md)
 - `FEEDX_DEVELOPMENT_LOG.md`
 - `docs/releases/`
 
@@ -5071,3 +5320,18 @@ Every new module or feature must answer:
 - Does refresh preserve created/edited records?
 - Does `npm run build` pass?
 - Is this document updated?
+
+## Roles and Permission Configuration Authority
+
+- Role create, edit, disable, and duplicate save through the authenticated `save_role_configuration` RPC. The RPC derives `auth.uid()`, validates role-management permission, protected-role rules, permission delegation, outlet delegation, and canonical permission/outlet identities.
+- `role_configuration_requests` is the request-ID ledger. An unchanged retry returns its canonical result; a conflicting fingerprint reuse is rejected. The editor clears an ID after success and creates a new one after a material form edit.
+- A role row plus differential `role_permissions` and `role_outlets` reconciliation commit in one transaction. Existing role UUIDs are preserved on edit; creates and duplicates receive new UUIDs. Ordinary role saves never mutate the permission catalog.
+- Non-protected actors cannot grant permissions outside their own authority or assign inaccessible outlets. Owner/Admin retain their intended broader authority. Delete remains a separate bounded hard-delete path protected by the existing employee role-reference FK.
+- Roles architecture is frozen at the 17/17 focused-test baseline. P2 debt: active-session permission context can lag until refresh/login, and concurrent stale editors remain last-write-wins; server authorization remains authoritative.
+
+## Factory Product Recipe / BOM Transactional Authority
+
+- `save_factory_product_recipe` owns structural Draft Recipe/BOM saves. It derives `auth.uid()`, resolves `created_by` to the canonical employee identity, applies create/edit permission checks, locks existing Draft recipes, and persists the recipe, complete BOM snapshot, and request-ledger result atomically.
+- `factory_product_recipe_requests` binds a request ID to actor, operation, recipe identity, canonical payload fingerprint, and canonical `{ recipe, items }` result. Unchanged retries return the same result; changed intent requires a new request ID.
+- Product Recipe modal retries are request-safe and pending-submit guarded. Active recipe activation and archive/delete remain separate bounded lifecycle authorities. Factory Recipe stale-editor last-write-wins remains accepted P2 debt.
+- FeedX hardening is complete at P0=0 and P1=0. Frozen architecture rules remain authoritative; return to Feature / Operational Development.

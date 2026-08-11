@@ -17,18 +17,22 @@ function normalizeEmail(value: unknown) {
   return String(value ?? "").trim().toLowerCase();
 }
 
-async function findAuthUserByEmail(adminClient: ReturnType<typeof createClient>, email: string) {
+async function findAuthUsersByEmail(adminClient: ReturnType<typeof createClient>, email: string) {
   let page = 1;
   const perPage = 100;
+  const matches: Array<{ id: string; email?: string }> = [];
   while (page <= 20) {
     const { data, error } = await adminClient.auth.admin.listUsers({ page, perPage });
     if (error) throw error;
-    const user = data.users.find((item) => normalizeEmail(item.email) === email);
-    if (user) return user;
-    if (data.users.length < perPage) return null;
+    matches.push(...data.users.filter((item) => normalizeEmail(item.email) === email));
+    if (data.users.length < perPage) return matches;
     page += 1;
   }
-  return null;
+  return matches;
+}
+
+function identityConflict(message: string) {
+  return json({ ok: false, code: "IDENTITY_CONFLICT", message }, 409);
 }
 
 Deno.serve(async (request) => {
@@ -89,7 +93,7 @@ async function handleRequest(request: Request) {
 
   const { data: employee, error: employeeError } = await adminClient
     .from("employees")
-    .select("id,email,full_name,role_id,enable_system_login,access_state")
+    .select("id,email,full_name,role_id,auth_user_id,enable_system_login,access_state")
     .eq("id", employeeId)
     .maybeSingle();
   if (employeeError) {
@@ -114,17 +118,6 @@ async function handleRequest(request: Request) {
     }, 400);
   }
 
-  const email = normalizeEmail(employee.email);
-  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-    return json({
-      ok: false,
-      code: "VALID_EMAIL_REQUIRED",
-      message: "Employee must have a valid email before login setup.",
-    }, 400);
-  }
-
-  const redirectTo = siteUrl ? `${siteUrl.replace(/\/$/, "")}/setup-password` : undefined;
-  const existingUser = await findAuthUserByEmail(adminClient, email);
   const accessState = String(employee.access_state ?? "").trim().toLowerCase();
   const requiresResetPermission = accessState === "active";
   const requiredPermission = requiresResetPermission ? "employees.reset_password" : "employees.enable_login";
@@ -148,7 +141,50 @@ async function handleRequest(request: Request) {
     }, 403);
   }
 
+  const email = normalizeEmail(employee.email);
+  if (!email || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    return json({
+      ok: false,
+      code: "VALID_EMAIL_REQUIRED",
+      message: "Employee must have a valid email before login setup.",
+    }, 400);
+  }
+
+  const redirectTo = siteUrl ? `${siteUrl.replace(/\/$/, "")}/setup-password` : undefined;
+  const emailMatches = await findAuthUsersByEmail(adminClient, email);
+  if (emailMatches.length > 1) {
+    return identityConflict("More than one Auth account matches this employee login email.");
+  }
+  const existingUser = emailMatches[0] ?? null;
   let authUser = existingUser;
+
+  if (employee.auth_user_id) {
+    const { data: linkedResult, error: linkedError } = await adminClient.auth.admin.getUserById(employee.auth_user_id);
+    if (linkedError || !linkedResult?.user) {
+      return identityConflict("The employee has an invalid linked Auth account. Resolve the identity link before sending setup.");
+    }
+    if (normalizeEmail(linkedResult.user.email) !== email) {
+      return identityConflict("The linked Auth account uses a different email. Use a dedicated identity change flow before sending setup.");
+    }
+    if (existingUser && existingUser.id !== employee.auth_user_id) {
+      return identityConflict("The requested login email belongs to a different Auth account.");
+    }
+    authUser = linkedResult.user;
+  }
+
+  if (authUser) {
+    const { data: linkedEmployee, error: linkedEmployeeError } = await adminClient
+      .from("employees")
+      .select("id")
+      .eq("auth_user_id", authUser.id)
+      .maybeSingle();
+    if (linkedEmployeeError) {
+      return json({ ok: false, code: "AUTH_LINK_LOOKUP_FAILED", message: "Unable to verify the existing Auth link." }, 500);
+    }
+    if (linkedEmployee && linkedEmployee.id !== employee.id) {
+      return identityConflict("This Auth account is already linked to a different employee.");
+    }
+  }
   let mode: "email" | "manual_link" = "email";
   let setupUrl: string | null = null;
 
@@ -157,7 +193,7 @@ async function handleRequest(request: Request) {
       const manual = await generateManualSetupLink(adminClient, {
         email,
         employee,
-        existingUser,
+          existingUser: authUser,
         redirectTo,
       });
       setupUrl = manual.setupUrl;
@@ -173,13 +209,20 @@ async function handleRequest(request: Request) {
     }
   } else {
     try {
-      if (!existingUser) {
+      if (!authUser) {
         const { data, error } = await adminClient.auth.admin.inviteUserByEmail(email, {
           data: { employee_id: employee.id, full_name: employee.full_name },
           redirectTo,
         });
-        if (error) throw error;
-        authUser = data.user;
+        if (error) {
+          const raceMatches = await findAuthUsersByEmail(adminClient, email);
+          if (raceMatches.length === 1) {
+            authUser = raceMatches[0];
+          } else {
+            throw error;
+          }
+        }
+        authUser = authUser ?? data.user;
       } else {
         const { error } = await userClient.auth.resetPasswordForEmail(email, { redirectTo });
         if (error) throw error;
@@ -206,7 +249,23 @@ async function handleRequest(request: Request) {
     }
   }
 
-  const { error: updateError } = await adminClient
+  if (!authUser?.id) {
+    return json({ ok: false, code: "AUTH_ACCOUNT_MISSING", message: "Unable to resolve the employee Auth account." }, 500);
+  }
+
+  const { data: linkedEmployee, error: linkedEmployeeError } = await adminClient
+    .from("employees")
+    .select("id")
+    .eq("auth_user_id", authUser.id)
+    .maybeSingle();
+  if (linkedEmployeeError) {
+    return json({ ok: false, code: "AUTH_LINK_LOOKUP_FAILED", message: "Unable to verify the Auth link." }, 500);
+  }
+  if (linkedEmployee && linkedEmployee.id !== employee.id) {
+    return identityConflict("This Auth account is already linked to a different employee.");
+  }
+
+  const { data: updatedEmployee, error: updateError } = await adminClient
     .from("employees")
     .update({
       auth_user_id: authUser?.id ?? null,
@@ -217,8 +276,16 @@ async function handleRequest(request: Request) {
       verification_sent_at: new Date().toISOString(),
       updated_at: new Date().toISOString(),
     })
-    .eq("id", employee.id);
-  const warning = updateError ? "Email sent but employee status update failed." : undefined;
+    .eq("id", employee.id)
+    .or(`auth_user_id.is.null,auth_user_id.eq.${authUser.id}`)
+    .select("id,auth_user_id")
+    .maybeSingle();
+  if (updateError) {
+    return json({ ok: false, code: "EMPLOYEE_LINK_UPDATE_FAILED", message: "Login setup was sent, but the employee Auth link could not be updated safely." }, 500);
+  }
+  if (!updatedEmployee || updatedEmployee.auth_user_id !== authUser.id) {
+    return identityConflict("The employee Auth link changed while login setup was being processed.");
+  }
 
   const { error: auditError } = await adminClient.from("audit_logs").insert({
     action: "employee_login_setup_sent",
@@ -231,7 +298,7 @@ async function handleRequest(request: Request) {
     ok: true,
     mode,
     message: mode === "manual_link" ? "Manual setup link generated." : "Login setup email sent.",
-    warning: warning ?? (auditError ? "Login setup completed, but audit activity could not be recorded." : undefined),
+    warning: auditError ? "Login setup completed, but audit activity could not be recorded." : undefined,
     setupUrl,
     setupLink: setupUrl,
     email,

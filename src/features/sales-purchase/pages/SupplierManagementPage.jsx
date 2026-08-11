@@ -13,6 +13,7 @@ import { getCategoryName, sumAmount, toCurrency } from "../utils/analytics.js";
 import { formatSupplierName, supplierService } from "../../../services/supplierService.js";
 import Modal from "../../../components/feedback/Modal.jsx";
 import { canCreate, canDelete, canEdit, getAccessibleOutletOptions, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import FactoryPagination, { useFactoryClientPagination } from "../../factory/components/FactoryPagination.jsx";
 
 function purchasePeriodLabel(period) {
   if (!period?.month || !period?.year) return "—";
@@ -76,6 +77,13 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
       }),
     [accessibleOutletIds, category, outletFilter, query, status, store.suppliers, usageMap],
   );
+  const supplierPagination = useFactoryClientPagination(
+    "restaurant.suppliers",
+    rows.length,
+    20,
+    [outletFilter, filters.month, filters.year, category, status, query].join("|"),
+  );
+  const paginatedRows = rows.slice(supplierPagination.from, supplierPagination.to);
   useEffect(() => {
     if (store.suppliers.length) setSupplierLoadState("ready");
   }, [store.suppliers.length]);
@@ -386,7 +394,7 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
       <Card title="Supplier Directory" description="Suppliers used across all outlets and purchase records.">
         <DataTable
           columns={columns}
-          rows={rows}
+          rows={paginatedRows}
           getRowKey={(row) => row.id}
           onRowClick={(row) => setDetailSupplier(row)}
         />
@@ -398,6 +406,13 @@ export default function SupplierManagementPage({ store, setStore, ui, auth }) {
             <p className="mt-1">{outletFilter === "all" ? "Adjust filters or add a supplier." : "Suppliers will appear here after purchase records are added."}</p>
           </div>
         ) : null}
+        <FactoryPagination
+          page={supplierPagination.page}
+          pageSize={supplierPagination.pageSize}
+          total={rows.length}
+          onPageChange={supplierPagination.setPage}
+          onPageSizeChange={supplierPagination.setPageSize}
+        />
       </Card>
       {modal ? (
         <EntityModal

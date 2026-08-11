@@ -2,11 +2,94 @@
 
 Purpose: concise development history for meaningful FeedX development sessions. The master document remains the source of truth for final logic and architecture; release notes under `docs/releases/` document production releases.
 
+## 2026-08-10
+
+### Duty Roster Trusted Lifecycle Freeze
+- Replaced browser-owned week-level roster lifecycle sequences with transactional `save_roster_week_snapshot`, `copy_roster_week`, `publish_roster_week`, `unpublish_roster_week`, and `lock_roster_week` RPCs.
+- Added the shared `duty_roster_lifecycle_requests` request-ID/fingerprint ledger and a compatible week advisory-lock namespace; Copy Week takes source and destination locks in deterministic order.
+- The server now derives the actor from `auth.uid()`, validates outlet access and permissions, preserves matching roster UUIDs, derives published snapshots, and returns canonical period/row state for refresh.
+- Duty Roster lifecycle architecture is frozen at a 13/13 focused-test baseline. Deferred P2 debt: stale-editor last-write-wins, undefined cross-outlet employee-overlap policy, isolated single-draft-shift CRUD, and read/render performance only when production volume requires it.
+
+### Sales / Purchase Monthly Snapshot Authority
+- Replaced browser-owned monthly Sales and Purchase multi-step persistence with `save_sales_period_snapshot` and `save_purchase_period_snapshot` trusted RPCs.
+- Added one shared request ledger with request-ID reuse, payload-fingerprint conflict protection, authenticated actor/outlet validation, and per-period advisory locks.
+- Both snapshot RPCs update canonical matching rows in place, insert missing rows, delete omitted rows atomically, and preserve existing UUIDs; the remaining stale-editor last-write-wins behavior is P2 product concurrency debt.
+- Monthly snapshot verification baseline: 11/11 focused tests passing.
+
+### Data Import Lifecycle Authority
+- Moved active Sales and Purchase import persistence behind the request-bound trusted lifecycle: begin request, row apply, and server-derived finalization; the browser no longer owns target writes, row-history writes, or batch completion.
+- Added canonical request/batch and row identities for retry/idempotency, including payload-conflict protection and independent row outcomes for intentional `partial_failed` imports.
+- Added trusted Purchase supplier/category preparation with canonical UUID mapping, normalized duplicate protection, server-side create permissions, actor attribution, and outlet validation.
+- Added service, migration, and mounted Data Import coverage for new/existing masters, permissions, preparation rejection/retry, partial completion, and Sales regression. Data Import baseline: 21/21 focused tests passing.
+- Deferred large CSV/XLSX parsing and high-row-count RPC optimization as P2 performance work; no lifecycle integrity gap remains.
+
+### Inventory Structural Freeze
+- Completed Inventory trusted lifecycle authority through request-ID-idempotent Supabase RPCs for Receiving, Waste, Transfer, Stock Check, Purchase Order, Manual Movement, and Recipe persistence.
+- Established extracted presentation ownership for Wastage, Movement History, Manual Movement, Purchase Order list/detail, and Stock Check Groups while retaining one broad Inventory read/refresh authority in `InventoryControlPage`.
+- Hardened Par Levels without extraction: `inventory_par_levels.edit` now gates UI and parent persistence callbacks; per-item/outlet sequencing prevents stale save responses or stale failures from overwriting the normalized local snapshot, while unrelated configurations continue saving concurrently.
+- Recorded the Inventory structural freeze rules and post-launch debt: normalization/broad-read coupling, Stock Check/Master/Recipe complexity, Groups save concurrency, centralized PO Edit/Receive modals, and configuration CRUD review remain deliberately centralized until materially changed and covered by focused tests.
+
+## 2026-08-08
+
+### Factory Structural Refactor Closeout
+- Froze Factory frontend structure after extracting domain pages and the remaining high-value modal/form surfaces: Job Orders, Production Execution, Dispatch, Stock Checks, batch allocation, and their presentation helpers.
+- `FactoryWorkspacePage` is now the lifecycle/orchestration hub: it retains permissions, route/modal coordination, listing/refresh plumbing, notifications, and trusted lifecycle mutation callbacks; extracted components own presentation and local form/read state.
+- Confirmed one Job Orders listing authority through the stable listing bridge and one shared Operational Jobs read model through `FactoryOperationalJobsContext` / `useFactoryProductionOverviewQuery`.
+- Retained server/RPC authority for stock, batch, receiving, dispatch, production completion, and stock-check effects. Removed only the unreachable legacy direct-DML tail from `factoryService.saveStockCheck`; active stock-check saves remain RPC-backed.
+- Lifecycle gates: Job Orders, Production Execution, Receiving, Dispatch, Product/Raw Stock Checks, operational route smoke, and RPC contract tests; Factory baseline is 153 passing tests. Next phase is staging operational acceptance.
+- Known post-launch debt: factoryService internal split behind its stable facade, Production history dual-read review, combined Vitest/JSDOM operational-route runner behavior, Completed View Result permission design, React key warnings, and compatibility cleanup after data-migration confidence.
+
+### Factory V1 - Staging Signed Off
+- Delivered the Factory workspace from planning through traceable warehouse execution: Production Planning, Job Orders, Production Start/QC/Complete, Raw Material Receiving, Finished Goods Dispatch, Stock Checks, and Batch Traceability.
+- Added exact Raw Material receiving-batch allocation for Production usage, FEFO allocation, Finished Goods batch creation, batch-aware Dispatch, and Product/Raw Material movement ledgers.
+- Established official Factory business-number formats for Job Orders, Production Batches, Receiving, Raw Material internal batches, Dispatches, and Stock Checks; PRD and recipe/SOP codes remain internal historical compatibility fields.
+- Added Recipe/BOM and Production SOP versioning, Factory Audit Trail, Finished Goods commercial fields, and current Factory analytics and operational views.
+- Hardened Factory trusted RPC and RLS boundaries through migration `202608050031_factory_permission_boundary_hardening.sql`.
+- Completed Owner, Operator, and read-only staging smoke coverage for the approved Factory V1 scope. See `docs/audits/FACTORY_V1_STAGING_SIGNOFF.md` for the concise certification record.
+
+## 2026-06-18
+
+### Factory
+- Factory Phase 1 UAT Round 1 passed for Raw Material Receiving, Product Recipes / BOM, Job Orders, Complete Production, Finished Goods Balance, Finished Goods Dispatch, and Product Movements.
+- Documented the Phase 2 traceability gap: Batch Traceability does not yet trace Dispatch -> Customer by production batch because dispatch currently records customer/SKU quantity without batch allocation. Phase 2 requires Dispatch Batch Allocation: Production Batch -> Dispatch Qty -> Customer.
+- Refined the Product Recipes / BOM page wording, table labels, lifecycle action buttons and read-only detail view so recipe setup reads as a clean BOM workflow instead of a technical production-standard form.
+- Added archived recipe restore behavior: archived Product Recipes return as draft versions for review, preserving the original BOM while keeping activation as the only path back to production defaults.
+- Refined Finished Goods Dispatch into a Dispatch History / Create Dispatch tab workflow, keeping dispatch creation embedded on the page while preserving modal-based View/Edit for existing drafts and completed records.
+- Added Factory Customers under the Factory System sidebar with create/edit/archive master data for dispatch destinations, replacing free-text customer entry for new finished goods dispatches.
+- Added a production-safe migration for `factory_customers`, `factory_finished_good_dispatches.customer_id`, Factory customer permissions/RLS, and DB-side `DYYMMDD-01` dispatch number generation through `factory_create_finished_good_dispatch(...)` with an advisory transaction lock.
+- Updated dispatch history to show Dispatch No., Customer, Items, Total Dispatch, Status, Date and Actions, avoiding misleading "SKU units" wording for mixed packaging quantities.
+
+## 2026-06-16
+
+### Factory
+- Refactored Factory Job Order planning to select the parent Finished Good first, capture Target Production Qty/UOM, filter Packaging SKUs by that Finished Good, and estimate pack quantity from the selected SKU pack size using supported g/kg and ml/L conversions.
+- Moved new Production Standard / BOM setup toward parent Finished Good logic through `factory_product_recipes.product_family_id` while keeping legacy SKU-linked standards readable for compatibility.
+- Updated Production completion to capture Actual Pack Qty for finished-goods SKU stock-in while using Actual Output Qty to scale standard material usage and variance checks.
+- Added additive Factory migrations for parent-level Production Standards, production pack/output quantity persistence, and production-quantity-first Job Order RPC validation without renaming existing `finished_good_id` compatibility references.
+- Refined Complete Production into a final confirmation flow with auto-generated batch numbers, Actual Pack Qty as the stock-in result, calculated Actual Output Qty, and recipe-locked material usage rows when an active Production Standard / BOM exists.
+
+## 2026-06-09
+
+### Factory
+- Refined Factory Finished Goods create/edit UX into a single-column, sectioned Product Information / Configuration / Notes form and removed finished-goods min-stock planning from the user-facing flow.
+- Standardized Factory form label typography to normal-case FeedX data-entry styling across Factory forms, replacing KPI-style uppercase/tracked labels with 10.5px semibold gray labels.
+- Replaced Factory create/add action plus icons with semantic lucide icons for Finished Goods, categories, receiving, job orders, recipes, SOPs, stock checks and material rows.
+- Refined Factory Raw Material create/edit UX into a simple single-column form, renamed Raw Material Code to SKU Code, removed CN/BM names, Min Stock Level and Preferred Supplier from the user-facing form, and replaced free-text storage location entry with managed Storage Location selectors.
+- Added inline required-field validation, first-invalid-field focus/scroll, and footer helper errors for Factory Raw Material and Finished Good master forms.
+- Added Factory Storage Locations under the Factory System sidebar with create/edit/archive master data, RLS-backed permissions, and storage-location selection for Raw Materials, Finished Goods, and Raw Material Receiving.
+- Refined Factory Raw Material Receiving into a page-based Receiving History / Receive Raw Material tab workflow for supplier delivery documents with multiple raw material item rows, default UOM/location from selected raw material, per-row inline validation, and no receiving cost fields.
+- Added Factory Suppliers under the Factory System sidebar with create/edit/archive supplier master data for raw material receiving, replacing free-text supplier entry for new receiving documents.
+- Moved multi-row Raw Material Receiving saves into a single Supabase RPC transaction so the batch header, item rows, raw material balance adjustments and movement logs commit or roll back together.
+- Optimized the Raw Material Receiving item table for warehouse speed by using a compact material picker overlay, reducing visible row columns, showing UOM/location as context badges, and moving Add Item Row into the table header.
+
 ## 2026-06-08
 
-### Employee Login Access
-- Clarified Employee login setup UX so unsaved setup changes explain that users should save first or use `Save & Send Login Setup`.
-- Aligned setup permissions so initial login setup uses `employees.enable_login`, active-user password reset uses `employees.reset_password`, and manual setup links no longer require unrelated role-management permissions.
+### Duty Roster
+- Added published Duty Roster snapshot retention so published/locked roster history keeps employee, position, department, outlet, shift and publish timestamp details after employee master data changes.
+- Updated Duty Roster and Outlet Duty Roster views to show historical published snapshot staff, including resigned or terminated employees, while draft scheduling remains limited to current active outlet employees.
+- Replaced the Outlet Duty Roster Working Staff and Unscheduled Days KPI cards with clickable Off Day, Annual Leave, and MC KPI detail drawers that respect outlet, month, group, position, employee search and published roster snapshots.
+- Modernized Outlet Duty Roster monthly date cards with compact Staff Scheduled, Floor, Kitchen, OFF, AL, and MC chips plus status/today badges and a clearer View details affordance.
+- Refined Outlet Duty Roster monthly calendar density by hiding zero-value chips and giving unscheduled days a lighter dashed No Schedule state.
 
 ### Purchase Comparison
 - Changed the Purchase Comparison default View Mode to Supplier while keeping Category, Supplier, and Full selectable.
@@ -16,13 +99,6 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 
 ### Inventory Control
 - Added shorter business-facing Purchase Order references in `[OutletCode]-[YYMMDD]-[RunningNo]` format while preserving the existing internal PO system ID.
-
-### Duty Roster
-- Added published Duty Roster snapshot retention so published/locked roster history keeps employee, position, department, outlet, shift and publish timestamp details after employee master data changes.
-- Updated Duty Roster and Outlet Duty Roster views to show historical published snapshot staff, including resigned or terminated employees, while draft scheduling remains limited to current active outlet employees.
-- Replaced the Outlet Duty Roster Working Staff and Unscheduled Days KPI cards with clickable Off Day, Annual Leave, and MC KPI detail drawers that respect outlet, month, group, position, employee search and published roster snapshots.
-- Modernized Outlet Duty Roster monthly date cards with compact Staff Scheduled, Floor, Kitchen, OFF, AL, and MC chips plus status/today badges and a clearer View details affordance.
-- Refined Outlet Duty Roster monthly calendar density by hiding zero-value chips and giving unscheduled days a lighter dashed No Schedule state.
 
 ## 2026-06-03
 
@@ -182,6 +258,20 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Added Raw Material Inventory KPIs, filters, low-stock/recent-receiving/recent-consumption panels, recipe-based can-produce estimates and raw material detail history for receiving, consumption, stock checks and cost trend.
 - Added Factory Raw Material category persistence/RLS through `factory_raw_material_categories` and extended raw material RLS coverage for inventory, receiving, movements, stock checks, product recipes and production usage.
 
+## 2026-06-14
+
+### Factory
+- Refined Factory Job Order and Production into a clearer MES-style flow: Recipe reference -> Job Order draft -> Release -> Start Production -> Complete Production -> inventory movement and traceability.
+- Added database-side, concurrency-safe Job Order numbering with `JOYYMMDD-001` format through `factory_create_job_order(...)`.
+- Updated Job Order statuses to `draft`, `released`, `in_progress`, `completed`, and `cancelled`, with legacy `planned` rows mapped to `released`.
+- Added Job Order release/start metadata and RPCs so Start Production captures only operator/date/time/remarks while completion remains responsible for output, actual material usage, QC, inventory deduction, finished goods stock-in, and traceability.
+- Hardened production completion so only In Progress Job Orders can complete, a Job Order cannot complete twice, Finished Good must match the Job Order, and inventory movements are created only during completion.
+- Locked Job Order direct editing to Draft only; Released, In Progress, Completed, and Cancelled orders are advanced only through lifecycle actions or viewed read-only.
+- Updated production material usage validation so any actual-vs-standard variance requires a reason in both the completion UI and database RPC.
+- Documented that Phase 1 production defaults use the active recipe at completion/defaulting time; frozen Job Order BOM snapshots are deferred to Phase 2.
+- Refactored Factory Product Recipes into a Production Standard / BOM workflow with internal recipe codes, read-only auto versions, Production Quantity wording, optional Estimated Production Time, and row-level BOM detail view.
+- Added New Version action for Production Standards so draft copies auto-increment from `v1` to `v2`, `v3`, and later versions while preserving the one-active-standard rule.
+
 ### RBAC
 - Added explicit `sales_input.import` and `purchase_input.import` permissions so Sales Input and Purchase Input imports can be enabled independently from create/edit access.
 - Updated import workflow permission checks and `import_batches` / `import_batch_rows` RLS coverage so module imports require the owning module import permission, while preserving Owner/Admin protected-role behavior.
@@ -191,3 +281,50 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Added a follow-up Sales/Purchase import RLS migration after confirming staging still has `202606050001` pending; Sales import batch writes require `sales_input.import`, and Purchase import batch writes require `purchase_input.import`.
 - Fixed Sales Import history row display so View Imported Rows shows normalized sales channel names and matching channel amounts instead of reading uploaded amount columns as channel labels.
 - Scoped embedded Purchase Import to the Purchase Input selected outlet, added target-outlet validation and banner copy, kept month/year file-derived for multi-month imports, and filtered recent import history by selected outlet across months.
+
+## 2026-06-15
+
+### Factory
+- Added Finished Goods parent/Packaging Variant foundation so one Finished Good can group multiple inventory SKUs while each SKU continues to track stock independently.
+- Added `factory_product_families` as the internal Finished Good parent table plus nullable Finished Good SKU fields for parent link, variant name, pack size and advanced base conversion without changing existing balances, movements, stock checks, Job Orders or Production stock-in references.
+- Updated the Finished Goods form and listing with Finished Good / Packaging Variant fields, Finished Good/category/status filters and Finished Good/SKU/pack-size warehouse columns.
+- Refactored the Finished Goods UI from one flat SKU table into Finished Good -> Packaging SKU management, with expandable Finished Good rows, nested SKU rows, Finished Good actions and SKU-level View/Edit/Archive actions.
+- Documented the Phase 1 limitation that Production Standards remain per Finished Good SKU; bulk production with packaging split into multiple SKUs is deferred to Phase 2.
+
+## 2026-08-10
+
+### Employee / Auth Identity
+- Hardened the canonical Employee/Auth model: `employees.id` is the employee identity, `auth.users.id` is the login identity, and `employees.auth_user_id` is the unique one-to-one link.
+- Added normalized login-email identity (`trim().toLowerCase()`) with a unique employee-email migration guard; profile compatibility lookup remains ordered `auth_user_id` -> legacy employee ID -> normalized email while legacy migration cleanup is deferred.
+- Hardened `employee-auth-onboarding` to verify the authoritative employee ID, existing Auth link, conflicting links, ambiguous Auth-email matches, and invite races before conditionally linking the intended Auth account.
+- Fixed Save & Send Login Setup rejection recovery: persisted employees retain their identity, the modal remains usable, and retry targets the same employee rather than inserting a duplicate.
+- Blocked ordinary linked-employee login-email edits pending a dedicated future Auth-email migration flow; the UI and employee service both defend the boundary.
+- Added server-owned immutable `employees.created_by` attribution from `auth.uid()` on insert, preserved across updates, with historical null creators left untouched.
+- Employee/Auth lifecycle baseline: employee service 7/7, auth identity 4/4, UsersPage 3/3, creator migration contract 1/1; 15/15 focused tests passing.
+
+### Product Analytics
+- Added the authenticated `product_analytics_save_report` RPC for atomic new-upload and replacement persistence under the canonical `(outlet_id, report_month, report_year)` identity.
+- Added `product_analytics_lifecycle_requests` for request-ID idempotency, authenticated actor/outlet binding, payload-fingerprint conflict protection, and canonical retry results.
+- Replaced browser delete/header/item choreography with the one trusted RPC, preserving explicit Delete as a separate report delete with FK item cascade and best-effort audit.
+- Added upload/replace pending-submit protection and preserved the same request ID for a logical retry. A post-save report-list refresh failure now reports sync availability separately without misreporting the successful write as failed.
+- Added Product Analytics service and mounted lifecycle tests covering RPC payloads, permission controls, success/retry/rejection, duplicate-submit protection, and refresh-after-success behavior.
+
+### Asset Tracking
+- Added trusted transactional Asset lifecycle RPCs for quantity adjustment, inspection/correction, maintenance, and per-row import.
+- Added `asset_lifecycle_requests` request-ID ledger semantics so retrying a logical lifecycle request returns its canonical result without duplicate balance, movement, inspection, maintenance, or import effects.
+- Moved active browser multi-table lifecycle orchestration behind the authenticated RPC boundaries; permissions and outlet access are now server-authoritative for those operations.
+- Kept mixed-file import behavior: each row is independently atomic and can report success or failure without duplicating a successful retry.
+- Added Asset service and mounted lifecycle coverage for RPC mapping, request-ID reuse, rejection/retry, pending-submit guards, and import row authority.
+- Documented residual P2 storage-orphan cleanup debt: uploads that precede a rejected RPC may orphan, but no partial database lifecycle state persists.
+
+## 2026-08-11
+
+### Roles / Permissions
+- Replaced browser role, permission, and outlet multi-write save choreography with the transactional `save_role_configuration` RPC and `role_configuration_requests` idempotency ledger.
+- Hardened mounted create, edit, duplicate, delegation-rejection, and disable flows for canonical retry IDs, truthful close/success behavior, and local rejection recovery.
+- Confirmed protected-role, permission-delegation, outlet-delegation, UUID-preservation, and differential-reconciliation rules. Roles authority is frozen at 17/17 focused tests; active-session propagation and stale-editor handling remain P2 debt.
+
+### Factory Product Recipe / BOM
+- Added `save_factory_product_recipe` and `factory_product_recipe_requests` (migration 016) so Draft Recipe header and complete BOM replacement commit atomically with request-ID idempotency.
+- Removed the active browser header-update/BOM-delete/BOM-insert save choreography. The Recipe modal owns retry-safe request IDs: unchanged retries reuse one ID, changed intent receives a new ID, and success clears it.
+- Final hardening baseline: Product Recipe focused 11/11 and full suite 356/356. FeedX hardening is complete at P0=0/P1=0; accepted P2 debt remains documented.

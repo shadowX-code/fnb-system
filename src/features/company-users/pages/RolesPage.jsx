@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, Eye, Lock, MoreHorizontal, Plus, Search, Shield, ShieldAlert, ShieldCheck, Trash2, Users } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
@@ -10,7 +10,7 @@ import Modal from "../../../components/feedback/Modal.jsx";
 import FilterBar from "../../../components/forms/FilterBar.jsx";
 import { FieldLabel } from "../../../components/forms/Selectors.jsx";
 import { defaultPermissions, defaultRoles, rolePermissionMatrix } from "../data/rbacDefaults.js";
-import { getPermissionGroups, permissionActionLabels, permissionActionOrder } from "../../../../config/modules.ts";
+import { getPermissionGroups, moduleRegistry, permissionActionLabels, permissionActionOrder } from "../../../../config/modules.ts";
 import { roleService } from "../../../services/roleService.js";
 import { formatDateTime } from "../../../lib/dateTime.js";
 import { normalizeRoleOutletAccess } from "../utils/roleAccess.js";
@@ -38,12 +38,48 @@ const roleEditorActions = permissionActionOrder.map((action) => ({
   label: permissionActionLabels[action],
 }));
 
+const roleModuleRegistryById = new Map(moduleRegistry.map((module) => [module.id, module]));
+const rolePermissionTabs = ["All", "Restaurant", "Factory", "People & HR", "System"];
+
+function getRolePermissionCategory(module) {
+  const registeredModule = roleModuleRegistryById.get(module.key);
+  if (registeredModule?.workspace === "factory") return "Factory";
+  if (registeredModule?.id === "roles" || registeredModule?.id === "audit-logs" || registeredModule?.section === "System") return "System";
+  if (registeredModule?.section === "People" || registeredModule?.id === "duty-roster" || registeredModule?.id === "outlet_duty_roster") return "People & HR";
+  return "Restaurant";
+}
+
+function getRolePermissionTabSummary(groups) {
+  const modules = groups.flatMap((group) => group.modules);
+  return rolePermissionTabs.map((tab) => ({
+    label: tab,
+    count: tab === "All" ? modules.length : modules.filter((module) => getRolePermissionCategory(module) === tab).length,
+  }));
+}
+
+function filterRolePermissionGroups(groups, activeTab, search) {
+  const query = search.trim().toLowerCase();
+  return groups.map((group) => ({
+    ...group,
+    modules: group.modules.filter((module) => {
+      const inTab = activeTab === "All" || getRolePermissionCategory(module) === activeTab;
+      const matchesSearch = !query || [module.label, module.key, getRolePermissionCategory(module)].some((value) => String(value).toLowerCase().includes(query));
+      return inTab && matchesSearch;
+    }),
+  })).filter((group) => group.modules.length);
+}
+
 const roleEditorOutlets = [
   { id: "jymt-kopitiam", name: "JYMT Kopitiam" },
   { id: "happiness-ipoh", name: "Happiness Kopitiam Ipoh" },
   { id: "hola-ipoh", name: "Hola Hola Kopitiam Ipoh" },
   { id: "friends-corner", name: "Friends Corner" },
 ];
+
+function getRolePagePath() {
+  const hash = window.location.hash.replace(/^#/, "");
+  return hash === "roles" || !hash.startsWith("roles/") ? "" : hash.slice("roles".length);
+}
 
 function getRoleSelectedOutlets(role, outlets = roleEditorOutlets) {
   return normalizeRoleOutletAccess(role, outlets).outlets;
@@ -136,37 +172,27 @@ function StatCard({ label, value, helper, tone = "neutral", icon }) {
 
 function RoleAccessLayout({ title, description, notice, actions, footer, onClose, children }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/35 p-4 backdrop-blur-[2px]" role="dialog" aria-modal="true">
-      <div className="flex max-h-[85vh] w-full max-w-[1380px] flex-col overflow-hidden rounded-3xl border border-border bg-white shadow-2xl">
-        <header className="shrink-0 border-b border-border px-5 py-4">
-          <div className="flex items-start justify-between gap-4">
-            <div>
-              <div className="text-xs font-bold uppercase tracking-wide text-primary">Role Management</div>
-              <h2 className="mt-1 text-xl font-semibold text-text-primary">{title}</h2>
-              <p className="mt-1 text-sm text-text-secondary">{description}</p>
-            </div>
-            <div className="flex items-center gap-2">
-              {actions}
-              <button className="flex h-9 w-9 items-center justify-center rounded-xl text-text-muted transition hover:bg-slate-100 hover:text-text-primary" type="button" aria-label={`Close ${title}`} onClick={onClose}>
-                ×
-              </button>
-            </div>
-          </div>
-          {notice ? (
-            <div className="mt-3 rounded-2xl border border-amber-200 bg-amber-50 px-4 py-2 text-xs font-semibold text-amber-800">
-              {notice}
-            </div>
-          ) : null}
-        </header>
-        <div className="min-h-0 flex-1 overflow-y-auto bg-slate-50/70 p-4">{children}</div>
-        <footer className="shrink-0 border-t border-border bg-white px-5 py-3">{footer}</footer>
+    <div className="mx-auto flex w-full max-w-[1500px] flex-col gap-4 pb-24">
+      <div className="flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <button className="btn-secondary mb-3 px-3 py-1.5 text-xs" type="button" onClick={onClose}>← Back to Roles</button>
+          <div className="text-xs font-bold uppercase tracking-wide text-primary">Role Management</div>
+          <h1 className="mt-1 text-2xl font-semibold text-text-primary">{title}</h1>
+          <p className="mt-1 text-sm text-text-secondary">{description}</p>
+        </div>
+        {actions ? <div className="flex items-center gap-2">{actions}</div> : null}
       </div>
+      {notice ? <div className="rounded-2xl border border-amber-200 bg-amber-50 px-4 py-3 text-sm font-semibold text-amber-800">{notice}</div> : null}
+      <div className="min-w-0">{children}</div>
+      <footer className="fixed inset-x-0 bottom-0 z-40 border-t border-border bg-white/95 px-4 py-3 backdrop-blur sm:px-6">{footer}</footer>
     </div>
   );
 }
 
-function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets = roleEditorOutlets, auth, readOnly = false }) {
+function RoleEditorPage({ mode = "create", role, onClose, onSubmit, ui, outlets = roleEditorOutlets, auth, readOnly = false }) {
   const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
+  const saveRequestIdRef = useRef("");
   const [values, setValues] = useState(() => ({
     name: role?.name ?? "",
     description: role?.description ?? "",
@@ -176,6 +202,8 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
     selectedPermissions: new Set((role?.permissions ?? []).filter((code) => roleEditorPermissionCodeSet.has(code))),
   }));
   const [hasChanges, setHasChanges] = useState(false);
+  const [matrixTab, setMatrixTab] = useState("All");
+  const [matrixSearch, setMatrixSearch] = useState("");
   const isEdit = mode === "edit";
   const isProtectedRole = isProtectedRoleName(role?.name);
   const allCurrentOutletsSelected = outlets.length > 0 && outlets.every((outlet) => values.selectedOutletIds.includes(outlet.id));
@@ -189,6 +217,9 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
   const hasOutOfScopePermissions = outOfScopePermissionCodes.size > 0;
 
   function markChanged(patch) {
+    // A material edit must receive a new idempotency key so it cannot conflict with
+    // the fingerprint of a previously rejected snapshot.
+    saveRequestIdRef.current = "";
     setValues((current) => ({ ...current, ...patch }));
     setHasChanges(true);
   }
@@ -241,6 +272,8 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
   }
 
   const enabledPermissions = [...values.selectedPermissions];
+  const permissionTabSummary = useMemo(() => getRolePermissionTabSummary(roleEditorGroups), []);
+  const visiblePermissionGroups = useMemo(() => filterRolePermissionGroups(roleEditorGroups, matrixTab, matrixSearch), [matrixSearch, matrixTab]);
   const activeModuleCount = roleEditorGroups
     .flatMap((group) => group.modules)
     .filter((module) => getRoleEditorModuleCodes(module).some((code) => values.selectedPermissions.has(code))).length;
@@ -250,6 +283,7 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
   }
 
   async function saveRole() {
+    if (saving) return;
     if (!values.name.trim()) {
       setErrors({ name: "Role name is required." });
       return;
@@ -268,7 +302,11 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
     }
     const nextPermissions = [...values.selectedPermissions].filter((code) => roleEditorPermissionCodeSet.has(code));
     const modules = [...new Set(nextPermissions.map((code) => defaultPermissions.find((permission) => permission.code === code)?.module).filter(Boolean))];
-    onSubmit({
+    setSaving(true);
+    try {
+      const requestId = saveRequestIdRef.current || crypto.randomUUID();
+      saveRequestIdRef.current = requestId;
+      await onSubmit({
       ...(role?.id ? { id: role.id } : {}),
       name: values.name.trim().toLowerCase().replace(/\s+/g, "_"),
       description: values.description || "Custom company role.",
@@ -279,9 +317,16 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
       selectedOutletIds: values.selectedOutletIds,
       updatedAt: new Date().toISOString().slice(0, 10),
       updatedBy: "Development Owner",
+      requestId,
       permissions: nextPermissions,
       modules,
-    });
+      });
+      saveRequestIdRef.current = "";
+    } catch {
+      // Parent keeps current notification authority; preserve request ID for retry.
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -297,13 +342,13 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
           </div>
           <div className="flex gap-2">
             <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-              <button className="btn-primary" type="button" disabled={readOnly} onClick={saveRole}>{isEdit ? "Save Changes" : "Save Role"}</button>
+              <button className="btn-primary" type="button" disabled={readOnly || saving} onClick={saveRole}>{saving ? "Saving…" : isEdit ? "Save Changes" : "Save Role"}</button>
           </div>
         </div>
       )}
     >
-          <div className="grid gap-4 xl:grid-cols-[330px_minmax(0,1fr)]">
-            <aside className="space-y-3 xl:sticky xl:top-0 xl:self-start">
+          <div className="space-y-4">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(260px,0.85fr)]">
               <section className="rounded-2xl border border-border bg-white p-4">
                 <div className="mb-3 text-sm font-bold text-text-primary">Role Information</div>
                 <div className="space-y-3">
@@ -414,7 +459,7 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
                   <div className="flex items-center justify-between gap-3"><span className="text-text-secondary">Last Updated</span><strong className="text-right">{formatDateTime(role?.updatedAt)}</strong></div>
                 </div>
               </section>
-            </aside>
+            </div>
 
             <section className="min-w-0 rounded-2xl border border-border bg-white">
               <div className="border-b border-border px-4 py-3">
@@ -422,10 +467,19 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
                   <div>
                     <div className="text-base font-bold text-text-primary">Permission Matrix</div>
                     <div className="mt-1 text-xs text-text-secondary">
-                      {enabledPermissions.length} permissions enabled across {activeModuleCount} modules
+                      {matrixTab} · {permissionTabSummary.find((tab) => tab.label === matrixTab)?.count ?? 0} modules · {enabledPermissions.length} permissions enabled
                     </div>
                   </div>
                   {hasChanges ? <Badge tone="warning">Unsaved changes</Badge> : null}
+                </div>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Permission categories">
+                    {permissionTabSummary.map((tab) => <button key={tab.label} className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${matrixTab === tab.label ? "bg-primary text-white" : "bg-slate-100 text-text-secondary hover:bg-slate-200"}`} type="button" role="tab" aria-selected={matrixTab === tab.label} onClick={() => setMatrixTab(tab.label)}>{tab.label} · {tab.count}</button>)}
+                  </div>
+                  <div className="relative w-full sm:w-[280px]">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={14} />
+                    <input className="control h-9 w-full pl-9 text-sm" value={matrixSearch} onChange={(event) => setMatrixSearch(event.target.value)} placeholder={`Search ${matrixTab} modules`} />
+                  </div>
                 </div>
                 {hasOutOfScopePermissions ? (
                   <div className="mt-3 flex items-start gap-2 rounded-2xl border border-amber-200 bg-amber-50 px-3 py-2 text-xs font-semibold leading-5 text-amber-800">
@@ -446,7 +500,7 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
                     </tr>
                   </thead>
                   <tbody>
-                    {roleEditorGroups.map((group) => (
+                    {visiblePermissionGroups.map((group) => (
                       <FragmentLike key={group.label}>
                         <tr>
                           <td colSpan={roleEditorActions.length + 1} className="bg-slate-50 px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-text-muted">{group.label}</td>
@@ -492,6 +546,7 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
                         ))}
                       </FragmentLike>
                     ))}
+                    {!visiblePermissionGroups.length ? <tr><td colSpan={roleEditorActions.length + 1} className="px-4 py-10 text-center text-sm font-semibold text-text-secondary">No modules match this category and search.</td></tr> : null}
                   </tbody>
                 </table>
               </div>
@@ -512,21 +567,23 @@ function getAssignedUsersForRole(role) {
   return [...directUsers, ...fallbackUsers].slice(0, role.assignedUsers);
 }
 
-function AddRoleModal({ onClose, onSubmit, ui, outlets, auth }) {
+function AddRolePage({ onClose, onSubmit, ui, outlets, auth }) {
   function submitRole(role) {
-    onSubmit({
+    return onSubmit({
       ...role,
       assignedUsers: 0,
     });
   }
   return (
-    <RoleEditorModal mode="create" onClose={onClose} onSubmit={submitRole} ui={ui} outlets={outlets} auth={auth} />
+    <RoleEditorPage mode="create" onClose={onClose} onSubmit={submitRole} ui={ui} outlets={outlets} auth={auth} />
   );
 }
 
-function RoleDetailModal({ role, onClose, onEditRole, outlets, canEditRole, editDisabledReason, editDebug }) {
+function RoleDetailPage({ role, onClose, onEditRole, outlets, canEditRole, editDisabledReason, editDebug }) {
   const [assignedUsersOpen, setAssignedUsersOpen] = useState(false);
   const [assignedUserSearch, setAssignedUserSearch] = useState("");
+  const [matrixTab, setMatrixTab] = useState("All");
+  const [matrixSearch, setMatrixSearch] = useState("");
   const permissions = new Set(role.permissions ?? []);
   const isProtectedRole = isProtectedRoleName(role.name);
   const assignedUsers = getAssignedUsersForRole(role);
@@ -541,6 +598,8 @@ function RoleDetailModal({ role, onClose, onEditRole, outlets, canEditRole, edit
     .filter((module) => getRoleEditorModuleCodes(module).some((code) => permissions.has(code))).length;
   const createdDate = role.createdAt || role.created_at || (isProtectedRole ? "2026-05-01" : role.updatedAt);
   const updatedDate = role.updatedAt || role.updated_at || role.created_at;
+  const permissionTabSummary = useMemo(() => getRolePermissionTabSummary(roleEditorGroups), []);
+  const visiblePermissionGroups = useMemo(() => filterRolePermissionGroups(roleEditorGroups, matrixTab, matrixSearch), [matrixSearch, matrixTab]);
 
   function readonlyCellEnabled(cell) {
     return cell.codes.every((code) => permissions.has(code));
@@ -580,8 +639,8 @@ function RoleDetailModal({ role, onClose, onEditRole, outlets, canEditRole, edit
         </div>
       )}
     >
-          <div className="grid gap-4 xl:grid-cols-[330px_minmax(0,1fr)]">
-            <aside className="space-y-3 xl:sticky xl:top-0 xl:self-start">
+          <div className="space-y-4">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(220px,0.8fr)_minmax(240px,0.9fr)]">
               <section className="rounded-2xl border border-border bg-white p-4">
                 <div className="mb-3 text-sm font-bold text-text-primary">Role Information</div>
                 <div className="space-y-3 text-sm">
@@ -622,16 +681,25 @@ function RoleDetailModal({ role, onClose, onEditRole, outlets, canEditRole, edit
                   <div className="flex items-center justify-between gap-3"><span>Last updated date</span><strong className="text-text-primary">{formatDateTime(updatedDate)}</strong></div>
                 </div>
               </section>
-            </aside>
+            </div>
 
             <section className="min-w-0 rounded-2xl border border-border bg-white">
               <div className="border-b border-border px-4 py-3">
                 <div className="flex flex-wrap items-center justify-between gap-3">
                   <div>
                     <div className="text-base font-bold text-text-primary">Permission Matrix</div>
-                    <div className="mt-1 text-xs text-text-secondary">Read-only access map for this role.</div>
+                    <div className="mt-1 text-xs text-text-secondary">{matrixTab} · {permissionTabSummary.find((tab) => tab.label === matrixTab)?.count ?? 0} modules · read-only access map.</div>
                   </div>
                   <div className="text-xs font-semibold text-text-secondary">{permissions.size} permissions · {activeModuleCount} modules</div>
+                </div>
+                <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                  <div className="flex flex-wrap gap-1.5" role="tablist" aria-label="Permission categories">
+                    {permissionTabSummary.map((tab) => <button key={tab.label} className={`rounded-full px-3 py-1.5 text-xs font-bold transition ${matrixTab === tab.label ? "bg-primary text-white" : "bg-slate-100 text-text-secondary hover:bg-slate-200"}`} type="button" role="tab" aria-selected={matrixTab === tab.label} onClick={() => setMatrixTab(tab.label)}>{tab.label} · {tab.count}</button>)}
+                  </div>
+                  <div className="relative w-full sm:w-[280px]">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-text-muted" size={14} />
+                    <input className="control h-9 w-full pl-9 text-sm" value={matrixSearch} onChange={(event) => setMatrixSearch(event.target.value)} placeholder={`Search ${matrixTab} modules`} />
+                  </div>
                 </div>
               </div>
 
@@ -646,7 +714,7 @@ function RoleDetailModal({ role, onClose, onEditRole, outlets, canEditRole, edit
                       </tr>
                     </thead>
                     <tbody>
-                      {roleEditorGroups.map((group) => (
+                      {visiblePermissionGroups.map((group) => (
                         <FragmentLike key={group.label}>
                           <tr>
                             <td colSpan={roleEditorActions.length + 1} className="bg-slate-50 px-4 py-2 text-[11px] font-bold uppercase tracking-wide text-text-muted">{group.label}</td>
@@ -681,6 +749,7 @@ function RoleDetailModal({ role, onClose, onEditRole, outlets, canEditRole, edit
                           ))}
                         </FragmentLike>
                       ))}
+                      {!visiblePermissionGroups.length ? <tr><td colSpan={roleEditorActions.length + 1} className="px-4 py-10 text-center text-sm font-semibold text-text-secondary">No modules match this category and search.</td></tr> : null}
                     </tbody>
                   </table>
                 </div>
@@ -757,7 +826,10 @@ export default function RolesPage({ ui, store, auth }) {
   const [actionMenuRoleId, setActionMenuRoleId] = useState(null);
   const [addRoleOpen, setAddRoleOpen] = useState(false);
   const [editRole, setEditRole] = useState(null);
+  const [duplicateRoleDraft, setDuplicateRoleDraft] = useState(null);
   const [disableRoleRequest, setDisableRoleRequest] = useState(null);
+  const [disableSaving, setDisableSaving] = useState(false);
+  const [rolePagePath, setRolePagePath] = useState(getRolePagePath);
   const currentRoleName = normalizeRoleName(auth?.profile?.role_name ?? auth?.profile?.role?.name);
   const isOwnerUser = currentRoleName === "owner";
   const isAdminUser = currentRoleName === "admin";
@@ -770,6 +842,25 @@ export default function RolesPage({ ui, store, auth }) {
     () => (store?.outlets?.length ? store.outlets.map((outlet) => ({ id: outlet.id, name: outlet.name })) : roleEditorOutlets),
     [store?.outlets],
   );
+
+  function navigateRolePage(path = "") {
+    window.history.pushState(null, "", `#roles${path}`);
+    setRolePagePath(path);
+  }
+
+  function closeRolePage() {
+    navigateRolePage("");
+  }
+
+  useEffect(() => {
+    const syncRolePagePath = () => setRolePagePath(getRolePagePath());
+    window.addEventListener("popstate", syncRolePagePath);
+    window.addEventListener("hashchange", syncRolePagePath);
+    return () => {
+      window.removeEventListener("popstate", syncRolePagePath);
+      window.removeEventListener("hashchange", syncRolePagePath);
+    };
+  }, []);
 
   useEffect(() => {
     let ignore = false;
@@ -791,6 +882,23 @@ export default function RolesPage({ ui, store, auth }) {
       ignore = true;
     };
   }, []);
+
+  useEffect(() => {
+    if (loading) return;
+    setSelectedRole(null);
+    setAddRoleOpen(false);
+    setEditRole(null);
+    if (rolePagePath === "/new") {
+      setAddRoleOpen(true);
+      return;
+    }
+    const match = rolePagePath.match(/^\/([^/]+)(\/edit)?$/);
+    if (!match) return;
+    const role = roles.find((item) => String(item.id) === decodeURIComponent(match[1]));
+    if (!role) return;
+    if (match[2]) setEditRole(role);
+    else setSelectedRole(role);
+  }, [loading, rolePagePath, roles]);
 
   const filteredRoles = useMemo(() => {
     const search = query.trim().toLowerCase();
@@ -906,11 +1014,12 @@ export default function RolesPage({ ui, store, auth }) {
     try {
       const saved = await roleService.saveRole(role);
       setRoles((current) => [saved, ...current]);
-      setAddRoleOpen(false);
+      closeRolePage();
       ui.notify({ title: "Role created successfully.", message: saved.name });
     } catch (error) {
       console.error("Unable to create role", error);
       ui.notify({ title: "Unable to create role", message: error.message || "Please try again.", tone: "error" });
+      throw error;
     }
   }
 
@@ -923,11 +1032,12 @@ export default function RolesPage({ ui, store, auth }) {
     try {
       const saved = await roleService.saveRole(patch);
       setRoles((current) => current.map((role) => (role.id === saved.id ? { ...role, ...saved } : role)));
-      setEditRole(null);
+      closeRolePage();
       ui.notify({ title: "Role updated", message: saved.name });
     } catch (error) {
       console.error("Unable to update role", error);
       ui.notify({ title: "Unable to update role", message: error.message || "Please try again.", tone: "error" });
+      throw error;
     }
   }
 
@@ -952,17 +1062,24 @@ export default function RolesPage({ ui, store, auth }) {
       setActionMenuRoleId(null);
       return;
     }
-    setEditRole(role);
+    navigateRolePage(`/${encodeURIComponent(role.id)}/edit`);
     setActionMenuRoleId(null);
   }
 
-  function confirmDisableRole() {
+  async function confirmDisableRole() {
     const role = disableRoleRequest;
-    if (!role) return;
-    saveRoleEdits({ ...role, is_active: false });
-    setActionMenuRoleId(null);
-    setDisableRoleRequest(null);
-    ui.notify({ title: "Role disabled", message: role.name });
+    if (!role || disableSaving) return;
+    setDisableSaving(true);
+    try {
+      await saveRoleEdits({ ...role, is_active: false });
+      setActionMenuRoleId(null);
+      setDisableRoleRequest(null);
+      ui.notify({ title: "Role disabled", message: role.name });
+    } catch {
+      // saveRoleEdits owns the failure notification; leave the confirmation open for retry.
+    } finally {
+      setDisableSaving(false);
+    }
   }
 
   function deleteRole(role) {
@@ -1000,15 +1117,26 @@ export default function RolesPage({ ui, store, auth }) {
       updatedAt: new Date().toISOString().slice(0, 10),
       updatedBy: "Development Owner",
     };
-    roleService.saveRole(duplicate).then((saved) => {
+    setActionMenuRoleId(null);
+    setDuplicateRoleDraft(duplicate);
+  }
+
+  async function saveDuplicatedRole(role) {
+    if (!canCreateRole) {
+      notifyPermissionDenied(ui, "create roles");
+      return;
+    }
+    if (!validateRoleSave(role)) return;
+    try {
+      const saved = await roleService.saveRole(role);
       setRoles((current) => [saved, ...current]);
-      setActionMenuRoleId(null);
-      setEditRole(saved);
+      setDuplicateRoleDraft(null);
       ui.notify({ title: "Role duplicated", message: `${saved.name} created as editable draft.` });
-    }).catch((error) => {
+    } catch (error) {
       console.error("Unable to duplicate role", error);
       ui.notify({ title: "Unable to duplicate role", message: error.message || "Please try again.", tone: "error" });
-    });
+      throw error;
+    }
   }
 
   function toggleRolePermission(roleId, code) {
@@ -1080,7 +1208,7 @@ export default function RolesPage({ ui, store, auth }) {
       sticky: true,
       width: "240px",
       render: (row) => (
-        <button className="max-w-[220px] text-left" type="button" onClick={(event) => { event.stopPropagation(); setSelectedRole(row); }}>
+        <button className="max-w-[220px] text-left" type="button" onClick={(event) => { event.stopPropagation(); navigateRolePage(`/${encodeURIComponent(row.id)}`); }}>
           <div className="truncate text-sm font-bold text-text-primary">{row.name}</div>
           <div className="mt-1 flex items-center gap-2">
             <Badge tone={isProtectedRoleName(row.name) ? "warning" : "neutral"}>{isProtectedRoleName(row.name) ? "Protected" : "Custom"}</Badge>
@@ -1123,7 +1251,7 @@ export default function RolesPage({ ui, store, auth }) {
               </button>
             )}
           >
-              <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { setSelectedRole(row); setActionMenuRoleId(null); }}>
+              <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { navigateRolePage(`/${encodeURIComponent(row.id)}`); setActionMenuRoleId(null); }}>
                 <Eye size={14} /> View Permissions
               </button>
               {canEditRole ? <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50" type="button" disabled={Boolean(editBlockReason)} title={editBlockReason || "Edit Role"} onClick={() => openEditRole(row)}>
@@ -1145,13 +1273,29 @@ export default function RolesPage({ ui, store, auth }) {
     },
   ];
 
+  if (selectedRole) {
+    return <RoleDetailPage role={selectedRole} onClose={closeRolePage} onEditRole={() => navigateRolePage(`/${encodeURIComponent(selectedRole.id)}/edit`)} outlets={editorOutlets} canEditRole={canEditRole} editDisabledReason={getRoleEditBlockReason(selectedRole)} editDebug={getRoleEditDebug(selectedRole)} />;
+  }
+
+  if (addRoleOpen) {
+    return <AddRolePage ui={ui} auth={auth} onClose={closeRolePage} onSubmit={addRole} outlets={editorOutlets} />;
+  }
+
+  if (duplicateRoleDraft) {
+    return <RoleEditorPage mode="create" role={duplicateRoleDraft} onClose={() => setDuplicateRoleDraft(null)} onSubmit={saveDuplicatedRole} ui={ui} outlets={editorOutlets} auth={auth} />;
+  }
+
+  if (editRole) {
+    return <RoleEditorPage mode="edit" role={editRole} onClose={closeRolePage} onSubmit={saveRoleEdits} ui={ui} outlets={editorOutlets} auth={auth} />;
+  }
+
   return (
     <div className="space-y-4">
       <PageHeader
         section="System"
         title="Roles"
         description="Company-wide access roles for operations, HR, finance, reports, and future systems."
-        actions={canCreateRole ? <button className="btn-primary" type="button" onClick={() => setAddRoleOpen(true)}><Plus size={16} /> Add Role</button> : <Badge tone="neutral">Read-only access</Badge>}
+        actions={canCreateRole ? <button className="btn-primary" type="button" onClick={() => navigateRolePage("/new")}><Plus size={16} /> Add Role</button> : <Badge tone="neutral">Read-only access</Badge>}
       />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
@@ -1177,7 +1321,7 @@ export default function RolesPage({ ui, store, auth }) {
         ) : loadError ? (
           <div className="p-8 text-center text-sm font-semibold text-rose-700">{loadError}</div>
         ) : filteredRoles.length ? (
-          <DataTable columns={columns} rows={filteredRoles} getRowKey={(row) => row.id} onRowClick={(row) => setSelectedRole(row)} tableClassName="min-w-[1180px]" />
+          <DataTable columns={columns} rows={filteredRoles} getRowKey={(row) => row.id} onRowClick={(row) => navigateRolePage(`/${encodeURIComponent(row.id)}`)} tableClassName="min-w-[1180px]" />
         ) : (
           <div className="p-8 text-center">
             <div className="text-sm font-bold text-text-primary">No custom roles created yet.</div>
@@ -1190,33 +1334,6 @@ export default function RolesPage({ ui, store, auth }) {
         Permissions will expand automatically as new HR, KPI, payroll, and operational modules are added.
       </div>
 
-      {selectedRole ? (
-        <RoleDetailModal
-          role={selectedRole}
-          onClose={() => setSelectedRole(null)}
-          onEditRole={() => {
-            setEditRole(selectedRole);
-            setSelectedRole(null);
-          }}
-          outlets={editorOutlets}
-          canEditRole={canEditRole}
-          editDisabledReason={getRoleEditBlockReason(selectedRole)}
-          editDebug={getRoleEditDebug(selectedRole)}
-        />
-      ) : null}
-
-      {addRoleOpen ? <AddRoleModal ui={ui} auth={auth} onClose={() => setAddRoleOpen(false)} onSubmit={addRole} outlets={editorOutlets} /> : null}
-      {editRole ? (
-        <RoleEditorModal
-          mode="edit"
-          role={editRole}
-          onClose={() => setEditRole(null)}
-          onSubmit={saveRoleEdits}
-          ui={ui}
-          outlets={editorOutlets}
-          auth={auth}
-        />
-      ) : null}
       {disableRoleRequest ? (
         <Modal
           title="Disable Role?"
@@ -1225,7 +1342,7 @@ export default function RolesPage({ ui, store, auth }) {
           footer={
             <>
               <button className="btn-secondary" type="button" onClick={() => setDisableRoleRequest(null)}>Cancel</button>
-              <button className="btn-primary bg-amber-600 hover:bg-amber-700" type="button" onClick={confirmDisableRole}>Disable Role</button>
+              <button className="btn-primary bg-amber-600 hover:bg-amber-700" type="button" disabled={disableSaving} onClick={confirmDisableRole}>{disableSaving ? "Disabling…" : "Disable Role"}</button>
             </>
           }
         >

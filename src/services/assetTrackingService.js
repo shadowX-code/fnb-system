@@ -307,6 +307,18 @@ async function currentUserId() {
   return data?.user?.id ?? null;
 }
 
+function lifecycleRequestId(value) {
+  if (value) return value;
+  if (globalThis.crypto?.randomUUID) return globalThis.crypto.randomUUID();
+  return `${Date.now()}-${Math.random().toString(16).slice(2)}`;
+}
+
+async function callAssetLifecycleRpc(scope, name, payload) {
+  const { data, error } = await supabase.rpc(name, payload);
+  throwSupabaseError(scope, error);
+  return data || {};
+}
+
 async function logAssetAudit(action, outletId, target, after = {}) {
   await auditLogService.createAuditLog({
     action,
@@ -642,27 +654,49 @@ export const assetTrackingService = {
       next_service_date: status === "completed" ? (record.next_service_date || null) : null,
       remark: record.remark ?? "",
       photo_url: photoUrl,
-      updated_at: new Date().toISOString(),
     };
-    const query = record.id
-      ? supabase.from("asset_maintenance_records").update(payload).eq("id", record.id)
-      : supabase.from("asset_maintenance_records").insert({ ...payload, created_by: userId });
-    const { data, error } = await query.select(maintenanceFields).single();
-    throwSupabaseError("asset_maintenance_records.save", error);
-
     let updatedCondition = null;
     if (payload.status === "in_progress") updatedCondition = "under_maintenance";
     if (payload.status === "completed" && record.set_condition_good === true) updatedCondition = "healthy";
-    if (updatedCondition) {
-      const { error: assetError } = await supabase
-        .from("asset_items")
-        .update({ condition: updatedCondition, updated_by: userId, updated_at: new Date().toISOString() })
-        .eq("id", asset.id);
-      throwSupabaseError("asset_maintenance_records.asset_condition", assetError);
-    }
+    const request_id = lifecycleRequestId(record.requestId || record.request_id);
+    const result = await callAssetLifecycleRpc("asset.maintenance.save", "asset_save_maintenance", {
+      p_request_id: request_id,
+      p_payload: { id: record.id || null, asset_id: asset.id, outlet_id: asset.outlet_id, ...payload, condition_intent: updatedCondition },
+    });
+    await logAssetAudit("asset_maintenance_record_created", asset.outlet_id, asset.name, { request_id, ...payload, condition: updatedCondition });
+    return result;
+  },
 
-    await logAssetAudit("asset_maintenance_record_created", asset.outlet_id, asset.name, payload);
-    return { record: mapMaintenanceRecord(data), condition: updatedCondition };
+  async importAssetRow(asset, { requestId: suppliedRequestId, action = "create" } = {}) {
+    const request_id = lifecycleRequestId(suppliedRequestId);
+    const result = await callAssetLifecycleRpc("asset.import.row", "asset_import_row", {
+      p_request_id: request_id,
+      p_asset: {
+        id: asset.id || null,
+        outlet_id: asset.outlet_id,
+        category_id: asset.category_id,
+        name: asset.name,
+        description: asset.description ?? "",
+        asset_code: asset.asset_code ? String(asset.asset_code).trim() : null,
+        location: asset.location ?? "",
+        purchase_date: asset.purchase_date || null,
+        warranty_expiry: asset.warranty_expiry || null,
+        notes: asset.notes ?? "",
+        image_url: asset.image_url ?? "",
+        thumbnail_url: asset.thumbnail_url ?? asset.image_url ?? "",
+        health_status: asset.health_status ?? "healthy",
+        maintenance_override: ["inherit", "enabled", "disabled"].includes(asset.maintenance_override) ? asset.maintenance_override : "inherit",
+        condition: normalizeConditionValue(asset.condition),
+        unit: asset.unit || "unit",
+        current_quantity: Number(asset.current_quantity ?? 0),
+        minimum_quantity: Number(asset.minimum_quantity ?? 0),
+        status: ["archived", "inactive", "disposed"].includes(asset.status) ? "archived" : "active",
+        remark: asset.remark ?? "",
+      },
+      p_action: action,
+    });
+    await logAssetAudit(action === "update" ? "asset_edited" : "asset_created", asset.outlet_id, asset.name, { request_id, action, quantity: asset.current_quantity });
+    return result;
   },
 
   async adjustQuantity(asset, adjustment) {
@@ -671,54 +705,25 @@ export const assetTrackingService = {
     if (adjustment.type === "reduce" && !adjustment.reason) throw new Error("Select a reduce reason.");
     if (adjustment.reason === "other" && !String(adjustment.remark || "").trim()) throw new Error("Remark is required when reason is Other.");
 
-    const before = Number(asset.current_quantity || 0);
-    const after = adjustment.type === "add"
-      ? before + quantity
-      : adjustment.type === "reduce"
-        ? before - quantity
-        : quantity;
-    if (after < 0) throw new Error("Quantity cannot be below 0.");
-
-    const userId = await currentUserId();
-    let { data: updatedAsset, error: assetError } = await supabase
-      .from("asset_items")
-      .update({ current_quantity: after, updated_by: userId, updated_at: new Date().toISOString() })
-      .eq("id", asset.id)
-      .select(assetFields)
-      .single();
-    if (assetError && isMissingOptionalAssetField(assetError)) {
-      const fallbackResult = await supabase
-        .from("asset_items")
-        .update({ current_quantity: after, updated_by: userId, updated_at: new Date().toISOString() })
-        .eq("id", asset.id)
-        .select(assetBaseFields)
-        .single();
-      updatedAsset = fallbackResult.data;
-      assetError = fallbackResult.error;
-    }
-    throwSupabaseError("asset_items.adjust_update", assetError);
-
-    const movementPayload = {
-      asset_id: asset.id,
-      outlet_id: asset.outlet_id,
-      movement_type: adjustment.type,
-      quantity_change: adjustment.type === "reduce" ? -quantity : after - before,
-      quantity_before: before,
-      quantity_after: after,
+    const request_id = lifecycleRequestId(adjustment.requestId || adjustment.request_id);
+    const result = await callAssetLifecycleRpc("asset.quantity_adjust", "asset_adjust_quantity", {
+      p_request_id: request_id,
+      p_asset_id: asset?.id,
+      p_adjustment_type: adjustment.type,
+      p_quantity: quantity,
+      p_reason: adjustment.reason || adjustment.type,
+      p_remark: adjustment.remark ?? "",
+      p_movement_date: adjustment.date || new Date().toISOString().slice(0, 10),
+    });
+    await logAssetAudit("asset_quantity_adjusted", asset.outlet_id, asset.name, {
+      request_id,
+      adjustment_type: adjustment.type,
+      quantity,
       reason: adjustment.reason || adjustment.type,
       remark: adjustment.remark ?? "",
       movement_date: adjustment.date || new Date().toISOString().slice(0, 10),
-      created_by: userId,
-    };
-    const { data: movement, error: movementError } = await supabase
-      .from("asset_movement_logs")
-      .insert(movementPayload)
-      .select(movementFields)
-      .single();
-    throwSupabaseError("asset_movement_logs.adjust_insert", movementError);
-
-    await logAssetAudit("asset_quantity_adjusted", asset.outlet_id, asset.name, movementPayload);
-    return { asset: mapAsset(updatedAsset), movement: mapMovement(movement) };
+    });
+    return result;
   },
 
   async logImportMovement(asset, { beforeQuantity = 0, afterQuantity = 0, remark = "Imported from Asset Tracking import" } = {}) {
@@ -830,7 +835,7 @@ export const assetTrackingService = {
       .sort(sortInspectionsNewestFirst);
   },
 
-  async submitInspection({ draftId = "", outletId, inspectionDate, checkedBy, checkedByEmployeeId = null, categoryScope, remark, notes, rows, summary = {}, status = "completed", currentStep = 3, draftData = {}, autoSaved = false, applyCorrections = true }) {
+  async submitInspection({ requestId: suppliedRequestId, draftId = "", outletId, inspectionDate, checkedBy, checkedByEmployeeId = null, categoryScope, remark, notes, rows, summary = {}, status = "completed", currentStep = 3, draftData = {}, autoSaved = false, applyCorrections = true }) {
     const userId = await currentUserId();
     console.info("[AssetTracking] Submit inspection payload", {
       draftId,
@@ -841,73 +846,21 @@ export const assetTrackingService = {
       conditions: rows.map((row) => normalizeConditionValue(row.condition_status || row.condition)),
       summary,
     });
-    const inspectionPayload = {
-        outlet_id: outletId,
-        inspection_date: inspectionDate,
-        created_by: userId,
-        checked_by: checkedBy,
-        checked_by_employee_id: checkedByEmployeeId || null,
-        category_scope: categoryScope,
-        status,
-        summary,
-        current_step: currentStep,
-        completion_percentage: Number(summary.completion_percentage ?? 0),
-        last_edited_at: new Date().toISOString(),
-        last_edited_by: userId,
-        draft_data: draftData,
-        auto_saved: autoSaved,
-        notes: notes ?? remark ?? "",
-        remark: remark ?? "",
-    };
-    let query = draftId
-      ? supabase.from("asset_inspections").update(inspectionPayload).eq("id", draftId)
-      : supabase.from("asset_inspections").insert(inspectionPayload);
-    let { data: inspection, error } = await query.select(inspectionFields).single();
-    if (error && isMissingInspectionV2Field(error)) {
-      const fallbackPayload = {
-          outlet_id: outletId,
-          inspection_date: inspectionDate,
-          checked_by: checkedBy,
-          category_scope: categoryScope,
-          status,
-          remark: remark ?? notes ?? "",
-      };
-      const fallbackQuery = draftId
-        ? supabase.from("asset_inspections").update(fallbackPayload).eq("id", draftId)
-        : supabase.from("asset_inspections").insert(fallbackPayload);
-      const fallbackResult = await fallbackQuery
-        .select("id,outlet_id,inspection_date,checked_by,category_scope,status,remark,created_at,updated_at")
-        .single();
-      inspection = fallbackResult.data;
-      error = fallbackResult.error;
-    }
-    throwSupabaseError("asset_inspections.insert", error);
-
-    if (status === "draft" || status === "in_progress" || status === "pending_review") {
-      await logAssetAudit(autoSaved ? "asset_inspection_auto_saved" : "asset_inspection_draft_saved", outletId, `${inspectionDate} inspection draft`, {
-        items_checked: rows.length,
-        completion_percentage: summary.completion_percentage ?? 0,
-      });
-      return mapInspection(inspection, []);
-    }
-
-    if (draftId) {
-      const { error: deleteEvidenceError } = await supabase
-        .from("asset_inspection_items")
-        .delete()
-        .eq("inspection_id", draftId);
-      if (deleteEvidenceError && !isMissingInspectionV2Field(deleteEvidenceError)) {
-        throwSupabaseError("asset_inspection_items.clear_draft", deleteEvidenceError);
-      }
-    }
-
     const submissionRows = (rows ?? []).filter((row) => row?.asset?.id || row?.asset_id);
-    const itemPayload = submissionRows.map((row) => {
+    const uploadedRows = [];
+    for (const row of submissionRows) {
+      const assetId = row.asset?.id ?? row.asset_id;
+      const evidence = [];
+      for (const entry of row.evidence || []) {
+        evidence.push({ image_url: await uploadInspectionEvidenceIfNeeded(entry, { outletId, inspectionId: draftId || "pending", assetId }, userId), caption: entry.caption ?? "" });
+      }
+      uploadedRows.push({ ...row, evidence });
+    }
+    const itemPayload = uploadedRows.map((row) => {
       const assetId = row.asset?.id ?? row.asset_id;
       const expectedQuantity = Number(row.asset?.current_quantity ?? row.expected_quantity ?? row.expected_qty ?? 0);
       const countedQuantity = Number(row.counted_quantity || 0);
       return {
-        inspection_id: inspection.id,
         asset_id: assetId,
         expected_quantity: expectedQuantity,
         counted_quantity: countedQuantity,
@@ -922,114 +875,34 @@ export const assetTrackingService = {
         remark: row.remark ?? "",
       };
     });
-    let { data: savedItems, error: itemError } = await supabase
-      .from("asset_inspection_items")
-      .insert(itemPayload)
-      .select(inspectionItemFields);
-    console.info("[AssetTracking] Inspection item insert response", {
-      inspectionId: inspection.id,
-      rows: itemPayload.length,
-      error,
-      itemError,
-      conditions: itemPayload.map((item) => item.condition_status),
+    const request_id = lifecycleRequestId(suppliedRequestId);
+    const result = await callAssetLifecycleRpc("asset.inspection.submit", "asset_submit_inspection", {
+      p_request_id: request_id,
+      p_payload: {
+        draft_id: draftId || null,
+        outlet_id: outletId,
+        inspection_date: inspectionDate,
+        category_scope: categoryScope,
+        status,
+        summary,
+        current_step: currentStep,
+        draft_data: draftData,
+        auto_saved: autoSaved,
+        notes: notes ?? remark ?? "",
+        remark: remark ?? "",
+        apply_corrections: applyCorrections !== false,
+        rows: itemPayload.map((item, index) => ({ ...item, evidence: uploadedRows[index]?.evidence || [] })),
+      },
     });
-    if (itemError && isMissingInspectionV2Field(itemError)) {
-      const fallbackPayload = itemPayload.map((item) => ({
-        inspection_id: item.inspection_id,
-        asset_id: item.asset_id,
-        expected_quantity: item.expected_quantity,
-        counted_quantity: item.counted_quantity,
-        difference: item.difference,
-        condition_status: item.condition_status,
-        remark: item.remark,
-      }));
-      const fallbackResult = await supabase
-        .from("asset_inspection_items")
-        .insert(fallbackPayload)
-        .select("id,inspection_id,asset_id,expected_quantity,counted_quantity,difference,condition_status,remark,created_at,asset:asset_items(id,name,category:asset_categories(id,name))");
-      savedItems = fallbackResult.data;
-      itemError = fallbackResult.error;
-    }
-    throwSupabaseError("asset_inspection_items.insert", itemError);
-
-    const evidencePayload = [];
-    for (const savedItem of savedItems ?? []) {
-      const sourceRow = submissionRows.find((row) => (row.asset?.id ?? row.asset_id) === savedItem.asset_id);
-      for (const evidence of sourceRow?.evidence ?? []) {
-        const imageUrl = await uploadInspectionEvidenceIfNeeded(evidence, {
-          outletId,
-          inspectionId: inspection.id,
-          assetId: savedItem.asset_id,
-        }, userId);
-        evidencePayload.push({
-          inspection_item_id: savedItem.id,
-          image_url: imageUrl,
-          caption: evidence.caption ?? "",
-        });
-      }
-    }
-    if (evidencePayload.length) {
-      const { error: evidenceError } = await supabase
-        .from("asset_inspection_evidence")
-        .insert(evidencePayload);
-      if (evidenceError && !isMissingInspectionV2Field(evidenceError)) {
-        throwSupabaseError("asset_inspection_evidence.insert", evidenceError);
-      }
-    }
-
-    if (applyCorrections) {
-      for (const item of itemPayload) {
-        const asset = submissionRows.find((row) => (row.asset?.id ?? row.asset_id) === item.asset_id)?.asset;
-        if (!asset) continue;
-        const assetUpdate = {
-          current_quantity: item.counted_quantity,
-          condition: normalizeConditionValue(item.condition_status),
-          last_inspection_at: inspectionDate,
-          updated_by: userId,
-          updated_at: new Date().toISOString(),
-        };
-        console.info("[AssetTracking] Updating asset from inspection", {
-          assetId: item.asset_id,
-          condition: assetUpdate.condition,
-          countedQuantity: item.counted_quantity,
-          difference: item.difference,
-        });
-        const { error: assetError } = await supabase
-          .from("asset_items")
-          .update(assetUpdate)
-          .eq("id", item.asset_id);
-        if (assetError && !isMissingOptionalAssetField(assetError)) throwSupabaseError("asset_items.inspection_correction", assetError);
-        if (assetError && isMissingOptionalAssetField(assetError)) {
-          const { error: fallbackAssetError } = await supabase
-            .from("asset_items")
-            .update({ current_quantity: item.counted_quantity, updated_by: userId, updated_at: new Date().toISOString() })
-            .eq("id", item.asset_id);
-          throwSupabaseError("asset_items.inspection_correction", fallbackAssetError);
-        }
-        if (item.difference === 0) continue;
-        const { error: movementError } = await supabase.from("asset_movement_logs").insert({
-          asset_id: item.asset_id,
-          outlet_id: outletId,
-          movement_type: "correction",
-          quantity_change: item.difference,
-          quantity_before: item.expected_quantity,
-          quantity_after: item.counted_quantity,
-          reason: "inspection",
-          remark: `Inspection correction · ${inspectionDate}`,
-          movement_date: inspectionDate,
-          created_by: userId,
-        });
-        throwSupabaseError("asset_movement_logs.inspection_correction", movementError);
-      }
-    }
-
-    await logAssetAudit("asset_inspection_submitted", outletId, `${inspectionDate} inspection`, {
+    await logAssetAudit(status === "draft" || status === "in_progress" || status === "pending_review"
+      ? (autoSaved ? "asset_inspection_auto_saved" : "asset_inspection_draft_saved")
+      : "asset_inspection_submitted", outletId, `${inspectionDate} inspection`, {
+      request_id,
       items_checked: rows.length,
       variance_count: itemPayload.filter((item) => item.difference !== 0).length,
       categories: categoryScope,
     });
-
-    return mapInspection(inspection, savedItems ?? []);
+    return result;
   },
 
   async updateInspectionStatus(inspectionId, status) {

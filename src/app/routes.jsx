@@ -21,21 +21,25 @@ import JobPositionsPage from "../features/company-users/pages/JobPositionsPage.j
 import DepartmentsPage from "../features/company-users/pages/DepartmentsPage.jsx";
 import RolesPage from "../features/company-users/pages/RolesPage.jsx";
 import AuditLogsPage from "../features/company-users/pages/AuditLogsPage.jsx";
+import FactoryWorkspacePage from "../features/factory/pages/FactoryWorkspacePage.jsx";
 import { getSidebarSections, moduleRegistry, viewPermission } from "../../config/modules.ts";
 
-function ModulePlaceholderPage({ moduleLabel = "Module", moduleSection = "Workspace" }) {
+function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSection = "Workspace" }) {
+  const isFactoryModule = String(moduleId).startsWith("factory_");
   return (
     <div className="card p-6">
       <div className="text-xs font-bold uppercase tracking-wide text-text-muted">{moduleSection}</div>
       <h2 className="mt-2 text-xl font-semibold text-text-primary">{moduleLabel}</h2>
       <p className="mt-2 text-sm text-text-secondary">
-        This module is registered for navigation, permissions, route protection and audit scope, but its working page has not been implemented yet.
+        {isFactoryModule
+          ? "This Factory module is registered for navigation, permissions and audit scope, but it is not part of the current functional Factory 1A-1E workflow yet."
+          : "This module is registered for navigation, permissions, route protection and audit scope, but its working page has not been implemented yet."}
       </p>
     </div>
   );
 }
 
-const routeDetails = {
+export const routeDetails = {
   dashboard: {
     description: "Monthly HQ management overview for outlet health, alerts, operations and team moments.",
     component: DashboardOverviewPage,
@@ -147,12 +151,6 @@ const routeDetails = {
     permission: "inventory_master.view",
     props: { initialTab: "master" },
   },
-  inventory_categories: {
-    description: "Manage inventory item categories used across inventory workflows.",
-    component: InventoryControlPage,
-    permission: "inventory_categories.view",
-    props: { initialTab: "categories" },
-  },
   inventory_par_levels: {
     description: "Bulk manage outlet-specific minimum stock levels.",
     component: InventoryControlPage,
@@ -209,9 +207,135 @@ const routeDetails = {
     description: "Review authentication, access, employee and operational audit events.",
     component: AuditLogsPage,
   },
+  factory_dashboard: {
+    description: "Factory operations dashboard for production, warehouse and raw material readiness.",
+    component: FactoryWorkspacePage,
+    permission: "factory_dashboard.view",
+    props: { initialTab: "dashboard" },
+  },
+  factory_job_orders: {
+    description: "Monitor released, in-progress and completed Factory production work.",
+    component: FactoryWorkspacePage,
+    permission: "factory_job_orders.view",
+    props: { initialTab: "production-overview" },
+  },
+  factory_job_order_records: {
+    description: "Create, manage and review Factory production job orders.",
+    component: FactoryWorkspacePage,
+    permission: "factory_job_orders.view",
+    props: { initialTab: "job-orders" },
+  },
+  factory_raw_receiving: {
+    description: "Record supplier deliveries into factory raw material stock.",
+    component: FactoryWorkspacePage,
+    permission: "factory_raw_receiving.view",
+    props: { initialTab: "raw-receiving" },
+  },
+  factory_raw_inventory: {
+    description: "Manage raw material master data and monitor factory raw material balances.",
+    component: FactoryWorkspacePage,
+    permission: "factory_raw_inventory.view",
+    props: { initialTab: "raw-inventory" },
+  },
+  factory_raw_movements: {
+    description: "View raw material stock movement history from receiving, production and stock checks.",
+    component: FactoryWorkspacePage,
+    permission: "factory_raw_movements.view",
+    props: { initialTab: "raw-movements" },
+  },
+  factory_raw_stock_check: {
+    description: "Count factory raw material stock, review variance and approve controlled adjustments.",
+    component: FactoryWorkspacePage,
+    permission: "factory_raw_stock_check.view",
+    props: { initialTab: "raw-stock-check" },
+  },
+  factory_production: {
+    description: "Execute production jobs, capture actual material usage and stock in finished goods.",
+    component: FactoryWorkspacePage,
+    permission: "factory_production.view",
+    props: { initialTab: "production" },
+  },
+  factory_production_reports: {
+    description: "Review read-only factory production, material usage, yield, costing and stock movement reports.",
+    component: FactoryWorkspacePage,
+    permission: "factory_production_reports.view",
+    props: { initialTab: "reports" },
+  },
+  factory_batch_traceability: {
+    description: "Trace production batches across job order, raw material usage, QC and finished goods stock-in.",
+    component: FactoryWorkspacePage,
+    permission: "factory_batch_traceability.view",
+    props: { initialTab: "batch-traceability" },
+  },
+  factory_finished_goods: {
+    description: "Review finished goods SKU balances, production history, batches and movement activity.",
+    component: FactoryWorkspacePage,
+    permission: "factory_finished_goods.view",
+    props: { initialTab: "finished-goods" },
+  },
+  factory_production_planning: {
+    description: "Monitor finished goods stock against par levels and create production job orders.",
+    component: FactoryWorkspacePage,
+    permission: "factory_production_planning.view",
+    props: { initialTab: "production-planning" },
+  },
+  factory_finished_goods_dispatch: {
+    description: "Record outbound finished goods dispatches and finished goods stock-out movement.",
+    component: FactoryWorkspacePage,
+    permission: "factory_finished_goods_dispatch.view",
+    props: { initialTab: "finished-goods-dispatch" },
+  },
+  factory_product_movements: {
+    description: "Review read-only finished goods stock movement history.",
+    component: FactoryWorkspacePage,
+    permission: "factory_product_movements.view",
+    props: { initialTab: "product-movements" },
+  },
+  factory_product_stock_check: {
+    description: "Count finished goods stock, review variance and approve controlled adjustments.",
+    component: FactoryWorkspacePage,
+    permission: "factory_product_stock_check.view",
+    props: { initialTab: "product-stock-check" },
+  },
+  factory_product_recipes: {
+    description: "Manage standard raw material BOMs for Finished Goods production defaults.",
+    component: FactoryWorkspacePage,
+    permission: "factory_product_recipes.view",
+    props: { initialTab: "product-recipes" },
+  },
+  factory_production_sop: {
+    description: "Manage standard production SOP steps and QC checkpoint references by product.",
+    component: FactoryWorkspacePage,
+    permission: "factory_production_sop.view OR factory_production_sop.create OR factory_production_sop.edit OR factory_production_sop.manage",
+    props: { initialTab: "production-sop" },
+  },
+  factory_audit_logs: {
+    description: "Review read-only Factory module audit events and document changes.",
+    component: FactoryWorkspacePage,
+    permission: "factory_audit_logs.view",
+    props: { initialTab: "audit-logs" },
+  },
+  factory_storage_locations: {
+    description: "Manage Factory storage locations used by raw material and finished goods master records.",
+    component: FactoryWorkspacePage,
+    permission: "factory_storage_locations.view",
+    props: { initialTab: "storage-locations" },
+  },
+  factory_suppliers: {
+    description: "Manage Factory supplier master data used by raw material receiving.",
+    component: FactoryWorkspacePage,
+    permission: "factory_suppliers.view",
+    props: { initialTab: "suppliers" },
+  },
+  factory_customers: {
+    description: "Manage Factory customer and destination master data used by finished goods dispatch.",
+    component: FactoryWorkspacePage,
+    permission: "factory_customers.view",
+    props: { initialTab: "customers" },
+  },
 };
 
-export const salesPurchaseRoutes = moduleRegistry.map((module) => {
+export const salesPurchaseRoutes = moduleRegistry.filter((module) => module.routable !== false).map((module) => {
   const details = routeDetails[module.id] ?? {};
   return {
     id: module.id,

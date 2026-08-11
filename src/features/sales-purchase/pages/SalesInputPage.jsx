@@ -82,9 +82,14 @@ function normalizeInputAmount(value, type) {
   return type === "adjustment" ? String(Math.abs(numeric)) : value;
 }
 
+function createSalesSaveRequestId() {
+  return globalThis.crypto?.randomUUID?.() ?? `00000000-0000-4000-8000-${Date.now().toString(16).padStart(12, "0")}`;
+}
+
 export default function SalesInputPage({ store, setStore, ui, auth }) {
   const filters = usePeriodFilters(store);
   const amountInputRefs = useRef(new Map());
+  const saveRequestIdRef = useRef("");
   const [isDirty, setIsDirty] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [savedRecently, setSavedRecently] = useState(false);
@@ -137,6 +142,7 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
   const highestShare = grossSales && highest ? (Number(highest.amount || 0) / grossSales) * 100 : 0;
 
   function resetRows(next = filters) {
+    saveRequestIdRef.current = "";
     setRows(buildSalesRows(store, next.outletId, next.month, next.year, []));
     setIsDirty(false);
     setIsSaving(false);
@@ -159,6 +165,7 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
       setIsDirty(false);
       setIsSaving(false);
       setSavedRecently(false);
+      saveRequestIdRef.current = "";
 
       try {
         const records = await salesRecordService.getSalesRecords(filters.outletId, filters.year, filters.month);
@@ -190,6 +197,7 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
 
   function markDraft() {
     if (!isSaving) {
+      saveRequestIdRef.current = "";
       setIsDirty(true);
       setSavedRecently(false);
     }
@@ -245,6 +253,8 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
     }
     setIsSaving(true);
     setSalesRecordsError("");
+    const requestId = saveRequestIdRef.current || createSalesSaveRequestId();
+    saveRequestIdRef.current = requestId;
     try {
       const savedRecords = await salesRecordService.saveSalesRecords(
         filters.outletId,
@@ -257,6 +267,7 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
           amount: row.type === "adjustment" ? Math.abs(Number(row.amount || 0)) : Number(row.amount || 0),
           remark: row.remark ?? "",
         })),
+        requestId,
       );
       setLiveSalesRecords(savedRecords);
       setStore((current) => ({
@@ -278,6 +289,7 @@ export default function SalesInputPage({ store, setStore, ui, auth }) {
       setSavedRecently(true);
       setSavedRowsCount(visibleRows.length);
       setLastSavedAt(new Date());
+      saveRequestIdRef.current = "";
       window.setTimeout(() => setSavedRecently(false), 4000);
       ui.notify({ title: "Sales saved", message: `${visibleRows.length} sales rows saved.` });
     } catch (error) {

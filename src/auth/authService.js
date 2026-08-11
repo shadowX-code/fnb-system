@@ -1,5 +1,6 @@
 import { supabase } from "../lib/supabase";
 import { EMPLOYEE_ACCESS_STATE, normalizeEmployeeAccessState } from "../constants/employeeAccessStates";
+import { normalizeEmployeeLoginEmail } from "../services/employeeIdentity";
 import { isProtectedRoleName } from "./rbac.js";
 
 const roleSelectWithOutletAccess = "*, role:roles(id,name,description,outlet_access_type)";
@@ -23,23 +24,29 @@ function normalizeContextProfile(profile, source) {
 }
 
 async function loadEmployeeProfile(user) {
-  const email = String(user.email ?? "").trim().toLowerCase();
-  const filters = [`auth_user_id.eq.${user.id}`, `id.eq.${user.id}`];
-  if (email) filters.push(`email.eq.${email}`);
+  const email = normalizeEmployeeLoginEmail(user.email);
+  const identities = [
+    ["auth_user_id", user.id],
+    ["id", user.id],
+    ...(email ? [["email", email]] : []),
+  ];
 
-  const queryProfile = (select) => supabase
-    .from("employees")
-    .select(select)
-    .or(filters.join(","))
-    .maybeSingle();
+  for (const [column, value] of identities) {
+    const queryProfile = (select) => supabase
+      .from("employees")
+      .select(select)
+      .eq(column, value)
+      .maybeSingle();
 
-  let { data, error } = await queryProfile(roleSelectWithOutletAccess);
-  if (error && isMissingOutletAccessColumnError(error)) {
-    console.warn("[FeedX auth] Falling back to role profile without outlet_access_type. Apply the latest RBAC migration to enable explicit outlet scope.");
-    ({ data, error } = await queryProfile(roleSelectFallback));
+    let { data, error } = await queryProfile(roleSelectWithOutletAccess);
+    if (error && isMissingOutletAccessColumnError(error)) {
+      console.warn("[FeedX auth] Falling back to role profile without outlet_access_type. Apply the latest RBAC migration to enable explicit outlet scope.");
+      ({ data, error } = await queryProfile(roleSelectFallback));
+    }
+    if (error) throw error;
+    if (data) return normalizeContextProfile(data, "employees");
   }
-  if (error) throw error;
-  return data ? normalizeContextProfile(data, "employees") : null;
+  return null;
 }
 
 function createPasswordSetupRequiredError(profile) {

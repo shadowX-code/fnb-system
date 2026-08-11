@@ -393,6 +393,7 @@ function PurchaseInsightPanel({ cogsMargin, highest, biggestIncrease, missingRow
 export default function PurchaseInputPage({ store, setStore, ui, auth, masterDataStatus }) {
   const filters = usePeriodFilters(store);
   const amountInputRefs = useRef(new Map());
+  const saveRequestIdRef = useRef("");
   const [saveState, setSaveState] = useState("loading");
   const [loadError, setLoadError] = useState("");
   const [lastSavedAt, setLastSavedAt] = useState(null);
@@ -573,6 +574,7 @@ export default function PurchaseInputPage({ store, setStore, ui, auth, masterDat
       }),
     );
     setSaveState("draft");
+    saveRequestIdRef.current = "";
   }
 
   useEffect(() => {
@@ -611,6 +613,7 @@ export default function PurchaseInputPage({ store, setStore, ui, auth, masterDat
     setFocusSupplierKey(firstTempId);
     setExpandedRows((current) => new Set([...current, firstTempId]));
     setSaveState("draft");
+    saveRequestIdRef.current = "";
   }
 
   function toggleDetails(localKey) {
@@ -663,6 +666,7 @@ export default function PurchaseInputPage({ store, setStore, ui, auth, masterDat
     );
     setDuplicateModal(false);
     setSaveState("draft");
+    saveRequestIdRef.current = "";
       ui.notify({
         title: "Previous month duplicated",
         message: copyAmount ? "Supplier list and amounts were copied as draft." : "Supplier list copied with blank amounts.",
@@ -683,6 +687,7 @@ export default function PurchaseInputPage({ store, setStore, ui, auth, masterDat
   }
 
   async function savePurchaseData() {
+    if (saveState === "saving") return;
     if (!canWritePurchase) {
       notifyPermissionDenied(ui, "save purchase data");
       return;
@@ -704,8 +709,10 @@ export default function PurchaseInputPage({ store, setStore, ui, auth, masterDat
 
     setSaveState("saving");
     setLoadError("");
+    const requestId = saveRequestIdRef.current || globalThis.crypto?.randomUUID?.() || `00000000-0000-4000-8000-${Date.now().toString(16).padStart(12, "0")}`;
+    saveRequestIdRef.current = requestId;
     try {
-      const savedRecords = await purchaseRecordService.savePurchaseRecords(filters.outletId, filters.year, filters.month, rows);
+      const savedRecords = await purchaseRecordService.savePurchaseRecords(filters.outletId, filters.year, filters.month, rows, requestId);
       setStore((current) =>
         ({
           ...current,
@@ -721,6 +728,7 @@ export default function PurchaseInputPage({ store, setStore, ui, auth, masterDat
       setRows(savedRecords.map((record) => ({ ...record, draft: false })));
       setSaveState("saved");
       setLastSavedAt(new Date());
+      saveRequestIdRef.current = "";
       ui.notify({ title: "Purchase saved", message: `${savedRecords.length} supplier rows updated.` });
     } catch (error) {
       console.error("Unable to save purchase records", error);

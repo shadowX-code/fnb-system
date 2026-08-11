@@ -119,61 +119,21 @@ export const roleService = {
 
   async saveRole(role) {
     const payload = {
+      ...(isSupabaseUuid(role.id) ? { id: role.id } : {}),
       name: role.name.trim().toLowerCase().replace(/\s+/g, "_"),
       description: role.description ?? "",
-      is_system_role: Boolean(role.is_system_role),
       is_active: role.is_active !== false,
       outlet_access_type: role.outletAccess === "selected" ? "selected" : "all",
     };
-
     const isUpdate = isSupabaseUuid(role.id);
-    const runRoleSave = (nextPayload, select = "id,name,description,is_system_role,is_active,outlet_access_type,created_at") => {
-      const roleQuery = isUpdate
-        ? supabase.from("roles").update(nextPayload).eq("id", role.id)
-        : supabase.from("roles").insert(nextPayload);
-      return roleQuery.select(select).single();
-    };
-
-    let { data: savedRole, error: roleError } = await runRoleSave(payload);
-    if (roleError && isMissingOutletAccessColumnError(roleError)) {
-      const { outlet_access_type: _outletAccessType, ...fallbackPayload } = payload;
-      console.warn("[FeedX roles] Saving role without outlet_access_type because the latest RBAC migration is not applied.");
-      ({ data: savedRole, error: roleError } = await runRoleSave(fallbackPayload, "id,name,description,is_system_role,is_active,created_at"));
-    }
-
-    throwSupabaseError("roles.save", roleError);
-
     const permissionCodes = [...new Set((role.permissions ?? []).filter((code) => registryPermissionCodeSet.has(code)))];
-    await syncPermissionCatalog(permissionCodes);
-
-    const { data: permissions, error: permissionError } = await supabase
-      .from("permissions")
-      .select("id,code,module")
-      .in("code", permissionCodes.length ? permissionCodes : ["__none__"]);
-
-    throwSupabaseError("roles.permissions_lookup", permissionError);
-
-    const foundPermissionCodes = new Set((permissions ?? []).map((permission) => permission.code));
-    const missingPermissionCodes = permissionCodes.filter((code) => !foundPermissionCodes.has(code));
-    if (missingPermissionCodes.length) {
-      throw new Error(`Permission setup is missing: ${missingPermissionCodes.join(", ")}. Please run the latest RBAC setup update.`);
-    }
-
-    await supabase.from("role_permissions").delete().eq("role_id", savedRole.id);
-    if ((permissions ?? []).length) {
-      const { error } = await supabase
-        .from("role_permissions")
-        .insert(permissions.map((permission) => ({ role_id: savedRole.id, permission_id: permission.id })));
-      throwSupabaseError("roles.role_permissions_insert", error);
-    }
-
-    await supabase.from("role_outlets").delete().eq("role_id", savedRole.id);
-    if (role.outletAccess === "selected" && role.selectedOutletIds?.length) {
-      const { error } = await supabase
-        .from("role_outlets")
-        .insert(role.selectedOutletIds.map((outletId) => ({ role_id: savedRole.id, outlet_id: outletId })));
-      throwSupabaseError("roles.role_outlets_insert", error);
-    }
+    const requestId = role.requestId || crypto.randomUUID();
+    const { data, error } = await supabase.rpc("save_role_configuration", {
+      p_request_id: requestId, p_role: payload, p_permission_codes: permissionCodes,
+      p_outlet_ids: role.outletAccess === "selected" ? (role.selectedOutletIds ?? []) : [],
+    });
+    throwSupabaseError("roles.save_configuration", error);
+    const savedRole = data?.role ?? data;
 
     await auditLogService.createAuditLog({
       action: isUpdate ? "role_updated" : "role_created",
@@ -185,10 +145,10 @@ export const roleService = {
 
     return {
       ...savedRole,
-      permissions: permissionCodes,
-      modules: [...new Set((permissions ?? []).map((permission) => permission.module))],
+      permissions: data?.permissions ?? permissionCodes,
+      modules: [],
       outletAccess: role.outletAccess,
-      selectedOutletIds: role.selectedOutletIds ?? [],
+      selectedOutletIds: data?.outlet_ids ?? (role.selectedOutletIds ?? []),
       assignedUsers: role.assignedUsers ?? 0,
       updatedAt: new Date().toISOString(),
       updatedBy: "Current User",

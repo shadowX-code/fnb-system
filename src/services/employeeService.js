@@ -3,6 +3,7 @@ import { auditLogService } from "./auditLogService";
 import { throwSupabaseError } from "./supabaseError";
 import { isSupabaseUuid } from "./idUtils";
 import { EMPLOYEE_ACCESS_STATE, normalizeEmployeeAccessState } from "../constants/employeeAccessStates";
+import { hasSameEmployeeLoginEmail, normalizeEmployeeLoginEmail } from "./employeeIdentity";
 
 function mapEmployee(row) {
   const enableSystemLogin = Boolean(row.enable_system_login);
@@ -60,6 +61,25 @@ export const employeeService = {
       roleId = role?.id ?? null;
     }
 
+    const isUpdate = isSupabaseUuid(employee.id);
+    let existingEmployee = null;
+    if (isUpdate) {
+      const { data, error } = await supabase
+        .from("employees")
+        .select("id,auth_user_id,email")
+        .eq("id", employee.id)
+        .maybeSingle();
+      throwSupabaseError("employees.identity", error);
+      existingEmployee = data;
+      if (!existingEmployee) throw new Error("Employee was not found.");
+      if (existingEmployee.auth_user_id && employee.auth_user_id && existingEmployee.auth_user_id !== employee.auth_user_id) {
+        throw new Error("Employee auth identity cannot be reassigned through employee profile editing.");
+      }
+      if (existingEmployee.auth_user_id && !hasSameEmployeeLoginEmail(existingEmployee.email, employee.email)) {
+        throw new Error("Login email changes require the dedicated employee identity change flow.");
+      }
+    }
+
     const enableSystemLogin = Boolean(employee.enable_system_login);
     if (enableSystemLogin && !roleId) {
       throw new Error("Role is required when system login is enabled.");
@@ -76,8 +96,8 @@ export const employeeService = {
       full_name: employee.full_name,
       nickname: employee.nickname ?? "",
       nationality: employee.nationality ?? "Malaysia",
-      email: enableSystemLogin ? employee.email : null,
-      auth_user_id: enableSystemLogin ? employee.auth_user_id || null : null,
+      email: enableSystemLogin ? normalizeEmployeeLoginEmail(employee.email) || null : null,
+      auth_user_id: enableSystemLogin ? existingEmployee?.auth_user_id || employee.auth_user_id || null : null,
       contact: employee.contact ?? "",
       ic_no: employee.ic_no ?? "",
       gender: employee.gender ?? "",
@@ -105,7 +125,6 @@ export const employeeService = {
       updated_at: new Date().toISOString(),
     };
 
-    const isUpdate = isSupabaseUuid(employee.id);
     const query = isUpdate
       ? supabase.from("employees").update(payload).eq("id", employee.id)
       : supabase.from("employees").insert(payload);

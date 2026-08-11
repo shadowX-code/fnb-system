@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, BarChart3, Bell, Boxes, Building2, CalendarDays, Check, ChevronsDownUp, ChevronsUpDown, ChevronDown, ClipboardCheck, ClipboardList, Download, Eye, EyeOff, FileText, KeyRound, LogOut, Menu, Monitor, Moon, PackageCheck, PackagePlus, PieChart, RefreshCw, Settings, Shield, ShoppingCart, Sun, Truck, UserRound, Users, Wallet, X } from "lucide-react";
+import { AlertTriangle, BarChart3, Bell, Boxes, Building2, CalendarDays, Check, ChevronsDownUp, ChevronsUpDown, ChevronDown, ClipboardCheck, ClipboardList, Download, Eye, EyeOff, Factory, FileText, FlaskConical, KeyRound, LogOut, Menu, Monitor, Moon, PackageCheck, PackagePlus, PieChart, RefreshCw, Settings, Shield, ShoppingCart, Sun, Truck, UserRound, Users, Wallet, Warehouse, X } from "lucide-react";
 import Modal from "../components/feedback/Modal.jsx";
 import Badge from "../components/ui/Badge.jsx";
 import FloatingLayer from "../components/ui/FloatingLayer.jsx";
@@ -43,6 +43,27 @@ const iconMap = {
   "job-positions": ClipboardList,
   departments: Building2,
   roles: Shield,
+  "factory-dashboard": Factory,
+  "factory-production-overview": Factory,
+  "factory-job-order-records": ClipboardCheck,
+  "factory-production": Factory,
+  "factory-reports": BarChart3,
+  "factory-finished-goods": Boxes,
+  "factory-production-planning": CalendarDays,
+  "factory-finished-goods-dispatch": PackagePlus,
+  "factory-product-movements": RefreshCw,
+  "factory-product-stock-check": ClipboardCheck,
+  "factory-raw-receiving": Truck,
+  "factory-raw-inventory": Warehouse,
+  "factory-raw-movements": RefreshCw,
+  "factory-raw-stock-check": ClipboardList,
+  "factory-product-recipes": FlaskConical,
+  "factory-sop": FileText,
+  "factory-audit-logs": KeyRound,
+  "factory-storage-locations": Warehouse,
+  "factory-suppliers": Truck,
+  "factory-customers": Building2,
+  "factory-settings": Settings,
 };
 
 function latestPeriod(store) {
@@ -903,7 +924,7 @@ function SidebarProfilePopover({ auth, onViewProfile, onChangePassword, onSignOu
   );
 }
 
-export default function AppShell({ activeRoute, activeRouteId, sections, onNavigate, children, store, auth, onLogout, onNotify }) {
+export default function AppShell({ activeRoute, activeRouteId, sections, workspace = "restaurant", onWorkspaceChange, onNavigate, children, store, auth, onLogout, onNotify }) {
   const [notificationsOpen, setNotificationsOpen] = useState(false);
   const [notificationTab, setNotificationTab] = useState("All");
   const [notificationContext, setNotificationContext] = useState({});
@@ -925,6 +946,8 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
   const notificationButtonRef = useRef(null);
   const profileButtonRef = useRef(null);
   const sidebarProfileButtonRef = useRef(null);
+  const mobileMenuButtonRef = useRef(null);
+  const mobileSidebarRef = useRef(null);
   const activeSectionLabel = useMemo(
     () => sections.find((section) => section.items.some((item) => item.id === activeRouteId))?.label,
     [activeRouteId, sections],
@@ -1101,9 +1124,16 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
     }
   }
 
+  function closeMobileSidebar() {
+    if (mobileSidebarRef.current?.contains(document.activeElement)) {
+      mobileMenuButtonRef.current?.focus({ preventScroll: true });
+    }
+    setMobileSidebarOpen(false);
+  }
+
   function handleNavigate(itemId) {
     onNavigate(itemId);
-    setMobileSidebarOpen(false);
+    closeMobileSidebar();
     setSidebarProfileOpen(false);
   }
 
@@ -1135,7 +1165,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
     document.body.style.overflow = "hidden";
 
     function handleKeyDown(event) {
-      if (event.key === "Escape") setMobileSidebarOpen(false);
+      if (event.key === "Escape") closeMobileSidebar();
     }
 
     document.addEventListener("keydown", handleKeyDown);
@@ -1146,7 +1176,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
   }, [mobileSidebarOpen]);
 
   useEffect(() => {
-    setMobileSidebarOpen(false);
+    closeMobileSidebar();
   }, [activeRouteId]);
 
   async function handleChangePassword({ currentPassword, newPassword }) {
@@ -1159,7 +1189,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
     setProfileMenuOpen(false);
     setSidebarProfileOpen(false);
     setNotificationsOpen(false);
-    setMobileSidebarOpen(false);
+    closeMobileSidebar();
   }
 
   function handleViewMyProfileClick(event) {
@@ -1201,7 +1231,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
       setProfileMenuOpen(false);
       setSidebarProfileOpen(false);
       setNotificationsOpen(false);
-      setMobileSidebarOpen(false);
+      closeMobileSidebar();
       window.location.href = "/login";
     } catch (error) {
       console.error("[FeedX] Sign out failed", error);
@@ -1229,7 +1259,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
             className="icon-btn ml-auto"
             type="button"
             aria-label="Close navigation"
-            onClick={() => setMobileSidebarOpen(false)}
+            onClick={closeMobileSidebar}
           >
             <X size={17} />
           </button>
@@ -1245,6 +1275,31 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
             {allSectionsExpanded ? <ChevronsDownUp size={16} /> : <ChevronsUpDown size={16} />}
           </button>
         )}
+      </div>
+
+      <div className="px-3 pb-2">
+        <div className="grid grid-cols-2 rounded-2xl border border-border bg-slate-50 p-1">
+          {[
+            { id: "restaurant", label: "Restaurant", icon: Building2 },
+            { id: "factory", label: "Factory", icon: Factory },
+          ].map((option) => {
+            const Icon = option.icon;
+            const active = workspace === option.id;
+            return (
+              <button
+                key={option.id}
+                className={`flex items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-[12px] font-semibold transition ${
+                  active ? "bg-white text-primary shadow-sm ring-1 ring-primary/10" : "text-text-secondary hover:bg-white/70 hover:text-text-primary"
+                }`}
+                type="button"
+                onClick={() => onWorkspaceChange?.(option.id)}
+              >
+                <Icon size={13} />
+                {option.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       <nav className="flex-1 space-y-2 overflow-y-auto px-3 py-2.5">
@@ -1357,14 +1412,16 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
           mobileSidebarOpen ? "pointer-events-auto opacity-100" : "pointer-events-none opacity-0"
         }`}
         aria-hidden="true"
-        onClick={() => setMobileSidebarOpen(false)}
+        onClick={closeMobileSidebar}
       />
       <aside
+        ref={mobileSidebarRef}
         className={`fixed inset-y-0 left-0 z-50 flex w-[292px] max-w-[86vw] flex-col border-r border-border bg-sidebar shadow-2xl transition-transform duration-200 ease-out lg:hidden ${
           mobileSidebarOpen ? "translate-x-0" : "-translate-x-full"
         }`}
         aria-label="Mobile navigation"
         aria-hidden={!mobileSidebarOpen}
+        inert={!mobileSidebarOpen}
       >
         {sidebarContent(true)}
       </aside>
@@ -1376,6 +1433,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, onNavig
         <header className="sticky top-0 z-20 border-b border-border bg-app-bg/95 backdrop-blur">
           <div className="flex h-11 items-center justify-between gap-4 px-4 sm:px-5 lg:px-6">
             <button
+              ref={mobileMenuButtonRef}
               className="icon-btn lg:hidden"
               type="button"
               aria-label="Open navigation"
