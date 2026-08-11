@@ -174,6 +174,27 @@ describe("InventoryControlPage Recipe lifecycle", () => {
     expect(screen.queryByText("Inventory Dashboard")).toBeNull();
   });
 
+  it("paginates the post-filter Recipe BOM list with the shared Factory footer and resets after search", async () => {
+    mocks.tables.inventory_recipes = Array.from({ length: 21 }, (_, index) => ({
+      ...recipeRow,
+      id: `00000000-0000-4000-8000-${String(index + 10).padStart(12, "0")}`,
+      recipe_code: `RCP-PAGE-${String(index + 1).padStart(3, "0")}`,
+      recipe_name: `Paged Recipe ${String(index + 1).padStart(2, "0")}`,
+      recipe_name_en: `Paged Recipe ${String(index + 1).padStart(2, "0")}`,
+    }));
+    renderRecipes();
+    await screen.findAllByText("Paged Recipe 01");
+    expect(screen.getByText("Showing 1–20 of 21 records")).toBeTruthy();
+    expect(screen.queryByText("Paged Recipe 21")).toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "Next" })[0]);
+    expect(screen.getByText("Showing 21–21 of 21 records")).toBeTruthy();
+    expect(screen.getAllByText("Paged Recipe 21").length).toBeGreaterThan(0);
+    fireEvent.change(screen.getByPlaceholderText("Search recipe, outlet or ingredient"), { target: { value: "Paged Recipe 01" } });
+    expect(screen.getByText("Showing 1–1 of 1 records")).toBeTruthy();
+    expect(screen.getAllByText("Paged Recipe 01").length).toBeGreaterThan(0);
+    expect(screen.queryByText("Paged Recipe 21")).toBeNull();
+  });
+
   it("orchestrates page create through the trusted recipe service, one refresh, notification, and modal close", async () => {
     renderRecipes();
     await waitForRecipePage();

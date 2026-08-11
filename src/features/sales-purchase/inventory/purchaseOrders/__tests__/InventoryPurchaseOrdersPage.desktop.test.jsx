@@ -1,5 +1,5 @@
 import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import InventoryPurchaseOrdersPage from "../InventoryPurchaseOrdersPage.jsx";
 
 const order = {
@@ -91,6 +91,18 @@ function mobileCard(poNo) {
   const marker = screen.getAllByTitle(`Internal system ID: ${poNo}`).find((node) => node.tagName === "DIV");
   return marker.closest(".rounded-2xl");
 }
+
+function paginationOrders() {
+  return Array.from({ length: 21 }, (_, index) => ({
+    ...order,
+    id: `po-page-${index + 1}`,
+    poNo: `INT-PAGE-${String(index + 1).padStart(3, "0")}`,
+    status: "draft",
+    lines: [{ id: `line-page-${index + 1}`, itemId: "item-1", requestedQty: 1, receivedQty: 0, unit: "kg" }],
+  }));
+}
+
+beforeEach(() => window.localStorage.clear());
 
 describe("InventoryPurchaseOrdersPage desktop table", () => {
   it("faithfully presents the active PO desktop table data columns", () => {
@@ -229,6 +241,25 @@ describe("InventoryPurchaseOrdersPage desktop table", () => {
     expect(callbacks.onComplete).toHaveBeenCalledWith(expect.objectContaining({ id: "po-full" }));
     expect(callbacks.onView).toHaveBeenCalledWith(expect.objectContaining({ id: "po-completed" }));
     expect(callbacks.onCopyPurchaseOrder).toHaveBeenCalledWith(expect.objectContaining({ id: "po-cancelled" }));
+  });
+
+  it("paginates filtered purchase orders with the shared Factory controls without changing lifecycle callbacks", () => {
+    const callbacks = mount({ orders: paginationOrders() });
+    expect(screen.getByText("Showing 1–20 of 21 records")).toBeTruthy();
+    expect(screen.getAllByTitle("Internal system ID: INT-PAGE-001")).toHaveLength(2);
+    expect(screen.queryAllByTitle("Internal system ID: INT-PAGE-021")).toHaveLength(0);
+    fireEvent.click(screen.getAllByRole("button", { name: "Next" })[0]);
+    expect(screen.getByText("Showing 21–21 of 21 records")).toBeTruthy();
+    expect(screen.getAllByTitle("Internal system ID: INT-PAGE-021")).toHaveLength(2);
+    fireEvent.click(screen.getAllByRole("button", { name: "Previous" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Rows per page" }));
+    fireEvent.click(screen.getByRole("option", { name: "50" }));
+    expect(screen.getByText("Showing 1–21 of 21 records")).toBeTruthy();
+    fireEvent.change(screen.getByPlaceholderText("Search business PO no, internal ID, supplier or item"), { target: { value: "INT-PAGE-021" } });
+    expect(screen.getByText("Showing 1–1 of 1 records")).toBeTruthy();
+    expect(screen.getAllByTitle("Internal system ID: INT-PAGE-021")).toHaveLength(2);
+    expect(callbacks.onSubmit).not.toHaveBeenCalled();
+    expect(callbacks.onRequestReceive).not.toHaveBeenCalled();
   });
 });
 

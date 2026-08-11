@@ -7,6 +7,7 @@ import DatePickerField from "../../../../components/forms/DatePickerField.jsx";
 import EmptyState from "../../../../components/feedback/EmptyState.jsx";
 import { poProgress, poSourceLabel, poStatusLabel } from "./inventoryPurchaseOrderHelpers.js";
 import InventoryPurchaseOrderDetail from "./InventoryPurchaseOrderDetail.jsx";
+import FactoryPagination, { useFactoryClientPagination } from "../../../factory/components/FactoryPagination.jsx";
 
 const statuses = ["draft", "submitted", "supplier_confirmed", "partial_received", "fully_received", "completed", "cancelled"];
 const sources = ["stock_check", "manual"];
@@ -47,6 +48,8 @@ export default function InventoryPurchaseOrdersPage({
       && (!filters.from || !created || created >= filters.from)
       && (!filters.to || !created || created <= filters.to);
   });
+  const pagination = useFactoryClientPagination("restaurant.purchase-orders", filtered.length, 20, Object.values(filters).join("|"));
+  const paginatedOrders = filtered.slice(pagination.from, pagination.to);
   const desktopPrimary = (order) => order.status === "draft" ? ["Submit Order", "primary", onSubmit]
     : ["submitted", "supplier_confirmed"].includes(order.status) ? ["Receive", "primary", onRequestReceive]
       : order.status === "partial_received" ? ["Receive More", "primary", onRequestReceive]
@@ -85,7 +88,7 @@ export default function InventoryPurchaseOrdersPage({
     </div>
     {filtered.length ? <>
       <div className="space-y-3 md:hidden">
-        {filtered.map((order) => {
+        {paginatedOrders.map((order) => {
           const supplier = suppliers.find((entry) => entry.id === order.supplierId);
           const outlet = outletById.get(order.outletId || order.outletIds?.[0]);
           const progress = poProgress(order);
@@ -125,7 +128,7 @@ export default function InventoryPurchaseOrdersPage({
             </tr>
           </thead>
           <tbody className="divide-y divide-border text-[13px]">
-            {filtered.map((order) => {
+            {paginatedOrders.map((order) => {
               const supplier = suppliers.find((entry) => entry.id === order.supplierId);
               const outlet = outletById.get(order.outletId || order.outletIds?.[0]);
               const progress = poProgress(order);
@@ -144,6 +147,7 @@ export default function InventoryPurchaseOrdersPage({
           </tbody>
         </table>
       </div>
+      <FactoryPagination page={pagination.page} pageSize={pagination.pageSize} total={filtered.length} onPageChange={pagination.setPage} onPageSizeChange={pagination.setPageSize} />
     </> : <EmptyState title="No purchase orders found." description="Adjust filters or create Draft POs from scheduled stock check suggestions or manual purchase planning." />}
   </DashboardSection>;
 }

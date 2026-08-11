@@ -58,6 +58,7 @@ import { productAnalyticsService } from "../../../services/productAnalyticsServi
 import { getAccessibleOutletOptions, getAccessibleOutlets, hasAllOutletAccess, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { IMAGE_UPLOAD_ACCEPT, isImageDataUrl as isStandardImageDataUrl, optimizeImageFileForPreview, removeStorageObjectFromPublicUrl, uploadOptimizedImage } from "../../../utils/imageUpload.js";
 import { buildDynamicYearOptions, yearsFromRecords } from "../../../utils/yearOptions.js";
+import FactoryPagination, { useFactoryClientPagination } from "../../factory/components/FactoryPagination.jsx";
 
 const STORAGE_KEY = "feedx.inventoryControl.v2";
 const LEGACY_STORAGE_KEYS = ["feedx.inventoryControl.v1"];
@@ -5061,7 +5062,34 @@ function IngredientConsumptionModal({ rows = [], categories = [], filters, onFil
   );
 }
 
-export function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existingRecipes = [], onClose, onSave }) {
+function RecipeIngredientCloneModal({ recipes, items, outletById, excludedRecipeId, onClone, onClose }) {
+  const [search, setSearch] = useState("");
+  const [selectedRecipeId, setSelectedRecipeId] = useState("");
+  const candidates = recipes.filter((entry) => {
+    if (entry.id === excludedRecipeId) return false;
+    const searchText = `${recipeCode(entry)} ${recipeNameEn(entry)} ${recipeNameCn(entry)}`.toLowerCase();
+    return !search.trim() || searchText.includes(search.trim().toLowerCase());
+  });
+  const selectedRecipe = candidates.find((entry) => entry.id === selectedRecipeId) || null;
+  const ingredients = selectedRecipe?.ingredients || selectedRecipe?.items || [];
+  const summary = selectedRecipe ? recipeCostSummary(selectedRecipe, items) : null;
+
+  return <Modal title="Clone Ingredients" description="Copy ingredient rows into this draft only. Review and save the current recipe when ready." size="lg" onClose={onClose} footer={<><button className="btn-secondary" type="button" onClick={onClose}>Cancel</button><button className="btn-primary" type="button" disabled={!selectedRecipe || !ingredients.length} onClick={() => { onClone(selectedRecipe); onClose(); }}>Clone {ingredients.length || ""} Ingredients</button></>}>
+    <div className="space-y-4">
+      <label><div className="mb-1 type-caption font-semibold text-text-secondary">Search existing recipe</div><input className="control h-9 w-full text-[13px]" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Search recipe name or code" autoFocus /></label>
+      <div className="max-h-52 space-y-2 overflow-y-auto pr-1">
+        {candidates.length ? candidates.map((entry) => {
+          const count = (entry.ingredients || entry.items || []).length;
+          const selected = entry.id === selectedRecipeId;
+          return <button key={entry.id} className={`flex w-full items-start justify-between gap-3 rounded-xl border p-3 text-left transition ${selected ? "border-primary bg-primary/5" : "border-border bg-white hover:border-primary/40"}`} type="button" onClick={() => setSelectedRecipeId(entry.id)}><span className="min-w-0"><span className="block font-bold text-text-primary">{recipeNameEn(entry) || recipeNameCn(entry) || recipeCode(entry) || "Recipe"}</span><span className="mt-0.5 block type-caption text-text-secondary">{recipeCode(entry) || "No code"} · {outletById.get(entry.outletId)?.name || "Outlet"}</span></span><Badge tone={count ? "success" : "neutral"}>{count} ingredient{count === 1 ? "" : "s"}</Badge></button>;
+        }) : <EmptyState title="No matching recipes" description="Try another recipe name or code." />}
+      </div>
+      {selectedRecipe ? <div className="rounded-xl border border-border bg-slate-50 p-3"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="font-bold text-text-primary">{recipeNameEn(selectedRecipe) || recipeNameCn(selectedRecipe) || recipeCode(selectedRecipe) || "Recipe"}</div><div className="mt-1 type-caption text-text-secondary">{outletById.get(selectedRecipe.outletId)?.name || "Outlet"} · {ingredients.length} ingredient{ingredients.length === 1 ? "" : "s"}</div></div><Badge tone="success">Cost {formatRestaurantRecipeCurrency(summary?.totalCost || 0)}</Badge></div>{ingredients.length ? <div className="mt-3 divide-y divide-border rounded-lg border border-border bg-white">{ingredients.map((line) => { const item = items.find((entry) => entry.id === (line.itemId || line.inventory_item_id)); return <div key={line.id || `${line.itemId}-${line.quantityUsed}`} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 text-sm"><span className="font-semibold text-text-primary">{item?.name || "Unavailable inventory item"}</span><span className="text-text-secondary">{line.quantityUsed ?? line.quantity_used ?? 0} {line.unit || item?.unit || ""} · {line.wastagePercent ?? line.wastage_percent ?? 0}% wastage{line.remark ? ` · ${line.remark}` : ""}</span></div>; })}</div> : <div className="mt-3 type-caption text-text-secondary">This recipe has no ingredients to clone.</div>}</div> : null}
+    </div>
+  </Modal>;
+}
+
+export function RecipeModal({ recipe, outletId, outlet, items, menuCategories, existingRecipes = [], outletById = new Map(), onClose, onSave }) {
   const [isSaving, setIsSaving] = useState(false);
   const [photoPreview, setPhotoPreview] = useState(recipe?.recipePhotoUrl || recipe?.recipe_photo_url || "");
   const [photoError, setPhotoError] = useState("");
@@ -5069,6 +5097,8 @@ export function RecipeModal({ recipe, outletId, outlet, items, menuCategories, e
   const [submitAttempted, setSubmitAttempted] = useState(false);
   const [duplicateCodeError, setDuplicateCodeError] = useState("");
   const [checkingRecipeCode, setCheckingRecipeCode] = useState(false);
+  const [cloneOpen, setCloneOpen] = useState(false);
+  const [cloneFeedback, setCloneFeedback] = useState("");
   const duplicateCheckRef = useRef({ requestId: 0, submitting: false, saving: false });
   const [form, setForm] = useState(() => ({
     id: recipe?.id || "",
@@ -5934,6 +5964,20 @@ function CopyPoTextModal({ text, onClose, onCopy }) {
         onFocus={(event) => event.target.select()}
       />
     </Modal>
+  );
+}
+
+function RecipeListPagination({ rows, resetKey, children }) {
+  const pagination = useFactoryClientPagination("restaurant.recipes", rows.length, 20, resetKey);
+  return children(
+    rows.slice(pagination.from, pagination.to),
+    <FactoryPagination
+      page={pagination.page}
+      pageSize={pagination.pageSize}
+      total={rows.length}
+      onPageChange={pagination.setPage}
+      onPageSizeChange={pagination.setPageSize}
+    />,
   );
 }
 
@@ -9729,6 +9773,8 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
         )}
         {!isRecipeIntelligencePage && recipeWorkspaceTab === "recipes" ? <DashboardSection title="Recipe BOM Setup" subtitle="Link menu/product items to outlet-linked inventory ingredients.">
           {filteredRecipes.length ? (
+            <RecipeListPagination rows={recipeCostRows} resetKey={[activeRecipeOutletId, recipeFilters.category, recipeFilters.status, recipeFilters.search].join("|")}>
+              {(paginatedRecipeCostRows, pagination) => <>
             <div className="overflow-x-auto rounded-2xl border border-border">
               <table className="w-full min-w-[980px] text-left">
                 <thead className="bg-slate-50 text-[11px] uppercase tracking-wide text-text-muted">
@@ -9744,7 +9790,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border text-[13px]">
-                  {recipeCostRows.map(({ recipe, summary, margin }) => (
+                  {paginatedRecipeCostRows.map(({ recipe, summary, margin }) => (
                     <tr key={recipe.id} className="transition hover:bg-primary/5">
                       <td className="px-3 py-3">
                         <div className="flex items-center gap-3">
@@ -9781,6 +9827,9 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
                 </tbody>
               </table>
             </div>
+            {pagination}
+              </>}
+            </RecipeListPagination>
           ) : (
             <div className="space-y-3">
               <EmptyState
