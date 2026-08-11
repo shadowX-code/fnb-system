@@ -316,3 +316,10 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Kept mixed-file import behavior: each row is independently atomic and can report success or failure without duplicating a successful retry.
 - Added Asset service and mounted lifecycle coverage for RPC mapping, request-ID reuse, rejection/retry, pending-submit guards, and import row authority.
 - Documented residual P2 storage-orphan cleanup debt: uploads that precede a rejected RPC may orphan, but no partial database lifecycle state persists.
+
+## 2026-08-11
+
+### Roles / Permissions
+- Replaced browser role, permission, and outlet multi-write save choreography with the transactional `save_role_configuration` RPC and `role_configuration_requests` idempotency ledger.
+- Hardened mounted create, edit, duplicate, delegation-rejection, and disable flows for canonical retry IDs, truthful close/success behavior, and local rejection recovery.
+- Confirmed protected-role, permission-delegation, outlet-delegation, UUID-preservation, and differential-reconciliation rules. Roles authority is frozen at 17/17 focused tests; active-session propagation and stale-editor handling remain P2 debt.

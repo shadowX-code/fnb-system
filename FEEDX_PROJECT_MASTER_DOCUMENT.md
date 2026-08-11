@@ -5320,3 +5320,11 @@ Every new module or feature must answer:
 - Does refresh preserve created/edited records?
 - Does `npm run build` pass?
 - Is this document updated?
+
+## Roles and Permission Configuration Authority
+
+- Role create, edit, disable, and duplicate save through the authenticated `save_role_configuration` RPC. The RPC derives `auth.uid()`, validates role-management permission, protected-role rules, permission delegation, outlet delegation, and canonical permission/outlet identities.
+- `role_configuration_requests` is the request-ID ledger. An unchanged retry returns its canonical result; a conflicting fingerprint reuse is rejected. The editor clears an ID after success and creates a new one after a material form edit.
+- A role row plus differential `role_permissions` and `role_outlets` reconciliation commit in one transaction. Existing role UUIDs are preserved on edit; creates and duplicates receive new UUIDs. Ordinary role saves never mutate the permission catalog.
+- Non-protected actors cannot grant permissions outside their own authority or assign inaccessible outlets. Owner/Admin retain their intended broader authority. Delete remains a separate bounded hard-delete path protected by the existing employee role-reference FK.
+- Roles architecture is frozen at the 17/17 focused-test baseline. P2 debt: active-session permission context can lag until refresh/login, and concurrent stale editors remain last-write-wins; server authorization remains authoritative.

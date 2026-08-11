@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Check, Copy, Eye, Lock, MoreHorizontal, Plus, Search, Shield, ShieldAlert, ShieldCheck, Trash2, Users } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import ActionMenu from "../../../components/ui/ActionMenu.jsx";
@@ -167,6 +167,8 @@ function RoleAccessLayout({ title, description, notice, actions, footer, onClose
 
 function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets = roleEditorOutlets, auth, readOnly = false }) {
   const [errors, setErrors] = useState({});
+  const [saving, setSaving] = useState(false);
+  const saveRequestIdRef = useRef("");
   const [values, setValues] = useState(() => ({
     name: role?.name ?? "",
     description: role?.description ?? "",
@@ -189,6 +191,9 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
   const hasOutOfScopePermissions = outOfScopePermissionCodes.size > 0;
 
   function markChanged(patch) {
+    // A material edit must receive a new idempotency key so it cannot conflict with
+    // the fingerprint of a previously rejected snapshot.
+    saveRequestIdRef.current = "";
     setValues((current) => ({ ...current, ...patch }));
     setHasChanges(true);
   }
@@ -250,6 +255,7 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
   }
 
   async function saveRole() {
+    if (saving) return;
     if (!values.name.trim()) {
       setErrors({ name: "Role name is required." });
       return;
@@ -268,7 +274,11 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
     }
     const nextPermissions = [...values.selectedPermissions].filter((code) => roleEditorPermissionCodeSet.has(code));
     const modules = [...new Set(nextPermissions.map((code) => defaultPermissions.find((permission) => permission.code === code)?.module).filter(Boolean))];
-    onSubmit({
+    setSaving(true);
+    try {
+      const requestId = saveRequestIdRef.current || crypto.randomUUID();
+      saveRequestIdRef.current = requestId;
+      await onSubmit({
       ...(role?.id ? { id: role.id } : {}),
       name: values.name.trim().toLowerCase().replace(/\s+/g, "_"),
       description: values.description || "Custom company role.",
@@ -279,9 +289,16 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
       selectedOutletIds: values.selectedOutletIds,
       updatedAt: new Date().toISOString().slice(0, 10),
       updatedBy: "Development Owner",
+      requestId,
       permissions: nextPermissions,
       modules,
-    });
+      });
+      saveRequestIdRef.current = "";
+    } catch {
+      // Parent keeps current notification authority; preserve request ID for retry.
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -297,7 +314,7 @@ function RoleEditorModal({ mode = "create", role, onClose, onSubmit, ui, outlets
           </div>
           <div className="flex gap-2">
             <button className="btn-secondary" type="button" onClick={onClose}>Cancel</button>
-              <button className="btn-primary" type="button" disabled={readOnly} onClick={saveRole}>{isEdit ? "Save Changes" : "Save Role"}</button>
+              <button className="btn-primary" type="button" disabled={readOnly || saving} onClick={saveRole}>{saving ? "Saving…" : isEdit ? "Save Changes" : "Save Role"}</button>
           </div>
         </div>
       )}
@@ -514,7 +531,7 @@ function getAssignedUsersForRole(role) {
 
 function AddRoleModal({ onClose, onSubmit, ui, outlets, auth }) {
   function submitRole(role) {
-    onSubmit({
+    return onSubmit({
       ...role,
       assignedUsers: 0,
     });
@@ -757,7 +774,9 @@ export default function RolesPage({ ui, store, auth }) {
   const [actionMenuRoleId, setActionMenuRoleId] = useState(null);
   const [addRoleOpen, setAddRoleOpen] = useState(false);
   const [editRole, setEditRole] = useState(null);
+  const [duplicateRoleDraft, setDuplicateRoleDraft] = useState(null);
   const [disableRoleRequest, setDisableRoleRequest] = useState(null);
+  const [disableSaving, setDisableSaving] = useState(false);
   const currentRoleName = normalizeRoleName(auth?.profile?.role_name ?? auth?.profile?.role?.name);
   const isOwnerUser = currentRoleName === "owner";
   const isAdminUser = currentRoleName === "admin";
@@ -911,6 +930,7 @@ export default function RolesPage({ ui, store, auth }) {
     } catch (error) {
       console.error("Unable to create role", error);
       ui.notify({ title: "Unable to create role", message: error.message || "Please try again.", tone: "error" });
+      throw error;
     }
   }
 
@@ -928,6 +948,7 @@ export default function RolesPage({ ui, store, auth }) {
     } catch (error) {
       console.error("Unable to update role", error);
       ui.notify({ title: "Unable to update role", message: error.message || "Please try again.", tone: "error" });
+      throw error;
     }
   }
 
@@ -956,13 +977,20 @@ export default function RolesPage({ ui, store, auth }) {
     setActionMenuRoleId(null);
   }
 
-  function confirmDisableRole() {
+  async function confirmDisableRole() {
     const role = disableRoleRequest;
-    if (!role) return;
-    saveRoleEdits({ ...role, is_active: false });
-    setActionMenuRoleId(null);
-    setDisableRoleRequest(null);
-    ui.notify({ title: "Role disabled", message: role.name });
+    if (!role || disableSaving) return;
+    setDisableSaving(true);
+    try {
+      await saveRoleEdits({ ...role, is_active: false });
+      setActionMenuRoleId(null);
+      setDisableRoleRequest(null);
+      ui.notify({ title: "Role disabled", message: role.name });
+    } catch {
+      // saveRoleEdits owns the failure notification; leave the confirmation open for retry.
+    } finally {
+      setDisableSaving(false);
+    }
   }
 
   function deleteRole(role) {
@@ -1000,15 +1028,26 @@ export default function RolesPage({ ui, store, auth }) {
       updatedAt: new Date().toISOString().slice(0, 10),
       updatedBy: "Development Owner",
     };
-    roleService.saveRole(duplicate).then((saved) => {
+    setActionMenuRoleId(null);
+    setDuplicateRoleDraft(duplicate);
+  }
+
+  async function saveDuplicatedRole(role) {
+    if (!canCreateRole) {
+      notifyPermissionDenied(ui, "create roles");
+      return;
+    }
+    if (!validateRoleSave(role)) return;
+    try {
+      const saved = await roleService.saveRole(role);
       setRoles((current) => [saved, ...current]);
-      setActionMenuRoleId(null);
-      setEditRole(saved);
+      setDuplicateRoleDraft(null);
       ui.notify({ title: "Role duplicated", message: `${saved.name} created as editable draft.` });
-    }).catch((error) => {
+    } catch (error) {
       console.error("Unable to duplicate role", error);
       ui.notify({ title: "Unable to duplicate role", message: error.message || "Please try again.", tone: "error" });
-    });
+      throw error;
+    }
   }
 
   function toggleRolePermission(roleId, code) {
@@ -1206,6 +1245,17 @@ export default function RolesPage({ ui, store, auth }) {
       ) : null}
 
       {addRoleOpen ? <AddRoleModal ui={ui} auth={auth} onClose={() => setAddRoleOpen(false)} onSubmit={addRole} outlets={editorOutlets} /> : null}
+      {duplicateRoleDraft ? (
+        <RoleEditorModal
+          mode="create"
+          role={duplicateRoleDraft}
+          onClose={() => setDuplicateRoleDraft(null)}
+          onSubmit={saveDuplicatedRole}
+          ui={ui}
+          outlets={editorOutlets}
+          auth={auth}
+        />
+      ) : null}
       {editRole ? (
         <RoleEditorModal
           mode="edit"
@@ -1225,7 +1275,7 @@ export default function RolesPage({ ui, store, auth }) {
           footer={
             <>
               <button className="btn-secondary" type="button" onClick={() => setDisableRoleRequest(null)}>Cancel</button>
-              <button className="btn-primary bg-amber-600 hover:bg-amber-700" type="button" onClick={confirmDisableRole}>Disable Role</button>
+              <button className="btn-primary bg-amber-600 hover:bg-amber-700" type="button" disabled={disableSaving} onClick={confirmDisableRole}>{disableSaving ? "Disabling…" : "Disable Role"}</button>
             </>
           }
         >
