@@ -5328,3 +5328,10 @@ Every new module or feature must answer:
 - A role row plus differential `role_permissions` and `role_outlets` reconciliation commit in one transaction. Existing role UUIDs are preserved on edit; creates and duplicates receive new UUIDs. Ordinary role saves never mutate the permission catalog.
 - Non-protected actors cannot grant permissions outside their own authority or assign inaccessible outlets. Owner/Admin retain their intended broader authority. Delete remains a separate bounded hard-delete path protected by the existing employee role-reference FK.
 - Roles architecture is frozen at the 17/17 focused-test baseline. P2 debt: active-session permission context can lag until refresh/login, and concurrent stale editors remain last-write-wins; server authorization remains authoritative.
+
+## Factory Product Recipe / BOM Transactional Authority
+
+- `save_factory_product_recipe` owns structural Draft Recipe/BOM saves. It derives `auth.uid()`, resolves `created_by` to the canonical employee identity, applies create/edit permission checks, locks existing Draft recipes, and persists the recipe, complete BOM snapshot, and request-ledger result atomically.
+- `factory_product_recipe_requests` binds a request ID to actor, operation, recipe identity, canonical payload fingerprint, and canonical `{ recipe, items }` result. Unchanged retries return the same result; changed intent requires a new request ID.
+- Product Recipe modal retries are request-safe and pending-submit guarded. Active recipe activation and archive/delete remain separate bounded lifecycle authorities. Factory Recipe stale-editor last-write-wins remains accepted P2 debt.
+- FeedX hardening is complete at P0=0 and P1=0. Frozen architecture rules remain authoritative; return to Feature / Operational Development.

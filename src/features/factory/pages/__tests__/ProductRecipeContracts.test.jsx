@@ -96,6 +96,23 @@ describe("Product Recipe editor and detail contracts", () => {
     expect(screen.getByText("Every material row needs a raw material and standard quantity greater than 0.")).not.toBeNull();
   });
 
+  it("retains a rejected save request ID for unchanged retry and replaces it after persisted intent changes", async () => {
+    const onSave = vi.fn().mockRejectedValueOnce(new Error("rejected")).mockResolvedValue(undefined);
+    render(<ProductRecipeModal initialValue={draftRecipe} productFamilies={[family]} finishedGoods={[sku]} rawMaterials={[material]} receivings={[receiving]} onClose={vi.fn()} onSave={onSave} />);
+    fireEvent.click(screen.getByRole("button", { name: "Save Recipe" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(1));
+    const firstId = onSave.mock.calls[0][0].requestId;
+    expect(firstId).toMatch(/^[0-9a-f-]{36}$/i);
+    await waitFor(() => expect(screen.getByRole("button", { name: "Save Recipe" }).disabled).toBe(false));
+    fireEvent.click(screen.getByRole("button", { name: "Save Recipe" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(2));
+    expect(onSave.mock.calls[1][0].requestId).toBe(firstId);
+    fireEvent.change(screen.getAllByRole("spinbutton")[0], { target: { value: "12" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Recipe" }));
+    await waitFor(() => expect(onSave).toHaveBeenCalledTimes(3));
+    expect(onSave.mock.calls[2][0].requestId).not.toBe(firstId);
+  });
+
   it("renders active and draft read-only Recipe details without lifecycle controls", () => {
     const activeView = render(<ProductRecipeDetailModal recipe={{ ...draftRecipe, status: "active", product_name_cn: family.name_cn }} receivings={[receiving]} onClose={vi.fn()} />);
     expect(screen.getAllByText("Sambal").length).toBeGreaterThan(0);

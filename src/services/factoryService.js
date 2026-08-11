@@ -2873,6 +2873,7 @@ export const factoryService = {
       product_family_id: productFamily.id,
       recipe_name: String(recipe.recipe_name || "").trim(),
       product_name: productFamily.name_en,
+      product_name: productFamily.name_en,
       version,
       yield_quantity: normalizeNumber(recipe.yield_quantity),
       uom: String(recipe.uom || "").trim(),
@@ -2889,39 +2890,13 @@ export const factoryService = {
       payload.created_by = employeeId || null;
     }
 
-    const query = isUpdate
-      ? supabase.from("factory_product_recipes").update(payload).eq("id", recipe.id)
-      : supabase.from("factory_product_recipes").insert(payload);
-
-    const { data, error } = await query
-      .select(recipeSummarySelect)
-      .single();
+    const { data: result, error } = await supabase.rpc("save_factory_product_recipe", {
+      p_request_id: recipe.requestId || crypto.randomUUID(),
+      p_recipe: { ...(recipe.id ? { id: recipe.id } : {}), ...payload },
+      p_bom_items: items,
+    });
     throwSupabaseError("factory.recipe.save", error);
-
-    if (isUpdate) {
-      const deleteResult = await supabase.from("factory_product_recipe_items").delete().eq("recipe_id", data.id);
-      throwSupabaseError("factory.recipe.items_delete", deleteResult.error);
-    }
-
-    const insertResult = await supabase.from("factory_product_recipe_items").insert(items.map((item) => ({
-      recipe_id: data.id,
-      raw_material_id: item.raw_material_id,
-      quantity_used: item.quantity_used,
-      uom: item.uom,
-      wastage_percent: item.wastage_percent,
-      sort_order: item.sort_order,
-      notes: item.notes,
-      remarks: item.notes,
-      updated_at: new Date().toISOString(),
-    })));
-    throwSupabaseError("factory.recipe.items_insert", insertResult.error);
-
-    const { data: saved, error: fetchError } = await supabase
-      .from("factory_product_recipes")
-      .select(recipeSelect)
-      .eq("id", data.id)
-      .single();
-    throwSupabaseError("factory.recipe.fetch_saved", fetchError);
+    const saved = { ...(result?.recipe ?? result), items: result?.items ?? [] };
 
     await logFactoryAction({
       action: isUpdate ? "factory_product_recipe_updated" : "factory_product_recipe_created",

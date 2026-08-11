@@ -323,3 +323,8 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Replaced browser role, permission, and outlet multi-write save choreography with the transactional `save_role_configuration` RPC and `role_configuration_requests` idempotency ledger.
 - Hardened mounted create, edit, duplicate, delegation-rejection, and disable flows for canonical retry IDs, truthful close/success behavior, and local rejection recovery.
 - Confirmed protected-role, permission-delegation, outlet-delegation, UUID-preservation, and differential-reconciliation rules. Roles authority is frozen at 17/17 focused tests; active-session propagation and stale-editor handling remain P2 debt.
+
+### Factory Product Recipe / BOM
+- Added `save_factory_product_recipe` and `factory_product_recipe_requests` (migration 016) so Draft Recipe header and complete BOM replacement commit atomically with request-ID idempotency.
+- Removed the active browser header-update/BOM-delete/BOM-insert save choreography. The Recipe modal owns retry-safe request IDs: unchanged retries reuse one ID, changed intent receives a new ID, and success clears it.
+- Final hardening baseline: Product Recipe focused 11/11 and full suite 356/356. FeedX hardening is complete at P0=0/P1=0; accepted P2 debt remains documented.
