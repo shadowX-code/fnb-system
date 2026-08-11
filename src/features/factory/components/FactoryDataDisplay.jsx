@@ -9,7 +9,7 @@ export function FactoryTable({ columns, rows, emptyTitle, emptyDescription, onRo
         <thead>
           <tr className="border-b border-border bg-slate-50 text-[11px] font-semibold uppercase tracking-[0.08em] text-text-muted">
             {columns.map((column) => (
-              <th key={column.key} className={`px-4 py-2.5 ${column.align === "right" ? "text-right" : ""}`}>{column.label}</th>
+              <th key={column.key} className={`${column.className || ""} px-4 py-2.5 ${column.align === "right" ? "text-right" : ""}`}>{column.label}</th>
             ))}
           </tr>
         </thead>
@@ -21,7 +21,7 @@ export function FactoryTable({ columns, rows, emptyTitle, emptyDescription, onRo
               onClick={onRowClick ? () => onRowClick(row) : undefined}
             >
               {columns.map((column) => (
-                <td key={column.key} className={`px-4 py-3 text-sm ${column.align === "right" ? "text-right" : ""}`}>
+                <td key={column.key} className={`${column.className || ""} px-4 py-3 text-sm ${column.align === "right" ? "text-right" : ""}`}>
                   {column.render ? column.render(row) : row[column.key]}
                 </td>
               ))}

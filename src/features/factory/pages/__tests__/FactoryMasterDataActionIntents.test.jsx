@@ -9,8 +9,8 @@ import FactoryRawMaterialInventoryPage from "../FactoryRawMaterialInventoryPage.
 import FactoryStorageLocationsPage from "../FactoryStorageLocationsPage.jsx";
 import FactorySuppliersPage from "../FactorySuppliersPage.jsx";
 
-const supplier = { id: "supplier-1", supplier_name: "Fresh Farm", supplier_code: "FF", status: "active" };
-const customer = { id: "customer-1", customer_name: "Outlet One", customer_code: "O1", customer_type: "Outlet", status: "active" };
+const supplier = { id: "supplier-1", supplier_name: "Fresh Farm", supplier_code: "FF", contact_person: "Aisha Rahman", phone: "+60 12-345 6789", status: "active" };
+const customer = { id: "customer-1", customer_name: "Outlet One", customer_code: "O1", customer_type: "outlet", contact_person: "Mei Tan", phone: "+60 13-456 7890", status: "active" };
 const location = { id: "location-1", location_name: "Dry Store", location_code: "DS", location_type: "Dry", status: "active" };
 const material = { id: "material-1", name: "Chili", name_en: "Chili", material_code: "CHI", category: "Spices", uom: "kg", current_balance: 5, min_stock_level: 1, status: "active", image_url: "https://example.test/chili.png" };
 const sku = { id: "sku-1", product_family_id: "family-1", product_family_name: "Sambal", product_name: "Sambal", product_name_en: "Sambal", product_code: "SAM-500", current_balance: 1, status: "active" };
@@ -20,9 +20,24 @@ function renderPage(Page, { permissions, data, navigation }) {
   return render(<FactoryPermissionsProvider permissionSet={permissions} can={can}><FactoryMasterDataProvider data={data}><FactoryNavigationProvider {...navigation}><Page /></FactoryNavigationProvider></FactoryMasterDataProvider></FactoryPermissionsProvider>);
 }
 
+function expectStatusBadge(label) {
+  expect(screen.getAllByText(label).some((element) => element.classList.contains("badge"))).toBe(true);
+}
+
 afterEach(cleanup);
 
 describe("Factory master-data action intents", () => {
+  it("renders compact master table hierarchy with contact details, canonical statuses, and clean fallbacks", () => {
+    const supplierView = renderPage(FactorySuppliersPage, { permissions: ["factory_suppliers.view"], data: { factorySuppliers: [supplier, { ...supplier, id: "supplier-2", supplier_name: "No Contact", supplier_code: null, contact_person: null, phone: null, status: "archived" }] }, navigation: {} });
+    expect(screen.getByRole("columnheader", { name: "Contact Person" })).not.toBeNull(); expect(screen.getByRole("columnheader", { name: "Phone" })).not.toBeNull(); expect(screen.getByText("Fresh Farm")).not.toBeNull(); expect(screen.getByText("FF")).not.toBeNull(); expect(screen.getByText("Aisha Rahman")).not.toBeNull(); expect(screen.getByText("+60 12-345 6789")).not.toBeNull(); expectStatusBadge("Active"); expectStatusBadge("Archived"); expect(screen.getAllByText("—").length).toBeGreaterThanOrEqual(2); supplierView.unmount();
+
+    const customerView = renderPage(FactoryCustomersPage, { permissions: ["factory_customers.view"], data: { factoryCustomers: [customer] }, navigation: {} });
+    expect(screen.getByRole("columnheader", { name: "Type" })).not.toBeNull(); expect(screen.getByRole("columnheader", { name: "Contact Person" })).not.toBeNull(); expect(screen.getByText("Outlet")).not.toBeNull(); expect(screen.getByText("Mei Tan")).not.toBeNull(); expect(screen.getByText("+60 13-456 7890")).not.toBeNull(); expectStatusBadge("Active"); customerView.unmount();
+
+    renderPage(FactoryStorageLocationsPage, { permissions: ["factory_storage_locations.view"], data: { storageLocations: [location] }, navigation: {} });
+    expect(screen.getByText("Dry Store")).not.toBeNull(); expect(screen.getByText("DS")).not.toBeNull(); expect(screen.getByText("Dry")).not.toBeNull(); expectStatusBadge("Active");
+  });
+
   it("keeps Supplier, Customer, and Storage create/edit/archive identities at bounded navigation actions", () => {
     const supplierNav = { openCreateSupplier: vi.fn(), openEditSupplier: vi.fn(), archiveSupplier: vi.fn() };
     const supplierView = renderPage(FactorySuppliersPage, { permissions: ["factory_suppliers.view", "factory_suppliers.create", "factory_suppliers.edit", "factory_suppliers.delete"], data: { factorySuppliers: [supplier] }, navigation: supplierNav });
