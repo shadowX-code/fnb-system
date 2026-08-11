@@ -103,7 +103,10 @@ function orderTableRow(poNo) {
 }
 
 beforeEach(() => { mocks.operations.length = 0; mocks.notifications.length = 0; mocks.rpcResponses = {}; mocks.singleResponses = {}; mocks.from.mockClear(); mocks.rpc.mockClear(); });
-afterEach(cleanup);
+afterEach(() => {
+  window.history.replaceState(null, "", "/");
+  cleanup();
+});
 
 describe("InventoryControlPage Purchase Orders lifecycle", () => {
   it("renders current non-empty PO states, fulfillment, and search/status filters", async () => {
@@ -269,6 +272,7 @@ describe("InventoryControlPage Purchase Orders lifecycle", () => {
   });
 
   it("hands a submitted shortage check to one per-supplier trusted draft-PO intent", async () => {
+    window.history.replaceState(null, "", "#inventory_stock_check?date=2026-08-10");
     mount({ tab: "stock-check", includeCheck: true });
     await screen.findByText("Daily Count");
     fireEvent.click(screen.getByRole("button", { name: "Review Purchase Suggestions" }));

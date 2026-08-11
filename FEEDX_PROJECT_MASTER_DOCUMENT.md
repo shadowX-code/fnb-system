@@ -683,6 +683,8 @@ Unique key:
 outlet_id + year + month + channel_id
 ```
 
+Monthly persistence uses the trusted `save_sales_period_snapshot` RPC. It validates the authenticated actor, Sales permission, and outlet access; serializes same-period writes; reuses request IDs only for the same payload; and atomically updates canonical rows in place, inserts missing rows, and deletes omitted rows. Existing matching record UUIDs are preserved.
+
 Behavior:
 
 - Load existing records when outlet/month/year changes.
@@ -854,6 +856,8 @@ Unique key:
 ```text
 outlet_id + year + month + supplier_id + category_id
 ```
+
+Monthly persistence uses the trusted `save_purchase_period_snapshot` RPC with the same request-ID ledger and period serialization model as Sales. It validates the authenticated actor, Purchase permission, and outlet access; atomically updates canonical rows in place, inserts missing rows, and deletes omitted rows. Existing matching record UUIDs are preserved.
 
 Behavior:
 

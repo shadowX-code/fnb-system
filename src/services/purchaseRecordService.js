@@ -81,75 +81,19 @@ export const purchaseRecordService = {
     return (data ?? []).map(mapPurchaseRecord);
   },
 
-  async deletePurchaseRecords(outletId, year, month) {
-    const existing = await this.getPurchaseRecords(outletId, year, month);
-    await this.deletePurchaseRecordIds(existing.map((record) => record.id));
-  },
-
-  async deletePurchaseRecordIds(ids) {
-    if (!ids.length) return;
-    logPurchaseRecordQuery("delete:removed_rows", "purchase_input.delete", { rows: ids.length });
-    const { error } = await supabase
-      .from("purchase_records")
-      .delete()
-      .in("id", ids);
-
-    throwSupabaseError("purchase_records.delete_removed_rows", error);
-  },
-
-  async savePurchaseRecords(outletId, year, month, records) {
-    const existing = await this.getPurchaseRecords(outletId, year, month);
-    const existingById = new Map(existing.map((record) => [record.id, record]));
-    const seenExistingIds = new Set();
-    const savedRows = [];
-
-    const payload = records.map((record) => ({
-      id: record.id,
-      outlet_id: outletId,
-      year,
-      month,
+  async savePurchaseRecords(outletId, year, month, records, requestId) {
+    const rows = records.map((record) => ({
       supplier_id: record.supplier_id || null,
       category_id: record.category_id || null,
       amount: Number(record.amount) || 0,
       remark: record.remark ?? "",
     }));
-
-    if (!payload.length) return [];
-
-    for (const row of payload) {
-      if (row.id && existingById.has(row.id)) {
-        seenExistingIds.add(row.id);
-        const { id, ...updatePayload } = row;
-        logPurchaseRecordQuery("update:row", "purchase_input.edit", { id, outletId, year, month });
-        const { data, error } = await supabase
-          .from("purchase_records")
-          .update({ ...updatePayload, updated_at: new Date().toISOString() })
-          .eq("id", id)
-          .select(purchaseRecordSelect)
-          .single();
-        throwSupabaseError("purchase_records.update_row", error);
-        savedRows.push(mapPurchaseRecord(data));
-      } else {
-        const { id: _ignoredId, ...insertPayload } = row;
-        logPurchaseRecordQuery("insert:row", "purchase_input.create", {
-          outletId,
-          year,
-          month,
-          supplier_id: insertPayload.supplier_id,
-          category_id: insertPayload.category_id,
-        });
-        const { data, error } = await supabase
-          .from("purchase_records")
-          .insert(insertPayload)
-          .select(purchaseRecordSelect)
-          .single();
-        throwSupabaseError("purchase_records.insert_row", error);
-        savedRows.push(mapPurchaseRecord(data));
-      }
-    }
-
-    const removedIds = existing.map((record) => record.id).filter((id) => !seenExistingIds.has(id));
-    await this.deletePurchaseRecordIds(removedIds);
+    logPurchaseRecordQuery("rpc:save_period_snapshot", "purchase_input.create OR purchase_input.edit", { outletId, year, month, rows: rows.length });
+    const { data, error } = await supabase.rpc("save_purchase_period_snapshot", {
+      p_request_id: requestId, p_outlet_id: outletId, p_year: year, p_month: month, p_rows: rows,
+    });
+    throwSupabaseError("purchase_records.save_period_snapshot", error);
+    const savedRows = data?.records ?? [];
 
     await auditLogService.createAuditLog({
       action: "purchase_updated",

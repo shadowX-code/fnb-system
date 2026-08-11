@@ -4,6 +4,12 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 
 ## 2026-08-10
 
+### Sales / Purchase Monthly Snapshot Authority
+- Replaced browser-owned monthly Sales and Purchase multi-step persistence with `save_sales_period_snapshot` and `save_purchase_period_snapshot` trusted RPCs.
+- Added one shared request ledger with request-ID reuse, payload-fingerprint conflict protection, authenticated actor/outlet validation, and per-period advisory locks.
+- Both snapshot RPCs update canonical matching rows in place, insert missing rows, delete omitted rows atomically, and preserve existing UUIDs; the remaining stale-editor last-write-wins behavior is P2 product concurrency debt.
+- Monthly snapshot verification baseline: 11/11 focused tests passing.
+
 ### Data Import Lifecycle Authority
 - Moved active Sales and Purchase import persistence behind the request-bound trusted lifecycle: begin request, row apply, and server-derived finalization; the browser no longer owns target writes, row-history writes, or batch completion.
 - Added canonical request/batch and row identities for retry/idempotency, including payload-conflict protection and independent row outcomes for intentional `partial_failed` imports.

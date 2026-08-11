@@ -94,6 +94,7 @@ function seed() {
 
 const groupPermissions = ["inventory_stock_check.view", "inventory_groups.create", "inventory_groups.edit"];
 function mount(granted = groupPermissions) {
+  window.history.replaceState(null, "", "#inventory_groups?date=2026-08-10");
   render(<InventoryControlPage
     initialTab="groups"
     store={{ outlets: [{ id: ids.outletA, name: "KL Central", code: "KLC" }, { id: ids.outletB, name: "PJ Hub", code: "PJH" }], suppliers: [] }}
@@ -110,7 +111,10 @@ function groupCard(name) { return screen.getByText(name).closest(".rounded-2xl.b
 async function choose(label, option) { fireEvent.click(screen.getByRole("button", { name: label })); fireEvent.click(await screen.findByRole("button", { name: option })); }
 
 beforeEach(() => { seed(); mocks.operations.length = 0; mocks.notifications.length = 0; mocks.singleResponses = {}; mocks.from.mockClear(); });
-afterEach(cleanup);
+afterEach(() => {
+  window.history.replaceState(null, "", "/");
+  cleanup();
+});
 
 describe("InventoryControlPage Groups lifecycle", () => {
   it("renders non-empty Groups data with outlet, category, membership, schedule, and status presentation", async () => {
