@@ -1,0 +1,24 @@
+import { useEffect, useMemo, useState } from "react";
+import { Clock3, ShieldCheck, UsersRound } from "lucide-react";
+import PageHeader from "../../../components/layout/PageHeader.jsx";
+import Card from "../../../components/ui/Card.jsx";
+import Badge from "../../../components/ui/Badge.jsx";
+import DataTable from "../../../components/tables/DataTable.jsx";
+import CrewAccessManagerModal from "../components/CrewAccessManagerModal.jsx";
+import { employeeService } from "../../../services/employeeService.js";
+import { crewAccessState, CREW_ACCESS_STATE_LABEL } from "../../../services/crewService.js";
+
+export default function CrewWorkspacePage({ auth, ui, initialTab = "dashboard" }) {
+  const [employees, setEmployees] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [request, setRequest] = useState(null);
+  const canManage = auth.hasPermission("crew_employees.manage");
+  async function refresh() { setLoading(true); try { setEmployees(await employeeService.listEmployees()); } catch (error) { ui.notify({ title: "Unable to load Crew access", message: error.message, tone: "error" }); } finally { setLoading(false); } }
+  useEffect(() => { refresh(); }, []);
+  const active = useMemo(() => employees.filter((employee) => crewAccessState(employee.crew_access) === "active"), [employees]);
+  const locked = useMemo(() => employees.filter((employee) => crewAccessState(employee.crew_access) === "locked"), [employees]);
+  if (initialTab === "employees") return <div className="space-y-4"><PageHeader section="Crew · People" title="Crew Access" description="Manage mobile Crew access separately from existing FeedX Admin Access." /><Card title="Employee Crew Access" description="Passcodes are never stored or shown again after generation.">{loading ? <div className="p-8 text-sm font-semibold text-text-secondary">Loading employees…</div> : <DataTable tableClassName="min-w-[760px]" rows={employees} getRowKey={(row) => row.id} columns={[{ key: "employee", header: "Employee", render: (row) => <div><div className="font-bold text-text-primary">{row.full_name}</div><div className="text-xs text-text-secondary">{row.position || "No position"} · {row.workplace || "No workplace"}</div></div> }, { key: "mobile", header: "Mobile", render: (row) => row.crew_access?.mobile_number || row.contact || "—" }, { key: "crew", header: "Crew Access", render: (row) => { const state = crewAccessState(row.crew_access); return <Badge tone={state === "active" ? "success" : state === "locked" ? "warning" : "neutral"}>{CREW_ACCESS_STATE_LABEL[state]}</Badge>; } }, { key: "last", header: "Last login", render: (row) => row.crew_access?.last_login_at ? new Date(row.crew_access.last_login_at).toLocaleString("en-MY") : "—" }, { key: "action", header: "", align: "right", render: (row) => canManage ? <button className="btn-secondary" type="button" onClick={() => setRequest({ employee: row, mode: row.crew_access?.access_state === "active" ? "reset" : "enable" })}>{row.crew_access?.access_state === "active" ? "New passcode" : "Manage access"}</button> : null }]} />}</Card>{request ? <CrewAccessManagerModal employee={request.employee} mode={request.mode} onClose={() => setRequest(null)} onSaved={refresh} /> : null}</div>;
+  return <div className="space-y-4"><PageHeader section="Crew · Overview" title="Crew Foundation" description="Mobile access and attendance are now a dedicated workforce workspace." /><div className="grid gap-4 md:grid-cols-3"><Metric icon={UsersRound} label="Crew Access Active" value={active.length} helper="Employees able to use Crew mobile" /><Metric icon={Clock3} label="Open shifts" value="—" helper="Attendance control is available in Crew" /><Metric icon={ShieldCheck} label="Access review" value={locked.length} helper="Locked Crew accounts need attention" tone="amber" /></div><Card title="Phase A scope" description="Foundation delivered without enabling future Journey modules."><div className="grid gap-3 md:grid-cols-2"><p className="rounded-xl bg-slate-50 p-4 text-sm text-text-secondary">Crew is independent from Admin Access. Employees retain their existing role, Admin access state and Admin login history.</p><p className="rounded-xl bg-emerald-50 p-4 text-sm text-emerald-900">Mobile Crew supports passcode sign-in, clock in/out, attendance history and profile. Learning, SOP, rewards and performance remain reserved for later phases.</p></div></Card></div>;
+}
+
+function Metric({ icon: Icon, label, value, helper, tone = "green" }) { return <div className={`rounded-2xl border p-5 ${tone === "amber" ? "border-amber-200 bg-amber-50" : "border-border bg-surface"}`}><Icon size={18} className={tone === "amber" ? "text-amber-700" : "text-primary"} /><div className="mt-5 text-3xl font-bold text-text-primary">{value}</div><div className="mt-1 font-semibold text-text-primary">{label}</div><div className="mt-1 text-xs text-text-secondary">{helper}</div></div>; }

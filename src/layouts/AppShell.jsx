@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, BarChart3, Bell, Boxes, Building2, CalendarDays, Check, ChevronsDownUp, ChevronsUpDown, ChevronDown, ClipboardCheck, ClipboardList, Download, Eye, EyeOff, Factory, FileText, FlaskConical, KeyRound, LogOut, Menu, Monitor, Moon, PackageCheck, PackagePlus, PieChart, RefreshCw, Settings, Shield, ShoppingCart, Sun, Truck, UserRound, Users, Wallet, Warehouse, X } from "lucide-react";
+import { AlertTriangle, BarChart3, Bell, Boxes, Building2, CalendarDays, Check, ChevronsDownUp, ChevronsUpDown, ChevronDown, ClipboardCheck, ClipboardList, Clock3, Download, Eye, EyeOff, Factory, FileText, FlaskConical, KeyRound, LogOut, Menu, Monitor, Moon, PackageCheck, PackagePlus, PieChart, RefreshCw, Settings, Shield, ShoppingCart, Sun, Truck, UserRound, Users, Wallet, Warehouse, X } from "lucide-react";
 import Modal from "../components/feedback/Modal.jsx";
 import Badge from "../components/ui/Badge.jsx";
 import FloatingLayer from "../components/ui/FloatingLayer.jsx";
@@ -64,6 +64,9 @@ const iconMap = {
   "factory-suppliers": Truck,
   "factory-customers": Building2,
   "factory-settings": Settings,
+  "crew-dashboard": Users,
+  "crew-employees": Users,
+  "crew-attendance": Clock3,
 };
 
 function latestPeriod(store) {
@@ -934,6 +937,7 @@ export default function AppShell({ activeRoute, activeRouteId, sections, workspa
   const [myProfileOpen, setMyProfileOpen] = useState(false);
   const [changePasswordOpen, setChangePasswordOpen] = useState(false);
   const [mobileSidebarOpen, setMobileSidebarOpen] = useState(false);
+  const [workspaceMenuOpen, setWorkspaceMenuOpen] = useState(false);
   const [themeChoice, setThemeChoice] = useState(() => {
     if (typeof window === "undefined") return "system";
     try {
@@ -1277,29 +1281,15 @@ export default function AppShell({ activeRoute, activeRouteId, sections, workspa
         )}
       </div>
 
-      <div className="px-3 pb-2">
-        <div className="grid grid-cols-2 rounded-2xl border border-border bg-slate-50 p-1">
-          {[
-            { id: "restaurant", label: "Restaurant", icon: Building2 },
-            { id: "factory", label: "Factory", icon: Factory },
-          ].map((option) => {
-            const Icon = option.icon;
-            const active = workspace === option.id;
-            return (
-              <button
-                key={option.id}
-                className={`flex items-center justify-center gap-1.5 rounded-xl px-2 py-2 text-[12px] font-semibold transition ${
-                  active ? "bg-white text-primary shadow-sm ring-1 ring-primary/10" : "text-text-secondary hover:bg-white/70 hover:text-text-primary"
-                }`}
-                type="button"
-                onClick={() => onWorkspaceChange?.(option.id)}
-              >
-                <Icon size={13} />
-                {option.label}
-              </button>
-            );
-          })}
-        </div>
+      <div className="relative px-3 pb-2">
+        <button className="flex w-full items-center justify-between rounded-xl border border-border bg-slate-50 px-3 py-2.5 text-left transition hover:border-primary/30 hover:bg-white" type="button" aria-expanded={workspaceMenuOpen} onClick={() => setWorkspaceMenuOpen((value) => !value)}>
+          <span><span className="block text-[10px] font-semibold uppercase tracking-[0.12em] text-text-muted">Workspace</span><span className="mt-0.5 block text-sm font-bold text-text-primary">{workspace === "crew" ? "Crew" : workspace === "factory" ? "Factory" : "Restaurant"}</span></span><ChevronDown size={16} className={`text-text-muted transition-transform ${workspaceMenuOpen ? "rotate-180" : ""}`} />
+        </button>
+        {workspaceMenuOpen ? <div className="absolute inset-x-3 top-[76px] z-20 rounded-xl border border-border bg-surface p-1.5 shadow-lg">{[
+          { id: "restaurant", label: "Restaurant", detail: "Store Operations", icon: Building2 },
+          { id: "factory", label: "Factory", detail: "Production Operations", icon: Factory },
+          { id: "crew", label: "Crew", detail: "People, learning & workforce", icon: Users },
+        ].map((option) => { const Icon = option.icon; const active = workspace === option.id; return <button key={option.id} className={`flex w-full items-center gap-3 rounded-lg px-2.5 py-2.5 text-left transition ${active ? "bg-primary/10 text-primary" : "text-text-secondary hover:bg-slate-50 hover:text-text-primary"}`} type="button" onClick={() => { setWorkspaceMenuOpen(false); onWorkspaceChange?.(option.id); }}><Icon size={16} /><span><span className="block text-sm font-bold">{option.label}</span><span className="block text-xs font-medium opacity-75">{option.detail}</span></span>{active ? <Check className="ml-auto" size={15} /> : null}</button>; })}</div> : null}
       </div>
 
       <nav className="flex-1 space-y-2 overflow-y-auto px-3 py-2.5">

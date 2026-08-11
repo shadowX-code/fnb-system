@@ -51,6 +51,15 @@ export default function OutletManagementPage({ store, setStore, ui }) {
     { name: "code", label: "Outlet Code", placeholder: "HIPB" },
     { name: "location", label: "Location", placeholder: "City / area" },
     {
+      name: "attendance_location_enabled",
+      label: "Attendance Location Verification",
+      type: "select",
+      options: [{ value: "false", label: "Disabled until configured" }, { value: "true", label: "Enabled" }],
+    },
+    { name: "attendance_latitude", label: "Attendance Latitude", placeholder: "e.g. 3.139000" },
+    { name: "attendance_longitude", label: "Attendance Longitude", placeholder: "e.g. 101.686900" },
+    { name: "attendance_radius_meters", label: "Allowed Radius (meters)", placeholder: "100" },
+    {
       name: "status",
       label: "Status",
       type: "select",
@@ -122,14 +131,20 @@ export default function OutletManagementPage({ store, setStore, ui }) {
       {modal ? (
         <EntityModal
           title={modal.mode === "add" ? "Add Outlet" : "Edit Outlet"}
-          description="Outlet code and location are used in reports and imports."
+          description="Outlet code and location are used in reports and imports. Attendance GPS verification remains disabled until coordinates are configured."
           fields={fields}
-          initialValues={modal.row ?? { name: "", code: "", location: "", status: "active" }}
+          initialValues={{ name: "", code: "", location: "", status: "active", attendance_latitude: "", attendance_longitude: "", attendance_radius_meters: "100", ...(modal.row ?? {}), attendance_location_enabled: String(modal.row?.attendance_location_enabled ?? false) }}
           onClose={() => setModal(null)}
           onSubmit={async (values) => {
             if (!values.name?.trim()) return ui.notify({ title: "Outlet name required", tone: "error" });
+            const locationEnabled = values.attendance_location_enabled === true || values.attendance_location_enabled === "true";
+            const latitude = Number(values.attendance_latitude);
+            const longitude = Number(values.attendance_longitude);
+            const radius = Number(values.attendance_radius_meters || 100);
+            if (locationEnabled && (!Number.isFinite(latitude) || latitude < -90 || latitude > 90 || !Number.isFinite(longitude) || longitude < -180 || longitude > 180)) return ui.notify({ title: "Valid outlet coordinates required", message: "Enter latitude and longitude before enabling attendance location verification.", tone: "error" });
+            if (!Number.isFinite(radius) || radius < 25 || radius > 2000) return ui.notify({ title: "Invalid attendance radius", message: "Use a radius between 25 and 2,000 meters.", tone: "error" });
             try {
-              const saved = await outletService.saveOutlet({ ...(modal.row ?? {}), ...values });
+              const saved = await outletService.saveOutlet({ ...(modal.row ?? {}), ...values, attendance_location_enabled: locationEnabled, attendance_radius_meters: radius });
               setOutlets((current) => {
                 const exists = current.some((outlet) => outlet.id === saved.id);
                 return exists ? current.map((outlet) => (outlet.id === saved.id ? saved : outlet)) : [saved, ...current];

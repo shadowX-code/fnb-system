@@ -12,6 +12,10 @@ function mapOutlet(outlet) {
     status: isActive ? "active" : "inactive",
     location: outlet.location ?? outlet.address ?? "",
     address: outlet.address ?? outlet.location ?? "",
+    attendance_location_enabled: Boolean(outlet.attendance_location_enabled),
+    attendance_latitude: outlet.attendance_latitude ?? "",
+    attendance_longitude: outlet.attendance_longitude ?? "",
+    attendance_radius_meters: outlet.attendance_radius_meters ?? 100,
     created_at: outlet.created_at,
     updated_at: outlet.updated_at,
   };
@@ -21,7 +25,7 @@ export const outletService = {
   async listOutlets() {
     const { data, error } = await supabase
       .from("outlets")
-      .select("id,name,code,is_active,status,location,address,created_at,updated_at")
+      .select("id,name,code,is_active,status,location,address,attendance_location_enabled,attendance_latitude,attendance_longitude,attendance_radius_meters,created_at,updated_at")
       .order("name", { ascending: true });
 
     throwSupabaseError("outlets.list", error);
@@ -31,7 +35,7 @@ export const outletService = {
   async listActiveOutlets() {
     const { data, error } = await supabase
       .from("outlets")
-      .select("id,name,code,is_active,status,location,address,created_at,updated_at")
+      .select("id,name,code,is_active,status,location,address,attendance_location_enabled,attendance_latitude,attendance_longitude,attendance_radius_meters,created_at,updated_at")
       .eq("is_active", true)
       .order("name", { ascending: true });
 
@@ -48,6 +52,10 @@ export const outletService = {
       address: outlet.location?.trim() || outlet.address?.trim() || null,
       is_active: outlet.status ? outlet.status === "active" : outlet.is_active !== false,
       status: outlet.status ?? (outlet.is_active === false ? "inactive" : "active"),
+      attendance_location_enabled: outlet.attendance_location_enabled === true || outlet.attendance_location_enabled === "true",
+      attendance_latitude: outlet.attendance_latitude === "" || outlet.attendance_latitude == null ? null : Number(outlet.attendance_latitude),
+      attendance_longitude: outlet.attendance_longitude === "" || outlet.attendance_longitude == null ? null : Number(outlet.attendance_longitude),
+      attendance_radius_meters: Number(outlet.attendance_radius_meters || 100),
       updated_at: new Date().toISOString(),
     };
 
@@ -56,7 +64,7 @@ export const outletService = {
       : supabase.from("outlets").insert(payload);
 
     const { data, error } = await query
-      .select("id,name,code,is_active,status,location,address,created_at,updated_at")
+      .select("id,name,code,is_active,status,location,address,attendance_location_enabled,attendance_latitude,attendance_longitude,attendance_radius_meters,created_at,updated_at")
       .single();
 
     throwSupabaseError("outlets.save", error);

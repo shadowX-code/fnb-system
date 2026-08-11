@@ -73,11 +73,12 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   export: "Export",
 };
 
-export type WorkspaceKey = "restaurant" | "factory";
+export type WorkspaceKey = "restaurant" | "factory" | "crew";
 
 export const workspaceLabels: Record<WorkspaceKey, string> = {
   restaurant: "Restaurant",
   factory: "Factory",
+  crew: "Crew",
 };
 
 export const moduleSectionOrder = [
@@ -92,6 +93,10 @@ export const moduleSectionOrder = [
   "Master Data",
   "People",
   "System",
+  "Journey",
+  "Knowledge",
+  "Performance",
+  "Documents",
 ];
 
 export const moduleRegistry: AppModule[] = [
@@ -630,6 +635,36 @@ export const moduleRegistry: AppModule[] = [
     sidebar: true,
     workspace: "factory",
     permissions: { view: true, create: true, edit: true, delete: true, export: true },
+  },
+  {
+    id: "crew_dashboard",
+    section: "Overview",
+    label: "Dashboard",
+    route: "/crew/dashboard",
+    icon: "crew-dashboard",
+    sidebar: true,
+    workspace: "crew",
+    permissions: { view: true },
+  },
+  {
+    id: "crew_employees",
+    section: "People",
+    label: "Employees",
+    route: "/crew/employees",
+    icon: "crew-employees",
+    sidebar: true,
+    workspace: "crew",
+    permissions: { view: true, manage: true },
+  },
+  {
+    id: "crew_attendance",
+    section: "People",
+    label: "Attendance",
+    route: "/crew/attendance",
+    icon: "crew-attendance",
+    sidebar: true,
+    workspace: "crew",
+    permissions: { view: true, manage: true },
   },
 ];
 

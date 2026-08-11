@@ -22,6 +22,8 @@ import { roleService } from "../../../services/roleService.js";
 import { formatDateTime } from "../../../lib/dateTime.js";
 import { normalizeRoleOutletAccess } from "../utils/roleAccess.js";
 import { canCreate, canEdit, getAccessibleOutlets, hasAllOutletAccess, hasPermission, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import CrewAccessManagerModal from "../../crew/components/CrewAccessManagerModal.jsx";
+import { crewAccessState, crewService, CREW_ACCESS_STATE_LABEL } from "../../../services/crewService.js";
 
 const fallbackRoleOptions = ["owner", "admin", "manager", "supervisor", "cashier", "kitchen", "purchaser", "finance", "hr", "staff"];
 const fallbackWorkplaceOptions = ["Hola Ipoh Bangsar", "Hola TTDI", "Hola Mont Kiara", "Hola Subang"];
@@ -1319,6 +1321,7 @@ export default function UsersPage({ ui, store, auth }) {
   const [setupLink, setSetupLink] = useState(null);
   const [setupFallback, setSetupFallback] = useState(null);
   const [setupFallbackGenerating, setSetupFallbackGenerating] = useState(false);
+  const [crewAccessRequest, setCrewAccessRequest] = useState(null);
   const canCreateEmployee = canCreate(auth, "employees");
   const canEditEmployee = canEdit(auth, "employees");
   const canDeactivateEmployee = hasPermission(auth, "employees.deactivate");
@@ -1681,6 +1684,15 @@ export default function UsersPage({ ui, store, auth }) {
     );
   }
 
+  function renderCrewAccessAction(row) {
+    if (!hasPermission(auth, "crew_employees.manage")) return null;
+    const state = crewAccessState(row.crew_access);
+    if (state === "active" || state === "locked") {
+      return <><button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { setCrewAccessRequest({ employee: row, mode: "reset" }); setActionMenuUserId(null); }}><KeyRound size={14} /> Generate Crew Passcode</button><button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold text-rose-700 hover:bg-rose-50" type="button" onClick={async () => { setActionMenuUserId(null); if (await ui.confirm({ title: "Disable Crew Access?", description: `${row.full_name} will be signed out of Crew on all devices.`, confirmLabel: "Disable Access", tone: "danger" })) { try { await crewService.manageAccess(row.id, "disable"); setUsers(await employeeService.listEmployees()); ui.notify({ title: "Crew Access disabled." }); } catch (error) { ui.notify({ title: "Unable to disable Crew Access", message: error.message, tone: "error" }); } } }}><Power size={14} /> Disable Crew Access</button></>;
+    }
+    return <button className="flex w-full items-center gap-2 rounded-xl px-3 py-2 text-left font-semibold hover:bg-slate-50" type="button" onClick={() => { setCrewAccessRequest({ employee: row, mode: "enable" }); setActionMenuUserId(null); }}><ShieldCheck size={14} /> Manage Crew Access</button>;
+  }
+
   const columns = [
     {
       key: "employee",
@@ -1712,11 +1724,16 @@ export default function UsersPage({ ui, store, auth }) {
     { key: "workplace", header: "Work Place", render: (row) => row.workplace || <Badge tone="warning">Missing</Badge> },
     { key: "employment_type", header: "Employment Type", render: (row) => <Badge tone={employmentTypeTone(row.employment_type)}>{employmentTypeLabel(row.employment_type)}</Badge> },
     { key: "employment_status", header: "Employment Status", render: (row) => <Badge tone={employmentTone(row.employment_status)}>{employmentStatusLabel(row.employment_status)}</Badge> },
-    { key: "account", header: "Access State", render: (row) => {
+    { key: "account", header: "Admin Access", render: (row) => {
       const accessState = getAccessState(row);
-      return <Badge tone={accountTone(accessState)}>{accountLabel(accessState)}</Badge>;
+      return <div className="space-y-1"><Badge tone={accountTone(accessState)}>{accountLabel(accessState)}</Badge><div className="text-xs text-text-muted">{row.role || "No role"} · {formatDateTime(row.last_login_at)}</div></div>;
     } },
-    { key: "last_login", header: "Last Login", className: "hidden lg:table-cell", headerClassName: "hidden lg:table-cell", render: (row) => <span className="text-xs font-medium text-text-secondary">{formatDateTime(row.last_login_at)}</span> },
+    { key: "crew_access", header: "Crew Access", className: "hidden xl:table-cell", headerClassName: "hidden xl:table-cell", render: (row) => {
+      const access = row.crew_access;
+      const state = crewAccessState(access);
+      const tone = state === "active" ? "success" : state === "locked" ? "warning" : "neutral";
+      return <div className="space-y-1"><Badge tone={tone}>{CREW_ACCESS_STATE_LABEL[state]}</Badge><div className="text-xs text-text-muted">{access?.last_login_at ? `Last: ${formatDateTime(access.last_login_at)}` : access?.mobile_number || "—"}</div></div>;
+    } },
     {
       key: "action",
       header: "Actions",
@@ -1742,6 +1759,7 @@ export default function UsersPage({ ui, store, auth }) {
                 <Edit3 size={14} /> Edit
               </button> : null}
               {renderAccountActions(row)}
+              {renderCrewAccessAction(row)}
           </ActionMenu>
         </div>
       ),
@@ -1902,6 +1920,7 @@ export default function UsersPage({ ui, store, auth }) {
           onSubmit={saveUser}
         />
       ) : null}
+      {crewAccessRequest ? <CrewAccessManagerModal employee={crewAccessRequest.employee} mode={crewAccessRequest.mode} onClose={() => setCrewAccessRequest(null)} onSaved={async () => { const refreshed = await employeeService.listEmployees(); setUsers(refreshed); }} /> : null}
       {setupLink ? (
         <Modal
           title="Login Setup Link Generated"

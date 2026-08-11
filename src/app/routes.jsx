@@ -22,6 +22,8 @@ import DepartmentsPage from "../features/company-users/pages/DepartmentsPage.jsx
 import RolesPage from "../features/company-users/pages/RolesPage.jsx";
 import AuditLogsPage from "../features/company-users/pages/AuditLogsPage.jsx";
 import FactoryWorkspacePage from "../features/factory/pages/FactoryWorkspacePage.jsx";
+import CrewWorkspacePage from "../features/crew/pages/CrewWorkspacePage.jsx";
+import CrewAttendanceAdminPage from "../features/crew/pages/CrewAttendanceAdminPage.jsx";
 import { getSidebarSections, moduleRegistry, viewPermission } from "../../config/modules.ts";
 
 function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSection = "Workspace" }) {
@@ -332,6 +334,22 @@ export const routeDetails = {
     component: FactoryWorkspacePage,
     permission: "factory_customers.view",
     props: { initialTab: "customers" },
+  },
+  crew_dashboard: {
+    description: "Crew mobile access and workforce foundation overview.",
+    component: CrewWorkspacePage,
+    permission: "crew_dashboard.view",
+  },
+  crew_employees: {
+    description: "Manage employee Crew mobile access and one-time passcodes.",
+    component: CrewWorkspacePage,
+    permission: "crew_employees.view",
+    props: { initialTab: "employees" },
+  },
+  crew_attendance: {
+    description: "Review Crew mobile attendance history.",
+    component: CrewAttendanceAdminPage,
+    permission: "crew_attendance.view",
   },
 };
 

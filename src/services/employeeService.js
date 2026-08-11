@@ -31,6 +31,7 @@ function mapEmployee(row) {
     is_active: row.is_active !== false,
     email_verified: Boolean(row.email_verified),
     last_login_at: row.last_login_at,
+    crew_access: Array.isArray(row.crew_access) ? row.crew_access[0] ?? null : row.crew_access ?? null,
     joined_date: row.joined_date ?? "",
     resigned_date: row.resigned_date ?? "",
     employee_code: row.employee_code ?? "",
@@ -47,7 +48,7 @@ export const employeeService = {
   async listEmployees() {
     const { data, error } = await supabase
       .from("employees")
-      .select("*,role:roles(id,name,description)")
+      .select("*,role:roles(id,name,description),crew_access:crew_access(employee_id,mobile_number,access_state,activated_at,disabled_at,locked_until,last_login_at,primary_outlet_id)")
       .order("full_name", { ascending: true });
 
     throwSupabaseError("employees.list", error);

@@ -15,6 +15,7 @@ import { operatingExpenseService } from "../services/operatingExpenseService.js"
 import { useAuth } from "../auth/AuthContext.jsx";
 import LoginPage from "../auth/LoginPage.jsx";
 import SetNewPasswordPage from "../auth/SetNewPasswordPage.jsx";
+import CrewMobileApp from "../features/crew/CrewMobileApp.jsx";
 import { filterOutletScopedRows, getAccessibleOutlets } from "../utils/accessControl.js";
 import { getSidebarSections } from "../../config/modules.ts";
 
@@ -156,7 +157,9 @@ const BOOTSTRAP_LOADS = [
 ];
 
 function workspaceForRoute(routeId) {
-  return String(routeId || "").startsWith("factory_") ? "factory" : "restaurant";
+  if (String(routeId || "").startsWith("factory_")) return "factory";
+  if (String(routeId || "").startsWith("crew_")) return "crew";
+  return "restaurant";
 }
 
 function RbacDiagnosticsPanel({ auth, loads }) {
@@ -282,7 +285,8 @@ export default function App() {
     const routeWorkspace = workspaceForRoute(initialRoute);
     if (routeWorkspace === "factory") return "factory";
     try {
-      return localStorage.getItem("feedx.workspace") === "factory" ? "factory" : "restaurant";
+      const saved = localStorage.getItem("feedx.workspace");
+      return ["restaurant", "factory", "crew"].includes(saved) ? saved : "restaurant";
     } catch {
       return "restaurant";
     }
@@ -562,6 +566,7 @@ export default function App() {
   }
 
   if (!auth.session) {
+    if (window.location.hash === "#crew") return <CrewMobileApp />;
     return <LoginPage />;
   }
 
