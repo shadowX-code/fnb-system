@@ -8,7 +8,7 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Applied Crew Journey migrations `202608110006` through `202608110020` to `fnb-system-staging` only.
 - Completed Staging verification for immutable quiz scoring and strict validation, safe learning serialization, pinned SOP acknowledgement gating, exact sequential availability, direct-write RLS denial, and Crew ownership isolation.
 - Deferred hardening debt remains separately tracked: three Phase A utility search-path warnings, an unrelated public migration-report RLS warning, and frontend bundle-size optimization.
-- Phase B UI implementation is now wired locally: Crew Learn uses only token-bound safe RPCs, Admin draft CRUD uses authenticated RLS, and the pending `202608110021` migration supplies controlled publish/new-version authorities so published Journey and SOP content cannot be silently rewritten.
+- Phase B UI implementation is now deployed to Staging: Crew Learn uses only token-bound safe RPCs, Admin draft CRUD uses authenticated RLS, and lifecycle migrations `202608110021`, `20260811171948`, and `20260811172049` supply controlled publish/new-version authorities, outlet-scoped RLS predicates, and published-content guards.
 - Phase B UI implementation is the next phase; no Production deployment was performed.
 
 ### Crew Foundation — Phase A

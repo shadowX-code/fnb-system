@@ -5166,7 +5166,7 @@ Service rules:
 
 - Crew Journey backend migrations `202608110006`–`202608110020` are applied and verified on Staging (`fnb-system-staging`).
 - The backend contract includes immutable quiz scoring, safe Crew payload serialization, pinned SOP acknowledgements, snapshot-derived sequential availability, and token/ownership-controlled Crew RPCs.
-- Phase B UI is implemented locally without deployment: Crew Mobile Learn consumes server-derived availability and safe quiz/SOP payloads; the Admin Learning and SOP Library surfaces use the existing authenticated RLS architecture for drafts. Pending migration `202608110021` adds the minimum authenticated lifecycle authorities for publish and version transitions, with guards against in-place mutation of published content.
+- Phase B UI is deployed to Staging: Crew Mobile Learn consumes server-derived availability and safe quiz/SOP payloads; the Admin Learning and SOP Library surfaces use the existing authenticated RLS architecture for drafts. Lifecycle migrations `202608110021`, `20260811171948`, and `20260811172049` add authenticated publish/version authorities, outlet-scope-enforcing RLS predicates, and guards against in-place mutation of published content.
 - Phase B backend verification is closed; Crew UI implementation is the next planned phase. Deferred non-Phase-B hardening debt is tracked separately. No Production deployment is authorized by this record.
 
 ### Phase C: Import Engine Completion
