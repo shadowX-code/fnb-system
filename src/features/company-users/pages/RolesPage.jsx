@@ -347,8 +347,8 @@ function RoleEditorPage({ mode = "create", role, onClose, onSubmit, ui, outlets 
         </div>
       )}
     >
-          <div className="grid gap-4 xl:grid-cols-[330px_minmax(0,1fr)]">
-            <aside className="space-y-3 xl:sticky xl:top-0 xl:self-start">
+          <div className="space-y-4">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.65fr)_minmax(260px,0.85fr)]">
               <section className="rounded-2xl border border-border bg-white p-4">
                 <div className="mb-3 text-sm font-bold text-text-primary">Role Information</div>
                 <div className="space-y-3">
@@ -459,7 +459,7 @@ function RoleEditorPage({ mode = "create", role, onClose, onSubmit, ui, outlets 
                   <div className="flex items-center justify-between gap-3"><span className="text-text-secondary">Last Updated</span><strong className="text-right">{formatDateTime(role?.updatedAt)}</strong></div>
                 </div>
               </section>
-            </aside>
+            </div>
 
             <section className="min-w-0 rounded-2xl border border-border bg-white">
               <div className="border-b border-border px-4 py-3">
@@ -639,8 +639,8 @@ function RoleDetailPage({ role, onClose, onEditRole, outlets, canEditRole, editD
         </div>
       )}
     >
-          <div className="grid gap-4 xl:grid-cols-[330px_minmax(0,1fr)]">
-            <aside className="space-y-3 xl:sticky xl:top-0 xl:self-start">
+          <div className="space-y-4">
+            <div className="grid gap-4 lg:grid-cols-[minmax(0,1.55fr)_minmax(220px,0.8fr)_minmax(240px,0.9fr)]">
               <section className="rounded-2xl border border-border bg-white p-4">
                 <div className="mb-3 text-sm font-bold text-text-primary">Role Information</div>
                 <div className="space-y-3 text-sm">
@@ -681,7 +681,7 @@ function RoleDetailPage({ role, onClose, onEditRole, outlets, canEditRole, editD
                   <div className="flex items-center justify-between gap-3"><span>Last updated date</span><strong className="text-text-primary">{formatDateTime(updatedDate)}</strong></div>
                 </div>
               </section>
-            </aside>
+            </div>
 
             <section className="min-w-0 rounded-2xl border border-border bg-white">
               <div className="border-b border-border px-4 py-3">
