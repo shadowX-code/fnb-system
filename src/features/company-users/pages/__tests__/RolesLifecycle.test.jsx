@@ -111,7 +111,10 @@ describe("Roles current mounted lifecycle", () => {
     fireEvent.click(screen.getByRole("tab", { name: /Restaurant · \d+/ }));
     expect(screen.getByText("Sales Input")).not.toBeNull();
     fireEvent.click(screen.getByRole("tab", { name: /People & HR · \d+/ }));
-    expect(screen.getAllByText("Employees")).toHaveLength(2);
+    expect(screen.getAllByText("Employees")).toHaveLength(1);
+    fireEvent.click(screen.getByRole("tab", { name: /Workforce · \d+/ }));
+    expect(screen.getByText("Crew Progress")).not.toBeNull();
+    expect(screen.getByText("Learning Overview")).not.toBeNull();
     fireEvent.click(screen.getByRole("tab", { name: /System · \d+/ }));
     expect(screen.getByText("Roles & Permissions")).not.toBeNull();
     fireEvent.click(screen.getByRole("tab", { name: /Factory · \d+/ }));

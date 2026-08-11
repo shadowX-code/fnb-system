@@ -353,9 +353,22 @@ export const routeDetails = {
     permission: "crew_attendance.view",
   },
   crew_learning: {
+    description: "Review Crew learning health and follow-up priorities.",
+    component: CrewLearningAdminPage,
+    permission: "crew_learning.view OR crew_learning.manage",
+    props: { initialTab: "overview" },
+  },
+  crew_journeys: {
     description: "Create, publish and assign versioned Crew learning journeys.",
     component: CrewLearningAdminPage,
     permission: "crew_learning.view OR crew_learning.manage",
+    props: { initialTab: "journeys" },
+  },
+  crew_progress: {
+    description: "Review Crew learning assignments and server-managed progress.",
+    component: CrewLearningAdminPage,
+    permission: "crew_learning.view OR crew_learning.manage",
+    props: { initialTab: "progress" },
   },
   crew_sop_library: {
     description: "Maintain versioned Crew SOPs and acknowledgement content.",
