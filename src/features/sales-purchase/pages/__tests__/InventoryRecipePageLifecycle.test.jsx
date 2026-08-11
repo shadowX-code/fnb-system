@@ -186,7 +186,8 @@ describe("InventoryControlPage Recipe lifecycle", () => {
     await screen.findAllByText("Paged Recipe 01");
     expect(screen.getByText("Showing 1–20 of 21 records")).toBeTruthy();
     expect(screen.queryByText("Paged Recipe 21")).toBeNull();
-    fireEvent.click(screen.getAllByRole("button", { name: "Next" })[0]);
+    const paginationDesktop = screen.getByText("Showing 1–20 of 21 records").closest(".hidden");
+    fireEvent.click(within(paginationDesktop).getByRole("button", { name: "Next" }));
     expect(screen.getByText("Showing 21–21 of 21 records")).toBeTruthy();
     expect(screen.getAllByText("Paged Recipe 21").length).toBeGreaterThan(0);
     fireEvent.change(screen.getByPlaceholderText("Search recipe, outlet or ingredient"), { target: { value: "Paged Recipe 01" } });

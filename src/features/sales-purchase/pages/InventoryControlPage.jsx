@@ -5131,7 +5131,10 @@ export function RecipeModal({ recipe, outletId, outlet, items, menuCategories, e
     ingredients: current.ingredients.map((line) => {
       if (line.id !== id) return line;
       const next = { ...line, ...patch };
-      if (patch.itemId) next.unit = items.find((item) => item.id === patch.itemId)?.unit || next.unit;
+      if (patch.itemId) {
+        next.unit = items.find((item) => item.id === patch.itemId)?.unit || next.unit;
+        next.cloneUnavailable = !availableItems.some((item) => item.id === patch.itemId);
+      }
       return next;
     }),
   }));
@@ -5153,6 +5156,34 @@ export function RecipeModal({ recipe, outletId, outlet, items, menuCategories, e
     }));
   };
   const removeIngredient = (id) => setForm((current) => ({ ...current, ingredients: current.ingredients.filter((line) => line.id !== id) }));
+  const cloneIngredients = (sourceRecipe) => {
+    const sourceIngredients = sourceRecipe?.ingredients || sourceRecipe?.items || [];
+    const existingItemIds = new Set(form.ingredients.map((line) => line.itemId).filter(Boolean));
+    const cloned = [];
+    let skipped = 0;
+    let unavailable = 0;
+    sourceIngredients.forEach((line) => {
+      const itemId = line.itemId || line.inventory_item_id || "";
+      if (!itemId || existingItemIds.has(itemId)) {
+        skipped += 1;
+        return;
+      }
+      existingItemIds.add(itemId);
+      const available = availableItems.some((item) => item.id === itemId);
+      if (!available) unavailable += 1;
+      cloned.push({
+        id: makeId("recipe_item"),
+        itemId,
+        quantityUsed: line.quantityUsed ?? line.quantity_used ?? 0,
+        unit: line.unit || items.find((item) => item.id === itemId)?.unit || "",
+        wastagePercent: line.wastagePercent ?? line.wastage_percent ?? 0,
+        remark: line.remark || "",
+        cloneUnavailable: !available,
+      });
+    });
+    setForm((current) => ({ ...current, ingredients: [...current.ingredients, ...cloned] }));
+    setCloneFeedback(`${cloned.length} ingredient${cloned.length === 1 ? "" : "s"} cloned${skipped ? `; ${skipped} duplicate${skipped === 1 ? "" : "s"} skipped` : ""}${unavailable ? `; ${unavailable} unavailable for this outlet` : ""}.`);
+  };
   const summary = recipeCostSummary(form, items);
   const margin = recipeMarginPercent(form.sellingPrice, summary.totalCost);
   const profit = Number(form.sellingPrice || 0) - Number(summary.totalCost || 0);
@@ -5197,7 +5228,7 @@ export function RecipeModal({ recipe, outletId, outlet, items, menuCategories, e
       setPhotoError(error.message || "Unable to read image.");
     }
   };
-  const hasInvalidIngredients = !form.ingredients.length || form.ingredients.some((line) => !line.itemId || Number(line.quantityUsed || 0) <= 0);
+  const hasInvalidIngredients = !form.ingredients.length || form.ingredients.some((line) => !line.itemId || Number(line.quantityUsed || 0) <= 0 || line.cloneUnavailable);
   const invalid = Boolean(identityErrors.recipeCode || identityErrors.recipeNameEn || identityErrors.recipeNameCn || identityErrors.sellingPrice || !form.outletId || hasInvalidIngredients);
   const showError = (key) => Boolean(touched[key] || submitAttempted);
   const touchField = (key) => setTouched((current) => ({ ...current, [key]: true }));
@@ -5381,6 +5412,9 @@ export function RecipeModal({ recipe, outletId, outlet, items, menuCategories, e
             </div>
             <div className="flex flex-wrap items-center justify-end gap-2">
               <Badge tone="success">Running total {formatRestaurantRecipeCurrency(summary.totalCost)}</Badge>
+              <button className="btn-secondary h-8 px-3 text-xs" type="button" onClick={() => setCloneOpen(true)} disabled={!existingRecipes.some((entry) => entry.id !== form.id)}>
+                Clone Ingredients
+              </button>
               <button className="btn-secondary h-8 px-3 text-xs" type="button" onClick={addIngredient} disabled={!availableItems.length}>
                 <Plus size={14} /> Add Ingredient
               </button>
@@ -5389,6 +5423,7 @@ export function RecipeModal({ recipe, outletId, outlet, items, menuCategories, e
           <div className="mb-3 rounded-2xl border border-primary/15 bg-primary/5 p-3 type-caption text-text-secondary">
             Ingredient selector only shows active inventory items linked to the selected outlet.
           </div>
+          {cloneFeedback ? <div className="mb-3 rounded-xl border border-sky-200 bg-sky-50 p-3 type-caption font-semibold text-sky-800">{cloneFeedback}</div> : null}
           {form.ingredients.length ? (
             <div className="space-y-2">
               {form.ingredients.map((line) => {
@@ -5399,6 +5434,7 @@ export function RecipeModal({ recipe, outletId, outlet, items, menuCategories, e
                     <div>
                       <SelectField label="Inventory Item" value={line.itemId} options={availableItems.map((entry) => ({ value: entry.id, label: entry.name }))} onChange={(value) => updateIngredient(line.id, { itemId: value })} searchable />
                       {submitAttempted && !line.itemId ? <div className="mt-1 type-caption font-semibold text-rose-600">Inventory item is required.</div> : null}
+                      {line.cloneUnavailable ? <div className="mt-1 type-caption font-semibold text-rose-600">This cloned ingredient is not active or linked to the current outlet. Replace or remove it before saving.</div> : null}
                     </div>
                     <Field
                       label="Qty Used"
@@ -5440,6 +5476,7 @@ export function RecipeModal({ recipe, outletId, outlet, items, menuCategories, e
           </div>
         </section>
       </div>
+      {cloneOpen ? <RecipeIngredientCloneModal recipes={existingRecipes} items={items} outletById={outletById} excludedRecipeId={form.id} onClone={cloneIngredients} onClose={() => setCloneOpen(false)} /> : null}
     </Modal>
   );
 }
@@ -10360,6 +10397,7 @@ function InventoryControlPage({ store, auth, ui, initialTab = "dashboard" }) {
           items={data.items}
           menuCategories={data.menuCategories || []}
           existingRecipes={data.recipes || []}
+          outletById={outletById}
           onClose={() => setModal(null)}
           onSave={saveRecipe}
         />
