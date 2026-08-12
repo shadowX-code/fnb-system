@@ -27,6 +27,12 @@ describe("SOP document content safety", () => {
     expect(parsed.keyPointContent).toBe("Remember this.");
   });
 
+  it("repairs a mixed escaped and real key-point envelope without duplicating it into content", () => {
+    const parsed = parseSopBody('<p>&lt;aside data-feedx-key-point="true"&gt;&lt;p&gt;Remember this.&lt;/p&gt;&lt;/aside&gt;</p><aside data-feedx-key-point="true"><p>Remember this.</p></aside>', true);
+    expect(parsed.html).toBe("");
+    expect(parsed.keyPointContent).toBe("Remember this.");
+  });
+
   it("never includes image data URLs in the serialized rich-text allowlist", () => {
     const stored = serializeSopBody('<p>Text</p><img src="data:image/png;base64,unsafe">', "");
     expect(stored).not.toContain("data:image");

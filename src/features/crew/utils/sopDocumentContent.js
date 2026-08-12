@@ -17,6 +17,12 @@ function safeHref(value = "") {
   return "";
 }
 
+function templateContentHtml(template) {
+  const container = document.createElement("div");
+  container.append(template.content.cloneNode(true));
+  return container.innerHTML;
+}
+
 export function plainTextToSopHtml(value = "") {
   const text = String(value || "").trim();
   if (!text) return "";
@@ -53,7 +59,7 @@ export function sanitizeSopHtml(value = "") {
     });
   };
   cleanNode(template.content);
-  return template.innerHTML;
+  return templateContentHtml(template);
 }
 
 export function parseSopBody(value = "", legacyKeyPoint = false) {
@@ -61,20 +67,28 @@ export function parseSopBody(value = "", legacyKeyPoint = false) {
   if (typeof document === "undefined") {
     return { html: source, keyPointContent: legacyKeyPoint ? source : "" };
   }
-  if (/&lt;\/?(?:p|br|strong|b|em|i|mark|ul|ol|li|a|aside)\b/i.test(source)) {
+  let template = document.createElement("template");
+  template.innerHTML = source;
+  let keyPoints = [...template.content.querySelectorAll(KEY_POINT_SELECTOR)];
+  if (!keyPoints.length && /&lt;\/?(?:p|br|strong|b|em|i|mark|ul|ol|li|a|aside)\b/i.test(source)) {
     const decoder = document.createElement("textarea");
     decoder.innerHTML = source;
     source = decoder.value;
+    template = document.createElement("template");
+    template.innerHTML = source;
+    keyPoints = [...template.content.querySelectorAll(KEY_POINT_SELECTOR)];
   }
-  const template = document.createElement("template");
-  template.innerHTML = source;
-  const keyPoint = template.content.querySelector(KEY_POINT_SELECTOR);
-  const keyPointContent = keyPoint?.textContent?.trim() || (legacyKeyPoint ? template.content.textContent?.trim() || "" : "");
-  keyPoint?.remove();
-  if (legacyKeyPoint && !keyPoint) return { html: "", keyPointContent };
-  const looksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(template.innerHTML);
+  const keyPointContent = keyPoints[0]?.textContent?.trim() || (legacyKeyPoint ? template.content.textContent?.trim() || "" : "");
+  keyPoints.forEach((node) => node.remove());
+  template.content.querySelectorAll("p,div").forEach((node) => {
+    const text = node.textContent?.trim() || "";
+    if (text.startsWith("<aside") && text.includes("data-feedx-key-point") && text.endsWith("</aside>")) node.remove();
+  });
+  if (legacyKeyPoint && !keyPoints.length) return { html: "", keyPointContent };
+  const remainingHtml = templateContentHtml(template);
+  const looksLikeHtml = /<\/?[a-z][\s\S]*>/i.test(remainingHtml);
   return {
-    html: sanitizeSopHtml(looksLikeHtml ? template.innerHTML : plainTextToSopHtml(source)),
+    html: sanitizeSopHtml(looksLikeHtml ? remainingHtml : plainTextToSopHtml(template.content.textContent || "")),
     keyPointContent,
   };
 }
