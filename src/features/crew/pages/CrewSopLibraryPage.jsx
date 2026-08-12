@@ -258,19 +258,19 @@ function SopLibrary({ outlet, sops, categories, loading, canManage, onOpen, onCr
     </div>
     {rows.length ? <DataTable
       density="normal"
-      tableClassName="min-w-[1040px]"
+      tableClassName="min-w-[920px] table-fixed"
       rows={rows}
       getRowKey={(row) => row.id}
       onRowClick={(row) => onOpen(row.id)}
       columns={[
-        { key: "sop", header: "SOP", width: "30%", render: (row) => <div className="crew-sop-title-cell"><FileText size={17} /><span><strong>{row.title}</strong><small>{row.summary || "Operational procedure"}</small></span></div> },
-        { key: "category", header: "Category", render: (row) => row.category || "Other" },
-        { key: "version", header: "Current Version", render: (row) => currentVersion(row) ? `v${currentVersion(row).version}` : "—" },
-        { key: "status", header: "Status", render: (row) => currentVersion(row) ? <Badge tone="success">Published</Badge> : <Badge tone="warning">Draft</Badge> },
-        { key: "draft", header: "Draft", render: (row) => draftVersion(row) ? <Badge tone="warning">Draft v{draftVersion(row).version}</Badge> : "—" },
-        { key: "ack", header: "Acknowledgement", render: (row) => (draftVersion(row)?.require_acknowledgement ?? currentVersion(row)?.require_acknowledgement) ? "Required" : "Not required" },
-        { key: "updated", header: "Last Updated", render: (row) => formatDate(row.updated_at) },
-        { key: "actions", header: "Actions", align: "right", render: (row) => <SopRowActions row={row} canManage={canManage} onOpen={onOpen} onNewVersion={onNewVersion} onDeleteDraft={onDeleteDraft} /> },
+        { key: "sop", header: "SOP", width: "29%", render: (row) => <div className="crew-sop-title-cell"><FileText size={17} /><span><strong>{row.title}</strong><small>{row.summary || "Operational procedure"}</small></span></div> },
+        { key: "category", header: "Category", width: "10%", render: (row) => row.category || "Other" },
+        { key: "version", header: "Current Version", width: "9%", render: (row) => currentVersion(row) ? `v${currentVersion(row).version}` : "—" },
+        { key: "status", header: "Status", width: "9%", render: (row) => currentVersion(row) ? <Badge tone="success">Published</Badge> : <Badge tone="warning">Draft</Badge> },
+        { key: "draft", header: "Draft", width: "9%", render: (row) => draftVersion(row) ? <Badge tone="warning">Draft v{draftVersion(row).version}</Badge> : "—" },
+        { key: "ack", header: "Acknowledgement", width: "12%", render: (row) => (draftVersion(row)?.require_acknowledgement ?? currentVersion(row)?.require_acknowledgement) ? "Required" : "Not required" },
+        { key: "updated", header: "Last Updated", width: "10%", render: (row) => formatDate(row.updated_at) },
+        { key: "actions", header: "Actions", width: "12%", align: "right", render: (row) => <SopRowActions row={row} canManage={canManage} onOpen={onOpen} onNewVersion={onNewVersion} onDeleteDraft={onDeleteDraft} /> },
       ]}
     /> : <div className="crew-sop-compact-empty"><EmptyState title={sops.length ? "No SOPs match these filters" : "No SOPs yet"} description={sops.length ? "Adjust the search or filter selection." : `Create SOPs for ${outlet?.name || "this outlet"} or clone an existing setup.`} />{!sops.length && canManage ? <div><button className="btn-primary" onClick={onCreate}>Create SOP</button><button className="btn-secondary" onClick={onClone}>Clone From Outlet</button></div> : null}</div>}
   </section>;
