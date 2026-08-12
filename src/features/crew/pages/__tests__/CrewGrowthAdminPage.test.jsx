@@ -45,17 +45,17 @@ describe("Crew Growth Admin", () => {
   it("shows employee skill profile without client-side status derivation", async () => {
     render(<CrewGrowthAdminPage initialTab="crew" auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     fireEvent.click(await screen.findByText("Alex Tan"));
-    expect(screen.getByRole("dialog", { name: "Alex Tan" })).not.toBeNull();
+    expect(screen.getByRole("dialog", { name: "Crew Growth Profile" })).not.toBeNull();
     expect(screen.getAllByText("Ready for Review").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: /Customer Greeting.*Ready for Review/ }));
-    expect(screen.queryByRole("dialog", { name: "Alex Tan" })).toBeNull();
-    expect(screen.getByRole("dialog", { name: "Customer Greeting" })).not.toBeNull();
+    expect(screen.queryByRole("dialog", { name: "Crew Growth Profile" })).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Practical Assessment" })).not.toBeNull();
   });
 
   it("records practical assessment from the review queue", async () => {
     render(<CrewGrowthAdminPage initialTab="reviews" auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     fireEvent.click(await screen.findByRole("button", { name: "Review" }));
-    fireEvent.click(screen.getByRole("button", { name: "Pass Assessment" }));
+    fireEvent.click(screen.getByRole("button", { name: "Submit Assessment" }));
     await waitFor(() => expect(mocks.assess).toHaveBeenCalledWith(expect.objectContaining({ employeeId: "employee-1", skillId: "skill-1", result: "pass" })));
   });
 });
