@@ -92,6 +92,17 @@ export const crewService = {
     return data || { assignment: null, required_sops: [] };
   },
 
+  async growthMobile(token) {
+    const { data, error } = await supabase.rpc("crew_growth_mobile", { p_token: token });
+    throwSupabaseError("crew.growthMobile", error);
+    return data || {
+      summary: { certified: 0, in_progress: 0, ready_for_review: 0, not_started: 0, total: 0 },
+      skills: [],
+      timeline: [],
+      performance: null,
+    };
+  },
+
   async learningAssignment(token, assignmentId) {
     const { data, error } = await supabase.rpc("crew_learning_assignment", { p_token: token, p_assignment_id: assignmentId });
     throwSupabaseError("crew.learningAssignment", error);

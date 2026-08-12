@@ -1,25 +1,35 @@
-# Growth UI Design QA
+# Crew Mobile UI Design QA
 
-Status: **Passed**
+final result: passed
 
 ## Comparison
 
-- Reference: `/Users/deron/Downloads/ChatGPT Image Aug 12, 2026, 09_51_12 PM.png`
-- Implementation: local `CrewGrowthAdminPage` preview with representative Growth data
-- Evaluated state: desktop Growth Overview plus tested Crew Profile and Practical Assessment interactions
+- Reference: `/Users/deron/Downloads/ChatGPT Image Aug 12, 2026, 10_22_56 PM.png`
+- Implementation captures:
+  - `/private/tmp/feedx-crew-home-390.png`
+  - `/private/tmp/feedx-crew-learn-390.png`
+  - `/private/tmp/feedx-crew-reward-375.png`
+  - `/private/tmp/feedx-crew-me-375.png`
+- Evaluated states: Login, Home, Learn, Reward, Me at 390px and 375px. Growth components were exercised with safe employee-only fixture data; live Growth remains gated on the pending Staging RPC migration.
 
-## Findings
+## Visual match
 
-- Information density now follows the reference: four compact KPI cards, a two-column operational overview, dense list/table rows, and concise supporting metadata.
-- Hierarchy is consistent across Overview, Skills, Crew Growth, Certification Review, Crew Profile, and Practical Assessment.
-- Status semantics are visibly distinct for certified, in-progress, ready-for-review, renewal, and expired states.
-- Shared FeedX controls, badges, tables, buttons, spacing, borders, and typography remain the visual source of truth.
-- Employee identity, progress, evidence, assessment criteria, and actions can be scanned without oversized cards or scattered controls.
-- Responsive rules preserve readable one- and two-column layouts below desktop widths.
+- The app now uses the reference's white mobile canvas, FeedX green/mint accents, navy primary actions, compact cards, quiet status badges, and fixed five-item bottom navigation.
+- Home matches the reference hierarchy: greeting/profile, contextual attendance card, two-item focus list, then compact progress summary.
+- Learn preserves the existing secure Learning flow while aligning hero proportions, section rhythm, list density, CTA hierarchy, and SOP document styling.
+- Reward follows the reference shell without fabricating financial values; unavailable data is represented with explicit em dashes and a Coming Soon state.
+- Me uses the reference's mint identity hero, compact menu rows, contextual Attendance entry, Settings, passcode and logout hierarchy.
 
-## Exceptions
+## Responsive and interaction checks
 
-- The reference uses a donut chart for status distribution. The implementation uses compact labeled progress bars to preserve FeedX table-like readability and accessible text without adding a chart-only interaction.
-- The isolated preview excludes the existing AppShell/sidebar; those are unchanged and already shared by the Crew workspace.
+- `390 × 844`: Login, Home and Learn have no horizontal overflow, clipped actions, or bottom-nav collision.
+- `375 × 812`: Reward and Me report `scrollWidth === clientWidth === 375`; content remains legible and the bottom nav remains fully visible.
+- Two-step login, custom keypad, automatic four-digit submit, backspace, Home attendance entry, every primary nav item and Growth drill-down are covered by focused tests.
+- Reward contains no hard-coded RM amount. Growth contains no manager actions, manager notes, other employee lists, or caller-controlled employee ID.
 
-No blocking visual, overflow, hierarchy, or interaction defects remain in the implemented Growth surface.
+## Accepted differences
+
+- The reference's astronaut/badge illustrations and employee photos are not part of FeedX's current asset set. The implementation uses the existing icon library and initial avatars instead of approximating those assets with CSS/SVG drawings.
+- Performance and Reward are truthful unavailable states because those backends do not yet exist. No example score or payout is presented as real employee data.
+
+No P0, P1, or P2 visual, responsive, navigation, privacy, or interaction defects remain in the local implementation.

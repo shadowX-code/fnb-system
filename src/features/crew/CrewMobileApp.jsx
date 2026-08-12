@@ -1,39 +1,291 @@
 import { useEffect, useMemo, useState } from "react";
-import { Bell, BookOpen, BriefcaseBusiness, ChevronDown, Clock3, GraduationCap, Home, LogOut, MapPin, Navigation, Settings, Trophy, UserRound } from "lucide-react";
+import {
+  ArrowLeft,
+  Bell,
+  BookOpen,
+  BriefcaseBusiness,
+  Check,
+  ChevronRight,
+  Clock3,
+  Delete,
+  FileText,
+  Gift,
+  GraduationCap,
+  Hand,
+  HelpCircle,
+  Home,
+  Languages,
+  LockKeyhole,
+  LogOut,
+  MapPin,
+  Navigation,
+  Settings,
+  ShieldCheck,
+  Sparkles,
+  UserRound,
+} from "lucide-react";
 import { crewService } from "../../services/crewService.js";
+import CrewGrowthMobile from "./components/CrewGrowthMobile.jsx";
 import CrewLearningMobile from "./components/CrewLearningMobile.jsx";
+import CrewRewardMobile from "./components/CrewRewardMobile.jsx";
+import "./CrewMobileApp.css";
 
 const storageKey = "feedx.crew.session";
 const clockInOptions = ["Outlet GPS location seems inaccurate", "Working off-site", "Assigned to another location", "Location accuracy issue", "Location permission unavailable", "Device location unavailable", "Other"];
 const clockOutOptions = ["Working off-site", "Assigned to another location", "Outlet GPS location seems inaccurate", "Location accuracy issue", "Forgot to clock out before leaving", "Location permission unavailable", "Device location unavailable", "Other"];
-const readSession = () => { try { const value = JSON.parse(localStorage.getItem(storageKey) || "null"); return value?.token && new Date(value.expires_at) > new Date() ? value : null; } catch { return null; } };
+const navItems = [
+  { id: "home", label: "Home", icon: Home },
+  { id: "learn", label: "Learn", icon: BookOpen },
+  { id: "reward", label: "Reward", icon: Gift },
+  { id: "growth", label: "Growth", icon: Sparkles },
+  { id: "me", label: "Me", icon: UserRound },
+];
+
+const readSession = () => {
+  try {
+    const value = JSON.parse(localStorage.getItem(storageKey) || "null");
+    return value?.token && new Date(value.expires_at) > new Date() ? value : null;
+  } catch {
+    return null;
+  }
+};
 const formatTime = (value) => value ? new Date(value).toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" }) : "—";
 const formatDate = (value) => value ? new Date(value).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" }) : "—";
-const distanceMeters = (a, b, c, d) => { const r = (value) => value * Math.PI / 180; const p = r(c - a); const q = r(d - b); return 6371000 * 2 * Math.atan2(Math.sqrt(Math.sin(p / 2) ** 2 + Math.cos(r(a)) * Math.cos(r(c)) * Math.sin(q / 2) ** 2), Math.sqrt(1 - (Math.sin(p / 2) ** 2 + Math.cos(r(a)) * Math.cos(r(c)) * Math.sin(q / 2) ** 2))); };
-const getLocation = () => new Promise((resolve, reject) => { if (!navigator.geolocation) return reject(new Error("Device location unavailable")); navigator.geolocation.getCurrentPosition((p) => resolve({ latitude: p.coords.latitude, longitude: p.coords.longitude, accuracy_meters: p.coords.accuracy }), (e) => reject(new Error(e.code === 1 ? "Location permission unavailable" : "Device location unavailable")), { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 }); });
+const distanceMeters = (a, b, c, d) => {
+  const radians = (value) => value * Math.PI / 180;
+  const latitude = radians(c - a);
+  const longitude = radians(d - b);
+  const point = Math.sin(latitude / 2) ** 2 + Math.cos(radians(a)) * Math.cos(radians(c)) * Math.sin(longitude / 2) ** 2;
+  return 6371000 * 2 * Math.atan2(Math.sqrt(point), Math.sqrt(1 - point));
+};
+const getLocation = () => new Promise((resolve, reject) => {
+  if (!navigator.geolocation) return reject(new Error("Device location unavailable"));
+  navigator.geolocation.getCurrentPosition(
+    (position) => resolve({ latitude: position.coords.latitude, longitude: position.coords.longitude, accuracy_meters: position.coords.accuracy }),
+    (cause) => reject(new Error(cause.code === 1 ? "Location permission unavailable" : "Device location unavailable")),
+    { enableHighAccuracy: true, timeout: 12000, maximumAge: 30000 },
+  );
+});
 
-function ShiftRing({ openShift }) { return <div className={`crew-shift-ring ${openShift ? "is-live" : ""}`} aria-label={openShift ? "On shift" : "Not clocked in"}><svg viewBox="0 0 120 120" aria-hidden="true"><circle cx="60" cy="60" r="48" className="crew-ring-track" /><circle cx="60" cy="60" r="48" className="crew-ring-value" /></svg><div><small>{openShift ? "You are" : "Ready to"}</small><strong>{openShift ? "On Shift" : "start"}</strong></div></div>; }
+function CrewLogin({ onSignedIn }) {
+  const [step, setStep] = useState("mobile");
+  const [countryCode, setCountryCode] = useState("+60");
+  const [mobile, setMobile] = useState("");
+  const [passcode, setPasscode] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const submitLogin = async (code) => {
+    if (loading || code.length !== 4) return;
+    setLoading(true);
+    setError("");
+    try {
+      const normalizedMobile = mobile.trim().startsWith("+") ? mobile.trim() : `${countryCode}${mobile.replace(/^0+/, "")}`;
+      const session = await crewService.signIn(normalizedMobile, code);
+      localStorage.setItem(storageKey, JSON.stringify(session));
+      onSignedIn(session);
+    } catch (cause) {
+      setError(cause.message || "Unable to sign in.");
+      setPasscode("");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const addDigit = (digit) => {
+    if (loading) return;
+    const next = `${passcode}${digit}`.slice(0, 4);
+    setPasscode(next);
+    if (next.length === 4) submitLogin(next);
+  };
+
+  if (step === "passcode") return <main className="crew-v2-shell"><section className="crew-v2-login is-passcode">
+    <button className="crew-v2-login-back" type="button" onClick={() => { setStep("mobile"); setPasscode(""); setError(""); }} aria-label="Back"><ArrowLeft size={20} /></button>
+    <div className="crew-v2-brand"><span>F</span><strong>FeedX</strong></div>
+    <div className="crew-v2-login-copy"><h1>Enter Passcode</h1><p>Use your 4-digit Crew passcode.</p></div>
+    <div className="crew-v2-passcode-dots" aria-label={`${passcode.length} of 4 digits entered`}>{[0, 1, 2, 3].map((index) => <span key={index} className={index < passcode.length ? "filled" : ""} />)}</div>
+    {error && <div className="crew-v2-error" role="alert">{error}</div>}
+    {loading && <div className="crew-v2-login-loading"><span className="crew-v2-spinner" /> Signing in…</div>}
+    <div className="crew-v2-keypad" aria-label="Passcode keypad">{[1, 2, 3, 4, 5, 6, 7, 8, 9].map((digit) => <button type="button" key={digit} onClick={() => addDigit(String(digit))}>{digit}</button>)}<span /><button type="button" onClick={() => addDigit("0")}>0</button><button type="button" aria-label="Backspace" onClick={() => setPasscode((current) => current.slice(0, -1))}><Delete size={20} /></button></div>
+  </section></main>;
+
+  return <main className="crew-v2-shell"><section className="crew-v2-login">
+    <div className="crew-v2-brand"><span>F</span><strong>FeedX</strong></div>
+    <div className="crew-v2-login-copy"><h1>Welcome</h1><p>Enter your mobile number to continue.</p></div>
+    <form onSubmit={(event) => { event.preventDefault(); setError(""); setStep("passcode"); }}>
+      <label>Mobile Number</label>
+      <div className="crew-v2-mobile-field"><select aria-label="Country code" value={countryCode} onChange={(event) => setCountryCode(event.target.value)}><option value="+60">+60</option><option value="+65">+65</option></select><input aria-label="Mobile Number" inputMode="tel" autoComplete="tel" value={mobile} onChange={(event) => setMobile(event.target.value.replace(/[^\d\s-]/g, ""))} placeholder="12 345 6789" required /></div>
+      <button className="crew-v2-primary" type="submit">Continue</button>
+    </form>
+    <a href="#dashboard" className="crew-v2-admin-link">FeedX Admin sign in</a>
+  </section></main>;
+}
+
+function CrewNav({ screen, onChange }) {
+  return <nav className="crew-v2-nav" aria-label="Crew navigation">{navItems.map(({ id, label, icon: Icon }) => <button type="button" key={id} className={screen === id ? "active" : ""} onClick={() => onChange(id)}><Icon size={19} /><span>{label}</span></button>)}</nav>;
+}
+
+function EmptyState({ title, body }) {
+  return <div className="crew-v2-empty"><strong>{title}</strong><p>{body}</p></div>;
+}
 
 export default function CrewMobileApp() {
-  const [session, setSession] = useState(readSession); const [screen, setScreen] = useState("home"); const [mobile, setMobile] = useState(""); const [passcode, setPasscode] = useState(""); const [error, setError] = useState(""); const [loading, setLoading] = useState(false); const [attendance, setAttendance] = useState([]); const [context, setContext] = useState(null); const [learningHome, setLearningHome] = useState(null); const [clockDraft, setClockDraft] = useState(null); const [exception, setException] = useState(""); const [otherReason, setOtherReason] = useState(""); const [passcodeChangeOpen, setPasscodeChangeOpen] = useState(false); const [currentPasscode, setCurrentPasscode] = useState(""); const [newPasscode, setNewPasscode] = useState("");
+  const [session, setSession] = useState(readSession);
+  const [screen, setScreen] = useState("home");
+  const [attendance, setAttendance] = useState([]);
+  const [context, setContext] = useState(null);
+  const [learningHome, setLearningHome] = useState(null);
+  const [growth, setGrowth] = useState(null);
+  const [growthError, setGrowthError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [pageLoading, setPageLoading] = useState(Boolean(session));
+  const [error, setError] = useState("");
+  const [clockDraft, setClockDraft] = useState(null);
+  const [exception, setException] = useState("");
+  const [otherReason, setOtherReason] = useState("");
+  const [meView, setMeView] = useState("main");
+  const [passcodeChangeOpen, setPasscodeChangeOpen] = useState(false);
+  const [currentPasscode, setCurrentPasscode] = useState("");
+  const [newPasscode, setNewPasscode] = useState("");
   const openShift = useMemo(() => attendance.find((item) => item.status === "open"), [attendance]);
-  const hour = new Date().getHours(); const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
-  async function refresh(token = session?.token) { if (!token) return; try { const [history, nextContext, nextLearning] = await Promise.all([crewService.myAttendance(token), crewService.attendanceContext(token), crewService.learningHome(token)]); setAttendance(history); setContext(nextContext); setLearningHome(nextLearning); } catch (e) { localStorage.removeItem(storageKey); setSession(null); setError(e.message || "Your session ended. Please sign in again."); } }
+  const employee = session?.employee || {};
+  const firstName = employee.nickname || employee.full_name?.split(" ")[0] || "Crew";
+  const hour = new Date().getHours();
+  const greeting = hour < 12 ? "Good morning" : hour < 18 ? "Good afternoon" : "Good evening";
+
+  async function refresh(token = session?.token) {
+    if (!token) return;
+    setPageLoading(true);
+    const [historyResult, contextResult, learningResult, growthResult] = await Promise.allSettled([
+      crewService.myAttendance(token),
+      crewService.attendanceContext(token),
+      crewService.learningHome(token),
+      crewService.growthMobile(token),
+    ]);
+    if ([historyResult, contextResult, learningResult].some((result) => result.status === "rejected")) {
+      const cause = [historyResult, contextResult, learningResult].find((result) => result.status === "rejected")?.reason;
+      localStorage.removeItem(storageKey);
+      setSession(null);
+      setError(cause?.message || "Your session ended. Please sign in again.");
+      setPageLoading(false);
+      return;
+    }
+    setAttendance(historyResult.value || []);
+    setContext(contextResult.value || null);
+    setLearningHome(learningResult.value || null);
+    if (growthResult.status === "fulfilled") {
+      setGrowth(growthResult.value);
+      setGrowthError("");
+    } else {
+      setGrowthError(growthResult.reason?.message || "Growth is unavailable.");
+    }
+    setPageLoading(false);
+  }
+
   useEffect(() => { refresh(); }, [session?.token]);
-  async function login(event) { event.preventDefault(); setError(""); if (!/^\d{4}$/.test(passcode)) return setError("Enter your four-digit passcode."); setLoading(true); try { const next = await crewService.signIn(mobile, passcode); localStorage.setItem(storageKey, JSON.stringify(next)); setSession(next); setPasscode(""); } catch (e) { setError(e.message || "Unable to sign in."); } finally { setLoading(false); } }
-  async function prepareClock(action) { setError(""); setLoading(true); setClockDraft(null); setException(""); setOtherReason(""); try { const location = await getLocation(); const distance = context?.location_enabled ? distanceMeters(location.latitude, location.longitude, Number(context.latitude), Number(context.longitude)) : null; setClockDraft({ action, location, distance }); } catch (e) { setClockDraft({ action, location: null, locationError: e.message }); } finally { setLoading(false); } }
-  async function submitClock() { const reason = exception === "Other" ? otherReason.trim() : exception; const requiresException = context?.location_enabled && (!clockDraft?.location || clockDraft?.distance > Number(context.radius_meters)); if (requiresException && !reason) return setError(`Choose an exception reason to clock ${clockDraft.action === "out" ? "out" : "in"}.`); setLoading(true); setError(""); try { await crewService.clock(session.token, clockDraft.action, clockDraft.location || null, reason); setClockDraft(null); await refresh(); } catch (e) { setError(e.message || "Unable to update attendance."); } finally { setLoading(false); } }
-  async function changePasscode(event) { event.preventDefault(); setError(""); if (!/^\d{4}$/.test(currentPasscode) || !/^\d{4}$/.test(newPasscode)) return setError("Enter both four-digit passcodes."); setLoading(true); try { const next = await crewService.changePasscode(session.token, currentPasscode, newPasscode); const updated = { ...session, token: next.token, expires_at: next.expires_at }; localStorage.setItem(storageKey, JSON.stringify(updated)); setSession(updated); setCurrentPasscode(""); setNewPasscode(""); setPasscodeChangeOpen(false); } catch (e) { setError(e.message || "Unable to change passcode."); } finally { setLoading(false); } }
-  function logout() { localStorage.removeItem(storageKey); setSession(null); setAttendance([]); setScreen("home"); }
-  if (!session) return <main className="crew-mobile-shell"><section className="crew-mobile-login"><div className="crew-mobile-brand"><span>FeedX</span><small>Crew</small></div><h1>Your shift starts here.</h1><p>Sign in with the mobile number and Crew passcode from your manager.</p><form onSubmit={login}><label>Mobile number<input inputMode="tel" autoComplete="tel" value={mobile} onChange={(e) => setMobile(e.target.value)} placeholder="+60 12 345 6789" required /></label><label>Passcode<input inputMode="numeric" autoComplete="current-password" maxLength="4" value={passcode} onChange={(e) => setPasscode(e.target.value.replace(/\D/g, ""))} placeholder="••••" required /></label>{error && <div className="crew-mobile-error">{error}</div>}<button className="crew-mobile-primary" disabled={loading}>{loading ? "Signing in…" : "Sign in to Crew"}</button></form><a href="#dashboard" className="crew-mobile-admin-link">FeedX Admin sign in</a></section></main>;
-  const employee = session.employee || {}; const exceptionRequired = Boolean(context?.location_enabled && (!clockDraft?.location || clockDraft?.distance > Number(context.radius_meters))); const outside = Boolean(clockDraft?.location && clockDraft?.distance > Number(context?.radius_meters)); const options = clockDraft?.action === "out" ? clockOutOptions : clockInOptions;
-  const nav = [{ id: "home", label: "Home", icon: Home }, { id: "learn", label: "Learn", icon: GraduationCap }, { id: "work", label: "Work", icon: BriefcaseBusiness }, { id: "performance", label: "Performance", icon: Trophy }, { id: "me", label: "Me", icon: UserRound }];
-  return <main className="crew-mobile-shell"><section className="crew-mobile-app"><header className="crew-mobile-top"><div><p>{greeting},</p><h1>{employee.nickname || employee.full_name?.split(" ")[0] || "Crew"} <span>👋</span></h1><small className={`crew-status-pill ${openShift ? "is-on" : ""}`}>{openShift ? "● On Shift" : "○ Not clocked in"}</small><p>{context?.outlet_name || employee.workplace || "Your outlet"}</p></div><div className="crew-top-actions"><button className="crew-icon-button" aria-label="Notifications"><Bell size={17} /></button><div className="crew-mobile-avatar">{(employee.nickname || employee.full_name || "C").slice(0, 1)}</div></div></header>
-    {screen === "home" && <><section className={`crew-home-attendance ${openShift ? "is-on-shift" : ""}`}><div><small>{openShift ? "Clocked in" : "Ready to start"}</small><strong>{openShift ? formatTime(openShift.clock_in_at) : "Clock In required"}</strong><span>{openShift ? "Your current shift is active" : "Your next shift is waiting"}</span></div><div className="crew-checkmark">{openShift ? "✓" : <Clock3 size={21} />}</div></section><section className="crew-mobile-section crew-focus"><div className="crew-mobile-section-head"><h2>Today’s focus</h2><button type="button" onClick={() => setScreen("learn")}>Open learning</button></div><div className="crew-focus-list"><button type="button" onClick={() => setScreen("learn")}><BookOpen size={17} /><span><strong>{learningHome?.assignment ? "Continue your learning" : "Learning journey"}</strong><small>{learningHome?.assignment ? `${learningHome.assignment.lessons_completed || 0} of ${learningHome.assignment.lessons_total || 0} lessons complete` : "No learning assignment yet"}</small></span><em>›</em></button><button type="button" onClick={() => setScreen("work")}><BriefcaseBusiness size={17} /><span><strong>Daily operations</strong><small>{openShift ? "Your current shift is active" : "Clock in when you are ready"}</small></span><em>›</em></button></div></section><section className="crew-progress-card"><div className="crew-progress-empty"><span>{learningHome?.assignment?.lessons_total ? `${Math.round(((learningHome.assignment.lessons_completed || 0) / learningHome.assignment.lessons_total) * 100)}%` : "—"}</span></div><div><h2>Your progress</h2><p>{learningHome?.assignment ? `Keep going in ${learningHome.assignment.journey_version_assigned ? `Journey v${learningHome.assignment.journey_version_assigned}` : "your assigned journey"}.` : "Your learning journey will appear here when assigned."}</p></div></section></>}
-    {screen === "work" && <><div className="crew-work-header"><h1>Attendance</h1><button>Today <ChevronDown size={14} /></button></div><section className="crew-work-hero"><ShiftRing openShift={openShift} /><div className="crew-work-time"><strong>{openShift ? formatTime(openShift.clock_in_at) : "—"}</strong><small>{openShift ? "Current Shift" : "No active shift"}</small></div><div className="crew-work-meta"><span><small>Clock In</small><strong>{openShift ? formatTime(openShift.clock_in_at) : "—"}</strong></span><span><small>Schedule</small><strong>Not assigned</strong></span><span><small>Outlet</small><strong>{context?.outlet_name || "—"}</strong></span></div></section>{openShift ? <button className="crew-mobile-primary" onClick={() => prepareClock("out")} disabled={loading}>{loading ? "Checking location…" : "Clock Out"}</button> : <button className="crew-mobile-primary" onClick={() => prepareClock("in")} disabled={loading}>{loading ? "Checking location…" : "Clock In"}</button>}<section className="crew-location-panel"><MapPin size={19} /><div><strong>{context?.location_enabled ? "Location verification" : "Location not configured"}</strong><small>{context?.location_enabled ? `Within ${context.radius_meters}m of ${context.outlet_name}` : "Your manager has not enabled a geofence."}</small></div></section></>}
-    {clockDraft && <section className="crew-location-check" aria-live="polite"><div className="crew-draft-heading"><Navigation size={18} /><div><strong>{clockDraft.action === "out" ? "Clock out location" : "Clock in location"}</strong><small>{context?.outlet_name || "Outlet"}</small></div></div>{!exceptionRequired && <p className="crew-verified-copy">✓ Location Verified · within outlet area</p>}{outside && <><p className="crew-warning-copy">You’re outside the outlet area</p><div className="crew-location-metrics"><span>Current distance<strong>{Math.round(clockDraft.distance)} m</strong></span><span>Allowed radius<strong>{context.radius_meters} m</strong></span></div></>}{!clockDraft.location && <p className="crew-warning-copy">Location couldn’t be verified</p>}{exceptionRequired && <label className="crew-select-label">Why are you clocking {clockDraft.action === "out" ? "out" : "in"} here?<select value={exception} onChange={(e) => setException(e.target.value)}><option value="">Select a reason</option>{options.map((option) => <option key={option}>{option}</option>)}</select></label>}{exception === "Other" && <input className="crew-exception-input" value={otherReason} maxLength="280" onChange={(e) => setOtherReason(e.target.value)} placeholder="Brief reason" />}{error && <div className="crew-mobile-error">{error}</div>}<div className="crew-draft-actions"><button className="btn-secondary" type="button" onClick={() => { setClockDraft(null); setError(""); }} disabled={loading}>Cancel</button><button className="crew-mobile-primary" type="button" onClick={submitClock} disabled={loading}>{exceptionRequired ? `Clock ${clockDraft.action === "out" ? "Out" : "In"} with Exception` : `Confirm Clock ${clockDraft.action === "out" ? "Out" : "In"}`}</button></div></section>}
-    {screen === "learn" && <CrewLearningMobile token={session.token} onRefreshHome={setLearningHome} />}{screen === "performance" && <section className="crew-coming-soon"><Trophy size={25} /><h2>Performance</h2><p>Your performance summary will appear when it is available.</p></section>}
-    {screen === "me" && <><section className="crew-profile-card"><div className="crew-mobile-avatar">{(employee.nickname || employee.full_name || "C").slice(0, 1)}</div><div><h2>{employee.full_name}</h2><p>{employee.position || "Crew member"}</p><small>{context?.outlet_name || employee.workplace || "Workplace"}</small></div></section><section className="crew-profile-list"><div><UserRound size={17} /><span>Profile Information</span><em>›</em></div><div><BookOpen size={17} /><span>Employment Documents</span><em>›</em></div><button onClick={() => setScreen("work")}><Clock3 size={17} /><span>Attendance</span><em>›</em></button><button onClick={() => setPasscodeChangeOpen(true)}><Settings size={17} /><span>Change Passcode</span><em>›</em></button><div><Settings size={17} /><span>Settings</span><em>›</em></div><div><Bell size={17} /><span>Help & Support</span><em>›</em></div></section>{passcodeChangeOpen && <form className="crew-location-check" onSubmit={changePasscode}><strong>Change passcode</strong><input className="crew-exception-input" inputMode="numeric" maxLength="4" value={currentPasscode} onChange={(e) => setCurrentPasscode(e.target.value.replace(/\D/g, ""))} placeholder="Current passcode" /><input className="crew-exception-input" inputMode="numeric" maxLength="4" value={newPasscode} onChange={(e) => setNewPasscode(e.target.value.replace(/\D/g, ""))} placeholder="New four-digit passcode" /><div className="crew-draft-actions"><button className="btn-secondary" type="button" onClick={() => setPasscodeChangeOpen(false)}>Cancel</button><button className="crew-mobile-primary" disabled={loading}>Save</button></div></form>}<button className="crew-logout" onClick={logout}><LogOut size={17} /> Log Out</button></>}
-    {screen === "work" && <section className="crew-history-section"><div className="crew-mobile-section-head"><h2>Attendance history</h2><span>{attendance.length} shifts</span></div><div className="crew-mobile-history">{attendance.length ? attendance.map((row) => <div key={row.id}><div><strong>{formatDate(row.clock_in_at)}</strong><small>{row.clock_in_location_verified ? "Location Verified" : row.clock_in_location_exception ? "Location Exception" : "Location unavailable"}</small></div><div><strong>{formatTime(row.clock_in_at)} — {row.clock_out_at ? formatTime(row.clock_out_at) : "Now"}</strong><small>{row.status === "open" ? "On shift" : "Completed"}</small></div></div>) : <p>No attendance records yet.</p>}</div></section>}
-    <nav className="crew-mobile-nav">{nav.map(({ id, label, icon: Icon }) => <button key={id} className={screen === id ? "active" : ""} onClick={() => setScreen(id)}><Icon size={18} /><span>{label}</span></button>)}</nav></section></main>;
+
+  async function prepareClock(action) {
+    setError("");
+    setLoading(true);
+    setClockDraft(null);
+    setException("");
+    setOtherReason("");
+    try {
+      const location = await getLocation();
+      const distance = context?.location_enabled ? distanceMeters(location.latitude, location.longitude, Number(context.latitude), Number(context.longitude)) : null;
+      setClockDraft({ action, location, distance });
+    } catch (cause) {
+      setClockDraft({ action, location: null, locationError: cause.message });
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function submitClock() {
+    const reason = exception === "Other" ? otherReason.trim() : exception;
+    const requiresException = context?.location_enabled && (!clockDraft?.location || clockDraft?.distance > Number(context.radius_meters));
+    if (requiresException && !reason) return setError(`Choose an exception reason to clock ${clockDraft.action === "out" ? "out" : "in"}.`);
+    setLoading(true);
+    setError("");
+    try {
+      await crewService.clock(session.token, clockDraft.action, clockDraft.location || null, reason);
+      setClockDraft(null);
+      await refresh();
+    } catch (cause) {
+      setError(cause.message || "Unable to update attendance.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  async function changePasscode(event) {
+    event.preventDefault();
+    setError("");
+    if (!/^\d{4}$/.test(currentPasscode) || !/^\d{4}$/.test(newPasscode)) return setError("Enter both four-digit passcodes.");
+    setLoading(true);
+    try {
+      const next = await crewService.changePasscode(session.token, currentPasscode, newPasscode);
+      const updated = { ...session, token: next.token, expires_at: next.expires_at };
+      localStorage.setItem(storageKey, JSON.stringify(updated));
+      setSession(updated);
+      setCurrentPasscode("");
+      setNewPasscode("");
+      setPasscodeChangeOpen(false);
+    } catch (cause) {
+      setError(cause.message || "Unable to change passcode.");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function logout() {
+    localStorage.removeItem(storageKey);
+    setSession(null);
+    setAttendance([]);
+    setScreen("home");
+  }
+
+  if (!session) return <CrewLogin onSignedIn={setSession} />;
+
+  const lessonTotal = Number(learningHome?.assignment?.lessons_total) || 0;
+  const lessonCompleted = Number(learningHome?.assignment?.lessons_completed) || 0;
+  const learningProgress = Number(learningHome?.assignment?.progress_percentage) || (lessonTotal ? Math.round((lessonCompleted / lessonTotal) * 100) : 0);
+  const requiredSops = learningHome?.required_sops || [];
+  const pendingSops = requiredSops.filter((sop) => !sop.acknowledged).length;
+  const growthSummary = growth?.summary || {};
+  const exceptionRequired = Boolean(context?.location_enabled && (!clockDraft?.location || clockDraft?.distance > Number(context.radius_meters)));
+  const outside = Boolean(clockDraft?.location && clockDraft?.distance > Number(context?.radius_meters));
+  const options = clockDraft?.action === "out" ? clockOutOptions : clockInOptions;
+
+  return <main className="crew-v2-shell"><section className="crew-v2-app">
+    {screen === "home" && <section className="crew-v2-home">
+      <header className="crew-v2-home-header"><div><p>{greeting},</p><h1>{firstName} <Hand size={18} aria-hidden="true" /></h1><span className={`crew-v2-shift-pill ${openShift ? "is-on" : ""}`}>{openShift ? "On Shift" : "Not clocked in"}</span><small>{context?.outlet_name || employee.workplace || "Your outlet"}</small>{context?.shift_start && <small>{context.shift_start} – {context.shift_end}</small>}</div><div><button type="button" aria-label="Notifications"><Bell size={18} /></button><span className="crew-v2-avatar">{firstName.slice(0, 1)}</span></div></header>
+      <button type="button" className={`crew-v2-attendance-card ${openShift ? "is-on" : ""}`} onClick={() => setScreen("attendance")}><span><small>{openShift ? "Clocked in" : "Attendance"}</small><strong>{openShift ? formatTime(openShift.clock_in_at) : "Clock In"}</strong><em>{openShift ? "You are on shift" : "Tap to start your shift"}</em></span><i>{openShift ? <Check size={23} /> : <Clock3 size={22} />}</i></button>
+      <section className="crew-v2-home-section"><div className="crew-v2-section-title"><h2>Today’s Focus</h2><button type="button" onClick={() => setScreen("learn")}>See all</button></div><div className="crew-v2-focus-list">
+        <button type="button" onClick={() => setScreen("learn")}><span className="crew-v2-row-icon"><GraduationCap size={17} /></span><span><strong>{learningHome?.assignment ? "Continue Onboarding" : "New Crew Onboarding"}</strong><small>{learningHome?.assignment ? `${lessonCompleted} of ${lessonTotal} lessons complete` : "No assignment yet"}</small>{learningHome?.assignment && <span className="crew-v2-inline-progress"><i style={{ width: `${learningProgress}%` }} /></span>}</span><em>{learningHome?.assignment ? `${learningProgress}%` : ""}</em><ChevronRight size={16} /></button>
+        <button type="button" onClick={() => setScreen("learn")}><span className="crew-v2-row-icon is-mint"><FileText size={17} /></span><span><strong>SOP Update</strong><small>{pendingSops ? `${pendingSops} acknowledgement${pendingSops === 1 ? "" : "s"} required` : "You’re up to date"}</small></span><ChevronRight size={16} /></button>
+      </div></section>
+      <section className="crew-v2-home-section"><div className="crew-v2-section-title"><h2>Your Progress</h2></div><div className="crew-v2-progress-summary"><div className="crew-v2-progress-ring" style={{ "--progress": `${learningProgress * 3.6}deg` }}><span><strong>{lessonTotal ? `${learningProgress}%` : "—"}</strong><small>Onboarding</small></span></div><div><span><strong>Lessons</strong><em>{lessonCompleted} / {lessonTotal}</em></span><div className="crew-v2-progress"><i style={{ width: `${learningProgress}%` }} /></div><span><strong>Certified Skills</strong><em>{growthSummary.certified || 0}</em></span><div className="crew-v2-progress"><i style={{ width: `${growthSummary.total ? ((growthSummary.certified || 0) / growthSummary.total) * 100 : 0}%` }} /></div></div></div></section>
+    </section>}
+
+    {screen === "learn" && <CrewLearningMobile token={session.token} onRefreshHome={setLearningHome} />}
+    {screen === "reward" && <CrewRewardMobile />}
+    {screen === "growth" && <CrewGrowthMobile data={growth} loading={pageLoading && !growth} error={growthError} onRetry={() => refresh()} />}
+
+    {screen === "attendance" && <section className="crew-v2-attendance">
+      <header className="crew-v2-page-header"><div><button type="button" onClick={() => setScreen("home")} aria-label="Back"><ArrowLeft size={19} /></button><h1>Attendance</h1></div></header>
+      <article className="crew-v2-attendance-hero"><span className={`crew-v2-attendance-status ${openShift ? "is-on" : ""}`}><Clock3 size={25} /></span><small>{openShift ? "You are" : "Ready to"}</small><h2>{openShift ? "On Shift" : "Clock In"}</h2><strong>{openShift ? formatTime(openShift.clock_in_at) : "—"}</strong><p>{context?.outlet_name || "Your outlet"}</p></article>
+      <button className="crew-v2-primary" type="button" onClick={() => prepareClock(openShift ? "out" : "in")} disabled={loading}>{loading ? "Checking location…" : openShift ? "Clock Out" : "Clock In"}</button>
+      <section className="crew-v2-location"><MapPin size={19} /><span><strong>{context?.location_enabled ? "Location verification" : "Location not configured"}</strong><small>{context?.location_enabled ? `Within ${context.radius_meters}m of ${context.outlet_name}` : "Your manager has not enabled a geofence."}</small></span></section>
+      {clockDraft && <section className="crew-v2-clock-confirm" aria-live="polite"><div><Navigation size={18} /><span><strong>{clockDraft.action === "out" ? "Clock out location" : "Clock in location"}</strong><small>{context?.outlet_name || "Outlet"}</small></span></div>{!exceptionRequired && <p className="is-safe"><Check size={16} /> Location verified</p>}{outside && <p className="is-warning">You are {Math.round(clockDraft.distance)}m from the outlet ({context.radius_meters}m allowed).</p>}{!clockDraft.location && <p className="is-warning">Location could not be verified.</p>}{exceptionRequired && <label>Reason<select value={exception} onChange={(event) => setException(event.target.value)}><option value="">Select a reason</option>{options.map((option) => <option key={option}>{option}</option>)}</select></label>}{exception === "Other" && <input value={otherReason} maxLength="280" onChange={(event) => setOtherReason(event.target.value)} placeholder="Brief reason" />}{error && <div className="crew-v2-error">{error}</div>}<div className="crew-v2-actions"><button type="button" onClick={() => setClockDraft(null)}>Cancel</button><button className="crew-v2-primary" type="button" onClick={submitClock} disabled={loading}>Confirm</button></div></section>}
+      <section className="crew-v2-home-section"><div className="crew-v2-section-title"><h2>Attendance History</h2><span>{attendance.length} shifts</span></div><div className="crew-v2-history">{attendance.length ? attendance.map((row) => <div key={row.id}><span><strong>{formatDate(row.clock_in_at)}</strong><small>{row.clock_in_location_verified ? "Location verified" : row.clock_in_location_exception ? "Location exception" : "Location unavailable"}</small></span><span><strong>{formatTime(row.clock_in_at)} – {row.clock_out_at ? formatTime(row.clock_out_at) : "Now"}</strong><small>{row.status === "open" ? "On shift" : "Completed"}</small></span></div>) : <EmptyState title="No shifts yet" body="Your completed shifts will appear here." />}</div></section>
+    </section>}
+
+    {screen === "me" && <section className="crew-v2-me">
+      {meView === "settings" ? <><header className="crew-v2-page-header"><div><button type="button" onClick={() => setMeView("main")} aria-label="Back"><ArrowLeft size={19} /></button><h1>Settings</h1></div></header><div className="crew-v2-menu"><div><Bell size={18} /><span>Notifications</span><ChevronRight size={17} /></div><div><Languages size={18} /><span>Language</span><em>English</em><ChevronRight size={17} /></div><button type="button" onClick={() => setPasscodeChangeOpen(true)}><LockKeyhole size={18} /><span>Passcode</span><ChevronRight size={17} /></button><div><ShieldCheck size={18} /><span>Privacy</span><ChevronRight size={17} /></div><div><FileText size={18} /><span>Terms</span><ChevronRight size={17} /></div><div><HelpCircle size={18} /><span>About FeedX</span><ChevronRight size={17} /></div></div></> : <><header className="crew-v2-page-header"><div><h1>Me</h1></div></header><article className="crew-v2-profile-hero"><span className="crew-v2-avatar is-large">{firstName.slice(0, 1)}</span><div><h2>{employee.full_name || firstName}</h2><p>{employee.position || "Crew Member"}</p><small>{context?.outlet_name || employee.workplace || "Your outlet"}</small><em>Active</em></div></article><div className="crew-v2-menu"><div><UserRound size={18} /><span>Profile Information</span><ChevronRight size={17} /></div><div><BriefcaseBusiness size={18} /><span>Employment Documents</span><ChevronRight size={17} /></div><button type="button" onClick={() => setScreen("attendance")}><Clock3 size={18} /><span>Attendance</span><ChevronRight size={17} /></button><button type="button" onClick={() => setPasscodeChangeOpen(true)}><LockKeyhole size={18} /><span>Change Passcode</span><ChevronRight size={17} /></button><button type="button" onClick={() => setMeView("settings")}><Settings size={18} /><span>Settings</span><ChevronRight size={17} /></button><div><HelpCircle size={18} /><span>Help & Support</span><ChevronRight size={17} /></div></div><button className="crew-v2-logout" type="button" onClick={logout}><LogOut size={18} /> Log Out</button></>}
+      {passcodeChangeOpen && <form className="crew-v2-passcode-form" onSubmit={changePasscode}><div className="crew-v2-section-title"><h2>Change Passcode</h2><button type="button" onClick={() => setPasscodeChangeOpen(false)}>Close</button></div><label>Current passcode<input inputMode="numeric" maxLength="4" value={currentPasscode} onChange={(event) => setCurrentPasscode(event.target.value.replace(/\D/g, ""))} /></label><label>New passcode<input inputMode="numeric" maxLength="4" value={newPasscode} onChange={(event) => setNewPasscode(event.target.value.replace(/\D/g, ""))} /></label>{error && <div className="crew-v2-error">{error}</div>}<button className="crew-v2-primary" disabled={loading}>Save Passcode</button></form>}
+    </section>}
+
+    <CrewNav screen={screen} onChange={(next) => { setScreen(next); if (next === "me") setMeView("main"); }} />
+  </section></main>;
 }
