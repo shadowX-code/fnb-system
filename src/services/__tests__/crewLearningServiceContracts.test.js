@@ -96,10 +96,12 @@ describe("Crew learning mobile service boundaries", () => {
 
   it("uses server authorities for Growth state, assessment and certification", async () => {
     await crewService.growthAdminData("outlet-1");
+    await crewService.growthAdminEvidence("outlet-1");
     await crewService.saveGrowthSkill({ outlet_id: "outlet-1", name: "Greeting" });
     await crewService.submitGrowthAssessment({ employeeId: "employee-1", skillId: "skill-1", result: "pass", checklist: [] });
     await crewService.certifyGrowthSkill({ employeeId: "employee-1", skillId: "skill-1" });
     expect(mocks.rpc).toHaveBeenCalledWith("crew_growth_admin_data", { p_outlet_id: "outlet-1" });
+    expect(mocks.rpc).toHaveBeenCalledWith("crew_growth_admin_evidence", { p_outlet_id: "outlet-1" });
     expect(mocks.rpc).toHaveBeenCalledWith("crew_growth_save_skill", { p_skill: expect.objectContaining({ name: "Greeting" }) });
     expect(mocks.rpc).toHaveBeenCalledWith("crew_growth_submit_assessment", expect.objectContaining({ p_employee_id: "employee-1", p_result: "pass" }));
     expect(mocks.rpc).toHaveBeenCalledWith("crew_growth_certify", expect.objectContaining({ p_employee_id: "employee-1", p_skill_id: "skill-1" }));

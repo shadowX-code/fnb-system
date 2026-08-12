@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
 
-const mocks = vi.hoisted(() => ({ data: vi.fn(), save: vi.fn(), assess: vi.fn(), certify: vi.fn(), journeys: vi.fn(), sops: vi.fn() }));
-vi.mock("../../../../services/crewService.js", () => ({ crewService: { growthAdminData: mocks.data, saveGrowthSkill: mocks.save, submitGrowthAssessment: mocks.assess, certifyGrowthSkill: mocks.certify, listOnboardingAdmin: mocks.journeys, listOutletSopsAdmin: mocks.sops } }));
+const mocks = vi.hoisted(() => ({ data: vi.fn(), evidence: vi.fn(), save: vi.fn(), assess: vi.fn(), certify: vi.fn() }));
+vi.mock("../../../../services/crewService.js", () => ({ crewService: { growthAdminData: mocks.data, growthAdminEvidence: mocks.evidence, saveGrowthSkill: mocks.save, submitGrowthAssessment: mocks.assess, certifyGrowthSkill: mocks.certify } }));
 vi.mock("../../../../services/outletService.js", () => ({ outletService: { listActiveOutlets: vi.fn().mockResolvedValue([]) } }));
 import CrewGrowthAdminPage from "../CrewGrowthAdminPage.jsx";
 
@@ -13,7 +13,7 @@ const fixture = { skills: [skill], crew: [{ employee: { id: "employee-1", full_n
 const auth = { hasPermission: () => true };
 const ui = { notify: vi.fn() };
 
-beforeEach(() => { mocks.data.mockReset().mockResolvedValue(fixture); mocks.save.mockReset().mockResolvedValue("skill-1"); mocks.assess.mockReset().mockResolvedValue("assessment-1"); mocks.certify.mockReset().mockResolvedValue("cert-1"); mocks.journeys.mockReset().mockResolvedValue([]); mocks.sops.mockReset().mockResolvedValue({ sops: [] }); ui.notify.mockReset(); });
+beforeEach(() => { mocks.data.mockReset().mockResolvedValue(fixture); mocks.evidence.mockReset().mockResolvedValue([]); mocks.save.mockReset().mockResolvedValue("skill-1"); mocks.assess.mockReset().mockResolvedValue("assessment-1"); mocks.certify.mockReset().mockResolvedValue("cert-1"); ui.notify.mockReset(); });
 afterEach(cleanup);
 
 describe("Crew Growth Admin", () => {
@@ -22,15 +22,13 @@ describe("Crew Growth Admin", () => {
     expect(await screen.findByRole("heading", { name: "Growth Overview" })).not.toBeNull();
     expect(screen.getAllByText("Customer Greeting").length).toBeGreaterThan(0);
     expect(screen.getByText("Assessment pending")).not.toBeNull();
-    expect(mocks.journeys).not.toHaveBeenCalled();
-    expect(mocks.sops).not.toHaveBeenCalled();
+    expect(mocks.evidence).not.toHaveBeenCalled();
   });
 
   it("renders Skills filters and opens the requirement editor", async () => {
     render(<CrewGrowthAdminPage initialTab="skills" auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     await screen.findByRole("heading", { name: "Skills" });
-    expect(mocks.journeys).toHaveBeenCalledWith("outlet-1");
-    expect(mocks.sops).toHaveBeenCalledWith("outlet-1");
+    expect(mocks.evidence).toHaveBeenCalledWith("outlet-1");
     fireEvent.click(screen.getByRole("button", { name: "View / Edit" }));
     expect(screen.getByRole("dialog", { name: "Edit Skill" })).not.toBeNull();
     expect(screen.getByText("Certification Requirements")).not.toBeNull();

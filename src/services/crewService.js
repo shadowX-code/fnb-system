@@ -606,6 +606,12 @@ export const crewService = {
     return data || { skills: [], crew: [], reviews: [], recent_certifications: [] };
   },
 
+  async growthAdminEvidence(outletId) {
+    const { data, error } = await supabase.rpc("crew_growth_admin_evidence", { p_outlet_id: outletId });
+    throwSupabaseError("crew.growthAdminEvidence", error);
+    return data || [];
+  },
+
   async saveGrowthSkill(skill) {
     const { data, error } = await supabase.rpc("crew_growth_save_skill", { p_skill: skill });
     throwSupabaseError("crew.saveGrowthSkill", error);

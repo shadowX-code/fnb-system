@@ -50,11 +50,7 @@ export default function CrewGrowthAdminPage({ auth, ui, store, initialTab = "ove
       const growth = await crewService.growthAdminData(outletId);
       setData(growth);
       if (initialTab === "skills") {
-        const [journeys, sops] = await Promise.all([
-          crewService.listOnboardingAdmin(outletId),
-          crewService.listOutletSopsAdmin(outletId),
-        ]);
-        setEvidence(buildEvidence(journeys, sops?.sops || []));
+        setEvidence(await crewService.growthAdminEvidence(outletId));
       } else {
         setEvidence([]);
       }
@@ -101,19 +97,6 @@ function tabMeta(tab) {
   if (tab === "crew") return { title: "Crew Growth", description: "Review each Crew member’s durable capability profile and certification history." };
   if (tab === "reviews") return { title: "Certification Review", description: "Complete practical reviews only after authoritative learning evidence is ready." };
   return { title: "Growth Overview", description: "Team skill coverage, certification readiness and renewal attention in one view." };
-}
-
-function buildEvidence(journeys = [], sops = []) {
-  const rows = [];
-  journeys.filter((journey) => journey.status === "published").forEach((journey) => (journey.modules || []).forEach((module) => {
-    rows.push({ type: "module", id: module.id, label: `${journey.name} · ${module.title}` });
-    (module.lessons || []).forEach((lesson) => {
-      rows.push({ type: "lesson", id: lesson.id, label: `${module.title} · ${lesson.title}` });
-      (lesson.quizzes || []).forEach((quiz) => rows.push({ type: "quiz", id: quiz.id, label: `${lesson.title} · ${quiz.title}` }));
-    });
-  }));
-  sops.forEach((sop) => (sop.versions || []).filter((version) => version.status === "published").forEach((version) => rows.push({ type: "sop", id: version.id, label: `${sop.title} · v${version.version}` })));
-  return rows;
 }
 
 function flattenStates(data) { return (data.crew || []).flatMap((row) => (row.skills || []).map((state) => ({ ...state, employee: row.employee, skill: data.skills.find((skill) => skill.id === state.skill_id) }))); }
