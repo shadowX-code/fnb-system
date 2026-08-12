@@ -1,11 +1,12 @@
 with migrations as (
   select coalesce(jsonb_agg(version order by version), '[]'::jsonb) as value
   from supabase_migrations.schema_migrations
-  where version in ('20260812163541','20260812164410','20260812164932')
+  where version in ('20260812163541','20260812164410','20260812164932','20260812170155')
 ), functions as (
   select coalesce(jsonb_agg(jsonb_build_object(
     'function', p.proname,
     'security_definer', p.prosecdef,
+    'volatility', p.provolatile,
     'config', coalesce(array_to_string(p.proconfig, ','), ''),
     'public_execute', has_function_privilege('public', p.oid, 'execute'),
     'anon_execute', has_function_privilege('anon', p.oid, 'execute'),

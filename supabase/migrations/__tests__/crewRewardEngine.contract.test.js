@@ -5,6 +5,7 @@ import { describe, expect, it } from "vitest";
 const sql = fs.readFileSync(path.resolve("supabase/migrations/20260812163541_crew_monthly_reward_engine.sql"), "utf8").toLowerCase();
 const runtimeFix = fs.readFileSync(path.resolve("supabase/migrations/20260812164410_crew_reward_mark_paid_runtime_fix.sql"), "utf8").toLowerCase();
 const strictCap = fs.readFileSync(path.resolve("supabase/migrations/20260812164932_crew_reward_strict_pool_cap.sql"), "utf8").toLowerCase();
+const mobileRuntimeFix = fs.readFileSync(path.resolve("supabase/migrations/20260812170155_crew_reward_mobile_runtime_fix.sql"), "utf8").toLowerCase();
 
 describe("Crew Reward engine migration contract", () => {
   it("keeps calculation server-derived and versioned", () => {
@@ -57,5 +58,9 @@ describe("Crew Reward engine migration contract", () => {
     expect(strictCap).toContain("actual_payout <= unlocked_pool");
     expect(strictCap).toContain("set search_path=public");
     expect(strictCap).toContain("from public,anon,authenticated");
+  });
+
+  it("keeps token-bound mobile reads writable for session activity", () => {
+    expect(mobileRuntimeFix).toContain("alter function public.crew_reward_mobile(text,date) volatile");
   });
 });

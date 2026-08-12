@@ -403,5 +403,5 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 
 - Added the server-authoritative `reward-v1` monthly Reward engine with team Pool unlock, eligible-hours contribution, Performance factors, capped payout normalization, audited adjustments and immutable finalized snapshots.
 - Added outlet-scoped Reward Overview and Reward Cycles Admin UI, plus token-bound Crew Mobile Reward estimates, calculation explanation and history.
-- Applied `20260812163541_crew_monthly_reward_engine.sql`, corrective `20260812164410_crew_reward_mark_paid_runtime_fix.sql`, and strict rounding/pool-cap hardening `20260812164932_crew_reward_strict_pool_cap.sql` to Staging only.
+- Applied `20260812163541_crew_monthly_reward_engine.sql`, corrective `20260812164410_crew_reward_mark_paid_runtime_fix.sql`, strict rounding/pool-cap hardening `20260812164932_crew_reward_strict_pool_cap.sql`, and PostgREST session-activity fix `20260812170155_crew_reward_mobile_runtime_fix.sql` to Staging only.
 - Created reusable Staging-only Reward QA seed and rollback behavior/security verification scripts covering High Performer, Average, Needs Attention, part-time low-hours, Not Eligible and Awaiting Performance outcomes.
