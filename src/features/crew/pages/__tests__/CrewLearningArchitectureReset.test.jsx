@@ -152,6 +152,14 @@ describe("Crew Learning architecture reset UI", () => {
     expect(screen.getByText("Welcome & Workplace essentials")).not.toBeNull();
   });
 
+  it("creates the next editable draft through the controlled lifecycle when only a published version exists", async () => {
+    mocks.listOnboarding.mockReset().mockResolvedValueOnce([journey]).mockResolvedValueOnce([journey, draftJourney]);
+    render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Edit Onboarding" }));
+    await waitFor(() => expect(mocks.newJourneyVersion).toHaveBeenCalledWith("journey-2"));
+    expect(await screen.findByRole("dialog", { name: "Edit New Crew Onboarding" })).not.toBeNull();
+  });
+
   it("retains edits while switching modules and sends one whole-draft save", async () => {
     render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
     fireEvent.click(await screen.findByRole("button", { name: "Continue Editing Draft" }));
