@@ -16,6 +16,7 @@ export default function Modal({
   panelClassName = "",
   bodyClassName = "",
   footerClassName = "",
+  headerActions,
 }) {
   const widthClass = sizeClasses[size] ?? sizeClasses.sm;
 
@@ -27,9 +28,12 @@ export default function Modal({
             <h2 className="type-title font-bold text-text-primary">{title}</h2>
             {description ? <p className="mt-1 type-body-sm text-text-secondary">{description}</p> : null}
           </div>
-          <button className="icon-btn" type="button" onClick={onClose}>
-            ×
-          </button>
+          <div className="flex shrink-0 items-center gap-2">
+            {headerActions}
+            <button className="icon-btn" type="button" onClick={onClose} aria-label="Close modal">
+              ×
+            </button>
+          </div>
         </div>
         <div className={`min-h-0 flex-1 overflow-y-auto p-4 ${bodyClassName}`}>{children}</div>
         {footer ? <div className={`sticky bottom-0 z-10 flex shrink-0 justify-end gap-2 border-t border-border bg-slate-50 p-3 ${footerClassName}`}>{footer}</div> : null}

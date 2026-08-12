@@ -86,9 +86,8 @@ describe("Crew SOP Library Admin", () => {
   it("keeps row actions lifecycle-specific and never edits published content directly", async () => {
     renderPage();
     await screen.findByText("Welcome & Goodbye Standard");
+    expect(screen.getAllByRole("button", { name: "Edit Draft" }).length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "More actions for Welcome & Goodbye Standard" }));
-    expect(screen.getByRole("menuitem", { name: "View Published" })).not.toBeNull();
-    expect(screen.getByRole("menuitem", { name: "Continue Editing Draft" })).not.toBeNull();
     expect(screen.getByRole("menuitem", { name: "Delete Draft" })).not.toBeNull();
     expect(screen.queryByRole("menuitem", { name: "Create New Version" })).toBeNull();
     fireEvent.click(screen.getByRole("menuitem", { name: "Delete Draft" }));
@@ -104,13 +103,13 @@ describe("Crew SOP Library Admin", () => {
     mocks.list.mockResolvedValue({ categories, sops: [draftOnly] });
     renderPage();
     await screen.findByText("Opening Checklist");
+    const edit = screen.getByRole("button", { name: "Edit Draft" });
     fireEvent.click(screen.getByRole("button", { name: "More actions for Opening Checklist" }));
-    expect(screen.getByRole("menuitem", { name: "Edit Draft" })).not.toBeNull();
     expect(screen.getByRole("menuitem", { name: "Delete Draft" })).not.toBeNull();
     expect(screen.queryByRole("menuitem", { name: "Create New Version" })).toBeNull();
-    fireEvent.click(screen.getByRole("menuitem", { name: "Edit Draft" }));
+    fireEvent.click(edit);
     expect(screen.getByRole("heading", { name: "Opening Checklist" })).not.toBeNull();
-    expect(screen.getByText("Draft v1")).not.toBeNull();
+    expect(screen.getAllByText(/Draft v1/).length).toBeGreaterThan(0);
   });
 
   it("validates the create modal, creates acknowledgement metadata and enters draft editor", async () => {
@@ -136,8 +135,7 @@ describe("Crew SOP Library Admin", () => {
     vi.spyOn(window, "confirm").mockReturnValue(true);
     renderPage();
     await screen.findByText("Welcome & Goodbye Standard");
-    fireEvent.click(screen.getByText("Welcome & Goodbye Standard"));
-    fireEvent.click(screen.getByRole("button", { name: "Continue Editing Draft v2" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit Draft" })[0]);
     const title = screen.getByLabelText("Section Title *");
     fireEvent.change(title, { target: { value: "Welcome promptly" } });
     fireEvent.click(screen.getByLabelText("Key Point"));
@@ -157,8 +155,7 @@ describe("Crew SOP Library Admin", () => {
   it("previews the current draft without turning the document into an editable form", async () => {
     renderPage();
     await screen.findByText("Welcome & Goodbye Standard");
-    fireEvent.click(screen.getByText("Welcome & Goodbye Standard"));
-    fireEvent.click(screen.getByRole("button", { name: "Continue Editing Draft v2" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit Draft" })[0]);
     fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     expect(screen.getByRole("heading", { name: /Welcome & Goodbye Standard · Preview/ })).not.toBeNull();
     expect(screen.getByText("Smile and make eye contact.")).not.toBeNull();
@@ -189,9 +186,8 @@ describe("Crew SOP Library Admin", () => {
     mocks.list.mockResolvedValueOnce({ categories, sops }).mockResolvedValue({ categories, sops: [{ ...sops[0], current_version: 2, versions: [{ ...draft, status: "published", published_at: "2026-08-12T00:00:00Z" }, published] }] });
     renderPage();
     await screen.findByText("Welcome & Goodbye Standard");
-    fireEvent.click(screen.getByText("Welcome & Goodbye Standard"));
-    fireEvent.click(screen.getByRole("button", { name: "Continue Editing Draft v2" }));
-    fireEvent.click(screen.getByRole("button", { name: "Publish v2" }));
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit Draft" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Publish" }));
     await waitFor(() => expect(ui.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: "Publish SOP v2?" })));
     expect(mocks.publish).toHaveBeenCalledWith("v2");
   });

@@ -198,16 +198,16 @@ describe("FactoryWorkspacePage operational route smoke", () => {
 
     fireEvent.click(await screen.findByRole("button", { name: "Start" }));
     expect(screen.getByRole("heading", { name: "Start Production" })).not.toBeNull();
-    fireEvent.click(screen.getAllByRole("button", { name: "×" }).at(-1));
+    fireEvent.click(screen.getAllByRole("button", { name: "Close modal" }).at(-1));
 
     fireEvent.click(screen.getByRole("button", { name: "Complete Production" }));
     expect(await screen.findByRole("heading", { name: "Complete Production" })).not.toBeNull();
-    fireEvent.click(screen.getAllByRole("button", { name: "×" }).at(-1));
+    fireEvent.click(screen.getAllByRole("button", { name: "Close modal" }).at(-1));
 
     fireEvent.click(screen.getAllByRole("button", { name: "View Result" })[0]);
     await waitFor(() => expect(factoryService.getProductionByJobOrder).toHaveBeenCalledWith(completedJob.id));
     expect(await screen.findByRole("heading", { name: "Completed Job Order Result" })).not.toBeNull();
-    fireEvent.click(screen.getAllByRole("button", { name: "×" }).at(-1));
+    fireEvent.click(screen.getAllByRole("button", { name: "Close modal" }).at(-1));
 
     fireEvent.click(screen.getAllByRole("button", { name: "View" })[0]);
     expect(await screen.findByRole("heading", { name: "View Job Order" })).not.toBeNull();
