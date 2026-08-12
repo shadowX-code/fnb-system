@@ -6,7 +6,10 @@ vi.mock("../../lib/supabase", () => ({ supabase: { rpc: mocks.rpc, from: mocks.f
 import { crewService } from "../crewService.js";
 
 describe("Crew learning mobile service boundaries", () => {
-  beforeEach(() => { mocks.rpc.mockReset().mockResolvedValue({ data: { ok: true }, error: null }); });
+  beforeEach(() => {
+    mocks.rpc.mockReset().mockResolvedValue({ data: { ok: true }, error: null });
+    mocks.from.mockReset();
+  });
 
   it("uses token-bound Crew RPCs for all Crew learning actions", async () => {
     await crewService.learningHome("crew-token");
@@ -64,5 +67,45 @@ describe("Crew learning mobile service boundaries", () => {
     expect(mocks.rpc).toHaveBeenCalledWith("crew_publish_sop_version", { p_sop_version_id: "version-1" });
     expect(mocks.rpc).toHaveBeenCalledWith("crew_new_sop_version", { p_sop_id: "sop-1" });
     expect(mocks.rpc).toHaveBeenCalledWith("assign_crew_journey", { p_employee_id: "employee-1", p_journey_id: "journey-1", p_due_at: "2026-09-01" });
+  });
+
+  it("normalizes PostgREST one-to-one quiz relations for the Admin editor", async () => {
+    const query = {
+      select: vi.fn(),
+      eq: vi.fn(),
+      order: vi.fn(),
+    };
+    query.select.mockReturnValue(query);
+    query.eq.mockReturnValue(query);
+    query.order.mockResolvedValue({
+        data: [
+          {
+            id: "journey-1",
+            modules: {
+              id: "module-1",
+              lessons: {
+                id: "lesson-1",
+                blocks: null,
+                quizzes: {
+                  id: "quiz-1",
+                  questions: {
+                    id: "question-1",
+                    options: { id: "option-1" },
+                  },
+                },
+              },
+            },
+          },
+        ],
+        error: null,
+      });
+    mocks.from.mockReturnValue(query);
+
+    const [journey] = await crewService.listOnboardingAdmin("outlet-1");
+
+    expect(journey.modules).toHaveLength(1);
+    expect(journey.modules[0].lessons).toHaveLength(1);
+    expect(journey.modules[0].lessons[0].quizzes).toHaveLength(1);
+    expect(journey.modules[0].lessons[0].quizzes[0].questions[0].options).toHaveLength(1);
   });
 });

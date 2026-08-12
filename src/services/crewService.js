@@ -12,6 +12,28 @@ export function crewAccessState(access) {
   return access?.access_state || "not_enabled";
 }
 
+const relationRows = (value) => (Array.isArray(value) ? value : value ? [value] : []);
+
+function normalizeAdminJourney(journey) {
+  return {
+    ...journey,
+    modules: relationRows(journey.modules).map((module) => ({
+      ...module,
+      lessons: relationRows(module.lessons).map((lesson) => ({
+        ...lesson,
+        blocks: relationRows(lesson.blocks),
+        quizzes: relationRows(lesson.quizzes).map((quiz) => ({
+          ...quiz,
+          questions: relationRows(quiz.questions).map((question) => ({
+            ...question,
+            options: relationRows(question.options),
+          })),
+        })),
+      })),
+    })),
+  };
+}
+
 export const crewService = {
   async learningHome(token) {
     const { data, error } = await supabase.rpc("crew_learning_home", { p_token: token });
@@ -62,7 +84,10 @@ export const crewService = {
     ]);
     throwSupabaseError("crew.listLearningAdmin.journeys", journeyError);
     throwSupabaseError("crew.listLearningAdmin.assignments", assignmentError);
-    return { journeys: journeys || [], assignments: assignments || [] };
+    return {
+      journeys: (journeys || []).map(normalizeAdminJourney),
+      assignments: assignments || [],
+    };
   },
 
   async listOnboardingAdmin(outletId) {
@@ -75,7 +100,7 @@ export const crewService = {
       .eq("is_mandatory_onboarding", true)
       .order("version", { ascending: false });
     throwSupabaseError("crew.listOnboardingAdmin", error);
-    return data || [];
+    return (data || []).map(normalizeAdminJourney);
   },
 
   async onboardingProgress(outletId) {
