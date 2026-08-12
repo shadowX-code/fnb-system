@@ -7,8 +7,8 @@ const internalModules = moduleRegistry.filter((module) => module.routable === fa
 
 describe("FeedX route completeness contract", () => {
   it("resolves every routable registry module through an explicit non-placeholder route detail", () => {
-    expect(moduleRegistry).toHaveLength(75);
-    expect(routableModules).toHaveLength(73);
+    expect(moduleRegistry).toHaveLength(76);
+    expect(routableModules).toHaveLength(74);
     expect(internalModules.map((module) => module.id)).toEqual(["inventory_categories", "inventory_uoms"]);
 
     for (const module of routableModules) {

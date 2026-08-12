@@ -59,6 +59,18 @@ export const rosterPeriodService = {
     return mapPeriod(data);
   },
 
+  async getRosterPeriod(outletId, weekStartDate) {
+    const { data, error } = await supabase
+      .from("roster_periods")
+      .select(selectFields)
+      .eq("outlet_id", outletId)
+      .eq("week_start_date", weekStartDate)
+      .maybeSingle();
+
+    throwSupabaseError("roster_periods.get", error);
+    return data ? mapPeriod(data) : null;
+  },
+
   async setRosterPeriodStatus(period, status) {
     const { data: userData } = await supabase.auth.getUser();
     const now = new Date().toISOString();

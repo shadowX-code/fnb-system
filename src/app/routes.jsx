@@ -11,7 +11,7 @@ import OutletPnlPage from "../features/sales-purchase/pages/OutletPnlPage.jsx";
 import ProductAnalyticsPage from "../features/sales-purchase/pages/ProductAnalyticsPage.jsx";
 import OutletDutyRosterPage from "../features/sales-purchase/pages/OutletDutyRosterPage.jsx";
 import OperatingExpensesPage from "../features/sales-purchase/pages/OperatingExpensesPage.jsx";
-import DutyRosterPage from "../features/sales-purchase/pages/DutyRosterPage.jsx";
+import SharedDutyRosterPage from "../features/roster/pages/SharedDutyRosterPage.jsx";
 import AssetTrackingPage from "../features/sales-purchase/pages/AssetTrackingPage.jsx";
 import InventoryControlPage from "../features/sales-purchase/pages/InventoryControlPage.jsx";
 import SettingsPage from "../features/sales-purchase/pages/SettingsPage.jsx";
@@ -134,8 +134,10 @@ export const routeDetails = {
     component: OperatingExpensesPage,
   },
   "duty-roster": {
-    description: "Weekly outlet employee scheduling by department.",
-    component: DutyRosterPage,
+    description: "Restaurant compatibility entry for the shared Crew Duty Roster.",
+    component: SharedDutyRosterPage,
+    permission: "duty_roster.view OR crew_roster.view",
+    props: { ownership: "restaurant" },
   },
   asset_tracking: {
     description: "Track outlet assets, quantities, inspections and movement logs.",
@@ -356,6 +358,12 @@ export const routeDetails = {
     description: "Review Crew mobile attendance history.",
     component: CrewAttendanceAdminPage,
     permission: "crew_attendance.view",
+  },
+  crew_roster: {
+    description: "Plan and publish the shared outlet Duty Roster from Crew Workforce.",
+    component: SharedDutyRosterPage,
+    permission: "crew_roster.view OR duty_roster.view",
+    props: { ownership: "crew" },
   },
   crew_operations: {
     description: "Monitor outlet Opening, Closing, Daily Tasks and Store Health execution.",

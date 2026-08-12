@@ -14,7 +14,7 @@ import { dutyRosterService } from "../../../services/dutyRosterService.js";
 import { rosterPeriodService } from "../../../services/rosterPeriodService.js";
 import { jobPositionService } from "../../../services/jobPositionService.js";
 import { rosterPositionGroupService } from "../../../services/rosterPositionGroupService.js";
-import { canCreate, canDelete, canEdit, canExport, canManage, notifyPermissionDenied } from "../../../utils/accessControl.js";
+import { notifyPermissionDenied } from "../../../utils/accessControl.js";
 import { SHIFT_TIME_INPUT_ERROR, buildShiftTimeOptions, formatShiftTimeInput, formatShiftTimeRange, normalizeShiftTimeInput } from "../utils/shiftTime.js";
 
 const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
@@ -1522,7 +1522,18 @@ function RosterDateSelector({ mode, weekStart, weekDates, visibleDates, onSelect
   );
 }
 
-export default function DutyRosterPage({ store, ui, auth }) {
+function rosterPermission(auth, action) {
+  if (auth?.isProtectedRole) return true;
+  const legacy = {
+    view: ["duty_roster.view", "outlet_duty_roster.view"],
+    manage: ["duty_roster.create", "duty_roster.edit", "duty_roster.delete", "duty_roster.manage"],
+    publish: ["duty_roster.manage"],
+    export: ["duty_roster.export", "outlet_duty_roster.export"],
+  };
+  return auth?.hasPermission?.(`crew_roster.${action}`) || (legacy[action] || []).some((code) => auth?.hasPermission?.(code));
+}
+
+export default function DutyRosterPage({ store, ui, auth, ownership = "restaurant" }) {
   const activeOutlets = store.outlets.filter((outlet) => outlet.status === "active" || outlet.is_active);
   const [outletId, setOutletId] = useState(activeOutlets[0]?.id ?? "");
   const outletIdRef = useRef(outletId);
@@ -1556,11 +1567,13 @@ export default function DutyRosterPage({ store, ui, auth }) {
   const [copying, setCopying] = useState(false);
   const [error, setError] = useState("");
 
-  const canAddShift = canCreate(auth, "duty_roster");
-  const canEditShift = canEdit(auth, "duty_roster");
-  const canDeleteShift = canDelete(auth, "duty_roster");
-  const canExportRoster = canExport(auth, "duty_roster");
-  const canManageRoster = canManage(auth, "duty_roster");
+  const crewOwned = ownership === "crew";
+  const canAddShift = rosterPermission(auth, "manage");
+  const canEditShift = rosterPermission(auth, "manage");
+  const canDeleteShift = rosterPermission(auth, "manage");
+  const canExportRoster = rosterPermission(auth, "view") || rosterPermission(auth, "export");
+  const canManageRoster = rosterPermission(auth, "manage");
+  const canPublishRoster = rosterPermission(auth, "publish");
   const canWriteShift = canAddShift || canEditShift;
   const selectedTemplate = templates.find((template) => template.id === selectedTemplateId) ?? null;
   const outletName = activeOutlets.find((outlet) => outlet.id === outletId)?.name ?? "Selected outlet";
@@ -1626,13 +1639,13 @@ export default function DutyRosterPage({ store, ui, auth }) {
           shiftTemplateService.listShiftTemplates(outletId),
           shiftTemplateService.listAllShiftTemplates(outletId),
           dutyRosterService.listDutyRosters(outletId, visibleStart, visibleEnd),
-          rosterPeriodService.getOrCreateRosterPeriod(outletId, weekDateValues[0], weekEnd),
+          canWriteShift || canPublishRoster
+            ? rosterPeriodService.getOrCreateRosterPeriod(outletId, weekDateValues[0], weekEnd)
+            : rosterPeriodService.getRosterPeriod(outletId, weekDateValues[0]),
         ]);
         if (ignore) return;
         setEmployees(employeeRows.filter((employee) => (
-          employee.is_active !== false &&
-          employee.employment_status === "active" &&
-          (!employee.workplace || employee.workplace === outletId || employee.workplace === activeOutlets.find((outlet) => outlet.id === outletId)?.name)
+          employee.is_active !== false && employee.employment_status === "active"
         )));
         setJobPositions(positionRows);
         setPositionMappings(mappingRows);
@@ -1660,7 +1673,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
     return () => {
       ignore = true;
     };
-  }, [outletId, viewMode, weekStart]);
+  }, [canPublishRoster, canWriteShift, outletId, viewMode, weekEnd, weekStart]);
 
   const rosterByEmployeeDate = useMemo(() => new Map(rosters.map((roster) => [rosterKey(roster.employee_id, roster.roster_date), roster])), [rosters]);
   const displayEmployees = useMemo(() => {
@@ -2041,7 +2054,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
   }
 
   async function setStatus(status) {
-    if (!canManageRoster) {
+    if (!canPublishRoster) {
       notifyPermissionDenied(ui, "manage duty roster status");
       return;
     }
@@ -2160,9 +2173,9 @@ export default function DutyRosterPage({ store, ui, auth }) {
   return (
     <div className="space-y-4">
       <PageHeader
-        section="Operations"
+        section={crewOwned ? "Crew · Workforce" : "Operations · Crew compatibility"}
         title="Duty Roster"
-        description="Manage weekly outlet scheduling."
+        description={crewOwned ? "Plan, publish, and share the official outlet schedule." : "Shared Crew roster workspace. All changes use the same roster authority."}
         actions={(
           <div className="flex flex-wrap items-center gap-2">
             <button className="btn-secondary" type="button" disabled={!canExportRoster} onClick={() => ui.notify({ title: "Export prepared", message: "Duty roster export will be connected to the export service." })}>
@@ -2173,7 +2186,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
                 <Share2 size={16} /> Share Roster
               </button>
             ) : null}
-            {canManageRoster ? (
+            {canPublishRoster ? (
               <button
                 className="btn-primary"
                 type="button"
@@ -2427,7 +2440,7 @@ export default function DutyRosterPage({ store, ui, auth }) {
                   <Badge tone={readOnly ? "neutral" : "success"}>{readOnly ? "Read-only" : "Editable"}</Badge>
                 </div>
               </div>
-              {canManageRoster ? (
+              {canPublishRoster ? (
                 <div className="flex gap-2">
                   {period?.status === "locked" ? (
                     <button className="icon-btn" type="button" onClick={() => setStatus("draft")} title="Unlock roster"><UnlockKeyhole size={16} /></button>

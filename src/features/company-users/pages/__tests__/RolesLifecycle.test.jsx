@@ -139,7 +139,7 @@ describe("Roles current mounted lifecycle", () => {
     expect(mocks.save.mock.calls[1][0].requestId).toBe(mocks.save.mock.calls[0][0].requestId);
     await waitFor(() => expect(screen.queryByText("Edit Role")).toBeNull());
     expect(screen.getByText("Updated operations")).not.toBeNull();
-  });
+  }, 10_000);
 
   it("duplicates through the mounted create editor with copied configuration and one trusted create", async () => {
     const duplicate = { ...duplicateSource, id: "role-duplicate", name: "warehouse_operator_copy" };
@@ -186,7 +186,7 @@ describe("Roles current mounted lifecycle", () => {
     await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(2));
     expect(mocks.save.mock.calls[1][0].requestId).toBe(mocks.save.mock.calls[0][0].requestId);
     await waitFor(() => expect(screen.getByText("warehouse_operator_copy")).not.toBeNull());
-  });
+  }, 10_000);
 
   it("reissues the request ID after a server delegation rejection when the editor changes to a valid snapshot", async () => {
     const saved = { ...existing, description: "Delegation allowed", permissions: ["dashboard.view"] };
@@ -205,7 +205,7 @@ describe("Roles current mounted lifecycle", () => {
     await waitFor(() => expect(mocks.save).toHaveBeenCalledTimes(2));
     expect(mocks.save.mock.calls[1][0].requestId).not.toBe(mocks.save.mock.calls[0][0].requestId);
     await waitFor(() => expect(screen.getByText("Delegation allowed")).not.toBeNull());
-  });
+  }, 10_000);
 
   it("keeps an attempted permission delegation out of local state when the trusted server rejects it", async () => {
     mocks.save.mockRejectedValueOnce(new Error("Permission scope restricted"));

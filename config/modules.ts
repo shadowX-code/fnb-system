@@ -11,6 +11,7 @@ export type ModuleAction =
   | "manage"
   | "review"
   | "finalize"
+  | "publish"
   | "moderate"
   | "mark_paid"
   | "assess"
@@ -47,6 +48,7 @@ export const permissionActionOrder: ModuleAction[] = [
   "approve",
   "review",
   "finalize",
+  "publish",
   "moderate",
   "mark_paid",
   "assess",
@@ -73,6 +75,7 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   approve: "Approve",
   review: "Review",
   finalize: "Finalize",
+  publish: "Publish",
   moderate: "Moderate",
   mark_paid: "Mark Paid",
   assess: "Assess",
@@ -683,6 +686,16 @@ export const moduleRegistry: AppModule[] = [
     sidebar: true,
     workspace: "crew",
     permissions: { view: true, manage: true },
+  },
+  {
+    id: "crew_roster",
+    section: "Workforce",
+    label: "Duty Roster",
+    route: "/crew/roster",
+    icon: "crew-roster",
+    sidebar: true,
+    workspace: "crew",
+    permissions: { view: true, manage: true, publish: true },
   },
   {
     id: "crew_operations",

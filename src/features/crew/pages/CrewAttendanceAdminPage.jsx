@@ -6,16 +6,70 @@ import DataTable from "../../../components/tables/DataTable.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import { crewService } from "../../../services/crewService.js";
 
-function locationState(row) { if (row.clock_in_location_verified && (!row.clock_out_at || row.clock_out_location_verified)) return "verified"; if (row.clock_in_location_exception || row.clock_out_location_exception) return "exception"; return "unavailable"; }
-function duration(row) { if (!row.clock_in_at) return "—"; const end = row.clock_out_at ? new Date(row.clock_out_at) : new Date(); const minutes = Math.max(0, Math.round((end - new Date(row.clock_in_at)) / 60000)); return `${Math.floor(minutes / 60)}h ${minutes % 60}m`; }
-function locationCopy(row) { const state = locationState(row); if (state === "verified") return `${Math.round(Number(row.clock_in_distance_meters || 0))}m from outlet`; if (state === "exception") return `${Math.round(Number(row.clock_in_distance_meters || 0)) || "—"}${row.clock_in_distance_meters == null ? "" : "m away"}`; return "Unavailable"; }
-
-export default function CrewAttendanceAdminPage({ ui }) {
-  const [rows, setRows] = useState([]); const [loading, setLoading] = useState(true); const [filter, setFilter] = useState("all"); const [detail, setDetail] = useState(null);
-  useEffect(() => { crewService.listAttendance().then(setRows).catch((error) => ui.notify({ title: "Unable to load attendance", message: error.message, tone: "error" })).finally(() => setLoading(false)); }, []);
-  const visibleRows = useMemo(() => rows.filter((row) => filter === "all" || filter === locationState(row)), [filter, rows]);
-  return <div className="space-y-4"><PageHeader section="Crew · People" title="Attendance" description="GPS evidence is captured at clock in/out. Admin review never alters the original evidence." /><div className="flex flex-wrap gap-2">{[["all", "All"], ["verified", "Verified"], ["exception", "Location Exception"], ["unavailable", "Incomplete"]].map(([value, label]) => <button className={filter === value ? "btn-primary" : "btn-secondary"} type="button" key={value} onClick={() => setFilter(value)}>{label}</button>)}</div><Card title="Attendance history" description="Phase A.1 records GPS accuracy and distance only; payroll, OT and stronger identity verification remain out of scope.">{loading ? <div className="p-8 text-sm font-semibold text-text-secondary">Loading attendance…</div> : <DataTable tableClassName="min-w-[1050px]" rows={visibleRows} getRowKey={(row) => row.id} onRowClick={setDetail} columns={[{ key: "employee", header: "Employee", render: (row) => <div><div className="font-bold">{row.employee?.nickname || row.employee?.full_name || "Employee"}</div><div className="text-xs text-text-secondary">{row.employee?.position || "—"}</div></div> }, { key: "outlet", header: "Outlet", render: (row) => row.outlet?.name || row.employee?.workplace || "—" }, { key: "in", header: "Clock In", render: (row) => row.clock_in_at ? new Date(row.clock_in_at).toLocaleString("en-MY") : "—" }, { key: "out", header: "Clock Out", render: (row) => row.clock_out_at ? new Date(row.clock_out_at).toLocaleString("en-MY") : "—" }, { key: "duration", header: "Duration", render: duration }, { key: "location", header: "Location", render: (row) => { const state = locationState(row); return <div><Badge tone={state === "verified" ? "success" : state === "exception" ? "warning" : "neutral"}>{state === "verified" ? "Verified" : state === "exception" ? "Exception" : "Unavailable"}</Badge><div className="mt-1 text-xs text-text-secondary">{locationCopy(row)}</div></div>; } }, { key: "state", header: "Status", render: (row) => <Badge tone={row.status === "open" ? "success" : "neutral"}>{row.status === "open" ? "On shift" : "Completed"}</Badge> }, { key: "action", header: "", align: "right", render: (row) => <button className="btn-secondary" type="button" onClick={(event) => { event.stopPropagation(); setDetail(row); }}>Details</button> }]} />}</Card>{detail ? <AttendanceDetail row={detail} onClose={() => setDetail(null)} /> : null}</div>;
+function locationState(row) {
+  if (row.clock_in_location_verified && (!row.clock_out_at || row.clock_out_location_verified)) return "verified";
+  if (row.clock_in_location_exception || row.clock_out_location_exception) return "exception";
+  return "unavailable";
+}
+function duration(row) {
+  if (!row.clock_in_at) return "—";
+  const end = row.clock_out_at ? new Date(row.clock_out_at) : new Date();
+  const minutes = Math.max(0, Math.round((end - new Date(row.clock_in_at)) / 60000));
+  return `${Math.floor(minutes / 60)}h ${minutes % 60}m`;
+}
+function locationCopy(row) {
+  const state = locationState(row);
+  if (state === "verified") return `${Math.round(Number(row.clock_in_distance_meters || 0))}m from outlet`;
+  if (state === "exception") return `${Math.round(Number(row.clock_in_distance_meters || 0)) || "—"}${row.clock_in_distance_meters == null ? "" : "m away"}`;
+  return "Unavailable";
+}
+function rosterTime(value) { return value ? String(value).slice(0, 5) : "—"; }
+function scheduleCopy(row) {
+  const schedule = row.schedule;
+  if (!schedule) return { title: "No published roster", detail: "Actual attendance only", tone: "neutral" };
+  if (schedule.entry_type !== "working") return { title: schedule.template_name || schedule.entry_type, detail: "Attendance not required", tone: "neutral" };
+  const variance = row.clock_in_variance_minutes;
+  return {
+    title: `${rosterTime(schedule.start_time)} – ${rosterTime(schedule.end_time)}`,
+    detail: variance == null ? "No variance" : variance > 0 ? `+${variance} min clock in` : variance < 0 ? `${Math.abs(variance)} min early` : "On scheduled time",
+    tone: variance > 5 ? "warning" : "success",
+  };
 }
 
-function Evidence({ title, at, verified, exception, reason, distance, accuracy }) { const state = verified ? "Verified" : exception ? "Location Exception" : "Unavailable"; return <section className="rounded-xl border border-border bg-slate-50 p-4"><div className="flex items-center justify-between"><div className="font-bold text-text-primary">{title}</div><Badge tone={verified ? "success" : exception ? "warning" : "neutral"}>{state}</Badge></div><div className="mt-3 grid gap-2 text-sm text-text-secondary"><div><span className="font-semibold text-text-primary">Time:</span> {at ? new Date(at).toLocaleString("en-MY") : "—"}</div><div><span className="font-semibold text-text-primary">Distance:</span> {distance == null ? "Location unavailable" : `${Math.round(Number(distance))}m from outlet`}</div><div><span className="font-semibold text-text-primary">Accuracy:</span> {accuracy == null ? "—" : `±${Math.round(Number(accuracy))}m`}</div>{exception ? <div><span className="font-semibold text-text-primary">Reason:</span> {reason}</div> : null}</div></section>; }
-function AttendanceDetail({ row, onClose }) { return <Modal title="Attendance Detail" description={`${row.employee?.full_name || "Employee"} · ${row.outlet?.name || row.employee?.workplace || "Outlet"}`} size="lg" onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}><div className="space-y-3"><Evidence title="Clock In" at={row.clock_in_at} verified={row.clock_in_location_verified} exception={row.clock_in_location_exception} reason={row.clock_in_exception_reason} distance={row.clock_in_distance_meters} accuracy={row.clock_in_accuracy_meters} /><Evidence title="Clock Out" at={row.clock_out_at} verified={row.clock_out_location_verified} exception={row.clock_out_location_exception} reason={row.clock_out_exception_reason} distance={row.clock_out_distance_meters} accuracy={row.clock_out_accuracy_meters} /><p className="text-xs font-medium text-text-muted">Raw GPS evidence is immutable. Phase A does not provide manual attendance correction.</p></div></Modal>; }
+export default function CrewAttendanceAdminPage({ ui }) {
+  const [rows, setRows] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [filter, setFilter] = useState("all");
+  const [detail, setDetail] = useState(null);
+  useEffect(() => {
+    crewService.listAttendance().then(setRows).catch((error) => ui.notify({ title: "Unable to load attendance", message: error.message, tone: "error" })).finally(() => setLoading(false));
+  }, []);
+  const visibleRows = useMemo(() => rows.filter((row) => filter === "all" || filter === locationState(row)), [filter, rows]);
+  return <div className="space-y-4">
+    <PageHeader section="Crew · Workforce" title="Attendance" description="Compare immutable published schedules with actual GPS attendance evidence." />
+    <div className="flex flex-wrap gap-2">{[["all", "All"], ["verified", "Verified"], ["exception", "Location Exception"], ["unavailable", "Incomplete"]].map(([value, label]) => <button className={filter === value ? "btn-primary" : "btn-secondary"} type="button" key={value} onClick={() => setFilter(value)}>{label}</button>)}</div>
+    <Card title="Attendance history" description="Roster variance is explainable evidence only; it does not directly alter Performance scores.">
+      {loading ? <div className="p-8 text-sm font-semibold text-text-secondary">Loading attendance…</div> : <DataTable tableClassName="min-w-[1180px]" rows={visibleRows} getRowKey={(row) => row.id} onRowClick={setDetail} columns={[
+        { key: "employee", header: "Employee", render: (row) => <div><div className="font-bold">{row.employee?.nickname || row.employee?.full_name || "Employee"}</div><div className="text-xs text-text-secondary">{row.employee?.position || "—"}</div></div> },
+        { key: "outlet", header: "Actual Outlet", render: (row) => row.outlet?.name || row.employee?.workplace || "—" },
+        { key: "scheduled", header: "Scheduled", render: (row) => { const schedule = scheduleCopy(row); return <div><Badge tone={schedule.tone}>{schedule.title}</Badge><div className="mt-1 text-xs text-text-secondary">{schedule.detail}</div></div>; } },
+        { key: "in", header: "Actual Clock In", render: (row) => row.clock_in_at ? new Date(row.clock_in_at).toLocaleString("en-MY") : "—" },
+        { key: "out", header: "Clock Out", render: (row) => row.clock_out_at ? new Date(row.clock_out_at).toLocaleString("en-MY") : "—" },
+        { key: "duration", header: "Duration", render: duration },
+        { key: "location", header: "Location", render: (row) => { const state = locationState(row); return <div><Badge tone={state === "verified" ? "success" : state === "exception" ? "warning" : "neutral"}>{state === "verified" ? "Verified" : state === "exception" ? "Exception" : "Unavailable"}</Badge><div className="mt-1 text-xs text-text-secondary">{locationCopy(row)}</div></div>; } },
+        { key: "state", header: "Status", render: (row) => <Badge tone={row.status === "open" ? "success" : "neutral"}>{row.status === "open" ? "On shift" : "Completed"}</Badge> },
+        { key: "action", header: "", align: "right", render: (row) => <button className="btn-secondary" type="button" onClick={(event) => { event.stopPropagation(); setDetail(row); }}>Details</button> },
+      ]} />}
+    </Card>
+    {detail ? <AttendanceDetail row={detail} onClose={() => setDetail(null)} /> : null}
+  </div>;
+}
+
+function Evidence({ title, at, verified, exception, reason, distance, accuracy }) {
+  const state = verified ? "Verified" : exception ? "Location Exception" : "Unavailable";
+  return <section className="rounded-xl border border-border bg-slate-50 p-4"><div className="flex items-center justify-between"><div className="font-bold text-text-primary">{title}</div><Badge tone={verified ? "success" : exception ? "warning" : "neutral"}>{state}</Badge></div><div className="mt-3 grid gap-2 text-sm text-text-secondary"><div><span className="font-semibold text-text-primary">Time:</span> {at ? new Date(at).toLocaleString("en-MY") : "—"}</div><div><span className="font-semibold text-text-primary">Distance:</span> {distance == null ? "Location unavailable" : `${Math.round(Number(distance))}m from outlet`}</div><div><span className="font-semibold text-text-primary">Accuracy:</span> {accuracy == null ? "—" : `±${Math.round(Number(accuracy))}m`}</div>{exception ? <div><span className="font-semibold text-text-primary">Reason:</span> {reason}</div> : null}</div></section>;
+}
+function AttendanceDetail({ row, onClose }) {
+  const schedule = scheduleCopy(row);
+  return <Modal title="Attendance Detail" description={`${row.employee?.full_name || "Employee"} · ${row.outlet?.name || row.employee?.workplace || "Outlet"}`} size="lg" onClose={onClose} footer={<button className="btn-secondary" type="button" onClick={onClose}>Close</button>}><div className="space-y-3"><section className="rounded-xl border border-emerald-200 bg-emerald-50 p-4"><div className="text-xs font-black uppercase tracking-wide text-emerald-700">Published Schedule</div><div className="mt-2 font-bold text-text-primary">{schedule.title}</div><div className="mt-1 text-sm text-text-secondary">{row.schedule ? `${row.schedule.outlet_name} · ${row.schedule.position || "Crew"} · ${schedule.detail}` : schedule.detail}</div></section><Evidence title="Clock In" at={row.clock_in_at} verified={row.clock_in_location_verified} exception={row.clock_in_location_exception} reason={row.clock_in_exception_reason} distance={row.clock_in_distance_meters} accuracy={row.clock_in_accuracy_meters} /><Evidence title="Clock Out" at={row.clock_out_at} verified={row.clock_out_location_verified} exception={row.clock_out_location_exception} reason={row.clock_out_exception_reason} distance={row.clock_out_distance_meters} accuracy={row.clock_out_accuracy_meters} /><p className="text-xs font-medium text-text-muted">Roster and GPS records are immutable evidence. OFF, MC, and Annual Leave roster entries are manual schedule states, not approved leave records.</p></div></Modal>;
+}

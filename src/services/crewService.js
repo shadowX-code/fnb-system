@@ -127,6 +127,17 @@ export const crewService = {
     return data || { checklists: [], daily_tasks: [], attendance_context: null };
   },
 
+  async myRoster(token, from = localBusinessDate(), to = null) {
+    const end = to || (() => {
+      const value = new Date(`${from}T00:00:00`);
+      value.setDate(value.getDate() + 13);
+      return localBusinessDate(value);
+    })();
+    const { data, error } = await supabase.rpc("crew_my_roster", { p_token: token, p_from: from, p_to: end });
+    throwSupabaseError("crew.myRoster", error);
+    return data || { from, to: end, today: null, entries: [] };
+  },
+
   async operationDetail(token, instanceId) {
     const { data, error } = await supabase.rpc("crew_operations_detail", { p_token: token, p_instance_id: instanceId });
     throwSupabaseError("crew.operationDetail", error);
@@ -768,11 +779,12 @@ export const crewService = {
   },
 
   async listAttendance() {
-    const { data, error } = await supabase
-      .from("crew_attendance_records")
-      .select("*, employee:employees(id,full_name,nickname,position,workplace), outlet:outlets(id,name)")
-      .order("clock_in_at", { ascending: false })
-      .limit(200);
+    const today = localBusinessDate();
+    const from = new Date(`${today}T00:00:00`);
+    from.setDate(from.getDate() - 90);
+    const { data, error } = await supabase.rpc("crew_attendance_admin_with_roster", {
+      p_from: localBusinessDate(from), p_to: today, p_outlet_id: null,
+    });
     throwSupabaseError("crew.listAttendance", error);
     return data || [];
   },

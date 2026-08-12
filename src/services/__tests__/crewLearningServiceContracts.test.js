@@ -27,6 +27,7 @@ describe("Crew learning mobile service boundaries", () => {
     await crewService.learningHome("crew-token");
     await crewService.growthMobile("crew-token");
     await crewService.rewardMobile("crew-token", "2026-08-01");
+    await crewService.myRoster("crew-token", "2026-08-13", "2026-08-26");
     await crewService.operationsToday("crew-token", "2026-08-13");
     await crewService.operationDetail("crew-token", "instance-1");
     await crewService.updateOperationItem("crew-token", "item-1", "exception", "equipment_issue", "Reported");
@@ -42,6 +43,7 @@ describe("Crew learning mobile service boundaries", () => {
     expect(mocks.rpc).toHaveBeenCalledWith("crew_learning_home", { p_token: "crew-token" });
     expect(mocks.rpc).toHaveBeenCalledWith("crew_growth_mobile", { p_token: "crew-token" });
     expect(mocks.rpc).toHaveBeenCalledWith("crew_reward_mobile", { p_token: "crew-token", p_period: "2026-08-01" });
+    expect(mocks.rpc).toHaveBeenCalledWith("crew_my_roster", { p_token: "crew-token", p_from: "2026-08-13", p_to: "2026-08-26" });
     expect(mocks.rpc).toHaveBeenCalledWith("crew_operations_today", { p_token: "crew-token", p_business_date: "2026-08-13" });
     expect(mocks.rpc).toHaveBeenCalledWith("crew_operations_detail", { p_token: "crew-token", p_instance_id: "instance-1" });
     expect(mocks.rpc).toHaveBeenCalledWith("crew_operations_update_item", expect.objectContaining({ p_token: "crew-token", p_item_id: "item-1", p_action: "exception" }));

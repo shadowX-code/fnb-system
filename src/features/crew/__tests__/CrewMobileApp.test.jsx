@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   performanceMobile: vi.fn(),
   rewardMobile: vi.fn(),
   operationsToday: vi.fn(),
+  myRoster: vi.fn(),
   operationDetail: vi.fn(),
   updateOperationItem: vi.fn(),
   completeOperationChecklist: vi.fn(),
@@ -53,6 +54,7 @@ beforeEach(() => {
   mocks.performanceMobile.mockReset().mockResolvedValue(performance);
   mocks.rewardMobile.mockReset().mockResolvedValue(reward);
   mocks.operationsToday.mockReset().mockResolvedValue({ outlet: { id: "outlet-1", name: "Friends Corner" }, attendance_context: { on_shift: false }, checklists: [{ id: "ops-1", name: "Opening Checklist", type: "opening", status: "not_started", item_count: 2, completed_count: 0 }], daily_tasks: [{ id: "task-1", title: "Check reservation board", status: "pending", priority: "normal" }] });
+  mocks.myRoster.mockReset().mockResolvedValue({ from: "2026-08-13", to: "2026-08-26", today: { entry_id: "roster-1", date: "2026-08-13", outlet_id: "outlet-1", outlet_name: "Friends Corner", start_time: "10:00", end_time: "18:00", entry_type: "working", position: "Service Crew" }, entries: [{ id: "roster-1", date: "2026-08-13", outlet: { id: "outlet-1", name: "Friends Corner" }, start_time: "10:00", end_time: "18:00", entry_type: "working", position: "Service Crew", template: { code: "MORNING", name: "Morning" } }, { id: "roster-2", date: "2026-08-14", outlet: { id: "outlet-2", name: "Hola Hola" }, entry_type: "off", template: { code: "OFF", name: "OFF" } }] });
   mocks.operationDetail.mockReset().mockResolvedValue({ id: "ops-1", name: "Opening Checklist", type: "opening", status: "not_started", items: [{ id: "item-1", title: "Unlock guest entrance", required: true, status: "pending" }] });
   mocks.updateOperationItem.mockReset().mockResolvedValue({});
   mocks.completeOperationChecklist.mockReset().mockResolvedValue({});
@@ -92,6 +94,17 @@ describe("Crew Mobile redesign", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Attendance.*Clock In.*Tap to start your shift/ }));
     expect(screen.getByRole("heading", { name: "Attendance" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "Clock In" })).not.toBeNull();
+  });
+
+  it("shows only the token-bound published roster and opens My Schedule without adding a bottom tab", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    render(<CrewMobileApp />);
+    expect(await screen.findByText(/10:00\s?(AM|am) – 6:00\s?(PM|pm)/)).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "View Schedule" }));
+    expect(screen.getByRole("heading", { name: "My Schedule" })).not.toBeNull();
+    expect(screen.getByText(/Hola Hola/)).not.toBeNull();
+    expect(screen.getAllByText("OFF").length).toBeGreaterThan(0);
+    expect(mocks.myRoster).toHaveBeenCalledWith("crew-token");
   });
 
   it("opens Today’s Tasks without changing the five-item bottom navigation", async () => {

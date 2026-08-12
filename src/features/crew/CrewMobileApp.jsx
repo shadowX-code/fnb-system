@@ -4,6 +4,7 @@ import {
   Bell,
   BookOpen,
   BriefcaseBusiness,
+  CalendarDays,
   Check,
   ChevronRight,
   ClipboardCheck,
@@ -53,6 +54,12 @@ const readSession = () => {
 };
 const formatTime = (value) => value ? new Date(value).toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" }) : "—";
 const formatDate = (value) => value ? new Date(value).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" }) : "—";
+const formatRosterTime = (value) => {
+  if (!value) return "—";
+  const [hours, minutes] = String(value).split(":").map(Number);
+  return new Date(2000, 0, 1, hours, minutes).toLocaleTimeString("en-MY", { hour: "numeric", minute: "2-digit" });
+};
+const rosterEntryLabel = (entry) => ({ off: "OFF", leave: "Annual Leave", medical: "MC" }[entry?.entry_type] || entry?.template?.name || "Working");
 const distanceMeters = (a, b, c, d) => {
   const radians = (value) => value * Math.PI / 180;
   const latitude = radians(c - a);
@@ -142,6 +149,7 @@ export default function CrewMobileApp() {
   const [performance, setPerformance] = useState(null);
   const [reward, setReward] = useState(null);
   const [operations, setOperations] = useState(null);
+  const [roster, setRoster] = useState(null);
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(Boolean(session));
   const [error, setError] = useState("");
@@ -161,7 +169,7 @@ export default function CrewMobileApp() {
   async function refresh(token = session?.token) {
     if (!token) return;
     setPageLoading(true);
-    const [historyResult, contextResult, learningResult, growthResult, performanceResult, rewardResult, operationsResult] = await Promise.allSettled([
+    const [historyResult, contextResult, learningResult, growthResult, performanceResult, rewardResult, operationsResult, rosterResult] = await Promise.allSettled([
       crewService.myAttendance(token),
       crewService.attendanceContext(token),
       crewService.learningHome(token),
@@ -169,6 +177,7 @@ export default function CrewMobileApp() {
       crewService.performanceMobile(token),
       crewService.rewardMobile(token),
       crewService.operationsToday(token),
+      crewService.myRoster(token),
     ]);
     if ([historyResult, contextResult, learningResult].some((result) => result.status === "rejected")) {
       const cause = [historyResult, contextResult, learningResult].find((result) => result.status === "rejected")?.reason;
@@ -190,6 +199,7 @@ export default function CrewMobileApp() {
     setPerformance(performanceResult.status === "fulfilled" ? performanceResult.value : null);
     setReward(rewardResult.status === "fulfilled" ? rewardResult.value : null);
     setOperations(operationsResult.status === "fulfilled" ? operationsResult.value : { checklists: [], daily_tasks: [] });
+    setRoster(rosterResult.status === "fulfilled" ? rosterResult.value : { today: null, entries: [] });
     setPageLoading(false);
   }
 
@@ -267,11 +277,14 @@ export default function CrewMobileApp() {
   const exceptionRequired = Boolean(context?.location_enabled && (!clockDraft?.location || clockDraft?.distance > Number(context.radius_meters)));
   const outside = Boolean(clockDraft?.location && clockDraft?.distance > Number(context?.radius_meters));
   const options = clockDraft?.action === "out" ? clockOutOptions : clockInOptions;
+  const todayRoster = roster?.today;
+  const upcomingRoster = (roster?.entries || []).filter((entry) => entry.date > roster?.from).slice(0, 3);
 
   return <main className="crew-v2-shell"><section className="crew-v2-app">
     {screen === "home" && <section className="crew-v2-home">
       <header className="crew-v2-home-header"><div><p>{greeting},</p><h1>{firstName} <Hand size={18} aria-hidden="true" /></h1><span className={`crew-v2-shift-pill ${openShift ? "is-on" : ""}`}>{openShift ? "On Shift" : "Not clocked in"}</span><small>{context?.outlet_name || employee.workplace || "Your outlet"}</small>{context?.shift_start && <small>{context.shift_start} – {context.shift_end}</small>}</div><div><button type="button" aria-label="Notifications"><Bell size={18} /></button><span className="crew-v2-avatar">{firstName.slice(0, 1)}</span></div></header>
       <button type="button" className={`crew-v2-attendance-card ${openShift ? "is-on" : ""}`} onClick={() => setScreen("attendance")}><span><small>{openShift ? "Clocked in" : "Attendance"}</small><strong>{openShift ? formatTime(openShift.clock_in_at) : "Clock In"}</strong><em>{openShift ? "You are on shift" : "Tap to start your shift"}</em></span><i>{openShift ? <Check size={23} /> : <Clock3 size={22} />}</i></button>
+      <section className="crew-v2-home-section crew-v2-roster-summary"><div className="crew-v2-section-title"><h2>Today’s Shift</h2><button type="button" onClick={() => setScreen("schedule")}>View Schedule</button></div>{todayRoster ? <button type="button" className="crew-v2-schedule-card" onClick={() => setScreen("schedule")}><span className="crew-v2-row-icon is-mint"><CalendarDays size={18} /></span><span><strong>{todayRoster.entry_type === "working" ? `${formatRosterTime(todayRoster.start_time)} – ${formatRosterTime(todayRoster.end_time)}` : rosterEntryLabel(todayRoster)}</strong><small>{todayRoster.outlet_name} · {todayRoster.position || rosterEntryLabel(todayRoster)}</small></span><em>Today<ChevronRight size={16} /></em></button> : <EmptyState title="No published shift today" body="Your manager’s published schedule will appear here." />}{upcomingRoster.length ? <div className="crew-v2-upcoming-shifts">{upcomingRoster.map((entry) => <button type="button" key={entry.id} onClick={() => setScreen("schedule")}><span><strong>{new Date(`${entry.date}T00:00:00`).toLocaleDateString("en-MY", { weekday: "short" })}</strong><small>{entry.outlet?.name}</small></span><em>{entry.entry_type === "working" ? `${formatRosterTime(entry.start_time)} – ${formatRosterTime(entry.end_time)}` : rosterEntryLabel(entry)}</em></button>)}</div> : null}</section>
       <section className="crew-v2-home-section"><div className="crew-v2-section-title"><h2>Today’s Focus</h2><button type="button" onClick={() => setScreen("learn")}>See all</button></div><div className="crew-v2-focus-list">
         <button type="button" onClick={() => setScreen("operations")}><span className="crew-v2-row-icon is-mint"><ClipboardCheck size={17} /></span><span><strong>Today’s Tasks</strong><small>{(operations?.checklists?.length || 0) + (operations?.daily_tasks?.length || 0) ? `${operations?.checklists?.length || 0} checklists · ${operations?.daily_tasks?.length || 0} tasks` : "No operations assigned today"}</small></span><ChevronRight size={16} /></button>
         <button type="button" onClick={() => setScreen("learn")}><span className="crew-v2-row-icon"><GraduationCap size={17} /></span><span><strong>{learningHome?.assignment ? "Continue Onboarding" : "New Crew Onboarding"}</strong><small>{learningHome?.assignment ? `${lessonCompleted} of ${lessonTotal} lessons complete` : "No assignment yet"}</small>{learningHome?.assignment && <span className="crew-v2-inline-progress"><i style={{ width: `${learningProgress}%` }} /></span>}</span><em>{learningHome?.assignment ? `${learningProgress}%` : ""}</em><ChevronRight size={16} /></button>
@@ -284,6 +297,8 @@ export default function CrewMobileApp() {
     {screen === "reward" && <CrewRewardMobile data={reward} loading={pageLoading && !reward} onRetry={() => refresh()} />}
     {screen === "growth" && <CrewGrowthMobile data={growth} performance={performance} loading={pageLoading && !growth} error={growthError} onRetry={() => refresh()} />}
     {screen === "operations" && <CrewOperationsMobile token={session.token} data={operations} loading={pageLoading && !operations} onRefresh={() => refresh()} onBack={() => setScreen("home")} />}
+
+    {screen === "schedule" && <section className="crew-v2-schedule"><header className="crew-v2-page-header"><div><button type="button" onClick={() => setScreen("home")} aria-label="Back"><ArrowLeft size={19} /></button><h1>My Schedule</h1></div></header><section className="crew-v2-home-section"><div className="crew-v2-section-title"><h2>Published Schedule</h2><span>Next 14 days</span></div><div className="crew-v2-schedule-list">{(roster?.entries || []).length ? roster.entries.map((entry) => <article key={entry.id} className={entry.entry_type === "working" ? "is-working" : "is-away"}><time dateTime={entry.date}><strong>{new Date(`${entry.date}T00:00:00`).toLocaleDateString("en-MY", { weekday: "short" })}</strong><small>{new Date(`${entry.date}T00:00:00`).toLocaleDateString("en-MY", { day: "numeric", month: "short" })}</small></time><span><strong>{entry.entry_type === "working" ? `${formatRosterTime(entry.start_time)} – ${formatRosterTime(entry.end_time)}` : rosterEntryLabel(entry)}</strong><small>{entry.outlet?.name} · {entry.position || rosterEntryLabel(entry)}</small></span><em>Published</em></article>) : <EmptyState title="No published shifts" body="There is no published roster in this date range yet." />}</div></section></section>}
 
     {screen === "attendance" && <section className="crew-v2-attendance">
       <header className="crew-v2-page-header"><div><button type="button" onClick={() => setScreen("home")} aria-label="Back"><ArrowLeft size={19} /></button><h1>Attendance</h1></div></header>

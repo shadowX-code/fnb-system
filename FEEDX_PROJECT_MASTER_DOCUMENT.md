@@ -1084,11 +1084,11 @@ Future:
 
 Purpose:
 
-Manage lightweight outlet employee scheduling in the Operations workspace.
+Manage lightweight outlet employee scheduling as a Crew Workforce capability. Crew Workspace is the product owner; the Restaurant route remains a compatibility entry into the same shared page and authorities.
 
 This is not a full HR, payroll, attendance, shift swap, or staff request system yet.
 
-Operations Duty Roster is the scheduling and editing workspace:
+Crew Workforce Duty Roster is the scheduling and editing workspace:
 
 - Weekly and monthly employee-by-date roster grid.
 - Click empty cells to add shifts.
@@ -1105,6 +1105,8 @@ Data tables:
 shift_templates
 duty_rosters
 roster_periods
+duty_roster_publications
+duty_roster_published_entries
 ```
 
 Shift template fields:
@@ -1253,6 +1255,11 @@ Behavior:
 - Copying into a published week returns that week to Draft because copied shifts must be reviewed and republished before they become historical snapshots.
 - Monthly overview status badges derive from actual duty_rosters row status first, not stale local UI state.
 - Saved roster data must persist after refresh.
+- `duty_roster_publications` and `duty_roster_published_entries` retain immutable publication revisions. Draft changes after publish do not replace the latest employee-visible revision until an explicit Republish.
+- Crew Mobile reads its own latest Published projection only through token-bound `crew_my_roster`; it has no direct roster-table access and no caller-supplied employee identity.
+- A Crew member may be scheduled at different Outlets by date. The roster manager must have scope for both the target schedule Outlet and the employee's Home Outlet. Attendance and Daily Operations prefer the Published working schedule's Outlet/Position for that date and retain their established Home Outlet fallback when no working roster exists.
+- OFF, MC and Annual Leave remain manual scheduling entry types. They do not constitute an approved Leave record and do not require attendance. A future Leave domain may project approved absences into Roster without rewriting these historical manual entries.
+- Attendance exposes versioned scheduled-vs-actual evidence and Clock In variance but does not directly determine a Performance deduction. Finalized monthly Performance remains immutable.
 
 ### Trusted weekly lifecycle authority
 
@@ -1265,7 +1272,7 @@ Week-level Duty Roster lifecycle changes are frozen behind trusted, transactiona
 - All week-level operations use the `roster_week_snapshot:<outlet>:<week>` advisory-lock namespace; Copy Week acquires both relevant keys in sorted order.
 - Trusted functions derive the actor from `auth.uid()`, validate outlet access and the applicable Duty Roster permission server-side, and preserve an existing matching `duty_rosters.id` during snapshot updates. Copy Week preserves matching destination UUIDs and never reuses source UUIDs.
 
-The frozen lifecycle baseline covers snapshot save, Copy, Publish, Unpublish, and Lock. Remaining P2 debt is deliberately outside this authority boundary: stale-editor last-write-wins behavior, cross-outlet employee-overlap policy, isolated single-draft-shift browser CRUD, and future read/render performance work if production volume requires it.
+The frozen lifecycle baseline covers snapshot save, Copy, Publish, Unpublish, Lock, immutable publication revisions, token-bound Crew reads and scoped multi-outlet-by-date scheduling. Remaining P2 debt is deliberately outside this authority boundary: stale-editor last-write-wins behavior, explicit overlapping-shift conflict policy, isolated single-draft-shift browser CRUD, and future read/render performance work if production volume requires it.
 
 Audit actions:
 

@@ -2,6 +2,18 @@
 
 Purpose: concise development history for meaningful FeedX development sessions. The master document remains the source of truth for final logic and architecture; release notes under `docs/releases/` document production releases.
 
+## 2026-08-13
+
+### Crew Duty Roster Ownership & Integration
+- Moved Duty Roster product ownership to Crew → Workforce while retaining the Restaurant route as a compatibility entry into the same page, services, tables and trusted lifecycle authorities.
+- Added canonical `crew_roster.view/manage/publish` permissions with legacy permission compatibility and outlet-scoped authenticated policies; Admin roster RPCs are no longer anon-executable.
+- Added immutable publication revisions and token-bound `crew_my_roster` so Crew Mobile receives only its own latest Published schedule; Draft edits never replace the last published employee view until Republish.
+- Integrated scheduled outlet/time/position evidence with Crew Attendance and Daily Operations, plus a private versioned Performance evidence adapter without changing the Performance formula or finalized results.
+- Preserved OFF, MC and Annual Leave as manual roster entry types only. No Leave Request, approval, entitlement, document or availability workflow was inferred or added.
+- Added secure multi-outlet-by-date scheduling: managers must have both the target roster Outlet and employee Home Outlet in scope; published Crew reads resolve the scheduled Outlet per date.
+- Applied Staging-only migrations `20260813030000`–`20260813030003`; `30001` corrected an established snapshot validation SQL defect, `30002` enabled scoped multi-outlet scheduling, and `30003` corrected its runtime result-variable ambiguity.
+- Added a dedicated QA roster seed at `scripts/seedCrewRosterQaData.sql`; it targets only explicit Staging QA identities and publishes through the production lifecycle RPCs.
+
 ## 2026-08-11
 
 ### Crew Journey Phase B — Backend Closed
