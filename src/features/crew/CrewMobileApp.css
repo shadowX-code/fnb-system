@@ -14,7 +14,7 @@
 }
 
 .crew-v2-shell { min-height: 100dvh; overflow-x: hidden; background: var(--crew-v2-canvas); color: var(--crew-v2-ink); font-family: Inter, ui-sans-serif, system-ui, sans-serif; }
-.crew-v2-app, .crew-v2-login { width: min(100%, 430px); min-height: 100dvh; margin: 0 auto; background: #fff; }
+.crew-v2-app, .crew-v2-login { box-sizing: border-box; width: min(100%, 430px); min-height: 100dvh; margin: 0 auto; background: #fff; }
 .crew-v2-app { padding: 16px 17px 94px; }
 button, input, select { font: inherit; }
 .crew-v2-app button, .crew-v2-login button { -webkit-tap-highlight-color: transparent; }
