@@ -9,6 +9,11 @@ const mocks = vi.hoisted(() => ({
   learningAssignment: vi.fn(),
   sopLibrary: vi.fn(),
   sopVersion: vi.fn(),
+  saveOnboardingDraft: vi.fn(),
+  newJourneyVersion: vi.fn(),
+  createDefaultOnboarding: vi.fn(),
+  publishJourney: vi.fn(),
+  cloneLearningSetup: vi.fn(),
 }));
 
 vi.mock("../../../../services/crewService.js", () => ({
@@ -20,6 +25,11 @@ vi.mock("../../../../services/crewService.js", () => ({
     learningAssignment: mocks.learningAssignment,
     sopLibrary: mocks.sopLibrary,
     sopVersion: mocks.sopVersion,
+    saveOnboardingDraft: mocks.saveOnboardingDraft,
+    newJourneyVersion: mocks.newJourneyVersion,
+    createDefaultOnboarding: mocks.createDefaultOnboarding,
+    publishJourney: mocks.publishJourney,
+    cloneLearningSetup: mocks.cloneLearningSetup,
   },
 }));
 vi.mock("../../../../services/outletService.js", () => ({
@@ -51,7 +61,15 @@ const modules = [
   description: `${title} standards`,
   sort_order: index + 1,
   required: true,
-  lessons: [{ id: `lesson-${index + 1}`, title: `${title} essentials`, sort_order: 1 }],
+  lessons: [{
+    id: `lesson-${index + 1}`,
+    title: `${title} essentials`,
+    sort_order: 1,
+    required: true,
+    estimated_minutes: 5,
+    blocks: index === 0 ? [{ id: "block-1", block_type: "text", sort_order: 1, payload: { body: "Welcome to the team", body_html: "<p>Welcome to the team</p>" } }] : [],
+    quizzes: index === 1 ? [{ id: "quiz-1", title: "Greeting Check", passing_score: 80, required: true, questions: [{ id: "question-1", prompt: "When should you greet a guest?", question_type: "single_choice", sort_order: 1, options: [{ id: "option-1", label: "Within 5 seconds", is_correct: true, sort_order: 1 }, { id: "option-2", label: "After ordering", is_correct: false, sort_order: 2 }] }] }] : [],
+  }],
 }));
 const journey = {
   id: "journey-2",
@@ -62,6 +80,7 @@ const journey = {
   updated_at: "2026-08-12T00:00:00Z",
   modules,
 };
+const draftJourney = { ...structuredClone(journey), id: "journey-draft", version: 3, status: "draft" };
 const categories = [{ id: "cat-service", name: "Service", sort_order: 10 }];
 const sops = [
   {
@@ -83,7 +102,7 @@ const auth = {
 const ui = { notify: vi.fn(), confirm: vi.fn() };
 
 beforeEach(() => {
-  mocks.listOnboarding.mockReset().mockResolvedValue([journey]);
+  mocks.listOnboarding.mockReset().mockResolvedValue([journey, draftJourney]);
   mocks.progress.mockReset().mockResolvedValue([
     {
       employee: { id: "employee-1", full_name: "Alex Tan", position: "Crew" },
@@ -98,6 +117,11 @@ beforeEach(() => {
     },
   ]);
   mocks.listSops.mockReset().mockResolvedValue({ categories, sops });
+  mocks.saveOnboardingDraft.mockReset().mockImplementation(async (_original, next) => structuredClone(next));
+  mocks.newJourneyVersion.mockReset().mockResolvedValue("journey-draft");
+  mocks.createDefaultOnboarding.mockReset().mockResolvedValue("journey-draft");
+  mocks.publishJourney.mockReset().mockResolvedValue("journey-draft");
+  mocks.cloneLearningSetup.mockReset().mockResolvedValue("journey-draft");
   ui.notify.mockReset();
   ui.confirm.mockReset().mockResolvedValue(true);
 });
@@ -105,32 +129,80 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Crew Learning architecture reset UI", () => {
-  it("shows one outlet-scoped Onboarding workspace with eight modules and no generic Journey navigation", async () => {
-    render(
-      <CrewLearningAdminResetPage
-        auth={auth}
-        ui={ui}
-        store={{ outlets }}
-        initialTab="onboarding"
-      />,
-    );
+  it("shows one outlet-scoped management page with summary, eight modules and Crew Progress", async () => {
+    render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
 
     await screen.findByRole("heading", { name: "New Crew Onboarding", level: 1 });
+    expect(screen.getAllByText("New Crew Onboarding")).toHaveLength(1);
     expect(screen.getByLabelText("Outlet").textContent).toContain("Hola Hola Kopitiam Ipoh");
-    expect(
-      screen.getByText(/Mandatory for all eligible Crew$/),
-    ).not.toBeNull();
-    expect(screen.queryByText("Journey Library")).toBeNull();
-    expect(screen.queryByText("Assign Crew")).toBeNull();
+    expect(screen.getAllByText("8", { selector: ".crew-onboarding-summary strong" })).toHaveLength(2);
+    expect(screen.queryByText("Overview")).toBeNull();
+    expect(screen.queryByText("Journey Settings")).toBeNull();
+    for (const module of modules) expect(screen.getByText(module.title)).not.toBeNull();
 
-    fireEvent.click(screen.getByRole("button", { name: "modules" }));
-    for (const module of modules) {
-      expect(screen.getByText(module.title)).not.toBeNull();
-    }
+    fireEvent.click(screen.getByRole("tab", { name: "Crew Progress" }));
+    expect(await screen.findByText("Alex Tan")).not.toBeNull();
+    expect(screen.getAllByText("62%")).toHaveLength(2);
+  });
 
-    fireEvent.click(screen.getByRole("button", { name: "crew progress" }));
-    expect(screen.getByText("Alex Tan")).not.toBeNull();
-    expect(screen.getByText("62%")).not.toBeNull();
+  it("opens module information without navigating to another page", async () => {
+    render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
+    fireEvent.click(await screen.findByRole("button", { name: /01.*Welcome & Workplace/i }));
+    expect(screen.getByRole("dialog", { name: "Welcome & Workplace" })).not.toBeNull();
+    expect(screen.getByText("Welcome & Workplace essentials")).not.toBeNull();
+  });
+
+  it("retains edits while switching modules and sends one whole-draft save", async () => {
+    render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Continue Editing Draft" }));
+    expect(await screen.findByRole("dialog", { name: "Edit New Crew Onboarding" })).not.toBeNull();
+    expect(screen.queryByText("Journey Settings")).toBeNull();
+
+    const title = screen.getByLabelText("Module Title");
+    fireEvent.change(title, { target: { value: "Welcome Foundation" } });
+    fireEvent.click(screen.getByText("Customer Arrival & Greeting", { selector: ".crew-onboarding-module-outline strong" }).closest("button"));
+    fireEvent.change(screen.getByLabelText("Module Title"), { target: { value: "Guest Connection" } });
+    fireEvent.click(screen.getByText("Welcome Foundation", { selector: ".crew-onboarding-module-outline strong" }).closest("button"));
+    expect(screen.getByLabelText("Module Title").value).toBe("Welcome Foundation");
+
+    fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
+    await waitFor(() => expect(mocks.saveOnboardingDraft).toHaveBeenCalledTimes(1));
+    const saved = mocks.saveOnboardingDraft.mock.calls[0][1];
+    expect(saved.modules[0].title).toBe("Welcome Foundation");
+    expect(saved.modules[1].title).toBe("Guest Connection");
+  });
+
+  it("edits lessons and content in the same editor and preserves unsaved state", async () => {
+    render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Continue Editing Draft" }));
+    await screen.findByRole("dialog", { name: "Edit New Crew Onboarding" });
+    fireEvent.click(screen.getByText("Welcome & Workplace essentials", { selector: ".crew-onboarding-lesson-entry strong" }).closest("button"));
+    fireEvent.change(screen.getByLabelText("Lesson Title"), { target: { value: "Welcome to Friends Corner" } });
+    fireEvent.click(screen.getByRole("button", { name: "Welcome & Workplace" }));
+    fireEvent.click(screen.getByText("Welcome to Friends Corner", { selector: ".crew-onboarding-lesson-entry strong" }).closest("button"));
+    expect(screen.getByLabelText("Lesson Title").value).toBe("Welcome to Friends Corner");
+    expect(screen.getByText("Unsaved Changes")).not.toBeNull();
+
+    fireEvent.click(screen.getByRole("button", { name: "Add Content" }));
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Key Point" }));
+    expect(screen.getAllByText("Key Point").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "Preview" }));
+    expect(screen.getByRole("heading", { name: "Onboarding Preview" })).not.toBeNull();
+  });
+
+  it("warns before discarding unsaved changes and saves before publish", async () => {
+    render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Continue Editing Draft" }));
+    await screen.findByRole("dialog", { name: "Edit New Crew Onboarding" });
+    fireEvent.change(screen.getByLabelText("Module Title"), { target: { value: "Changed Module" } });
+    ui.confirm.mockResolvedValueOnce(false);
+    fireEvent.click(screen.getByRole("button", { name: "Close modal" }));
+    await waitFor(() => expect(ui.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: "You have unsaved changes." })));
+
+    ui.confirm.mockResolvedValueOnce(true);
+    fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    await waitFor(() => expect(mocks.saveOnboardingDraft).toHaveBeenCalledTimes(1));
+    await waitFor(() => expect(mocks.publishJourney).toHaveBeenCalledWith("journey-draft"));
   });
 
   it("switches outlet context and scopes every Admin query to the selected outlet", async () => {
@@ -166,19 +238,12 @@ describe("Crew Learning architecture reset UI", () => {
     expect(screen.getByLabelText("Outlet").textContent).toContain("Hola Hola Kopitiam Ipoh");
   });
 
-  it("groups the SOP Library by category with one primary creation action", async () => {
-    render(
-      <CrewLearningAdminResetPage
-        auth={auth}
-        ui={ui}
-        store={{ outlets }}
-        initialTab="sops"
-      />,
-    );
-    await screen.findByRole("heading", { name: "SOP Library", level: 1 });
-    expect(screen.getByRole("button", { name: "New SOP" })).not.toBeNull();
-    expect(screen.getByRole("heading", { name: "Service" })).not.toBeNull();
-    expect(screen.getByText("Welcome & Goodbye Standard")).not.toBeNull();
+  it("clones only the Onboarding setup into the selected target outlet", async () => {
+    render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Clone From Outlet" }));
+    expect(screen.getByText("Onboarding Structure")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Clone Onboarding" }));
+    await waitFor(() => expect(mocks.cloneLearningSetup).toHaveBeenCalledWith({ sourceOutletId: "outlet-2", targetOutletId: "outlet-1", copyOnboarding: true, copyCategories: false, copySops: false }));
   });
 });
 

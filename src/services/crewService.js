@@ -34,6 +34,33 @@ function normalizeAdminJourney(journey) {
   };
 }
 
+const isTemporaryCrewId = (id) => !id || String(id).startsWith("temp:");
+const persistentCrewIds = (rows = []) => rows.map((row) => row.id).filter((id) => !isTemporaryCrewId(id));
+
+async function prepareCrewDraftOrder(table, rows) {
+  for (const [index, row] of rows.filter((item) => !isTemporaryCrewId(item.id)).entries()) {
+    const { error } = await supabase.from(table).update({ sort_order: -1000000 - index }).eq("id", row.id);
+    throwSupabaseError(`crew.saveOnboardingDraft.prepare.${table}`, error);
+  }
+}
+
+async function deleteRemovedCrewDraftRows(table, originalRows = [], nextRows = []) {
+  const retained = new Set(persistentCrewIds(nextRows));
+  const removed = persistentCrewIds(originalRows).filter((id) => !retained.has(id));
+  if (!removed.length) return;
+  const { error } = await supabase.from(table).delete().in("id", removed);
+  throwSupabaseError(`crew.saveOnboardingDraft.delete.${table}`, error);
+}
+
+async function saveCrewDraftRow(table, row, payload) {
+  const query = isTemporaryCrewId(row.id)
+    ? supabase.from(table).insert(payload)
+    : supabase.from(table).update(payload).eq("id", row.id);
+  const { data, error } = await query.select().single();
+  throwSupabaseError(`crew.saveOnboardingDraft.save.${table}`, error);
+  return data;
+}
+
 export const crewService = {
   async learningHome(token) {
     const { data, error } = await supabase.rpc("crew_learning_home", { p_token: token });
@@ -271,6 +298,104 @@ export const crewService = {
       saved.push(data);
     }
     return saved;
+  },
+
+  async saveOnboardingDraft(originalJourney, nextJourney) {
+    if (!originalJourney?.id || originalJourney.status !== "draft" || originalJourney.id !== nextJourney?.id) {
+      throw new Error("Only the active onboarding draft can be saved.");
+    }
+
+    const originalModules = originalJourney.modules || [];
+    const nextModules = nextJourney.modules || [];
+    await prepareCrewDraftOrder("crew_journey_modules", nextModules);
+    for (const module of nextModules) {
+      await prepareCrewDraftOrder("crew_lessons", module.lessons || []);
+      for (const lesson of module.lessons || []) {
+        await prepareCrewDraftOrder("crew_lesson_blocks", lesson.blocks || []);
+        for (const quiz of lesson.quizzes || []) {
+          await prepareCrewDraftOrder("crew_quiz_questions", quiz.questions || []);
+          for (const question of quiz.questions || []) await prepareCrewDraftOrder("crew_quiz_options", question.options || []);
+        }
+      }
+    }
+
+    await deleteRemovedCrewDraftRows("crew_lessons", originalModules.flatMap((module) => module.lessons || []), nextModules.flatMap((module) => module.lessons || []));
+    const originalLessons = originalModules.flatMap((module) => module.lessons || []);
+    const nextLessons = nextModules.flatMap((module) => module.lessons || []);
+    await deleteRemovedCrewDraftRows("crew_lesson_blocks", originalLessons.flatMap((lesson) => lesson.blocks || []), nextLessons.flatMap((lesson) => lesson.blocks || []));
+    await deleteRemovedCrewDraftRows("crew_quizzes", originalLessons.flatMap((lesson) => lesson.quizzes || []), nextLessons.flatMap((lesson) => lesson.quizzes || []));
+    await deleteRemovedCrewDraftRows("crew_quiz_questions", originalLessons.flatMap((lesson) => lesson.quizzes || []).flatMap((quiz) => quiz.questions || []), nextLessons.flatMap((lesson) => lesson.quizzes || []).flatMap((quiz) => quiz.questions || []));
+    await deleteRemovedCrewDraftRows("crew_quiz_options", originalLessons.flatMap((lesson) => lesson.quizzes || []).flatMap((quiz) => quiz.questions || []).flatMap((question) => question.options || []), nextLessons.flatMap((lesson) => lesson.quizzes || []).flatMap((quiz) => quiz.questions || []).flatMap((question) => question.options || []));
+
+    for (const [moduleIndex, module] of nextModules.entries()) {
+      const savedModule = await saveCrewDraftRow("crew_journey_modules", module, {
+        journey_id: nextJourney.id,
+        title: module.title.trim(),
+        description: module.description?.trim() || null,
+        sort_order: moduleIndex + 1,
+        estimated_minutes: Number(module.estimated_minutes || 0),
+        required: Boolean(module.required),
+        status: "draft",
+      });
+      module.id = savedModule.id;
+
+      for (const [lessonIndex, lesson] of (module.lessons || []).entries()) {
+        const savedLesson = await saveCrewDraftRow("crew_lessons", lesson, {
+          module_id: savedModule.id,
+          title: lesson.title.trim(),
+          sort_order: lessonIndex + 1,
+          content_type: lesson.content_type || "lesson",
+          required: Boolean(lesson.required),
+          estimated_minutes: Number(lesson.estimated_minutes || 0),
+        });
+        lesson.id = savedLesson.id;
+
+        for (const [blockIndex, block] of (lesson.blocks || []).entries()) {
+          const payload = { ...(block.payload || {}) };
+          delete payload.pending_image;
+          const savedBlock = await saveCrewDraftRow("crew_lesson_blocks", block, {
+            lesson_id: savedLesson.id,
+            block_type: block.block_type,
+            payload,
+            sort_order: blockIndex + 1,
+          });
+          block.id = savedBlock.id;
+        }
+
+        for (const quiz of lesson.quizzes || []) {
+          const savedQuiz = await saveCrewDraftRow("crew_quizzes", quiz, {
+            lesson_id: savedLesson.id,
+            title: quiz.title.trim(),
+            passing_score: Number(quiz.passing_score || 0),
+            required: Boolean(quiz.required),
+            status: "draft",
+          });
+          quiz.id = savedQuiz.id;
+          for (const [questionIndex, question] of (quiz.questions || []).entries()) {
+            const savedQuestion = await saveCrewDraftRow("crew_quiz_questions", question, {
+              quiz_id: savedQuiz.id,
+              prompt: question.prompt.trim(),
+              question_type: question.question_type,
+              explanation: question.explanation?.trim() || null,
+              sort_order: questionIndex + 1,
+            });
+            question.id = savedQuestion.id;
+            for (const [optionIndex, option] of (question.options || []).entries()) {
+              const savedOption = await saveCrewDraftRow("crew_quiz_options", option, {
+                question_id: savedQuestion.id,
+                label: option.label.trim(),
+                is_correct: Boolean(option.is_correct),
+                sort_order: optionIndex + 1,
+              });
+              option.id = savedOption.id;
+            }
+          }
+        }
+      }
+    }
+
+    const versions = await this.listOnboardingAdmin(nextJourney.outlet_id);
+    return versions.find((journey) => journey.id === nextJourney.id) || nextJourney;
   },
 
   async assignJourney(employeeId, journeyId, dueAt = null) {
