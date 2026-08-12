@@ -28,6 +28,7 @@ import CrewLearningAdminResetPage from "../features/crew/pages/CrewLearningAdmin
 import CrewSopLibraryPage from "../features/crew/pages/CrewSopLibraryPage.jsx";
 import CrewGrowthAdminPage from "../features/crew/pages/CrewGrowthAdminPage.jsx";
 import CrewPerformanceAdminPage from "../features/crew/pages/CrewPerformanceAdminPage.jsx";
+import CrewRewardAdminPage from "../features/crew/pages/CrewRewardAdminPage.jsx";
 import { getSidebarSections, moduleRegistry, viewPermission } from "../../config/modules.ts";
 
 function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSection = "Workspace" }) {
@@ -419,6 +420,18 @@ export const routeDetails = {
     component: CrewPerformanceAdminPage,
     permission: "crew_feedback.view",
     props: { initialTab: "feedback" },
+  },
+  crew_reward: {
+    description: "Manage transparent outlet monthly Reward Pools and Crew payouts.",
+    component: CrewRewardAdminPage,
+    permission: "crew_reward.view",
+    props: { initialTab: "overview" },
+  },
+  crew_reward_cycles: {
+    description: "Review Reward cycle history, calculations and immutable payout snapshots.",
+    component: CrewRewardAdminPage,
+    permission: "crew_reward.view",
+    props: { initialTab: "cycles" },
   },
 };
 

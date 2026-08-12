@@ -12,6 +12,7 @@ export type ModuleAction =
   | "review"
   | "finalize"
   | "moderate"
+  | "mark_paid"
   | "assess"
   | "certify"
   | "audit"
@@ -47,6 +48,7 @@ export const permissionActionOrder: ModuleAction[] = [
   "review",
   "finalize",
   "moderate",
+  "mark_paid",
   "assess",
   "certify",
   "audit",
@@ -72,6 +74,7 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   review: "Review",
   finalize: "Finalize",
   moderate: "Moderate",
+  mark_paid: "Mark Paid",
   assess: "Assess",
   certify: "Certify",
   audit: "Audit",
@@ -110,6 +113,7 @@ export const moduleSectionOrder = [
   "Growth",
   "Knowledge",
   "Performance",
+  "Reward",
   "Documents",
 ];
 
@@ -789,6 +793,26 @@ export const moduleRegistry: AppModule[] = [
     sidebar: true,
     workspace: "crew",
     permissions: { view: true, moderate: true },
+  },
+  {
+    id: "crew_reward",
+    section: "Reward",
+    label: "Reward Overview",
+    route: "/crew/reward",
+    icon: "crew-reward",
+    sidebar: true,
+    workspace: "crew",
+    permissions: { view: true, manage: true, finalize: true, mark_paid: true },
+  },
+  {
+    id: "crew_reward_cycles",
+    section: "Reward",
+    label: "Reward Cycles",
+    route: "/crew/reward/cycles",
+    icon: "crew-reward-cycles",
+    sidebar: true,
+    workspace: "crew",
+    permissions: {},
   },
 ];
 

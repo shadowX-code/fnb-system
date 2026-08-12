@@ -26,6 +26,7 @@ describe("Crew learning mobile service boundaries", () => {
   it("uses token-bound Crew RPCs for all Crew learning actions", async () => {
     await crewService.learningHome("crew-token");
     await crewService.growthMobile("crew-token");
+    await crewService.rewardMobile("crew-token", "2026-08-01");
     await crewService.learningAssignment("crew-token", "assignment-1");
     await crewService.sopLibrary("crew-token");
     await crewService.submitQuiz("crew-token", "assignment-1", "quiz-1", [{ question_id: "q-1", option_ids: ["o-1"] }]);
@@ -35,6 +36,7 @@ describe("Crew learning mobile service boundaries", () => {
 
     expect(mocks.rpc).toHaveBeenCalledWith("crew_learning_home", { p_token: "crew-token" });
     expect(mocks.rpc).toHaveBeenCalledWith("crew_growth_mobile", { p_token: "crew-token" });
+    expect(mocks.rpc).toHaveBeenCalledWith("crew_reward_mobile", { p_token: "crew-token", p_period: "2026-08-01" });
     expect(mocks.rpc).toHaveBeenCalledWith("crew_learning_assignment", { p_token: "crew-token", p_assignment_id: "assignment-1" });
     expect(mocks.rpc).toHaveBeenCalledWith("crew_sop_library", { p_token: "crew-token" });
     expect(mocks.rpc).toHaveBeenCalledWith("crew_submit_quiz", expect.objectContaining({ p_token: "crew-token", p_assignment_id: "assignment-1", p_quiz_id: "quiz-1" }));

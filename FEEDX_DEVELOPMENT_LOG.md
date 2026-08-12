@@ -399,3 +399,9 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Applied Staging-only migrations `20260812154112_crew_performance_feedback_engine.sql` and `20260812155805_crew_performance_admin_payload_scope_fix.sql`. The corrective migration partitions consolidated Admin payload fields by Performance, Review, and Feedback permission.
 - Created a guarded, reusable Staging QA seed for five scenarios: High Performer, Average, Needs Attention, Awaiting Review, and Insufficient Feedback. The seed uses controlled review/finalize/public feedback authorities and only `QA-CREW-*` employees.
 - Real Staging backend/security checks passed 16/16 across ACL/RLS, own-result isolation, public feedback duplicate protection, sample confidence, immutable finalization, and field-level Admin permission scoping. No Production resource was touched.
+# 2026-08-13 — Crew Phase D Reward
+
+- Added the server-authoritative `reward-v1` monthly Reward engine with team Pool unlock, eligible-hours contribution, Performance factors, capped payout normalization, audited adjustments and immutable finalized snapshots.
+- Added outlet-scoped Reward Overview and Reward Cycles Admin UI, plus token-bound Crew Mobile Reward estimates, calculation explanation and history.
+- Applied `20260812163541_crew_monthly_reward_engine.sql`, corrective `20260812164410_crew_reward_mark_paid_runtime_fix.sql`, and strict rounding/pool-cap hardening `20260812164932_crew_reward_strict_pool_cap.sql` to Staging only.
+- Created reusable Staging-only Reward QA seed and rollback behavior/security verification scripts covering High Performer, Average, Needs Attention, part-time low-hours, Not Eligible and Awaiting Performance outcomes.

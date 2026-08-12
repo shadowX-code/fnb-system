@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   learningHome: vi.fn(),
   growthMobile: vi.fn(),
   performanceMobile: vi.fn(),
+  rewardMobile: vi.fn(),
   sopLibrary: vi.fn(),
   learningAssignment: vi.fn(),
   clock: vi.fn(),
@@ -35,6 +36,7 @@ const growth = {
   performance: null,
 };
 const performance = { period_start: "2026-08-01", status: "finalized", score: 87, calculation_version: "performance-v1", breakdown: { attendance: { score: 28, explanation: "Verified attendance evidence." }, service: { score: 26, explanation: "Reviewed standards." }, customer: { score: 13, confidence: "established", explanation: "Five responses." }, knowledge: { score: 14, explanation: "Learning evidence." }, conduct: { score: 6, explanation: "Reviewed conduct." } }, trend: [{ period_start: "2026-08-01", score: 87, status: "finalized" }] };
+const reward = { period_start: "2026-08-01", status: "qualified", cycle_status: "review", estimated_reward: 128.8, performance_score: 87, minimum_performance: 60, eligible_hours: 235, contribution_share: .322, performance_factor: 1, configured_pool: 500, unlocked_pool: 400, pool_unlock_rate: .8, calculation_version: "reward-v1", history: [{ period_start: "2026-07-01", amount: 112.4, status: "paid" }] };
 
 beforeEach(() => {
   localStorage.clear();
@@ -44,6 +46,7 @@ beforeEach(() => {
   mocks.learningHome.mockReset().mockResolvedValue({ assignment: { id: "assignment-1", progress_percentage: 25, lessons_completed: 2, lessons_total: 8 }, required_sops: [] });
   mocks.growthMobile.mockReset().mockResolvedValue(growth);
   mocks.performanceMobile.mockReset().mockResolvedValue(performance);
+  mocks.rewardMobile.mockReset().mockResolvedValue(reward);
   mocks.sopLibrary.mockReset().mockResolvedValue({ categories: [], sops: [] });
   mocks.learningAssignment.mockReset().mockResolvedValue({ id: "assignment-1", journey: { name: "New Crew Onboarding" }, modules: [] });
   mocks.clock.mockReset().mockResolvedValue({});
@@ -81,12 +84,16 @@ describe("Crew Mobile redesign", () => {
     expect(screen.getByRole("button", { name: "Clock In" })).not.toBeNull();
   });
 
-  it("shows a truthful Reward shell without fabricated currency values", async () => {
+  it("shows only the signed-in employee's transparent Reward result", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     render(<CrewMobileApp />);
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[2]);
-    expect(screen.getByRole("heading", { name: "Coming soon" })).not.toBeNull();
-    expect(document.body.textContent).not.toMatch(/RM\s*\d/);
+    expect(screen.getByRole("heading", { name: "RM 128.80" })).not.toBeNull();
+    expect(screen.getByText("Qualified")).not.toBeNull();
+    expect(screen.getByText("235.0h")).not.toBeNull();
+    expect(screen.getAllByText("32.2%").length).toBeGreaterThan(0);
+    expect(document.body.textContent).not.toContain("Alex");
+    expect(mocks.rewardMobile).toHaveBeenCalledWith("crew-token");
   });
 
   it("shows only the signed-in employee's safe Growth state and no manager controls", async () => {

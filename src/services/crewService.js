@@ -109,6 +109,48 @@ export const crewService = {
     return data;
   },
 
+  async rewardMobile(token, period = new Date().toISOString().slice(0, 10)) {
+    const { data, error } = await supabase.rpc("crew_reward_mobile", { p_token: token, p_period: period });
+    throwSupabaseError("crew.rewardMobile", error);
+    return data;
+  },
+
+  async rewardAdminData(outletId, period, cycleId = null) {
+    const { data, error } = await supabase.rpc("crew_reward_admin_data", { p_outlet_id: outletId, p_period: period, p_cycle_id: cycleId });
+    throwSupabaseError("crew.rewardAdminData", error);
+    return data || { cycles: [], cycle: null, entries: [], adjustments: [] };
+  },
+
+  async createRewardCycle({ outletId, period, configuredPool, minimumPerformance }) {
+    const { data, error } = await supabase.rpc("crew_reward_create_cycle", { p_outlet_id: outletId, p_period: period, p_configured_pool: configuredPool, p_minimum_performance: minimumPerformance });
+    throwSupabaseError("crew.createRewardCycle", error);
+    return data;
+  },
+
+  async calculateRewardCycle(cycleId) {
+    const { data, error } = await supabase.rpc("crew_reward_calculate", { p_cycle_id: cycleId });
+    throwSupabaseError("crew.calculateRewardCycle", error);
+    return data;
+  },
+
+  async adjustRewardEntry(entryId, adjustment, reason) {
+    const { data, error } = await supabase.rpc("crew_reward_adjust", { p_entry_id: entryId, p_adjustment: adjustment, p_reason: reason });
+    throwSupabaseError("crew.adjustRewardEntry", error);
+    return data;
+  },
+
+  async finalizeRewardCycle(cycleId) {
+    const { data, error } = await supabase.rpc("crew_reward_finalize", { p_cycle_id: cycleId });
+    throwSupabaseError("crew.finalizeRewardCycle", error);
+    return data;
+  },
+
+  async markRewardCyclePaid(cycleId) {
+    const { data, error } = await supabase.rpc("crew_reward_mark_paid", { p_cycle_id: cycleId });
+    throwSupabaseError("crew.markRewardCyclePaid", error);
+    return data;
+  },
+
   async performanceAdminData(outletId, period) {
     const { data, error } = await supabase.rpc("crew_performance_admin_data", { p_outlet_id: outletId, p_period: period });
     throwSupabaseError("crew.performanceAdminData", error);

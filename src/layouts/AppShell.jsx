@@ -74,6 +74,8 @@ const iconMap = {
   "crew-performance": Gauge,
   "crew-performance-reviews": ClipboardCheck,
   "crew-feedback": MessageSquareText,
+  "crew-reward": Wallet,
+  "crew-reward-cycles": CalendarDays,
 };
 
 function latestPeriod(store) {

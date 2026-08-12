@@ -138,6 +138,7 @@ export default function CrewMobileApp() {
   const [growth, setGrowth] = useState(null);
   const [growthError, setGrowthError] = useState("");
   const [performance, setPerformance] = useState(null);
+  const [reward, setReward] = useState(null);
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(Boolean(session));
   const [error, setError] = useState("");
@@ -157,12 +158,13 @@ export default function CrewMobileApp() {
   async function refresh(token = session?.token) {
     if (!token) return;
     setPageLoading(true);
-    const [historyResult, contextResult, learningResult, growthResult, performanceResult] = await Promise.allSettled([
+    const [historyResult, contextResult, learningResult, growthResult, performanceResult, rewardResult] = await Promise.allSettled([
       crewService.myAttendance(token),
       crewService.attendanceContext(token),
       crewService.learningHome(token),
       crewService.growthMobile(token),
       crewService.performanceMobile(token),
+      crewService.rewardMobile(token),
     ]);
     if ([historyResult, contextResult, learningResult].some((result) => result.status === "rejected")) {
       const cause = [historyResult, contextResult, learningResult].find((result) => result.status === "rejected")?.reason;
@@ -182,6 +184,7 @@ export default function CrewMobileApp() {
       setGrowthError(growthResult.reason?.message || "Growth is unavailable.");
     }
     setPerformance(performanceResult.status === "fulfilled" ? performanceResult.value : null);
+    setReward(rewardResult.status === "fulfilled" ? rewardResult.value : null);
     setPageLoading(false);
   }
 
@@ -272,7 +275,7 @@ export default function CrewMobileApp() {
     </section>}
 
     {screen === "learn" && <CrewLearningMobile token={session.token} onRefreshHome={setLearningHome} />}
-    {screen === "reward" && <CrewRewardMobile />}
+    {screen === "reward" && <CrewRewardMobile data={reward} loading={pageLoading && !reward} onRetry={() => refresh()} />}
     {screen === "growth" && <CrewGrowthMobile data={growth} performance={performance} loading={pageLoading && !growth} error={growthError} onRetry={() => refresh()} />}
 
     {screen === "attendance" && <section className="crew-v2-attendance">
