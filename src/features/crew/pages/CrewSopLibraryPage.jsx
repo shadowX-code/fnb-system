@@ -30,6 +30,7 @@ import Modal from "../../../components/feedback/Modal.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
+import FloatingLayer from "../../../components/ui/FloatingLayer.jsx";
 import { crewService } from "../../../services/crewService.js";
 import { outletService } from "../../../services/outletService.js";
 import { IMAGE_UPLOAD_ACCEPT, validateImageFile } from "../../../utils/imageUpload.js";
@@ -362,23 +363,14 @@ function SopDocumentFacts({ sop, outlet, version, versionControl }) {
 
 function VersionPicker({ versions, activeId, currentVersionNumber, fallbackUpdatedAt, canManage, onEdit, onSelect }) {
   const [open, setOpen] = useState(false);
-  const ref = useRef(null);
+  const anchorRef = useRef(null);
   const active = versions.find((version) => version.id === activeId) || versions[0];
-  useEffect(() => {
-    if (!open) return undefined;
-    const close = (event) => {
-      if (event.type === "keydown" && event.key !== "Escape") return;
-      if (ref.current?.contains(event.target)) return;
-      setOpen(false);
-    };
-    window.addEventListener("pointerdown", close);
-    window.addEventListener("keydown", close);
-    return () => { window.removeEventListener("pointerdown", close); window.removeEventListener("keydown", close); };
-  }, [open]);
   if (!active) return "—";
-  return <div className="crew-sop-version-picker" ref={ref}>
-    <button type="button" aria-label="SOP version" aria-expanded={open} onClick={() => setOpen((value) => !value)}><Badge tone={active.status === "published" ? "success" : "warning"}>{active.status === "published" ? "Published" : "Draft"} v{active.version}</Badge><ChevronDown size={14} /></button>
-    {open ? <div className="crew-sop-version-popover" role="menu" aria-label="Version History"><header><strong>Version History</strong><button className="icon-btn" type="button" aria-label="Close version history" onClick={() => setOpen(false)}><X size={14} /></button></header>{versions.map((version) => <article key={version.id} className={version.id === active.id ? "is-active" : ""}><div><strong>v{version.version} · {version.status === "published" ? "Published" : "Draft"}</strong><span>{version.status === "draft" ? "Updated just now" : Number(currentVersionNumber) === Number(version.version) ? `Current Live · ${formatDate(version.published_at)}` : formatDate(version.published_at || fallbackUpdatedAt)}</span></div>{version.status === "draft" && canManage ? <button className="btn-secondary crew-sop-compact-action" onClick={() => { setOpen(false); onEdit(version.id); }}>Continue Editing</button> : <button className="btn-secondary crew-sop-compact-action" onClick={() => { onSelect(version.id); setOpen(false); }}>View</button>}</article>)}</div> : null}
+  return <div className="crew-sop-version-picker">
+    <button ref={anchorRef} type="button" aria-label="SOP version" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((value) => !value)}><Badge tone={active.status === "published" ? "success" : "warning"}>{active.status === "published" ? "Published" : "Draft"} v{active.version}</Badge><ChevronDown size={14} /></button>
+    <FloatingLayer open={open} onOpenChange={setOpen} anchorRef={anchorRef} align="start" width={390} minWidth={280} estimatedHeight={Math.min(330, 54 + versions.length * 58)} maxHeight={420} placement="auto" className="crew-sop-version-popover p-0" contentClassName="crew-sop-version-popover-content">
+      <div role="menu" aria-label="Version History"><header><strong>Version History</strong><button className="icon-btn" type="button" aria-label="Close version history" onClick={() => setOpen(false)}><X size={14} /></button></header>{versions.map((version) => <article key={version.id} className={version.id === active.id ? "is-active" : ""}><div><strong>v{version.version} · {version.status === "published" ? "Published" : "Draft"}</strong><span>{version.status === "draft" ? "Updated just now" : Number(currentVersionNumber) === Number(version.version) ? `Current Live · ${formatDate(version.published_at)}` : formatDate(version.published_at || fallbackUpdatedAt)}</span></div>{version.status === "draft" && canManage ? <button className="btn-secondary crew-sop-compact-action" onClick={() => { setOpen(false); onEdit(version.id); }}>Continue Editing</button> : <button className="btn-secondary crew-sop-compact-action" onClick={() => { onSelect(version.id); setOpen(false); }}>View</button>}</article>)}</div>
+    </FloatingLayer>
   </div>;
 }
 
@@ -388,7 +380,7 @@ function PublishedDocument({ version, showOutline = true }) {
   if (!version) return <div className="crew-sop-compact-empty"><EmptyState title="No SOP version" description="Create a draft version to start writing this SOP." /></div>;
   return <div className={`crew-sop-document-shell ${showOutline ? "" : "is-reader"}`}>
     {showOutline ? <aside><div><strong>Section navigation</strong><span>{sections.length}</span></div>{sections.map((section, index) => <button key={section.id} onClick={() => refs.current[section.id]?.scrollIntoView({ behavior: "smooth", block: "start" })}><span>{String(index + 1).padStart(2, "0")}</span>{section.title}</button>)}</aside> : null}
-    <main><div className="crew-sop-document-meta"><div><Badge tone={version.status === "published" ? "success" : "warning"}>{version.status === "published" ? "Published" : "Draft preview"}</Badge><span>v{version.version}</span></div></div>{sections.length ? <article className="crew-sop-document">{sections.map((section, index) => { const content = parseSopBody(section.body, section.key_point); return <section key={section.id} ref={(node) => { refs.current[section.id] = node; }} tabIndex="-1"><div className="crew-sop-section-number">{String(index + 1).padStart(2, "0")}</div><h2>{section.title}</h2>{content.html ? <div className="crew-sop-rich-content" dangerouslySetInnerHTML={{ __html: content.html }} /> : null}{section.media_url ? <figure><img src={section.media_url} alt="" /></figure> : null}{content.keyPointContent ? <div className="crew-sop-key-point"><strong>Key Point</strong><p>{content.keyPointContent}</p></div> : null}</section>; })}</article> : <EmptyState title="No sections yet" description="This draft has no document content." />}</main>
+    <main className={showOutline ? "" : "crew-sop-document-scroll"}><div className="crew-sop-document-meta"><div><Badge tone={version.status === "published" ? "success" : "warning"}>{version.status === "published" ? "Published" : "Draft preview"}</Badge><span>v{version.version}</span></div></div>{sections.length ? <article className="crew-sop-document">{sections.map((section, index) => { const content = parseSopBody(section.body, section.key_point); return <section key={section.id} ref={(node) => { refs.current[section.id] = node; }} tabIndex="-1"><div className="crew-sop-section-number">{String(index + 1).padStart(2, "0")}</div><h2>{section.title}</h2>{content.html ? <div className="crew-sop-rich-content" dangerouslySetInnerHTML={{ __html: content.html }} /> : null}{section.media_url ? <figure><img src={section.media_url} alt="" /></figure> : null}{content.keyPointContent ? <div className="crew-sop-key-point"><strong>Key Point</strong><p>{content.keyPointContent}</p></div> : null}</section>; })}</article> : <EmptyState title="No sections yet" description="This draft has no document content." />}</main>
   </div>;
 }
 

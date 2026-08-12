@@ -211,7 +211,10 @@ describe("Crew SOP Library Admin", () => {
     expect(screen.queryByLabelText("Section Title *")).toBeNull();
     expect(screen.queryByRole("navigation", { name: "SOP detail tabs" })).toBeNull();
     fireEvent.click(screen.getByRole("button", { name: "SOP version" }));
-    expect(screen.getByRole("menu", { name: "Version History" })).not.toBeNull();
+    const portalMenu = screen.getByRole("menu", { name: "Version History" });
+    expect(portalMenu).not.toBeNull();
+    expect(portalMenu.closest('[role="dialog"]')).toBeNull();
+    expect(portalMenu.closest(".z-popover-layer")?.dataset.placement).toMatch(/top|bottom/);
     expect(screen.getByText(/Current Live/)).not.toBeNull();
     expect(screen.getByRole("button", { name: "Continue Editing" })).not.toBeNull();
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
@@ -225,6 +228,25 @@ describe("Crew SOP Library Admin", () => {
     expect(screen.getByText("New Crew Onboarding · Greeting")).not.toBeNull();
     expect(screen.getByText("Historical snapshot · unchanged by future SOP versions")).not.toBeNull();
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
+  });
+
+  it("keeps long published documents inside the modal scroll region", async () => {
+    const longSections = Array.from({ length: 20 }, (_, index) => ({
+      id: `long-section-${index + 1}`,
+      title: `Long Section ${index + 1}`,
+      body: `<p>${"Operational guidance ".repeat(20)}</p>`,
+      key_point: false,
+      sort_order: index + 1,
+    }));
+    mocks.list.mockResolvedValue({ categories, sops: [{ ...sops[1], versions: [{ ...sops[1].versions[0], sections: longSections }] }] });
+    renderPage();
+    await screen.findByText("Kitchen Safety");
+    fireEvent.click(screen.getByRole("button", { name: "View" }));
+    expect(screen.getByRole("heading", { name: "Long Section 20" })).not.toBeNull();
+    const scrollRegion = document.querySelector(".crew-sop-document-scroll");
+    expect(scrollRegion).not.toBeNull();
+    expect(scrollRegion.closest(".crew-sop-popout-body")).not.toBeNull();
+    expect(scrollRegion.closest(".crew-sop-view-popout")).not.toBeNull();
   });
 
   it("publishes only after confirmation and refreshes into immutable detail", async () => {
