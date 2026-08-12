@@ -44,6 +44,10 @@ const sops = [
 const auth = { hasPermission: () => true };
 const ui = { notify: vi.fn(), confirm: vi.fn() };
 const renderPage = () => render(<CrewSopLibraryPage auth={auth} ui={ui} store={{ outlets }} />);
+const selectOption = (label, option) => {
+  fireEvent.click(screen.getByLabelText(label));
+  fireEvent.click(screen.getByRole("button", { name: option }));
+};
 
 beforeEach(() => {
   mocks.list.mockReset().mockResolvedValue({ categories, sops });
@@ -69,9 +73,9 @@ describe("Crew SOP Library Admin", () => {
     fireEvent.change(screen.getByLabelText("Search SOP"), { target: { value: "Kitchen" } });
     expect(screen.queryByText("Welcome & Goodbye Standard")).toBeNull();
     expect(screen.getByText("Kitchen Safety")).not.toBeNull();
-    fireEvent.change(screen.getByLabelText("Category"), { target: { value: "cat-service" } });
+    selectOption("Category", "Service");
     expect(screen.getByText("No SOPs match these filters")).not.toBeNull();
-    fireEvent.change(screen.getByLabelText("Outlet"), { target: { value: "outlet-2" } });
+    selectOption("Outlet", "Friends Corner");
     await waitFor(() => expect(mocks.list).toHaveBeenCalledWith("outlet-2"));
   });
 
@@ -93,9 +97,8 @@ describe("Crew SOP Library Admin", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Delete Draft" }));
     await waitFor(() => expect(mocks.deleteDraft).toHaveBeenCalledWith("crew_sop_versions", "v2"));
 
-    fireEvent.click(screen.getByRole("button", { name: "More actions for Kitchen Safety" }));
-    expect(screen.getByRole("menuitem", { name: "Create New Version" })).not.toBeNull();
-    expect(screen.queryByRole("menuitem", { name: /Edit/ })).toBeNull();
+    expect(screen.getByRole("button", { name: "New Version" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Edit Published" })).toBeNull();
   });
 
   it("offers edit and safe deletion for a draft-only SOP", async () => {
@@ -103,10 +106,9 @@ describe("Crew SOP Library Admin", () => {
     mocks.list.mockResolvedValue({ categories, sops: [draftOnly] });
     renderPage();
     await screen.findByText("Opening Checklist");
-    const edit = screen.getByRole("button", { name: "Edit Draft" });
-    fireEvent.click(screen.getByRole("button", { name: "More actions for Opening Checklist" }));
-    expect(screen.getByRole("menuitem", { name: "Delete Draft" })).not.toBeNull();
-    expect(screen.queryByRole("menuitem", { name: "Create New Version" })).toBeNull();
+    const edit = screen.getByRole("button", { name: "Edit" });
+    expect(screen.getByRole("button", { name: "Delete" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "New Version" })).toBeNull();
     fireEvent.click(edit);
     expect(screen.getByRole("heading", { name: "Opening Checklist" })).not.toBeNull();
     expect(screen.getAllByText(/Draft v1/).length).toBeGreaterThan(0);
@@ -143,7 +145,7 @@ describe("Crew SOP Library Admin", () => {
     await waitFor(() => expect(mocks.saveDraft).toHaveBeenCalledWith("crew_sop_sections", expect.objectContaining({ id: "draft-section-1", title: "Welcome promptly", key_point: true })));
     fireEvent.click(screen.getByRole("button", { name: "Move section down" }));
     await waitFor(() => expect(mocks.swap).toHaveBeenCalled());
-    fireEvent.click(screen.getByRole("button", { name: "Delete Section" }));
+    fireEvent.click(screen.getByRole("button", { name: "Delete section" }));
     await waitFor(() => expect(mocks.deleteDraft).toHaveBeenCalledWith("crew_sop_sections", "draft-section-1"));
     fireEvent.click(screen.getByRole("button", { name: "Add Section" }));
     fireEvent.change(screen.getByLabelText("Section Title *"), { target: { value: "Thank the guest" } });
@@ -157,12 +159,13 @@ describe("Crew SOP Library Admin", () => {
     await screen.findByText("Welcome & Goodbye Standard");
     fireEvent.click(screen.getAllByRole("button", { name: "Edit Draft" })[0]);
     fireEvent.click(screen.getByRole("button", { name: "Preview" }));
-    expect(screen.getByRole("heading", { name: /Welcome & Goodbye Standard · Preview/ })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Preview · v2" })).not.toBeNull();
     expect(screen.getByText("Smile and make eye contact.")).not.toBeNull();
     expect(screen.queryByLabelText("Document version")).toBeNull();
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
   });
 
-  it("uses one read-only document page and opens version history plus usage in drawers", async () => {
+  it("uses one read-only document popup and switches version history plus usage in the same modal", async () => {
     renderPage();
     await screen.findByText("Welcome & Goodbye Standard");
     fireEvent.click(screen.getByText("Welcome & Goodbye Standard"));
@@ -173,13 +176,15 @@ describe("Crew SOP Library Admin", () => {
     expect(screen.getByRole("heading", { name: "Version History" })).not.toBeNull();
     expect(screen.getByText("Current Live")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Continue Editing" })).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Close drawer" }));
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
+    fireEvent.click(screen.getByRole("button", { name: "← Back to SOP" }));
     mocks.usage.mockResolvedValue({ current: [{ journey_id: "j1", journey_name: "New Crew Onboarding", journey_version: 2, module_title: "Greeting", lesson_title: "Welcome guests" }], historical: [{ journey_name: "New Crew Onboarding", journey_version: 1, assignment_count: 3 }] });
     fireEvent.click(screen.getByRole("button", { name: "View Usage" }));
     await screen.findByText("Used in Onboarding");
     expect(screen.getByText("Welcome guests")).not.toBeNull();
     expect(screen.getByText("New Crew Onboarding · Greeting")).not.toBeNull();
     expect(screen.getByText("Historical snapshot · unchanged by future SOP versions")).not.toBeNull();
+    expect(screen.getAllByRole("dialog")).toHaveLength(1);
   });
 
   it("publishes only after confirmation and refreshes into immutable detail", async () => {
@@ -197,7 +202,7 @@ describe("Crew SOP Library Admin", () => {
     await screen.findByRole("heading", { name: "SOP Library" });
     fireEvent.click(screen.getByRole("button", { name: "Clone From Outlet" }));
     await screen.findByRole("heading", { name: "Clone SOP Library" });
-    expect(screen.getByLabelText("Source Outlet").value).toBe("outlet-2");
+    expect(screen.getByLabelText("Source Outlet").textContent).toContain("Friends Corner");
     await waitFor(() => expect(screen.getByLabelText("Kitchen Safety")).not.toBeNull());
     fireEvent.click(screen.getByLabelText("Kitchen Safety"));
     fireEvent.click(screen.getByRole("button", { name: "Clone SOPs" }));

@@ -16,6 +16,7 @@ export default function SelectField({
   className = "",
   buttonClassName = "",
   footerAction = null,
+  ariaLabel,
 }) {
   const [isOpen, setIsOpen] = useState(false);
   const [query, setQuery] = useState("");
@@ -56,6 +57,9 @@ export default function SelectField({
           error ? "border-rose-200" : isOpen ? "border-primary/50 shadow-sm" : "border-border hover:border-slate-300 hover:bg-slate-50"
         } ${buttonClassName}`}
         type="button"
+        aria-label={ariaLabel || undefined}
+        aria-haspopup="listbox"
+        aria-expanded={isOpen}
         disabled={disabled}
         onClick={() => setIsOpen((current) => !current)}
       >

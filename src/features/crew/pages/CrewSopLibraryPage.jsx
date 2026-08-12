@@ -18,7 +18,7 @@ import EmptyState from "../../../components/feedback/EmptyState.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
 import DataTable from "../../../components/tables/DataTable.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
-import Drawer from "../../../components/ui/Drawer.jsx";
+import SelectField from "../../../components/forms/SelectField.jsx";
 import { crewService } from "../../../services/crewService.js";
 import { outletService } from "../../../services/outletService.js";
 
@@ -136,7 +136,7 @@ export default function CrewSopLibraryPage({ auth, ui, store }) {
 
   async function deleteDraft(sop) {
     const draft = draftVersion(sop);
-    if (!draft) return;
+    if (!draft) return false;
     const hasPublished = Boolean(currentVersion(sop));
     const confirmed = await ui.confirm({
       title: hasPublished ? `Delete draft v${draft.version}?` : `Delete ${sop.title}?`,
@@ -144,14 +144,16 @@ export default function CrewSopLibraryPage({ auth, ui, store }) {
       confirmLabel: "Delete Draft",
       tone: "danger",
     });
-    if (!confirmed) return;
+    if (!confirmed) return false;
     setSaving(true);
     try {
       await crewService.deleteDraftRecord(hasPublished ? "crew_sop_versions" : "crew_sops", hasPublished ? draft.id : sop.id);
       await refresh();
       ui.notify({ title: "SOP draft deleted" });
+      return true;
     } catch (cause) {
       ui.notify({ title: "Unable to delete draft", message: cause.message, tone: "error" });
+      return false;
     } finally { setSaving(false); }
   }
 
@@ -184,7 +186,7 @@ export default function CrewSopLibraryPage({ auth, ui, store }) {
         title="SOP Library"
         description="Manage outlet procedures and employee knowledge."
         actions={<>
-          <label className="crew-sop-outlet-select"><span>Outlet</span><select aria-label="Outlet" value={outletId} onChange={(event) => setOutletId(event.target.value)}>{outlets.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+          <SelectField className="crew-sop-outlet-select" label="Outlet" ariaLabel="Outlet" value={outletId} onChange={setOutletId} options={outlets.map((item) => ({ value: item.id, label: item.name }))} />
           {canManage ? <button className="btn-secondary" type="button" onClick={() => setCloneOpen(true)}><Copy size={15} /> Clone From Outlet</button> : null}
           {canManage ? <button className="btn-primary" type="button" onClick={() => setCreateOpen(true)}><Plus size={15} /> New SOP</button> : null}
         </>}
@@ -211,6 +213,10 @@ export default function CrewSopLibraryPage({ auth, ui, store }) {
           onBack={() => setView("library")}
           onRefresh={refresh}
           onPublish={(version) => publishVersion(selectedSop, version)}
+          onDeleteDraft={async () => {
+            const deleted = await deleteDraft(selectedSop);
+            if (deleted) setView("library");
+          }}
         />
       ) : view === "detail" && selectedSop ? (
         <SopDetail
@@ -249,27 +255,27 @@ function SopLibrary({ outlet, sops, categories, loading, canManage, onOpen, onEd
   if (loading) return <LibrarySkeleton />;
   return <div className="crew-sop-library-sections">
     <section className="crew-sop-filter-card" aria-label="SOP filters"><div className="crew-sop-filterbar">
-      <label className="crew-sop-search-field"><Search size={16} /><input aria-label="Search SOP" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search SOP..." /></label>
-      <label><span>Category</span><select aria-label="Category" value={categoryId} onChange={(event) => setCategoryId(event.target.value)}><option value="">All Categories</option>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}</select></label>
-      <label><span>Status</span><select aria-label="Status" value={status} onChange={(event) => setStatus(event.target.value)}><option value="">All Status</option><option value="published">Published</option><option value="draft">Draft</option></select></label>
-      <label><span>Acknowledgement</span><select aria-label="Acknowledgement" value={acknowledgement} onChange={(event) => setAcknowledgement(event.target.value)}><option value="">All</option><option value="required">Required</option><option value="not_required">Not required</option></select></label>
+      <label className="crew-sop-search-control"><span>Search SOP</span><span className="crew-sop-search-field"><Search size={16} /><input aria-label="Search SOP" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search SOP..." /></span></label>
+      <SelectField label="Category" ariaLabel="Category" value={categoryId} onChange={setCategoryId} options={[{ value: "", label: "All" }, ...categories.map((category) => ({ value: category.id, label: category.name }))]} />
+      <SelectField label="Status" ariaLabel="Status" value={status} onChange={setStatus} options={[{ value: "", label: "All" }, { value: "published", label: "Published" }, { value: "draft", label: "Draft" }]} />
+      <SelectField label="Acknowledgement" ariaLabel="Acknowledgement" value={acknowledgement} onChange={setAcknowledgement} options={[{ value: "", label: "All" }, { value: "required", label: "Required" }, { value: "not_required", label: "Not required" }]} />
     </div></section>
     <section className="crew-sop-table-card" aria-label="SOP list">
     {rows.length ? <DataTable
       density="normal"
-      tableClassName="min-w-[920px] table-fixed"
+      tableClassName="min-w-[1120px] table-fixed"
       rows={rows}
       getRowKey={(row) => row.id}
       onRowClick={(row) => onOpen(row.id)}
       columns={[
-        { key: "sop", header: "SOP", width: "24%", render: (row) => <div className="crew-sop-title-cell"><FileText size={17} /><span><strong>{row.title}</strong><small>{row.summary || "Operational procedure"}</small></span></div> },
+        { key: "sop", header: "SOP", width: "22%", render: (row) => <div className="crew-sop-title-cell"><FileText size={17} /><span><strong>{row.title}</strong><small>{row.summary || "Operational procedure"}</small></span></div> },
         { key: "category", header: "Category", width: "9%", render: (row) => row.category || "Other" },
         { key: "version", header: "Current Version", width: "9%", render: (row) => currentVersion(row) ? `v${currentVersion(row).version}` : "—" },
         { key: "status", header: "Status", width: "9%", render: (row) => currentVersion(row) ? <Badge tone="success">Published</Badge> : <Badge tone="warning">Draft</Badge> },
         { key: "draft", header: "Draft", width: "8%", render: (row) => draftVersion(row) ? <Badge tone="warning">Draft v{draftVersion(row).version}</Badge> : "—" },
         { key: "ack", header: "Acknowledgement", width: "13%", render: (row) => (draftVersion(row)?.require_acknowledgement ?? currentVersion(row)?.require_acknowledgement) ? "Required" : "Not required" },
         { key: "updated", header: "Last Updated", width: "10%", render: (row) => formatDate(row.updated_at) },
-        { key: "actions", header: "Actions", width: "18%", align: "right", render: (row) => <SopRowActions row={row} canManage={canManage} onOpen={onOpen} onEdit={onEdit} onNewVersion={onNewVersion} onDeleteDraft={onDeleteDraft} /> },
+        { key: "actions", header: "Actions", width: "220px", align: "right", render: (row) => <SopRowActions row={row} canManage={canManage} onOpen={onOpen} onEdit={onEdit} onNewVersion={onNewVersion} onDeleteDraft={onDeleteDraft} /> },
       ]}
     /> : <div className="crew-sop-compact-empty"><EmptyState title={sops.length ? "No SOPs match these filters" : "No SOPs yet"} description={sops.length ? "Adjust the search or filter selection." : `Create SOPs for ${outlet?.name || "this outlet"} or clone an existing setup.`} />{!sops.length && canManage ? <div><button className="btn-primary" onClick={onCreate}>Create SOP</button><button className="btn-secondary" onClick={onClone}>Clone From Outlet</button></div> : null}</div>}
     </section>
@@ -299,7 +305,12 @@ function SopRowActions({ row, canManage, onOpen, onEdit, onNewVersion, onDeleteD
   }
   const published = currentVersion(row);
   const draft = draftVersion(row);
-  return <div className="crew-sop-row-actions"><button className="crew-sop-action-link" type="button" onClick={() => onOpen(row.id)}>View</button>{canManage && draft ? <button className="crew-sop-action-link" type="button" onClick={() => onEdit(row)}>Edit Draft</button> : null}{canManage ? <><button ref={buttonRef} className="icon-btn" aria-label={`More actions for ${row.title}`} aria-expanded={Boolean(menu)} type="button" onClick={toggleMenu}><MoreHorizontal size={16} /></button>{menu ? createPortal(<div className="crew-sop-more-menu" role="menu" style={menu}>{published && !draft ? <button role="menuitem" type="button" onClick={() => { setMenu(null); onNewVersion(row); }}>Create New Version</button> : null}{draft ? <button role="menuitem" className="is-danger" type="button" onClick={() => { setMenu(null); onDeleteDraft(row); }}>Delete Draft</button> : null}</div>, document.body) : null}</> : null}</div>;
+  return <div className="crew-sop-row-actions">
+    <button className="btn-secondary crew-sop-compact-action" type="button" onClick={() => onOpen(row.id)}>View</button>
+    {canManage && draft && !published ? <><button className="btn-secondary crew-sop-compact-action" type="button" onClick={() => onEdit(row)}>Edit</button><button className="btn-secondary crew-sop-compact-action is-danger" type="button" onClick={() => onDeleteDraft(row)}>Delete</button></> : null}
+    {canManage && published && !draft ? <button className="btn-secondary crew-sop-compact-action" type="button" onClick={() => onNewVersion(row)}>New Version</button> : null}
+    {canManage && published && draft ? <><button className="btn-secondary crew-sop-compact-action" type="button" onClick={() => onEdit(row)}>Edit Draft</button><button ref={buttonRef} className="icon-btn crew-sop-compact-more" aria-label={`More actions for ${row.title}`} aria-expanded={Boolean(menu)} type="button" onClick={toggleMenu}><MoreHorizontal size={16} /></button>{menu ? createPortal(<div className="crew-sop-more-menu" role="menu" style={menu}><button role="menuitem" className="is-danger" type="button" onClick={() => { setMenu(null); onDeleteDraft(row); }}>Delete Draft</button></div>, document.body) : null}</> : null}
+  </div>;
 }
 
 function SopDetail({ sop, outlet, canManage, saving, preferredVersionId, onBack, onEdit, onNewVersion }) {
@@ -307,16 +318,23 @@ function SopDetail({ sop, outlet, canManage, saving, preferredVersionId, onBack,
   const published = currentVersion(sop);
   const draft = draftVersion(sop);
   const [viewVersionId, setViewVersionId] = useState(preferredVersionId || published?.id || draft?.id || "");
-  const [drawer, setDrawer] = useState("");
+  const [pane, setPane] = useState("document");
   const active = versions.find((version) => version.id === viewVersionId) || published || draft;
   useEffect(() => { setViewVersionId(preferredVersionId || published?.id || draft?.id || ""); }, [sop.id, preferredVersionId, published?.id, draft?.id]);
-  const primaryAction = canManage ? draft ? <button className="btn-primary" disabled={saving} onClick={() => onEdit(draft.id)}>{published ? "Edit Draft" : "Edit"}</button> : published ? <button className="btn-primary" disabled={saving} onClick={onNewVersion}>Create New Version</button> : null : null;
-  return <Modal title={sop.title} description={`${sop.category || "Other"} · ${active?.status === "published" ? `Published v${active.version}` : `Draft v${active?.version}`} · ${outlet?.name || "Outlet"}`} size="2xl" panelClassName="crew-sop-view-popout" bodyClassName="crew-sop-popout-body" onClose={onBack} headerActions={primaryAction} footer={<><button className="btn-ghost" type="button" onClick={() => setDrawer("versions")}>Version History</button><button className="btn-ghost" type="button" onClick={() => setDrawer("usage")}>View Usage</button><button className="btn-secondary" type="button" onClick={onBack}>Close</button></>}>
-    <SopDocumentFacts sop={sop} outlet={outlet} version={active} />
-    <PublishedDocument version={active} showOutline={false} />
-    {drawer === "versions" ? <Drawer title="Version History" description={`${sop.title} · ${outlet?.name || "Outlet"}`} width="md" onClose={() => setDrawer("")}><VersionList versions={versions} currentVersionNumber={sop.current_version} fallbackUpdatedAt={sop.updated_at} canManage={canManage} onEdit={(id) => { setDrawer(""); onEdit(id); }} onView={(id) => { setViewVersionId(id); setDrawer(""); }} /></Drawer> : null}
-    {drawer === "usage" ? <Drawer title="SOP Usage" description={`${sop.title} · current and historical references`} width="md" onClose={() => setDrawer("")}><UsageView sopId={sop.id} /></Drawer> : null}
+  const lifecycleAction = canManage ? draft ? <button className="btn-primary" disabled={saving} onClick={() => onEdit(draft.id)}>{published ? "Edit Draft" : "Edit Draft"}</button> : published ? <button className="btn-primary" disabled={saving} onClick={onNewVersion}>New Version</button> : null : null;
+  const footer = <div className="crew-sop-modal-footer">
+    <div>{pane === "document" ? <><button className="btn-ghost" type="button" onClick={() => setPane("versions")}>Version History</button><button className="btn-ghost" type="button" onClick={() => setPane("usage")}>View Usage</button></> : null}</div>
+    <div>{pane === "document" ? lifecycleAction : null}<button className="btn-secondary" type="button" onClick={onBack}>Close</button></div>
+  </div>;
+  return <Modal title={sop.title} description={`${sop.category || "Other"} · ${active?.status === "published" ? `Published v${active.version}` : `Draft v${active?.version}`} · ${outlet?.name || "Outlet"}`} size="2xl" panelClassName="crew-sop-view-popout" bodyClassName="crew-sop-popout-body" onClose={onBack} footer={footer} footerClassName="block">
+    {pane === "document" ? <><SopDocumentFacts sop={sop} outlet={outlet} version={active} /><PublishedDocument version={active} showOutline={false} /></> : null}
+    {pane === "versions" ? <SecondaryView title="Version History" description="Draft work and immutable published history." onBack={() => setPane("document")}><VersionList versions={versions} currentVersionNumber={sop.current_version} fallbackUpdatedAt={sop.updated_at} canManage={canManage} onEdit={onEdit} onView={(id) => { setViewVersionId(id); setPane("document"); }} /></SecondaryView> : null}
+    {pane === "usage" ? <SecondaryView title="SOP Usage" description="Current onboarding use and historical pinned references." onBack={() => setPane("document")}><UsageView sopId={sop.id} /></SecondaryView> : null}
   </Modal>;
+}
+
+function SecondaryView({ title, description, onBack, children }) {
+  return <section className="crew-sop-secondary-view"><button className="btn-ghost crew-sop-inline-back" type="button" onClick={onBack}>← Back to SOP</button><header><h2>{title}</h2><p>{description}</p></header>{children}</section>;
 }
 
 function SopDocumentFacts({ sop, outlet, version }) {
@@ -340,14 +358,15 @@ function PublishedDocument({ version, showOutline = true }) {
   </div>;
 }
 
-function SopEditor({ sop, outlet, version, saving, onBack, onRefresh, onPublish }) {
+function SopEditor({ sop, outlet, version, saving, onBack, onRefresh, onPublish, onDeleteDraft }) {
   const sections = byOrder(version?.sections);
   const [selectedId, setSelectedId] = useState(sections[0]?.id || "new");
   const selected = sections.find((section) => section.id === selectedId);
   const [form, setForm] = useState({ title: "", body: "", key_point: false });
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [preview, setPreview] = useState(false);
+  const [pane, setPane] = useState("edit");
+  const [previewVersionId, setPreviewVersionId] = useState(version?.id || "");
   useEffect(() => { setSelectedId((current) => sections.some((item) => item.id === current) ? current : sections[0]?.id || "new"); }, [version?.id, version?.sections]);
   useEffect(() => { setForm(selected ? { title: selected.title || "", body: selected.body || "", key_point: Boolean(selected.key_point) } : { title: "", body: "", key_point: false }); setDirty(false); }, [selected?.id]);
   function update(next) { setForm((current) => ({ ...current, ...next })); setDirty(true); }
@@ -373,12 +392,19 @@ function SopEditor({ sop, outlet, version, saving, onBack, onRefresh, onPublish 
   }
   if (!version) return null;
   const closeEditor = () => { if (!dirty || window.confirm("Leave without saving this section?")) onBack(); };
-  return <Modal title={sop.title} description={`Draft v${version.version} · ${outlet?.name}`} size="2xl" panelClassName="crew-sop-editor-popout" bodyClassName="crew-sop-editor-popout-body" onClose={closeEditor} headerActions={<span className={`crew-sop-save-state ${dirty ? "is-dirty" : "is-saved"}`}>{dirty ? "Unsaved" : <><Check size={13} /> Saved</>}</span>} footer={<><button className="btn-ghost is-danger mr-auto" disabled={busy || !selected} onClick={remove}><Trash2 size={15} /> Delete Section</button><button className="btn-secondary" onClick={() => setPreview(true)}>Preview</button><button className="btn-primary" disabled={busy || !dirty || !form.title.trim()} onClick={save}>{busy ? "Saving…" : "Save Draft"}</button><button className="btn-secondary" disabled={saving || dirty || !sections.length} onClick={() => onPublish(version)}>Publish</button></>}>
-    <div className="crew-sop-draft-workspace">
+  const previewVersion = (sop.versions || []).find((item) => item.id === previewVersionId) || version;
+  const previewSections = previewVersion.id === version.id ? sections.map((section) => section.id === selected?.id && dirty ? { ...section, ...form } : section) : previewVersion.sections;
+  const footer = pane === "edit" ? <div className="crew-sop-modal-footer">
+    <div><button className="btn-secondary" type="button" onClick={() => { setPreviewVersionId(version.id); setPane("preview"); }}>Preview</button><button className="btn-ghost" type="button" onClick={() => setPane("versions")}>Version History</button></div>
+    <div><button className="btn-secondary is-danger" disabled={busy || saving} onClick={onDeleteDraft}><Trash2 size={15} /> Delete Draft</button><button className="btn-primary" disabled={busy || !dirty || !form.title.trim()} onClick={save}>{busy ? "Saving…" : "Save Draft"}</button><button className="btn-secondary" disabled={saving || dirty || !sections.length} onClick={() => onPublish(version)}>Publish</button></div>
+  </div> : null;
+  return <Modal title={sop.title} description={`Draft v${version.version} · ${outlet?.name}`} size="2xl" panelClassName="crew-sop-editor-popout" bodyClassName="crew-sop-editor-popout-body" onClose={closeEditor} headerActions={<span className={`crew-sop-save-state ${dirty ? "is-dirty" : "is-saved"}`}>{dirty ? "Unsaved" : <><Check size={13} /> Saved</>}</span>} footer={footer} footerClassName="block">
+    {pane === "edit" ? <div className="crew-sop-draft-workspace">
       <aside><div><strong>Section Outline</strong><span>{sections.length}</span></div>{sections.map((section, index) => <button key={section.id} className={selectedId === section.id ? "is-active" : ""} onClick={() => { if (!dirty || window.confirm("Discard unsaved section changes?")) setSelectedId(section.id); }}><span>{String(index + 1).padStart(2, "0")}</span><strong>{section.title}</strong><ChevronRight size={15} /></button>)}<button className="crew-sop-add-section" onClick={() => { if (!dirty || window.confirm("Discard unsaved section changes?")) setSelectedId("new"); }}><Plus size={15} /> Add Section</button></aside>
-      <main><div className="crew-sop-editor-form-head"><div><span>{selected ? `Section ${sections.findIndex((item) => item.id === selected.id) + 1}` : "New section"}</span><h2>{selected ? selected.title : "Add a section"}</h2></div>{selected ? <div><button className="icon-btn" disabled={busy || sections[0]?.id === selected.id} onClick={() => move(-1)} aria-label="Move section up"><ArrowUp size={16} /></button><button className="icon-btn" disabled={busy || sections.at(-1)?.id === selected.id} onClick={() => move(1)} aria-label="Move section down"><ArrowDown size={16} /></button></div> : null}</div><label>Section Title *<input className="control w-full" value={form.title} onChange={(event) => update({ title: event.target.value })} /></label><label>Content<textarea className="control min-h-56 w-full py-3" value={form.body} onChange={(event) => update({ body: event.target.value })} /></label><label className="crew-sop-key-toggle"><input aria-label="Key Point" type="checkbox" checked={form.key_point} onChange={(event) => update({ key_point: event.target.checked })} /><span><strong>Key Point</strong><small>Display this section content as a subtle operational callout.</small></span></label></main>
-    </div>
-    {preview ? <Modal title={`${sop.title} · Preview`} description={`Draft v${version.version} · ${outlet?.name}`} size="xl" onClose={() => setPreview(false)} footer={<button className="btn-secondary" onClick={() => setPreview(false)}>Close Preview</button>}><PublishedDocument version={{ ...version, sections: sections.map((section) => section.id === selected?.id && dirty ? { ...section, ...form } : section) }} /></Modal> : null}
+      <main><div className="crew-sop-editor-form-head"><div><span>{selected ? `Section ${sections.findIndex((item) => item.id === selected.id) + 1}` : "New section"}</span><h2>{selected ? selected.title : "Add a section"}</h2></div>{selected ? <div><button className="icon-btn" disabled={busy || sections[0]?.id === selected.id} onClick={() => move(-1)} aria-label="Move section up"><ArrowUp size={16} /></button><button className="icon-btn" disabled={busy || sections.at(-1)?.id === selected.id} onClick={() => move(1)} aria-label="Move section down"><ArrowDown size={16} /></button><button className="icon-btn is-danger" disabled={busy} onClick={remove} aria-label="Delete section"><Trash2 size={16} /></button></div> : null}</div><label>Section Title *<input className="control w-full" value={form.title} onChange={(event) => update({ title: event.target.value })} /></label><label>Content<textarea className="control min-h-56 w-full py-3" value={form.body} onChange={(event) => update({ body: event.target.value })} /></label><label className="crew-sop-key-toggle"><input aria-label="Key Point" type="checkbox" checked={form.key_point} onChange={(event) => update({ key_point: event.target.checked })} /><span><strong>Key Point</strong><small>Display this section content as a subtle operational callout.</small></span></label></main>
+    </div> : null}
+    {pane === "preview" ? <SecondaryView title={`Preview · v${previewVersion.version}`} description="Read the SOP as Crew will see it after publishing." onBack={() => setPane("edit")}><PublishedDocument version={{ ...previewVersion, sections: previewSections }} showOutline={false} /></SecondaryView> : null}
+    {pane === "versions" ? <SecondaryView title="Version History" description="Draft work and immutable published history." onBack={() => setPane("edit")}><VersionList versions={byVersion(sop.versions)} currentVersionNumber={sop.current_version} fallbackUpdatedAt={sop.updated_at} canManage onEdit={() => setPane("edit")} onView={(id) => { setPreviewVersionId(id); setPane("preview"); }} /></SecondaryView> : null}
   </Modal>;
 }
 
@@ -396,7 +422,7 @@ function UsageView({ sopId }) {
 function CreateSopModal({ categories, saving, onClose, onCreate }) {
   const [values, setValues] = useState({ title: "", categoryId: categories[0]?.id || "__new__", newCategory: categories.length ? "" : "Other", summary: "", requireAcknowledgement: false });
   const valid = values.title.trim() && (values.categoryId !== "__new__" || values.newCategory.trim());
-  return <Modal title="Create SOP" description="Create an editable draft for this outlet." size="md" onClose={onClose} footer={<><button className="btn-secondary" onClick={onClose}>Cancel</button><button className="btn-primary" disabled={saving || !valid} onClick={() => onCreate(values)}>{saving ? "Creating…" : "Create Draft"}</button></>}><div className="crew-sop-create-form"><label>Title *<input className="control w-full" autoFocus value={values.title} onChange={(event) => setValues({ ...values, title: event.target.value })} /></label><label>Category *<select className="control w-full" value={values.categoryId} onChange={(event) => setValues({ ...values, categoryId: event.target.value })}>{categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}<option value="__new__">Create new category</option></select></label>{values.categoryId === "__new__" ? <label>New Category *<input className="control w-full" value={values.newCategory} onChange={(event) => setValues({ ...values, newCategory: event.target.value })} /></label> : null}<label>Summary<textarea className="control min-h-24 w-full py-3" value={values.summary} onChange={(event) => setValues({ ...values, summary: event.target.value })} /></label><label className="crew-sop-key-toggle"><input aria-label="Acknowledgement Required" type="checkbox" checked={values.requireAcknowledgement} onChange={(event) => setValues({ ...values, requireAcknowledgement: event.target.checked })} /><span><strong>Acknowledgement Required</strong><small>Crew must acknowledge the published version where required.</small></span></label></div></Modal>;
+  return <Modal title="Create SOP" description="Create an editable draft for this outlet." size="md" onClose={onClose} footer={<><button className="btn-secondary" onClick={onClose}>Cancel</button><button className="btn-primary" disabled={saving || !valid} onClick={() => onCreate(values)}>{saving ? "Creating…" : "Create Draft"}</button></>}><div className="crew-sop-create-form"><label>Title *<input className="control w-full" autoFocus value={values.title} onChange={(event) => setValues({ ...values, title: event.target.value })} /></label><SelectField label="Category" ariaLabel="Category" required value={values.categoryId} onChange={(categoryId) => setValues({ ...values, categoryId })} options={[...categories.map((category) => ({ value: category.id, label: category.name })), { value: "__new__", label: "Create new category" }]} />{values.categoryId === "__new__" ? <label>New Category *<input className="control w-full" value={values.newCategory} onChange={(event) => setValues({ ...values, newCategory: event.target.value })} /></label> : null}<label>Summary<textarea className="control min-h-24 w-full py-3" value={values.summary} onChange={(event) => setValues({ ...values, summary: event.target.value })} /></label><label className="crew-sop-key-toggle"><input aria-label="Acknowledgement Required" type="checkbox" checked={values.requireAcknowledgement} onChange={(event) => setValues({ ...values, requireAcknowledgement: event.target.checked })} /><span><strong>Acknowledgement Required</strong><small>Crew must acknowledge the published version where required.</small></span></label></div></Modal>;
 }
 
 function CloneSopsModal({ targetOutlet, outlets, saving, onClose, onCloned }) {
@@ -408,7 +434,7 @@ function CloneSopsModal({ targetOutlet, outlets, saving, onClose, onCloned }) {
   const [error, setError] = useState("");
   useEffect(() => { if (!sourceOutletId) return; setLoading(true); setError(""); crewService.listOutletSopsAdmin(sourceOutletId).then((result) => { const published = (result.sops || []).filter((sop) => currentVersion(sop)); setSourceSops(published); setSelected(published.map((sop) => sop.id)); }).catch((cause) => setError(cause.message)).finally(() => setLoading(false)); }, [sourceOutletId]);
   async function clone() { setError(""); try { const result = await crewService.cloneSelectedSops({ sourceOutletId, targetOutletId: targetOutlet.id, sopIds: selected, copyCategories }); await onCloned(result); } catch (cause) { setError(cause.message); } }
-  return <Modal title="Clone SOP Library" description="Choose published SOPs to copy as independent drafts." size="lg" onClose={onClose} footer={<><button className="btn-secondary" onClick={onClose}>Cancel</button><button className="btn-primary" disabled={saving || loading || !selected.length} onClick={clone}>{saving ? "Cloning…" : "Clone SOPs"}</button></>}><div className="crew-sop-clone-form"><label>Source Outlet<select className="input" value={sourceOutletId} onChange={(event) => setSourceOutletId(event.target.value)}>{outlets.map((outlet) => <option key={outlet.id} value={outlet.id}>{outlet.name}</option>)}</select></label><div className="crew-sop-clone-target"><span>Target</span><strong>{targetOutlet?.name || "—"}</strong></div><div className="crew-sop-clone-select"><header><div><strong>Select SOPs</strong><span>{selected.length} of {sourceSops.length} selected</span></div><button className="btn-ghost" onClick={() => setSelected(selected.length === sourceSops.length ? [] : sourceSops.map((sop) => sop.id))}>{selected.length === sourceSops.length ? "Clear all" : "Select all"}</button></header>{loading ? <p>Loading source SOPs…</p> : sourceSops.map((sop) => <label key={sop.id}><input aria-label={sop.title} type="checkbox" checked={selected.includes(sop.id)} onChange={() => setSelected((current) => current.includes(sop.id) ? current.filter((id) => id !== sop.id) : [...current, sop.id])} /><span><strong>{sop.title}</strong><small>{sop.category} · Published v{currentVersion(sop)?.version}</small></span></label>)}{!loading && !sourceSops.length ? <p>No published SOPs are available in this outlet.</p> : null}</div><label className="crew-sop-key-toggle"><input aria-label="Copy Categories" type="checkbox" checked={copyCategories} onChange={(event) => setCopyCategories(event.target.checked)} /><span><strong>Copy Categories</strong><small>Creates missing target categories for selected SOPs.</small></span></label><p className="crew-sop-clone-note">Creates independent copies. Future edits will not sync between outlets.</p>{error ? <p role="alert" className="text-sm font-semibold text-red-600">{error}</p> : null}</div></Modal>;
+  return <Modal title="Clone SOP Library" description="Choose published SOPs to copy as independent drafts." size="lg" onClose={onClose} footer={<><button className="btn-secondary" onClick={onClose}>Cancel</button><button className="btn-primary" disabled={saving || loading || !selected.length} onClick={clone}>{saving ? "Cloning…" : "Clone SOPs"}</button></>}><div className="crew-sop-clone-form"><SelectField label="Source Outlet" ariaLabel="Source Outlet" value={sourceOutletId} onChange={setSourceOutletId} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} /><div className="crew-sop-clone-target"><span>Target</span><strong>{targetOutlet?.name || "—"}</strong></div><div className="crew-sop-clone-select"><header><div><strong>Select SOPs</strong><span>{selected.length} of {sourceSops.length} selected</span></div><button className="btn-ghost" onClick={() => setSelected(selected.length === sourceSops.length ? [] : sourceSops.map((sop) => sop.id))}>{selected.length === sourceSops.length ? "Clear all" : "Select all"}</button></header>{loading ? <p>Loading source SOPs…</p> : sourceSops.map((sop) => <label key={sop.id}><input aria-label={sop.title} type="checkbox" checked={selected.includes(sop.id)} onChange={() => setSelected((current) => current.includes(sop.id) ? current.filter((id) => id !== sop.id) : [...current, sop.id])} /><span><strong>{sop.title}</strong><small>{sop.category} · Published v{currentVersion(sop)?.version}</small></span></label>)}{!loading && !sourceSops.length ? <p>No published SOPs are available in this outlet.</p> : null}</div><label className="crew-sop-key-toggle"><input aria-label="Copy Categories" type="checkbox" checked={copyCategories} onChange={(event) => setCopyCategories(event.target.checked)} /><span><strong>Copy Categories</strong><small>Creates missing target categories for selected SOPs.</small></span></label><p className="crew-sop-clone-note">Creates independent copies. Future edits will not sync between outlets.</p>{error ? <p role="alert" className="text-sm font-semibold text-red-600">{error}</p> : null}</div></Modal>;
 }
 
 function LibrarySkeleton() { return <div className="crew-sop-library-skeleton" aria-live="polite"><span /><span /><span /><p>Loading SOP Library…</p></div>; }

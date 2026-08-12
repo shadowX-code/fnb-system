@@ -26,6 +26,7 @@ import {
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Card from "../../../components/ui/Card.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
+import SelectField from "../../../components/forms/SelectField.jsx";
 import { crewService } from "../../../services/crewService.js";
 import { employeeService } from "../../../services/employeeService.js";
 
@@ -1110,20 +1111,13 @@ function JourneyBuilder({
                 </div>
                 {newBlock === "sop_reference" ? (
                   <>
-                    <select
-                      className="input"
+                    <SelectField
+                      ariaLabel="Published SOP"
                       value={sopId}
-                      onChange={(event) => setSopId(event.target.value)}
-                    >
-                      <option value="">Choose published SOP</option>
-                      {sops
-                        .filter((sop) => sop.status === "published")
-                        .map((sop) => (
-                          <option value={sop.id} key={sop.id}>
-                            {sop.title}
-                          </option>
-                        ))}
-                    </select>
+                      onChange={setSopId}
+                      placeholder="Choose published SOP"
+                      options={sops.filter((sop) => sop.status === "published").map((sop) => ({ value: sop.id, label: sop.title }))}
+                    />
                     <button
                       className="btn-secondary"
                       disabled={!sopId}
@@ -1335,16 +1329,7 @@ function CrewProgress({ assignments, onOpenJourney }) {
           onChange={(event) => setQuery(event.target.value)}
           placeholder="Search employee or journey"
         />
-        <select
-          className="input w-44"
-          value={status}
-          onChange={(event) => setStatus(event.target.value)}
-        >
-          <option value="all">All status</option>
-          <option value="not_started">Not started</option>
-          <option value="in_progress">In progress</option>
-          <option value="completed">Completed</option>
-        </select>
+        <SelectField className="w-44" ariaLabel="Status" value={status} onChange={setStatus} options={[{ value: "all", label: "All" }, { value: "not_started", label: "Not started" }, { value: "in_progress", label: "In progress" }, { value: "completed", label: "Completed" }]} />
       </section>
       <Card
         title="Learning assignments"

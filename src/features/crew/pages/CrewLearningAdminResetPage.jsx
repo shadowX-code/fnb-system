@@ -16,6 +16,7 @@ import {
 } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
+import SelectField from "../../../components/forms/SelectField.jsx";
 import { crewService } from "../../../services/crewService.js";
 import { outletService } from "../../../services/outletService.js";
 import {
@@ -417,18 +418,7 @@ export default function CrewLearningAdminResetPage({
 }
 
 function OutletContext({ outlets, value, onChange }) {
-  return (
-    <label className="crew-learning-outlet-context">
-      <span>Outlet</span>
-      <select value={value} onChange={(event) => onChange(event.target.value)}>
-        {outlets.map((outlet) => (
-          <option key={outlet.id} value={outlet.id}>
-            {outlet.name}
-          </option>
-        ))}
-      </select>
-    </label>
-  );
+  return <SelectField className="crew-learning-outlet-context" label="Outlet" ariaLabel="Outlet" value={value} onChange={onChange} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} />;
 }
 
 function OnboardingWorkspace({
@@ -612,12 +602,7 @@ function OnboardingProgress({ rows }) {
             placeholder="Search Crew"
           />
         </label>
-        <select value={status} onChange={(event) => setStatus(event.target.value)}>
-          <option value="all">All statuses</option>
-          <option value="not_started">Not started</option>
-          <option value="in_progress">In progress</option>
-          <option value="completed">Completed</option>
-        </select>
+        <SelectField ariaLabel="Status" value={status} onChange={setStatus} options={[{ value: "all", label: "All" }, { value: "not_started", label: "Not started" }, { value: "in_progress", label: "In progress" }, { value: "completed", label: "Completed" }]} />
       </div>
       <div className="crew-progress-table-wrap">
         <table className="crew-progress-table">
@@ -781,11 +766,7 @@ function CloneSetupModal({ targetOutlet, outlets, saving, onClose, onClone }) {
           <div><h2>Clone Learning Setup</h2><p>Create independent drafts for {targetOutlet?.name}.</p></div>
           <button className="btn-icon" onClick={onClose} aria-label="Close">×</button>
         </header>
-        <label>Source outlet
-          <select className="input" value={values.sourceOutletId} onChange={(event) => setValues({ ...values, sourceOutletId: event.target.value })}>
-            {outlets.map((outlet) => <option key={outlet.id} value={outlet.id}>{outlet.name}</option>)}
-          </select>
-        </label>
+        <SelectField label="Source outlet" ariaLabel="Source outlet" value={values.sourceOutletId} onChange={(sourceOutletId) => setValues({ ...values, sourceOutletId })} options={outlets.map((outlet) => ({ value: outlet.id, label: outlet.name }))} />
         <fieldset>
           <legend>Copy</legend>
           <label><input type="checkbox" checked={values.copyOnboarding} onChange={(event) => changeOnboarding(event.target.checked)} /> New Crew Onboarding</label>
@@ -816,10 +797,7 @@ function SopDraftModal({ categories, saving, onClose, onSave }) {
       <section className="modal-content crew-sop-draft-modal">
         <header><div><h2>New SOP</h2><p>Start one editable outlet draft.</p></div><button className="btn-icon" onClick={onClose} aria-label="Close">×</button></header>
         <label>Title<input className="input" value={values.title} onChange={(event) => setValues({ ...values, title: event.target.value })} /></label>
-        <label>Category<select className="input" value={values.categoryId} onChange={(event) => setValues({ ...values, categoryId: event.target.value })}>
-          {categories.map((category) => <option key={category.id} value={category.id}>{category.name}</option>)}
-          <option value="__new__">Create new category</option>
-        </select></label>
+        <SelectField label="Category" ariaLabel="Category" value={values.categoryId} onChange={(categoryId) => setValues({ ...values, categoryId })} options={[...categories.map((category) => ({ value: category.id, label: category.name })), { value: "__new__", label: "Create new category" }]} />
         {values.categoryId === "__new__" && <label>New category<input className="input" value={values.newCategory} onChange={(event) => setValues({ ...values, newCategory: event.target.value })} /></label>}
         <label>Summary<textarea className="input min-h-24" value={values.summary} onChange={(event) => setValues({ ...values, summary: event.target.value })} /></label>
         <footer><button className="btn-secondary" onClick={onClose}>Cancel</button><button className="btn-primary" disabled={saving || !values.title.trim() || (values.categoryId === "__new__" && !values.newCategory.trim())} onClick={() => onSave(values)}>{saving ? "Creating…" : "Create draft"}</button></footer>

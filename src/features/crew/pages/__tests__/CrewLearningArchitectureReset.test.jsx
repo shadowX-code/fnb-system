@@ -116,7 +116,7 @@ describe("Crew Learning architecture reset UI", () => {
     );
 
     await screen.findByRole("heading", { name: "New Crew Onboarding", level: 1 });
-    expect(screen.getByLabelText("Outlet").value).toBe("outlet-1");
+    expect(screen.getByLabelText("Outlet").textContent).toContain("Hola Hola Kopitiam Ipoh");
     expect(
       screen.getByText(/Mandatory for all eligible Crew$/),
     ).not.toBeNull();
@@ -139,7 +139,8 @@ describe("Crew Learning architecture reset UI", () => {
     mocks.listSops.mockResolvedValue({ categories: [], sops: [] });
     render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
     await screen.findByText(/No onboarding setup for/);
-    fireEvent.change(screen.getByLabelText("Outlet"), { target: { value: "outlet-2" } });
+    fireEvent.click(screen.getByLabelText("Outlet"));
+    fireEvent.click(screen.getByRole("button", { name: "JYMT Kopitiam" }));
     await waitFor(() => expect(mocks.listOnboarding).toHaveBeenCalledWith("outlet-2"));
     expect(mocks.progress).toHaveBeenCalledWith("outlet-2");
     expect(mocks.listSops).toHaveBeenCalledWith("outlet-2");
@@ -162,7 +163,7 @@ describe("Crew Learning architecture reset UI", () => {
       />,
     );
     await screen.findByRole("heading", { name: "New Crew Onboarding", level: 1 });
-    expect(screen.getByLabelText("Outlet").value).toBe("outlet-1");
+    expect(screen.getByLabelText("Outlet").textContent).toContain("Hola Hola Kopitiam Ipoh");
   });
 
   it("groups the SOP Library by category with one primary creation action", async () => {

@@ -5179,6 +5179,12 @@ Service rules:
 - SOP content uses one hierarchy: Category → SOP → Version → ordered Sections. Published versions are read-only; edits require a new draft version. Crew can search every published SOP for their outlet and acknowledge required versions through token-bound authorities.
 - Admin Learning uses one visible outlet context with `Onboarding` and `SOP Library`. Onboarding contains Overview, Modules, and Crew Progress tabs; no manager action is required to assign mandatory onboarding.
 
+### Crew Admin UI Foundation Rules
+
+- Crew dropdowns and selects must never use the browser-native grey control. Reuse the established Restaurant / Factory FeedX select pattern: white surface, shared border and radius, shared control height, explicit chevron, consistent typography, and visible hover/focus states.
+- Every filter's unscoped option is labelled exactly `All`. The field label already communicates the dimension, so labels such as `All Categories`, `All Status`, `All Frequency`, and `All Outlet` are not used.
+- All Crew list, table, filter, badge, modal, and action UI must follow the mature Restaurant / Factory patterns. Crew must not introduce or maintain a separate visual vocabulary for the same interaction.
+
 ### Phase C: Import Engine Completion
 
 - Complete Sales Import QA.
