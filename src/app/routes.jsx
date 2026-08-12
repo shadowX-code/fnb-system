@@ -27,6 +27,7 @@ import CrewAttendanceAdminPage from "../features/crew/pages/CrewAttendanceAdminP
 import CrewLearningAdminResetPage from "../features/crew/pages/CrewLearningAdminResetPage.jsx";
 import CrewSopLibraryPage from "../features/crew/pages/CrewSopLibraryPage.jsx";
 import CrewGrowthAdminPage from "../features/crew/pages/CrewGrowthAdminPage.jsx";
+import CrewPerformanceAdminPage from "../features/crew/pages/CrewPerformanceAdminPage.jsx";
 import { getSidebarSections, moduleRegistry, viewPermission } from "../../config/modules.ts";
 
 function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSection = "Workspace" }) {
@@ -400,6 +401,24 @@ export const routeDetails = {
     component: CrewGrowthAdminPage,
     permission: "crew_growth.view",
     props: { initialTab: "reviews" },
+  },
+  crew_performance: {
+    description: "Review explainable monthly Crew performance and evidence.",
+    component: CrewPerformanceAdminPage,
+    permission: "crew_performance.view",
+    props: { initialTab: "overview" },
+  },
+  crew_performance_reviews: {
+    description: "Complete Service Standards and Conduct reviews.",
+    component: CrewPerformanceAdminPage,
+    permission: "crew_performance.review",
+    props: { initialTab: "reviews" },
+  },
+  crew_customer_feedback: {
+    description: "Review outlet-bound guest feedback and audited scoring exclusions.",
+    component: CrewPerformanceAdminPage,
+    permission: "crew_feedback.view",
+    props: { initialTab: "feedback" },
   },
 };
 

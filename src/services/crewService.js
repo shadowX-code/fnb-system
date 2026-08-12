@@ -103,6 +103,58 @@ export const crewService = {
     };
   },
 
+  async performanceMobile(token, period = new Date().toISOString().slice(0, 10)) {
+    const { data, error } = await supabase.rpc("crew_performance_mobile", { p_token: token, p_period: period });
+    throwSupabaseError("crew.performanceMobile", error);
+    return data;
+  },
+
+  async performanceAdminData(outletId, period) {
+    const { data, error } = await supabase.rpc("crew_performance_admin_data", { p_outlet_id: outletId, p_period: period });
+    throwSupabaseError("crew.performanceAdminData", error);
+    return data || { summary: {}, crew: [], reviews: [], feedback: [] };
+  },
+
+  async submitPerformanceReview({ employeeId, period, component, criteria, note = "" }) {
+    const { data, error } = await supabase.rpc("crew_performance_submit_review", {
+      p_employee_id: employeeId, p_period: period, p_component: component, p_criteria: criteria, p_note: note,
+    });
+    throwSupabaseError("crew.submitPerformanceReview", error);
+    return data;
+  },
+
+  async finalizePerformance(employeeId, period) {
+    const { data, error } = await supabase.rpc("crew_performance_finalize", { p_employee_id: employeeId, p_period: period });
+    throwSupabaseError("crew.finalizePerformance", error);
+    return data;
+  },
+
+  async moderateFeedback(feedbackId, exclude, reason) {
+    const { data, error } = await supabase.rpc("crew_feedback_moderate", { p_feedback_id: feedbackId, p_exclude: exclude, p_reason: reason });
+    throwSupabaseError("crew.moderateFeedback", error);
+    return data;
+  },
+
+  async publicFeedbackCrew(outletId) {
+    const { data, error } = await supabase.rpc("crew_feedback_public_crew", { p_outlet_id: outletId });
+    throwSupabaseError("crew.publicFeedbackCrew", error);
+    return data;
+  },
+
+  async submitPublicFeedback(payload) {
+    const { data, error } = await supabase.rpc("crew_feedback_submit", {
+      p_outlet_id: payload.outletId,
+      p_employee_id: payload.employeeId,
+      p_experience: payload.experience,
+      p_positive_tags: payload.positiveTags || [],
+      p_improvement_tags: payload.improvementTags || [],
+      p_comment: payload.comment || "",
+      p_client_token: payload.clientToken,
+    });
+    throwSupabaseError("crew.submitPublicFeedback", error);
+    return data;
+  },
+
   async learningAssignment(token, assignmentId) {
     const { data, error } = await supabase.rpc("crew_learning_assignment", { p_token: token, p_assignment_id: assignmentId });
     throwSupabaseError("crew.learningAssignment", error);

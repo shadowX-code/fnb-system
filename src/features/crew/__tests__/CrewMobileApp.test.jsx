@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   attendanceContext: vi.fn(),
   learningHome: vi.fn(),
   growthMobile: vi.fn(),
+  performanceMobile: vi.fn(),
   sopLibrary: vi.fn(),
   learningAssignment: vi.fn(),
   clock: vi.fn(),
@@ -33,6 +34,7 @@ const growth = {
   timeline: [{ type: "sop", label: "Greeting SOP acknowledged", skill_name: "Customer Greeting", occurred_at: "2026-08-12T00:00:00Z" }],
   performance: null,
 };
+const performance = { period_start: "2026-08-01", status: "finalized", score: 87, calculation_version: "performance-v1", breakdown: { attendance: { score: 28, explanation: "Verified attendance evidence." }, service: { score: 26, explanation: "Reviewed standards." }, customer: { score: 13, confidence: "established", explanation: "Five responses." }, knowledge: { score: 14, explanation: "Learning evidence." }, conduct: { score: 6, explanation: "Reviewed conduct." } }, trend: [{ period_start: "2026-08-01", score: 87, status: "finalized" }] };
 
 beforeEach(() => {
   localStorage.clear();
@@ -41,6 +43,7 @@ beforeEach(() => {
   mocks.attendanceContext.mockReset().mockResolvedValue({ outlet_name: "Friends Corner", location_enabled: false });
   mocks.learningHome.mockReset().mockResolvedValue({ assignment: { id: "assignment-1", progress_percentage: 25, lessons_completed: 2, lessons_total: 8 }, required_sops: [] });
   mocks.growthMobile.mockReset().mockResolvedValue(growth);
+  mocks.performanceMobile.mockReset().mockResolvedValue(performance);
   mocks.sopLibrary.mockReset().mockResolvedValue({ categories: [], sops: [] });
   mocks.learningAssignment.mockReset().mockResolvedValue({ id: "assignment-1", journey: { name: "New Crew Onboarding" }, modules: [] });
   mocks.clock.mockReset().mockResolvedValue({});
@@ -97,5 +100,17 @@ describe("Crew Mobile redesign", () => {
     expect(document.body.textContent).not.toContain("Manager note");
     expect(screen.queryByRole("button", { name: /Certify|Submit Assessment/ })).toBeNull();
     expect(mocks.growthMobile).toHaveBeenCalledWith("crew-token");
+  });
+
+  it("shows the signed-in employee's safe Performance breakdown", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    render(<CrewMobileApp />);
+    fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[3]);
+    fireEvent.click(await screen.findByRole("button", { name: /Performance.*monthly score/ }));
+    expect(screen.getByRole("heading", { name: "My Performance" })).not.toBeNull();
+    expect(screen.getAllByText("87").length).toBeGreaterThan(0);
+    expect(screen.getByText("Service Standards")).not.toBeNull();
+    expect(document.body.textContent).not.toContain("Manager note");
+    expect(mocks.performanceMobile).toHaveBeenCalledWith("crew-token");
   });
 });

@@ -10,6 +10,8 @@ export type ModuleAction =
   | "upload"
   | "manage"
   | "review"
+  | "finalize"
+  | "moderate"
   | "assess"
   | "certify"
   | "audit"
@@ -43,6 +45,8 @@ export const permissionActionOrder: ModuleAction[] = [
   "reset_password",
   "approve",
   "review",
+  "finalize",
+  "moderate",
   "assess",
   "certify",
   "audit",
@@ -66,6 +70,8 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   reset_password: "Reset Password",
   approve: "Approve",
   review: "Review",
+  finalize: "Finalize",
+  moderate: "Moderate",
   assess: "Assess",
   certify: "Certify",
   audit: "Audit",
@@ -753,6 +759,36 @@ export const moduleRegistry: AppModule[] = [
     sidebar: true,
     workspace: "crew",
     permissions: {},
+  },
+  {
+    id: "crew_performance",
+    section: "Performance",
+    label: "Performance Overview",
+    route: "/crew/performance",
+    icon: "crew-performance",
+    sidebar: true,
+    workspace: "crew",
+    permissions: { view: true, review: true, finalize: true },
+  },
+  {
+    id: "crew_performance_reviews",
+    section: "Performance",
+    label: "Reviews",
+    route: "/crew/performance/reviews",
+    icon: "crew-performance-reviews",
+    sidebar: true,
+    workspace: "crew",
+    permissions: {},
+  },
+  {
+    id: "crew_customer_feedback",
+    section: "Performance",
+    label: "Customer Feedback",
+    route: "/crew/performance/feedback",
+    icon: "crew-feedback",
+    sidebar: true,
+    workspace: "crew",
+    permissions: { view: true, moderate: true },
   },
 ];
 

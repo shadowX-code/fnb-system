@@ -16,6 +16,7 @@ import { useAuth } from "../auth/AuthContext.jsx";
 import LoginPage from "../auth/LoginPage.jsx";
 import SetNewPasswordPage from "../auth/SetNewPasswordPage.jsx";
 import CrewMobileApp from "../features/crew/CrewMobileApp.jsx";
+import CrewGuestFeedback from "../features/crew/CrewGuestFeedback.jsx";
 import { filterOutletScopedRows, getAccessibleOutlets } from "../utils/accessControl.js";
 import { getSidebarSections } from "../../config/modules.ts";
 
@@ -563,6 +564,10 @@ export default function App() {
 
   if (auth.passwordRecovery) {
     return <SetNewPasswordPage />;
+  }
+
+  if (window.location.hash.startsWith("#feedback")) {
+    return <CrewGuestFeedback />;
   }
 
   if (!auth.session) {

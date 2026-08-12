@@ -42,7 +42,7 @@ function PageHeader({ title, onBack, action }) {
   </header>;
 }
 
-export default function CrewGrowthMobile({ data, loading, error, onRetry }) {
+export default function CrewGrowthMobile({ data, performance, loading, error, onRetry }) {
   const [view, setView] = useState("overview");
   const [selectedSkill, setSelectedSkill] = useState(null);
   const [query, setQuery] = useState("");
@@ -130,10 +130,20 @@ export default function CrewGrowthMobile({ data, loading, error, onRetry }) {
     </section>;
   }
 
-  if (view === "performance") return <section className="crew-v2-growth">
-    <PageHeader title="Performance" onBack={() => setView("overview")} />
-    <section className="crew-v2-performance-empty"><Target size={28} /><h2>Performance is coming soon</h2><p>Your verified score and breakdown will appear here when Performance is enabled for your outlet.</p></section>
-  </section>;
+  if (view === "performance") {
+    const breakdown = [
+      ["attendance", "Attendance", 30], ["service", "Service Standards", 30], ["customer", "Customer Experience", 15],
+      ["knowledge", "Knowledge & SOP", 15], ["conduct", "Conduct", 10],
+    ];
+    return <section className="crew-v2-growth crew-v2-performance">
+      <PageHeader title="My Performance" onBack={() => setView("overview")} />
+      {!performance ? <section className="crew-v2-performance-empty"><Target size={28} /><h2>Performance is not available yet</h2><p>Your monthly score will appear after the outlet has enough verified evidence.</p></section> : <>
+        <article className="crew-v2-performance-hero"><small>{new Date(performance.period_start).toLocaleDateString("en-MY", { month: "long", year: "numeric" })}</small><div><strong>{performance.score == null ? "—" : Math.round(performance.score)}</strong><span>out of 100</span></div><h2>{performance.score == null ? "Review in progress" : performance.score >= 85 ? "Great work!" : performance.score >= 70 ? "Good progress" : "Keep improving"}</h2><p>{performance.status === "finalized" ? "Finalized monthly result" : "Evidence is still being reviewed"}</p></article>
+        <section className="crew-v2-section-block"><div className="crew-v2-section-title"><h2>Score breakdown</h2><span>{performance.calculation_version}</span></div><div className="crew-v2-performance-list">{breakdown.map(([key, label, max]) => { const item = performance.breakdown?.[key] || {}; const value = item.score; return <details key={key}><summary><span><strong>{label}</strong><small>{item.confidence ? `${String(item.confidence).replaceAll("_", " ")} confidence` : item.status === "review_required" ? "Manager review required" : "Evidence based"}</small></span><b>{value == null ? "—" : Math.round(value)} / {max}</b></summary><div className="crew-v2-performance-meter"><i style={{ width: `${value == null ? 0 : Math.min(100, Number(value) * 100 / max)}%` }} /></div><p>{item.explanation || "This component is calculated from verified FeedX evidence."}</p></details>; })}</div></section>
+        <section className="crew-v2-section-block"><div className="crew-v2-section-title"><h2>Recent months</h2></div><div className="crew-v2-performance-trend">{(performance.trend || []).map((item) => <span key={item.period_start}><small>{new Date(item.period_start).toLocaleDateString("en-MY", { month: "short" })}</small><strong>{item.score == null ? "—" : Math.round(item.score)}</strong></span>)}</div></section>
+      </>}
+    </section>;
+  }
 
   return <section className="crew-v2-growth">
     <PageHeader title="Growth" />
@@ -153,7 +163,7 @@ export default function CrewGrowthMobile({ data, loading, error, onRetry }) {
       <button type="button" onClick={() => setView("skills")}><BookOpenCheck size={18} /><span><strong>Skills</strong><small>See requirements and evidence</small></span><ChevronRight size={17} /></button>
       <button type="button" onClick={() => setView("path")}><Target size={18} /><span><strong>My Path</strong><small>Your next milestone and history</small></span><ChevronRight size={17} /></button>
       <button type="button" onClick={() => setView("certifications")}><Award size={18} /><span><strong>My Certifications</strong><small>Ready, in progress and completed</small></span><ChevronRight size={17} /></button>
-      <button type="button" onClick={() => setView("performance")}><Sparkles size={18} /><span><strong>Performance</strong><small>{data?.performance ? "View your score" : "Coming soon"}</small></span><ChevronRight size={17} /></button>
+      <button type="button" onClick={() => setView("performance")}><Sparkles size={18} /><span><strong>Performance</strong><small>{performance ? "View your monthly score" : "Evidence in progress"}</small></span><ChevronRight size={17} /></button>
     </div>
   </section>;
 }

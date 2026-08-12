@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { AlertTriangle, BarChart3, Bell, Boxes, Building2, CalendarDays, Check, ChevronsDownUp, ChevronsUpDown, ChevronDown, ClipboardCheck, ClipboardList, Clock3, Download, Eye, EyeOff, Factory, FileText, FlaskConical, KeyRound, LogOut, Menu, Monitor, Moon, PackageCheck, PackagePlus, PieChart, RefreshCw, Settings, Shield, ShoppingCart, Sun, Truck, UserRound, Users, Wallet, Warehouse, X } from "lucide-react";
+import { AlertTriangle, BarChart3, Bell, Boxes, Building2, CalendarDays, Check, ChevronsDownUp, ChevronsUpDown, ChevronDown, ClipboardCheck, ClipboardList, Clock3, Download, Eye, EyeOff, Factory, FileText, FlaskConical, Gauge, KeyRound, LogOut, Menu, MessageSquareText, Monitor, Moon, PackageCheck, PackagePlus, PieChart, RefreshCw, Settings, Shield, ShoppingCart, Sun, Truck, UserRound, Users, Wallet, Warehouse, X } from "lucide-react";
 import Modal from "../components/feedback/Modal.jsx";
 import Badge from "../components/ui/Badge.jsx";
 import FloatingLayer from "../components/ui/FloatingLayer.jsx";
@@ -71,6 +71,9 @@ const iconMap = {
   "crew-growth-skills": ClipboardList,
   "crew-growth-people": Users,
   "crew-growth-reviews": ClipboardCheck,
+  "crew-performance": Gauge,
+  "crew-performance-reviews": ClipboardCheck,
+  "crew-feedback": MessageSquareText,
 };
 
 function latestPeriod(store) {
