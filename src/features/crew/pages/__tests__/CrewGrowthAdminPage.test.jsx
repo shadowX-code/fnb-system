@@ -22,11 +22,15 @@ describe("Crew Growth Admin", () => {
     expect(await screen.findByRole("heading", { name: "Growth Overview" })).not.toBeNull();
     expect(screen.getAllByText("Customer Greeting").length).toBeGreaterThan(0);
     expect(screen.getByText("Assessment pending")).not.toBeNull();
+    expect(mocks.journeys).not.toHaveBeenCalled();
+    expect(mocks.sops).not.toHaveBeenCalled();
   });
 
   it("renders Skills filters and opens the requirement editor", async () => {
     render(<CrewGrowthAdminPage initialTab="skills" auth={auth} ui={ui} store={{ outlets: [outlet] }} />);
     await screen.findByRole("heading", { name: "Skills" });
+    expect(mocks.journeys).toHaveBeenCalledWith("outlet-1");
+    expect(mocks.sops).toHaveBeenCalledWith("outlet-1");
     fireEvent.click(screen.getByRole("button", { name: "View / Edit" }));
     expect(screen.getByRole("dialog", { name: "Edit Skill" })).not.toBeNull();
     expect(screen.getByText("Certification Requirements")).not.toBeNull();

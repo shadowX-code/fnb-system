@@ -47,17 +47,21 @@ export default function CrewGrowthAdminPage({ auth, ui, store, initialTab = "ove
     if (!outletId) return;
     setLoading(true);
     try {
-      const [growth, journeys, sops] = await Promise.all([
-        crewService.growthAdminData(outletId),
-        crewService.listOnboardingAdmin(outletId),
-        crewService.listOutletSopsAdmin(outletId),
-      ]);
+      const growth = await crewService.growthAdminData(outletId);
       setData(growth);
-      setEvidence(buildEvidence(journeys, sops?.sops || []));
+      if (initialTab === "skills") {
+        const [journeys, sops] = await Promise.all([
+          crewService.listOnboardingAdmin(outletId),
+          crewService.listOutletSopsAdmin(outletId),
+        ]);
+        setEvidence(buildEvidence(journeys, sops?.sops || []));
+      } else {
+        setEvidence([]);
+      }
     } catch (cause) { ui.notify({ title: "Unable to load Crew Growth", message: cause.message, tone: "error" }); }
     finally { setLoading(false); }
   }
-  useEffect(() => { refresh(); }, [outletId]);
+  useEffect(() => { refresh(); }, [initialTab, outletId]);
 
   async function saveSkill(payload) {
     try {
