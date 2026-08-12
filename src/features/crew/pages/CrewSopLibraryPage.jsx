@@ -263,7 +263,7 @@ function SopLibrary({ outlet, sops, categories, loading, canManage, onOpen, onEd
     <section className="crew-sop-table-card" aria-label="SOP list">
     {rows.length ? <DataTable
       density="normal"
-      tableClassName="min-w-[1120px] table-fixed"
+      tableClassName="min-w-[980px] table-fixed"
       rows={rows}
       getRowKey={(row) => row.id}
       onRowClick={(row) => onOpen(row.id)}

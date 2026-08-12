@@ -69,6 +69,7 @@ describe("Crew SOP Library Admin", () => {
   it("uses outlet-scoped table filters and shows draft state", async () => {
     renderPage();
     await screen.findByRole("heading", { name: "SOP Library" });
+    expect(document.querySelector("table").className).toContain("min-w-[980px]");
     expect(screen.getByText("Draft v2")).not.toBeNull();
     fireEvent.change(screen.getByLabelText("Search SOP"), { target: { value: "Kitchen" } });
     expect(screen.queryByText("Welcome & Goodbye Standard")).toBeNull();
