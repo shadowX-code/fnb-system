@@ -160,6 +160,7 @@ describe("Crew SOP Library Admin", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "Edit Draft" })[0]);
     fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     expect(screen.getByRole("heading", { name: "Preview · v2" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "← Back to Editor" })).not.toBeNull();
     expect(screen.getByText("Smile and make eye contact.")).not.toBeNull();
     expect(screen.queryByLabelText("Document version")).toBeNull();
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
