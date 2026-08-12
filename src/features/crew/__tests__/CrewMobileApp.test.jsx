@@ -9,6 +9,11 @@ const mocks = vi.hoisted(() => ({
   growthMobile: vi.fn(),
   performanceMobile: vi.fn(),
   rewardMobile: vi.fn(),
+  operationsToday: vi.fn(),
+  operationDetail: vi.fn(),
+  updateOperationItem: vi.fn(),
+  completeOperationChecklist: vi.fn(),
+  updateDailyTask: vi.fn(),
   sopLibrary: vi.fn(),
   learningAssignment: vi.fn(),
   clock: vi.fn(),
@@ -47,6 +52,11 @@ beforeEach(() => {
   mocks.growthMobile.mockReset().mockResolvedValue(growth);
   mocks.performanceMobile.mockReset().mockResolvedValue(performance);
   mocks.rewardMobile.mockReset().mockResolvedValue(reward);
+  mocks.operationsToday.mockReset().mockResolvedValue({ outlet: { id: "outlet-1", name: "Friends Corner" }, attendance_context: { on_shift: false }, checklists: [{ id: "ops-1", name: "Opening Checklist", type: "opening", status: "not_started", item_count: 2, completed_count: 0 }], daily_tasks: [{ id: "task-1", title: "Check reservation board", status: "pending", priority: "normal" }] });
+  mocks.operationDetail.mockReset().mockResolvedValue({ id: "ops-1", name: "Opening Checklist", type: "opening", status: "not_started", items: [{ id: "item-1", title: "Unlock guest entrance", required: true, status: "pending" }] });
+  mocks.updateOperationItem.mockReset().mockResolvedValue({});
+  mocks.completeOperationChecklist.mockReset().mockResolvedValue({});
+  mocks.updateDailyTask.mockReset().mockResolvedValue({});
   mocks.sopLibrary.mockReset().mockResolvedValue({ categories: [], sops: [] });
   mocks.learningAssignment.mockReset().mockResolvedValue({ id: "assignment-1", journey: { name: "New Crew Onboarding" }, modules: [] });
   mocks.clock.mockReset().mockResolvedValue({});
@@ -82,6 +92,16 @@ describe("Crew Mobile redesign", () => {
     fireEvent.click(await screen.findByRole("button", { name: /Attendance.*Clock In.*Tap to start your shift/ }));
     expect(screen.getByRole("heading", { name: "Attendance" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "Clock In" })).not.toBeNull();
+  });
+
+  it("opens Today’s Tasks without changing the five-item bottom navigation", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    render(<CrewMobileApp />);
+    fireEvent.click(await screen.findByRole("button", { name: /Today’s Tasks/ }));
+    expect(screen.getByRole("heading", { name: "Today’s Tasks" })).not.toBeNull();
+    expect(screen.getByText("Opening Checklist")).not.toBeNull();
+    expect(screen.getByText("Check reservation board")).not.toBeNull();
+    expect(mocks.operationsToday).toHaveBeenCalledWith("crew-token");
   });
 
   it("shows only the signed-in employee's transparent Reward result", async () => {

@@ -405,3 +405,15 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Added outlet-scoped Reward Overview and Reward Cycles Admin UI, plus token-bound Crew Mobile Reward estimates, calculation explanation and history.
 - Applied `20260812163541_crew_monthly_reward_engine.sql`, corrective `20260812164410_crew_reward_mark_paid_runtime_fix.sql`, strict rounding/pool-cap hardening `20260812164932_crew_reward_strict_pool_cap.sql`, and PostgREST session-activity fix `20260812170155_crew_reward_mobile_runtime_fix.sql` to Staging only.
 - Created reusable Staging-only Reward QA seed and rollback behavior/security verification scripts covering High Performer, Average, Needs Attention, part-time low-hours, Not Eligible and Awaiting Performance outcomes.
+
+## 2026-08-13
+
+### Crew Daily Operations v1
+- Added outlet-scoped Opening, Closing, Daily and Store Health checklist templates with immutable active revisions, whole-template Draft saves, optional position applicability, time windows and pinned Published SOP references.
+- Added server-generated daily checklist instances with frozen template/item snapshots, server-derived Not Started/In Progress/Completed/Completed With Exceptions/Overdue state, multi-Crew first-writer item evidence and required-item completion gating.
+- Added one-time Daily Tasks and lightweight Store Health outcomes. Exceptions require a controlled reason; Needs Attention Health results require a note and remain operational evidence rather than automatic Performance deductions.
+- Added FeedX Admin Daily Operations monitoring, Checklist Template management and read-only historical detail, plus Crew Mobile Home → Today’s Tasks, checklist execution, exception capture, SOP reading and sticky checklist completion without adding a sixth bottom-navigation item.
+- Applied Staging-only migrations `20260812171446_crew_daily_operations_v1.sql` and `20260812172437_crew_daily_operations_employee_context_fix.sql` to `fnb-system-staging`. The corrective migration resolves an employee-context PL/pgSQL ambiguity found by real database behavior testing.
+- Added idempotent Staging-only Friends Corner QA seed data: eight-item Opening and Closing checklists, a ten-item Store Health check and six one-time Daily Tasks covering completed, pending, exception, overdue and Needs Attention states. No QA Crew passcode was changed.
+- Real Staging rollback behavior/security verification passed 22/22, including snapshot immutability, outlet/role scope, token identity, first-writer concurrency, required gating, exceptions, Health evidence, direct-table denial and unauthorized Admin rejection.
+- Photo evidence remains intentionally disabled in v1 until Daily Operations has a dedicated controlled media store and reference-safe deletion lifecycle; no base64 or Learning-media reuse was introduced.

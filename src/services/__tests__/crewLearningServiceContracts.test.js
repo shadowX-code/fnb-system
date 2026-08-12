@@ -27,6 +27,11 @@ describe("Crew learning mobile service boundaries", () => {
     await crewService.learningHome("crew-token");
     await crewService.growthMobile("crew-token");
     await crewService.rewardMobile("crew-token", "2026-08-01");
+    await crewService.operationsToday("crew-token", "2026-08-13");
+    await crewService.operationDetail("crew-token", "instance-1");
+    await crewService.updateOperationItem("crew-token", "item-1", "exception", "equipment_issue", "Reported");
+    await crewService.completeOperationChecklist("crew-token", "instance-1");
+    await crewService.updateDailyTask("crew-token", "task-1", "completed");
     await crewService.learningAssignment("crew-token", "assignment-1");
     await crewService.sopLibrary("crew-token");
     await crewService.submitQuiz("crew-token", "assignment-1", "quiz-1", [{ question_id: "q-1", option_ids: ["o-1"] }]);
@@ -37,6 +42,11 @@ describe("Crew learning mobile service boundaries", () => {
     expect(mocks.rpc).toHaveBeenCalledWith("crew_learning_home", { p_token: "crew-token" });
     expect(mocks.rpc).toHaveBeenCalledWith("crew_growth_mobile", { p_token: "crew-token" });
     expect(mocks.rpc).toHaveBeenCalledWith("crew_reward_mobile", { p_token: "crew-token", p_period: "2026-08-01" });
+    expect(mocks.rpc).toHaveBeenCalledWith("crew_operations_today", { p_token: "crew-token", p_business_date: "2026-08-13" });
+    expect(mocks.rpc).toHaveBeenCalledWith("crew_operations_detail", { p_token: "crew-token", p_instance_id: "instance-1" });
+    expect(mocks.rpc).toHaveBeenCalledWith("crew_operations_update_item", expect.objectContaining({ p_token: "crew-token", p_item_id: "item-1", p_action: "exception" }));
+    expect(mocks.rpc).toHaveBeenCalledWith("crew_operations_complete_checklist", { p_token: "crew-token", p_instance_id: "instance-1" });
+    expect(mocks.rpc).toHaveBeenCalledWith("crew_operations_update_daily_task", expect.objectContaining({ p_token: "crew-token", p_task_id: "task-1", p_action: "completed" }));
     expect(mocks.rpc).toHaveBeenCalledWith("crew_learning_assignment", { p_token: "crew-token", p_assignment_id: "assignment-1" });
     expect(mocks.rpc).toHaveBeenCalledWith("crew_sop_library", { p_token: "crew-token" });
     expect(mocks.rpc).toHaveBeenCalledWith("crew_submit_quiz", expect.objectContaining({ p_token: "crew-token", p_assignment_id: "assignment-1", p_quiz_id: "quiz-1" }));

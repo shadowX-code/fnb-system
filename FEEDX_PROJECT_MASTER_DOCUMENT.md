@@ -1,6 +1,6 @@
 # FeedX Project Master Document
 
-Last updated: 2026-08-11
+Last updated: 2026-08-13
 Document owner: FeedX product / engineering workspace  
 Document purpose: Permanent project source-of-truth for requirements, architecture, modules, fields, business rules, permissions, integrations, and development plan.
 
@@ -5189,6 +5189,22 @@ Service rules:
 - Learning setup is outlet-scoped end to end. Clone Learning Setup creates independent target drafts for onboarding, SOP categories, SOPs, versions, sections, quizzes, and SOP references; later edits do not cross outlet boundaries.
 - SOP content uses one hierarchy: Category → SOP → Version → ordered Sections. Published versions are read-only; edits require a new draft version. Crew can search every published SOP for their outlet and acknowledge required versions through token-bound authorities.
 - Admin Learning uses one visible outlet context with `Onboarding` and `SOP Library`. Onboarding contains Overview, Modules, and Crew Progress tabs; no manager action is required to assign mandatory onboarding.
+
+### Crew Daily Operations v1
+
+- Daily Operations is the outlet-scoped execution surface for Opening, Closing, lightweight Daily checklists, one-time Daily Tasks and Store Health checks. It does not include Duty Roster, Leave, Payroll or project-management behavior.
+- Admin navigation is deliberately limited to `Daily Operations` for dated monitoring and `Checklist Templates` for configuration. Crew Mobile keeps the five-item Home/Learn/Reward/Growth/Me bottom navigation; Today’s Tasks is entered from Home.
+- Checklist templates and daily instances are separate authorities. Templates use a Draft → Active → Archived revision lifecycle. Activating a revision makes it immutable; later changes create a new Draft revision and never rewrite historical instances.
+- Every daily instance freezes the template revision and ordered item snapshot, including required state, applicability, evidence rule and exact Published SOP version reference. Instance status is server-derived as Not Started, In Progress, Completed, Completed With Exceptions or Overdue.
+- Multiple applicable Crew may contribute to one checklist. Each item records the first accepted employee, timestamp, status, exception reason/note and safe evidence reference. Controlled writes are idempotent and later duplicate completion cannot replace the original actor or evidence.
+- Required items must be completed or recorded as an explained exception before checklist completion. Optional items do not block completion. Opening/Closing execution windows are enforced by the server; missing windows mean all-day availability.
+- Store Health outcomes are Good, Needs Attention and Not Checked. Needs Attention requires a note and is visible to Managers as operational evidence; it does not directly deduct Performance points.
+- Daily Tasks are intentionally small, dated outlet tasks with priority, due time, applicability and optional pinned SOP reference. Their server-derived states are Pending, In Progress, Completed or Exception.
+- Crew can review applicable tasks without Clocking In. Attendance context is returned for clarity, but v1 does not impose an unreliable attendance hard gate on operational execution.
+- Permissions are `crew_operations.view`, `crew_operations.manage` and `crew_operations.review`. Admin authorities enforce authenticated permission and outlet scope. Crew authorities derive employee/outlet identity only from the opaque Crew session token. Operation tables have no direct Crew table-write path.
+- SECURITY DEFINER authorities use a fixed `public` search path and explicit grants. Internal helpers have no anon/authenticated execution; only token-bound Crew RPCs intentionally allow anon/authenticated execution.
+- Dedicated Daily Operations photo storage is deferred hardening debt. Photo evidence remains disabled until MIME/size policy, outlet-scoped upload authority, published/history reference tracking and safe deletion rules are provided; images are never stored as base64.
+- Staging QA data is recreated through `scripts/seedCrewDailyOperationsQaData.sh`, which hard-checks Supabase ref `ujkzdaaadnvcfayuldmh`, targets explicit QA Crew only and never runs automatically or against Production.
 
 ### Crew Admin UI Foundation Rules
 

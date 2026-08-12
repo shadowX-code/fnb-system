@@ -29,6 +29,7 @@ import CrewSopLibraryPage from "../features/crew/pages/CrewSopLibraryPage.jsx";
 import CrewGrowthAdminPage from "../features/crew/pages/CrewGrowthAdminPage.jsx";
 import CrewPerformanceAdminPage from "../features/crew/pages/CrewPerformanceAdminPage.jsx";
 import CrewRewardAdminPage from "../features/crew/pages/CrewRewardAdminPage.jsx";
+import CrewOperationsAdminPage from "../features/crew/pages/CrewOperationsAdminPage.jsx";
 import { getSidebarSections, moduleRegistry, viewPermission } from "../../config/modules.ts";
 
 function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSection = "Workspace" }) {
@@ -355,6 +356,18 @@ export const routeDetails = {
     description: "Review Crew mobile attendance history.",
     component: CrewAttendanceAdminPage,
     permission: "crew_attendance.view",
+  },
+  crew_operations: {
+    description: "Monitor outlet Opening, Closing, Daily Tasks and Store Health execution.",
+    component: CrewOperationsAdminPage,
+    permission: "crew_operations.view",
+    props: { initialTab: "overview" },
+  },
+  crew_operation_templates: {
+    description: "Manage versioned outlet checklist templates and immutable revisions.",
+    component: CrewOperationsAdminPage,
+    permission: "crew_operations.view",
+    props: { initialTab: "templates" },
   },
   crew_learning: {
     description: "Configure mandatory outlet onboarding and review Crew progress.",

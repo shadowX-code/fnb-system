@@ -115,6 +115,72 @@ export const crewService = {
     return data;
   },
 
+  async operationsToday(token, date = new Date().toISOString().slice(0, 10)) {
+    const { data, error } = await supabase.rpc("crew_operations_today", { p_token: token, p_business_date: date });
+    throwSupabaseError("crew.operationsToday", error);
+    return data || { checklists: [], daily_tasks: [], attendance_context: null };
+  },
+
+  async operationDetail(token, instanceId) {
+    const { data, error } = await supabase.rpc("crew_operations_detail", { p_token: token, p_instance_id: instanceId });
+    throwSupabaseError("crew.operationDetail", error);
+    return data;
+  },
+
+  async updateOperationItem(token, itemId, action, reason = null, note = null) {
+    const { data, error } = await supabase.rpc("crew_operations_update_item", { p_token: token, p_item_id: itemId, p_action: action, p_reason: reason, p_note: note, p_evidence: null });
+    throwSupabaseError("crew.updateOperationItem", error);
+    return data;
+  },
+
+  async completeOperationChecklist(token, instanceId) {
+    const { data, error } = await supabase.rpc("crew_operations_complete_checklist", { p_token: token, p_instance_id: instanceId });
+    throwSupabaseError("crew.completeOperationChecklist", error);
+    return data;
+  },
+
+  async updateDailyTask(token, taskId, action, reason = null, note = null) {
+    const { data, error } = await supabase.rpc("crew_operations_update_daily_task", { p_token: token, p_task_id: taskId, p_action: action, p_reason: reason, p_note: note });
+    throwSupabaseError("crew.updateDailyTask", error);
+    return data;
+  },
+
+  async operationsAdminData(outletId, date = new Date().toISOString().slice(0, 10)) {
+    const { data, error } = await supabase.rpc("crew_operations_admin_data", { p_outlet_id: outletId, p_business_date: date });
+    throwSupabaseError("crew.operationsAdminData", error);
+    return data || { summary: {}, templates: [], instances: [], daily_tasks: [], activity: [], published_sops: [] };
+  },
+
+  async operationAdminDetail(instanceId) {
+    const { data, error } = await supabase.rpc("crew_operations_admin_detail", { p_instance_id: instanceId });
+    throwSupabaseError("crew.operationAdminDetail", error);
+    return data;
+  },
+
+  async saveOperationTemplate(outletId, template) {
+    const { data, error } = await supabase.rpc("crew_operations_save_template", { p_outlet_id: outletId, p_template: template });
+    throwSupabaseError("crew.saveOperationTemplate", error);
+    return data;
+  },
+
+  async activateOperationTemplate(templateId) {
+    const { data, error } = await supabase.rpc("crew_operations_activate_template", { p_template_id: templateId });
+    throwSupabaseError("crew.activateOperationTemplate", error);
+    return data;
+  },
+
+  async archiveOperationTemplate(templateId) {
+    const { data, error } = await supabase.rpc("crew_operations_archive_template", { p_template_id: templateId });
+    throwSupabaseError("crew.archiveOperationTemplate", error);
+    return data;
+  },
+
+  async saveDailyOperationTask(outletId, task) {
+    const { data, error } = await supabase.rpc("crew_operations_save_daily_task", { p_outlet_id: outletId, p_task: task });
+    throwSupabaseError("crew.saveDailyOperationTask", error);
+    return data;
+  },
+
   async rewardAdminData(outletId, period, cycleId = null) {
     const { data, error } = await supabase.rpc("crew_reward_admin_data", { p_outlet_id: outletId, p_period: period, p_cycle_id: cycleId });
     throwSupabaseError("crew.rewardAdminData", error);

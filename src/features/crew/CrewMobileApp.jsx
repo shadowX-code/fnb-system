@@ -6,6 +6,7 @@ import {
   BriefcaseBusiness,
   Check,
   ChevronRight,
+  ClipboardCheck,
   Clock3,
   Delete,
   FileText,
@@ -28,6 +29,7 @@ import { crewService } from "../../services/crewService.js";
 import CrewGrowthMobile from "./components/CrewGrowthMobile.jsx";
 import CrewLearningMobile from "./components/CrewLearningMobile.jsx";
 import CrewRewardMobile from "./components/CrewRewardMobile.jsx";
+import CrewOperationsMobile from "./components/CrewOperationsMobile.jsx";
 import "./CrewMobileApp.css";
 
 const storageKey = "feedx.crew.session";
@@ -139,6 +141,7 @@ export default function CrewMobileApp() {
   const [growthError, setGrowthError] = useState("");
   const [performance, setPerformance] = useState(null);
   const [reward, setReward] = useState(null);
+  const [operations, setOperations] = useState(null);
   const [loading, setLoading] = useState(false);
   const [pageLoading, setPageLoading] = useState(Boolean(session));
   const [error, setError] = useState("");
@@ -158,13 +161,14 @@ export default function CrewMobileApp() {
   async function refresh(token = session?.token) {
     if (!token) return;
     setPageLoading(true);
-    const [historyResult, contextResult, learningResult, growthResult, performanceResult, rewardResult] = await Promise.allSettled([
+    const [historyResult, contextResult, learningResult, growthResult, performanceResult, rewardResult, operationsResult] = await Promise.allSettled([
       crewService.myAttendance(token),
       crewService.attendanceContext(token),
       crewService.learningHome(token),
       crewService.growthMobile(token),
       crewService.performanceMobile(token),
       crewService.rewardMobile(token),
+      crewService.operationsToday(token),
     ]);
     if ([historyResult, contextResult, learningResult].some((result) => result.status === "rejected")) {
       const cause = [historyResult, contextResult, learningResult].find((result) => result.status === "rejected")?.reason;
@@ -185,6 +189,7 @@ export default function CrewMobileApp() {
     }
     setPerformance(performanceResult.status === "fulfilled" ? performanceResult.value : null);
     setReward(rewardResult.status === "fulfilled" ? rewardResult.value : null);
+    setOperations(operationsResult.status === "fulfilled" ? operationsResult.value : { checklists: [], daily_tasks: [] });
     setPageLoading(false);
   }
 
@@ -268,6 +273,7 @@ export default function CrewMobileApp() {
       <header className="crew-v2-home-header"><div><p>{greeting},</p><h1>{firstName} <Hand size={18} aria-hidden="true" /></h1><span className={`crew-v2-shift-pill ${openShift ? "is-on" : ""}`}>{openShift ? "On Shift" : "Not clocked in"}</span><small>{context?.outlet_name || employee.workplace || "Your outlet"}</small>{context?.shift_start && <small>{context.shift_start} – {context.shift_end}</small>}</div><div><button type="button" aria-label="Notifications"><Bell size={18} /></button><span className="crew-v2-avatar">{firstName.slice(0, 1)}</span></div></header>
       <button type="button" className={`crew-v2-attendance-card ${openShift ? "is-on" : ""}`} onClick={() => setScreen("attendance")}><span><small>{openShift ? "Clocked in" : "Attendance"}</small><strong>{openShift ? formatTime(openShift.clock_in_at) : "Clock In"}</strong><em>{openShift ? "You are on shift" : "Tap to start your shift"}</em></span><i>{openShift ? <Check size={23} /> : <Clock3 size={22} />}</i></button>
       <section className="crew-v2-home-section"><div className="crew-v2-section-title"><h2>Today’s Focus</h2><button type="button" onClick={() => setScreen("learn")}>See all</button></div><div className="crew-v2-focus-list">
+        <button type="button" onClick={() => setScreen("operations")}><span className="crew-v2-row-icon is-mint"><ClipboardCheck size={17} /></span><span><strong>Today’s Tasks</strong><small>{(operations?.checklists?.length || 0) + (operations?.daily_tasks?.length || 0) ? `${operations?.checklists?.length || 0} checklists · ${operations?.daily_tasks?.length || 0} tasks` : "No operations assigned today"}</small></span><ChevronRight size={16} /></button>
         <button type="button" onClick={() => setScreen("learn")}><span className="crew-v2-row-icon"><GraduationCap size={17} /></span><span><strong>{learningHome?.assignment ? "Continue Onboarding" : "New Crew Onboarding"}</strong><small>{learningHome?.assignment ? `${lessonCompleted} of ${lessonTotal} lessons complete` : "No assignment yet"}</small>{learningHome?.assignment && <span className="crew-v2-inline-progress"><i style={{ width: `${learningProgress}%` }} /></span>}</span><em>{learningHome?.assignment ? `${learningProgress}%` : ""}</em><ChevronRight size={16} /></button>
         <button type="button" onClick={() => setScreen("learn")}><span className="crew-v2-row-icon is-mint"><FileText size={17} /></span><span><strong>SOP Update</strong><small>{pendingSops ? `${pendingSops} acknowledgement${pendingSops === 1 ? "" : "s"} required` : "You’re up to date"}</small></span><ChevronRight size={16} /></button>
       </div></section>
@@ -277,6 +283,7 @@ export default function CrewMobileApp() {
     {screen === "learn" && <CrewLearningMobile token={session.token} onRefreshHome={setLearningHome} />}
     {screen === "reward" && <CrewRewardMobile data={reward} loading={pageLoading && !reward} onRetry={() => refresh()} />}
     {screen === "growth" && <CrewGrowthMobile data={growth} performance={performance} loading={pageLoading && !growth} error={growthError} onRetry={() => refresh()} />}
+    {screen === "operations" && <CrewOperationsMobile token={session.token} data={operations} loading={pageLoading && !operations} onRefresh={() => refresh()} onBack={() => setScreen("home")} />}
 
     {screen === "attendance" && <section className="crew-v2-attendance">
       <header className="crew-v2-page-header"><div><button type="button" onClick={() => setScreen("home")} aria-label="Back"><ArrowLeft size={19} /></button><h1>Attendance</h1></div></header>
@@ -292,6 +299,6 @@ export default function CrewMobileApp() {
       {passcodeChangeOpen && <form className="crew-v2-passcode-form" onSubmit={changePasscode}><div className="crew-v2-section-title"><h2>Change Passcode</h2><button type="button" onClick={() => setPasscodeChangeOpen(false)}>Close</button></div><label>Current passcode<input inputMode="numeric" maxLength="4" value={currentPasscode} onChange={(event) => setCurrentPasscode(event.target.value.replace(/\D/g, ""))} /></label><label>New passcode<input inputMode="numeric" maxLength="4" value={newPasscode} onChange={(event) => setNewPasscode(event.target.value.replace(/\D/g, ""))} /></label>{error && <div className="crew-v2-error">{error}</div>}<button className="crew-v2-primary" disabled={loading}>Save Passcode</button></form>}
     </section>}
 
-    <CrewNav screen={screen} onChange={(next) => { setScreen(next); if (next === "me") setMeView("main"); }} />
+    <CrewNav screen={screen === "operations" || screen === "attendance" ? "home" : screen} onChange={(next) => { setScreen(next); if (next === "me") setMeView("main"); }} />
   </section></main>;
 }
