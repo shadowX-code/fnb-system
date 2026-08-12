@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronRight, CircleAlert, Copy, GraduationCap, Search, Users } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Modal from "../../../components/feedback/Modal.jsx";
@@ -28,6 +28,7 @@ export default function CrewLearningAdminResetPage({ auth, ui, store }) {
   const [cloneOpen, setCloneOpen] = useState(false);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const refreshSequence = useRef(0);
   const canManage = auth.hasPermission("crew_learning.manage");
   const accessibleOutlets = useMemo(() => outlets.filter((outlet) => outlet.is_active !== false), [outlets]);
   const outlet = accessibleOutlets.find((item) => item.id === outletId);
@@ -54,24 +55,43 @@ export default function CrewLearningAdminResetPage({ auth, ui, store }) {
 
   async function refresh(targetOutletId = outletId) {
     if (!targetOutletId) return { versions: [], progress: [], sops: [] };
+    const requestId = ++refreshSequence.current;
     setLoading(true);
     try {
-      const [nextVersions, nextProgress, sopResult] = await Promise.all([
+      const [versionResult, progressResult, sopResult] = await Promise.allSettled([
         crewService.listOnboardingAdmin(targetOutletId),
         crewService.onboardingProgress(targetOutletId),
         crewService.listOutletSopsAdmin(targetOutletId),
       ]);
+      if (requestId !== refreshSequence.current) return { versions: [], progress: [], sops: [] };
+      if (versionResult.status === "rejected") throw versionResult.reason;
+      const nextVersions = versionResult.value || [];
+      const nextProgress = progressResult.status === "fulfilled" ? progressResult.value || [] : [];
+      const nextSops = sopResult.status === "fulfilled" ? sopResult.value?.sops || [] : [];
       setVersions(nextVersions);
       setProgress(nextProgress);
-      setSops(sopResult.sops || []);
+      setSops(nextSops);
       setEditorId((current) => nextVersions.some((item) => item.id === current) ? current : "");
-      return { versions: nextVersions, progress: nextProgress, sops: sopResult.sops || [] };
+      if (progressResult.status === "rejected") ui.notify({ title: "Crew Progress is temporarily unavailable", message: progressResult.reason?.message || "Please try again.", tone: "warning" });
+      if (sopResult.status === "rejected") ui.notify({ title: "SOP references are temporarily unavailable", message: sopResult.reason?.message || "Please try again before editing content.", tone: "warning" });
+      return { versions: nextVersions, progress: nextProgress, sops: nextSops };
     } catch (cause) {
+      if (requestId !== refreshSequence.current) return { versions: [], progress: [], sops: [] };
+      setVersions([]);
+      setProgress([]);
+      setSops([]);
+      setEditorId("");
       ui.notify({ title: "Unable to load Onboarding", message: cause.message, tone: "error" });
       return { versions: [], progress: [], sops: [] };
-    } finally { setLoading(false); }
+    } finally { if (requestId === refreshSequence.current) setLoading(false); }
   }
-  useEffect(() => { refresh(outletId); }, [outletId]);
+  useEffect(() => {
+    setVersions([]);
+    setProgress([]);
+    setSops([]);
+    setEditorId("");
+    refresh(outletId);
+  }, [outletId]);
 
   async function openEditor() {
     if (!canManage) return;

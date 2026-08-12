@@ -218,6 +218,14 @@ describe("Crew Learning architecture reset UI", () => {
     expect(mocks.listSops).toHaveBeenCalledWith("outlet-2");
   });
 
+  it("keeps outlet-scoped Onboarding available when an optional SOP query times out", async () => {
+    mocks.listSops.mockRejectedValueOnce(new Error("statement timeout"));
+    render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
+    expect(await screen.findByText("Welcome & Workplace")).not.toBeNull();
+    expect(screen.getAllByText("Hola Hola Kopitiam Ipoh").length).toBeGreaterThan(0);
+    expect(ui.notify).toHaveBeenCalledWith(expect.objectContaining({ title: "SOP references are temporarily unavailable" }));
+  });
+
   it("uses the App-scoped outlet store without requiring duplicate role outlet metadata", async () => {
     const scopedAuth = {
       ...auth,
