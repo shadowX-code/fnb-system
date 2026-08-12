@@ -83,6 +83,36 @@ describe("Crew SOP Library Admin", () => {
     expect(screen.getAllByRole("button", { name: "Clone From Outlet" }).length).toBeGreaterThan(0);
   });
 
+  it("keeps row actions lifecycle-specific and never edits published content directly", async () => {
+    renderPage();
+    await screen.findByText("Welcome & Goodbye Standard");
+    fireEvent.click(screen.getByRole("button", { name: "More actions for Welcome & Goodbye Standard" }));
+    expect(screen.getByRole("menuitem", { name: "View Published" })).not.toBeNull();
+    expect(screen.getByRole("menuitem", { name: "Continue Editing Draft" })).not.toBeNull();
+    expect(screen.getByRole("menuitem", { name: "Delete Draft" })).not.toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Create New Version" })).toBeNull();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Delete Draft" }));
+    await waitFor(() => expect(mocks.deleteDraft).toHaveBeenCalledWith("crew_sop_versions", "v2"));
+
+    fireEvent.click(screen.getByRole("button", { name: "More actions for Kitchen Safety" }));
+    expect(screen.getByRole("menuitem", { name: "Create New Version" })).not.toBeNull();
+    expect(screen.queryByRole("menuitem", { name: /Edit/ })).toBeNull();
+  });
+
+  it("offers edit and safe deletion for a draft-only SOP", async () => {
+    const draftOnly = { id: "draft-only", title: "Opening Checklist", summary: "Draft procedure", category: "Service", category_id: "cat-service", status: "draft", current_version: null, updated_at: "2026-08-12T00:00:00Z", versions: [{ ...draft, id: "draft-v1", version: 1 }] };
+    mocks.list.mockResolvedValue({ categories, sops: [draftOnly] });
+    renderPage();
+    await screen.findByText("Opening Checklist");
+    fireEvent.click(screen.getByRole("button", { name: "More actions for Opening Checklist" }));
+    expect(screen.getByRole("menuitem", { name: "Edit Draft" })).not.toBeNull();
+    expect(screen.getByRole("menuitem", { name: "Delete Draft" })).not.toBeNull();
+    expect(screen.queryByRole("menuitem", { name: "Create New Version" })).toBeNull();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Edit Draft" }));
+    expect(screen.getByRole("heading", { name: "Opening Checklist" })).not.toBeNull();
+    expect(screen.getByText("Draft v1")).not.toBeNull();
+  });
+
   it("validates the create modal, creates acknowledgement metadata and enters draft editor", async () => {
     const created = { id: "new-sop", title: "Cash Handling", summary: "Cash control", category: "Service", category_id: "cat-service", status: "draft", versions: [{ id: "new-version", version: 1, status: "draft", require_acknowledgement: true, sections: [] }] };
     mocks.list.mockResolvedValueOnce({ categories, sops }).mockResolvedValue({ categories, sops: [...sops, created] });
@@ -135,21 +165,24 @@ describe("Crew SOP Library Admin", () => {
     expect(screen.queryByLabelText("Document version")).toBeNull();
   });
 
-  it("keeps published content read-only and exposes versions plus understandable usage", async () => {
+  it("uses one read-only document page and opens version history plus usage in drawers", async () => {
     renderPage();
     await screen.findByText("Welcome & Goodbye Standard");
     fireEvent.click(screen.getByText("Welcome & Goodbye Standard"));
-    fireEvent.click(screen.getByRole("button", { name: "View Published v1" }));
     expect(screen.getByText("Welcome within five seconds.")).not.toBeNull();
     expect(screen.queryByLabelText("Section Title *")).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Versions" }));
+    expect(screen.queryByRole("navigation", { name: "SOP detail tabs" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Version History" }));
+    expect(screen.getByRole("heading", { name: "Version History" })).not.toBeNull();
     expect(screen.getByText("Current Live")).not.toBeNull();
     expect(screen.getByRole("button", { name: "Continue Editing" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Close drawer" }));
     mocks.usage.mockResolvedValue({ current: [{ journey_id: "j1", journey_name: "New Crew Onboarding", journey_version: 2, module_title: "Greeting", lesson_title: "Welcome guests" }], historical: [{ journey_name: "New Crew Onboarding", journey_version: 1, assignment_count: 3 }] });
-    fireEvent.click(screen.getByRole("button", { name: "Usage" }));
-    await screen.findByText("Current Usage");
-    expect(screen.getByText("Greeting · Welcome guests")).not.toBeNull();
-    expect(screen.getByText("Pinned snapshot · unchanged by future SOP versions")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "View Usage" }));
+    await screen.findByText("Used in Onboarding");
+    expect(screen.getByText("Welcome guests")).not.toBeNull();
+    expect(screen.getByText("New Crew Onboarding · Greeting")).not.toBeNull();
+    expect(screen.getByText("Historical snapshot · unchanged by future SOP versions")).not.toBeNull();
   });
 
   it("publishes only after confirmation and refreshes into immutable detail", async () => {

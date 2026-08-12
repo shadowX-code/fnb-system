@@ -151,7 +151,7 @@ export const crewService = {
   },
 
   async listSopsAdmin() {
-    const { data, error } = await supabase.from("crew_sops").select("*, versions:crew_sop_versions(id,version,status,effective_date,change_summary,require_acknowledgement,published_at,sections:crew_sop_sections(id,title,body,sort_order,key_point))").order("updated_at", { ascending: false });
+    const { data, error } = await supabase.from("crew_sops").select("*, versions:crew_sop_versions(id,version,status,effective_date,change_summary,require_acknowledgement,published_at,updated_at,sections:crew_sop_sections(id,title,body,sort_order,key_point))").order("updated_at", { ascending: false });
     throwSupabaseError("crew.listSopsAdmin", error);
     return data || [];
   },
@@ -162,7 +162,7 @@ export const crewService = {
         supabase
           .from("crew_sops")
           .select(
-            "*, versions:crew_sop_versions(id,version,status,effective_date,change_summary,require_acknowledgement,published_at,sections:crew_sop_sections(id,title,body,sort_order,key_point))",
+            "*, versions:crew_sop_versions(id,version,status,effective_date,change_summary,require_acknowledgement,published_at,updated_at,sections:crew_sop_sections(id,title,body,sort_order,key_point))",
           )
           .eq("outlet_id", outletId)
           .order("updated_at", { ascending: false }),
