@@ -3,7 +3,7 @@ import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-li
 
 const mocks = vi.hoisted(() => ({
   list: vi.fn(), saveSop: vi.fn(), saveCategory: vi.fn(), newVersion: vi.fn(), saveDraft: vi.fn(),
-  deleteDraft: vi.fn(), swap: vi.fn(), publish: vi.fn(), usage: vi.fn(), clone: vi.fn(),
+  saveSections: vi.fn(), deleteDraft: vi.fn(), swap: vi.fn(), publish: vi.fn(), usage: vi.fn(), clone: vi.fn(),
 }));
 vi.mock("../../../../services/crewService.js", () => ({ crewService: {
   listOutletSopsAdmin: mocks.list,
@@ -11,6 +11,7 @@ vi.mock("../../../../services/crewService.js", () => ({ crewService: {
   saveSopCategory: mocks.saveCategory,
   newSopVersion: mocks.newVersion,
   saveDraftRecord: mocks.saveDraft,
+  saveSopDraftSections: mocks.saveSections,
   deleteDraftRecord: mocks.deleteDraft,
   swapDraftOrder: mocks.swap,
   publishSopVersion: mocks.publish,
@@ -55,6 +56,7 @@ beforeEach(() => {
   mocks.saveCategory.mockReset();
   mocks.newVersion.mockReset().mockResolvedValue("new-version");
   mocks.saveDraft.mockReset().mockImplementation(async (_table, values) => ({ id: values.id || "new-section", ...values }));
+  mocks.saveSections.mockReset().mockImplementation(async (_versionId, sections) => sections.map((section, index) => ({ ...section, id: String(section.id).startsWith("temp:") ? `saved-${index}` : section.id, sort_order: index + 1 })));
   mocks.deleteDraft.mockReset().mockResolvedValue();
   mocks.swap.mockReset().mockResolvedValue();
   mocks.publish.mockReset().mockResolvedValue();
@@ -134,25 +136,30 @@ describe("Crew SOP Library Admin", () => {
     expect(screen.getByRole("heading", { name: "Cash Handling" })).not.toBeNull();
   });
 
-  it("provides one-section-at-a-time editing, key point, save, reorder and delete", async () => {
-    vi.spyOn(window, "confirm").mockReturnValue(true);
+  it("retains multi-section edits, add, delete and reorder until one whole-draft save", async () => {
     renderPage();
     await screen.findByText("Welcome & Goodbye Standard");
     fireEvent.click(screen.getAllByRole("button", { name: "Edit Draft" })[0]);
     const title = screen.getByLabelText("Section Title *");
     fireEvent.change(title, { target: { value: "Welcome promptly" } });
-    fireEvent.click(screen.getByLabelText("Key Point"));
-    fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
-    await waitFor(() => expect(mocks.saveDraft).toHaveBeenCalledWith("crew_sop_sections", expect.objectContaining({ id: "draft-section-1", title: "Welcome promptly", key_point: true })));
+    fireEvent.click(screen.getByRole("button", { name: /02.*Warm presence/ }));
+    fireEvent.change(screen.getByLabelText("Section Title *"), { target: { value: "Warm and attentive" } });
+    fireEvent.click(screen.getByRole("button", { name: /01.*Welcome promptly/ }));
+    expect(screen.getByLabelText("Section Title *").value).toBe("Welcome promptly");
     fireEvent.click(screen.getByRole("button", { name: "Move section down" }));
-    await waitFor(() => expect(mocks.swap).toHaveBeenCalled());
-    fireEvent.click(screen.getByRole("button", { name: "Delete section" }));
-    await waitFor(() => expect(mocks.deleteDraft).toHaveBeenCalledWith("crew_sop_sections", "draft-section-1"));
     fireEvent.click(screen.getByRole("button", { name: "Add Section" }));
     fireEvent.change(screen.getByLabelText("Section Title *"), { target: { value: "Thank the guest" } });
-    fireEvent.change(screen.getByLabelText("Content"), { target: { value: "Thank every guest before leaving." } });
+    const editor = screen.getByRole("textbox", { name: "Content" });
+    editor.innerHTML = "<p>Thank every guest before leaving.</p>";
+    fireEvent.input(editor);
+    fireEvent.click(screen.getByLabelText("Key Point"));
+    fireEvent.change(screen.getByLabelText("Key Point Content"), { target: { value: "Always end warmly." } });
     fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
-    await waitFor(() => expect(mocks.saveDraft).toHaveBeenCalledWith("crew_sop_sections", expect.objectContaining({ sop_version_id: "v2", title: "Thank the guest", sort_order: 3 })));
+    await waitFor(() => expect(mocks.saveSections).toHaveBeenCalledTimes(1));
+    const [, saved] = mocks.saveSections.mock.calls[0];
+    expect(saved.map((section) => section.title)).toEqual(["Warm and attentive", "Welcome promptly", "Thank the guest"]);
+    expect(saved[2].body).toContain("data-feedx-key-point");
+    expect(screen.getByText("Saved")).not.toBeNull();
   });
 
   it("previews the current draft without turning the document into an editable form", async () => {
@@ -167,19 +174,50 @@ describe("Crew SOP Library Admin", () => {
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
   });
 
-  it("uses one read-only document popup and switches version history plus usage in the same modal", async () => {
+  it("warns before closing with retained unsaved changes", async () => {
+    ui.confirm.mockResolvedValueOnce(false);
+    renderPage();
+    await screen.findByText("Welcome & Goodbye Standard");
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit Draft" })[0]);
+    fireEvent.change(screen.getByLabelText("Section Title *"), { target: { value: "Unsaved title" } });
+    fireEvent.click(screen.getByRole("button", { name: "Close modal" }));
+    await waitFor(() => expect(ui.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: "You have unsaved changes.", confirmLabel: "Discard", cancelLabel: "Continue Editing" })));
+    expect(screen.getByRole("heading", { name: "Welcome & Goodbye Standard" })).not.toBeNull();
+  });
+
+  it("exposes lightweight formatting and keeps unsupported images out of the save payload", async () => {
+    document.execCommand = vi.fn();
+    Object.defineProperty(URL, "createObjectURL", { configurable: true, value: vi.fn(() => "blob:sop-preview") });
+    Object.defineProperty(URL, "revokeObjectURL", { configurable: true, value: vi.fn() });
+    renderPage();
+    await screen.findByText("Welcome & Goodbye Standard");
+    fireEvent.click(screen.getAllByRole("button", { name: "Edit Draft" })[0]);
+    fireEvent.click(screen.getByRole("button", { name: "Bold" }));
+    fireEvent.click(screen.getByRole("button", { name: "Bullet List" }));
+    expect(document.execCommand).toHaveBeenCalledWith("bold", false, null);
+    expect(document.execCommand).toHaveBeenCalledWith("insertUnorderedList", false, null);
+    const file = new File(["safe"], "guide.png", { type: "image/png" });
+    fireEvent.change(document.querySelector('input[type="file"]'), { target: { files: [file] } });
+    expect(await screen.findByText(/SOP media storage is not configured/)).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Save Draft" }).disabled).toBe(true);
+    expect(mocks.saveSections).not.toHaveBeenCalled();
+  });
+
+  it("switches historical versions from the header popover and keeps usage auxiliary", async () => {
     renderPage();
     await screen.findByText("Welcome & Goodbye Standard");
     fireEvent.click(screen.getByText("Welcome & Goodbye Standard"));
     expect(screen.getByText("Welcome within five seconds.")).not.toBeNull();
     expect(screen.queryByLabelText("Section Title *")).toBeNull();
     expect(screen.queryByRole("navigation", { name: "SOP detail tabs" })).toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "Version History" }));
-    expect(screen.getByRole("heading", { name: "Version History" })).not.toBeNull();
-    expect(screen.getByText("Current Live")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "SOP version" }));
+    expect(screen.getByRole("menu", { name: "Version History" })).not.toBeNull();
+    expect(screen.getByText(/Current Live/)).not.toBeNull();
     expect(screen.getByRole("button", { name: "Continue Editing" })).not.toBeNull();
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
-    fireEvent.click(screen.getByRole("button", { name: "← Back to SOP" }));
+    const versionHistory = screen.getByRole("menu", { name: "Version History" });
+    fireEvent.click(within(versionHistory).getAllByRole("button", { name: "View" })[0]);
+    expect(screen.getByRole("button", { name: "SOP version" }).textContent).toContain("Published v1");
     mocks.usage.mockResolvedValue({ current: [{ journey_id: "j1", journey_name: "New Crew Onboarding", journey_version: 2, module_title: "Greeting", lesson_title: "Welcome guests" }], historical: [{ journey_name: "New Crew Onboarding", journey_version: 1, assignment_count: 3 }] });
     fireEvent.click(screen.getByRole("button", { name: "View Usage" }));
     await screen.findByText("Used in Onboarding");
@@ -194,7 +232,9 @@ describe("Crew SOP Library Admin", () => {
     renderPage();
     await screen.findByText("Welcome & Goodbye Standard");
     fireEvent.click(screen.getAllByRole("button", { name: "Edit Draft" })[0]);
+    fireEvent.change(screen.getByLabelText("Section Title *"), { target: { value: "Saved before publish" } });
     fireEvent.click(screen.getByRole("button", { name: "Publish" }));
+    await waitFor(() => expect(mocks.saveSections).toHaveBeenCalledTimes(1));
     await waitFor(() => expect(ui.confirm).toHaveBeenCalledWith(expect.objectContaining({ title: "Publish SOP v2?" })));
     expect(mocks.publish).toHaveBeenCalledWith("v2");
   });

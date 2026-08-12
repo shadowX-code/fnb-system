@@ -151,7 +151,7 @@ export const crewService = {
   },
 
   async listSopsAdmin() {
-    const { data, error } = await supabase.from("crew_sops").select("*, versions:crew_sop_versions(id,version,status,effective_date,change_summary,require_acknowledgement,published_at,sections:crew_sop_sections(id,title,body,sort_order,key_point))").order("updated_at", { ascending: false });
+    const { data, error } = await supabase.from("crew_sops").select("*, versions:crew_sop_versions(id,version,status,effective_date,change_summary,require_acknowledgement,published_at,sections:crew_sop_sections(id,title,body,sort_order,key_point,media_url))").order("updated_at", { ascending: false });
     throwSupabaseError("crew.listSopsAdmin", error);
     return data || [];
   },
@@ -162,7 +162,7 @@ export const crewService = {
         supabase
           .from("crew_sops")
           .select(
-            "*, versions:crew_sop_versions(id,version,status,effective_date,change_summary,require_acknowledgement,published_at,sections:crew_sop_sections(id,title,body,sort_order,key_point))",
+            "*, versions:crew_sop_versions(id,version,status,effective_date,change_summary,require_acknowledgement,published_at,sections:crew_sop_sections(id,title,body,sort_order,key_point,media_url))",
           )
           .eq("outlet_id", outletId)
           .order("updated_at", { ascending: false }),
@@ -231,6 +231,46 @@ export const crewService = {
         .eq("id", id);
       throwSupabaseError(`crew.swapDraftOrder.${table}`, error);
     }
+  },
+
+  async saveSopDraftSections(sopVersionId, sections, originalIds = []) {
+    const retainedIds = new Set(sections.map((section) => section.id).filter((id) => id && !String(id).startsWith("temp:")));
+    const removedIds = originalIds.filter((id) => !retainedIds.has(id));
+    const existing = sections.filter((section) => retainedIds.has(section.id));
+    for (const [index, section] of existing.entries()) {
+      const { error } = await supabase
+        .from("crew_sop_sections")
+        .update({ sort_order: -1000000 - index })
+        .eq("id", section.id)
+        .eq("sop_version_id", sopVersionId);
+      throwSupabaseError("crew.saveSopDraftSections.prepare", error);
+    }
+    if (removedIds.length) {
+      const { error } = await supabase
+        .from("crew_sop_sections")
+        .delete()
+        .eq("sop_version_id", sopVersionId)
+        .in("id", removedIds);
+      throwSupabaseError("crew.saveSopDraftSections.delete", error);
+    }
+    const saved = [];
+    for (const [index, section] of sections.entries()) {
+      const payload = {
+        sop_version_id: sopVersionId,
+        title: section.title.trim(),
+        body: section.body || null,
+        sort_order: index + 1,
+        key_point: Boolean(section.key_point),
+        media_url: section.media_url || null,
+      };
+      const query = retainedIds.has(section.id)
+        ? supabase.from("crew_sop_sections").update(payload).eq("id", section.id).eq("sop_version_id", sopVersionId)
+        : supabase.from("crew_sop_sections").insert(payload);
+      const { data, error } = await query.select().single();
+      throwSupabaseError("crew.saveSopDraftSections.save", error);
+      saved.push(data);
+    }
+    return saved;
   },
 
   async assignJourney(employeeId, journeyId, dueAt = null) {

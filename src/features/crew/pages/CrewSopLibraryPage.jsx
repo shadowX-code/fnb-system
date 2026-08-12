@@ -3,15 +3,26 @@ import { createPortal } from "react-dom";
 import {
   ArrowDown,
   ArrowUp,
+  Bold,
   BookOpenCheck,
   Check,
+  ChevronDown,
   ChevronRight,
   Copy,
   FileText,
+  Highlighter,
+  ImagePlus,
+  Italic,
+  Link2,
+  List,
+  ListOrdered,
   MoreHorizontal,
   Plus,
+  Redo2,
   Search,
   Trash2,
+  Undo2,
+  X,
 } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
 import EmptyState from "../../../components/feedback/EmptyState.jsx";
@@ -21,6 +32,8 @@ import Badge from "../../../components/ui/Badge.jsx";
 import SelectField from "../../../components/forms/SelectField.jsx";
 import { crewService } from "../../../services/crewService.js";
 import { outletService } from "../../../services/outletService.js";
+import { IMAGE_UPLOAD_ACCEPT, validateImageFile } from "../../../utils/imageUpload.js";
+import { parseSopBody, sanitizeSopHtml, serializeSopBody } from "../utils/sopDocumentContent.js";
 
 const byOrder = (rows = []) => [...rows].sort((a, b) => Number(a.sort_order) - Number(b.sort_order));
 const byVersion = (rows = []) => [...rows].sort((a, b) => Number(b.version) - Number(a.version));
@@ -212,6 +225,7 @@ export default function CrewSopLibraryPage({ auth, ui, store }) {
           saving={saving}
           onBack={() => setView("library")}
           onRefresh={refresh}
+          onConfirm={ui.confirm}
           onPublish={(version) => publishVersion(selectedSop, version)}
           onDeleteDraft={async () => {
             const deleted = await deleteDraft(selectedSop);
@@ -321,31 +335,51 @@ function SopDetail({ sop, outlet, canManage, saving, preferredVersionId, onBack,
   const [pane, setPane] = useState("document");
   const active = versions.find((version) => version.id === viewVersionId) || published || draft;
   useEffect(() => { setViewVersionId(preferredVersionId || published?.id || draft?.id || ""); }, [sop.id, preferredVersionId, published?.id, draft?.id]);
-  const lifecycleAction = canManage ? draft ? <button className="btn-primary" disabled={saving} onClick={() => onEdit(draft.id)}>{published ? "Edit Draft" : "Edit Draft"}</button> : published ? <button className="btn-primary" disabled={saving} onClick={onNewVersion}>New Version</button> : null : null;
+  const lifecycleAction = canManage ? draft ? <button className="btn-primary" disabled={saving} onClick={() => onEdit(draft.id)}>Continue Editing Draft</button> : published ? <button className="btn-primary" disabled={saving} onClick={onNewVersion}>Create New Version</button> : null : null;
   const footer = <div className="crew-sop-modal-footer">
-    <div>{pane === "document" ? <><button className="btn-ghost" type="button" onClick={() => setPane("versions")}>Version History</button><button className="btn-ghost" type="button" onClick={() => setPane("usage")}>View Usage</button></> : null}</div>
+    <div>{pane === "document" ? <button className="btn-ghost" type="button" onClick={() => setPane("usage")}>View Usage</button> : <button className="btn-ghost" type="button" onClick={() => setPane("document")}>← Back to SOP</button>}</div>
     <div>{pane === "document" ? lifecycleAction : null}<button className="btn-secondary" type="button" onClick={onBack}>Close</button></div>
   </div>;
-  return <Modal title={sop.title} description={`${sop.category || "Other"} · ${active?.status === "published" ? `Published v${active.version}` : `Draft v${active?.version}`} · ${outlet?.name || "Outlet"}`} size="2xl" panelClassName="crew-sop-view-popout" bodyClassName="crew-sop-popout-body" onClose={onBack} footer={footer} footerClassName="block">
-    {pane === "document" ? <><SopDocumentFacts sop={sop} outlet={outlet} version={active} /><PublishedDocument version={active} showOutline={false} /></> : null}
-    {pane === "versions" ? <SecondaryView title="Version History" description="Draft work and immutable published history." onBack={() => setPane("document")}><VersionList versions={versions} currentVersionNumber={sop.current_version} fallbackUpdatedAt={sop.updated_at} canManage={canManage} onEdit={onEdit} onView={(id) => { setViewVersionId(id); setPane("document"); }} /></SecondaryView> : null}
-    {pane === "usage" ? <SecondaryView title="SOP Usage" description="Current onboarding use and historical pinned references." onBack={() => setPane("document")}><UsageView sopId={sop.id} /></SecondaryView> : null}
+  return <Modal title={sop.title} description={`${sop.category || "Other"} · ${outlet?.name || "Outlet"}`} size="2xl" panelClassName="crew-sop-view-popout" bodyClassName="crew-sop-popout-body" onClose={onBack} footer={footer} footerClassName="block">
+    {pane === "document" ? <><SopDocumentFacts sop={sop} outlet={outlet} version={active} versionControl={<VersionPicker versions={versions} activeId={active?.id} currentVersionNumber={sop.current_version} fallbackUpdatedAt={sop.updated_at} canManage={canManage} onEdit={onEdit} onSelect={setViewVersionId} />} /><PublishedDocument version={active} showOutline={false} /></> : null}
+    {pane === "usage" ? <SecondaryView title="SOP Usage" description="Automatically derived from current onboarding references and pinned assignment snapshots." onBack={() => setPane("document")}><UsageView sopId={sop.id} /></SecondaryView> : null}
   </Modal>;
 }
 
 function SecondaryView({ title, description, onBack, backLabel = "Back to SOP", children }) {
-  return <section className="crew-sop-secondary-view"><button className="btn-ghost crew-sop-inline-back" type="button" onClick={onBack}>← {backLabel}</button><header><h2>{title}</h2><p>{description}</p></header>{children}</section>;
+  return <section className="crew-sop-secondary-view"><header><h2>{title}</h2><p>{description}</p></header>{children}</section>;
 }
 
-function SopDocumentFacts({ sop, outlet, version }) {
+function SopDocumentFacts({ sop, outlet, version, versionControl }) {
   const details = [
     ["Category", sop.category || "Other"],
-    ["Version / Status", version ? `v${version.version} · ${version.status === "published" ? "Published" : "Draft"}` : "No version"],
     ["Acknowledgement", version?.require_acknowledgement ? "Required" : "Not required"],
     ["Last Updated", formatDate(version?.published_at || version?.updated_at || sop.updated_at)],
     ["Outlet", outlet?.name || "—"],
   ];
-  return <dl className="crew-sop-document-facts">{details.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>;
+  return <dl className="crew-sop-document-facts"><div className="crew-sop-version-fact"><dt>Version</dt><dd>{versionControl || (version ? `v${version.version}` : "—")}</dd></div>{details.map(([label, value]) => <div key={label}><dt>{label}</dt><dd>{value}</dd></div>)}</dl>;
+}
+
+function VersionPicker({ versions, activeId, currentVersionNumber, fallbackUpdatedAt, canManage, onEdit, onSelect }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+  const active = versions.find((version) => version.id === activeId) || versions[0];
+  useEffect(() => {
+    if (!open) return undefined;
+    const close = (event) => {
+      if (event.type === "keydown" && event.key !== "Escape") return;
+      if (ref.current?.contains(event.target)) return;
+      setOpen(false);
+    };
+    window.addEventListener("pointerdown", close);
+    window.addEventListener("keydown", close);
+    return () => { window.removeEventListener("pointerdown", close); window.removeEventListener("keydown", close); };
+  }, [open]);
+  if (!active) return "—";
+  return <div className="crew-sop-version-picker" ref={ref}>
+    <button type="button" aria-label="SOP version" aria-expanded={open} onClick={() => setOpen((value) => !value)}><Badge tone={active.status === "published" ? "success" : "warning"}>{active.status === "published" ? "Published" : "Draft"} v{active.version}</Badge><ChevronDown size={14} /></button>
+    {open ? <div className="crew-sop-version-popover" role="menu" aria-label="Version History"><header><strong>Version History</strong><button className="icon-btn" type="button" aria-label="Close version history" onClick={() => setOpen(false)}><X size={14} /></button></header>{versions.map((version) => <article key={version.id} className={version.id === active.id ? "is-active" : ""}><div><strong>v{version.version} · {version.status === "published" ? "Published" : "Draft"}</strong><span>{version.status === "draft" ? "Updated just now" : Number(currentVersionNumber) === Number(version.version) ? `Current Live · ${formatDate(version.published_at)}` : formatDate(version.published_at || fallbackUpdatedAt)}</span></div>{version.status === "draft" && canManage ? <button className="btn-secondary crew-sop-compact-action" onClick={() => { setOpen(false); onEdit(version.id); }}>Continue Editing</button> : <button className="btn-secondary crew-sop-compact-action" onClick={() => { onSelect(version.id); setOpen(false); }}>View</button>}</article>)}</div> : null}
+  </div>;
 }
 
 function PublishedDocument({ version, showOutline = true }) {
@@ -354,61 +388,147 @@ function PublishedDocument({ version, showOutline = true }) {
   if (!version) return <div className="crew-sop-compact-empty"><EmptyState title="No SOP version" description="Create a draft version to start writing this SOP." /></div>;
   return <div className={`crew-sop-document-shell ${showOutline ? "" : "is-reader"}`}>
     {showOutline ? <aside><div><strong>Section navigation</strong><span>{sections.length}</span></div>{sections.map((section, index) => <button key={section.id} onClick={() => refs.current[section.id]?.scrollIntoView({ behavior: "smooth", block: "start" })}><span>{String(index + 1).padStart(2, "0")}</span>{section.title}</button>)}</aside> : null}
-    <main><div className="crew-sop-document-meta"><div><Badge tone={version.status === "published" ? "success" : "warning"}>{version.status === "published" ? "Published" : "Draft preview"}</Badge><span>v{version.version}</span></div></div>{sections.length ? <article className="crew-sop-document">{sections.map((section, index) => <section key={section.id} ref={(node) => { refs.current[section.id] = node; }} tabIndex="-1"><div className="crew-sop-section-number">{String(index + 1).padStart(2, "0")}</div><h2>{section.title}</h2>{section.key_point ? <div className="crew-sop-key-point"><strong>Key Point</strong><p>{section.body}</p></div> : <p>{section.body}</p>}</section>)}</article> : <EmptyState title="No sections yet" description="This draft has no document content." />}</main>
+    <main><div className="crew-sop-document-meta"><div><Badge tone={version.status === "published" ? "success" : "warning"}>{version.status === "published" ? "Published" : "Draft preview"}</Badge><span>v{version.version}</span></div></div>{sections.length ? <article className="crew-sop-document">{sections.map((section, index) => { const content = parseSopBody(section.body, section.key_point); return <section key={section.id} ref={(node) => { refs.current[section.id] = node; }} tabIndex="-1"><div className="crew-sop-section-number">{String(index + 1).padStart(2, "0")}</div><h2>{section.title}</h2>{content.html ? <div className="crew-sop-rich-content" dangerouslySetInnerHTML={{ __html: content.html }} /> : null}{section.media_url ? <figure><img src={section.media_url} alt="" /></figure> : null}{content.keyPointContent ? <div className="crew-sop-key-point"><strong>Key Point</strong><p>{content.keyPointContent}</p></div> : null}</section>; })}</article> : <EmptyState title="No sections yet" description="This draft has no document content." />}</main>
   </div>;
 }
 
-function SopEditor({ sop, outlet, version, saving, onBack, onRefresh, onPublish, onDeleteDraft }) {
-  const sections = byOrder(version?.sections);
-  const [selectedId, setSelectedId] = useState(sections[0]?.id || "new");
-  const selected = sections.find((section) => section.id === selectedId);
-  const [form, setForm] = useState({ title: "", body: "", key_point: false });
+const temporarySectionId = () => `temp:${globalThis.crypto?.randomUUID?.() || `${Date.now()}-${Math.random()}`}`;
+const hydrateSection = (section) => {
+  const content = parseSopBody(section.body, section.key_point);
+  return { ...section, editorHtml: content.html, keyPointContent: content.keyPointContent, pendingImage: null };
+};
+
+function SopEditor({ sop, outlet, version, saving, onBack, onRefresh, onConfirm, onPublish, onDeleteDraft }) {
+  const initialSections = useMemo(() => byOrder(version?.sections).map(hydrateSection), [version?.id]);
+  const originalIds = useRef(initialSections.map((section) => section.id));
+  const [sections, setSections] = useState(initialSections);
+  const [selectedId, setSelectedId] = useState(initialSections[0]?.id || "");
   const [dirty, setDirty] = useState(false);
   const [busy, setBusy] = useState(false);
   const [pane, setPane] = useState("edit");
-  const [previewVersionId, setPreviewVersionId] = useState(version?.id || "");
-  useEffect(() => { setSelectedId((current) => sections.some((item) => item.id === current) ? current : sections[0]?.id || "new"); }, [version?.id, version?.sections]);
-  useEffect(() => { setForm(selected ? { title: selected.title || "", body: selected.body || "", key_point: Boolean(selected.key_point) } : { title: "", body: "", key_point: false }); setDirty(false); }, [selected?.id]);
-  function update(next) { setForm((current) => ({ ...current, ...next })); setDirty(true); }
+  const [imageError, setImageError] = useState("");
+  const selected = sections.find((section) => section.id === selectedId) || sections[0];
+  const hasPendingImage = sections.some((section) => section.pendingImage);
+  const valid = sections.length > 0 && sections.every((section) => section.title?.trim());
+  useEffect(() => () => sections.forEach((section) => section.pendingImage?.url && URL.revokeObjectURL?.(section.pendingImage.url)), []);
+  if (!version) return null;
+
+  function updateSelected(next) {
+    if (!selected) return;
+    setSections((current) => current.map((section) => section.id === selected.id ? { ...section, ...next } : section));
+    setDirty(true);
+  }
+  function addSection() {
+    const id = temporarySectionId();
+    setSections((current) => [...current, { id, title: "Untitled Section", editorHtml: "", keyPointContent: "", key_point: false, media_url: null, pendingImage: null }]);
+    setSelectedId(id);
+    setDirty(true);
+  }
+  function move(direction) {
+    const index = sections.findIndex((section) => section.id === selected?.id);
+    const target = index + direction;
+    if (index < 0 || target < 0 || target >= sections.length) return;
+    const next = [...sections];
+    [next[index], next[target]] = [next[target], next[index]];
+    setSections(next);
+    setDirty(true);
+  }
+  function remove() {
+    if (!selected) return;
+    const index = sections.findIndex((section) => section.id === selected.id);
+    const next = sections.filter((section) => section.id !== selected.id);
+    selected.pendingImage?.url && URL.revokeObjectURL?.(selected.pendingImage.url);
+    setSections(next);
+    setSelectedId(next[Math.min(index, next.length - 1)]?.id || "");
+    setDirty(true);
+  }
+  function chooseImage(file) {
+    try {
+      validateImageFile(file);
+      setImageError("");
+      const url = URL.createObjectURL?.(file) || "";
+      selected?.pendingImage?.url && URL.revokeObjectURL?.(selected.pendingImage.url);
+      updateSelected({ pendingImage: { file, url, caption: "" } });
+    } catch (cause) {
+      setImageError(cause.message);
+    }
+  }
   async function save() {
-    if (!form.title.trim()) return;
+    if (!valid || hasPendingImage) return false;
     setBusy(true);
     try {
-      const row = await crewService.saveDraftRecord("crew_sop_sections", { ...(selected ? { id: selected.id } : { sop_version_id: version.id, sort_order: sections.length + 1 }), title: form.title.trim(), body: form.body.trim(), key_point: form.key_point });
-      await onRefresh();
-      setSelectedId(row.id);
+      const payload = sections.map((section) => ({
+        ...section,
+        body: serializeSopBody(section.editorHtml, section.keyPointContent),
+        key_point: Boolean(section.keyPointContent?.trim()),
+      }));
+      const saved = await crewService.saveSopDraftSections(version.id, payload, originalIds.current);
+      const hydrated = byOrder(saved).map(hydrateSection);
+      const selectedIndex = Math.max(0, sections.findIndex((section) => section.id === selectedId));
+      originalIds.current = hydrated.map((section) => section.id);
+      setSections(hydrated);
+      setSelectedId(hydrated[selectedIndex]?.id || hydrated[0]?.id || "");
       setDirty(false);
+      await onRefresh();
+      return true;
     } finally { setBusy(false); }
   }
-  async function move(direction) {
-    const index = sections.findIndex((item) => item.id === selectedId);
-    const other = sections[index + direction];
-    if (!selected || !other) return;
-    setBusy(true); try { await crewService.swapDraftOrder("crew_sop_sections", selected, other); await onRefresh(); } finally { setBusy(false); }
+  async function requestClose() {
+    if (!dirty) return onBack();
+    const discard = await onConfirm({ title: "You have unsaved changes.", message: "Discard this draft session or continue editing?", confirmLabel: "Discard", cancelLabel: "Continue Editing", tone: "danger" });
+    if (discard) onBack();
   }
-  async function remove() {
-    if (!selected || !window.confirm(`Delete “${selected.title}” from this draft?`)) return;
-    setBusy(true); try { await crewService.deleteDraftRecord("crew_sop_sections", selected.id); await onRefresh(); } finally { setBusy(false); }
+  async function publish() {
+    if (dirty && !(await save())) return;
+    await onPublish({ ...version, sections: sections.map((section, index) => ({ ...section, sort_order: index + 1 })) });
   }
-  if (!version) return null;
-  const closeEditor = () => { if (!dirty || window.confirm("Leave without saving this section?")) onBack(); };
-  const previewVersion = (sop.versions || []).find((item) => item.id === previewVersionId) || version;
-  const previewSections = previewVersion.id === version.id ? sections.map((section) => section.id === selected?.id && dirty ? { ...section, ...form } : section) : previewVersion.sections;
-  const footer = pane === "edit" ? <div className="crew-sop-modal-footer">
-    <div><button className="btn-secondary" type="button" onClick={() => { setPreviewVersionId(version.id); setPane("preview"); }}>Preview</button><button className="btn-ghost" type="button" onClick={() => setPane("versions")}>Version History</button></div>
-    <div><button className="btn-secondary is-danger" disabled={busy || saving} onClick={onDeleteDraft}><Trash2 size={15} /> Delete Draft</button><button className="btn-primary" disabled={busy || !dirty || !form.title.trim()} onClick={save}>{busy ? "Saving…" : "Save Draft"}</button><button className="btn-secondary" disabled={saving || dirty || !sections.length} onClick={() => onPublish(version)}>Publish</button></div>
-  </div> : null;
-  return <Modal title={sop.title} description={`Draft v${version.version} · ${outlet?.name}`} size="2xl" panelClassName="crew-sop-editor-popout" bodyClassName="crew-sop-editor-popout-body" onClose={closeEditor} headerActions={<span className={`crew-sop-save-state ${dirty ? "is-dirty" : "is-saved"}`}>{dirty ? "Unsaved" : <><Check size={13} /> Saved</>}</span>} footer={footer} footerClassName="block">
+  const previewSections = sections.map((section, index) => ({ ...section, body: serializeSopBody(section.editorHtml, section.keyPointContent), key_point: Boolean(section.keyPointContent?.trim()), sort_order: index + 1 }));
+  const footer = <div className="crew-sop-modal-footer">
+    <div>{pane === "edit" ? <button className="btn-secondary" type="button" onClick={() => setPane("preview")}>Preview</button> : <button className="btn-ghost" type="button" onClick={() => setPane("edit")}>← Back to Editor</button>}</div>
+    <div><button className="btn-secondary is-danger" disabled={busy || saving} onClick={onDeleteDraft}><Trash2 size={15} /> Delete Draft</button><button className="btn-primary" disabled={busy || !dirty || !valid || hasPendingImage} onClick={save}>{busy ? "Saving…" : "Save Draft"}</button><button className="btn-secondary" disabled={busy || saving || !valid || hasPendingImage} onClick={publish}>Publish</button></div>
+  </div>;
+  return <Modal title={sop.title} description={`Draft v${version.version} · ${outlet?.name}`} size="2xl" panelClassName="crew-sop-editor-popout" bodyClassName="crew-sop-editor-popout-body" onClose={requestClose} headerActions={<span className={`crew-sop-save-state ${dirty ? "is-dirty" : "is-saved"}`}>{dirty ? "Unsaved changes" : <><Check size={13} /> Saved</>}</span>} footer={footer} footerClassName="block">
     {pane === "edit" ? <div className="crew-sop-draft-workspace">
-      <aside><div><strong>Section Outline</strong><span>{sections.length}</span></div>{sections.map((section, index) => <button key={section.id} className={selectedId === section.id ? "is-active" : ""} onClick={() => { if (!dirty || window.confirm("Discard unsaved section changes?")) setSelectedId(section.id); }}><span>{String(index + 1).padStart(2, "0")}</span><strong>{section.title}</strong><ChevronRight size={15} /></button>)}<button className="crew-sop-add-section" onClick={() => { if (!dirty || window.confirm("Discard unsaved section changes?")) setSelectedId("new"); }}><Plus size={15} /> Add Section</button></aside>
-      <main><div className="crew-sop-editor-form-head"><div><span>{selected ? `Section ${sections.findIndex((item) => item.id === selected.id) + 1}` : "New section"}</span><h2>{selected ? selected.title : "Add a section"}</h2></div>{selected ? <div><button className="icon-btn" disabled={busy || sections[0]?.id === selected.id} onClick={() => move(-1)} aria-label="Move section up"><ArrowUp size={16} /></button><button className="icon-btn" disabled={busy || sections.at(-1)?.id === selected.id} onClick={() => move(1)} aria-label="Move section down"><ArrowDown size={16} /></button><button className="icon-btn is-danger" disabled={busy} onClick={remove} aria-label="Delete section"><Trash2 size={16} /></button></div> : null}</div><label>Section Title *<input className="control w-full" value={form.title} onChange={(event) => update({ title: event.target.value })} /></label><label>Content<textarea className="control min-h-56 w-full py-3" value={form.body} onChange={(event) => update({ body: event.target.value })} /></label><label className="crew-sop-key-toggle"><input aria-label="Key Point" type="checkbox" checked={form.key_point} onChange={(event) => update({ key_point: event.target.checked })} /><span><strong>Key Point</strong><small>Display this section content as a subtle operational callout.</small></span></label></main>
-    </div> : null}
-    {pane === "preview" ? <SecondaryView title={`Preview · v${previewVersion.version}`} description="Read the SOP as Crew will see it after publishing." backLabel="Back to Editor" onBack={() => setPane("edit")}><PublishedDocument version={{ ...previewVersion, sections: previewSections }} showOutline={false} /></SecondaryView> : null}
-    {pane === "versions" ? <SecondaryView title="Version History" description="Draft work and immutable published history." backLabel="Back to Editor" onBack={() => setPane("edit")}><VersionList versions={byVersion(sop.versions)} currentVersionNumber={sop.current_version} fallbackUpdatedAt={sop.updated_at} canManage onEdit={() => setPane("edit")} onView={(id) => { setPreviewVersionId(id); setPane("preview"); }} /></SecondaryView> : null}
+      <aside><div><strong>Section Outline</strong><span>{sections.length}</span></div>{sections.map((section, index) => <button key={section.id} className={selected?.id === section.id ? "is-active" : ""} onClick={() => setSelectedId(section.id)}><span>{String(index + 1).padStart(2, "0")}</span><strong>{section.title || "Untitled Section"}</strong><ChevronRight size={15} /></button>)}<button className="crew-sop-add-section" onClick={addSection}><Plus size={15} /> Add Section</button></aside>
+      <main>{selected ? <><div className="crew-sop-editor-form-head"><div><span>Section {sections.findIndex((item) => item.id === selected.id) + 1}</span><h2>{selected.title || "Untitled Section"}</h2></div><div><button className="icon-btn" disabled={sections[0]?.id === selected.id} onClick={() => move(-1)} aria-label="Move section up"><ArrowUp size={16} /></button><button className="icon-btn" disabled={sections.at(-1)?.id === selected.id} onClick={() => move(1)} aria-label="Move section down"><ArrowDown size={16} /></button><button className="icon-btn is-danger" disabled={sections.length === 1} onClick={remove} aria-label="Delete section"><Trash2 size={16} /></button></div></div><label>Section Title *<input className="control w-full" value={selected.title || ""} onChange={(event) => updateSelected({ title: event.target.value })} /></label><div className="crew-sop-editor-field"><span>Content</span><RichTextEditor value={selected.editorHtml} onChange={(editorHtml) => updateSelected({ editorHtml })} onImage={chooseImage} />{imageError ? <small role="alert" className="crew-sop-editor-error">{imageError}</small> : null}</div>{selected.pendingImage ? <div className="crew-sop-image-placeholder"><div>{selected.pendingImage.url ? <img src={selected.pendingImage.url} alt="Preview" /> : <ImagePlus size={28} />}</div><label>Image caption<input className="control w-full" value={selected.pendingImage.caption} onChange={(event) => updateSelected({ pendingImage: { ...selected.pendingImage, caption: event.target.value } })} /></label><button className="btn-secondary is-danger" type="button" onClick={() => { URL.revokeObjectURL?.(selected.pendingImage.url); updateSelected({ pendingImage: null }); }}>Remove Image</button><p>SOP media storage is not configured. This preview cannot be saved and no base64 data will be written.</p></div> : null}<label className="crew-sop-key-toggle"><input aria-label="Key Point" type="checkbox" checked={Boolean(selected.keyPointContent)} onChange={(event) => updateSelected({ keyPointContent: event.target.checked ? selected.keyPointContent || "Add the key point…" : "" })} /><span><strong>Key Point</strong><small>Add an optional callout below the normal section content.</small></span></label>{selected.keyPointContent ? <label>Key Point Content<textarea className="control min-h-24 w-full py-3" value={selected.keyPointContent} onChange={(event) => updateSelected({ keyPointContent: event.target.value })} /></label> : null}</> : <EmptyState title="Add the first section" description="Create a section to start this SOP draft." />}</main>
+    </div> : <SecondaryView title={`Preview · v${version.version}`} description="Review every unsaved section before publishing." backLabel="Back to Editor" onBack={() => setPane("edit")}><PublishedDocument version={{ ...version, sections: previewSections }} showOutline={false} /></SecondaryView>}
   </Modal>;
 }
 
-function VersionList({ versions, currentVersionNumber, fallbackUpdatedAt, canManage, onEdit, onView }) { return <section className="crew-sop-version-list"><header><h2>Versions</h2><p>Draft work and immutable published history.</p></header>{versions.map((version) => <article key={version.id}><div className="crew-sop-version-marker"><FileText size={16} /></div><div><div><strong>v{version.version}</strong><Badge tone={version.status === "published" ? "success" : version.status === "draft" ? "warning" : "neutral"}>{version.status}</Badge>{Number(currentVersionNumber) === Number(version.version) && version.status === "published" ? <span>Current Live</span> : null}</div><p>{version.status === "published" ? `Published ${formatDate(version.published_at)}` : `Updated ${formatDate(version.effective_date || fallbackUpdatedAt)}`}</p></div>{version.status === "draft" && canManage ? <button className="btn-secondary" onClick={() => onEdit(version.id)}>Continue Editing</button> : <button className="btn-secondary" onClick={() => onView(version.id)}>View</button>}</article>)}</section>; }
+function RichTextEditor({ value, onChange, onImage }) {
+  const editorRef = useRef(null);
+  const imageRef = useRef(null);
+  const rangeRef = useRef(null);
+  const [linkOpen, setLinkOpen] = useState(false);
+  const [linkValue, setLinkValue] = useState("");
+  useEffect(() => { if (editorRef.current && editorRef.current.innerHTML !== value) editorRef.current.innerHTML = value || ""; }, [value]);
+  function emit() { onChange(sanitizeSopHtml(editorRef.current?.innerHTML || "")); }
+  function rememberSelection() {
+    const selection = window.getSelection?.();
+    if (selection?.rangeCount && editorRef.current?.contains(selection.anchorNode)) rangeRef.current = selection.getRangeAt(0).cloneRange();
+  }
+  function command(name, argument = null) {
+    editorRef.current?.focus();
+    if (rangeRef.current) {
+      const selection = window.getSelection?.();
+      selection?.removeAllRanges();
+      selection?.addRange(rangeRef.current);
+    }
+    document.execCommand?.(name, false, argument);
+    emit();
+  }
+  function addLink() {
+    if (linkValue.trim()) command("createLink", linkValue.trim());
+    setLinkOpen(false);
+    setLinkValue("");
+  }
+  const tools = [
+    ["Bold", Bold, () => command("bold")], ["Italic", Italic, () => command("italic")], ["Highlight", Highlighter, () => command("hiliteColor", "#fff1a8")],
+    ["Bullet List", List, () => command("insertUnorderedList")], ["Numbered List", ListOrdered, () => command("insertOrderedList")], ["Link", Link2, () => { rememberSelection(); setLinkOpen((open) => !open); }],
+    ["Image", ImagePlus, () => imageRef.current?.click()], ["Undo", Undo2, () => command("undo")], ["Redo", Redo2, () => command("redo")],
+  ];
+  return <div className="crew-sop-rich-editor"><div className="crew-sop-rich-toolbar" role="toolbar" aria-label="Content formatting">{tools.map(([label, Icon, action]) => <button key={label} type="button" aria-label={label} title={label} onMouseDown={(event) => event.preventDefault()} onClick={action}><Icon size={15} /></button>)}<input ref={imageRef} className="sr-only" type="file" accept={IMAGE_UPLOAD_ACCEPT} onChange={(event) => { const file = event.target.files?.[0]; if (file) onImage(file); event.target.value = ""; }} /></div>{linkOpen ? <div className="crew-sop-link-editor"><input className="control" aria-label="Link URL" placeholder="https://example.com" value={linkValue} onChange={(event) => setLinkValue(event.target.value)} /><button className="btn-secondary crew-sop-compact-action" type="button" onClick={addLink}>Apply Link</button><button className="btn-ghost" type="button" onClick={() => setLinkOpen(false)}>Cancel</button></div> : null}<div ref={editorRef} className="crew-sop-rich-surface" contentEditable role="textbox" aria-label="Content" aria-multiline="true" data-placeholder="Write the section content…" onInput={emit} onBlur={emit} onMouseUp={rememberSelection} onKeyUp={rememberSelection} suppressContentEditableWarning /></div>;
+}
 
 function UsageView({ sopId }) {
   const [usage, setUsage] = useState(null);
