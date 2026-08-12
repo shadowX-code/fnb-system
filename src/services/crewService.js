@@ -18,6 +18,12 @@ export function crewAccessState(access) {
 }
 
 const relationRows = (value) => (Array.isArray(value) ? value : value ? [value] : []);
+const localBusinessDate = (value = new Date()) => {
+  const year = value.getFullYear();
+  const month = String(value.getMonth() + 1).padStart(2, "0");
+  const day = String(value.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
 
 function normalizeAdminJourney(journey) {
   return {
@@ -115,7 +121,7 @@ export const crewService = {
     return data;
   },
 
-  async operationsToday(token, date = new Date().toISOString().slice(0, 10)) {
+  async operationsToday(token, date = localBusinessDate()) {
     const { data, error } = await supabase.rpc("crew_operations_today", { p_token: token, p_business_date: date });
     throwSupabaseError("crew.operationsToday", error);
     return data || { checklists: [], daily_tasks: [], attendance_context: null };

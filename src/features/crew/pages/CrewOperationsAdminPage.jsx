@@ -8,7 +8,10 @@ import Badge from "../../../components/ui/Badge.jsx";
 import { crewService } from "../../../services/crewService.js";
 import { outletService } from "../../../services/outletService.js";
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => {
+  const value = new Date();
+  return `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}-${String(value.getDate()).padStart(2, "0")}`;
+};
 const TYPE_OPTIONS = [
   { value: "opening", label: "Opening Checklist" }, { value: "closing", label: "Closing Checklist" },
   { value: "daily", label: "Daily Checklist" }, { value: "health", label: "Store Health Check" },

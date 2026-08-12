@@ -9,7 +9,7 @@ declare
   outlet constant uuid := 'e804c48d-6343-4bf8-99d7-9893c473948f';
   qa_role uuid; employee_a uuid; employee_b uuid; other_employee uuid; other_outlet uuid;
   opening uuid; health uuid; v_instance_id uuid; v_health_instance uuid; item_a uuid; item_b uuid; health_item uuid; task_id uuid;
-  payload jsonb; detail jsonb; result jsonb; denied boolean; pass int:=0; total constant int:=22;
+  payload jsonb; detail jsonb; result jsonb; denied boolean; pass int:=0; total constant int:=23;
 begin
   if not exists(select 1 from public.outlets where id=outlet and name='Friends Corner') then raise exception 'Friends Corner Staging outlet is unavailable.'; end if;
   select role_id into qa_role from public.employees where auth_user_id=qa_admin and is_active;
@@ -38,6 +38,8 @@ begin
   execute 'set local role anon'; payload:=public.crew_operations_today('operations-test-token-a',current_date); execute 'reset role';
   if payload->'employee'->>'id'<>employee_a::text or payload->'outlet'->>'id'<>outlet::text then raise exception 'FAIL token identity/outlet'; end if; pass:=pass+1;
   if jsonb_array_length(payload->'checklists')<2 or jsonb_array_length(payload->'daily_tasks')<1 then raise exception 'FAIL applicable today payload'; end if; pass:=pass+1;
+  execute 'set local role anon'; payload:=public.crew_operations_today('operations-test-token-a'); execute 'reset role';
+  if (payload->>'date')::date<>timezone('Asia/Kuala_Lumpur',now())::date then raise exception 'FAIL Malaysia default business date'; end if; pass:=pass+1;
   execute 'set local role anon'; detail:=public.crew_operations_detail('operations-test-token-a',v_instance_id); execute 'reset role';
   if jsonb_array_length(detail->'items')<>2 or detail ? 'template_snapshot' then raise exception 'FAIL Crew safe detail'; end if; pass:=pass+1;
 
