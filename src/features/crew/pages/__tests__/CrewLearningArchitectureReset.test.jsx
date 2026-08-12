@@ -7,11 +7,15 @@ const mocks = vi.hoisted(() => ({
   listSops: vi.fn(),
   learningHome: vi.fn(),
   learningAssignment: vi.fn(),
+  learningMediaUrl: vi.fn(),
   sopLibrary: vi.fn(),
   sopVersion: vi.fn(),
   saveOnboardingDraft: vi.fn(),
   newJourneyVersion: vi.fn(),
   createDefaultOnboarding: vi.fn(),
+  uploadLearningMedia: vi.fn(),
+  deleteLearningMedia: vi.fn(),
+  learningMediaAdminUrl: vi.fn(),
   publishJourney: vi.fn(),
   cloneLearningSetup: vi.fn(),
 }));
@@ -23,11 +27,15 @@ vi.mock("../../../../services/crewService.js", () => ({
     listOutletSopsAdmin: mocks.listSops,
     learningHome: mocks.learningHome,
     learningAssignment: mocks.learningAssignment,
+    learningMediaUrl: mocks.learningMediaUrl,
     sopLibrary: mocks.sopLibrary,
     sopVersion: mocks.sopVersion,
     saveOnboardingDraft: mocks.saveOnboardingDraft,
     newJourneyVersion: mocks.newJourneyVersion,
     createDefaultOnboarding: mocks.createDefaultOnboarding,
+    uploadLearningMedia: mocks.uploadLearningMedia,
+    deleteLearningMedia: mocks.deleteLearningMedia,
+    learningMediaAdminUrl: mocks.learningMediaAdminUrl,
     publishJourney: mocks.publishJourney,
     cloneLearningSetup: mocks.cloneLearningSetup,
   },
@@ -120,6 +128,12 @@ beforeEach(() => {
   mocks.saveOnboardingDraft.mockReset().mockImplementation(async (_original, next) => structuredClone(next));
   mocks.newJourneyVersion.mockReset().mockResolvedValue("journey-draft");
   mocks.createDefaultOnboarding.mockReset().mockResolvedValue("journey-draft");
+  mocks.uploadLearningMedia.mockReset().mockResolvedValue({
+    media: { id: "00000000-0000-4000-8000-000000000001", mime_type: "image/webp", width: 1200, height: 800 },
+    previewUrl: "https://signed.test/admin-preview.webp",
+  });
+  mocks.deleteLearningMedia.mockReset().mockResolvedValue({ deleted: true });
+  mocks.learningMediaAdminUrl.mockReset().mockResolvedValue("https://signed.test/admin-preview.webp");
   mocks.publishJourney.mockReset().mockResolvedValue("journey-draft");
   mocks.cloneLearningSetup.mockReset().mockResolvedValue("journey-draft");
   ui.notify.mockReset();
@@ -196,6 +210,26 @@ describe("Crew Learning architecture reset UI", () => {
     expect(screen.getAllByText("Key Point").length).toBeGreaterThan(0);
     fireEvent.click(screen.getByRole("button", { name: "Preview" }));
     expect(screen.getByRole("heading", { name: "Onboarding Preview" })).not.toBeNull();
+  });
+
+  it("uploads learning images into draft state and persists only durable media metadata", async () => {
+    const { container } = render(<CrewLearningAdminResetPage auth={auth} ui={ui} store={{ outlets }} />);
+    fireEvent.click(await screen.findByRole("button", { name: "Continue Editing Draft" }));
+    await screen.findByRole("dialog", { name: "Edit New Crew Onboarding" });
+    fireEvent.click(screen.getByText("Welcome & Workplace essentials", { selector: ".crew-onboarding-lesson-entry strong" }).closest("button"));
+    fireEvent.click(screen.getByRole("button", { name: "Edit" }));
+    const input = container.querySelector('input[type="file"][accept="image/jpeg,image/png,image/webp"]');
+    fireEvent.change(input, { target: { files: [new File(["image"], "welcome.png", { type: "image/png" })] } });
+    expect(await screen.findByAltText("Learning content preview")).not.toBeNull();
+    fireEvent.change(screen.getByLabelText("Image Caption"), { target: { value: "Welcome example" } });
+    fireEvent.click(screen.getByRole("button", { name: "Save Draft" }));
+    await waitFor(() => expect(mocks.saveOnboardingDraft).toHaveBeenCalled());
+    const saved = mocks.saveOnboardingDraft.mock.calls.at(-1)[1];
+    const media = saved.modules[0].lessons[0].blocks[0].payload.media;
+    expect(media.id).toBe("00000000-0000-4000-8000-000000000001");
+    expect(media.caption).toBe("Welcome example");
+    expect(JSON.stringify(media)).not.toContain("signed.test");
+    expect(JSON.stringify(media)).not.toContain("data:image");
   });
 
   it("warns before discarding unsaved changes and saves before publish", async () => {
@@ -301,6 +335,7 @@ describe("Crew mobile Learn reset", () => {
         },
       ],
     });
+    mocks.learningMediaUrl.mockReset().mockResolvedValue({ signed_url: "https://signed.test/lesson.webp" });
   });
 
   it("keeps completed onboarding visible for review and exposes the outlet SOP knowledge base", async () => {
@@ -312,5 +347,47 @@ describe("Crew mobile Learn reset", () => {
     expect(screen.getByPlaceholderText("Search SOP")).not.toBeNull();
     expect(screen.getByText("Welcome & Goodbye Standard")).not.toBeNull();
     expect(JSON.stringify(mocks.learningAssignment.mock.results)).not.toContain("is_correct");
+  });
+
+  it("renders safe rich lesson content and token-bound published media on mobile", async () => {
+    mocks.learningHome.mockResolvedValue({
+      assignment: { id: "assignment-1", status: "in_progress", progress_percentage: 0, lessons_completed: 0, lessons_total: 1 },
+    });
+    mocks.learningAssignment.mockResolvedValue({
+      id: "assignment-1",
+      status: "in_progress",
+      journey: { name: "New Crew Onboarding", description: "Essential onboarding" },
+      modules: [{
+        module: { id: "module-rich", title: "Welcome & Workplace" },
+        completed: false,
+        locked: false,
+        progress_percentage: 0,
+        lessons: [{
+          lesson: { id: "lesson-rich", title: "Welcome rich lesson", estimated_minutes: 5 },
+          completed: false,
+          locked: false,
+          blocks: [{
+            id: "block-rich",
+            block_type: "text",
+            payload: {
+              body_html: '<p><strong>Serve warmly</strong> and <em>listen</em>.</p><ul><li>Smile</li></ul><a href="https://feedx.test">Open guide</a><script>unsafe()</script>',
+              media: { id: "00000000-0000-4000-8000-000000000001", caption: "Greeting example", width: 1200, height: 800 },
+            },
+          }],
+        }],
+      }],
+    });
+
+    render(<CrewLearningMobile token="crew-token" />);
+    fireEvent.click(await screen.findByRole("button", { name: "Continue onboarding" }));
+    fireEvent.click(await screen.findByRole("button", { name: /Welcome rich lesson/ }));
+
+    expect(await screen.findByText("Serve warmly")).not.toBeNull();
+    expect(screen.getByText("listen").tagName).toBe("EM");
+    expect(screen.getByText("Smile").closest("ul")).not.toBeNull();
+    expect(screen.getByRole("link", { name: "Open guide" }).getAttribute("rel")).toBe("noopener noreferrer");
+    expect(screen.queryByText("unsafe()", { exact: true })).toBeNull();
+    expect(await screen.findByAltText("Greeting example")).not.toBeNull();
+    expect(mocks.learningMediaUrl).toHaveBeenCalledWith("crew-token", "00000000-0000-4000-8000-000000000001");
   });
 });

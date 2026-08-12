@@ -1,5 +1,10 @@
 import { supabase } from "../lib/supabase";
 import { throwSupabaseError } from "./supabaseError";
+import {
+  IMAGE_UPLOAD_MAX_BYTES,
+  optimizeImageBlob,
+  validateLearningImageFile,
+} from "../utils/imageUpload.js";
 
 export const CREW_ACCESS_STATE_LABEL = {
   active: "Active",
@@ -36,6 +41,25 @@ function normalizeAdminJourney(journey) {
 
 const isTemporaryCrewId = (id) => !id || String(id).startsWith("temp:");
 const persistentCrewIds = (rows = []) => rows.map((row) => row.id).filter((id) => !isTemporaryCrewId(id));
+const learningMediaIds = (journey) => new Set(
+  (journey?.modules || [])
+    .flatMap((module) => module.lessons || [])
+    .flatMap((lesson) => lesson.blocks || [])
+    .map((block) => block.payload?.media?.id)
+    .filter(Boolean),
+);
+
+function durableLearningMedia(media) {
+  if (!media?.id) return null;
+  return {
+    id: media.id,
+    mime_type: media.mime_type || "image/webp",
+    width: media.width || null,
+    height: media.height || null,
+    caption: String(media.caption || "").trim() || null,
+    alt_text: String(media.alt_text || "").trim() || null,
+  };
+}
 
 async function prepareCrewDraftOrder(table, rows) {
   for (const [index, row] of rows.filter((item) => !isTemporaryCrewId(item.id)).entries()) {
@@ -72,6 +96,85 @@ export const crewService = {
     const { data, error } = await supabase.rpc("crew_learning_assignment", { p_token: token, p_assignment_id: assignmentId });
     throwSupabaseError("crew.learningAssignment", error);
     return data;
+  },
+
+  async learningMediaUrl(token, mediaId) {
+    if (!token || !mediaId) throw new Error("Learning media is unavailable.");
+    const { data, error } = await supabase.functions.invoke("crew-learning-media-url", {
+      body: { token, media_id: mediaId },
+    });
+    throwSupabaseError("crew.learningMediaUrl", error);
+    if (!data?.signed_url) throw new Error(data?.error || "Learning media is unavailable.");
+    return data;
+  },
+
+  async learningMediaAdminUrl(mediaId) {
+    const { data: media, error: mediaError } = await supabase
+      .from("crew_learning_media")
+      .select("id,bucket_id,object_path,status")
+      .eq("id", mediaId)
+      .single();
+    throwSupabaseError("crew.learningMediaAdminUrl.media", mediaError);
+    if (media.status !== "ready") throw new Error("Learning image is not ready.");
+    const { data, error } = await supabase.storage.from(media.bucket_id).createSignedUrl(media.object_path, 600);
+    throwSupabaseError("crew.learningMediaAdminUrl.sign", error);
+    return data?.signedUrl || "";
+  },
+
+  async uploadLearningMedia(file, outletId) {
+    validateLearningImageFile(file);
+    const optimized = await optimizeImageBlob(file);
+    if (optimized.blob.size > IMAGE_UPLOAD_MAX_BYTES) throw new Error("Image exceeds 5MB limit.");
+    const { data: prepared, error: prepareError } = await supabase.rpc("crew_prepare_learning_media_upload", {
+      p_outlet_id: outletId,
+      p_original_filename: file.name,
+      p_mime_type: optimized.contentType,
+      p_file_size_bytes: optimized.blob.size,
+      p_width: optimized.width,
+      p_height: optimized.height,
+    });
+    throwSupabaseError("crew.uploadLearningMedia.prepare", prepareError);
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from(prepared.bucket)
+        .upload(prepared.object_path, optimized.blob, {
+          contentType: optimized.contentType,
+          upsert: false,
+          cacheControl: "3600",
+        });
+      throwSupabaseError("crew.uploadLearningMedia.upload", uploadError);
+      const { data: finalized, error: finalizeError } = await supabase.rpc("crew_finalize_learning_media_upload", {
+        p_media_id: prepared.id,
+      });
+      throwSupabaseError("crew.uploadLearningMedia.finalize", finalizeError);
+      const { data: signed, error: signedError } = await supabase.storage
+        .from(finalized.bucket)
+        .createSignedUrl(finalized.object_path, 600);
+      throwSupabaseError("crew.uploadLearningMedia.preview", signedError);
+      return {
+        media: durableLearningMedia(finalized),
+        previewUrl: signed?.signedUrl || "",
+      };
+    } catch (cause) {
+      try { await this.deleteLearningMedia(prepared.id); } catch { /* Retain server record for safe retry/cleanup. */ }
+      throw cause;
+    }
+  },
+
+  async deleteLearningMedia(mediaId) {
+    if (!mediaId) return { deleted: false };
+    const { data: request, error: requestError } = await supabase.rpc("crew_request_learning_media_delete", {
+      p_media_id: mediaId,
+    });
+    throwSupabaseError("crew.deleteLearningMedia.request", requestError);
+    if (!request?.can_delete) return { deleted: false, reason: request?.reason || "referenced" };
+    const { error: removeError } = await supabase.storage.from(request.bucket).remove([request.object_path]);
+    throwSupabaseError("crew.deleteLearningMedia.remove", removeError);
+    const { error: finalizeError } = await supabase.rpc("crew_finalize_learning_media_delete", {
+      p_media_id: mediaId,
+    });
+    throwSupabaseError("crew.deleteLearningMedia.finalize", finalizeError);
+    return { deleted: true };
   },
 
   async sopLibrary(token) {
@@ -305,6 +408,8 @@ export const crewService = {
       throw new Error("Only the active onboarding draft can be saved.");
     }
 
+    const originalMedia = learningMediaIds(originalJourney);
+    const nextMedia = learningMediaIds(nextJourney);
     const originalModules = originalJourney.modules || [];
     const nextModules = nextJourney.modules || [];
     await prepareCrewDraftOrder("crew_journey_modules", nextModules);
@@ -353,6 +458,8 @@ export const crewService = {
         for (const [blockIndex, block] of (lesson.blocks || []).entries()) {
           const payload = { ...(block.payload || {}) };
           delete payload.pending_image;
+          if (payload.media) payload.media = durableLearningMedia(payload.media);
+          else delete payload.media;
           const savedBlock = await saveCrewDraftRow("crew_lesson_blocks", block, {
             lesson_id: savedLesson.id,
             block_type: block.block_type,
@@ -394,6 +501,9 @@ export const crewService = {
       }
     }
 
+    for (const mediaId of originalMedia) {
+      if (!nextMedia.has(mediaId)) await this.deleteLearningMedia(mediaId);
+    }
     const versions = await this.listOnboardingAdmin(nextJourney.outlet_id);
     return versions.find((journey) => journey.id === nextJourney.id) || nextJourney;
   },

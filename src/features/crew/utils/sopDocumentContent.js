@@ -1,4 +1,5 @@
 const ALLOWED_TAGS = new Set(["P", "BR", "STRONG", "B", "EM", "I", "MARK", "UL", "OL", "LI", "A"]);
+const DROP_WITH_CONTENT_TAGS = new Set(["SCRIPT", "STYLE", "IFRAME", "OBJECT", "EMBED", "META", "LINK"]);
 const KEY_POINT_SELECTOR = 'aside[data-feedx-key-point="true"]';
 
 function escapeHtml(value = "") {
@@ -40,6 +41,17 @@ export function sanitizeSopHtml(value = "") {
         return;
       }
       if (child.nodeType !== Node.ELEMENT_NODE) return;
+      if (DROP_WITH_CONTENT_TAGS.has(child.tagName)) {
+        child.remove();
+        return;
+      }
+      if (child.tagName === "SPAN" && /background(?:-color)?\s*:/i.test(child.getAttribute("style") || "")) {
+        const mark = document.createElement("mark");
+        mark.append(...child.childNodes);
+        child.replaceWith(mark);
+        cleanNode(mark);
+        return;
+      }
       if (!ALLOWED_TAGS.has(child.tagName)) {
         cleanNode(child);
         child.replaceWith(...child.childNodes);

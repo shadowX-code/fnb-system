@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn() }));
-vi.mock("../../lib/supabase", () => ({ supabase: { rpc: mocks.rpc, from: mocks.from } }));
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), invoke: vi.fn() }));
+vi.mock("../../lib/supabase", () => ({ supabase: { rpc: mocks.rpc, from: mocks.from, functions: { invoke: mocks.invoke } } }));
 
 import { crewService } from "../crewService.js";
 
@@ -9,6 +9,18 @@ describe("Crew learning mobile service boundaries", () => {
   beforeEach(() => {
     mocks.rpc.mockReset().mockResolvedValue({ data: { ok: true }, error: null });
     mocks.from.mockReset();
+    mocks.invoke.mockReset().mockResolvedValue({ data: { signed_url: "https://signed.test/image" }, error: null });
+  });
+
+  it("uses the token-bound media URL authority instead of exposing a public object URL", async () => {
+    const result = await crewService.learningMediaUrl("crew-token", "00000000-0000-4000-8000-000000000001");
+    expect(mocks.invoke).toHaveBeenCalledWith("crew-learning-media-url", {
+      body: {
+        token: "crew-token",
+        media_id: "00000000-0000-4000-8000-000000000001",
+      },
+    });
+    expect(result.signed_url).toBe("https://signed.test/image");
   });
 
   it("uses token-bound Crew RPCs for all Crew learning actions", async () => {

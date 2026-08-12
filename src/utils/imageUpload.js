@@ -28,6 +28,14 @@ export function validateImageFile(file) {
   if (file.size > IMAGE_UPLOAD_MAX_BYTES) throw new Error(IMAGE_UPLOAD_LIMIT_MESSAGE);
 }
 
+export function validateLearningImageFile(file) {
+  if (!file) throw new Error("Please select an image.");
+  if (!IMAGE_UPLOAD_ALLOWED_EXTENSIONS.has(String(file.type || "").split("/").pop()?.toLowerCase())) {
+    throw new Error("Please upload a JPG, PNG, or WebP image.");
+  }
+  if (file.size <= 0 || file.size > IMAGE_UPLOAD_MAX_BYTES) throw new Error(IMAGE_UPLOAD_LIMIT_MESSAGE);
+}
+
 function loadImageFromObjectUrl(url) {
   return new Promise((resolve, reject) => {
     const image = new Image();

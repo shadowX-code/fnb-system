@@ -2497,3 +2497,28 @@
     background-color: var(--theme-surface-raised) !important;
   }
 }
+
+/* Crew Learning content: explicit semantics for safe rich text and private media. */
+.crew-rich-content { max-width: 100%; overflow-wrap: anywhere; color: #41536e; font-size: 12px; line-height: 1.65; }
+.crew-rich-content > :first-child { margin-top: 5px; }
+.crew-rich-content > :last-child { margin-bottom: 0; }
+.crew-rich-content p { margin: 8px 0; white-space: normal; }
+.crew-rich-content ul, .crew-rich-content ol { margin: 8px 0; padding-left: 20px; }
+.crew-rich-content li { padding-left: 2px; }
+.crew-rich-content li + li { margin-top: 4px; }
+.crew-rich-content mark { border-radius: 3px; background: #fff1a8; padding: 0 2px; color: inherit; }
+.crew-rich-content a { color: #087b66; font-weight: 650; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 2px; }
+.crew-rich-content a:focus-visible { border-radius: 3px; outline: 2px solid rgb(22 167 131 / .35); outline-offset: 2px; }
+.crew-learning-media { margin: 13px 0 2px; }
+.crew-learning-media img { display: block; width: 100%; height: auto; max-height: 360px; border-radius: 10px; background: #eaf0f4; object-fit: contain; }
+.crew-learning-media figcaption { margin-top: 6px; color: #66778c; font-size: 10px; line-height: 1.45; text-align: center; }
+.crew-learning-media-state, .crew-learning-media-error { display: grid; min-height: 150px; place-items: center; border-radius: 10px; background: #eaf0f4; }
+.crew-learning-media-state { animation: crew-media-pulse 1.4s ease-in-out infinite; }
+.crew-learning-media-error { align-content: center; gap: 6px; color: #6b7c90; font-size: 11px; }
+.crew-onboarding-media-editor { display: grid; gap: 10px; border-top: 1px solid var(--theme-border, #e2e8ec); padding-top: 12px; }
+.crew-onboarding-media-editor > label { display: grid; gap: 6px; color: var(--theme-text, #35495f); font-size: 12px; font-weight: 750; }
+.crew-onboarding-media-editor > div:last-child { display: flex; flex-wrap: wrap; gap: 8px; }
+.crew-onboarding-media-preview { display: block; width: min(100%, 520px); max-height: 300px; border-radius: 10px; background: #edf2f5; object-fit: contain; }
+.crew-onboarding-media-loading { width: min(100%, 520px); height: 180px; border-radius: 10px; background: #edf2f5; animation: crew-media-pulse 1.4s ease-in-out infinite; }
+@keyframes crew-media-pulse { 50% { opacity: .62; } }
+@media (prefers-reduced-motion: reduce) { .crew-learning-media-state, .crew-onboarding-media-loading { animation: none; } }

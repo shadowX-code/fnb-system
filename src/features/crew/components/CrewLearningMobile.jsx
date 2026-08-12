@@ -11,6 +11,9 @@ import {
   Search,
 } from "lucide-react";
 import { crewService } from "../../../services/crewService.js";
+import CrewRichContent from "./CrewRichContent.jsx";
+import CrewLearningImage from "./CrewLearningImage.jsx";
+import { plainTextToSopHtml } from "../utils/sopDocumentContent.js";
 
 function Progress({ value = 0 }) {
   const safe = Math.max(0, Math.min(100, Number(value) || 0));
@@ -24,6 +27,10 @@ function Progress({ value = 0 }) {
 function plainBlock(block) {
   const payload = block?.payload || {};
   return payload.body || payload.text || payload.content || payload.title || "";
+}
+
+function richBlock(block) {
+  return block?.payload?.body_html || plainTextToSopHtml(plainBlock(block));
 }
 
 export default function CrewLearningMobile({ token, onRefreshHome }) {
@@ -209,6 +216,7 @@ export default function CrewLearningMobile({ token, onRefreshHome }) {
   if (screen === "lesson" && lesson) {
     return (
       <LessonReader
+        token={token}
         lesson={lesson}
         activeLesson={activeLesson}
         answers={answers}
@@ -427,7 +435,7 @@ function SopReader({ sop, saving, error, onBack, onAcknowledge }) {
       <p className="crew-learning-summary">{sop.summary || sop.change_summary}</p>
       {sop.sections?.map((section) => (
         <article key={section.id} className={section.key_point ? "crew-sop-section is-key" : "crew-sop-section"}>
-          <h3>{section.title}</h3><p>{section.body}</p>{section.key_point && <span>Key point</span>}
+          <h3>{section.title}</h3><CrewRichContent html={section.body} />{section.key_point && <span>Key point</span>}
         </article>
       ))}
       {error && <p className="crew-mobile-error">{error}</p>}
@@ -440,7 +448,7 @@ function SopReader({ sop, saving, error, onBack, onAcknowledge }) {
   );
 }
 
-function LessonReader({ lesson, activeLesson, answers, result, saving, error, onBack, onOpenSop, onChoose, onSubmitQuiz, onComplete }) {
+function LessonReader({ token, lesson, activeLesson, answers, result, saving, error, onBack, onOpenSop, onChoose, onSubmitQuiz, onComplete }) {
   return (
     <section className="crew-learning-reader">
       <button className="crew-learning-back" onClick={onBack}><ArrowLeft size={17} /> Onboarding</button>
@@ -453,7 +461,7 @@ function LessonReader({ lesson, activeLesson, answers, result, saving, error, on
             <FileText size={18} /><span><strong>{block.payload?.title || "Required SOP"}</strong><small>Version {block.payload?.version || "—"}{block.payload?.required_acknowledgement ? " · acknowledgement required" : ""}</small></span><ChevronRight size={18} />
           </button>
         ) : (
-          <article key={block.id} className={`crew-content-block is-${block.block_type}`}><span>{block.block_type === "key_point" ? "Key point" : "Lesson"}</span><p>{plainBlock(block)}</p></article>
+          <article key={block.id} className={`crew-content-block is-${block.block_type}`}><span>{block.block_type === "key_point" ? "Key point" : "Lesson"}</span><CrewRichContent html={richBlock(block)} />{block.payload?.media ? <CrewLearningImage token={token} media={block.payload.media} /> : null}</article>
         ),
       )}
       {activeLesson?.quiz && (
