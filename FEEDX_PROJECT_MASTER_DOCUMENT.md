@@ -5169,6 +5169,16 @@ Service rules:
 - Phase B UI is deployed to Staging: Crew Mobile Learn consumes server-derived availability and safe quiz/SOP payloads; the Admin Learning and SOP Library surfaces use the existing authenticated RLS architecture for drafts. Lifecycle migrations `202608110021`, `20260811171948`, and `20260811172049` add authenticated publish/version authorities, outlet-scope-enforcing RLS predicates, and guards against in-place mutation of published content.
 - Phase B backend verification is closed; Crew UI implementation is the next planned phase. Deferred non-Phase-B hardening debt is tracked separately. No Production deployment is authorized by this record.
 
+### Crew Learning Product Architecture
+
+- Crew Learn has two primary product surfaces only: mandatory **New Crew Onboarding** and the outlet **SOP Library**. Generic Journey Library, manual assignment, and standalone Crew Progress concepts remain historical compatibility data rather than primary navigation.
+- Every outlet owns one mandatory onboarding lineage. Eligible active Crew are enrolled automatically when access becomes active or when an onboarding version is published; completed onboarding remains permanently available for review.
+- The standard onboarding shell contains eight ordered modules: Welcome & Workplace; Customer Arrival & Greeting; Taking Orders; Serving & Table Service; Cleaning & Hygiene; Take Away & Packaging; Opening & Closing; Final & Role Readiness.
+- Onboarding versions, assignment snapshots, progress, quiz attempts, pinned SOP acknowledgements, and correct-answer secrecy remain immutable and server-authoritative. A later version never rewrites an existing employee assignment.
+- Learning setup is outlet-scoped end to end. Clone Learning Setup creates independent target drafts for onboarding, SOP categories, SOPs, versions, sections, quizzes, and SOP references; later edits do not cross outlet boundaries.
+- SOP content uses one hierarchy: Category → SOP → Version → ordered Sections. Published versions are read-only; edits require a new draft version. Crew can search every published SOP for their outlet and acknowledge required versions through token-bound authorities.
+- Admin Learning uses one visible outlet context with `Onboarding` and `SOP Library`. Onboarding contains Overview, Modules, and Crew Progress tabs; no manager action is required to assign mandatory onboarding.
+
 ### Phase C: Import Engine Completion
 
 - Complete Sales Import QA.

@@ -11,6 +11,16 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Phase B UI implementation is now deployed to Staging: Crew Learn uses only token-bound safe RPCs, Admin draft CRUD uses authenticated RLS, and lifecycle migrations `202608110021`, `20260811171948`, and `20260811172049` supply controlled publish/new-version authorities, outlet-scoped RLS predicates, and published-content guards.
 - Phase B UI implementation is the next phase; no Production deployment was performed.
 
+## 2026-08-12
+
+### Crew Journey Phase B — Staging QA Demo Data
+- Created a reusable, Staging-only QA seed at `scripts/seedCrewLearningQaData.sh` and `scripts/seedCrewLearningQaData.sql`; the runner refuses any linked Supabase project other than `ujkzdaaadnvcfayuldmh`.
+- Seeded and published three acknowledgement-required SOPs (Welcome & Goodbye, Personal Grooming, and Workstation Cleanliness) through the existing SOP lifecycle authority.
+- Seeded and published the sequential `New Crew Onboarding` Journey (3 modules, 5 lessons, 4 quizzes) and the non-sequential `Service Refresher` Journey through the existing Journey lifecycle authority.
+- Assigned `New Crew Onboarding` to the clearly labelled Staging-only `Test` Crew employee solely through `assign_crew_journey`; its immutable snapshot pins all three published SOP versions.
+- Added rollback-only anonymous Crew RPC verification at `scripts/verifyCrewLearningQaData.sql`. It verifies the safe payload, sequential availability, SOP acknowledgement visibility and quiz submission without retaining a session, attempt, acknowledgement or learning progress.
+- No Production data, schema, migration, or deployment was changed.
+
 ### Crew Foundation — Phase A
 - Added Crew as FeedX's third workspace with a desktop admin navigation for Dashboard, Crew Employees, and Attendance. Restaurant and Factory routes and their lifecycle ownership remain unchanged.
 - Established a one-to-one `crew_access` extension of the canonical Employee Master Record. It deliberately does not reuse or alter Admin Access fields (`auth_user_id`, role, access state, or Admin last login).
@@ -359,3 +369,14 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Added `save_factory_product_recipe` and `factory_product_recipe_requests` (migration 016) so Draft Recipe header and complete BOM replacement commit atomically with request-ID idempotency.
 - Removed the active browser header-update/BOM-delete/BOM-insert save choreography. The Recipe modal owns retry-safe request IDs: unchanged retries reuse one ID, changed intent receives a new ID, and success clears it.
 - Final hardening baseline: Product Recipe focused 11/11 and full suite 356/356. FeedX hardening is complete at P0=0/P1=0; accepted P2 debt remains documented.
+
+## 2026-08-12
+
+### Crew Learning Architecture Reset
+- Reset Crew Learn to two operational product surfaces: mandatory New Crew Onboarding and the outlet SOP Library; generic Journey Library, manual assignment, and standalone Crew Progress navigation are retired from the primary UI without deleting historical data.
+- Added Staging migrations `20260812012742_crew_learning_architecture_reset.sql` and `20260812015242_crew_learning_home_runtime_fix.sql` for outlet onboarding lineages, automatic enrollment, outlet SOP categories, independent setup cloning, permanent completed-onboarding access, outlet SOP discovery, and token-bound acknowledgement/read authorities.
+- Adapted the existing Staging New Crew Onboarding to the documented eight-module structure while preserving the completed v1 assignment and immutable employee snapshots. The current published v2 snapshot contains all eight modules; eligible Crew enrollment is automatic.
+- Rebuilt Admin Learning around one explicit Outlet context, Onboarding Overview/Modules/Crew Progress, a category-based SOP Library, editable module/lesson/block and SOP section drafts, and state-correct publish/new-version actions.
+- Rebuilt Crew Mobile Learn so completed onboarding remains reviewable and all published outlet SOPs are searchable by category with required acknowledgements clearly surfaced.
+- Added reusable Staging-only architecture adaptation and rollback-only behavior verification scripts. Real Staging verification passed 12/12 for clone independence, automatic enrollment, outlet isolation, safe payloads, completed history, SOP library access, and acknowledgements.
+- No Production schema, data, or deployment was touched.

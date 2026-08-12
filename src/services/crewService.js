@@ -25,6 +25,12 @@ export const crewService = {
     return data;
   },
 
+  async sopLibrary(token) {
+    const { data, error } = await supabase.rpc("crew_sop_library", { p_token: token });
+    throwSupabaseError("crew.sopLibrary", error);
+    return data || { categories: [], sops: [] };
+  },
+
   async submitQuiz(token, assignmentId, quizId, answers) {
     const { data, error } = await supabase.rpc("crew_submit_quiz", { p_token: token, p_assignment_id: assignmentId, p_quiz_id: quizId, p_answers: answers });
     throwSupabaseError("crew.submitQuiz", error);
@@ -59,10 +65,83 @@ export const crewService = {
     return { journeys: journeys || [], assignments: assignments || [] };
   },
 
+  async listOnboardingAdmin(outletId) {
+    const { data, error } = await supabase
+      .from("crew_journeys")
+      .select(
+        "*, modules:crew_journey_modules(id,title,description,sort_order,estimated_minutes,required,status,lessons:crew_lessons(id,title,sort_order,content_type,required,estimated_minutes,blocks:crew_lesson_blocks(id,block_type,payload,sort_order),quizzes:crew_quizzes(id,title,passing_score,required,status,questions:crew_quiz_questions(id,prompt,question_type,explanation,sort_order,options:crew_quiz_options(id,label,is_correct,sort_order)))))",
+      )
+      .eq("outlet_id", outletId)
+      .eq("is_mandatory_onboarding", true)
+      .order("version", { ascending: false });
+    throwSupabaseError("crew.listOnboardingAdmin", error);
+    return data || [];
+  },
+
+  async onboardingProgress(outletId) {
+    const { data, error } = await supabase.rpc("crew_admin_onboarding_progress", {
+      p_outlet_id: outletId,
+    });
+    throwSupabaseError("crew.onboardingProgress", error);
+    return data || [];
+  },
+
+  async createDefaultOnboarding(outletId) {
+    const { data, error } = await supabase.rpc("crew_create_default_onboarding", {
+      p_outlet_id: outletId,
+    });
+    throwSupabaseError("crew.createDefaultOnboarding", error);
+    return data;
+  },
+
+  async cloneLearningSetup({ sourceOutletId, targetOutletId, copyOnboarding, copyCategories, copySops }) {
+    const { data, error } = await supabase.rpc("crew_clone_learning_setup", {
+      p_source_outlet_id: sourceOutletId,
+      p_target_outlet_id: targetOutletId,
+      p_copy_onboarding: Boolean(copyOnboarding),
+      p_copy_sop_categories: Boolean(copyCategories),
+      p_copy_sops: Boolean(copySops),
+    });
+    throwSupabaseError("crew.cloneLearningSetup", error);
+    return data;
+  },
+
   async listSopsAdmin() {
     const { data, error } = await supabase.from("crew_sops").select("*, versions:crew_sop_versions(id,version,status,effective_date,change_summary,require_acknowledgement,published_at,sections:crew_sop_sections(id,title,body,sort_order,key_point))").order("updated_at", { ascending: false });
     throwSupabaseError("crew.listSopsAdmin", error);
     return data || [];
+  },
+
+  async listOutletSopsAdmin(outletId) {
+    const [{ data: sops, error: sopError }, { data: categories, error: categoryError }] =
+      await Promise.all([
+        supabase
+          .from("crew_sops")
+          .select(
+            "*, versions:crew_sop_versions(id,version,status,effective_date,change_summary,require_acknowledgement,published_at,sections:crew_sop_sections(id,title,body,sort_order,key_point))",
+          )
+          .eq("outlet_id", outletId)
+          .order("updated_at", { ascending: false }),
+        supabase
+          .from("crew_sop_categories")
+          .select("id,outlet_id,name,sort_order,created_at,updated_at")
+          .eq("outlet_id", outletId)
+          .order("sort_order", { ascending: true })
+          .order("name", { ascending: true }),
+      ]);
+    throwSupabaseError("crew.listOutletSopsAdmin.sops", sopError);
+    throwSupabaseError("crew.listOutletSopsAdmin.categories", categoryError);
+    return { sops: sops || [], categories: categories || [] };
+  },
+
+  async saveSopCategory(values) {
+    const { id, ...payload } = values;
+    const query = id
+      ? supabase.from("crew_sop_categories").update({ ...payload, updated_at: new Date().toISOString() }).eq("id", id)
+      : supabase.from("crew_sop_categories").insert(payload);
+    const { data, error } = await query.select().single();
+    throwSupabaseError("crew.saveSopCategory", error);
+    return data;
   },
 
   async saveJourney(values) {
@@ -87,6 +166,27 @@ export const crewService = {
     const { data, error } = await query.select().single();
     throwSupabaseError(`crew.saveDraftRecord.${table}`, error);
     return data;
+  },
+
+  async deleteDraftRecord(table, id) {
+    const { error } = await supabase.from(table).delete().eq("id", id);
+    throwSupabaseError(`crew.deleteDraftRecord.${table}`, error);
+  },
+
+  async swapDraftOrder(table, first, second) {
+    const temporaryOrder = -1000000 - Math.abs(Number(first.sort_order || 0));
+    const updates = [
+      [first.id, temporaryOrder],
+      [second.id, Number(first.sort_order)],
+      [first.id, Number(second.sort_order)],
+    ];
+    for (const [id, sortOrder] of updates) {
+      const { error } = await supabase
+        .from(table)
+        .update({ sort_order: sortOrder })
+        .eq("id", id);
+      throwSupabaseError(`crew.swapDraftOrder.${table}`, error);
+    }
   },
 
   async assignJourney(employeeId, journeyId, dueAt = null) {

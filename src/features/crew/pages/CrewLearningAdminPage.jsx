@@ -1,7 +1,9 @@
 import { useEffect, useMemo, useState } from "react";
 import {
   AlertTriangle,
+  ArrowDown,
   ArrowLeft,
+  ArrowUp,
   BookOpenCheck,
   CheckCircle2,
   ChevronRight,
@@ -18,6 +20,7 @@ import {
   Send,
   ShieldCheck,
   Sparkles,
+  Trash2,
   Users,
 } from "lucide-react";
 import PageHeader from "../../../components/layout/PageHeader.jsx";
@@ -970,31 +973,85 @@ function JourneyBuilder({
               ]}
             />
           ) : selected?.type === "module" ? (
-            <EntityEditor
-              title={selected.entity.title}
-              entity={selected.entity}
-              table="crew_journey_modules"
-              onRefresh={onRefresh}
-              fields={[
-                { key: "title", label: "Module title", value: selected.entity.title },
-                { key: "required", label: "Requirement", value: selected.entity.required, type: "checkbox", help: "Crew must complete this module before later required modules unlock" },
-                { key: "sort_order", label: "Order", value: selected.entity.sort_order, type: "number" },
-              ]}
-            />
+            <section className="space-y-5">
+              <EntityEditor
+                title={selected.entity.title}
+                entity={selected.entity}
+                table="crew_journey_modules"
+                onRefresh={onRefresh}
+                fields={[
+                  { key: "title", label: "Module title", value: selected.entity.title },
+                  { key: "description", label: "Description", value: selected.entity.description || "", type: "textarea" },
+                  { key: "required", label: "Requirement", value: selected.entity.required, type: "checkbox", help: "Crew must complete this module before later required modules unlock" },
+                  { key: "sort_order", label: "Order", value: selected.entity.sort_order, type: "number" },
+                ]}
+              />
+              <section className="crew-module-lessons-editor">
+                <div>
+                  <p className="text-sm text-text-secondary">Lessons</p>
+                  <h3>Module content</h3>
+                </div>
+                {sortByOrder(selected.entity.lessons).map((lesson, index, lessons) => (
+                  <div className="crew-module-lesson-row" key={lesson.id}>
+                    <button onClick={() => setSelection({ type: "lesson", id: lesson.id })}>
+                      <span>{String(index + 1).padStart(2, "0")}</span>
+                      <strong>{lesson.title}</strong>
+                      <small>{lesson.required ? "Required" : "Optional"}</small>
+                    </button>
+                    <DraftOrderActions
+                      table="crew_lessons"
+                      item={lesson}
+                      previous={lessons[index - 1]}
+                      next={lessons[index + 1]}
+                      onRefresh={onRefresh}
+                    />
+                  </div>
+                ))}
+                <div className="crew-module-add-lesson">
+                  <input
+                    className="input"
+                    value={newLesson}
+                    onChange={(event) => setNewLesson(event.target.value)}
+                    placeholder="Lesson title"
+                  />
+                  <button
+                    className="btn-secondary"
+                    disabled={!newLesson.trim()}
+                    onClick={() =>
+                      create(
+                        "crew_lessons",
+                        {
+                          module_id: selected.entity.id,
+                          title: newLesson.trim(),
+                          sort_order: (selected.entity.lessons?.length || 0) + 1,
+                          content_type: "lesson",
+                          required: true,
+                        },
+                        () => setNewLesson(""),
+                      )
+                    }
+                  >
+                    <Plus size={15} /> Add lesson
+                  </button>
+                </div>
+              </section>
+            </section>
           ) : selected?.type === "lesson" ? (
             <section className="space-y-5">
-              <div>
-                <p className="text-sm text-text-secondary">Lesson</p>
-                <h3>{selected.entity.title}</h3>
-                <p className="text-sm text-text-secondary">
-                  {selected.entity.required
-                    ? "Required lesson"
-                    : "Optional lesson"}{" "}
-                  · {selected.entity.estimated_minutes || "—"} min
-                </p>
-              </div>
+              <EntityEditor
+                title={selected.entity.title}
+                entity={selected.entity}
+                table="crew_lessons"
+                onRefresh={onRefresh}
+                fields={[
+                  { key: "title", label: "Lesson title", value: selected.entity.title },
+                  { key: "estimated_minutes", label: "Estimated minutes", value: selected.entity.estimated_minutes || 0, type: "number" },
+                  { key: "required", label: "Requirement", value: selected.entity.required, type: "checkbox", help: "Required lessons gate later required lessons" },
+                  { key: "sort_order", label: "Order", value: selected.entity.sort_order, type: "number" },
+                ]}
+              />
               <div className="crew-builder-blocks">
-                {sortByOrder(selected.entity.blocks).map((block) => (
+                {sortByOrder(selected.entity.blocks).map((block, index, blocks) => (
                   <article
                     key={block.id}
                     className={`crew-builder-block is-${block.block_type}`}
@@ -1010,9 +1067,13 @@ function JourneyBuilder({
                             "Content block"}
                       </p>
                     </div>
-                    <button className="btn-icon" aria-label="Block actions">
-                      <MoreHorizontal size={16} />
-                    </button>
+                    <DraftOrderActions
+                      table="crew_lesson_blocks"
+                      item={block}
+                      previous={blocks[index - 1]}
+                      next={blocks[index + 1]}
+                      onRefresh={onRefresh}
+                    />
                   </article>
                 ))}
                 {selected.entity.quizzes?.map((quiz) => (
@@ -1048,20 +1109,40 @@ function JourneyBuilder({
                   </button>
                 </div>
                 {newBlock === "sop_reference" ? (
-                  <select
-                    className="input"
-                    value={sopId}
-                    onChange={(event) => setSopId(event.target.value)}
-                  >
-                    <option value="">Choose published SOP</option>
-                    {sops
-                      .filter((sop) => sop.status === "published")
-                      .map((sop) => (
-                        <option value={sop.id} key={sop.id}>
-                          {sop.title}
-                        </option>
-                      ))}
-                  </select>
+                  <>
+                    <select
+                      className="input"
+                      value={sopId}
+                      onChange={(event) => setSopId(event.target.value)}
+                    >
+                      <option value="">Choose published SOP</option>
+                      {sops
+                        .filter((sop) => sop.status === "published")
+                        .map((sop) => (
+                          <option value={sop.id} key={sop.id}>
+                            {sop.title}
+                          </option>
+                        ))}
+                    </select>
+                    <button
+                      className="btn-secondary"
+                      disabled={!sopId}
+                      onClick={() =>
+                        create(
+                          "crew_lesson_blocks",
+                          {
+                            lesson_id: selected.entity.id,
+                            block_type: "sop_reference",
+                            payload: { sop_id: sopId, required_acknowledgement: true },
+                            sort_order: (selected.entity.blocks?.length || 0) + 1,
+                          },
+                          () => setSopId(""),
+                        )
+                      }
+                    >
+                      Add SOP reference
+                    </button>
+                  </>
                 ) : newBlock === "quiz" ? (
                   <button
                     className="btn-secondary"
@@ -1121,6 +1202,50 @@ function JourneyBuilder({
           )}
         </main>
       </div>
+    </div>
+  );
+}
+function DraftOrderActions({ table, item, previous, next, onRefresh }) {
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  async function move(other) {
+    if (!other) return;
+    setBusy(true);
+    setError("");
+    try {
+      await crewService.swapDraftOrder(table, item, other);
+      await onRefresh();
+    } catch (cause) {
+      setError(cause.message || "Unable to reorder this draft item.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function remove() {
+    if (!window.confirm("Delete this draft item? This cannot affect published versions.")) return;
+    setBusy(true);
+    setError("");
+    try {
+      await crewService.deleteDraftRecord(table, item.id);
+      await onRefresh();
+    } catch (cause) {
+      setError(cause.message || "Unable to delete this draft item.");
+    } finally {
+      setBusy(false);
+    }
+  }
+  return (
+    <div className="crew-draft-order-actions">
+      <button className="btn-icon" disabled={busy || !previous} onClick={() => move(previous)} aria-label="Move up">
+        <ArrowUp size={15} />
+      </button>
+      <button className="btn-icon" disabled={busy || !next} onClick={() => move(next)} aria-label="Move down">
+        <ArrowDown size={15} />
+      </button>
+      <button className="btn-icon is-danger" disabled={busy} onClick={remove} aria-label="Delete">
+        <Trash2 size={15} />
+      </button>
+      {error && <small className="text-red-600">{error}</small>}
     </div>
   );
 }
@@ -1384,13 +1509,15 @@ function SopDetail({
                 Publish v{active.version}
               </button>
             )}
-            <button
-              className="btn-secondary"
-              disabled={saving}
-              onClick={onNewVersion}
-            >
-              Create new version
-            </button>
+            {active?.status === "published" && (
+              <button
+                className="btn-primary"
+                disabled={saving}
+                onClick={onNewVersion}
+              >
+                Create new version
+              </button>
+            )}
           </div>
         )}
       </section>
@@ -1455,8 +1582,18 @@ function SopDetail({
   );
 }
 function SopDocumentEditor({ version, editable, onRefresh }) {
+  const orderedSections = sortByOrder(version?.sections);
+  const [selectedId, setSelectedId] = useState(orderedSections[0]?.id || "new");
   const [title, setTitle] = useState("");
   const [body, setBody] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    const first = sortByOrder(version?.sections)[0]?.id || "new";
+    setSelectedId((current) =>
+      version?.sections?.some((section) => section.id === current) ? current : first,
+    );
+  }, [version?.id, version?.sections]);
   if (!version)
     return (
       <Empty
@@ -1466,28 +1603,46 @@ function SopDocumentEditor({ version, editable, onRefresh }) {
     );
   async function addSection() {
     if (!title.trim()) return;
-    await crewService.saveDraftRecord("crew_sop_sections", {
-      sop_version_id: version.id,
-      title: title.trim(),
-      body: body.trim(),
-      sort_order: (version.sections?.length || 0) + 1,
-      key_point: false,
-    });
-    setTitle("");
-    setBody("");
-    await onRefresh();
+    setAdding(true);
+    setError("");
+    try {
+      const section = await crewService.saveDraftRecord("crew_sop_sections", {
+        sop_version_id: version.id,
+        title: title.trim(),
+        body: body.trim(),
+        sort_order: (version.sections?.length || 0) + 1,
+        key_point: false,
+      });
+      setTitle("");
+      setBody("");
+      setSelectedId(section.id);
+      await onRefresh();
+    } catch (cause) {
+      setError(cause.message || "Unable to add this section.");
+    } finally {
+      setAdding(false);
+    }
   }
+  const selected = orderedSections.find((section) => section.id === selectedId);
   return (
     <div className="crew-sop-editor">
       <aside>
-        <strong>Section outline</strong>
-        {sortByOrder(version.sections).map((section, index) => (
-          <button key={section.id}>
-            {index + 1}. {section.title}
+        <div className="crew-sop-outline-heading">
+          <strong>Section outline</strong>
+          <span>{orderedSections.length}</span>
+        </div>
+        {orderedSections.map((section, index) => (
+          <button
+            key={section.id}
+            className={selectedId === section.id ? "is-selected" : ""}
+            onClick={() => setSelectedId(section.id)}
+          >
+            <span>{String(index + 1).padStart(2, "0")}</span>
+            {section.title}
           </button>
         ))}
         {editable && (
-          <button className="is-add" onClick={addSection}>
+          <button className="is-add" onClick={() => setSelectedId("new")}>
             <Plus size={15} /> Add section
           </button>
         )}
@@ -1496,18 +1651,42 @@ function SopDocumentEditor({ version, editable, onRefresh }) {
         <p className="text-sm text-text-secondary">
           {editable ? "Draft document" : "Published document · read only"}
         </p>
-        {sortByOrder(version.sections).map((section) => (
-          <article
-            key={section.id}
-            className={section.key_point ? "is-key" : ""}
-          >
-            <h3>{section.title}</h3>
-            <p>{section.body}</p>
-            {section.key_point && <span>Key point</span>}
+        {!editable && selected ? (
+          <article className={selected.key_point ? "is-key" : ""}>
+            <h3>{selected.title}</h3>
+            <p>{selected.body}</p>
+            {selected.key_point && <span>Key point</span>}
           </article>
-        ))}
-        {editable && (
+        ) : editable && selected ? (
+          <section className="space-y-4">
+            <EntityEditor
+              title={selected.title}
+              entity={selected}
+              table="crew_sop_sections"
+              onRefresh={onRefresh}
+              fields={[
+                { key: "title", label: "Section title", value: selected.title },
+                { key: "body", label: "Section content", value: selected.body || "", type: "textarea" },
+                { key: "key_point", label: "Key point", value: selected.key_point, type: "checkbox", help: "Highlight this section as a key operational point" },
+              ]}
+            />
+            <div className="crew-sop-section-order">
+              <span>Section position</span>
+              <DraftOrderActions
+                table="crew_sop_sections"
+                item={selected}
+                previous={orderedSections[orderedSections.indexOf(selected) - 1]}
+                next={orderedSections[orderedSections.indexOf(selected) + 1]}
+                onRefresh={onRefresh}
+              />
+            </div>
+          </section>
+        ) : editable ? (
           <section className="crew-sop-new-section">
+            <div>
+              <h3>Add section</h3>
+              <p>Write one clear procedure or standard at a time.</p>
+            </div>
             <input
               className="input"
               value={title}
@@ -1521,13 +1700,16 @@ function SopDocumentEditor({ version, editable, onRefresh }) {
               placeholder="Write the procedure or guidance"
             />
             <button
-              className="btn-secondary"
-              disabled={!title.trim()}
+              className="btn-primary"
+              disabled={adding || !title.trim()}
               onClick={addSection}
             >
-              Add section
+              {adding ? "Adding…" : "Add section"}
             </button>
+            {error && <p className="text-sm text-red-600">{error}</p>}
           </section>
+        ) : (
+          <Empty icon={FileText} text="This published SOP has no sections." />
         )}
       </main>
     </div>
@@ -2033,6 +2215,8 @@ function Loading() {
     </div>
   );
 }
+
+export { JourneyBuilder, SopDetail, Tabs };
 function lessonCount(journey) {
   return (journey.modules || []).reduce(
     (total, module) => total + (module.lessons?.length || 0),
