@@ -145,6 +145,26 @@ describe("Crew Learning architecture reset UI", () => {
     expect(mocks.listSops).toHaveBeenCalledWith("outlet-2");
   });
 
+  it("uses the App-scoped outlet store without requiring duplicate role outlet metadata", async () => {
+    const scopedAuth = {
+      ...auth,
+      isProtectedRole: false,
+      profile: {
+        role_id: "crew-admin-qa",
+        role_outlet_access_type: "selected",
+      },
+    };
+    render(
+      <CrewLearningAdminResetPage
+        auth={scopedAuth}
+        ui={ui}
+        store={{ outlets: [outlets[0]] }}
+      />,
+    );
+    await screen.findByRole("heading", { name: "New Crew Onboarding", level: 1 });
+    expect(screen.getByLabelText("Outlet").value).toBe("outlet-1");
+  });
+
   it("groups the SOP Library by category with one primary creation action", async () => {
     render(
       <CrewLearningAdminResetPage

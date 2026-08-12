@@ -18,7 +18,6 @@ import PageHeader from "../../../components/layout/PageHeader.jsx";
 import Badge from "../../../components/ui/Badge.jsx";
 import { crewService } from "../../../services/crewService.js";
 import { outletService } from "../../../services/outletService.js";
-import { getAccessibleOutlets } from "../../../utils/accessControl.js";
 import {
   JourneyBuilder,
   SopDetail,
@@ -68,8 +67,8 @@ export default function CrewLearningAdminResetPage({
   const canLearning = auth.hasPermission("crew_learning.manage");
   const canSop = auth.hasPermission("crew_sop.manage");
   const accessibleOutlets = useMemo(
-    () => getAccessibleOutlets(auth, outlets).filter((outlet) => outlet.is_active !== false),
-    [auth, outlets],
+    () => outlets.filter((outlet) => outlet.is_active !== false),
+    [outlets],
   );
   const outlet = accessibleOutlets.find((item) => item.id === outletId);
   const published = onboardingVersions.find((item) => item.status === "published");
