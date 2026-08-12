@@ -254,7 +254,7 @@
 .crew-sop-search-field{display:flex;height:40px;min-height:40px;align-items:center;align-self:auto;gap:8px;border:1px solid var(--theme-input-border,var(--theme-border,#d7e0e6));border-radius:var(--radius-control,10px);background:var(--theme-input-bg,#fff);padding:0 11px;color:var(--theme-muted,#607187);transition:border-color 160ms ease-out,box-shadow 160ms ease-out}
 .crew-sop-search-field:focus-within{border-color:color-mix(in srgb,var(--theme-primary,#168b70) 50%,var(--theme-border,#d7e0e6));box-shadow:0 0 0 3px color-mix(in srgb,var(--theme-primary,#168b70) 12%,transparent)}
 .crew-sop-search-field input{height:38px;min-height:38px;background:transparent}
-.crew-sop-row-actions{width:100%;min-width:190px;white-space:nowrap}
+.crew-sop-row-actions{width:100%;min-width:0;white-space:nowrap}
 .crew-sop-row-actions .crew-sop-compact-action{height:32px;min-height:32px;padding:0 10px;border-radius:8px;font-size:12px;line-height:1}
 .crew-sop-row-actions .crew-sop-compact-action.is-danger,.btn-secondary.is-danger{border-color:#f1c8cf;background:#fff;color:#b4233b}
 .crew-sop-row-actions .crew-sop-compact-action.is-danger:hover,.btn-secondary.is-danger:hover{border-color:#e9a8b4;background:#fff5f6;color:#991b32}
