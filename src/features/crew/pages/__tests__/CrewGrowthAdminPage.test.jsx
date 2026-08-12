@@ -49,6 +49,9 @@ describe("Crew Growth Admin", () => {
     fireEvent.click(await screen.findByText("Alex Tan"));
     expect(screen.getByRole("dialog", { name: "Alex Tan" })).not.toBeNull();
     expect(screen.getAllByText("Ready for Review").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: /Customer Greeting.*Ready for Review/ }));
+    expect(screen.queryByRole("dialog", { name: "Alex Tan" })).toBeNull();
+    expect(screen.getByRole("dialog", { name: "Customer Greeting" })).not.toBeNull();
   });
 
   it("records practical assessment from the review queue", async () => {

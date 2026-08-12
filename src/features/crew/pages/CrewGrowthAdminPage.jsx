@@ -91,7 +91,7 @@ export default function CrewGrowthAdminPage({ auth, ui, store, initialTab = "ove
     <PageHeader section="Crew · Growth" title={header.title} description={header.description} actions={<>{outletSelect}{initialTab === "skills" && canManage ? <button className="btn-primary" onClick={() => setSkillEditor({})}><Plus size={15} /> New Skill</button> : null}</>} />
     {loading ? <GrowthSkeleton /> : initialTab === "overview" ? <GrowthOverview data={data} onOpenReview={setReview} /> : initialTab === "skills" ? <SkillsLibrary data={data} canManage={canManage} onView={setSkillEditor} /> : initialTab === "crew" ? <CrewGrowth data={data} onView={setEmployeeProfile} /> : <CertificationQueue data={data} onReview={setReview} />}
     {skillEditor ? <SkillEditor skill={skillEditor} evidence={evidence} outlet={outlet} saving={loading} onClose={() => setSkillEditor(null)} onSave={saveSkill} /> : null}
-    {employeeProfile ? <CrewGrowthProfile row={employeeProfile} onClose={() => setEmployeeProfile(null)} onReview={setReview} /> : null}
+    {employeeProfile ? <CrewGrowthProfile row={employeeProfile} onClose={() => setEmployeeProfile(null)} onReview={(item) => { setEmployeeProfile(null); setReview(item); }} /> : null}
     {review ? <CertificationReview item={review} canAssess={canAssess} canCertify={canCertify} onClose={() => setReview(null)} onAssess={submitAssessment} onCertify={certify} /> : null}
   </div>;
 }
