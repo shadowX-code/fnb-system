@@ -65,7 +65,10 @@ beforeEach(() => {
   ui.notify.mockReset();
   ui.confirm.mockReset().mockResolvedValue(true);
 });
-afterEach(cleanup);
+afterEach(() => {
+  cleanup();
+  vi.unstubAllGlobals();
+});
 
 describe("Crew SOP Library Admin", () => {
   it("uses outlet-scoped table filters and shows draft state", async () => {
@@ -247,6 +250,23 @@ describe("Crew SOP Library Admin", () => {
     expect(scrollRegion).not.toBeNull();
     expect(scrollRegion.closest(".crew-sop-popout-body")).not.toBeNull();
     expect(scrollRegion.closest(".crew-sop-view-popout")).not.toBeNull();
+  });
+
+  it("repositions the version portal inside the viewport near an edge", async () => {
+    vi.stubGlobal("innerWidth", 1280);
+    vi.stubGlobal("innerHeight", 720);
+    renderPage();
+    await screen.findByText("Welcome & Goodbye Standard");
+    fireEvent.click(screen.getByText("Welcome & Goodbye Standard"));
+    const versionButton = screen.getByRole("button", { name: "SOP version" });
+    versionButton.getBoundingClientRect = () => ({ top: 650, bottom: 680, left: 1200, right: 1260, width: 60, height: 30, x: 1200, y: 650, toJSON: () => ({}) });
+    fireEvent.click(versionButton);
+    await waitFor(() => {
+      const layer = screen.getByRole("menu", { name: "Version History" }).closest(".z-popover-layer");
+      expect(layer.dataset.placement).toBe("top");
+      expect(Number.parseFloat(layer.style.left)).toBeLessThanOrEqual(878);
+      expect(Number.parseFloat(layer.style.top)).toBeGreaterThanOrEqual(12);
+    });
   });
 
   it("publishes only after confirmation and refreshes into immutable detail", async () => {
