@@ -131,6 +131,25 @@ export const crewService = {
     return data;
   },
 
+  async cloneSelectedSops({ sourceOutletId, targetOutletId, sopIds, copyCategories = true }) {
+    const { data, error } = await supabase.rpc("crew_clone_selected_sops", {
+      p_source_outlet_id: sourceOutletId,
+      p_target_outlet_id: targetOutletId,
+      p_sop_ids: sopIds,
+      p_copy_categories: Boolean(copyCategories),
+    });
+    throwSupabaseError("crew.cloneSelectedSops", error);
+    return data;
+  },
+
+  async sopUsageAdmin(sopId) {
+    const { data, error } = await supabase.rpc("crew_admin_sop_usage", {
+      p_sop_id: sopId,
+    });
+    throwSupabaseError("crew.sopUsageAdmin", error);
+    return data || { current: [], historical: [] };
+  },
+
   async listSopsAdmin() {
     const { data, error } = await supabase.from("crew_sops").select("*, versions:crew_sop_versions(id,version,status,effective_date,change_summary,require_acknowledgement,published_at,sections:crew_sop_sections(id,title,body,sort_order,key_point))").order("updated_at", { ascending: false });
     throwSupabaseError("crew.listSopsAdmin", error);

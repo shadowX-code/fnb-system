@@ -25,6 +25,7 @@ import FactoryWorkspacePage from "../features/factory/pages/FactoryWorkspacePage
 import CrewWorkspacePage from "../features/crew/pages/CrewWorkspacePage.jsx";
 import CrewAttendanceAdminPage from "../features/crew/pages/CrewAttendanceAdminPage.jsx";
 import CrewLearningAdminResetPage from "../features/crew/pages/CrewLearningAdminResetPage.jsx";
+import CrewSopLibraryPage from "../features/crew/pages/CrewSopLibraryPage.jsx";
 import { getSidebarSections, moduleRegistry, viewPermission } from "../../config/modules.ts";
 
 function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSection = "Workspace" }) {
@@ -372,9 +373,8 @@ export const routeDetails = {
   },
   crew_sop_library: {
     description: "Maintain versioned Crew SOPs and acknowledgement content.",
-    component: CrewLearningAdminResetPage,
+    component: CrewSopLibraryPage,
     permission: "crew_sop.view OR crew_sop.manage",
-    props: { initialTab: "sops" },
   },
 };
 

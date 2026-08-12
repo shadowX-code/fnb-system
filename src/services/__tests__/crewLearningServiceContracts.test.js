@@ -39,6 +39,12 @@ describe("Crew learning mobile service boundaries", () => {
       copyCategories: true,
       copySops: true,
     });
+    await crewService.cloneSelectedSops({
+      sourceOutletId: "outlet-1",
+      targetOutletId: "outlet-2",
+      sopIds: ["sop-1", "sop-2"],
+    });
+    await crewService.sopUsageAdmin("sop-1");
 
     expect(mocks.rpc).toHaveBeenCalledWith("crew_create_default_onboarding", {
       p_outlet_id: "outlet-1",
@@ -53,6 +59,13 @@ describe("Crew learning mobile service boundaries", () => {
       p_copy_sop_categories: true,
       p_copy_sops: true,
     });
+    expect(mocks.rpc).toHaveBeenCalledWith("crew_clone_selected_sops", {
+      p_source_outlet_id: "outlet-1",
+      p_target_outlet_id: "outlet-2",
+      p_sop_ids: ["sop-1", "sop-2"],
+      p_copy_categories: true,
+    });
+    expect(mocks.rpc).toHaveBeenCalledWith("crew_admin_sop_usage", { p_sop_id: "sop-1" });
   });
 
   it("uses dedicated authenticated authorities for non-draft transitions", async () => {
