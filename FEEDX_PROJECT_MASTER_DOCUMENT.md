@@ -5169,6 +5169,17 @@ Service rules:
 - Phase B UI is deployed to Staging: Crew Mobile Learn consumes server-derived availability and safe quiz/SOP payloads; the Admin Learning and SOP Library surfaces use the existing authenticated RLS architecture for drafts. Lifecycle migrations `202608110021`, `20260811171948`, and `20260811172049` add authenticated publish/version authorities, outlet-scope-enforcing RLS predicates, and guards against in-place mutation of published content.
 - Phase B backend verification is closed; Crew UI implementation is the next planned phase. Deferred non-Phase-B hardening debt is tracked separately. No Production deployment is authorized by this record.
 
+### Crew Growth Admin Foundation
+
+- Growth is the long-term Crew capability and certification workspace. It is separate from Reward and is not a replacement for Performance scoring.
+- Admin IA is fixed to four routes: Growth Overview, Skills, Crew Growth, and Certification Review. These surfaces reuse the shared FeedX Restaurant/Factory page header, filters, tables, badges, modal, spacing, and action hierarchy.
+- `employees.id` remains the only Crew employee identity. Skills are scoped by owning outlet plus optional applicable outlets and positions.
+- Certification states are authoritative and shared across Growth surfaces: Not Started, In Progress, Ready for Review, Certified, Needs Renewal, Expired, and Not Applicable.
+- Requirements may reference a Published Onboarding module, lesson, SOP version, or Knowledge Check, plus practical, manual, and future performance evidence. Published references must belong to the Skill outlet. Completion is read from existing Learning authorities and is never duplicated or inferred by the browser.
+- Practical assessments and certifications are append-only history. Certifications freeze the Skill requirements version and evidence snapshot; later requirement edits do not rewrite prior evidence. Skills may define no expiry or a validity period in months.
+- Permissions are `crew_growth.view`, `crew_growth.manage`, `crew_growth.assess`, and `crew_growth.certify`. All mutations use fixed-search-path, permission- and outlet-checking authorities. Internal evidence/state helpers remain non-executable by `PUBLIC`, `anon`, and ordinary `authenticated` callers; Growth tables expose scoped reads only and no direct client DML.
+- Staging QA data is recreated only through `scripts/seedCrewGrowthQaData.sh`, which hard-checks Supabase ref `ujkzdaaadnvcfayuldmh`, reuses designated QA Crew and the scoped Crew Admin QA identity, and never runs automatically or targets Production.
+
 ### Crew Learning Product Architecture
 
 - Crew Learn has two primary product surfaces only: mandatory **New Crew Onboarding** and the outlet **SOP Library**. Generic Journey Library, manual assignment, and standalone Crew Progress concepts remain historical compatibility data rather than primary navigation.

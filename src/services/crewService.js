@@ -599,4 +599,38 @@ export const crewService = {
     throwSupabaseError("crew.listAttendance", error);
     return data || [];
   },
+
+  async growthAdminData(outletId) {
+    const { data, error } = await supabase.rpc("crew_growth_admin_data", { p_outlet_id: outletId });
+    throwSupabaseError("crew.growthAdminData", error);
+    return data || { skills: [], crew: [], reviews: [], recent_certifications: [] };
+  },
+
+  async saveGrowthSkill(skill) {
+    const { data, error } = await supabase.rpc("crew_growth_save_skill", { p_skill: skill });
+    throwSupabaseError("crew.saveGrowthSkill", error);
+    return data;
+  },
+
+  async submitGrowthAssessment({ employeeId, skillId, result, checklist, note = "" }) {
+    const { data, error } = await supabase.rpc("crew_growth_submit_assessment", {
+      p_employee_id: employeeId,
+      p_skill_id: skillId,
+      p_result: result,
+      p_checklist: checklist,
+      p_note: note || null,
+    });
+    throwSupabaseError("crew.submitGrowthAssessment", error);
+    return data;
+  },
+
+  async certifyGrowthSkill({ employeeId, skillId, note = "" }) {
+    const { data, error } = await supabase.rpc("crew_growth_certify", {
+      p_employee_id: employeeId,
+      p_skill_id: skillId,
+      p_note: note || null,
+    });
+    throwSupabaseError("crew.certifyGrowthSkill", error);
+    return data;
+  },
 };

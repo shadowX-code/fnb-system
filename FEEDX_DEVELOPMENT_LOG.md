@@ -382,3 +382,12 @@ Purpose: concise development history for meaningful FeedX development sessions. 
 - Rebuilt Crew Mobile Learn so completed onboarding remains reviewable and all published outlet SOPs are searchable by category with required acknowledgements clearly surfaced.
 - Added reusable Staging-only architecture adaptation and rollback-only behavior verification scripts. Real Staging verification passed 12/12 for clone independence, automatic enrollment, outlet isolation, safe payloads, completed history, SOP library access, and acknowledgements.
 - No Production schema, data, or deployment was touched.
+
+### Crew Growth Admin Foundation
+- Added the Crew Growth workspace with Growth Overview, Skills, Crew Growth, and Certification Review routes using the shared Restaurant/Factory page, filter, table, badge, and modal foundation.
+- Added outlet- and position-scoped Skills, versioned certification requirements, server-derived employee skill states, practical assessment history, immutable certification evidence, and optional renewal/expiry.
+- Reused existing Onboarding module/lesson completion, exact SOP version acknowledgements, and Knowledge Check results as authoritative Growth evidence; the frontend does not calculate final certification eligibility.
+- Added permissions `crew_growth.view`, `crew_growth.manage`, `crew_growth.assess`, and `crew_growth.certify`, fixed-search-path SECURITY DEFINER authorities, outlet checks, RLS, private internal helpers, and explicit removal of authenticated table DML grants.
+- Applied Staging-only migrations `20260812115538`, `20260812121319`, `20260812121447`, `20260812122231`, `20260812123742`, and `20260812125218` to `fnb-system-staging`; the forward fixes cover RLS helper execution, PL/pgSQL/JSONB runtime ambiguity, least-privilege table grants, and published same-outlet evidence references.
+- Created an idempotent, Staging-guarded Growth QA seed with eight Skills and Certified, In Progress, Ready for Review, Not Started, and Not Applicable examples using only existing QA Crew identities. The seed preserves immutable Learning evidence and does not touch operational employees.
+- Growth Staging behavior/security verification passed 12/12. No Reward, Performance rebuild, Production schema, Production data, or Production deployment was included.

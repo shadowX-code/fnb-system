@@ -67,6 +67,10 @@ const iconMap = {
   "crew-dashboard": Users,
   "crew-employees": Users,
   "crew-attendance": Clock3,
+  "crew-growth": BarChart3,
+  "crew-growth-skills": ClipboardList,
+  "crew-growth-people": Users,
+  "crew-growth-reviews": ClipboardCheck,
 };
 
 function latestPeriod(store) {

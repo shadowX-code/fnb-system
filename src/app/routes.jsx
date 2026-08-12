@@ -26,6 +26,7 @@ import CrewWorkspacePage from "../features/crew/pages/CrewWorkspacePage.jsx";
 import CrewAttendanceAdminPage from "../features/crew/pages/CrewAttendanceAdminPage.jsx";
 import CrewLearningAdminResetPage from "../features/crew/pages/CrewLearningAdminResetPage.jsx";
 import CrewSopLibraryPage from "../features/crew/pages/CrewSopLibraryPage.jsx";
+import CrewGrowthAdminPage from "../features/crew/pages/CrewGrowthAdminPage.jsx";
 import { getSidebarSections, moduleRegistry, viewPermission } from "../../config/modules.ts";
 
 function ModulePlaceholderPage({ moduleId = "", moduleLabel = "Module", moduleSection = "Workspace" }) {
@@ -375,6 +376,30 @@ export const routeDetails = {
     description: "Maintain versioned Crew SOPs and acknowledgement content.",
     component: CrewSopLibraryPage,
     permission: "crew_sop.view OR crew_sop.manage",
+  },
+  crew_growth: {
+    description: "Monitor outlet skill coverage and Crew certification readiness.",
+    component: CrewGrowthAdminPage,
+    permission: "crew_growth.view",
+    props: { initialTab: "overview" },
+  },
+  crew_growth_skills: {
+    description: "Maintain outlet-scoped Crew skills and certification requirements.",
+    component: CrewGrowthAdminPage,
+    permission: "crew_growth.view",
+    props: { initialTab: "skills" },
+  },
+  crew_growth_people: {
+    description: "Review employee capability profiles and certification history.",
+    component: CrewGrowthAdminPage,
+    permission: "crew_growth.view",
+    props: { initialTab: "crew" },
+  },
+  crew_growth_reviews: {
+    description: "Review practical assessments and issue controlled certifications.",
+    component: CrewGrowthAdminPage,
+    permission: "crew_growth.view",
+    props: { initialTab: "reviews" },
   },
 };
 

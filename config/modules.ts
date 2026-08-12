@@ -10,6 +10,8 @@ export type ModuleAction =
   | "upload"
   | "manage"
   | "review"
+  | "assess"
+  | "certify"
   | "audit"
   | "submit"
   | "receive"
@@ -27,7 +29,7 @@ export type AppModule = {
   sidebar: boolean;
   // Internal modules may supply data or modal workflows without being valid hash-route destinations.
   routable?: boolean;
-  workspace?: "restaurant" | "factory";
+  workspace?: "restaurant" | "factory" | "crew";
   permissions: Partial<Record<ModuleAction, boolean>>;
 };
 
@@ -41,6 +43,8 @@ export const permissionActionOrder: ModuleAction[] = [
   "reset_password",
   "approve",
   "review",
+  "assess",
+  "certify",
   "audit",
   "submit",
   "receive",
@@ -62,6 +66,8 @@ export const permissionActionLabels: Record<ModuleAction, string> = {
   reset_password: "Reset Password",
   approve: "Approve",
   review: "Review",
+  assess: "Assess",
+  certify: "Certify",
   audit: "Audit",
   submit: "Submit",
   receive: "Receive",
@@ -95,6 +101,7 @@ export const moduleSectionOrder = [
   "Workforce",
   "System",
   "Learning",
+  "Growth",
   "Knowledge",
   "Performance",
   "Documents",
@@ -706,6 +713,46 @@ export const moduleRegistry: AppModule[] = [
     sidebar: true,
     workspace: "crew",
     permissions: { view: true, create: true, edit: true, manage: true },
+  },
+  {
+    id: "crew_growth",
+    section: "Growth",
+    label: "Growth Overview",
+    route: "/crew/growth",
+    icon: "crew-growth",
+    sidebar: true,
+    workspace: "crew",
+    permissions: { view: true, manage: true, assess: true, certify: true },
+  },
+  {
+    id: "crew_growth_skills",
+    section: "Growth",
+    label: "Skills",
+    route: "/crew/growth/skills",
+    icon: "crew-growth-skills",
+    sidebar: true,
+    workspace: "crew",
+    permissions: {},
+  },
+  {
+    id: "crew_growth_people",
+    section: "Growth",
+    label: "Crew Growth",
+    route: "/crew/growth/crew",
+    icon: "crew-growth-people",
+    sidebar: true,
+    workspace: "crew",
+    permissions: {},
+  },
+  {
+    id: "crew_growth_reviews",
+    section: "Growth",
+    label: "Certification Review",
+    route: "/crew/growth/reviews",
+    icon: "crew-growth-reviews",
+    sidebar: true,
+    workspace: "crew",
+    permissions: {},
   },
 ];
 
