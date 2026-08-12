@@ -21,6 +21,12 @@ describe("SOP document content safety", () => {
     expect(sopBodyPlainText(stored)).toBe("Normal section content. Important reminder.");
   });
 
+  it("safely decodes a PostgREST-escaped document envelope before editing", () => {
+    const parsed = parseSopBody('&lt;p&gt;&lt;strong&gt;Normal&lt;/strong&gt;&lt;/p&gt;&lt;aside data-feedx-key-point=&quot;true&quot;&gt;&lt;p&gt;Remember this.&lt;/p&gt;&lt;/aside&gt;');
+    expect(parsed.html).toBe("<p><strong>Normal</strong></p>");
+    expect(parsed.keyPointContent).toBe("Remember this.");
+  });
+
   it("never includes image data URLs in the serialized rich-text allowlist", () => {
     const stored = serializeSopBody('<p>Text</p><img src="data:image/png;base64,unsafe">', "");
     expect(stored).not.toContain("data:image");

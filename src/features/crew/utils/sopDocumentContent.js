@@ -57,9 +57,14 @@ export function sanitizeSopHtml(value = "") {
 }
 
 export function parseSopBody(value = "", legacyKeyPoint = false) {
-  const source = String(value || "");
+  let source = String(value || "");
   if (typeof document === "undefined") {
     return { html: source, keyPointContent: legacyKeyPoint ? source : "" };
+  }
+  if (/&lt;\/?(?:p|br|strong|b|em|i|mark|ul|ol|li|a|aside)\b/i.test(source)) {
+    const decoder = document.createElement("textarea");
+    decoder.innerHTML = source;
+    source = decoder.value;
   }
   const template = document.createElement("template");
   template.innerHTML = source;
