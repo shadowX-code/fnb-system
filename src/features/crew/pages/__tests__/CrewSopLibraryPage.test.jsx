@@ -233,8 +233,8 @@ describe("Crew SOP Library Admin", () => {
     expect(screen.getAllByRole("dialog")).toHaveLength(1);
   });
 
-  it("keeps long published documents inside the modal scroll region", async () => {
-    const longSections = Array.from({ length: 20 }, (_, index) => ({
+  it.each([3, 10, 20])("keeps a %i-section published document inside the modal scroll region", async (sectionCount) => {
+    const longSections = Array.from({ length: sectionCount }, (_, index) => ({
       id: `long-section-${index + 1}`,
       title: `Long Section ${index + 1}`,
       body: `<p>${"Operational guidance ".repeat(20)}</p>`,
@@ -245,7 +245,7 @@ describe("Crew SOP Library Admin", () => {
     renderPage();
     await screen.findByText("Kitchen Safety");
     fireEvent.click(screen.getByRole("button", { name: "View" }));
-    expect(screen.getByRole("heading", { name: "Long Section 20" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: `Long Section ${sectionCount}` })).not.toBeNull();
     const scrollRegion = document.querySelector(".crew-sop-document-scroll");
     expect(scrollRegion).not.toBeNull();
     expect(scrollRegion.closest(".crew-sop-popout-body")).not.toBeNull();
