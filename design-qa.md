@@ -67,3 +67,37 @@ Result: **PASS** — no P0, P1, or P2 visual findings remain.
 - No FeedX console warnings/errors were recorded during the Staging Me smoke.
 
 final result: passed
+
+# Crew Mobile Home — Design QA (2026-08-14)
+
+- Source visual truth: `/Users/deron/Downloads/ChatGPT Image Aug 14, 2026, 02_05_09 AM.png`
+- Implementation: `https://fnb-system-staging.vercel.app/#crew`, commit `54f8d7cb80639b3b5ca4af7809968b84bbf9c208`
+- State: authenticated QA Crew with completed attendance, three real operation checklists, OFF / MC / Annual Leave published roster states
+- Viewports: 375 × 812 and 390 × 844 CSS px
+
+**Full-view comparison**
+
+- Home now follows the approved information hierarchy: employee greeting, dominant Attendance hero, direct Today’s Tasks, three-day My Schedule, fixed five-item bottom navigation.
+- Keep Growing and the intermediary task-summary row are removed.
+- The dark emerald Attendance hero uses a responsive two-column layout, concentric clock treatment, fixed footer and distinct Ready / On Shift / Shift Completed authority-derived states.
+
+**Interaction and responsive checks**
+
+- A Home checklist opens its real detail directly; the intermediate Today’s Tasks list is skipped.
+- The authenticated Staging fixture rendered its real completed-shift state, true checklist statuses, and published OFF / MC / Annual Leave roster projection.
+- 375px: document width and body width both 375px; no horizontal overflow; hero width 343px; bottom nav remained fixed without clipping content.
+- 390px: document width 390px; hero width 358px; three task and three schedule rows aligned without overflow.
+- Browser console contained no warnings or errors during Home and direct checklist navigation.
+
+**Automated state coverage**
+
+- Ready shows Clock In only; On Shift shows live elapsed duration and Clock Out; completed shows in/out times and duration with no Clock Out.
+- Clock In uses the existing geofence authority, requires an exception reason outside radius, refreshes Home, and opens a centered success modal.
+- Empty and multi-task states, local task expansion, direct detail navigation, published roster states, and cross-outlet labels are covered.
+
+**Findings**
+
+- No actionable P0/P1/P2 differences remain.
+- P3: the reference’s fingerprint/radar illustration is represented by local iconography and CSS control decoration rather than a bespoke raster asset; interaction hierarchy and responsive geometry match the approved intent.
+
+final result: passed
