@@ -5,6 +5,8 @@ import { describe, expect, it } from "vitest";
 const sql = readFileSync(resolve(process.cwd(), "supabase/migrations/20260813030004_crew_leave_request_v1.sql"), "utf8").toLowerCase();
 const submitFix = readFileSync(resolve(process.cwd(), "supabase/migrations/20260813030005_crew_leave_submit_runtime_fix.sql"), "utf8").toLowerCase();
 const outletVisibility = readFileSync(resolve(process.cwd(), "supabase/migrations/20260813030006_crew_leave_admin_outlet_visibility.sql"), "utf8").toLowerCase();
+const adminRosterFix = readFileSync(resolve(process.cwd(), "supabase/migrations/20260813030410_crew_leave_admin_roster_context_fix.sql"), "utf8").toLowerCase();
+const mobileSessionFix = readFileSync(resolve(process.cwd(), "supabase/migrations/20260813030820_crew_leave_mobile_session_runtime_fix.sql"), "utf8").toLowerCase();
 
 describe("Crew Leave Request v1 migration", () => {
   it("separates requests, approved leave, roster projections and audit", () => {
@@ -38,6 +40,19 @@ describe("Crew Leave Request v1 migration", () => {
   it("keeps Leave Admin outlet discovery permission- and scope-bound", () => {
     expect(outletVisibility).toContain("current_user_has_permission('crew_leave.view')");
     expect(outletVisibility).toContain("current_user_can_access_outlet(id)");
+  });
+
+  it("casts generated roster-context days to the date authority contract", () => {
+    expect(adminRosterFix).toContain("crew_roster_employee_day(r.employee_id,d.d::date)");
+    expect(adminRosterFix).toContain("security definer set search_path=public");
+    expect(adminRosterFix).toContain("revoke all on function public.crew_leave_admin_data");
+  });
+
+  it("keeps the token-bound mobile authority volatile so session activity can refresh", () => {
+    expect(mobileSessionFix).toContain("create or replace function public.crew_leave_mobile");
+    expect(mobileSessionFix).not.toContain("stable security definer");
+    expect(mobileSessionFix).toContain("security definer set search_path=public");
+    expect(mobileSessionFix).toContain("grant execute on function public.crew_leave_mobile(text) to anon,authenticated");
   });
 
   it("enforces strict dates, duration and overlapping pending or approved requests", () => {
