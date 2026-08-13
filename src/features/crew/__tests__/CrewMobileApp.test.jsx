@@ -96,6 +96,14 @@ describe("Crew Mobile redesign", () => {
     expect(screen.getByRole("button", { name: "Clock In" })).not.toBeNull();
   });
 
+  it("uses an explicit schedule-empty label instead of implying the Crew is working", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    mocks.myRoster.mockResolvedValueOnce({ from: "2026-08-13", to: "2026-08-26", today: null, entries: [] });
+    render(<CrewMobileApp />);
+    expect(await screen.findByText("Schedule not published")).not.toBeNull();
+    expect(screen.queryByText("Working", { exact: true })).toBeNull();
+  });
+
   it("shows only the token-bound published roster and opens My Schedule without adding a bottom tab", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     render(<CrewMobileApp />);
@@ -138,6 +146,7 @@ describe("Crew Mobile redesign", () => {
     fireEvent.click(screen.getByRole("button", { name: /Skills.*See requirements and evidence/ }));
     fireEvent.click(screen.getByRole("button", { name: /Taking Orders/ }));
     expect(screen.getByText("Manager Practical Assessment")).not.toBeNull();
+    expect(screen.getByText("Waiting for manager review")).not.toBeNull();
     expect(document.body.textContent).not.toContain("Manager note");
     expect(screen.queryByRole("button", { name: /Certify|Submit Assessment/ })).toBeNull();
     expect(mocks.growthMobile).toHaveBeenCalledWith("crew-token");

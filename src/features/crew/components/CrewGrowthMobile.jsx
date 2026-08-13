@@ -89,6 +89,7 @@ export default function CrewGrowthMobile({ data, performance, loading, error, on
           </div>)}
         </div>
       </section>
+      {selectedSkill.status === "ready_for_review" && <section className="crew-v3-next-action"><Target size={19} /><span><strong>Next Action</strong><small>Waiting for manager review</small></span></section>}
       {selectedSkill.certification && <section className="crew-v2-certificate-note"><Award size={20} /><div><strong>Certified {formatDate(selectedSkill.certification.certified_at)}</strong><small>{selectedSkill.certification.expires_at ? `Valid until ${formatDate(selectedSkill.certification.expires_at)}` : "No expiry"}</small></div></section>}
     </section>;
   }
