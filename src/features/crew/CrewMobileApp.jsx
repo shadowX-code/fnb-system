@@ -4,6 +4,7 @@ import {
   Bell,
   BookOpen,
   BriefcaseBusiness,
+  CalendarCheck,
   CalendarDays,
   Check,
   ChevronRight,
@@ -161,6 +162,7 @@ export default function CrewMobileApp() {
   const [otherReason, setOtherReason] = useState("");
   const [meView, setMeView] = useState("main");
   const [passcodeChangeOpen, setPasscodeChangeOpen] = useState(false);
+  const [logoutConfirmOpen, setLogoutConfirmOpen] = useState(false);
   const [currentPasscode, setCurrentPasscode] = useState("");
   const [newPasscode, setNewPasscode] = useState("");
   const openShift = useMemo(() => attendance.find((item) => item.status === "open"), [attendance]);
@@ -286,6 +288,17 @@ export default function CrewMobileApp() {
   const upcomingRoster = (roster?.entries || []).filter((entry) => entry.date > roster?.from).slice(0, 3);
   const operationsCount = (operations?.checklists?.filter((item) => item.status !== "completed").length || 0) + (operations?.daily_tasks?.filter((item) => item.status !== "completed").length || 0);
   const onboardingActive = Boolean(learningHome?.assignment && learningHome.assignment.status !== "completed" && learningProgress < 100);
+  const currentMonthAttendance = attendance.filter((item) => {
+    if (!item.clock_in_at) return false;
+    const date = new Date(item.clock_in_at);
+    const now = new Date();
+    return date.getFullYear() === now.getFullYear() && date.getMonth() === now.getMonth();
+  });
+  const completedAttendance = currentMonthAttendance.filter((item) => item.status === "completed" || item.clock_out_at);
+  const attendanceStatus = currentMonthAttendance.length && completedAttendance.length === currentMonthAttendance.length ? "Good" : currentMonthAttendance.length ? "Needs attention" : "No activity yet";
+  const annualLeaveBalance = leave?.balances?.find((item) => item.leave_type === "annual");
+  const annualLeaveAvailable = annualLeaveBalance?.balance_enforced === false ? null : annualLeaveBalance?.available;
+  const pendingLeaveCount = (leave?.requests || []).filter((item) => item.status === "pending").length;
 
   return <main className="crew-v2-shell"><section className="crew-v2-app">
     {screen === "home" && <section className="crew-v2-home">
@@ -323,8 +336,32 @@ export default function CrewMobileApp() {
     </section>}
 
     {screen === "me" && <section className="crew-v2-me">
-      {meView === "settings" ? <><header className="crew-v2-page-header"><div><button type="button" onClick={() => setMeView("main")} aria-label="Back"><ArrowLeft size={19} /></button><h1>Settings</h1></div></header><div className="crew-v2-menu"><div><Bell size={18} /><span>Notifications</span><ChevronRight size={17} /></div><div><Languages size={18} /><span>Language</span><em>English</em><ChevronRight size={17} /></div><button type="button" onClick={() => setPasscodeChangeOpen(true)}><LockKeyhole size={18} /><span>Passcode</span><ChevronRight size={17} /></button><div><ShieldCheck size={18} /><span>Privacy</span><ChevronRight size={17} /></div><div><FileText size={18} /><span>Terms</span><ChevronRight size={17} /></div><div><HelpCircle size={18} /><span>About FeedX</span><ChevronRight size={17} /></div></div></> : <><header className="crew-v2-page-header"><div><h1>Me</h1></div></header><article className="crew-v2-profile-hero"><span className="crew-v2-avatar is-large">{firstName.slice(0, 1)}</span><div><h2>{employee.full_name || firstName}</h2><p>{employee.position || "Crew Member"}</p><small>{context?.outlet_name || employee.workplace || "Your outlet"}</small><em>Active</em></div></article><div className="crew-v2-menu"><div><UserRound size={18} /><span>Profile Information</span><ChevronRight size={17} /></div><div><BriefcaseBusiness size={18} /><span>Employment Documents</span><ChevronRight size={17} /></div><button type="button" onClick={() => setScreen("attendance")}><Clock3 size={18} /><span>Attendance</span><ChevronRight size={17} /></button><button type="button" onClick={() => setScreen("leave")}><Plane size={18} /><span>Leave</span>{(leave?.requests || []).filter((item) => item.status === "pending").length > 0 && <em>{leave.requests.filter((item) => item.status === "pending").length}</em>}<ChevronRight size={17} /></button><button type="button" onClick={() => setPasscodeChangeOpen(true)}><LockKeyhole size={18} /><span>Change Passcode</span><ChevronRight size={17} /></button><button type="button" onClick={() => setMeView("settings")}><Settings size={18} /><span>Settings</span><ChevronRight size={17} /></button><div><HelpCircle size={18} /><span>Help & Support</span><ChevronRight size={17} /></div></div><button className="crew-v2-logout" type="button" onClick={logout}><LogOut size={18} /> Log Out</button></>}
+      {meView === "settings" ? <><header className="crew-v2-page-header"><div><button type="button" onClick={() => setMeView("main")} aria-label="Back"><ArrowLeft size={19} /></button><h1>Settings</h1></div></header><div className="crew-v2-menu"><div><Bell size={18} /><span>Notifications</span><ChevronRight size={17} /></div><div><Languages size={18} /><span>Language</span><em>English</em><ChevronRight size={17} /></div><button type="button" onClick={() => setPasscodeChangeOpen(true)}><LockKeyhole size={18} /><span>Passcode</span><ChevronRight size={17} /></button><div><ShieldCheck size={18} /><span>Privacy</span><ChevronRight size={17} /></div><div><FileText size={18} /><span>Terms</span><ChevronRight size={17} /></div><div><HelpCircle size={18} /><span>About FeedX</span><ChevronRight size={17} /></div></div></> : meView === "profile" ? <><header className="crew-v2-page-header"><div><button type="button" onClick={() => setMeView("main")} aria-label="Back"><ArrowLeft size={19} /></button><h1>Profile Information</h1></div></header><article className="crew-me-profile-detail"><span className="crew-v2-avatar is-large">{firstName.slice(0, 1)}</span><h2>{employee.full_name || firstName}</h2><p>{employee.position || "Crew Member"}</p><dl><div><dt>Outlet</dt><dd>{context?.outlet_name || employee.workplace || "Not assigned"}</dd></div><div><dt>Employment status</dt><dd>Active</dd></div></dl></article></> : <>
+        <header className="crew-me-header"><h1>Me</h1></header>
+        <button className="crew-me-profile-hero" type="button" onClick={() => setMeView("profile")} aria-label="View profile information">
+          <span className="crew-v2-avatar is-large">{firstName.slice(0, 1)}</span>
+          <span className="crew-me-profile-copy"><strong>{employee.full_name || firstName}</strong><small>{employee.position || "Crew Member"}</small><small className="crew-me-outlet"><BriefcaseBusiness size={14} />{context?.outlet_name || employee.workplace || "Your outlet"}</small><em><i />Active</em></span>
+          <span className="crew-me-profile-link">View profile <ChevronRight size={17} /></span>
+        </button>
+        <section className="crew-me-quick-status" aria-label="Work status summary">
+          <button type="button" onClick={() => setScreen("attendance")}><span className="crew-me-status-icon"><CalendarCheck size={21} /></span><span><small>Attendance</small><strong className={attendanceStatus === "Needs attention" ? "is-warning" : ""}>{attendanceStatus}</strong><em>{currentMonthAttendance.length ? `${currentMonthAttendance.length} shift${currentMonthAttendance.length === 1 ? "" : "s"} this month` : "No attendance history"}</em></span></button>
+          <button type="button" onClick={() => setScreen("leave")}><span className="crew-me-status-icon"><Plane size={21} /></span><span><small>Leave Balance</small><strong>{annualLeaveAvailable == null ? "No balance" : Number(annualLeaveAvailable).toLocaleString("en-MY", { maximumFractionDigits: 1 })}</strong><em>{annualLeaveAvailable == null ? "Annual Leave" : "days available · Annual Leave"}</em></span></button>
+        </section>
+        <section className="crew-me-section"><h2>Work</h2><div className="crew-me-list">
+          <button type="button" onClick={() => setScreen("attendance")}><span className="crew-me-row-icon"><Clock3 size={20} /></span><span><strong>Attendance</strong><small>{currentMonthAttendance.length ? `${currentMonthAttendance.length} shift${currentMonthAttendance.length === 1 ? "" : "s"} this month` : "No activity yet"}</small></span><ChevronRight size={19} /></button>
+          <button type="button" onClick={() => setScreen("leave")}><span className="crew-me-row-icon"><Plane size={20} /></span><span><span>Leave</span></span>{pendingLeaveCount > 0 && <em className="crew-me-pending">{pendingLeaveCount} Pending</em>}<ChevronRight size={19} /></button>
+          <div><span className="crew-me-row-icon"><FileText size={20} /></span><span><strong>Employment Documents</strong></span><ChevronRight size={19} /></div>
+        </div></section>
+        <section className="crew-me-section"><h2>Account</h2><div className="crew-me-list is-neutral">
+          <button type="button" onClick={() => setMeView("profile")}><span className="crew-me-row-icon"><UserRound size={20} /></span><span><strong>Profile Information</strong></span><ChevronRight size={19} /></button>
+          <button type="button" onClick={() => setPasscodeChangeOpen(true)}><span className="crew-me-row-icon"><LockKeyhole size={20} /></span><span><strong>Change Passcode</strong></span><ChevronRight size={19} /></button>
+          <button type="button" onClick={() => setMeView("settings")}><span className="crew-me-row-icon"><Settings size={20} /></span><span><strong>Settings</strong></span><ChevronRight size={19} /></button>
+        </div></section>
+        <section className="crew-me-section"><h2>Support</h2><div className="crew-me-list is-neutral"><div><span className="crew-me-row-icon"><HelpCircle size={20} /></span><span><strong>Help &amp; Support</strong></span><ChevronRight size={19} /></div></div></section>
+        <button className="crew-v2-logout" type="button" onClick={() => setLogoutConfirmOpen(true)}><LogOut size={20} /> Log Out</button>
+      </>}
       {passcodeChangeOpen && <form className="crew-v2-passcode-form" onSubmit={changePasscode}><div className="crew-v2-section-title"><h2>Change Passcode</h2><button type="button" onClick={() => setPasscodeChangeOpen(false)}>Close</button></div><label>Current passcode<input inputMode="numeric" maxLength="4" value={currentPasscode} onChange={(event) => setCurrentPasscode(event.target.value.replace(/\D/g, ""))} /></label><label>New passcode<input inputMode="numeric" maxLength="4" value={newPasscode} onChange={(event) => setNewPasscode(event.target.value.replace(/\D/g, ""))} /></label>{error && <div className="crew-v2-error">{error}</div>}<button className="crew-v2-primary" disabled={loading}>Save Passcode</button></form>}
+      {logoutConfirmOpen && <div className="crew-me-confirm-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setLogoutConfirmOpen(false); }}><section className="crew-me-confirm" role="dialog" aria-modal="true" aria-labelledby="crew-logout-title"><h2 id="crew-logout-title">Log out of FeedX?</h2><p>You’ll need your mobile number and passcode to sign in again.</p><div><button type="button" onClick={() => setLogoutConfirmOpen(false)}>Cancel</button><button type="button" className="is-danger" onClick={logout}>Log Out</button></div></section></div>}
     </section>}
 
     <CrewBottomNav items={navItems} active={["operations", "attendance", "schedule"].includes(screen) ? "home" : screen === "leave" ? "me" : screen} onChange={(next) => { if (next === "growth") setGrowthInitialView("overview"); setScreen(next); if (next === "me") setMeView("main"); }} />

@@ -70,6 +70,63 @@ beforeEach(() => {
 afterEach(cleanup);
 
 describe("Crew Mobile redesign", () => {
+  it("organizes Me as a profile hub with two real quick statuses and grouped navigation", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    mocks.myAttendance.mockResolvedValueOnce([
+      { id: "attendance-1", clock_in_at: "2026-08-14T02:00:00Z", clock_out_at: "2026-08-14T10:00:00Z", status: "completed" },
+      { id: "attendance-2", clock_in_at: "2026-08-13T02:00:00Z", clock_out_at: "2026-08-13T10:00:00Z", status: "completed" },
+    ]);
+    mocks.myLeave.mockResolvedValueOnce({
+      balances: [{ leave_type: "annual", available: 7.5, balance_enforced: true }],
+      requests: [{ id: "leave-1", status: "pending" }],
+      upcoming: [],
+    });
+    render(<CrewMobileApp />);
+    fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
+
+    expect(screen.getByRole("heading", { name: "Me" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "View profile information" }).textContent).toContain("Alex Tan");
+    expect(screen.getByRole("region", { name: "Work status summary" }).textContent).toContain("Good");
+    expect(screen.getByRole("region", { name: "Work status summary" }).textContent).toContain("7.5");
+    expect(screen.getByText("1 Pending")).not.toBeNull();
+    expect(screen.getAllByText("Employment Documents")).toHaveLength(1);
+    expect(screen.getByRole("heading", { name: "Work" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Account" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Support" })).not.toBeNull();
+  });
+
+  it("keeps Me truthful for empty attendance, leave and pending states", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify({ ...session, employee: { ...session.employee, full_name: "A Very Long International Employee Name", nickname: "A" } }));
+    mocks.attendanceContext.mockResolvedValueOnce({ outlet_name: "An Exceptionally Long International Restaurant Outlet Name", location_enabled: false });
+    mocks.myLeave.mockResolvedValueOnce({ balances: [], requests: [], upcoming: [] });
+    render(<CrewMobileApp />);
+    fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
+
+    expect(screen.getAllByText("No activity yet").length).toBeGreaterThan(0);
+    expect(screen.getByText("No balance")).not.toBeNull();
+    expect(screen.queryByText(/Pending/)).toBeNull();
+    expect(screen.getByRole("button", { name: "View profile information" }).textContent).toContain("A Very Long International Employee Name");
+  });
+
+  it("routes Attendance, Leave and Profile from Me and confirms logout", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    render(<CrewMobileApp />);
+    fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[4]);
+    fireEvent.click(screen.getByRole("button", { name: "View profile information" }));
+    expect(screen.getByRole("heading", { name: "Profile Information" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    fireEvent.click(screen.getAllByRole("button", { name: /Attendance/ })[0]);
+    expect(screen.getByRole("heading", { name: "Attendance" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Me" }));
+    fireEvent.click(screen.getAllByRole("button", { name: /Leave/ })[0]);
+    expect(screen.getByRole("heading", { name: "My Leave" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Back" }));
+    fireEvent.click(screen.getByRole("button", { name: "Log Out" }));
+    expect(screen.getByRole("dialog", { name: "Log out of FeedX?" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Cancel" }));
+    expect(screen.queryByRole("dialog", { name: "Log out of FeedX?" })).toBeNull();
+  });
+
   it("uses a two-step mobile and custom passcode login that auto-submits four digits", async () => {
     render(<CrewMobileApp />);
     expect(screen.queryByText("Passcode")).toBeNull();
