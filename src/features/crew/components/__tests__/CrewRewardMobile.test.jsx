@@ -45,6 +45,41 @@ describe("Crew Reward mobile reference UI", () => {
     expect(screen.getByRole("dialog", { name: "Reward History" })).not.toBeNull();
   });
 
+  it("opens every hero metric explanation in a centered dialog", () => {
+    render(<CrewRewardMobile data={data} />);
+    for (const [buttonName, dialogName] of [
+      ["About Estimated Reward", "About your Reward"],
+      ["About maximum share", "Your Maximum Share"],
+      ["About contribution share", "Your Contribution"],
+      ["About reward pool", "Reward Pool"],
+      ["About current earn rate", "Performance earn rates"],
+    ]) {
+      fireEvent.click(screen.getByRole("button", { name: buttonName }));
+      expect(screen.getByRole("dialog", { name: dialogName })).not.toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    }
+  });
+
+  it("closes a dialog with Escape and restores page scrolling", () => {
+    render(<CrewRewardMobile data={data} />);
+    const trigger = screen.getByRole("button", { name: "Reward help" });
+    trigger.focus();
+    fireEvent.click(trigger);
+    expect(document.body.style.overflow).toBe("hidden");
+    fireEvent.keyDown(document, { key: "Escape" });
+    expect(screen.queryByRole("dialog")).toBeNull();
+    expect(document.body.style.overflow).toBe("");
+    expect(document.activeElement).toBe(trigger);
+  });
+
+  it.each([7, 75, 87, 100])("keeps score %s and its denominator on separate lines", (score) => {
+    const { container } = render(<CrewRewardMobile data={{ ...data, performance_score: score }} />);
+    const ring = container.querySelector(".crew-reward-score-ring");
+    expect(ring.querySelector("strong").textContent).toBe(String(score));
+    expect(ring.querySelector("small").textContent).toBe("/ 100");
+    expect(ring.querySelector("span").children).toHaveLength(2);
+  });
+
   it("deep-links to the existing Performance experience", () => {
     const onViewPerformance = vi.fn();
     render(<CrewRewardMobile data={data} onViewPerformance={onViewPerformance} />);

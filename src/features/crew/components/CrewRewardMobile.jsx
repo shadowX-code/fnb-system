@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import {
   Calculator,
   ChevronRight,
@@ -32,13 +32,41 @@ const defaultTiers = [
   { range: "<70", level: "Below Standard", rate: 0 },
 ];
 
-function Sheet({ title, onClose, children }) {
-  return <div className="crew-reward-sheet-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
-    <section className="crew-reward-sheet" role="dialog" aria-modal="true" aria-label={title}>
-      <header><h2>{title}</h2><button type="button" onClick={onClose} aria-label="Close"><X size={20} /></button></header>
+function Modal({ title, onClose, children }) {
+  const modalRef = useRef(null);
+  const closeRef = useRef(null);
+  useEffect(() => {
+    const previousFocus = document.activeElement;
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    closeRef.current?.focus();
+    const onKeyDown = (event) => {
+      if (event.key === "Escape") return onClose();
+      if (event.key !== "Tab") return;
+      const focusable = [...modalRef.current.querySelectorAll("button, [href], input, select, textarea, [tabindex]:not([tabindex='-1'])")];
+      if (!focusable.length) return;
+      const first = focusable[0];
+      const last = focusable.at(-1);
+      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last.focus(); }
+      if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first.focus(); }
+    };
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.body.style.overflow = previousOverflow;
+      document.removeEventListener("keydown", onKeyDown);
+      previousFocus?.focus?.();
+    };
+  }, [onClose]);
+  return <div className="crew-reward-modal-backdrop" role="presentation" onMouseDown={(event) => event.target === event.currentTarget && onClose()}>
+    <section ref={modalRef} className="crew-reward-modal" role="dialog" aria-modal="true" aria-label={title} onMouseDown={(event) => event.stopPropagation()}>
+      <header><h2>{title}</h2><button ref={closeRef} type="button" onClick={onClose} aria-label="Close"><X size={20} /></button></header>
       <div>{children}</div>
     </section>
   </div>;
+}
+
+function InfoButton({ label, onClick }) {
+  return <button type="button" className="crew-reward-inline-info" aria-label={label} onClick={onClick}><Info size={12} /></button>;
 }
 
 function TierTable({ tiers }) {
@@ -48,17 +76,17 @@ function TierTable({ tiers }) {
   </div>;
 }
 
-function RewardHero({ data }) {
+function RewardHero({ data, onOpenModal }) {
   const contribution = Math.max(0, Math.min(1, Number(data.contribution_share || 0)));
   const label = data.reward_label || (data.cycle_status === "paid" ? "Paid Reward" : data.cycle_status === "finalized" ? "Final Reward" : "Estimated Reward");
   return <article className="crew-reward-hero">
     <img src={rewardArtwork} alt="" className="crew-reward-art" />
     <div className="crew-reward-hero-kicker"><span>This Month</span><em>{statusCopy[data.status] || data.status}</em></div>
-    <div className="crew-reward-hero-total"><small>{label} <Info size={12} /></small><strong>{money(data.reward_amount ?? data.estimated_reward)}</strong><p>Based on your current performance score of {data.performance_score == null ? "—" : Math.round(data.performance_score)}.</p></div>
+    <div className="crew-reward-hero-total"><small>{label} <InfoButton label={`About ${label}`} onClick={() => onOpenModal("help")} /></small><strong>{money(data.reward_amount ?? data.estimated_reward)}</strong><p>Based on your current performance score of {data.performance_score == null ? "—" : Math.round(data.performance_score)}.</p></div>
     <div className="crew-reward-hero-metrics">
-      <div><small>You can earn up to <Info size={11} /></small><strong>{money(data.maximum_share)}</strong><p>100% of your maximum share</p></div>
-      <div className="is-contribution"><span><small>Your Contribution <Info size={11} /></small><strong>{rate(contribution, 2)}</strong><p>{Number(data.eligible_hours || 0).toFixed(1)}h of {Number(data.total_eligible_hours || 0).toFixed(1)}h eligible hours</p></span><i style={{ "--reward-progress": `${contribution * 360}deg` }}><b>{rate(contribution, 2)}</b></i></div>
-      <div><small>Reward Pool <Info size={11} /></small><strong>{money(data.reward_pool ?? data.configured_pool)}</strong><p>Shared across eligible crew</p></div>
+      <div className="is-maximum"><small>You can earn up to <InfoButton label="About maximum share" onClick={() => onOpenModal("maximum")} /></small><strong>{money(data.maximum_share)}</strong><p>100% of your maximum share</p></div>
+      <div className="is-contribution"><span><small>Your Contribution <InfoButton label="About contribution share" onClick={() => onOpenModal("contribution")} /></small><p>{Number(data.eligible_hours || 0).toFixed(1)}h of {Number(data.total_eligible_hours || 0).toFixed(1)}h eligible hours</p></span><i aria-label={`${rate(contribution, 2)} contribution`} style={{ "--reward-progress": `${contribution * 360}deg` }}><b>{rate(contribution, 2)}</b></i></div>
+      <div className="is-pool"><small>Reward Pool <InfoButton label="About reward pool" onClick={() => onOpenModal("pool")} /></small><strong>{money(data.reward_pool ?? data.configured_pool)}</strong><p>Shared across eligible crew</p></div>
     </div>
   </article>;
 }
@@ -69,10 +97,9 @@ function PerformanceOverview({ data, tiers, onOpenSheet, onViewPerformance }) {
     <header><span><h2>Performance Overview</h2><p>Your performance determines how much of your maximum share you earn.</p></span><button type="button" onClick={onViewPerformance}>View My Performance <ChevronRight size={16} /></button></header>
     <div className="crew-reward-performance-main">
       <div className="crew-reward-score-summary">
-        <div className="crew-reward-score-ring" style={{ "--score-progress": `${score * 3.6}deg` }}><strong>{Math.round(score)}</strong><small>/ 100</small></div>
-        <div><h3>{data.performance_level || "Awaiting Review"}</h3><em>On Track</em><small>Current Earn Rate <Info size={11} /></small><strong>{rate(data.earn_rate)}</strong><p>Continue improving to unlock a higher rate.</p></div>
+        <div className="crew-reward-score-ring" style={{ "--score-progress": `${score * 3.6}deg` }}><span><strong>{Math.round(score)}</strong><small>/ 100</small></span></div>
+        <div><h3>{data.performance_level || "Awaiting Review"}</h3><em>On Track</em><small>Current Earn Rate <InfoButton label="About current earn rate" onClick={() => onOpenSheet("rates")} /></small><strong>{rate(data.earn_rate)}</strong><p>Continue improving to unlock a higher rate.</p></div>
       </div>
-      <TierTable tiers={tiers} />
     </div>
     <div className="crew-reward-scale" aria-label={`Performance score ${Math.round(score)}`}>
       <div className="crew-reward-scale-track"><i style={{ left: `${score}%` }}><b>{Math.round(score)}</b></i></div>
@@ -113,7 +140,7 @@ export default function CrewRewardMobile({ data, loading, onRetry, onViewPerform
   return <section className="crew-reward-final">
     <header className="crew-reward-page-header"><h1>Reward</h1><button type="button" aria-label="Reward help" onClick={() => setSheet("help")}><CircleHelp size={22} /></button></header>
     {unlocked ? <>
-      <RewardHero data={data} />
+      <RewardHero data={data} onOpenModal={setSheet} />
       <button type="button" className="crew-reward-motivation" onClick={() => setSheet("help")}><i><Lightbulb size={19} /></i><span>Work more hours and improve your performance to earn closer to your maximum share!</span><ChevronRight size={18} /></button>
       <PerformanceOverview data={data} tiers={tiers} onOpenSheet={setSheet} onViewPerformance={onViewPerformance} />
       <RewardProjection data={data} onOpenSheet={setSheet} />
@@ -121,10 +148,13 @@ export default function CrewRewardMobile({ data, loading, onRetry, onViewPerform
       <RewardHistory history={data.history || []} onViewAll={() => setSheet("history")} />
     </> : <article className="crew-reward-unavailable"><Gift size={30} /><h2>{statusCopy[data.status] || "Reward not available"}</h2><p>{data.eligibility_reason || data.explanation || "This month’s Reward is not available yet."}</p></article>}
 
-    {sheet === "help" && <Sheet title="About your Reward" onClose={() => setSheet(null)}><p>Your outlet Reward Pool is shared according to completed eligible hours. Your finalized Performance score then sets the percentage of your maximum share that you earn.</p><div className="crew-reward-sheet-note"><Lightbulb size={18} /> More eligible hours can increase your contribution. Stronger Performance can unlock a higher earn rate.</div></Sheet>}
-    {sheet === "rates" && <Sheet title="Performance earn rates" onClose={() => setSheet(null)}><p>Your monthly finalized Performance score maps to one transparent earn rate.</p><TierTable tiers={tiers} /></Sheet>}
-    {sheet === "projection" && <Sheet title="About projections" onClose={() => setSheet(null)}><p>Projections keep your current Reward Pool and eligible-hours contribution fixed. Only the Performance tier changes. They are estimates, not guaranteed payouts.</p></Sheet>}
-    {sheet === "formula" && <Sheet title="How your Reward is calculated" onClose={() => setSheet(null)}><div className="crew-reward-formula"><span><small>Reward Pool</small><strong>{money(data.reward_pool ?? data.configured_pool)}</strong></span><b>×</b><span><small>Contribution Share</small><strong>{rate(data.contribution_share, 2)}</strong></span><b>=</b><span><small>Maximum Share</small><strong>{money(data.maximum_share)}</strong></span></div><div className="crew-reward-formula"><span><small>Maximum Share</small><strong>{money(data.maximum_share)}</strong></span><b>×</b><span><small>Performance Earn Rate</small><strong>{rate(data.earn_rate)}</strong></span><b>=</b><span><small>{data.reward_label || "Estimated Reward"}</small><strong>{money(data.reward_amount ?? data.estimated_reward)}</strong></span></div></Sheet>}
-    {sheet === "history" && <Sheet title="Reward History" onClose={() => setSheet(null)}><div className="crew-reward-sheet-history">{(data.history || []).map((item) => <div key={item.period_start}><time>{new Date(`${item.period_start}T00:00:00`).toLocaleDateString("en-MY", { month: "long", year: "numeric" })}</time><span><strong>{money(item.amount)}</strong><small>{statusCopy[item.status] || item.status}</small></span></div>)}</div></Sheet>}
+    {sheet === "help" && <Modal title="About your Reward" onClose={() => setSheet(null)}><div className="crew-reward-modal-section"><strong>Maximum Share</strong><p>Your Reward Pool share is based on your eligible hours contribution.</p></div><div className="crew-reward-modal-section"><strong>Performance Earn Rate</strong><p>Your finalized Performance Score determines how much of your Maximum Share you receive.</p></div><div className="crew-reward-modal-note"><Lightbulb size={18} /><span>More eligible hours may increase your contribution. A stronger Performance score can unlock a higher earn rate.</span></div></Modal>}
+    {sheet === "maximum" && <Modal title="Your Maximum Share" onClose={() => setSheet(null)}><p>Your maximum share is {money(data.maximum_share)}. It is your portion of the outlet Reward Pool based on eligible-hours contribution.</p></Modal>}
+    {sheet === "contribution" && <Modal title="Your Contribution" onClose={() => setSheet(null)}><p>You contributed {Number(data.eligible_hours || 0).toFixed(1)} of {Number(data.total_eligible_hours || 0).toFixed(1)} eligible outlet hours, equal to {rate(data.contribution_share, 2)}.</p></Modal>}
+    {sheet === "pool" && <Modal title="Reward Pool" onClose={() => setSheet(null)}><p>The {money(data.reward_pool ?? data.configured_pool)} Reward Pool is shared across eligible Crew for this month.</p></Modal>}
+    {sheet === "rates" && <Modal title="Performance earn rates" onClose={() => setSheet(null)}><p>Your monthly finalized Performance score maps to one transparent earn rate.</p><TierTable tiers={tiers} /></Modal>}
+    {sheet === "projection" && <Modal title="About projections" onClose={() => setSheet(null)}><p>Projections keep your current Reward Pool and eligible-hours contribution fixed. Only the Performance tier changes. They are estimates, not guaranteed payouts.</p></Modal>}
+    {sheet === "formula" && <Modal title="How your Reward is calculated" onClose={() => setSheet(null)}><div className="crew-reward-formula"><span><small>Reward Pool</small><strong>{money(data.reward_pool ?? data.configured_pool)}</strong></span><b>×</b><span><small>Contribution Share</small><strong>{rate(data.contribution_share, 2)}</strong></span><b>=</b><span><small>Maximum Share</small><strong>{money(data.maximum_share)}</strong></span></div><div className="crew-reward-formula"><span><small>Maximum Share</small><strong>{money(data.maximum_share)}</strong></span><b>×</b><span><small>Performance Earn Rate</small><strong>{rate(data.earn_rate)}</strong></span><b>=</b><span><small>{data.reward_label || "Estimated Reward"}</small><strong>{money(data.reward_amount ?? data.estimated_reward)}</strong></span></div></Modal>}
+    {sheet === "history" && <Modal title="Reward History" onClose={() => setSheet(null)}><div className="crew-reward-modal-history">{(data.history || []).map((item) => <div key={item.period_start}><time>{new Date(`${item.period_start}T00:00:00`).toLocaleDateString("en-MY", { month: "long", year: "numeric" })}</time><span><strong>{money(item.amount)}</strong><small>{statusCopy[item.status] || item.status}</small></span></div>)}</div></Modal>}
   </section>;
 }
