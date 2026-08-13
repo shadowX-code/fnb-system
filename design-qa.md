@@ -1,87 +1,24 @@
-# Crew Mobile 2026 Design QA
+# Crew Mobile Growth Design QA
 
-Reference: `ChatGPT Image Aug 13, 2026, 09_54_35 AM.png`
+Reference: `ChatGPT Image Aug 13, 2026, 09_57_41 PM.png`
 
-## Visual hierarchy
+Implementation: FeedX Staging `#crew` → Growth, authenticated QA Crew.
 
-- Home prioritizes the current shift, then actionable work, compact schedule, and growth summary.
-- Learn prioritizes knowledge search and required acknowledgements; completed onboarding is compact.
-- Reward uses an achievement hero while retaining transparent evidence and history.
-- Growth prioritizes the next milestone, then status metrics, navigation, and performance preview.
-- Supporting metadata stays visually subordinate to actions and current status.
+Viewports reviewed: 375 × 812 and 390 × 844.
 
-## Responsive acceptance
+## Findings
 
-- 375px and 390px layouts use 16px page gutters.
-- Five-item bottom navigation remains fixed and does not overflow.
-- Action rows truncate long primary labels without moving badges or chevrons off-screen.
-- Four-column category/metric grids collapse where required below 375px.
-- Long document content remains vertically scrollable and rich content wraps within the viewport.
+- P3 — The bespoke target illustration is not pixel-identical to the reference artwork, but preserves the approved green target, arrow, pedestal, foliage, and confetti composition without external hotlinking.
+- P3 — At 375 px the Performance card begins near the bottom fold; it remains visible, unobstructed by navigation, and fully reachable by normal page scrolling.
+- P3 — Live FeedX type metrics differ slightly from the generated reference image, while hierarchy, density, wrapping, status color, and alignment remain consistent.
 
-## Product constraints preserved
+## Verification
 
-- No employee-facing screen receives Admin controls or private notes.
-- Attendance, roster, learning, reward, performance, and growth continue using their existing controlled service authorities.
-- Recently viewed content is not fabricated when the backend does not provide real history.
+- Growth IA contains only Next Milestone, Skills, and Performance.
+- Milestone, skill counts/statuses, ready-for-review list, score/tier, and trend state are sourced from the authenticated Crew payload.
+- No horizontal overflow at either viewport.
+- Bottom navigation remains fixed and does not block the final Performance content.
+- Skills, Skill Detail, Performance, return navigation, and centered Help modal were exercised on Staging.
+- Browser console was clean during the final smoke pass.
 
-## Crew Mobile Learn final-reference QA
-
-## Source and implementation
-
-- Approved source: `/Users/deron/Downloads/ChatGPT Image Aug 13, 2026, 03_40_25 PM.png`
-- Final local implementation capture: `/Users/deron/Dev/feedx/tmp/crew-learn-final-crop.png`
-- Side-by-side comparison input: `/Users/deron/Dev/feedx/tmp/crew-learn-comparison.png`
-- QA state: 430 px mobile surface with completed onboarding and representative Required, Optional, and Acknowledged SOP states.
-
-## Comparison history
-
-### Iteration 1 — needs changes
-
-- P2: the first implementation was visibly too tall relative to the approved reference. Hero/search separation, category cards, list rows, and vertical section gaps were all too generous.
-- P2: generated hero artwork was oversized for the available top-right slot.
-
-### Iteration 2 — pass
-
-- Tightened hero, search, onboarding, category, section-gap, and SOP-row proportions while retaining 44 px interactive controls.
-- Rescaled the local generated hero illustration to preserve the approved composition without crowding the title.
-- Category carousel intentionally exposes the next card; the page itself has no intentional horizontal overflow.
-- The single SOP container, divider rhythm, compact state alignment, and title truncation now follow the approved reference closely.
-- Differences retained by design: titles, category counts, versions, read time, acknowledgement dates, and onboarding totals remain data-driven rather than screenshot-hardcoded; the generated illustration is visually matched but not a copy of the reference asset.
-
-## Interaction and responsive checks
-
-- Search and category selection update the same real-data SOP result set and count.
-- View all clears both category and query and returns the carousel to All when scrolling is supported.
-- Required, Optional, and Acknowledged states remain readable without colliding with long SOP titles.
-- SOP rows continue into the existing reader and controlled acknowledgement call.
-- CSS includes compact behavior below 360 px and expanded title/state allocation from 400–430 px.
-- Reduced-motion users do not receive forced carousel motion.
-
-## Result
-
-Passed for local implementation. No backend, route, session, acknowledgement authority, or deployment behavior was changed.
-
-## Crew Mobile My Schedule final-reference QA
-
-## Source and implementation
-
-- Approved source: `/Users/deron/Downloads/ChatGPT Image Aug 13, 2026, 06_24_28 PM.png`
-- Final local implementation capture: `/Users/deron/Dev/feedx/tmp/schedule-css-430.png`
-- Side-by-side comparison input: `/Users/deron/Dev/feedx/tmp/schedule-comparison.png`
-- QA state: 430 px mobile surface with Unpaid Leave, OFF, MC, Annual Leave and Working Shift entries from representative `crew_my_roster` data.
-
-## Visual and interaction result
-
-- Header, seven-day selector, selected-day hero, 14-day list and fixed five-item bottom navigation follow the approved hierarchy.
-- The selected-day card and corresponding list row share one roster source and update together when a date is selected.
-- Working shifts receive the green timeline treatment; non-working and leave entries remain visually quieter with distinct badges and date-dot colors.
-- The calendar action returns to today. A month CTA is deliberately omitted because the product has no real month view.
-- The locally generated calendar artwork is decorative only and never replaces schedule information.
-- Compact behavior is defined through 320 px; the standard composition remains bounded at 375, 390 and 430 px without page-level horizontal overflow.
-
-## Product constraints preserved
-
-- Only the employee's token-bound latest Published roster projection is rendered.
-- Approved Leave projections remain distinguishable from manually scheduled OFF, MC and Annual Leave entries.
-- No roster mutation, shift-swap, open-cover or availability action was introduced.
-- Bottom navigation remains Home, Learn, Reward, Growth and Me.
+Result: **PASS** — no P0, P1, or P2 visual findings remain.
