@@ -91,7 +91,7 @@ describe("Crew Mobile redesign", () => {
   it("keeps attendance as a contextual Home action instead of a primary tab", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     render(<CrewMobileApp />);
-    fireEvent.click(await screen.findByRole("button", { name: /Attendance.*Clock In.*Tap to start your shift/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "Attendance Clock In" }));
     expect(screen.getByRole("heading", { name: "Attendance" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "Clock In" })).not.toBeNull();
   });
@@ -99,8 +99,8 @@ describe("Crew Mobile redesign", () => {
   it("shows only the token-bound published roster and opens My Schedule without adding a bottom tab", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     render(<CrewMobileApp />);
-    expect(await screen.findByText(/10:00\s?(AM|am) – 6:00\s?(PM|pm)/)).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: "View Schedule" }));
+    expect((await screen.findAllByText(/10:00\s?(AM|am) – 6:00\s?(PM|pm)/)).length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: "View all" }));
     expect(screen.getByRole("heading", { name: "My Schedule" })).not.toBeNull();
     expect(screen.getByText(/Hola Hola/)).not.toBeNull();
     expect(screen.getAllByText("OFF").length).toBeGreaterThan(0);
@@ -110,7 +110,7 @@ describe("Crew Mobile redesign", () => {
   it("opens Today’s Tasks without changing the five-item bottom navigation", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     render(<CrewMobileApp />);
-    fireEvent.click(await screen.findByRole("button", { name: /Today’s Tasks/ }));
+    fireEvent.click(await screen.findByRole("button", { name: /Opening & daily tasks/ }));
     expect(screen.getByRole("heading", { name: "Today’s Tasks" })).not.toBeNull();
     expect(screen.getByText("Opening Checklist")).not.toBeNull();
     expect(screen.getByText("Check reservation board")).not.toBeNull();
@@ -133,7 +133,8 @@ describe("Crew Mobile redesign", () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     render(<CrewMobileApp />);
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[3]);
-    expect(await screen.findByText("63% complete")).not.toBeNull();
+    expect(await screen.findByText("Next Milestone")).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Taking Orders" })).not.toBeNull();
     fireEvent.click(screen.getByRole("button", { name: /Skills.*See requirements and evidence/ }));
     fireEvent.click(screen.getByRole("button", { name: /Taking Orders/ }));
     expect(screen.getByText("Manager Practical Assessment")).not.toBeNull();

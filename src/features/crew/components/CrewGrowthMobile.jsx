@@ -12,6 +12,7 @@ import {
   Sparkles,
   Target,
 } from "lucide-react";
+import { CrewMetric, CrewSectionHeader, CrewStatusBadge } from "./CrewMobileUI.jsx";
 
 const statusCopy = {
   certified: "Certified",
@@ -57,6 +58,7 @@ export default function CrewGrowthMobile({ data, performance, loading, error, on
   const completeRequirements = skills.reduce((sum, skill) => sum + (Number(skill.requirements_completed) || 0), 0);
   const allRequirements = skills.reduce((sum, skill) => sum + (Number(skill.requirements_total) || 0), 0);
   const overall = allRequirements ? Math.round((completeRequirements / allRequirements) * 100) : 0;
+  const nextMilestone = skills.find((skill) => skill.status === "ready_for_review") || skills.find((skill) => skill.status === "in_progress") || skills.find((skill) => skill.status === "not_started");
 
   function openSkill(skill) {
     setSelectedSkill(skill);
@@ -73,7 +75,7 @@ export default function CrewGrowthMobile({ data, performance, loading, error, on
       <article className="crew-v2-skill-hero">
         <div className="crew-v2-icon-token"><BadgeCheck size={23} /></div>
         <div><h2>{selectedSkill.name}</h2><p>{selectedSkill.category}</p></div>
-        <span className={`crew-v2-status ${statusClass(selectedSkill.status)}`}>{statusCopy[selectedSkill.status] || selectedSkill.status}</span>
+        <CrewStatusBadge tone={selectedSkill.status === "certified" ? "success" : selectedSkill.status === "ready_for_review" ? "ready" : "neutral"}>{statusCopy[selectedSkill.status] || selectedSkill.status}</CrewStatusBadge>
       </article>
       {selectedSkill.description && <p className="crew-v2-skill-description">{selectedSkill.description}</p>}
       <section className="crew-v2-section-block">
@@ -95,12 +97,12 @@ export default function CrewGrowthMobile({ data, performance, loading, error, on
     <PageHeader title="Skills" onBack={() => setView("overview")} />
     <label className="crew-v2-search"><Search size={17} /><input aria-label="Search skills" placeholder="Search skills" value={query} onChange={(event) => setQuery(event.target.value)} /></label>
     <div className="crew-v2-chips" aria-label="Skill categories">{categories.map((item) => <button type="button" key={item} className={category === item ? "active" : ""} onClick={() => setCategory(item)}>{item}</button>)}</div>
-    <div className="crew-v2-skill-list">{filtered.map((skill) => <button type="button" key={skill.id} onClick={() => openSkill(skill)}>
+    {[['Ready for Review', filtered.filter((skill) => ['ready_for_review', 'needs_renewal'].includes(skill.status))], ['In Progress', filtered.filter((skill) => skill.status === 'in_progress')], ['Certified', filtered.filter((skill) => skill.status === 'certified')], ['Not Started', filtered.filter((skill) => skill.status === 'not_started')]].filter(([, rows]) => rows.length).map(([label, rows]) => <section className="crew-v3-skill-group" key={label}><CrewSectionHeader title={`${label} · ${rows.length}`} /><div className="crew-v2-skill-list">{rows.map((skill) => <button type="button" key={skill.id} onClick={() => openSkill(skill)}>
       <div className="crew-v2-row-icon"><BookOpenCheck size={17} /></div>
-      <span><strong>{skill.name}</strong><small>{skill.category}</small>{skill.status === "in_progress" && <ProgressBar value={percentFor(skill)} />}</span>
+      <span><strong>{skill.name}</strong><small>{skill.category}{skill.status === 'ready_for_review' ? ' · Learning requirements complete' : ''}</small>{skill.status === "in_progress" && <ProgressBar value={percentFor(skill)} />}</span>
       <em className={`crew-v2-status ${statusClass(skill.status)}`}>{statusCopy[skill.status] || skill.status}</em>
       <ChevronRight size={16} />
-    </button>)}</div>
+    </button>)}</div></section>)}
     {!filtered.length && <div className="crew-v2-empty">No skills match this filter.</div>}
   </section>;
 
@@ -152,12 +154,12 @@ export default function CrewGrowthMobile({ data, performance, loading, error, on
       <button type="button" onClick={() => setView("skills")}>Skills</button>
       <button type="button" onClick={() => setView("path")}>My Path</button>
     </nav>
-    <article className="crew-v2-growth-hero"><small>My Growth</small><h2>{overall}% complete</h2><p>{summary.certified ? `${summary.certified} certified skill${summary.certified === 1 ? "" : "s"}` : "Build confidence one skill at a time"}</p><ProgressBar value={overall} /><span>{completeRequirements} / {allRequirements || 0} requirements</span></article>
-    <section className="crew-v2-section-block"><div className="crew-v2-section-title"><h2>My progress</h2><button type="button" onClick={() => setView("skills")}>View skills</button></div><div className="crew-v2-growth-stats">
-      <button type="button" onClick={() => setView("certifications")}><BadgeCheck size={18} /><span>Certified</span><strong>{summary.certified || 0}</strong></button>
-      <button type="button" onClick={() => setView("skills")}><Clock3 size={18} /><span>In Progress</span><strong>{summary.in_progress || 0}</strong></button>
-      <button type="button" onClick={() => setView("certifications")}><Award size={18} /><span>Ready</span><strong>{summary.ready_for_review || 0}</strong></button>
-      <button type="button" onClick={() => setView("skills")}><Circle size={18} /><span>Not Started</span><strong>{summary.not_started || 0}</strong></button>
+    <article className="crew-v3-milestone-hero"><span><small>Next Milestone</small><h2>{nextMilestone?.name || "Keep growing"}</h2><p>{nextMilestone?.category || "Your learning path"}</p>{nextMilestone && <CrewStatusBadge tone={nextMilestone.status === "ready_for_review" ? "ready" : "neutral"}>{statusCopy[nextMilestone.status]}</CrewStatusBadge>}</span><Target size={54} /><button type="button" onClick={() => nextMilestone ? openSkill(nextMilestone) : setView("path")}>View skill <ChevronRight size={16} /></button></article>
+    <section className="crew-v2-section-block"><CrewSectionHeader title="My Progress" action="View skills" onAction={() => setView("skills")} /><div className="crew-v2-growth-stats">
+      <CrewMetric value={summary.certified || 0} label="Certified" tone="success" onClick={() => setView("certifications")} />
+      <CrewMetric value={summary.in_progress || 0} label="In Progress" tone="blue" onClick={() => setView("skills")} />
+      <CrewMetric value={summary.ready_for_review || 0} label="Ready" tone="amber" onClick={() => setView("certifications")} />
+      <CrewMetric value={summary.not_started || 0} label="Not Started" onClick={() => setView("skills")} />
     </div></section>
     <div className="crew-v2-growth-links">
       <button type="button" onClick={() => setView("skills")}><BookOpenCheck size={18} /><span><strong>Skills</strong><small>See requirements and evidence</small></span><ChevronRight size={17} /></button>
@@ -165,5 +167,6 @@ export default function CrewGrowthMobile({ data, performance, loading, error, on
       <button type="button" onClick={() => setView("certifications")}><Award size={18} /><span><strong>My Certifications</strong><small>Ready, in progress and completed</small></span><ChevronRight size={17} /></button>
       <button type="button" onClick={() => setView("performance")}><Sparkles size={18} /><span><strong>Performance</strong><small>{performance ? "View your monthly score" : "Evidence in progress"}</small></span><ChevronRight size={17} /></button>
     </div>
+    {performance && <button type="button" className="crew-v3-performance-preview" onClick={() => setView("performance")}><span><small>Performance</small><strong>{Math.round(performance.score)}</strong><em>{performance.trend?.length > 1 ? "Recent monthly result" : "This month"}</em></span><span>View Breakdown <ChevronRight size={16} /></span></button>}
   </section>;
 }

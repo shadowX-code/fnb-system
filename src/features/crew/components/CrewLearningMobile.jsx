@@ -13,6 +13,7 @@ import {
 import { crewService } from "../../../services/crewService.js";
 import CrewRichContent from "./CrewRichContent.jsx";
 import CrewLearningImage from "./CrewLearningImage.jsx";
+import { CrewActionRow, CrewProgressBar, CrewSearchBar, CrewSectionHeader } from "./CrewMobileUI.jsx";
 import { plainTextToSopHtml } from "../utils/sopDocumentContent.js";
 
 function Progress({ value = 0 }) {
@@ -277,72 +278,34 @@ function LearnHome({
   onOpenLibrary,
   onOpenSop,
 }) {
+  const [query, setQuery] = useState("");
   const onboarding = home?.assignment;
   const complete = onboarding?.status === "completed";
   const required = library.sops.filter(
     (item) => item.acknowledgement_required && !item.acknowledged,
   );
+  const searchResults = query.trim().length > 1 ? library.sops.filter((item) => `${item.title} ${item.summary || ""} ${item.category || ""}`.toLowerCase().includes(query.trim().toLowerCase())).slice(0, 5) : [];
+  const categories = library.categories.slice(0, 4);
   return (
     <section className="crew-learn-reset-home">
-      <header className="crew-learn-reset-title">
-        <span>Learn</span>
-        <h2>Build confidence for every shift.</h2>
-      </header>
+      <header className="crew-v2-page-header"><div><h1>Learn</h1></div></header>
       {error && <p className="crew-mobile-error">{error}</p>}
+      <section className="crew-v3-knowledge-search"><strong>Search knowledge</strong><CrewSearchBar value={query} onChange={setQuery} onSubmit={() => query.trim() && onOpenLibrary()} placeholder="Search SOP, topic or keyword" /></section>
+      {query.trim().length > 1 && <section className="crew-v3-search-results"><CrewSectionHeader title="Search results" action="View all" onAction={onOpenLibrary} /><div className="crew-v3-row-group">{searchResults.map((item) => <CrewActionRow key={item.version_id} icon={FileText} title={item.title} subtitle={`${item.category} · v${item.version}`} meta={item.acknowledged ? "Acknowledged" : item.acknowledgement_required ? "Required" : "View"} onClick={() => onOpenSop(item.version_id)} />)}{!searchResults.length && <p>No matching SOPs.</p>}</div></section>}
 
-      <section className="crew-onboarding-mobile-card">
-        <div>
-          <span>New Crew Onboarding</span>
-          <h3>
-            {complete
-              ? "Completed"
-              : assignment?.journey?.name || "New Crew Onboarding"}
-          </h3>
-          <p>
-            {complete
-              ? `${assignment?.modules?.length || 8} modules · Review anytime`
-              : onboarding
-                ? `${onboarding.progress_percentage || 0}% complete · ${onboarding.lessons_completed || 0} of ${onboarding.lessons_total || 0} lessons`
-                : "Your outlet onboarding is being prepared."}
-          </p>
-        </div>
-        {complete ? (
-          <CheckCircle2 size={28} aria-label="Completed" />
-        ) : (
-          <ClipboardCheck size={28} aria-hidden="true" />
-        )}
-        {onboarding && <Progress value={onboarding.progress_percentage} />}
-        <button className="crew-mobile-primary" disabled={!onboarding} onClick={onOpenOnboarding}>
-          {complete ? "Review onboarding" : "Continue onboarding"}
-        </button>
-      </section>
+      {onboarding && <button type="button" className={`crew-v3-onboarding-card ${complete ? "is-complete" : ""}`} onClick={onOpenOnboarding}><span className="crew-ui-row-icon is-mint">{complete ? <CheckCircle2 size={20} /> : <ClipboardCheck size={20} />}</span><span><strong>{complete ? "Onboarding Completed" : assignment?.journey?.name || "New Crew Onboarding"}</strong><span className="crew-v3-onboarding-meta">{complete ? `${assignment?.modules?.length || 8} / ${assignment?.modules?.length || 8} modules · Review anytime` : `${onboarding.lessons_completed || 0} of ${onboarding.lessons_total || 0} lessons`}{!complete && <CrewProgressBar value={onboarding.progress_percentage} />}</span></span><ChevronRight size={17} /></button>}
 
       {required.length > 0 && (
         <section className="crew-mobile-required-sops">
-          <div className="crew-learning-section-title">
-            <h2>Required acknowledgements</h2>
-            <span>{required.length}</span>
-          </div>
-          <div className="crew-mobile-list">
+          <CrewSectionHeader title="Required for you" />
+          <div className="crew-v3-row-group">
             {required.slice(0, 3).map((item) => (
-              <button key={item.version_id} onClick={() => onOpenSop(item.version_id)}>
-                <FileText size={18} />
-                <span><strong>{item.title}</strong><small>{item.category} · v{item.version}</small></span>
-                <ChevronRight size={17} />
-              </button>
+              <CrewActionRow key={item.version_id} icon={FileText} title={item.title} subtitle={`${item.category} · v${item.version}`} meta="Acknowledge" onClick={() => onOpenSop(item.version_id)} />
             ))}
           </div>
         </section>
       )}
-
-      <section className="crew-mobile-sop-entry">
-        <div>
-          <span>SOP Library</span>
-          <h3>Find the standard you need.</h3>
-          <p>{library.sops.length} published SOP{library.sops.length === 1 ? "" : "s"} for your outlet.</p>
-        </div>
-        <button className="btn-secondary" onClick={onOpenLibrary}>Browse SOP Library <ChevronRight size={16} /></button>
-      </section>
+      <section className="crew-v3-categories"><CrewSectionHeader title="Browse by category" action="View all" onAction={onOpenLibrary} /><div>{categories.map((item) => <button type="button" key={item.id} onClick={onOpenLibrary}><strong>{item.name}</strong><small>{library.sops.filter((sop) => sop.category_id === item.id).length} SOPs</small></button>)}{!categories.length && <button type="button" onClick={onOpenLibrary}><strong>All knowledge</strong><small>{library.sops.length} SOPs</small></button>}</div></section>
     </section>
   );
 }

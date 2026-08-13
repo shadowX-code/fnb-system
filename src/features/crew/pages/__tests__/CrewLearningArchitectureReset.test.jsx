@@ -340,10 +340,10 @@ describe("Crew mobile Learn reset", () => {
 
   it("keeps completed onboarding visible for review and exposes the outlet SOP knowledge base", async () => {
     render(<CrewLearningMobile token="crew-token" />);
-    await screen.findByText("Build confidence for every shift.");
-    expect(screen.getByRole("button", { name: "Review onboarding" })).not.toBeNull();
-    expect(screen.getByText("Required acknowledgements")).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /Browse SOP Library/ }));
+    await screen.findByRole("heading", { name: "Learn" });
+    expect(screen.getByRole("button", { name: /Onboarding Completed/ })).not.toBeNull();
+    expect(screen.getByText("Required for you")).not.toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: "View all" }).at(-1));
     expect(screen.getByPlaceholderText("Search SOP")).not.toBeNull();
     expect(screen.getByText("Welcome & Goodbye Standard")).not.toBeNull();
     expect(JSON.stringify(mocks.learningAssignment.mock.results)).not.toContain("is_correct");
@@ -379,7 +379,7 @@ describe("Crew mobile Learn reset", () => {
     });
 
     render(<CrewLearningMobile token="crew-token" />);
-    fireEvent.click(await screen.findByRole("button", { name: "Continue onboarding" }));
+    fireEvent.click(await screen.findByRole("button", { name: /New Crew Onboarding/ }));
     fireEvent.click(await screen.findByRole("button", { name: /Welcome rich lesson/ }));
 
     expect(await screen.findByText("Serve warmly")).not.toBeNull();
