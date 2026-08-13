@@ -176,7 +176,10 @@ describe("Crew Mobile redesign", () => {
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[3]);
     expect(await screen.findByText("Next Milestone")).not.toBeNull();
     expect(screen.getByRole("heading", { name: "Taking Orders" })).not.toBeNull();
-    fireEvent.click(screen.getByRole("button", { name: /Skills.*See requirements and evidence/ }));
+    expect(screen.queryByText("My Path")).toBeNull();
+    expect(screen.queryByText("My Certifications")).toBeNull();
+    expect(screen.queryByRole("navigation", { name: "Growth sections" })).toBeNull();
+    fireEvent.click(screen.getAllByRole("button", { name: /View all skills/ })[0]);
     fireEvent.click(screen.getByRole("button", { name: /Taking Orders/ }));
     expect(screen.getByText("Manager Practical Assessment")).not.toBeNull();
     expect(screen.getByText("Waiting for manager review")).not.toBeNull();
@@ -189,7 +192,7 @@ describe("Crew Mobile redesign", () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     render(<CrewMobileApp />);
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[3]);
-    fireEvent.click(await screen.findByRole("button", { name: /Performance.*monthly score/ }));
+    fireEvent.click(await screen.findByRole("button", { name: "View my performance" }));
     expect(screen.getByRole("heading", { name: "My Performance" })).not.toBeNull();
     expect(screen.getAllByText("87").length).toBeGreaterThan(0);
     expect(screen.getByText("Service Standards")).not.toBeNull();
