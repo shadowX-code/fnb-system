@@ -12,10 +12,19 @@ const title = (value) => ({ opening: "Opening Checklist", closing: "Closing Chec
 const label = (value) => ({ not_started: "Not Started", in_progress: "In Progress", completed: "Completed", completed_with_exceptions: "Completed · Exceptions", overdue: "Overdue", pending: "Pending", exception: "Unable", good: "Good", needs_attention: "Needs Attention", not_checked: "Not Checked" }[value] || value);
 const icon = (type) => type === "health" ? HeartPulse : type === "opening" || type === "closing" ? Store : ClipboardCheck;
 
-export default function CrewOperationsMobile({ token, data, loading, onRefresh, onBack }) {
+export default function CrewOperationsMobile({ token, data, loading, initialTarget, onRefresh, onBack }) {
   const [detail, setDetail] = useState(null); const [selected, setSelected] = useState(null); const [reason, setReason] = useState(""); const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false); const [error, setError] = useState(""); const [sop, setSop] = useState(null);
   useEffect(() => { setDetail(null); setSelected(null); setSop(null); }, [token]);
+  useEffect(() => {
+    if (!initialTarget) return;
+    if (initialTarget.kind === "checklist") openChecklist(initialTarget.row);
+    if (initialTarget.kind === "task") {
+      setSelected({ ...initialTarget.row, kind: "task" });
+      setReason("");
+      setNote("");
+    }
+  }, [initialTarget]);
   async function openChecklist(row) { setSaving(true); setError(""); try { setDetail(await crewService.operationDetail(token, row.id)); } catch (cause) { setError(cause.message); } finally { setSaving(false); } }
   async function refreshDetail() { if (!detail) return; const next = await crewService.operationDetail(token, detail.id); setDetail(next); await onRefresh?.(); }
   async function submit(action) { if (!selected) return; setSaving(true); setError(""); try { if (selected.kind === "task") await crewService.updateDailyTask(token, selected.id, action, reason || null, note || null); else await crewService.updateOperationItem(token, selected.id, action, reason || null, note || null); setSelected(null); setReason(""); setNote(""); if (detail) await refreshDetail(); else await onRefresh?.(); } catch (cause) { setError(cause.message); } finally { setSaving(false); } }

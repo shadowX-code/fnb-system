@@ -150,7 +150,8 @@ describe("Crew Mobile redesign", () => {
   it("keeps attendance as a contextual Home action instead of a primary tab", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     render(<CrewMobileApp />);
-    fireEvent.click(await screen.findByRole("button", { name: "Attendance Clock In" }));
+    expect(await screen.findByRole("button", { name: "Clock In" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /View Attendance/ }));
     expect(screen.getByRole("heading", { name: "Attendance" })).not.toBeNull();
     expect(screen.getByRole("button", { name: "Clock In" })).not.toBeNull();
   });
@@ -159,7 +160,8 @@ describe("Crew Mobile redesign", () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     mocks.myRoster.mockResolvedValueOnce({ from: "2026-08-13", to: "2026-08-26", today: null, entries: [] });
     render(<CrewMobileApp />);
-    expect(await screen.findByText("Schedule not published")).not.toBeNull();
+    expect(await screen.findByText("No published shift today")).not.toBeNull();
+    expect(screen.getByText("Not published")).not.toBeNull();
     expect(screen.queryByText("Working", { exact: true })).toBeNull();
   });
 
@@ -203,14 +205,82 @@ describe("Crew Mobile redesign", () => {
     expect(document.querySelector(".crew-schedule-final-day h2").textContent).toBe("Unpaid Leave");
   });
 
-  it("opens Today’s Tasks without changing the five-item bottom navigation", async () => {
+  it("opens a Home checklist directly without an intermediate task-list screen", async () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     render(<CrewMobileApp />);
-    fireEvent.click(await screen.findByRole("button", { name: /Opening & daily tasks/ }));
-    expect(screen.getByRole("heading", { name: "Today’s Tasks" })).not.toBeNull();
-    expect(screen.getByText("Opening Checklist")).not.toBeNull();
-    expect(screen.getByText("Check reservation board")).not.toBeNull();
+    fireEvent.click(await screen.findByRole("button", { name: "Open Opening Checklist" }));
+    expect(await screen.findByRole("button", { name: /Unlock guest entrance/ })).not.toBeNull();
+    expect(screen.queryByRole("heading", { name: "Today’s Tasks" })).toBeNull();
+    expect(mocks.operationDetail).toHaveBeenCalledWith("crew-token", "ops-1");
     expect(mocks.operationsToday).toHaveBeenCalledWith("crew-token");
+  });
+
+  it("renders ready, on-shift and completed Home attendance from the existing attendance authority", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    const { unmount } = render(<CrewMobileApp />);
+    expect(await screen.findByText("Ready")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Clock In" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Clock Out" })).toBeNull();
+    unmount();
+
+    mocks.myAttendance.mockResolvedValue([{ id: "open-1", status: "open", clock_in_at: new Date(Date.now() - 65 * 60000).toISOString() }]);
+    const openRender = render(<CrewMobileApp />);
+    expect(await screen.findByText("On Shift")).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Clock Out" })).not.toBeNull();
+    expect(document.querySelector(".crew-home-worked").textContent).toMatch(/^01:05:/);
+    openRender.unmount();
+
+    const clockIn = new Date();
+    const clockOut = new Date();
+    mocks.myAttendance.mockResolvedValue([{ id: "done-1", status: "completed", clock_in_at: clockIn.toISOString(), clock_out_at: clockOut.toISOString() }]);
+    render(<CrewMobileApp />);
+    expect(await screen.findByText("Shift Completed")).not.toBeNull();
+    expect(screen.getByText("Worked duration")).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Clock Out" })).toBeNull();
+  });
+
+  it("keeps geofence exception handling and refreshes Home after successful clock in", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    mocks.attendanceContext.mockResolvedValue({ outlet_name: "Friends Corner", location_enabled: true, latitude: 3.1, longitude: 101.7, radius_meters: 100 });
+    Object.defineProperty(navigator, "geolocation", { configurable: true, value: { getCurrentPosition: (success) => success({ coords: { latitude: 3.1, longitude: 101.7, accuracy: 8 } }) } });
+    mocks.clock.mockResolvedValue({ record: { clock_in_at: "2026-08-14T02:00:00Z" }, outlet: { name: "Friends Corner" } });
+    mocks.myAttendance.mockResolvedValueOnce([]).mockResolvedValue([{ id: "open-1", status: "open", clock_in_at: "2026-08-14T02:00:00Z" }]);
+    render(<CrewMobileApp />);
+    fireEvent.click(await screen.findByRole("button", { name: "Clock In" }));
+    expect(await screen.findByRole("dialog", { name: "Confirm Clock In" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(await screen.findByRole("dialog", { name: "Clocked In Successfully" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Go to Home" }));
+    expect(await screen.findByText("On Shift")).not.toBeNull();
+    expect(mocks.clock).toHaveBeenCalledWith("crew-token", "in", expect.objectContaining({ latitude: 3.1 }), "");
+  });
+
+  it("requires a reason outside the geofence before calling the clock authority", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    mocks.attendanceContext.mockResolvedValue({ outlet_name: "Friends Corner", location_enabled: true, latitude: 3.1, longitude: 101.7, radius_meters: 50 });
+    Object.defineProperty(navigator, "geolocation", { configurable: true, value: { getCurrentPosition: (success) => success({ coords: { latitude: 3.2, longitude: 101.8, accuracy: 8 } }) } });
+    render(<CrewMobileApp />);
+    fireEvent.click(await screen.findByRole("button", { name: "Clock In" }));
+    expect(await screen.findByText(/from the outlet/)).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Confirm" }));
+    expect(await screen.findByText(/Choose an exception reason/)).not.toBeNull();
+    expect(mocks.clock).not.toHaveBeenCalled();
+  });
+
+  it("shows true tasks inline, expands locally, and keeps an honest empty state", async () => {
+    localStorage.setItem("feedx.crew.session", JSON.stringify(session));
+    mocks.operationsToday.mockResolvedValueOnce({ checklists: [{ id: "a", name: "Opening", status: "completed", item_count: 1, completed_count: 1 }, { id: "b", name: "Cleaning", status: "in_progress", item_count: 3, completed_count: 1 }], daily_tasks: [{ id: "c", title: "Stock shelves", status: "pending" }, { id: "d", title: "Late check", status: "overdue" }] });
+    const first = render(<CrewMobileApp />);
+    expect(await screen.findByRole("button", { name: "Open Opening" })).not.toBeNull();
+    expect(screen.getByRole("button", { name: "Open Stock shelves" })).not.toBeNull();
+    expect(screen.queryByRole("button", { name: "Open Late check" })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Show remaining 1 tasks" }));
+    expect(screen.getByRole("button", { name: "Open Late check" })).not.toBeNull();
+    first.unmount();
+    mocks.operationsToday.mockResolvedValue({ checklists: [], daily_tasks: [] });
+    render(<CrewMobileApp />);
+    expect(await screen.findByText("All clear today")).not.toBeNull();
+    expect(screen.queryByText("Keep Growing")).toBeNull();
   });
 
   it("shows only the signed-in employee's transparent Reward result", async () => {

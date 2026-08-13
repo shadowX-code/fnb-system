@@ -13,7 +13,7 @@ import {
   Delete,
   FileText,
   Gift,
-  GraduationCap,
+  Fingerprint,
   Hand,
   HelpCircle,
   Home,
@@ -26,7 +26,6 @@ import {
   Settings,
   ShieldCheck,
   Sparkles,
-  TrendingUp,
   UserRound,
 } from "lucide-react";
 import { crewService } from "../../services/crewService.js";
@@ -36,7 +35,7 @@ import CrewRewardMobile from "./components/CrewRewardMobile.jsx";
 import CrewOperationsMobile from "./components/CrewOperationsMobile.jsx";
 import CrewLeaveMobile from "./components/CrewLeaveMobile.jsx";
 import CrewScheduleMobile from "./components/CrewScheduleMobile.jsx";
-import { CrewActionRow, CrewBottomNav, CrewEmptyState, CrewMetric, CrewProgressBar, CrewSectionHeader, CrewStatusBadge } from "./components/CrewMobileUI.jsx";
+import { CrewActionRow, CrewBottomNav, CrewEmptyState, CrewSectionHeader, CrewStatusBadge } from "./components/CrewMobileUI.jsx";
 import "./CrewMobileApp.css";
 
 const storageKey = "feedx.crew.session";
@@ -60,6 +59,15 @@ const readSession = () => {
 };
 const formatTime = (value) => value ? new Date(value).toLocaleTimeString("en-MY", { hour: "2-digit", minute: "2-digit" }) : "—";
 const formatDate = (value) => value ? new Date(value).toLocaleDateString("en-MY", { day: "numeric", month: "short", year: "numeric" }) : "—";
+const malaysiaDateKey = (value = new Date()) => new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Kuala_Lumpur", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date(value));
+const formatHomeDate = (value = new Date()) => new Intl.DateTimeFormat("en-MY", { timeZone: "Asia/Kuala_Lumpur", weekday: "short", day: "numeric", month: "short" }).format(new Date(value));
+const formatDuration = (start, end = new Date()) => {
+  const milliseconds = Math.max(0, new Date(end).getTime() - new Date(start).getTime());
+  const hours = Math.floor(milliseconds / 3600000);
+  const minutes = Math.floor(milliseconds % 3600000 / 60000);
+  const seconds = Math.floor(milliseconds % 60000 / 1000);
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+};
 const formatRosterTime = (value) => {
   if (!value) return "—";
   const [hours, minutes] = String(value).split(":").map(Number);
@@ -140,6 +148,14 @@ function EmptyState({ title, body }) {
   return <CrewEmptyState title={title} body={body} />;
 }
 
+function HomeScheduleRow({ entry, label, onClick }) {
+  const away = entry.entry_type !== "working";
+  const outlet = entry.outlet_name || entry.outlet?.name || "Your outlet";
+  const dateLabel = label || new Date(`${entry.date}T00:00:00`).toLocaleDateString("en-MY", { weekday: "short", day: "numeric", month: "short" });
+  const title = away ? rosterEntryLabel(entry) : `${formatRosterTime(entry.start_time)} – ${formatRosterTime(entry.end_time)}`;
+  return <button type="button" className={`crew-home-schedule-row ${away ? "is-away" : "is-working"}`} onClick={onClick} aria-label={`${dateLabel}, ${title}`}><i><CalendarDays size={19} /></i><span><strong>{title}</strong><small>{outlet}{entry.position ? ` · ${entry.position}` : ""}</small></span><em>{dateLabel}</em><ChevronRight size={18} /></button>;
+}
+
 export default function CrewMobileApp() {
   const [session, setSession] = useState(readSession);
   const [screen, setScreen] = useState("home");
@@ -158,6 +174,10 @@ export default function CrewMobileApp() {
   const [pageLoading, setPageLoading] = useState(Boolean(session));
   const [error, setError] = useState("");
   const [clockDraft, setClockDraft] = useState(null);
+  const [clockSuccess, setClockSuccess] = useState(null);
+  const [operationTarget, setOperationTarget] = useState(null);
+  const [tasksExpanded, setTasksExpanded] = useState(false);
+  const [nowTick, setNowTick] = useState(Date.now());
   const [exception, setException] = useState("");
   const [otherReason, setOtherReason] = useState("");
   const [meView, setMeView] = useState("main");
@@ -211,6 +231,12 @@ export default function CrewMobileApp() {
   }
 
   useEffect(() => { refresh(); }, [session?.token]);
+  useEffect(() => {
+    if (!openShift) return undefined;
+    setNowTick(Date.now());
+    const timer = window.setInterval(() => setNowTick(Date.now()), 1000);
+    return () => window.clearInterval(timer);
+  }, [openShift?.id, openShift?.clock_in_at]);
 
   async function prepareClock(action) {
     setError("");
@@ -236,9 +262,15 @@ export default function CrewMobileApp() {
     setLoading(true);
     setError("");
     try {
-      await crewService.clock(session.token, clockDraft.action, clockDraft.location || null, reason);
+      const action = clockDraft.action;
+      const result = await crewService.clock(session.token, action, clockDraft.location || null, reason);
       setClockDraft(null);
       await refresh();
+      if (action === "in") setClockSuccess({
+        time: result?.record?.clock_in_at || new Date().toISOString(),
+        outlet: result?.outlet?.name || context?.outlet_name || "Your outlet",
+        role: todayRoster?.position || employee.position || "Crew Member",
+      });
     } catch (cause) {
       setError(cause.message || "Unable to update attendance.");
     } finally {
@@ -275,19 +307,18 @@ export default function CrewMobileApp() {
 
   if (!session) return <CrewLogin onSignedIn={setSession} />;
 
-  const lessonTotal = Number(learningHome?.assignment?.lessons_total) || 0;
-  const lessonCompleted = Number(learningHome?.assignment?.lessons_completed) || 0;
-  const learningProgress = Number(learningHome?.assignment?.progress_percentage) || (lessonTotal ? Math.round((lessonCompleted / lessonTotal) * 100) : 0);
-  const requiredSops = learningHome?.required_sops || [];
-  const pendingSops = requiredSops.filter((sop) => !sop.acknowledged).length;
-  const growthSummary = growth?.summary || {};
   const exceptionRequired = Boolean(context?.location_enabled && (!clockDraft?.location || clockDraft?.distance > Number(context.radius_meters)));
   const outside = Boolean(clockDraft?.location && clockDraft?.distance > Number(context?.radius_meters));
   const options = clockDraft?.action === "out" ? clockOutOptions : clockInOptions;
   const todayRoster = roster?.today;
-  const upcomingRoster = (roster?.entries || []).filter((entry) => entry.date > roster?.from).slice(0, 3);
-  const operationsCount = (operations?.checklists?.filter((item) => item.status !== "completed").length || 0) + (operations?.daily_tasks?.filter((item) => item.status !== "completed").length || 0);
-  const onboardingActive = Boolean(learningHome?.assignment && learningHome.assignment.status !== "completed" && learningProgress < 100);
+  const upcomingRoster = (roster?.entries || []).filter((entry) => entry.date > (todayRoster?.date || roster?.from)).slice(0, 2);
+  const homeTasks = [
+    ...(operations?.checklists || []).map((row) => ({ kind: "checklist", row, id: `checklist-${row.id}`, title: row.name, context: `${row.completed_count || 0} / ${row.item_count || 0} completed`, status: row.status || "pending" })),
+    ...(operations?.daily_tasks || []).map((row) => ({ kind: "task", row, id: `task-${row.id}`, title: row.title, context: row.due_at ? `Due ${formatTime(row.due_at)}${row.description ? ` · ${row.description}` : ""}` : row.description || "Today", status: row.status || "pending" })),
+  ];
+  const visibleHomeTasks = tasksExpanded ? homeTasks : homeTasks.slice(0, 3);
+  const completedToday = attendance.find((item) => item.clock_out_at && malaysiaDateKey(item.clock_in_at) === malaysiaDateKey());
+  const attendanceMode = openShift ? "on" : completedToday ? "completed" : "ready";
   const currentMonthAttendance = attendance.filter((item) => {
     if (!item.clock_in_at) return false;
     const date = new Date(item.clock_in_at);
@@ -303,25 +334,29 @@ export default function CrewMobileApp() {
   return <main className="crew-v2-shell"><section className="crew-v2-app">
     {screen === "home" && <section className="crew-v2-home">
       <header className="crew-v2-home-header"><div><p>{greeting},</p><h1>{firstName} <Hand size={18} aria-hidden="true" /></h1><small>{employee.position || "Crew Member"} · {context?.outlet_name || employee.workplace || "Your outlet"}</small></div><div><button type="button" aria-label="Notifications"><Bell size={18} /></button><span className="crew-v2-avatar">{firstName.slice(0, 1)}</span></div></header>
-      <button type="button" className={`crew-v3-shift-hero ${openShift ? "is-on" : ""}`} onClick={() => setScreen("attendance")} aria-label={`Attendance ${openShift ? "On Shift" : "Clock In"}`}>
-        <div className="crew-v3-shift-top"><CrewStatusBadge tone={openShift ? "success" : todayRoster ? "ready" : "neutral"}>{openShift ? "On Shift" : todayRoster ? "Ready" : "No shift today"}</CrewStatusBadge><span>{todayRoster?.entry_type === "working" ? `${formatRosterTime(todayRoster.start_time)} – ${formatRosterTime(todayRoster.end_time)}` : todayRoster ? rosterEntryLabel(todayRoster) : "Schedule not published"}</span></div>
-        <div className="crew-v3-shift-main"><span><small>{openShift ? "Started" : "Today"}</small><strong>{openShift ? formatTime(openShift.clock_in_at) : todayRoster?.entry_type === "working" ? formatRosterTime(todayRoster.start_time) : "—"}</strong><em>{context?.outlet_name || "Your outlet"}</em></span><i>{openShift ? <Check size={22} /> : <Clock3 size={22} />}</i></div>
-        <span className="crew-v3-shift-cta">View Attendance <ChevronRight size={16} /></span>
-      </button>
-      {(operationsCount || onboardingActive || pendingSops) ? <section className="crew-v2-home-section"><CrewSectionHeader title="Today’s Tasks" action="See all" onAction={() => setScreen("operations")} /><div className="crew-v3-row-group">
-        {operationsCount > 0 && <CrewActionRow icon={ClipboardCheck} tone="blue" title="Opening & daily tasks" subtitle={`${operationsCount} item${operationsCount === 1 ? "" : "s"} still need attention`} meta="In Progress" onClick={() => setScreen("operations")} />}
-        {onboardingActive && <CrewActionRow icon={GraduationCap} tone="mint" title="Continue onboarding" subtitle={`${lessonCompleted} of ${lessonTotal} lessons complete`} meta={`${learningProgress}%`} onClick={() => setScreen("learn")}><CrewProgressBar value={learningProgress} /></CrewActionRow>}
-        {pendingSops > 0 && <CrewActionRow icon={FileText} tone="amber" title="SOP acknowledgement" subtitle={`${pendingSops} update${pendingSops === 1 ? "" : "s"} required`} meta="Required" onClick={() => setScreen("learn")} />}
-      </div></section> : null}
-      <section className="crew-v2-home-section"><CrewSectionHeader title="My Schedule" action="View all" onAction={() => setScreen("schedule")} /><div className="crew-v3-row-group">{todayRoster ? <CrewActionRow icon={CalendarDays} tone="mint" title={todayRoster.entry_type === "working" ? `${formatRosterTime(todayRoster.start_time)} – ${formatRosterTime(todayRoster.end_time)}` : rosterEntryLabel(todayRoster)} subtitle={`${todayRoster.outlet_name} · ${todayRoster.position || rosterEntryLabel(todayRoster)}`} meta="Today" onClick={() => setScreen("schedule")} /> : <EmptyState title="No published shift today" body="Your published schedule will appear here." />}{upcomingRoster.slice(0, 2).map((entry) => <CrewActionRow key={entry.id} icon={CalendarDays} tone="neutral" title={new Date(`${entry.date}T00:00:00`).toLocaleDateString("en-MY", { weekday: "short", day: "numeric", month: "short" })} subtitle={entry.outlet?.name} meta={entry.entry_type === "working" ? `${formatRosterTime(entry.start_time)} – ${formatRosterTime(entry.end_time)}` : rosterEntryLabel(entry)} onClick={() => setScreen("schedule")} />)}</div></section>
-      {(leave?.upcoming || []).length > 0 && <section className="crew-v2-home-section"><CrewActionRow icon={Plane} tone="blue" title="Upcoming Leave" subtitle={`${rosterEntryLabel({ entry_type: `${leave.upcoming[0].leave_type}_leave` })} · ${formatDate(leave.upcoming[0].start_date)}${leave.upcoming[0].end_date !== leave.upcoming[0].start_date ? ` – ${formatDate(leave.upcoming[0].end_date)}` : ""}`} meta="Approved" onClick={() => setScreen("leave")} /></section>}
-      <section className="crew-v2-home-section"><CrewSectionHeader title="Keep Growing" action="Open Growth" onAction={() => setScreen("growth")} /><div className="crew-v3-growth-strip"><CrewMetric value={growthSummary.certified || 0} label="Certified" tone="success" /><CrewMetric value={growthSummary.in_progress || 0} label="In Progress" tone="blue" /><CrewMetric value={growthSummary.ready_for_review || 0} label="Ready" tone="amber" /><button type="button" onClick={() => setScreen("growth")}><TrendingUp size={19} /><span>View growth</span></button></div></section>
+      <section className={`crew-home-attendance is-${attendanceMode}`} aria-label="Attendance status">
+        <div className="crew-home-attendance-main">
+          <div className="crew-home-attendance-copy">
+            <CrewStatusBadge tone={attendanceMode === "completed" ? "neutral" : "success"}>{attendanceMode === "on" ? "On Shift" : attendanceMode === "completed" ? "Shift Completed" : "Ready"}</CrewStatusBadge>
+            {attendanceMode === "completed" ? <><strong className="crew-home-worked">{formatDuration(completedToday.clock_in_at, completedToday.clock_out_at)}</strong><small>Worked duration</small><dl><div><dt>Clock In</dt><dd>{formatTime(completedToday.clock_in_at)}</dd></div><div><dt>Clock Out</dt><dd>{formatTime(completedToday.clock_out_at)}</dd></div></dl></> : attendanceMode === "on" ? <><strong className="crew-home-worked">{formatDuration(openShift.clock_in_at, nowTick)}</strong><small>Elapsed time · Clocked in {formatTime(openShift.clock_in_at)}</small></> : <><strong>{new Date(nowTick).toLocaleTimeString("en-MY", { timeZone: "Asia/Kuala_Lumpur", hour: "2-digit", minute: "2-digit" })}</strong><small>{formatHomeDate(nowTick)}</small></>}
+            <p><MapPin size={16} /> {context?.outlet_name || todayRoster?.outlet_name || "Your outlet"}</p>
+            {attendanceMode !== "completed" && <em className={context?.location_enabled ? "is-verified" : ""}><ShieldCheck size={15} /> {context?.location_enabled ? "Within area · GPS Verified" : "Location verification at clock time"}</em>}
+          </div>
+          {attendanceMode !== "completed" ? <button type="button" className="crew-home-clock-action" onClick={() => prepareClock(attendanceMode === "on" ? "out" : "in")} disabled={loading} aria-label={attendanceMode === "on" ? "Clock Out" : "Clock In"}><span><Fingerprint size={29} /><strong>{loading ? "Locating…" : attendanceMode === "on" ? "Clock Out" : "Clock In"}</strong><small>{attendanceMode === "on" ? "Tap to finish" : "Tap to start"}</small></span></button> : <span className="crew-home-complete-mark"><Check size={30} /></span>}
+        </div>
+        <button type="button" className="crew-home-attendance-footer" onClick={() => setScreen("attendance")}><span><CalendarCheck size={19} /><small>Today’s shift</small><strong>{todayRoster?.entry_type === "working" ? `${formatRosterTime(todayRoster.start_time)} – ${formatRosterTime(todayRoster.end_time)}` : todayRoster ? rosterEntryLabel(todayRoster) : "Not published"}</strong></span><em>View Attendance <ChevronRight size={17} /></em></button>
+      </section>
+      <section className="crew-v2-home-section crew-home-tasks"><CrewSectionHeader title="Today’s Tasks" meta={homeTasks.length} /><div className="crew-home-list">
+        {visibleHomeTasks.length ? visibleHomeTasks.map((task) => <button type="button" key={task.id} className={`crew-home-task is-${task.status}`} onClick={() => { setOperationTarget({ kind: task.kind, row: task.row }); setScreen("operations"); }} aria-label={`Open ${task.title}`}><i>{task.status === "completed" ? <Check size={19} /> : <ClipboardCheck size={18} />}</i><span><strong>{task.title}</strong><small>{task.context}</small></span><em>{task.status.replaceAll("_", " ")}</em><ChevronRight size={18} /></button>) : <div className="crew-home-empty"><Check size={20} /><span><strong>All clear today</strong><small>No tasks assigned for today.</small></span></div>}
+        {homeTasks.length > 3 && <button type="button" className="crew-home-show-more" onClick={() => setTasksExpanded((value) => !value)}>{tasksExpanded ? "Show fewer tasks" : `Show remaining ${homeTasks.length - 3} tasks`}</button>}
+      </div></section>
+      <section className="crew-v2-home-section crew-home-schedule"><CrewSectionHeader title="My Schedule" action="View all" onAction={() => setScreen("schedule")} /><div className="crew-home-list">{todayRoster ? <HomeScheduleRow entry={todayRoster} label="Today" onClick={() => setScreen("schedule")} /> : <div className="crew-home-empty"><CalendarDays size={20} /><span><strong>No published shift today</strong><small>Your published schedule will appear here.</small></span></div>}{upcomingRoster.map((entry) => <HomeScheduleRow key={entry.id} entry={entry} onClick={() => setScreen("schedule")} />)}</div></section>
     </section>}
 
     {screen === "learn" && <CrewLearningMobile token={session.token} onRefreshHome={setLearningHome} />}
     {screen === "reward" && <CrewRewardMobile data={reward} loading={pageLoading && !reward} onRetry={() => refresh()} onViewPerformance={() => { setGrowthInitialView("performance"); setScreen("growth"); }} />}
     {screen === "growth" && <CrewGrowthMobile initialView={growthInitialView} data={growth} performance={performance} loading={pageLoading && !growth} error={growthError} onRetry={() => refresh()} onViewReward={() => setScreen("reward")} onNavigate={(target) => setScreen(target)} />}
-    {screen === "operations" && <CrewOperationsMobile token={session.token} data={operations} loading={pageLoading && !operations} onRefresh={() => refresh()} onBack={() => setScreen("home")} />}
+    {screen === "operations" && <CrewOperationsMobile token={session.token} data={operations} loading={pageLoading && !operations} initialTarget={operationTarget} onRefresh={() => refresh()} onBack={() => { setOperationTarget(null); setScreen("home"); }} />}
     {screen === "leave" && <CrewLeaveMobile token={session.token} onBack={() => setScreen("me")} onChanged={() => refresh()} />}
 
     {screen === "schedule" && <CrewScheduleMobile roster={roster} employee={employee} onBack={() => setScreen("home")} />}
@@ -331,7 +366,6 @@ export default function CrewMobileApp() {
       <article className="crew-v3-attendance-summary"><div><CrewStatusBadge tone={openShift ? "success" : todayRoster ? "ready" : "neutral"}>{openShift ? "On Shift" : todayRoster ? "Ready for your shift" : "No published shift"}</CrewStatusBadge><Clock3 size={22} /></div><small>Today’s Shift</small><h2>{todayRoster?.entry_type === "working" ? `${formatRosterTime(todayRoster.start_time)} – ${formatRosterTime(todayRoster.end_time)}` : todayRoster ? rosterEntryLabel(todayRoster) : "Schedule not published"}</h2><p>{todayRoster?.position || employee.position || "Crew Member"} · {todayRoster?.outlet_name || context?.outlet_name || "Your outlet"}</p>{openShift && <span>Started {formatTime(openShift.clock_in_at)}</span>}</article>
       <button className="crew-v2-primary" type="button" onClick={() => prepareClock(openShift ? "out" : "in")} disabled={loading}>{loading ? "Checking location…" : openShift ? "Clock Out" : "Clock In"}</button>
       <section className="crew-v2-location"><MapPin size={19} /><span><strong>{context?.location_enabled ? "Location verification" : "Location not configured"}</strong><small>{context?.location_enabled ? `Within ${context.radius_meters}m of ${context.outlet_name}` : "Your manager has not enabled a geofence."}</small></span></section>
-      {clockDraft && <section className="crew-v2-clock-confirm" aria-live="polite"><div><Navigation size={18} /><span><strong>{clockDraft.action === "out" ? "Clock out location" : "Clock in location"}</strong><small>{context?.outlet_name || "Outlet"}</small></span></div>{!exceptionRequired && <p className="is-safe"><Check size={16} /> Location verified</p>}{outside && <p className="is-warning">You are {Math.round(clockDraft.distance)}m from the outlet ({context.radius_meters}m allowed).</p>}{!clockDraft.location && <p className="is-warning">Location could not be verified.</p>}{exceptionRequired && <label>Reason<select value={exception} onChange={(event) => setException(event.target.value)}><option value="">Select a reason</option>{options.map((option) => <option key={option}>{option}</option>)}</select></label>}{exception === "Other" && <input value={otherReason} maxLength="280" onChange={(event) => setOtherReason(event.target.value)} placeholder="Brief reason" />}{error && <div className="crew-v2-error">{error}</div>}<div className="crew-v2-actions"><button type="button" onClick={() => setClockDraft(null)}>Cancel</button><button className="crew-v2-primary" type="button" onClick={submitClock} disabled={loading}>Confirm</button></div></section>}
       <section className="crew-v2-home-section"><div className="crew-v2-section-title"><h2>Attendance History</h2><span>{attendance.length} shifts</span></div><div className="crew-v2-history">{attendance.length ? attendance.map((row) => <div key={row.id}><span><strong>{formatDate(row.clock_in_at)}</strong><small>{row.clock_in_location_verified ? "Location verified" : row.clock_in_location_exception ? "Location exception" : "Location unavailable"}</small></span><span><strong>{formatTime(row.clock_in_at)} – {row.clock_out_at ? formatTime(row.clock_out_at) : "Now"}</strong><small>{row.status === "open" ? "On shift" : "Completed"}</small></span></div>) : <EmptyState title="No shifts yet" body="Your completed shifts will appear here." />}</div></section>
     </section>}
 
@@ -363,6 +397,9 @@ export default function CrewMobileApp() {
       {passcodeChangeOpen && <form className="crew-v2-passcode-form" onSubmit={changePasscode}><div className="crew-v2-section-title"><h2>Change Passcode</h2><button type="button" onClick={() => setPasscodeChangeOpen(false)}>Close</button></div><label>Current passcode<input inputMode="numeric" maxLength="4" value={currentPasscode} onChange={(event) => setCurrentPasscode(event.target.value.replace(/\D/g, ""))} /></label><label>New passcode<input inputMode="numeric" maxLength="4" value={newPasscode} onChange={(event) => setNewPasscode(event.target.value.replace(/\D/g, ""))} /></label>{error && <div className="crew-v2-error">{error}</div>}<button className="crew-v2-primary" disabled={loading}>Save Passcode</button></form>}
       {logoutConfirmOpen && <div className="crew-me-confirm-backdrop" role="presentation" onMouseDown={(event) => { if (event.target === event.currentTarget) setLogoutConfirmOpen(false); }}><section className="crew-me-confirm" role="dialog" aria-modal="true" aria-labelledby="crew-logout-title"><h2 id="crew-logout-title">Log out of FeedX?</h2><p>You’ll need your mobile number and passcode to sign in again.</p><div><button type="button" onClick={() => setLogoutConfirmOpen(false)}>Cancel</button><button type="button" className="is-danger" onClick={logout}>Log Out</button></div></section></div>}
     </section>}
+
+    {clockDraft && <div className="crew-home-modal-backdrop" role="presentation"><section className="crew-home-clock-modal" role="dialog" aria-modal="true" aria-labelledby="crew-clock-confirm-title"><header><span><Navigation size={19} /></span><div><h2 id="crew-clock-confirm-title">Confirm Clock {clockDraft.action === "out" ? "Out" : "In"}</h2><p>{context?.outlet_name || "Outlet"}</p></div></header>{!exceptionRequired && <p className="is-safe"><Check size={16} /> Location verified</p>}{outside && <p className="is-warning">You are {Math.round(clockDraft.distance)}m from the outlet ({context.radius_meters}m allowed).</p>}{!clockDraft.location && <p className="is-warning">Location could not be verified.</p>}{exceptionRequired && <label>Reason<select value={exception} onChange={(event) => setException(event.target.value)}><option value="">Select a reason</option>{options.map((option) => <option key={option}>{option}</option>)}</select></label>}{exception === "Other" && <input value={otherReason} maxLength="280" onChange={(event) => setOtherReason(event.target.value)} placeholder="Brief reason" />}{error && <div className="crew-v2-error">{error}</div>}<div className="crew-v2-actions"><button type="button" onClick={() => setClockDraft(null)}>Cancel</button><button className="crew-v2-primary" type="button" onClick={submitClock} disabled={loading}>{loading ? "Saving…" : "Confirm"}</button></div></section></div>}
+    {clockSuccess && <div className="crew-home-modal-backdrop" role="presentation"><section className="crew-home-success-modal" role="dialog" aria-modal="true" aria-labelledby="crew-clock-success-title"><span><Check size={28} /></span><h2 id="crew-clock-success-title">Clocked In Successfully</h2><dl><div><dt>Clock In Time</dt><dd>{formatTime(clockSuccess.time)}</dd></div><div><dt>Outlet</dt><dd>{clockSuccess.outlet}</dd></div><div><dt>Role</dt><dd>{clockSuccess.role}</dd></div></dl><button type="button" className="crew-v2-primary" onClick={() => { setClockSuccess(null); setScreen("attendance"); }}>View Attendance</button><button type="button" onClick={() => { setClockSuccess(null); setScreen("home"); }}>Go to Home</button></section></div>}
 
     <CrewBottomNav items={navItems} active={["operations", "attendance", "schedule"].includes(screen) ? "home" : screen === "leave" ? "me" : screen} onChange={(next) => { if (next === "growth") setGrowthInitialView("overview"); setScreen(next); if (next === "me") setMeView("main"); }} />
   </section></main>;
