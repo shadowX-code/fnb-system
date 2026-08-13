@@ -21,11 +21,17 @@ const fullPerformance = {
   score: 100,
   calculation_version: "performance-v1",
   breakdown: {
-    attendance: { score: 30, explanation: "Perfect attendance evidence this month." },
-    service: { score: 30, explanation: "All reviewed standards met." },
-    customer: { score: 15, explanation: "Consistently positive feedback received." },
-    knowledge: { score: 15, explanation: "All required learning evidence completed." },
-    conduct: { score: 10, explanation: "All reviewed conduct standards met." },
+    attendance: { score: 30, explanation: "Perfect attendance evidence this month.", evidence: { records: 15, completed: 15, incomplete: 0, location_exceptions: 1, approved_leave_days: 1 } },
+    service: { score: 30, explanation: "All reviewed standards met.", criteria: [
+      { key: "welcome_greeting", rating: "meets_standard" }, { key: "thank_you_goodbye", rating: "meets_standard" }, { key: "grooming", rating: "meets_standard" },
+      { key: "work_area_cleanliness", rating: "meets_standard" }, { key: "initiative", rating: "meets_standard" }, { key: "guest_interaction", rating: "meets_standard" },
+    ] },
+    customer: { score: 15, sample_count: 28, confidence: "established", positive_count: 23, improvement_count: 5, top_positive_tags: [{ tag: "friendly", count: 12 }], top_improvement_tags: [{ tag: "response_time", count: 2 }], explanation: "Consistently positive feedback received." },
+    knowledge: { score: 15, explanation: "All required learning evidence completed.", evidence: { onboarding_ratio: 1, sop_ratio: 1, quiz_ratio: 1, growth_ratio: 1 } },
+    conduct: { score: 10, explanation: "All reviewed conduct standards met.", criteria: [
+      { key: "professional_conduct", rating: "meets_standard" }, { key: "teamwork", rating: "meets_standard" }, { key: "responsibility", rating: "meets_standard" },
+      { key: "communication", rating: "meets_standard" }, { key: "policy_compliance", rating: "meets_standard" },
+    ] },
   },
   trend: [
     { period_start: "2026-05-01", status: "finalized", score: 78 },
@@ -116,7 +122,11 @@ describe("Crew Growth mobile final IA", () => {
     render(<CrewGrowthMobile data={data} performance={fullPerformance} initialView="performance" />);
     fireEvent.click(screen.getByRole("button", { name: "View Attendance evidence" }));
     expect(screen.getByRole("dialog", { name: "Attendance" })).not.toBeNull();
-    expect(screen.getAllByText("Perfect attendance evidence this month.").length).toBeGreaterThanOrEqual(1);
+    expect(screen.getByText("15 of 15 completed")).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Why this score" })).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "Keep it up" })).not.toBeNull();
+    expect(screen.getByText(/Location exceptions are not automatically penalized/)).not.toBeNull();
+    expect(screen.getByRole("button", { name: "View Attendance" })).not.toBeNull();
     expect(document.body.textContent).not.toContain("Manager note");
     fireEvent.click(screen.getByRole("button", { name: "Close Attendance" }));
     fireEvent.click(screen.getByRole("button", { name: "Performance help" }));
@@ -124,6 +134,68 @@ describe("Crew Growth mobile final IA", () => {
     expect(screen.getByText(/Maximum Reward Share/)).not.toBeNull();
     fireEvent.keyDown(document, { key: "Escape" });
     expect(screen.queryByRole("dialog", { name: "About My Performance" })).toBeNull();
+  });
+
+  it("uses non-full Attendance evidence to surface the verified gap and actionable guidance", () => {
+    render(<CrewGrowthMobile data={data} performance={{ ...fullPerformance, breakdown: { ...fullPerformance.breakdown, attendance: { score: 28, evidence: { records: 15, completed: 14, incomplete: 1, location_exceptions: 1, approved_leave_days: 2 } } } }} initialView="performance" />);
+    fireEvent.click(screen.getByRole("button", { name: "View Attendance evidence" }));
+    expect(screen.getByText("14 of 15 completed")).not.toBeNull();
+    expect(screen.getByText("2 days excluded")).not.toBeNull();
+    expect(screen.getByRole("heading", { name: "How to improve" })).not.toBeNull();
+    expect(screen.getByText(/Complete both clock-in and clock-out/)).not.toBeNull();
+  });
+
+  it("derives Service and Conduct guidance from safe criteria without exposing private notes", () => {
+    const scoped = { ...fullPerformance, breakdown: {
+      ...fullPerformance.breakdown,
+      service: { score: 25, manager_note: "private coaching", criteria: [{ key: "welcome_greeting", rating: "meets_standard" }, { key: "work_area_cleanliness", rating: "needs_improvement" }, { key: "initiative", rating: "not_observed" }] },
+      conduct: { score: 8, manager_note: "private conduct note", criteria: [{ key: "teamwork", rating: "meets_standard" }, { key: "responsibility", rating: "needs_improvement" }] },
+    } };
+    render(<CrewGrowthMobile data={data} performance={scoped} initialView="performance" />);
+    fireEvent.click(screen.getByRole("button", { name: "View Service Standards evidence" }));
+    expect(screen.getByText("Work Area Cleanliness")).not.toBeNull();
+    expect(screen.getByText("Needs Improvement")).not.toBeNull();
+    expect(screen.getByText(/Keep your assigned work area clean/)).not.toBeNull();
+    expect(document.body.textContent).not.toContain("private coaching");
+    fireEvent.click(screen.getByRole("button", { name: "Close Service Standards" }));
+    fireEvent.click(screen.getByRole("button", { name: "View Conduct evidence" }));
+    expect(screen.getByText(/Take ownership of assigned tasks/)).not.toBeNull();
+    expect(document.body.textContent).not.toContain("private conduct note");
+  });
+
+  it("explains established and insufficient Customer Experience evidence without inventing a rating or CTA", () => {
+    const { rerender } = render(<CrewGrowthMobile data={data} performance={fullPerformance} initialView="performance" />);
+    fireEvent.click(screen.getByRole("button", { name: "View Customer Experience evidence" }));
+    expect(screen.getByText("28 responses")).not.toBeNull();
+    expect(screen.getByText("Friendly")).not.toBeNull();
+    expect(screen.getByText("Response Time")).not.toBeNull();
+    expect(screen.getByText("Respond to guest requests quickly.")).not.toBeNull();
+    expect(screen.queryByText(/★/)).toBeNull();
+    expect(screen.queryByRole("button", { name: /feedback/i })).toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Close Customer Experience" }));
+    rerender(<CrewGrowthMobile data={data} performance={{ ...fullPerformance, breakdown: { ...fullPerformance.breakdown, customer: { score: 12, sample_count: 0, positive_count: 0, improvement_count: 0, confidence: "insufficient_data" } } }} initialView="performance" />);
+    fireEvent.click(screen.getByRole("button", { name: "View Customer Experience evidence" }));
+    expect(screen.getAllByText("Insufficient data").length).toBeGreaterThan(0);
+    expect(screen.getByText(/More verified guest feedback is needed/)).not.toBeNull();
+  });
+
+  it("maps Knowledge evidence to precise missing actions and the existing Learn route", () => {
+    const onNavigate = vi.fn();
+    render(<CrewGrowthMobile data={data} performance={{ ...fullPerformance, breakdown: { ...fullPerformance.breakdown, knowledge: { score: 10, evidence: { onboarding_ratio: 1, sop_ratio: 0.75, quiz_ratio: 0.5, growth_ratio: 1 } } } }} initialView="performance" onNavigate={onNavigate} />);
+    fireEvent.click(screen.getByRole("button", { name: "View Knowledge & SOP evidence" }));
+    expect(screen.getByText("75% acknowledged")).not.toBeNull();
+    expect(screen.getByText("50% passed")).not.toBeNull();
+    expect(screen.getByText("Complete outstanding SOP acknowledgements.")).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: /Go to Learn/ }));
+    expect(onNavigate).toHaveBeenCalledWith("learn");
+  });
+
+  it("uses only existing actionable deep links for Attendance, Service, Knowledge and Conduct", () => {
+    const onNavigate = vi.fn();
+    render(<CrewGrowthMobile data={data} performance={fullPerformance} initialView="performance" onNavigate={onNavigate} />);
+    fireEvent.click(screen.getByRole("button", { name: "View Attendance evidence" }));
+    fireEvent.click(screen.getByRole("button", { name: "View Attendance" }));
+    expect(onNavigate).toHaveBeenCalledWith("attendance");
   });
 
   it.each([
