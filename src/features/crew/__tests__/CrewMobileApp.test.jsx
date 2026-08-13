@@ -43,7 +43,7 @@ const growth = {
   performance: null,
 };
 const performance = { period_start: "2026-08-01", status: "finalized", score: 87, calculation_version: "performance-v1", breakdown: { attendance: { score: 28, explanation: "Verified attendance evidence." }, service: { score: 26, explanation: "Reviewed standards." }, customer: { score: 13, confidence: "established", explanation: "Five responses." }, knowledge: { score: 14, explanation: "Learning evidence." }, conduct: { score: 6, explanation: "Reviewed conduct." } }, trend: [{ period_start: "2026-08-01", score: 87, status: "finalized" }] };
-const reward = { period_start: "2026-08-01", status: "qualified", cycle_status: "review", estimated_reward: 128.8, performance_score: 87, minimum_performance: 60, eligible_hours: 235, contribution_share: .322, performance_factor: 1, configured_pool: 500, unlocked_pool: 400, pool_unlock_rate: .8, calculation_version: "reward-v1", history: [{ period_start: "2026-07-01", amount: 112.4, status: "paid" }] };
+const reward = { period_start: "2026-08-01", status: "qualified", cycle_status: "review", reward_label: "Estimated Reward", reward_amount: 120.72, estimated_reward: 120.72, performance_score: 75, performance_level: "Meets Standard", earn_rate: .45, eligible_hours: 235, total_eligible_hours: 730, contribution_share: .3219, maximum_share: 268.33, reward_pool: 500, calculation_version: "reward-tier-v2", projection_applicable: true, projections: [{ key: "current", label: "Current", score: 75, earn_rate: .45, amount: 120.72 }, { key: "on_track", label: "On Track", score: 80, earn_rate: .65, amount: 174.41 }, { key: "great", label: "Great", score: 85, earn_rate: .8, amount: 214.66 }, { key: "max", label: "Max Potential", score: 95, earn_rate: 1, amount: 268.33 }], history: [{ period_start: "2026-07-01", amount: 112.4, status: "paid", paid_at: "2026-08-05T00:00:00Z" }] };
 
 beforeEach(() => {
   localStorage.clear();
@@ -160,10 +160,12 @@ describe("Crew Mobile redesign", () => {
     localStorage.setItem("feedx.crew.session", JSON.stringify(session));
     render(<CrewMobileApp />);
     fireEvent.click((await screen.findByRole("navigation", { name: "Crew navigation" })).querySelectorAll("button")[2]);
-    expect(screen.getByRole("heading", { name: "RM 128.80" })).not.toBeNull();
+    expect(screen.getAllByText("RM 120.72").length).toBeGreaterThanOrEqual(2);
     expect(screen.getByText("Qualified")).not.toBeNull();
-    expect(screen.getByText("235.0h")).not.toBeNull();
-    expect(screen.getAllByText("32.2%").length).toBeGreaterThan(0);
+    expect(screen.getByText(/235.0h of 730.0h/)).not.toBeNull();
+    expect(screen.getAllByText("32.19%").length).toBeGreaterThan(0);
+    fireEvent.click(screen.getByRole("button", { name: /View My Performance/ }));
+    expect(screen.getByRole("heading", { name: "My Performance" })).not.toBeNull();
     expect(document.body.textContent).not.toContain("Alex");
     expect(mocks.rewardMobile).toHaveBeenCalledWith("crew-token");
   });

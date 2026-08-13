@@ -1,0 +1,64 @@
+import { cleanup, fireEvent, render, screen } from "@testing-library/react";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import CrewRewardMobile from "../CrewRewardMobile.jsx";
+
+const data = {
+  period_start: "2026-08-01", status: "qualified", cycle_status: "review",
+  reward_label: "Estimated Reward", reward_amount: 72.43, performance_score: 75,
+  performance_level: "Meets Standard", earn_rate: .45, eligible_hours: 235,
+  total_eligible_hours: 730, contribution_share: .3219, maximum_share: 160.96,
+  reward_pool: 500, projection_applicable: true,
+  projections: [
+    { key: "current", label: "Current", score: 75, earn_rate: .45, amount: 72.43 },
+    { key: "on_track", label: "On Track", score: 80, earn_rate: .65, amount: 104.62 },
+    { key: "great", label: "Great", score: 85, earn_rate: .8, amount: 128.77 },
+    { key: "max", label: "Max Potential", score: 95, earn_rate: 1, amount: 160.96 },
+  ],
+  history: [{ period_start: "2026-05-01", amount: 135.4, status: "paid", paid_at: "2026-06-05T00:00:00Z" }],
+};
+
+afterEach(cleanup);
+
+describe("Crew Reward mobile reference UI", () => {
+  it("keeps hero, current projection and formula sheet amounts consistent", () => {
+    render(<CrewRewardMobile data={data} />);
+    expect(screen.getAllByText("RM 72.43").length).toBeGreaterThanOrEqual(2);
+    expect(screen.getAllByText("RM 160.96").length).toBeGreaterThanOrEqual(2);
+    fireEvent.click(screen.getByRole("button", { name: /How is this calculated/ }));
+    expect(screen.getByRole("dialog", { name: "How your Reward is calculated" })).not.toBeNull();
+    expect(screen.getAllByText("45%").length).toBeGreaterThan(0);
+    expect(screen.getAllByText("RM 72.43").length).toBeGreaterThanOrEqual(3);
+  });
+
+  it("opens help, earn-rate, projection and history sheets", () => {
+    render(<CrewRewardMobile data={data} />);
+    fireEvent.click(screen.getByRole("button", { name: "Reward help" }));
+    expect(screen.getByRole("dialog", { name: "About your Reward" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(screen.getByRole("button", { name: /How earn rate works/ }));
+    expect(screen.getByRole("dialog", { name: "Performance earn rates" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(screen.getByRole("button", { name: /How it works/ }));
+    expect(screen.getByRole("dialog", { name: "About projections" })).not.toBeNull();
+    fireEvent.click(screen.getByRole("button", { name: "Close" }));
+    fireEvent.click(screen.getByRole("button", { name: /View all/ }));
+    expect(screen.getByRole("dialog", { name: "Reward History" })).not.toBeNull();
+  });
+
+  it("deep-links to the existing Performance experience", () => {
+    const onViewPerformance = vi.fn();
+    render(<CrewRewardMobile data={data} onViewPerformance={onViewPerformance} />);
+    fireEvent.click(screen.getByRole("button", { name: /View My Performance/ }));
+    expect(onViewPerformance).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([
+    ["finalized", "Final Reward"],
+    ["paid", "Paid Reward"],
+  ])("uses the correct %s label and hides projection", (state, label) => {
+    render(<CrewRewardMobile data={{ ...data, status: state, cycle_status: state, reward_label: label, projection_applicable: false }} />);
+    expect(screen.getByText(label)).not.toBeNull();
+    expect(screen.getByText("Reward finalized")).not.toBeNull();
+    expect(screen.queryByText("Estimated Reward Projection")).toBeNull();
+  });
+});

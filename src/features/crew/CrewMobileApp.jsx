@@ -148,6 +148,7 @@ export default function CrewMobileApp() {
   const [growth, setGrowth] = useState(null);
   const [growthError, setGrowthError] = useState("");
   const [performance, setPerformance] = useState(null);
+  const [growthInitialView, setGrowthInitialView] = useState("overview");
   const [reward, setReward] = useState(null);
   const [operations, setOperations] = useState(null);
   const [roster, setRoster] = useState(null);
@@ -305,8 +306,8 @@ export default function CrewMobileApp() {
     </section>}
 
     {screen === "learn" && <CrewLearningMobile token={session.token} onRefreshHome={setLearningHome} />}
-    {screen === "reward" && <CrewRewardMobile data={reward} loading={pageLoading && !reward} onRetry={() => refresh()} />}
-    {screen === "growth" && <CrewGrowthMobile data={growth} performance={performance} loading={pageLoading && !growth} error={growthError} onRetry={() => refresh()} />}
+    {screen === "reward" && <CrewRewardMobile data={reward} loading={pageLoading && !reward} onRetry={() => refresh()} onViewPerformance={() => { setGrowthInitialView("performance"); setScreen("growth"); }} />}
+    {screen === "growth" && <CrewGrowthMobile initialView={growthInitialView} data={growth} performance={performance} loading={pageLoading && !growth} error={growthError} onRetry={() => refresh()} />}
     {screen === "operations" && <CrewOperationsMobile token={session.token} data={operations} loading={pageLoading && !operations} onRefresh={() => refresh()} onBack={() => setScreen("home")} />}
     {screen === "leave" && <CrewLeaveMobile token={session.token} onBack={() => setScreen("me")} onChanged={() => refresh()} />}
 
@@ -326,6 +327,6 @@ export default function CrewMobileApp() {
       {passcodeChangeOpen && <form className="crew-v2-passcode-form" onSubmit={changePasscode}><div className="crew-v2-section-title"><h2>Change Passcode</h2><button type="button" onClick={() => setPasscodeChangeOpen(false)}>Close</button></div><label>Current passcode<input inputMode="numeric" maxLength="4" value={currentPasscode} onChange={(event) => setCurrentPasscode(event.target.value.replace(/\D/g, ""))} /></label><label>New passcode<input inputMode="numeric" maxLength="4" value={newPasscode} onChange={(event) => setNewPasscode(event.target.value.replace(/\D/g, ""))} /></label>{error && <div className="crew-v2-error">{error}</div>}<button className="crew-v2-primary" disabled={loading}>Save Passcode</button></form>}
     </section>}
 
-    <CrewBottomNav items={navItems} active={["operations", "attendance", "schedule"].includes(screen) ? "home" : screen === "leave" ? "me" : screen} onChange={(next) => { setScreen(next); if (next === "me") setMeView("main"); }} />
+    <CrewBottomNav items={navItems} active={["operations", "attendance", "schedule"].includes(screen) ? "home" : screen === "leave" ? "me" : screen} onChange={(next) => { if (next === "growth") setGrowthInitialView("overview"); setScreen(next); if (next === "me") setMeView("main"); }} />
   </section></main>;
 }

@@ -6,6 +6,7 @@ const sql = fs.readFileSync(path.resolve("supabase/migrations/20260812163541_cre
 const runtimeFix = fs.readFileSync(path.resolve("supabase/migrations/20260812164410_crew_reward_mark_paid_runtime_fix.sql"), "utf8").toLowerCase();
 const strictCap = fs.readFileSync(path.resolve("supabase/migrations/20260812164932_crew_reward_strict_pool_cap.sql"), "utf8").toLowerCase();
 const mobileRuntimeFix = fs.readFileSync(path.resolve("supabase/migrations/20260812170155_crew_reward_mobile_runtime_fix.sql"), "utf8").toLowerCase();
+const tierV2 = fs.readFileSync(path.resolve("supabase/migrations/20260813121018_crew_reward_tier_formula_v2.sql"), "utf8").toLowerCase();
 
 describe("Crew Reward engine migration contract", () => {
   it("keeps calculation server-derived and versioned", () => {
@@ -62,5 +63,26 @@ describe("Crew Reward engine migration contract", () => {
 
   it("keeps token-bound mobile reads writable for session activity", () => {
     expect(mobileRuntimeFix).toContain("alter function public.crew_reward_mobile(text,date) volatile");
+  });
+
+  it("uses the approved contribution-share and exact performance tier formula", () => {
+    expect(tierV2).toContain("when p_score >= 95 then 1.00");
+    expect(tierV2).toContain("when p_score >= 90 then 0.90");
+    expect(tierV2).toContain("when p_score >= 85 then 0.80");
+    expect(tierV2).toContain("when p_score >= 80 then 0.65");
+    expect(tierV2).toContain("when p_score >= 75 then 0.45");
+    expect(tierV2).toContain("when p_score >= 70 then 0.20");
+    expect(tierV2).toContain("cycle.configured_pool * (eligible_hours / total_hours) * performance_factor");
+    expect(tierV2).not.toContain("payout_scale");
+  });
+
+  it("returns projections and formula inputs without other Crew or adjustment data", () => {
+    expect(tierV2).toContain("'maximum_share', maximum_share");
+    expect(tierV2).toContain("'total_eligible_hours', round(total_hours, 2)");
+    expect(tierV2).toContain("'earn_rate_tiers'");
+    expect(tierV2).toContain("employee := public.crew_session_employee(p_token)");
+    expect(tierV2).not.toMatch(/create or replace function public\.crew_reward_mobile[\s\S]*'employee_name'/);
+    expect(tierV2).not.toMatch(/create or replace function public\.crew_reward_mobile[\s\S]*adjustment.*reason/);
+    expect(tierV2).toContain("revoke all on function public.crew_reward_mobile(text,date) from public, anon, authenticated");
   });
 });

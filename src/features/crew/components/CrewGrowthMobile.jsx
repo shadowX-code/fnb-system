@@ -43,8 +43,8 @@ function PageHeader({ title, onBack, action }) {
   </header>;
 }
 
-export default function CrewGrowthMobile({ data, performance, loading, error, onRetry }) {
-  const [view, setView] = useState("overview");
+export default function CrewGrowthMobile({ data, performance, loading, error, onRetry, initialView = "overview" }) {
+  const [view, setView] = useState(initialView);
   const [selectedSkill, setSelectedSkill] = useState(null);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All");
