@@ -236,7 +236,7 @@ function buildComponentGuidance(component) {
       improve = gaps.filter((row) => row.rating === "needs_improvement").map((row) => conductAdvice[row.key]).filter(Boolean).slice(0, 3);
       if (!improve.length) improve = ["Use the next workplace review to demonstrate these standards consistently."];
     }
-    whatCounts = key === "service" ? "Your score is based on verified criteria-based service reviews for this period." : "Your score is based on verified criteria-based workplace reviews. Private manager notes are never shown here.";
+    whatCounts = key === "service" ? "Your score is based on verified criteria-based service reviews for this period." : "Your score is based on verified criteria-based workplace reviews for this period.";
     cta = { label: key === "service" ? "View Related Skills" : "View Growth", action: key === "service" ? "skills" : "growth" };
   } else if (key === "customer") {
     const samples = asNumber(item?.sample_count) ?? 0;
